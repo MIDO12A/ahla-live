@@ -1,0 +1,227 @@
+{
+  "totalDocs": 17,
+  "docs": {
+    "03f62357-e4d0-462c-9aa3-3c9c290a6c6e": {
+      "_data": {
+        "room_id": "2675257",
+        "room_name": "mido",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788448245/gift_icons/1788448225913_2cec1a02348cf5bd07e39f6d9de75bee-1776345930269.png.png?assetType=png",
+        "created_at": "2026-09-12T12:14:28.068725",
+        "sender_name": "mido",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "big_gift",
+        "content": "أرسل هدية كبرى: ZERO 👑  x1!"
+      }
+    },
+    "0xFBDt6z3pqNvDYfzUJ3": {
+      "_data": {
+        "content": "أرسل ZERO 👑  x1 بقيمة 50000 عملة!",
+        "created_at": "2026-09-12T11:16:01.051426",
+        "sender_name": "mido",
+        "type": "big_gift",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788448262/gift_animations/1788448232137_2cec1a02348cf5bd07e39f6d9de75bee.mp4.mp4?assetType=vap",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "room_id": "2675257",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "room_name": "غرفة صوتية"
+      }
+    },
+    "289dfc3d-c294-42bc-b210-8361ac1c333e": {
+      "_data": {
+        "room_id": "2675257",
+        "room_name": "mido",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788448337/gift_icons/1788448318326_9.png.png?assetType=png",
+        "created_at": "2026-09-12T11:15:29.516200",
+        "sender_name": "mido",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "big_gift",
+        "content": "أرسل هدية كبرى: ملك x1!"
+      }
+    },
+    "2B0CbE7MEGl7JWXYF4W2": {
+      "_data": {
+        "created_at": "2026-09-12T12:43:55.246139",
+        "type": "big_gift",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "room_name": "غرفة صوتية",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788448347/gift_animations/1788448326931_9.mp4.mp4?assetType=vap",
+        "sender_name": "mido",
+        "content": "أرسل ملك x1 بقيمة 50000 عملة!",
+        "room_id": "2675257",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c"
+      }
+    },
+    "4fgPKyblvjM9yQyiMhJQ": {
+      "_data": {
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788692741/gift_icons/1788692721770_gift_60617_1x.png.png?assetType=png",
+        "room_name": "غرفة صوتية",
+        "sender_name": "mido",
+        "created_at": "2026-09-12T13:31:13.787959",
+        "room_id": "2675257",
+        "multiplier": 100,
+        "type": "lucky_gift",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "content": "🎉 فاز بمضاعف 100 X في هدية الحظ 21!",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c"
+      }
+    },
+    "65922cc7-f321-4f3b-b4e7-b337f3cd0b1f": {
+      "_data": {
+        "room_id": "2675257",
+        "room_name": "mido",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788448386/gift_icons/1788448367023_18_600_8-1776355496508.png.png?assetType=png",
+        "created_at": "2026-09-12T11:15:43.795208",
+        "sender_name": "mido",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "big_gift",
+        "content": "أرسل هدية كبرى: شيشه x1!"
+      }
+    },
+    "6b6a7ac6-ad1a-42bf-9a93-7139d8db56f5": {
+      "_data": {
+        "room_id": "2675257",
+        "room_name": "mido",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788448337/gift_icons/1788448318326_9.png.png?assetType=png",
+        "created_at": "2026-09-12T12:43:42.639647",
+        "sender_name": "mido",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "big_gift",
+        "content": "أرسل هدية كبرى: ملك x1!"
+      }
+    },
+    "ab62ddda-3399-4324-928b-905ca7d7f7f5": {
+      "_data": {
+        "room_id": "2675257",
+        "room_name": "mido",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788448337/gift_icons/1788448318326_9.png.png?assetType=png",
+        "created_at": "2026-09-12T12:43:54.577259",
+        "sender_name": "mido",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "big_gift",
+        "content": "أرسل هدية كبرى: ملك x1!"
+      }
+    },
+    "d9264e36-cdd3-44f0-ae2b-b887ca46e5a5": {
+      "_data": {
+        "room_id": "2675257",
+        "room_name": "mido",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788448245/gift_icons/1788448225913_2cec1a02348cf5bd07e39f6d9de75bee-1776345930269.png.png?assetType=png",
+        "created_at": "2026-09-12T18:07:41.853444",
+        "sender_name": "mido",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "big_gift",
+        "content": "أرسل هدية كبرى: ZERO 👑  x1!"
+      }
+    },
+    "dc588c40-a2f0-4d37-a6cc-9e999fdb9909": {
+      "_data": {
+        "room_id": "2675257",
+        "room_name": "mido",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788448245/gift_icons/1788448225913_2cec1a02348cf5bd07e39f6d9de75bee-1776345930269.png.png?assetType=png",
+        "created_at": "2026-09-12T12:44:05.375588",
+        "sender_name": "mido",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "big_gift",
+        "content": "أرسل هدية كبرى: ZERO 👑  x1!"
+      }
+    },
+    "effe4029-19ed-4190-ba4d-512771653093": {
+      "_data": {
+        "room_id": "2675257",
+        "room_name": "mido",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788448245/gift_icons/1788448225913_2cec1a02348cf5bd07e39f6d9de75bee-1776345930269.png.png?assetType=png",
+        "created_at": "2026-09-12T11:16:00.047579",
+        "sender_name": "mido",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "big_gift",
+        "content": "أرسل هدية كبرى: ZERO 👑  x1!"
+      }
+    },
+    "euzGj4Ww6rgqBfPmHXmJ": {
+      "_data": {
+        "sender_name": "mido",
+        "room_name": "غرفة صوتية",
+        "content": "أرسل ملك x1 بقيمة 50000 عملة!",
+        "room_id": "2675257",
+        "created_at": "2026-09-12T12:43:43.255873",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788448347/gift_animations/1788448326931_9.mp4.mp4?assetType=vap",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "type": "big_gift"
+      }
+    },
+    "hLUYeyS3yucINTVmVRvG": {
+      "_data": {
+        "type": "big_gift",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788448262/gift_animations/1788448232137_2cec1a02348cf5bd07e39f6d9de75bee.mp4.mp4?assetType=vap",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "created_at": "2026-09-12T18:07:42.314432",
+        "room_name": "غرفة صوتية",
+        "room_id": "2675257",
+        "content": "أرسل ZERO 👑  x1 بقيمة 50000 عملة!",
+        "sender_name": "mido"
+      }
+    },
+    "hUCX40Kp6FhCtL5OyZVr": {
+      "_data": {
+        "content": "أرسل ZERO 👑  x1 بقيمة 50000 عملة!",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "room_id": "2675257",
+        "sender_name": "mido",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788448262/gift_animations/1788448232137_2cec1a02348cf5bd07e39f6d9de75bee.mp4.mp4?assetType=vap",
+        "type": "big_gift",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "room_name": "غرفة صوتية",
+        "created_at": "2026-09-12T12:44:05.697541"
+      }
+    },
+    "lN4HhygeJlJUT2oKpDV2": {
+      "_data": {
+        "room_name": "غرفة صوتية",
+        "sender_name": "mido",
+        "room_id": "2675257",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788448262/gift_animations/1788448232137_2cec1a02348cf5bd07e39f6d9de75bee.mp4.mp4?assetType=vap",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "content": "أرسل ZERO 👑  x1 بقيمة 50000 عملة!",
+        "type": "big_gift",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "created_at": "2026-09-12T12:14:29.161508"
+      }
+    },
+    "nGFiKQzchJF8gSM1Ta7j": {
+      "_data": {
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "created_at": "2026-09-12T11:15:44.929247",
+        "room_id": "2675257",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788448425/gift_animations/1788448405784_18_600_8.mp4.mp4?assetType=mp4",
+        "content": "أرسل شيشه x1 بقيمة 20000 عملة!",
+        "type": "big_gift",
+        "room_name": "غرفة صوتية",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "sender_name": "mido"
+      }
+    },
+    "vtWKWAIzLP390sFcRxqg": {
+      "_data": {
+        "room_id": "2675257",
+        "room_name": "غرفة صوتية",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "sender_name": "mido",
+        "gift_icon": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788448347/gift_animations/1788448326931_9.mp4.mp4?assetType=vap",
+        "type": "big_gift",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "created_at": "2026-09-12T11:15:30.599876",
+        "content": "أرسل ملك x1 بقيمة 50000 عملة!"
+      }
+    }
+  }
+}

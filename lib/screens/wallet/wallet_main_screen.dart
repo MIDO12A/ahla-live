@@ -7,6 +7,7 @@ import '../../services/dynamic_config_service.dart';
 import '../../services/supabase_service.dart';
 import '../../core/supabase_compat.dart';
 import '../payment/google_pay_screen.dart';
+import '../../features/events/screens/recharge_event_screen.dart';
 
 class WalletMainScreen extends StatefulWidget {
   const WalletMainScreen({super.key});
@@ -382,6 +383,93 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                   ],
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Recharge Event Banner
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RechargeEventScreen(),
+                ),
+              );
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF9800), Color(0xFFFF5722), Color(0xFFE91E63)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF5722).withOpacity(0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Image.asset(
+                      'assets/recharge_event/100K.png',
+                      width: 32,
+                      height: 32,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.military_tech, color: Colors.amber, size: 30),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          '⚡ حدث الشحن الأسطوري',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'اشحن كوينز وافتح 14 مستوى من الجوائز ومؤثرات SVGA!',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'دخول',
+                      style: TextStyle(
+                        color: Color(0xFFD81B60),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),

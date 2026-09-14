@@ -1,0 +1,19 @@
+{
+  "totalDocs": 2,
+  "docs": {
+    "RxzvWUuj7gYMDY0ifbuO": {
+      "_data": {
+        "user_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "agency_id": "fI2NkTZ3LQOQEQY91Xol",
+        "created_at": "2026-08-25T21:55:45.743079Z"
+      }
+    },
+    "tLkVchukUe9NDYhEW3qU": {
+      "_data": {
+        "created_at": "2026-09-06T23:39:13.965575Z",
+        "user_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "agency_id": "fI2NkTZ3LQOQEQY91Xol"
+      }
+    }
+  }
+}

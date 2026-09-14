@@ -1,0 +1,32 @@
+{
+  "totalDocs": 1,
+  "docs": {
+    "4B3uTBR9PenUBpKYGAZU": {
+      "_data": {
+        "custom_id": "336817",
+        "owner_user_id": "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "monthly_diamonds": 0,
+        "is_hall_of_fame": false,
+        "is_active": true,
+        "total_diamonds_earned": 0,
+        "id": "4B3uTBR9PenUBpKYGAZU",
+        "phone": "01102930761",
+        "name": "mido",
+        "tier": "bronze",
+        "created_at": "2026-09-11T14:48:56.818566Z",
+        "kayan_id": "336817",
+        "description": "mido",
+        "numeric_id": "336817",
+        "specialty": "mixed",
+        "country": "مصر",
+        "commission_rate": 0.1,
+        "adminName": "mido@admin.com",
+        "owner_id": "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "photo_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1789148924/store_icons/1789148900275_4b768d9af7b43dcd5125daf631fa8839.jpg.jpg?assetType=jpg",
+        "member_count": 2,
+        "total_diamonds_monthly": 997655,
+        "total_diamonds_cumulative": 997655
+      }
+    }
+  }
+}

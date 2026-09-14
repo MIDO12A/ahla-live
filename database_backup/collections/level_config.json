@@ -1,0 +1,90 @@
+{
+  "totalDocs": 5,
+  "docs": {
+    "wealth_1": {
+      "_data": {
+        "level": 1,
+        "type": "wealth",
+        "title": "Level 1",
+        "min_exp": 1000,
+        "rewards": {
+          "coins": 100
+        },
+        "box_image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787547121/level_icons/1787547107172_mine_mall_item_bg.webp.webp?assetType=webp",
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787547089/level_icons/1787547074562_1.png.png?assetType=png",
+        "progress_color": null,
+        "max_exp": 5000000,
+        "frame_url": "https://res.cloudinary.com/dl30muiuc/raw/upload/v1787547103/level_icons/1787547086990_1.svga?assetType=svga",
+        "badge_url": null
+      }
+    },
+    "wealth_2": {
+      "_data": {
+        "level": 2,
+        "type": "wealth",
+        "title": "Level 2",
+        "min_exp": 2000,
+        "max_exp": 3000,
+        "rewards": {
+          "coins": 200
+        },
+        "badge_url": null,
+        "box_image_url": null,
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788446601/level_icons/1788446580842_2.png.png?assetType=png",
+        "progress_color": null,
+        "frame_url": null
+      }
+    },
+    "wealth_3": {
+      "_data": {
+        "level": 3,
+        "type": "wealth",
+        "title": "Level 3",
+        "min_exp": 3000,
+        "max_exp": 4000,
+        "rewards": {
+          "coins": 300
+        },
+        "badge_url": null,
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788446612/level_icons/1788446593026_3.png.png?assetType=png",
+        "progress_color": null,
+        "frame_url": null,
+        "box_image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788446657/level_icons/1788446638290_14.png.png?assetType=png"
+      }
+    },
+    "wealth_4": {
+      "_data": {
+        "level": 4,
+        "type": "wealth",
+        "title": "Level 4",
+        "min_exp": 4000,
+        "max_exp": 5000,
+        "rewards": {
+          "coins": 400
+        },
+        "badge_url": null,
+        "box_image_url": null,
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788446628/level_icons/1788446608872_4.png.png?assetType=png",
+        "progress_color": null,
+        "frame_url": null
+      }
+    },
+    "wealth_5": {
+      "_data": {
+        "max_exp": 6000,
+        "type": "wealth",
+        "title": "Level 5",
+        "level": 5,
+        "rewards": {
+          "coins": 500
+        },
+        "min_exp": 5000,
+        "badge_url": null,
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788446688/level_icons/1788446669196_5.png.png?assetType=png",
+        "progress_color": null,
+        "frame_url": null,
+        "box_image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788446857/level_icons/1788446838282_bg_activity_s_vip_ranking_top.webp.webp?assetType=webp"
+      }
+    }
+  }
+}

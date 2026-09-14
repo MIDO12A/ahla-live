@@ -1,0 +1,47 @@
+{
+  "totalDocs": 6,
+  "docs": {
+    "17v9pLKGP8WwzuEUCUCfTAHktKo1": {
+      "_data": {
+        "user_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "gold_balance": 2645000,
+        "diamond_balance": 91149769
+      }
+    },
+    "i4CHsNBGqtfMowNGa1KieOsJYmG2": {
+      "_data": {
+        "user_id": "i4CHsNBGqtfMowNGa1KieOsJYmG2",
+        "gold_balance": 0,
+        "diamond_balance": 40000
+      }
+    },
+    "o9a3npV62pMWMynP9us2Q1XxTB63": {
+      "_data": {
+        "user_id": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "gold_balance": 60000,
+        "diamond_balance": 105729952
+      }
+    },
+    "test_txn_receiver_b": {
+      "_data": {
+        "user_id": "test_txn_receiver_b",
+        "diamond_balance": 50,
+        "gold_balance": 0
+      }
+    },
+    "test_txn_sender_a": {
+      "_data": {
+        "user_id": "test_txn_sender_a",
+        "diamond_balance": 50,
+        "gold_balance": 0
+      }
+    },
+    "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2": {
+      "_data": {
+        "user_id": "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "gold_balance": 2450500,
+        "diamond_balance": 5073581
+      }
+    }
+  }
+}

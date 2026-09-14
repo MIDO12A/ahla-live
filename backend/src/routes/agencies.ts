@@ -192,4 +192,113 @@ router.get('/all', authenticate, requireRole('admin'), async (_req: Request, res
   }
 });
 
+/**
+ * POST /api/v1/agencies/withdraw
+ * Allows agency owner to request diamond withdrawal (USDT TRC20 / Bank).
+ */
+router.post('/withdraw', authenticate, async (req: Request, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const { agencyId, diamonds: rawDiamonds, payoutMethod, payoutAddress, accountDetails } = req.body ?? {};
+  const diamonds = Math.trunc(Number(rawDiamonds) || 0);
+
+  if (!agencyId || diamonds < 5000) {
+    res.status(400).json({ error: 'Invalid parameters: minimum withdrawal is 5,000 diamonds ($5.00)' });
+    return;
+  }
+
+  const method = String(payoutMethod ?? 'usdt_trc20');
+  const address = String(payoutAddress ?? accountDetails ?? '').trim();
+  if (!address) {
+    res.status(400).json({ error: 'Payout address or account details required' });
+    return;
+  }
+
+  try {
+    const agencyRef = db.collection('host_agencies').doc(agencyId);
+    const agencyWalletRef = db.collection('agency_wallets').doc(agencyId);
+    const withdrawalId = uuidv4();
+    const now = new Date().toISOString();
+    const usdEquivalent = Math.round((diamonds / 1000) * 100) / 100;
+
+    await db.runTransaction(async (txn) => {
+      const [aSnap, wSnap] = await Promise.all([
+        txn.get(agencyRef),
+        txn.get(agencyWalletRef),
+      ]);
+
+      if (!aSnap.exists) {
+        throw new Error('agency_not_found');
+      }
+      const aData = aSnap.data() ?? {};
+      if (String(aData.owner_id ?? aData.owner_uid ?? '') !== uid) {
+        throw new Error('forbidden_not_agency_owner');
+      }
+
+      const wData = wSnap.exists ? (wSnap.data() ?? {}) : {};
+      const currentBalance = Math.trunc(Number(wData.diamond_balance ?? 0));
+      if (currentBalance < diamonds) {
+        throw new Error('insufficient_diamond_balance');
+      }
+
+      txn.set(
+        agencyWalletRef,
+        {
+          diamond_balance: FieldValue.increment(-diamonds),
+          total_withdrawn_diamonds: FieldValue.increment(diamonds),
+          updated_at: now,
+        },
+        { merge: true },
+      );
+
+      txn.set(db.collection('agency_withdrawals').doc(withdrawalId), {
+        id: withdrawalId,
+        agency_id: agencyId,
+        owner_id: uid,
+        amount_diamonds: diamonds,
+        usd_amount: usdEquivalent,
+        payout_method: method,
+        payout_address: address,
+        status: 'pending',
+        created_at: now,
+      });
+    });
+
+    res.json({
+      success: true,
+      withdrawal_id: withdrawalId,
+      diamonds_withdrawn: diamonds,
+      usd_amount: usdEquivalent,
+      status: 'pending',
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'withdrawal_failed' });
+  }
+});
+
+/**
+ * GET /api/v1/agencies/:id/withdrawals
+ * Retrieves withdrawal history for an agency.
+ */
+router.get('/:id/withdrawals', authenticate, async (req: Request, res: Response) => {
+  const agencyId = req.params.id;
+  try {
+    const snap = await db
+      .collection('agency_withdrawals')
+      .where('agency_id', '==', agencyId)
+      .orderBy('created_at', 'desc')
+      .limit(50)
+      .get();
+
+    res.json({ withdrawals: snap.docs.map((d) => d.data()) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
+

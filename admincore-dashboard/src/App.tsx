@@ -46,6 +46,7 @@ import RedPacketsManager from './pages/RedPacketsManager';
 import TasksManager from './pages/TasksManager';
 import AppSounds from './pages/AppSounds';
 import ZegoAudioSettings from './pages/ZegoAudioSettings';
+import RechargeEventManager from './pages/RechargeEventManager';
 import t from './lib/i18n';
 
 export default function App() {
@@ -138,6 +139,7 @@ export default function App() {
             <Route path="/app-sounds" element={<AppSounds />} />
             <Route path="/audio-settings" element={<ZegoAudioSettings />} />
             <Route path="/zego-audio" element={<ZegoAudioSettings />} />
+            <Route path="/recharge-event" element={<RechargeEventManager />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -89,8 +89,28 @@ export async function completeOrder(orderId: string, adminUid: string): Promise<
     await addXp(userUid, order.amount * 10, 'recharge_exp');
   } catch {}
 
+  // Update active recharge event progress
+  try {
+    const now = new Date();
+    const eventId = `recharge_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const progressRef = db.collection('recharge_event_progress').doc(`${eventId}_${userUid}`);
+    const coinsRecharged = (order.amount || 1) * 10000;
+    await progressRef.set(
+      {
+        event_id: eventId,
+        user_id: userUid,
+        total_recharged_coins: FieldValue.increment(coinsRecharged),
+        updated_at: now.toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.error('[rechargeService] update event progress error:', err);
+  }
+
   return { success: true };
 }
+
 
 export async function getUserOrders(userId: string): Promise<any[]> {
   const snap = await db

@@ -1,0 +1,25 @@
+{
+  "totalDocs": 1,
+  "docs": {
+    "badge_1787545458843": {
+      "_data": {
+        "id": "badge_1787545458843",
+        "name": "",
+        "name_ar": "1111",
+        "name_en": "",
+        "description": "",
+        "description_ar": "",
+        "description_en": "",
+        "icon_asset": "https://res.cloudinary.com/dl30muiuc/raw/upload/v1787545462/gift_animations/1787545446692_1.svga?assetType=svga",
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787545468/gift_icons/1787545450899_1.png.png?assetType=png",
+        "svga_url": "https://res.cloudinary.com/dl30muiuc/raw/upload/v1787545462/gift_animations/1787545446692_1.svga?assetType=svga",
+        "unlock_condition": "",
+        "sort_order": 0,
+        "is_active": true,
+        "type": "admin",
+        "level_type": "",
+        "level_number": 0
+      }
+    }
+  }
+}

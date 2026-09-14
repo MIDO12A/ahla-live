@@ -1,0 +1,31 @@
+{
+  "totalDocs": 2,
+  "docs": {
+    "2675257_17v9pLKGP8WwzuEUCUCfTAHktKo1": {
+      "_data": {
+        "room_id": "2675257",
+        "photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "name": "mido",
+        "role": "member",
+        "uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "joined_at": "2026-09-12T18:10:05.936483",
+        "last_ping": {
+          "__type": "timestamp",
+          "seconds": 1789225808,
+          "nanoseconds": 931000000,
+          "iso": "2026-09-12T15:10:08.931Z"
+        }
+      }
+    },
+    "2675257_o9a3npV62pMWMynP9us2Q1XxTB63": {
+      "_data": {
+        "name": "MIDO",
+        "role": "member",
+        "joined_at": "2026-09-03T08:15:05.116765",
+        "uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "photo_url": "https://lh3.googleusercontent.com/a/ACg8ocL4pTndGUMaXG1EYCGejZMEAmfjO04qmKI3n1OgZdGesRm0fPfq=s96-c",
+        "room_id": "2675257"
+      }
+    }
+  }
+}

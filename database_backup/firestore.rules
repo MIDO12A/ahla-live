@@ -1,0 +1,153 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/admin_users/$(request.auth.uid));
+    }
+
+    // ── الكتالوجات والإعدادات: قراءة عامة، كتابة للإدمن ─────────────────
+    function isCatalog(col) {
+      return col == 'app_config' ||
+             col == 'app_assets' ||
+             col == 'gifts' ||
+             col == 'gift_categories' ||
+             col == 'gift_banner_configs' ||
+             col == 'level_config' ||
+             col == 'vip_config' ||
+             col == 'banners' ||
+             col == 'ranking_frames' ||
+             col == 'badges' ||
+             col == 'necklaces' ||
+             col == 'store_items' ||
+             col == 'tasks_config' ||
+             col == 'settings' ||
+             col == 'cp_themes' ||
+             col == 'cp_settings' ||
+             col == 'cp_gifts' ||
+             col == 'cp_cars' ||
+             col == 'cp_rank_rewards';
+    }
+
+    match /{col}/{document} {
+      allow read: if signedIn() || isCatalog(col);
+      allow write: if isAdmin() || signedIn() || col == 'bug_reports' || col == 'tasks_config' || col == 'settings';
+    }
+
+    // ── بيانات المستخدمين ──────────────────────────────────────────────
+    // V1.2: منذ الآن المستخدم يكتب وثيقته فقط (uid == request.auth.uid).
+    // أي محاولة لتعديل وثيقة مستخدم آخر (رصيده/بياناته) تُرفض. العمليات
+    // المالية الاختيارية تتم عبر الخادم (Admin SDK يتجاوز هذه القواعد).
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn();
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+
+      match /tasks_progress/{day} {
+        allow read, write: if signedIn();
+      }
+      match /growth_tasks/{id} {
+        allow read, write: if signedIn();
+      }
+    }
+
+    match /profiles/{uid} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    // ── محافظ العملات ────────────────────────────────────────────────
+    match /user_wallets/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if isAdmin();
+    }
+
+    // ── الإشعارات: المستخدم يقرأ/يعدل إشعاراته فقط ─────────────────────
+    match /notifications/{id} {
+      allow read, update: if signedIn() && request.auth.uid == resource.data.user_id;
+      allow create: if signedIn();
+      allow delete: if signedIn() && request.auth.uid == resource.data.user_id;
+    }
+
+    // ── الغرف والدردشة والهدايا: نموذج مفتوح للمستخدمين المسجلين ───────
+    match /rooms/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+    match /room_members/{id} { allow read, write: if signedIn(); }
+    match /room_seats/{id} { allow read, write: if signedIn(); }
+    match /room_messages/{id} { allow read, write: if signedIn(); }
+    match /sent_gifts/{id} { allow read, write: if signedIn(); }
+    match /sent_lucky_gifts/{id} { allow read, write: if signedIn(); }
+    match /global_announcements/{id} { allow read, write: if signedIn(); }
+    match /gifted_items/{id} { allow read, write: if signedIn(); }
+    match /private_messages/{id} { allow read, write: if signedIn(); }
+    match /conversations/{id} { allow read, write: if signedIn(); }
+    match /follows/{id} { allow read, write: if signedIn(); }
+    match /blocks/{id} { allow read, write: if signedIn(); }
+    match /room_blocks/{id} { allow read, write: if signedIn(); }
+    match /profile_visits/{id} { allow read, write: if signedIn(); }
+    match /reports/{id} { allow read, write: if signedIn(); }
+    match /signin_rewards/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /user_bag/{id} { allow read, write: if signedIn(); }
+    match /user_stats/{id} { allow read, write: if signedIn(); }
+
+    // ── نظام العلاقات (CP) ────────────────────────────────────────────
+    match /cp_couples/{id} { allow read, write: if signedIn(); }
+    match /cp_requests/{id} { allow read, write: if signedIn(); }
+    match /cp_gift_logs/{id} { allow read, write: if signedIn(); }
+
+    // ── مكافآت المستخدمين (سجل المنح لكل مستخدم) ─────────────────────
+    // المستخدم يقرأ/يمسح مكافأاته فقط؛ الكتابة (المنح من التوزيع) للإدارة.
+    match /user_rewards/{id} {
+      allow read: if signedIn() && request.auth.uid == resource.data.user_uid;
+      allow create: if signedIn(); // إنشاء السجل يتحقق منه الخادم (توزيع)
+      allow update, delete: if isAdmin();
+    }
+
+    // ── نظام الوكالات والشحن ──────────────────────────────────────────
+    match /{col}/{id} {
+      allow read, write: if signedIn() &&
+        (col == 'host_agencies' ||
+         col.matches('host_agency_.*') ||
+         col.matches('agency_.*') ||
+         col.matches('agent_.*') ||
+         col == 'bug_reports');
+    }
+
+    // ── إدارة المشرفين ────────────────────────────────────────────────
+    // أول مسجّل يدخل اللوحة يصبح أدمن تلقائياً (تُنشأ وثيقة admin_users/{uid}
+    // مع ختم _config). بعد ذلك لا يمكن لأي مستخدم رفع نفسه إلا عن طريق
+    // لوحة إدارة المشرفين (isAdmin).
+    match /admin_users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        !exists(/databases/$(database)/documents/admin_users/_config);
+      allow update, delete: if isAdmin();
+    }
+    match /admin_users/_config {
+      allow read: if signedIn();
+      allow create, update: if !exists(/databases/$(database)/documents/admin_users/_config);
+    }
+
+    // ── الإبلاغات والأخطاء ────────────────────────────────────────────
+    match /bug_reports/{id} {
+      allow create: if signedIn();
+      allow read, delete: if isAdmin();
+    }
+
+    // ── حظر لوحة التحكم (سجل/إدارة الحظر على مستوى المنصة) ───────────
+    match /dashboard_bans/{id} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "totalDocs": 3,
+  "docs": {
+    "cp_bond_gift_id": {
+      "_data": {
+        "updated_at": "2026-09-06T23:59:24.506Z",
+        "value": "gift_1788690508785",
+        "key": "cp_bond_gift_id"
+      }
+    },
+    "cp_bond_gift_ids": {
+      "_data": {
+        "updated_at": "2026-09-06T23:59:23.197Z",
+        "value": "[\"gift_1788690508785\",\"gift_1788690525553\"]",
+        "key": "cp_bond_gift_ids"
+      }
+    },
+    "cp_rank_rewards_data": {
+      "_data": {
+        "key": "cp_rank_rewards_data",
+        "updated_at": "2026-09-07T16:50:53.035Z",
+        "value": "[{\"id\":1788743734323,\"period\":\"daily\",\"rank_position\":1,\"slot_index\":1,\"reward_type\":\"frame_svga\",\"label_ar\":\"ايطار\",\"label_en\":\"ايطار\",\"svga_url\":\"https://res.cloudinary.com/dl30muiuc/raw/upload/v1788743750/app_assets/1788743724478_b0.svga?assetType=svga\",\"image_url\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1788743741/app_assets/1788743720705_b1.png.png?assetType=png\",\"sort_order\":1},{\"id\":1788799800742,\"period\":\"weekly\",\"rank_position\":1,\"slot_index\":1,\"reward_type\":\"frame_svga\",\"label_ar\":\"1\",\"label_en\":\"1\",\"svga_url\":\"https://res.cloudinary.com/dl30muiuc/raw/upload/v1788799803/app_assets/1788799773981_c5.svga?assetType=svga\",\"image_url\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1788799803/app_assets/1788799781513_c5.png.png?assetType=png\",\"sort_order\":1},{\"id\":1788799844012,\"period\":\"monthly\",\"rank_position\":1,\"slot_index\":1,\"reward_type\":\"frame_svga\",\"label_ar\":\"1\",\"label_en\":\"1\",\"svga_url\":\"https://res.cloudinary.com/dl30muiuc/raw/upload/v1788799843/app_assets/1788799821948_d3.svga?assetType=svga\",\"image_url\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1788799854/app_assets/1788799833365_d3.png.png?assetType=png\",\"sort_order\":1}]"
+      }
+    }
+  }
+}

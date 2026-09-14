@@ -1,0 +1,106 @@
+{
+  "totalDocs": 7,
+  "docs": {
+    "daily_login": {
+      "_data": {
+        "action_route": "none",
+        "exp_reward": 20,
+        "target_count": 1,
+        "title_ar": "تسجيل الدخول اليومي",
+        "coins_reward": 200,
+        "description_en": "Log in daily to claim coins",
+        "title_en": "Daily Login",
+        "id": "daily_login",
+        "description_ar": "سجل دخولك إلى التطبيق يومياً للحصول على المكافأة",
+        "group": "daily"
+      }
+    },
+    "daily_room_time": {
+      "_data": {
+        "action_route": "room",
+        "exp_reward": 30,
+        "target_count": 1,
+        "title_ar": "البقاء في الغرفة 10 دقائق",
+        "coins_reward": 350,
+        "description_en": "Spend 10 minutes in any room",
+        "title_en": "Stay 10m in Room",
+        "id": "daily_room_time",
+        "description_ar": "اقضِ 10 دقائق داخل أي غرفة صوتية",
+        "group": "daily"
+      }
+    },
+    "daily_send_gift": {
+      "_data": {
+        "action_route": "gift",
+        "exp_reward": 50,
+        "target_count": 1,
+        "title_ar": "إرسال هدية في الغرفة",
+        "coins_reward": 500,
+        "description_en": "Send a gift to any user in room",
+        "title_en": "Send Gift",
+        "id": "daily_send_gift",
+        "description_ar": "أرسل أي هدية إلى أي مستخدم داخل الروم",
+        "group": "daily"
+      }
+    },
+    "daily_send_msg": {
+      "_data": {
+        "action_route": "room",
+        "exp_reward": 15,
+        "target_count": 5,
+        "title_ar": "التفاعل بالدردشة",
+        "coins_reward": 150,
+        "description_en": "Send 5 chat messages in room",
+        "title_en": "Send 5 Messages",
+        "id": "daily_send_msg",
+        "description_ar": "أرسل 5 رسائل نصية داخل الغرف الصوتية",
+        "group": "daily"
+      }
+    },
+    "growth_first_recharge": {
+      "_data": {
+        "action_route": "recharge",
+        "exp_reward": 500,
+        "target_count": 1,
+        "title_ar": "الشحن لأول مرة",
+        "coins_reward": 5000,
+        "description_en": "Make your first recharge",
+        "title_en": "First Recharge",
+        "id": "growth_first_recharge",
+        "description_ar": "اشحن كوينز أو ماس لأول مرة في التطبيق",
+        "group": "growth"
+      }
+    },
+    "growth_profile": {
+      "_data": {
+        "action_route": "profile",
+        "exp_reward": 100,
+        "target_count": 1,
+        "title_ar": "إكمال الملف الشخصي",
+        "coins_reward": 1000,
+        "description_en": "Upload photo and fill your bio",
+        "title_en": "Complete Profile",
+        "id": "growth_profile",
+        "description_ar": "قم برفع صورتك وكتابة حالتك الشخصية وتحديد جنسك",
+        "group": "growth"
+      }
+    },
+    "task_1788683318212": {
+      "_data": {
+        "action_route": "room",
+        "exp_reward": 50,
+        "store_item_id": "store_1788676529693",
+        "coins_reward": 500,
+        "description_en": "",
+        "store_item_name": "ضض",
+        "target_count": 4,
+        "title_ar": "0",
+        "store_item_icon": "",
+        "title_en": "0",
+        "id": "task_1788683318212",
+        "description_ar": "0",
+        "group": "daily"
+      }
+    }
+  }
+}

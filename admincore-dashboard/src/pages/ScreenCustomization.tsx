@@ -25,6 +25,7 @@ interface ScreenVisuals {
   chat: Record<string, string>;
   userProfile: Record<string, string>;
   eventInfo: Record<string, string>;
+  rechargeEvent: Record<string, string>;
   notifications: Record<string, string>;
   miniprofile: Record<string, string>;
 }
@@ -437,6 +438,33 @@ const defaultVisuals: ScreenVisuals = {
     textColor: '#000000',
     subTextColor: '#888888',
   },
+  rechargeEvent: {
+    backgroundImage: '',
+    headerBgImage: '',
+    headerTextImage: '',
+    headerBgColor: '#FF5722',
+    bannerBgGradientStart: '#FF9800',
+    bannerBgGradientMid: '#FF5722',
+    bannerBgGradientEnd: '#E91E63',
+    bannerTextColor: '#FFFFFF',
+    badgeBgColor: '#FFFFFF',
+    badgeTextColor: '#D81B60',
+    cardBgColor: '#1A1A24',
+    cardBorderColor: '#3B3224',
+    cardBgImage: '',
+    textColor: '#FFFFFF',
+    textImage: '',
+    subTextColor: '#B0B0C0',
+    subTextImage: '',
+    accentColor: '#FFD700',
+    accentImage: '',
+    progressFillStart: '#FFD700',
+    progressFillEnd: '#FF9100',
+    countdownDaySvg: '',
+    countdownHourSvg: '',
+    countdownMinSvg: '',
+    countdownSecSvg: '',
+  },
   notifications: {
     backgroundImage: '',
     backgroundColor: '#211211',
@@ -446,9 +474,10 @@ const defaultVisuals: ScreenVisuals = {
   },
 };
 
-const screenTabs = ['agency', 'badges', 'necklaces', 'rank', 'checkbox', 'store', 'backpack', 'giftPanel', 'wallet', 'level', 'cp', 'miniprofile', 'signin', 'room', 'discover', 'message', 'profile', 'chat', 'userProfile', 'eventInfo', 'notifications'] as const;
+const screenTabs = ['rechargeEvent', 'agency', 'badges', 'necklaces', 'rank', 'checkbox', 'store', 'backpack', 'giftPanel', 'wallet', 'level', 'cp', 'miniprofile', 'signin', 'room', 'discover', 'message', 'profile', 'chat', 'userProfile', 'eventInfo', 'notifications'] as const;
 
 const screenLabels: Record<string, Record<string, string>> = {
+  rechargeEvent: { ar: '⚡ شاشة حدث الشحن الأسطوري', en: '⚡ Recharge Event Screen' },
   agency: { ar: 'شاشة الوكالة', en: 'Agency Screen' },
   badges: { ar: 'شاشة الشارات', en: 'Badges Screen' },
   necklaces: { ar: 'شاشة القلائد', en: 'Necklaces Screen' },
@@ -625,6 +654,13 @@ const fieldLabels: Record<string, Record<string, string>> = {
   streakIcon: { ar: 'أيقونة السلسلة', en: 'Streak Icon' },
   topBgSvga: { ar: 'SVGA الخلفية العلوية', en: 'Top BG SVGA' },
   buttonImage: { ar: 'صورة زر التسجيل', en: 'Sign-In Button Image' },
+  bannerBgGradientStart: { ar: 'بداية تدرج لون البانر', en: 'Banner Gradient Start' },
+  bannerBgGradientMid: { ar: 'منتصف تدرج لون البانر', en: 'Banner Gradient Mid' },
+  bannerBgGradientEnd: { ar: 'نهاية تدرج لون البانر', en: 'Banner Gradient End' },
+  bannerTextColor: { ar: 'لون نصوص البانر', en: 'Banner Text Color' },
+  badgeTextColor: { ar: 'لون نص وسام الحدث', en: 'Event Badge Text Color' },
+  progressFillStart: { ar: 'بداية لون شريط التقدم', en: 'Progress Bar Fill Start' },
+  progressFillEnd: { ar: 'نهاية لون شريط التقدم', en: 'Progress Bar Fill End' },
 };
 
 const imageFields = ['bgImage', 'listBgImage', 'rank1Frame', 'rank2Frame', 'rank3Frame', 'rank1Banner', 'rank2Banner', 'rank3Banner', 'backgroundImage', 'checkboxCheckedImage', 'checkboxUncheckedImage', 'coinIcon', 'diamondIcon', 'rankIcon', 'crownIcon', 'rankBgImage', 'checkedImage', 'uncheckedImage', 'cardBgImage', 'sectionBgImage', 'badgeBgImage', 'necklaceBgImage', 'headerBgImage', 'headerTextImage', 'cardBorderImage', 'textImage', 'subTextImage', 'accentImage', 'badgeBorderImage', 'necklaceBorderImage', 'lockImage', 'fullScreenBg', 'cabinBg', 'cabinDefaultBg', 'leftFrame', 'rightFrame', 'heartImage', 'noCpHeartSvg', 'tokenBg', 'mineBg', 'tabBgImage', 'invitationBgImage', 'countdownDaySvg', 'countdownHourSvg', 'countdownMinSvg', 'countdownSecSvg', 'rankTagGoldSvg', 'rankTagSilverSvg', 'rankTagBronzeSvg', 'historyCardSvg', 'giftsBannerSvg', 'profileHeartIcon', 'profileLevelBg', 'profileNameFrame', 'profileTopBgSvga', 'checkmarkImage', 'streakIcon', 'topBgSvga', 'buttonImage', 'seatDefaultCircleImage', 'seatLockCircleImage', 'seatDefaultClassicImage', 'seatLockClassicImage', 'seatDefaultVipImage', 'seatLockVipImage'];
@@ -803,7 +839,8 @@ export default function ScreenCustomizationPage() {
             }}
           >
             <p style={{ color: visuals[activeTab as keyof ScreenVisuals]?.accentColor || '#e94560' }}>
-              {activeTab === 'badges' ? (lang === 'ar' ? 'الشارات' : 'Badges') :
+              {activeTab === 'rechargeEvent' ? (lang === 'ar' ? '⚡ حدث الشحن الأسطوري' : '⚡ Recharge Event') :
+               activeTab === 'badges' ? (lang === 'ar' ? 'الشارات' : 'Badges') :
                activeTab === 'necklaces' ? (lang === 'ar' ? 'القلائد' : 'Necklaces') :
                activeTab === 'rank' ? (lang === 'ar' ? 'الترتيب' : 'Rank') :
                activeTab === 'checkbox' ? (lang === 'ar' ? 'الاختيار' : 'Checkbox') :

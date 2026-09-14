@@ -1,0 +1,69 @@
+{
+  "totalDocs": 6,
+  "docs": {
+    "banner_1787547590989": {
+      "_data": {
+        "id": "banner_1787547590989",
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787547602/banners/1787547587657_133e8a15751a47df0edbd75453f5b9ea79a4517180a1220838a20c3e5b5ebb42.gif.png?assetType=gif",
+        "title": "",
+        "sort_order": 0,
+        "active": true,
+        "action_type": "/wallet",
+        "link_url": "/wallet",
+        "action_value": ""
+      }
+    },
+    "banner_1787547605549": {
+      "_data": {
+        "id": "banner_1787547605549",
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787547617/banners/1787547601991_b05c3dcb610ef048899719806c7d188af2300482af5d3b390904c297160b449f.gif.png?assetType=gif",
+        "link_url": "",
+        "title": "",
+        "sort_order": 1,
+        "active": true
+      }
+    },
+    "banner_1787547616644": {
+      "_data": {
+        "id": "banner_1787547616644",
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787547629/banners/1787547614390_bg_main_ranking_cp.png.png?assetType=png",
+        "title": "",
+        "sort_order": 2,
+        "active": true,
+        "action_value": "",
+        "action_type": "/cp_ranking",
+        "link_url": "/cp_ranking"
+      }
+    },
+    "banner_1787547645724": {
+      "_data": {
+        "id": "banner_1787547645724",
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787547658/banners/1787547643238_9eb33a79e4af318210bc07f88357707b82079ee2ad129b65d9f02036d2beb312.gif.png?assetType=gif",
+        "link_url": "",
+        "title": "",
+        "sort_order": 3,
+        "active": true
+      }
+    },
+    "banner_1787547655460": {
+      "_data": {
+        "id": "banner_1787547655460",
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787547667/banners/1787547652179_4e0478fa5f0baf950d6e53eb534f5cd2dc7cab7f4b081998b62b5b30c2771b26.gif.png?assetType=gif",
+        "link_url": "",
+        "title": "",
+        "sort_order": 4,
+        "active": true
+      }
+    },
+    "banner_1787547670797": {
+      "_data": {
+        "id": "banner_1787547670797",
+        "image_url": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787547678/banners/1787547662574_31f5717df38ee5f4d7fde418de7bf88c77be2777d8b2c9eb1ec42ad0922d94c5.gif.png?assetType=gif",
+        "link_url": "",
+        "title": "",
+        "sort_order": 5,
+        "active": true
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "totalDocs": 3,
+  "docs": {
+    "4B3uTBR9PenUBpKYGAZU_17v9pLKGP8WwzuEUCUCfTAHktKo1": {
+      "_data": {
+        "joined_at": "2026-09-12T07:38:40.109819Z",
+        "role": "host",
+        "user_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "agency_id": "4B3uTBR9PenUBpKYGAZU",
+        "id": "4B3uTBR9PenUBpKYGAZU_17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "status": "pending",
+        "diamonds_earned_monthly": 997655,
+        "diamonds": 827655,
+        "diamonds_earned_cumulative": 997655,
+        "diamonds_available": 997655
+      }
+    },
+    "8fEkan1wTXZXVW25TnhW": {
+      "_data": {
+        "user_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "status": "active",
+        "agency_id": "4B3uTBR9PenUBpKYGAZU",
+        "role": "host"
+      }
+    },
+    "b51rN2WJ8WKnb55dAOkE": {
+      "_data": {
+        "diamonds_earned_cumulative": 0,
+        "status": "active",
+        "diamonds_earned_monthly": 0,
+        "joined_at": "2026-09-11T14:48:57.487459Z",
+        "role": "owner",
+        "user_id": "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "agency_id": "4B3uTBR9PenUBpKYGAZU",
+        "id": "b51rN2WJ8WKnb55dAOkE",
+        "diamonds_available": 0,
+        "diamonds_pending_withdrawal": 0,
+        "diamonds_balance": 0
+      }
+    }
+  }
+}

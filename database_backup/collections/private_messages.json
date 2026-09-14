@@ -1,0 +1,219 @@
+{
+  "totalDocs": 14,
+  "docs": {
+    "125d48c3-3580-4b36-854c-b2d58e9e4002": {
+      "_data": {
+        "room_id": "",
+        "active_bubble": null,
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "image_url": null,
+        "created_at": "2026-08-27T03:11:12.641",
+        "sender_name": "mido",
+        "text": "ىى ه",
+        "id": "125d48c3-3580-4b36-854c-b2d58e9e4002",
+        "msg_id": "125d48c3-3580-4b36-854c-b2d58e9e4002",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "text",
+        "conv_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1_i4CHsNBGqtfMowNGa1KieOsJYmG2"
+      }
+    },
+    "1ff19b78-9eca-4fd0-b1b5-aa9e6ef6b005": {
+      "_data": {
+        "room_id": "",
+        "active_bubble": null,
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "image_url": null,
+        "created_at": "2026-08-28T06:29:31.914",
+        "sender_name": "mido",
+        "text": "hi",
+        "id": "1ff19b78-9eca-4fd0-b1b5-aa9e6ef6b005",
+        "msg_id": "1ff19b78-9eca-4fd0-b1b5-aa9e6ef6b005",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "text",
+        "conv_id": "_17v9pLKGP8WwzuEUCUCfTAHktKo1"
+      }
+    },
+    "2c612a01-080c-4ee1-b040-80ebf87c9bf8": {
+      "_data": {
+        "type": "text",
+        "id": "2c612a01-080c-4ee1-b040-80ebf87c9bf8",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "sender_name": "mido",
+        "room_id": "",
+        "conv_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1_o9a3npV62pMWMynP9us2Q1XxTB63",
+        "created_at": "2026-09-05T01:59:40.631",
+        "text": "hi",
+        "image_url": null,
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "msg_id": "2c612a01-080c-4ee1-b040-80ebf87c9bf8",
+        "active_bubble": null
+      }
+    },
+    "2de88366-bd45-49a3-aeaf-14fb2a40d90a": {
+      "_data": {
+        "room_id": "",
+        "active_bubble": null,
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "image_url": null,
+        "created_at": "2026-08-28T05:05:28.036",
+        "sender_name": "mido",
+        "text": "hdhdh",
+        "id": "2de88366-bd45-49a3-aeaf-14fb2a40d90a",
+        "msg_id": "2de88366-bd45-49a3-aeaf-14fb2a40d90a",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "text",
+        "conv_id": "_17v9pLKGP8WwzuEUCUCfTAHktKo1"
+      }
+    },
+    "3fd24b81-708e-4e4f-96ee-7578740de92f": {
+      "_data": {
+        "room_id": "",
+        "active_bubble": null,
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "image_url": null,
+        "created_at": "2026-08-28T05:05:20.028",
+        "sender_name": "mido",
+        "text": "bvg",
+        "id": "3fd24b81-708e-4e4f-96ee-7578740de92f",
+        "msg_id": "3fd24b81-708e-4e4f-96ee-7578740de92f",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "text",
+        "conv_id": "_17v9pLKGP8WwzuEUCUCfTAHktKo1"
+      }
+    },
+    "57aa0542-4d66-4eef-99fc-2b966785c47b": {
+      "_data": {
+        "type": "text",
+        "active_bubble": null,
+        "msg_id": "57aa0542-4d66-4eef-99fc-2b966785c47b",
+        "created_at": "2026-09-03T08:54:12.792",
+        "image_url": null,
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "conv_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1_o9a3npV62pMWMynP9us2Q1XxTB63",
+        "id": "57aa0542-4d66-4eef-99fc-2b966785c47b",
+        "sender_name": "mido",
+        "room_id": "",
+        "text": "jh",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c"
+      }
+    },
+    "64822b0b-4530-4c1e-8b65-53534a5c3848": {
+      "_data": {
+        "room_id": "",
+        "active_bubble": null,
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "image_url": null,
+        "created_at": "2026-08-28T14:58:49.656",
+        "sender_name": "mido",
+        "text": "hh",
+        "id": "64822b0b-4530-4c1e-8b65-53534a5c3848",
+        "msg_id": "64822b0b-4530-4c1e-8b65-53534a5c3848",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "text",
+        "conv_id": "_17v9pLKGP8WwzuEUCUCfTAHktKo1"
+      }
+    },
+    "a221aee0-cddd-460d-abae-c3f7a3c1d37d": {
+      "_data": {
+        "type": "text",
+        "image_url": null,
+        "sender_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "created_at": "2026-09-03T07:54:05.558",
+        "conv_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1_o9a3npV62pMWMynP9us2Q1XxTB63",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocL4pTndGUMaXG1EYCGejZMEAmfjO04qmKI3n1OgZdGesRm0fPfq=s96-c",
+        "room_id": "",
+        "sender_name": "MIDO",
+        "id": "a221aee0-cddd-460d-abae-c3f7a3c1d37d",
+        "active_bubble": null,
+        "text": "000",
+        "msg_id": "a221aee0-cddd-460d-abae-c3f7a3c1d37d"
+      }
+    },
+    "b942dfdf-71cc-40d0-bf89-abeb902fe248": {
+      "_data": {
+        "type": "text",
+        "created_at": "2026-09-03T08:54:08.185",
+        "room_id": "",
+        "image_url": null,
+        "id": "b942dfdf-71cc-40d0-bf89-abeb902fe248",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "msg_id": "b942dfdf-71cc-40d0-bf89-abeb902fe248",
+        "sender_name": "mido",
+        "text": "hu",
+        "active_bubble": null,
+        "conv_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1_o9a3npV62pMWMynP9us2Q1XxTB63"
+      }
+    },
+    "b9aacdc3-4d55-44f0-92e7-4fc3d2ba8229": {
+      "_data": {
+        "conv_id": "_17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "sender_name": "mido",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "msg_id": "b9aacdc3-4d55-44f0-92e7-4fc3d2ba8229",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "text": "كيف حالك",
+        "image_url": null,
+        "active_bubble": null,
+        "id": "b9aacdc3-4d55-44f0-92e7-4fc3d2ba8229",
+        "type": "text",
+        "created_at": "2026-08-29T02:35:02.054",
+        "room_id": ""
+      }
+    },
+    "c6f1b046-1b31-46da-b960-4d36a1fdb534": {
+      "_data": {
+        "text": "hi",
+        "active_bubble": null,
+        "image_url": null,
+        "sender_uid": "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocLrqyYSMX5n0SBJhmjx_rBuAezsuAltf87Jqkvs3a_WqEALfwQ=s96-c",
+        "conv_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1_uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "created_at": "2026-09-10T08:59:07.543",
+        "room_id": "",
+        "type": "text",
+        "sender_name": "nexo",
+        "msg_id": "c6f1b046-1b31-46da-b960-4d36a1fdb534",
+        "id": "c6f1b046-1b31-46da-b960-4d36a1fdb534"
+      }
+    },
+    "f5d97aa7-38f0-4053-a760-6cc633b356d1": {
+      "_data": {
+        "room_id": "",
+        "active_bubble": null,
+        "sender_photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "image_url": null,
+        "created_at": "2026-08-27T03:11:30.224",
+        "sender_name": "mido",
+        "text": "اه",
+        "id": "f5d97aa7-38f0-4053-a760-6cc633b356d1",
+        "msg_id": "f5d97aa7-38f0-4053-a760-6cc633b356d1",
+        "sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "type": "text",
+        "conv_id": "_17v9pLKGP8WwzuEUCUCfTAHktKo1"
+      }
+    },
+    "oAdem00SHCIJ1cyF9YuO": {
+      "_data": {
+        "sender_id": "system",
+        "receiver_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "text": "🎉 تهانينا! لقد حققت هدف $targetDiamonds 💎.",
+        "type": "system",
+        "created_at": "2026-09-07T01:27:23.717Z",
+        "is_read": false,
+        "conversationId": "system_17v9pLKGP8WwzuEUCUCfTAHktKo1"
+      }
+    },
+    "xlHAJBkSIOMSu8oExqGt": {
+      "_data": {
+        "is_read": false,
+        "conversationId": "system_17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "receiver_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "created_at": "2026-09-07T01:27:23.716Z",
+        "text": "مبروك! تمت إضافة عمولة بقيمة $profit ماسة إلى محفظة وكالتك، لنجاح مضيفك في تحقيق تارجت $targetDiamonds 💎.",
+        "type": "system",
+        "sender_id": "system"
+      }
+    }
+  }
+}

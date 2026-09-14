@@ -1,0 +1,107 @@
+{
+  "totalDocs": 8,
+  "docs": {
+    "17v9pLKGP8WwzuEUCUCfTAHktKo1_17v9pLKGP8WwzuEUCUCfTAHktKo1_i4CHsNBGqtfMowNGa1KieOsJYmG2": {
+      "_data": {
+        "uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "last_sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "unread_count": 0,
+        "last_timestamp": "2026-08-27T03:11:12.922792",
+        "last_message": "ىى ه",
+        "conv_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1_i4CHsNBGqtfMowNGa1KieOsJYmG2"
+      }
+    },
+    "17v9pLKGP8WwzuEUCUCfTAHktKo1_17v9pLKGP8WwzuEUCUCfTAHktKo1_o9a3npV62pMWMynP9us2Q1XxTB63": {
+      "_data": {
+        "uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "otherUid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "conversationId": "17v9pLKGP8WwzuEUCUCfTAHktKo1_o9a3npV62pMWMynP9us2Q1XxTB63",
+        "otherName": "MIDO",
+        "otherPhotoUrl": "https://lh3.googleusercontent.com/a/ACg8ocL4pTndGUMaXG1EYCGejZMEAmfjO04qmKI3n1OgZdGesRm0fPfq=s96-c",
+        "unreadCount": 0,
+        "lastMessage": "hi",
+        "lastMessageTime": 1788562780905
+      }
+    },
+    "17v9pLKGP8WwzuEUCUCfTAHktKo1_17v9pLKGP8WwzuEUCUCfTAHktKo1_uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2": {
+      "_data": {
+        "uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "otherUid": "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "conversationId": "17v9pLKGP8WwzuEUCUCfTAHktKo1_uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "lastMessage": "hi",
+        "lastMessageTime": 1789019948095,
+        "otherName": "nexo",
+        "otherPhotoUrl": "https://lh3.googleusercontent.com/a/ACg8ocLrqyYSMX5n0SBJhmjx_rBuAezsuAltf87Jqkvs3a_WqEALfwQ=s96-c",
+        "unreadCount": 0
+      }
+    },
+    "17v9pLKGP8WwzuEUCUCfTAHktKo1__17v9pLKGP8WwzuEUCUCfTAHktKo1": {
+      "_data": {
+        "uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "last_sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "unread_count": 0,
+        "last_timestamp": "2026-08-28T06:29:32.241426",
+        "last_message": "hi",
+        "conv_id": "_17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "otherUid": "",
+        "conversationId": "_17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "unreadCount": 0,
+        "otherName": "",
+        "otherPhotoUrl": "",
+        "lastMessage": "كيف حالك",
+        "lastMessageTime": 1787960102348
+      }
+    },
+    "__17v9pLKGP8WwzuEUCUCfTAHktKo1": {
+      "_data": {
+        "uid": "",
+        "last_sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "unread_count": 1,
+        "last_timestamp": "2026-08-28T06:29:32.241426",
+        "last_message": "hi",
+        "conv_id": "_17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "otherUid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "conversationId": "_17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "otherName": "mido",
+        "otherPhotoUrl": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "lastMessage": "كيف حالك",
+        "unreadCount": 2,
+        "lastMessageTime": 1787960102348
+      }
+    },
+    "i4CHsNBGqtfMowNGa1KieOsJYmG2_17v9pLKGP8WwzuEUCUCfTAHktKo1_i4CHsNBGqtfMowNGa1KieOsJYmG2": {
+      "_data": {
+        "uid": "i4CHsNBGqtfMowNGa1KieOsJYmG2",
+        "last_sender_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "unread_count": 1,
+        "last_timestamp": "2026-08-27T03:11:12.922792",
+        "last_message": "ىى ه",
+        "conv_id": "17v9pLKGP8WwzuEUCUCfTAHktKo1_i4CHsNBGqtfMowNGa1KieOsJYmG2"
+      }
+    },
+    "o9a3npV62pMWMynP9us2Q1XxTB63_17v9pLKGP8WwzuEUCUCfTAHktKo1_o9a3npV62pMWMynP9us2Q1XxTB63": {
+      "_data": {
+        "uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "otherUid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "conversationId": "17v9pLKGP8WwzuEUCUCfTAHktKo1_o9a3npV62pMWMynP9us2Q1XxTB63",
+        "otherName": "mido",
+        "otherPhotoUrl": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "lastMessage": "hi",
+        "unreadCount": 1,
+        "lastMessageTime": 1788562780905
+      }
+    },
+    "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2_17v9pLKGP8WwzuEUCUCfTAHktKo1_uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2": {
+      "_data": {
+        "uid": "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "otherUid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "conversationId": "17v9pLKGP8WwzuEUCUCfTAHktKo1_uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "lastMessage": "hi",
+        "unreadCount": 0,
+        "lastMessageTime": 1789019948095,
+        "otherName": "mido",
+        "otherPhotoUrl": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c"
+      }
+    }
+  }
+}

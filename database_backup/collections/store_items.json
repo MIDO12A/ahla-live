@@ -1,0 +1,81 @@
+{
+  "totalDocs": 5,
+  "docs": {
+    "store_1788454883791": {
+      "_data": {
+        "name_key": null,
+        "is_premium": false,
+        "video_asset": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788454897/store_files/1788454876595_vapc.mp4.mp4?assetType=mp4",
+        "icon_asset": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788454892/store_icons/1788454872221_eb7c25.png.png?assetType=png",
+        "item_id": "store_1788454883791",
+        "price": 11,
+        "name": "",
+        "svga_asset": null,
+        "default_image": null,
+        "photo_key": null,
+        "category": "cover"
+      }
+    },
+    "store_1788671634046": {
+      "_data": {
+        "name_key": null,
+        "is_premium": false,
+        "video_asset": null,
+        "icon_asset": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788671639/store_icons/1788671617406__________.png.png?assetType=png",
+        "item_id": "store_1788671634046",
+        "price": 11,
+        "name": "ZZ",
+        "default_image": null,
+        "photo_key": null,
+        "category": "frame",
+        "svga_asset": "https://res.cloudinary.com/dl30muiuc/raw/upload/v1788672098/store_files/1788672077965___________modified__4_.svga?assetType=svga"
+      }
+    },
+    "store_1788676529693": {
+      "_data": {
+        "is_premium": true,
+        "icon_asset": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788676505/store_icons/1788676483562_bfa452b653ca43b21328e4ee8db986471757731959634______-1776360546299.png.png?assetType=png",
+        "item_id": "store_1788676529693",
+        "price": 11,
+        "name": "ضض",
+        "svga_asset": null,
+        "default_image": null,
+        "photo_key": "sendAvatar",
+        "category": "car",
+        "name_key": null,
+        "video_asset": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788676524/store_files/1788676501712_74517c993111368deac97747d3bcde2b.mp4.mp4?assetType=vap"
+      }
+    },
+    "store_1788679180020": {
+      "_data": {
+        "name_key": null,
+        "is_premium": false,
+        "video_asset": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788679189/store_files/1788679167628_app_intro_converted_vap.mp4.mp4?assetType=mp4",
+        "icon_asset": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788679192/store_icons/1788679171458_download__27_.png.png?assetType=png",
+        "item_id": "store_1788679180020",
+        "price": 111,
+        "name": "شش",
+        "svga_asset": null,
+        "default_image": null,
+        "photo_key": null,
+        "category": "car"
+      }
+    },
+    "store_1788802106135": {
+      "_data": {
+        "name_key": "text1",
+        "is_premium": false,
+        "video_asset": "https://res.cloudinary.com/dl30muiuc/video/upload/v1788802114/store_files/1788802076149_DL_DRIVER_697_ED973BFF5A2704550903D3AB34F04A71.mp4.mp4?assetType=mp4",
+        "icon_asset": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788802027/store_icons/1788802006144_bd_ns.webp.webp?assetType=webp",
+        "item_id": "store_1788802106135",
+        "price": 50,
+        "is_hidden": false,
+        "name": "50",
+        "svga_asset": null,
+        "default_image": null,
+        "photo_key": "avatar2",
+        "category": "car"
+      }
+    }
+  }
+}

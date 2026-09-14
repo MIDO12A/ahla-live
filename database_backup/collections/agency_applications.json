@@ -1,0 +1,25 @@
+{
+  "totalDocs": 1,
+  "docs": {
+    "Q61AQfOgyyWHgHGZtHK1": {
+      "_data": {
+        "doc_front_url": "",
+        "agency_name": "000",
+        "country": "000",
+        "created_at": "2026-09-11T16:43:47.516Z",
+        "doc_number": "",
+        "doc_back_url": "",
+        "whatsapp": "000",
+        "description": "",
+        "video_url": "",
+        "doc_type": "",
+        "user_name": "",
+        "agency_logo": "",
+        "user_id": "8553415",
+        "agency_type": "recharge",
+        "reviewed_at": "2026-09-11T16:43:54.252Z",
+        "status": "approved"
+      }
+    }
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "totalDocs": 12,
+  "docs": {
+    "0RmwNpz8pOILaOQIb4Sn": {
+      "_data": {
+        "countdown_end": "2026-10-03T08:15:40.274906",
+        "total_score": 0,
+        "month_score": 0,
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "started_at": "2026-09-03T08:15:40.274893",
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "week_score": 0,
+        "created_at": "2026-09-03T08:15:40.274909",
+        "updated_at": "2026-09-03T08:15:41.124925",
+        "ended_at": "2026-09-03T08:15:41.124914"
+      }
+    },
+    "H7SSnsW6UTPENt725jrn": {
+      "_data": {
+        "updated_at": "2026-09-03T08:15:46.599774",
+        "countdown_end": "2026-10-03T08:15:46.599764",
+        "started_at": "2026-09-03T08:15:46.599692",
+        "week_score": 0,
+        "created_at": "2026-09-03T08:15:46.599771",
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "total_score": 0,
+        "month_score": 0
+      }
+    },
+    "KxzmBMj6mRLZKI878TwV": {
+      "_data": {
+        "total_score": 0,
+        "month_score": 0,
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "created_at": "2026-09-03T08:15:43.607278",
+        "updated_at": "2026-09-03T08:15:43.607282",
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "started_at": "2026-09-03T08:15:43.607261",
+        "week_score": 0,
+        "countdown_end": "2026-10-03T08:15:43.607275"
+      }
+    },
+    "PFt78Uk3a2qMDhx7Moja": {
+      "_data": {
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "month_score": 0,
+        "total_score": 0,
+        "countdown_end": "2026-10-03T08:15:42.506254",
+        "started_at": "2026-09-03T08:15:42.506236",
+        "week_score": 0,
+        "created_at": "2026-09-03T08:15:42.506257",
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "updated_at": "2026-09-03T08:15:45.509052",
+        "ended_at": "2026-09-03T08:15:45.509039"
+      }
+    },
+    "VGwlpzH3ELnawWbu47MO": {
+      "_data": {
+        "started_at": "2026-09-03T08:15:45.492487",
+        "countdown_end": "2026-10-03T08:15:45.492560",
+        "week_score": 0,
+        "updated_at": "2026-09-03T08:15:45.492566",
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "created_at": "2026-09-03T08:15:45.492564",
+        "month_score": 0,
+        "total_score": 0,
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1"
+      }
+    },
+    "XkRh1VJUh1Vgizt2UV5w": {
+      "_data": {
+        "created_at": "2026-09-03T08:15:40.275491",
+        "week_score": 0,
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "started_at": "2026-09-03T08:15:40.275477",
+        "month_score": 0,
+        "total_score": 0,
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "countdown_end": "2026-10-03T08:15:40.275488",
+        "updated_at": "2026-09-03T08:15:41.839143",
+        "ended_at": "2026-09-03T08:15:41.839130"
+      }
+    },
+    "YER1qD5jrCGDu2MTyBlb": {
+      "_data": {
+        "week_score": 0,
+        "countdown_end": "2026-10-03T08:13:29.752117",
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "started_at": "2026-09-03T08:13:29.752102",
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "created_at": "2026-09-03T08:13:29.752187",
+        "total_score": 0,
+        "month_score": 0,
+        "updated_at": "2026-09-03T08:15:35.542233",
+        "ended_at": "2026-09-03T08:15:35.542221"
+      }
+    },
+    "YkvU9cRDX5IeMxPgRqCk": {
+      "_data": {
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "month_score": 0,
+        "total_score": 0,
+        "started_at": "2026-09-03T08:15:46.577799",
+        "week_score": 0,
+        "updated_at": "2026-09-03T08:15:46.577824",
+        "countdown_end": "2026-10-03T08:15:46.577815",
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "created_at": "2026-09-03T08:15:46.577820"
+      }
+    },
+    "f7gC8idTzPPAmBLNzSaA": {
+      "_data": {
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "month_score": 0,
+        "countdown_end": "2026-10-03T08:15:46.535892",
+        "started_at": "2026-09-03T08:15:46.535878",
+        "total_score": 0,
+        "week_score": 0,
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "updated_at": "2026-09-03T08:15:46.535897",
+        "created_at": "2026-09-03T08:15:46.535895"
+      }
+    },
+    "gHyd7n059lvhxZnLzUF0": {
+      "_data": {
+        "countdown_end": "2026-10-03T08:15:38.521692",
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "started_at": "2026-09-03T08:15:38.521678",
+        "total_score": 0,
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "week_score": 0,
+        "month_score": 0,
+        "created_at": "2026-09-03T08:15:38.521697",
+        "updated_at": "2026-09-03T08:15:39.321780",
+        "ended_at": "2026-09-03T08:15:39.321768"
+      }
+    },
+    "pP9ypDSC3JpxbQS4wPVg": {
+      "_data": {
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "countdown_end": "2026-10-03T08:15:43.602405",
+        "started_at": "2026-09-03T08:15:43.602391",
+        "week_score": 0,
+        "updated_at": "2026-09-03T08:15:43.602411",
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "month_score": 0,
+        "total_score": 0,
+        "created_at": "2026-09-03T08:15:43.602409"
+      }
+    },
+    "po5kfrv5sCpV5zLRcvCE": {
+      "_data": {
+        "user2_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "updated_at": "2026-09-03T08:15:46.488003",
+        "user1_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "week_score": 0,
+        "started_at": "2026-09-03T08:15:46.487983",
+        "countdown_end": "2026-10-03T08:15:46.487997",
+        "created_at": "2026-09-03T08:15:46.488001",
+        "total_score": 0,
+        "month_score": 0
+      }
+    }
+  }
+}

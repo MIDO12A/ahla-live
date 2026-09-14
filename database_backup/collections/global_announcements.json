@@ -1,0 +1,357 @@
+{
+  "totalDocs": 32,
+  "docs": {
+    "0N8UlyQuyv4tLOTm7o4b": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 100,
+        "total_won": 347844,
+        "created_at": "2026-09-07T19:32:49.503Z"
+      }
+    },
+    "1c90BXc0DAvATZQN6gjC": {
+      "_data": {
+        "gift_name": "21",
+        "total_won": 6160500,
+        "type": "lucky_big_win",
+        "created_at": "2026-09-11T13:50:18.454305",
+        "sender_name": "mido",
+        "multiplier": 500,
+        "room_id": "2675257"
+      }
+    },
+    "6BSemGasWrrAPouCYy5E": {
+      "_data": {
+        "multiplier": 50,
+        "type": "lucky_big_win",
+        "created_at": "2026-09-10T16:48:48.627311",
+        "sender_name": "mido.znfel",
+        "gift_name": "21",
+        "room_id": "8553415",
+        "total_won": 628371
+      }
+    },
+    "6CbxGzwP9V3UHwOnRLCc": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 665334,
+        "created_at": "2026-09-07T02:44:04.405Z"
+      }
+    },
+    "6yPeYCXQkoaJAsgLAjXw": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 175644,
+        "created_at": "2026-09-07T02:36:17.619Z"
+      }
+    },
+    "77djpFafqhqEjyAibQu6": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 616050,
+        "created_at": "2026-09-07T20:20:44.345Z"
+      }
+    },
+    "ALYbiDQjgGkPv6HsgaXX": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 175644,
+        "created_at": "2026-09-07T19:21:49.602Z"
+      }
+    },
+    "CqXv7myVRQiQ7C5yYIW9": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 6273,
+        "created_at": "2026-09-07T21:59:11.697Z"
+      }
+    },
+    "ESJ96hqG2xgsCI25Wd0L": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 1232100,
+        "created_at": "2026-09-07T02:35:11.974Z"
+      }
+    },
+    "EwdmIKDXNSuSpfua8xkS": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 677655,
+        "created_at": "2026-09-08T04:56:48.728Z"
+      }
+    },
+    "OVEBI3UJkc2uXxR7uxLo": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 616050,
+        "created_at": "2026-09-06T22:57:48.447Z"
+      }
+    },
+    "Q3tMGlFF8WurcELw7wFK": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 100,
+        "total_won": 344400,
+        "created_at": "2026-09-07T20:21:33.192Z"
+      }
+    },
+    "QfgWec1jHkoeSyIBnliF": {
+      "_data": {
+        "type": "lucky_big_win",
+        "room_id": "8553415",
+        "sender_name": "mido",
+        "total_won": 6160500,
+        "created_at": "2026-09-10T10:18:03.647275",
+        "gift_name": "21",
+        "multiplier": 500
+      }
+    },
+    "STJds8EanyxarTBovKcm": {
+      "_data": {
+        "type": "lucky_big_win",
+        "created_at": "2026-09-12T13:31:15.055496",
+        "multiplier": 100,
+        "gift_name": "21",
+        "sender_name": "mido",
+        "total_won": 1232100,
+        "room_id": "2675257"
+      }
+    },
+    "SsUBNKpL63MIM2p8XW4f": {
+      "_data": {
+        "sender_name": "mido",
+        "total_won": 616050,
+        "type": "lucky_big_win",
+        "gift_name": "21",
+        "created_at": "2026-09-11T13:10:13.754266",
+        "room_id": "8553415",
+        "multiplier": 50
+      }
+    },
+    "VawimuhdGh651XNzcWuC": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 210084,
+        "created_at": "2026-09-07T02:36:05.406Z"
+      }
+    },
+    "awv6J47nBXxt2iSRozzm": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 640692,
+        "created_at": "2026-09-07T20:26:53.818Z"
+      }
+    },
+    "ctreXMcBRPCLUwNPRHfm": {
+      "_data": {
+        "gift_name": "zx",
+        "type": "lucky_big_win",
+        "room_id": "8553415",
+        "total_won": 172200,
+        "created_at": "2026-09-10T16:55:20.117199",
+        "sender_name": "mido.znfel",
+        "multiplier": 50
+      }
+    },
+    "dMYYdN22ZRC8j8n6socv": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 172200,
+        "created_at": "2026-09-07T21:17:19.859Z"
+      }
+    },
+    "e7m4E58N3LQSQgEVvM34": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 628371,
+        "created_at": "2026-09-07T02:33:29.448Z"
+      }
+    },
+    "ffyqu4qFd3NGWMa5vOPV": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 616050,
+        "created_at": "2026-09-07T20:27:43.175Z"
+      }
+    },
+    "jszZmAotxHlouRmIfuEJ": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 616050,
+        "created_at": "2026-09-07T02:59:16.064Z"
+      }
+    },
+    "lJphUTbX9051NYwHbOal": {
+      "_data": {
+        "created_at": "2026-09-11T13:11:29.475947",
+        "multiplier": 100,
+        "sender_name": "mido",
+        "total_won": 1269063,
+        "gift_name": "21",
+        "room_id": "8553415",
+        "type": "lucky_big_win"
+      }
+    },
+    "oVSD3n1UygkVXVozLpFZ": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "mido",
+        "gift_name": "21",
+        "total_won": 616050,
+        "room_id": "8553415",
+        "multiplier": 50,
+        "created_at": "2026-09-10T10:17:15.377204"
+      }
+    },
+    "qWOZ5RAmsoD1vBFmt9N3": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 6273,
+        "created_at": "2026-09-09T17:56:52.837Z"
+      }
+    },
+    "qsAvluy1SpcwaEUCDdXV": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 100,
+        "total_won": 1244421,
+        "created_at": "2026-09-07T20:32:36.060Z"
+      }
+    },
+    "wMp7RLGvYqkXcwzaVRam": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 640692,
+        "created_at": "2026-09-07T20:20:43.600Z"
+      }
+    },
+    "x03VqnwkNy6ulZCKmzpP": {
+      "_data": {
+        "total_won": 6185142,
+        "gift_name": "21",
+        "type": "lucky_big_win",
+        "multiplier": 500,
+        "sender_name": "nexo",
+        "room_id": "2675257",
+        "created_at": "2026-09-10T08:08:35.931922"
+      }
+    },
+    "x19bR1OrgsL4dDU0vwD0": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 640692,
+        "created_at": "2026-09-07T02:59:00.267Z"
+      }
+    },
+    "xwUfYuAMoKJmeIJxMf9D": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 100,
+        "total_won": 1244421,
+        "created_at": "2026-09-07T20:05:57.980Z"
+      }
+    },
+    "yTGJroQvUdY8pyObys6O": {
+      "_data": {
+        "gift_name": "zx",
+        "multiplier": 50,
+        "room_id": "8553415",
+        "type": "lucky_big_win",
+        "total_won": 175644,
+        "sender_name": "mido.znfel",
+        "created_at": "2026-09-10T16:54:57.812960"
+      }
+    },
+    "yh7FAIPUloWaB6LoYSD5": {
+      "_data": {
+        "type": "lucky_big_win",
+        "sender_name": "",
+        "gift_name": "",
+        "room_id": "2675257",
+        "multiplier": 50,
+        "total_won": 616050,
+        "created_at": "2026-09-07T02:19:19.740Z"
+      }
+    }
+  }
+}

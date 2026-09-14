@@ -4,7 +4,7 @@ import {
   Building2, Crown, BarChart3, Award, Handshake,
   TrendingUp, Image, Palette, Bug,
   Bell, Settings, Shield, ChevronLeft, LogOut,   SlidersHorizontal, Grid, Gift as GiftIcon,
-  Tag, Sparkles, Eye, ImageIcon, Calendar, Rocket, Phone, CheckSquare, Volume2, Mic, User,
+  Tag, Sparkles, Eye, ImageIcon, Calendar, Rocket, Phone, CheckSquare, Volume2, Mic, User, Zap,
 } from 'lucide-react';
 import { logout } from '../lib/auth';
 import { useContext } from 'react';
@@ -12,6 +12,7 @@ import { I18nContext } from '../lib/i18n';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'nav.dashboard', end: true },
+  { to: '/recharge-event', icon: Zap, label: 'nav.rechargeEvent' },
   { to: '/users', icon: Users, label: 'nav.users' },
   { to: '/gifts', icon: Gift, label: 'nav.gifts' },
   { to: '/store', icon: Store, label: 'nav.store' },

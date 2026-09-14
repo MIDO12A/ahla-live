@@ -1,0 +1,15 @@
+{
+  "totalDocs": 1,
+  "docs": {
+    "zPrYoKshapjQBdx6fRAn": {
+      "_data": {
+        "target_id": "_config",
+        "target_type": "admin",
+        "admin_name": "mido@admin.com",
+        "details": {},
+        "action": "delete_admin",
+        "admin_uid": "C4T9BDdSXfehUv2WrGtbzVpSH2i1"
+      }
+    }
+  }
+}

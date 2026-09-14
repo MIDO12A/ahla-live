@@ -1,0 +1,693 @@
+{
+  "totalDocs": 70,
+  "docs": {
+    "agencyVisuals": {
+      "_data": {
+        "value": "{\"leaderNecklaceName\":\"قلادة الوكيل (Agency Owner)\",\"leaderNecklaceImg\":\"\",\"leaderNecklaceSvga\":\"https://res.cloudinary.com/dl30muiuc/raw/upload/v1788055503/store_files/1788055482063_10.svga?assetType=svga\",\"hostNecklaceName\":\"قلادة المضيف (Agency Host)\",\"hostNecklaceImg\":\"\",\"hostNecklaceSvga\":\"https://res.cloudinary.com/dl30muiuc/raw/upload/v1788055510/store_files/1788055491990_14.svga?assetType=svga\"}",
+        "key": "agencyVisuals"
+      }
+    },
+    "appName": {
+      "_data": {
+        "value": "zero",
+        "key": "appName"
+      }
+    },
+    "borderRadius": {
+      "_data": {
+        "value": 8,
+        "key": "borderRadius"
+      }
+    },
+    "bottomNavActiveTextColor": {
+      "_data": {
+        "value": "#894916",
+        "key": "bottomNavActiveTextColor"
+      }
+    },
+    "bottomNavBgImage": {
+      "_data": {
+        "key": "bottomNavBgImage",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788447361/app_assets/1788447342630_bg_activity_s_vip_ranking_mine.webp.webp"
+      }
+    },
+    "bottomNavGradientEnd": {
+      "_data": {
+        "value": "#FFFFFF",
+        "key": "bottomNavGradientEnd"
+      }
+    },
+    "bottomNavGradientStart": {
+      "_data": {
+        "value": "#F4DDA9",
+        "key": "bottomNavGradientStart"
+      }
+    },
+    "bottomNavInactiveTextColor": {
+      "_data": {
+        "value": "#894916",
+        "key": "bottomNavInactiveTextColor"
+      }
+    },
+    "buttonColor": {
+      "_data": {
+        "value": "#6366F1",
+        "key": "buttonColor"
+      }
+    },
+    "buttonTextColor": {
+      "_data": {
+        "value": "#FFFFFF",
+        "key": "buttonTextColor"
+      }
+    },
+    "chatColors": {
+      "_data": {
+        "value": "{\"bubbleSelf\":\"#33FFC525\",\"bubbleOther\":\"#1AFFFFFF\",\"bubbleSelfBorder\":\"#33FFC525\",\"bubbleOtherBorder\":\"#1AFFFFFF\",\"bubbleSelfText\":\"#FFC525\",\"bubbleOtherText\":\"#FFFFFF\"}",
+        "key": "chatColors"
+      }
+    },
+    "fontFamily": {
+      "_data": {
+        "value": "Cairo",
+        "key": "fontFamily"
+      }
+    },
+    "fullProfileCpAddIcon": {
+      "_data": {
+        "key": "fullProfileCpAddIcon",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1789125950/profile_cp/1789125928046_ic_add_cp.png.png?assetType=png"
+      }
+    },
+    "fullProfileCpCardBg": {
+      "_data": {
+        "key": "fullProfileCpCardBg",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1789125914/profile_cp/1789125891371_ic_agency_charm_item_bg.png.png?assetType=png"
+      }
+    },
+    "fullProfileCpCardBorder": {
+      "_data": {
+        "value": "#DE880F",
+        "key": "fullProfileCpCardBorder"
+      }
+    },
+    "fullProfileCpDaysBg": {
+      "_data": {
+        "key": "fullProfileCpDaysBg",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1789125958/profile_cp/1789125936409_ic_cp_space_tab_selected_bg.png.png?assetType=png"
+      }
+    },
+    "fullProfileCpMidDecorImage": {
+      "_data": {
+        "key": "fullProfileCpMidDecorImage",
+        "value": "https://res.cloudinary.com/dl30muiuc/raw/upload/v1789126085/profile_cp/1789126062923_cp_ranking_award_ar.svga?assetType=svga"
+      }
+    },
+    "fullProfileCpRing2Svga": {
+      "_data": {
+        "key": "fullProfileCpRing2Svga",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1789125942/profile_rings/1789125920123_ic_cp_ranking_heart_top1.png.png?assetType=png"
+      }
+    },
+    "fullProfileCpRing3Svga": {
+      "_data": {
+        "key": "fullProfileCpRing3Svga",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1789125945/profile_rings/1789125922788_ic_cp_ranking_heart_top1.png.png?assetType=png"
+      }
+    },
+    "fullProfileCpRingSvga": {
+      "_data": {
+        "key": "fullProfileCpRingSvga",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1789125937/profile_rings/1789125914786_ic_cp_ranking_heart_top1.png.png?assetType=png"
+      }
+    },
+    "fullProfileDataCountColor": {
+      "_data": {
+        "value": "#FFFFFF",
+        "key": "fullProfileDataCountColor"
+      }
+    },
+    "fullProfileDataLabelColor": {
+      "_data": {
+        "value": "#6DE5FF",
+        "key": "fullProfileDataLabelColor"
+      }
+    },
+    "fullProfileDataPanelBg": {
+      "_data": {
+        "value": "",
+        "key": "fullProfileDataPanelBg"
+      }
+    },
+    "fullProfileDataPanelDivider": {
+      "_data": {
+        "value": "",
+        "key": "fullProfileDataPanelDivider"
+      }
+    },
+    "fullProfileEditIcon": {
+      "_data": {
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787901350/profile/1787901335337_dj.png.png",
+        "key": "fullProfileEditIcon"
+      }
+    },
+    "fullProfileFansImage": {
+      "_data": {
+        "value": "",
+        "key": "fullProfileFansImage"
+      }
+    },
+    "fullProfileFollowersImage": {
+      "_data": {
+        "value": "",
+        "key": "fullProfileFollowersImage"
+      }
+    },
+    "fullProfileGiftsImage": {
+      "_data": {
+        "value": "",
+        "key": "fullProfileGiftsImage"
+      }
+    },
+    "fullProfileMedalsCardBg": {
+      "_data": {
+        "value": "",
+        "key": "fullProfileMedalsCardBg"
+      }
+    },
+    "fullProfileMedalsCardBorder": {
+      "_data": {
+        "value": "#26DE880F",
+        "key": "fullProfileMedalsCardBorder"
+      }
+    },
+    "fullProfileSentGiftsImage": {
+      "_data": {
+        "value": "",
+        "key": "fullProfileSentGiftsImage"
+      }
+    },
+    "fullProfileTabActiveColor": {
+      "_data": {
+        "value": "#00E5C9",
+        "key": "fullProfileTabActiveColor"
+      }
+    },
+    "fullProfileTabInactiveColor": {
+      "_data": {
+        "value": "#99FFFFFF",
+        "key": "fullProfileTabInactiveColor"
+      }
+    },
+    "fullProfileVisitorsImage": {
+      "_data": {
+        "value": "",
+        "key": "fullProfileVisitorsImage"
+      }
+    },
+    "globalImages": {
+      "_data": {
+        "value": "{}",
+        "key": "globalImages"
+      }
+    },
+    "goldColor": {
+      "_data": {
+        "value": "#DE880F",
+        "key": "goldColor"
+      }
+    },
+    "headerColor": {
+      "_data": {
+        "value": "#FFFFFF",
+        "key": "headerColor"
+      }
+    },
+    "iconOverrides": {
+      "_data": {
+        "value": "{}",
+        "key": "iconOverrides"
+      }
+    },
+    "lucky_box_config": {
+      "_data": {
+        "giftsList": [
+          {
+            "id": "lucky_1788464807138",
+            "name": "New Lucky Gift",
+            "nameAr": "هدية حظ جديدة",
+            "coinPrice": 100,
+            "iconUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=100&q=80",
+            "animUrl": "assets/svga/gift_anim.svga",
+            "type": "svga",
+            "categoryId": "lucky",
+            "sortOrder": 1,
+            "isLucky": true,
+            "isBurstEnabled": true
+          }
+        ],
+        "flipDurationMs": 400,
+        "svgaLibrary": [
+          {
+            "id": "c_10",
+            "category": "combo_numbers",
+            "title": "رقم كومبو 10",
+            "tierOrNumber": 10,
+            "pathOrUrl": "assets/svga/chates_gift_number_10.svga",
+            "description": "يظهر في منتصف الشاشة عند إرسال 10 هدايا متتالية"
+          },
+          {
+            "id": "c_50",
+            "category": "combo_numbers",
+            "title": "رقم كومبو 50",
+            "tierOrNumber": 50,
+            "pathOrUrl": "assets/svga/chates_gift_number_50.svga",
+            "description": "يظهر في منتصف الشاشة عند إرسال 50 هدية متتالية"
+          },
+          {
+            "id": "c_100",
+            "category": "combo_numbers",
+            "title": "رقم كومبو 100",
+            "tierOrNumber": 100,
+            "pathOrUrl": "assets/svga/chates_gift_number_100.svga",
+            "description": "يظهر في منتصف الشاشة عند إرسال 100 هدية متتالية"
+          },
+          {
+            "id": "c_500",
+            "category": "combo_numbers",
+            "title": "رقم كومبو 500",
+            "tierOrNumber": 500,
+            "pathOrUrl": "assets/svga/chates_gift_number_500.svga",
+            "description": "يظهر في منتصف الشاشة عند إرسال 500 هدية متتالية"
+          },
+          {
+            "id": "c_1000",
+            "category": "combo_numbers",
+            "title": "رقم كومبو 1000",
+            "tierOrNumber": 1000,
+            "pathOrUrl": "assets/svga/chates_gift_number_1000.svga",
+            "description": "يظهر في منتصف الشاشة عند إرسال 1000 هدية متتالية"
+          },
+          {
+            "id": "g_100",
+            "category": "global_big_win",
+            "title": "بانر فوز عام 100X",
+            "tierOrNumber": "100X",
+            "pathOrUrl": "assets/svga/ar100.svga",
+            "textKey": "test",
+            "imageKey": "Avatar",
+            "description": "بانر يطير في أعلى كافة الغرف بمفتاح Avatar للصورة و test للنص"
+          },
+          {
+            "id": "g_250",
+            "category": "global_big_win",
+            "title": "بانر فوز عام 250X",
+            "tierOrNumber": "250X",
+            "pathOrUrl": "assets/svga/ar250.svga",
+            "textKey": "test",
+            "imageKey": "Avatar",
+            "description": "بانر يطير في أعلى كافة الغرف بمفتاح Avatar للصورة و test للنص"
+          },
+          {
+            "id": "g_500",
+            "category": "global_big_win",
+            "title": "بانر فوز عام 500X",
+            "tierOrNumber": "500X",
+            "pathOrUrl": "assets/svga/ar500.svga",
+            "textKey": "test",
+            "imageKey": "Avatar",
+            "description": "بانر يطير في أعلى كافة الغرف بمفتاح Avatar للصورة و test للنص"
+          },
+          {
+            "id": "g_1000",
+            "category": "global_big_win",
+            "title": "بانر الجاكبوت العام 1000X",
+            "tierOrNumber": "1000X",
+            "pathOrUrl": "assets/svga/ar1000.svga",
+            "textKey": "test",
+            "imageKey": "Avatar",
+            "description": "الجاكبوت الأسطوري لكافة الغرف"
+          },
+          {
+            "id": "r_5",
+            "category": "room_win",
+            "title": "أنيميشن مكسب الغرفة 5X",
+            "tierOrNumber": "5X",
+            "pathOrUrl": "assets/svga/gift_5.svga",
+            "textKey": "test-b (الاسم) / test-a (الكوينز)",
+            "imageKey": "Avatar",
+            "description": "يظهر لجميع أعضاء الغرفة"
+          },
+          {
+            "id": "r_10",
+            "category": "room_win",
+            "title": "أنيميشن مكسب الغرفة 10X",
+            "tierOrNumber": "10X",
+            "pathOrUrl": "assets/svga/gift_10.svga",
+            "textKey": "test-b (الاسم) / test-a (الكوينز)",
+            "imageKey": "Avatar",
+            "description": "يظهر لجميع أعضاء الغرفة"
+          },
+          {
+            "id": "r_50",
+            "category": "room_win",
+            "title": "أنيميشن مكسب الغرفة 50X",
+            "tierOrNumber": "50X",
+            "pathOrUrl": "assets/svga/gift_50.svga",
+            "textKey": "test-b (الاسم) / test-a (الكوينز)",
+            "imageKey": "Avatar",
+            "description": "يظهر لجميع أعضاء الغرفة"
+          },
+          {
+            "id": "r_100",
+            "category": "room_win",
+            "title": "أنيميشن مكسب الغرفة 100X",
+            "tierOrNumber": "100X",
+            "pathOrUrl": "assets/svga/gift_100.svga",
+            "textKey": "test-b (الاسم) / test-a (الكوينز)",
+            "imageKey": "Avatar",
+            "description": "يظهر لجميع أعضاء الغرفة"
+          },
+          {
+            "id": "r_500",
+            "category": "room_win",
+            "title": "أنيميشن مكسب الغرفة 500X",
+            "tierOrNumber": "500X",
+            "pathOrUrl": "assets/svga/gift_500.svga",
+            "textKey": "test-b (الاسم) / test-a (الكوينز)",
+            "imageKey": "Avatar",
+            "description": "يظهر لجميع أعضاء الغرفة"
+          },
+          {
+            "id": "r_1000",
+            "category": "room_win",
+            "title": "أنيميشن مكسب الغرفة 1000X",
+            "tierOrNumber": "1000X",
+            "pathOrUrl": "assets/svga/gift_1000.svga",
+            "textKey": "test-b (الاسم) / test-a (الكوينز)",
+            "imageKey": "Avatar",
+            "description": "يظهر لجميع أعضاء الغرفة"
+          }
+        ],
+        "enableBurstMode": true,
+        "maxCardsPerRound": 8,
+        "perspectiveDepth": 1000,
+        "comboTimeoutMs": 3000,
+        "themeStyle": "luxury_gold",
+        "settlementCountdownMs": 5000,
+        "cooldownMs": 300,
+        "globalBroadcastMinMultiplier": 1,
+        "coverUrl": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788684202/gift_icons/1788684181924_bg_level_up_charm.webp.webp?assetType=webp",
+        "backBgUrl": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788684195/gift_icons/1788684173719_bg_rank_wealth.webp.webp?assetType=webp",
+        "oddsTiers": [
+          {
+            "isGlobalBroadcast": true,
+            "probability": 1.265,
+            "weight": 650,
+            "id": "1",
+            "label": "حظ أوفر",
+            "multiplier": 0,
+            "isJackpot": false
+          },
+          {
+            "isJackpot": false,
+            "label": "استرجاع القيمة (1X)",
+            "isGlobalBroadcast": true,
+            "probability": 97.346,
+            "multiplier": 1,
+            "id": "2",
+            "weight": 50000
+          },
+          {
+            "label": "مضاعف (2X)",
+            "weight": 90,
+            "multiplier": 2,
+            "id": "3",
+            "isJackpot": false,
+            "isGlobalBroadcast": true,
+            "probability": 0.175
+          },
+          {
+            "weight": 40,
+            "label": "مضاعف (5X)",
+            "probability": 0.078,
+            "id": "4",
+            "multiplier": 5,
+            "isJackpot": false,
+            "isGlobalBroadcast": true
+          },
+          {
+            "weight": 15,
+            "multiplier": 10,
+            "label": "مضاعف كبير (10X)",
+            "isJackpot": false,
+            "probability": 0.029,
+            "isGlobalBroadcast": true,
+            "id": "5"
+          },
+          {
+            "probability": 0.016,
+            "isJackpot": false,
+            "isGlobalBroadcast": true,
+            "id": "6",
+            "multiplier": 20,
+            "weight": 8,
+            "label": "مضاعف (20X)"
+          },
+          {
+            "weight": 4,
+            "label": "فوز ضخم (50X)",
+            "multiplier": 50,
+            "isJackpot": false,
+            "id": "7",
+            "isGlobalBroadcast": true,
+            "probability": 0.008
+          },
+          {
+            "isGlobalBroadcast": true,
+            "isJackpot": true,
+            "weight": 0.8,
+            "multiplier": 100,
+            "id": "8",
+            "label": "جائزة كبرى (100X)",
+            "probability": 0.002
+          },
+          {
+            "multiplier": 250,
+            "id": "9",
+            "label": "جائزة خارقة (250X)",
+            "probability": 0.001,
+            "isGlobalBroadcast": true,
+            "isJackpot": true,
+            "weight": 0.35
+          },
+          {
+            "isGlobalBroadcast": true,
+            "isJackpot": true,
+            "label": "جائزة أسطورية (500X)",
+            "multiplier": 500,
+            "id": "10",
+            "weight": 0.18,
+            "probability": 0
+          },
+          {
+            "id": "11",
+            "probability": 1.081,
+            "label": "الجاكبوت الكلي (1000X)",
+            "isGlobalBroadcast": true,
+            "multiplier": 1000,
+            "weight": 555,
+            "isJackpot": true
+          }
+        ],
+        "updated_at": "2026-09-06T11:07:14.619Z"
+      }
+    },
+    "primaryBg": {
+      "_data": {
+        "value": "#FFFFFF",
+        "key": "primaryBg"
+      }
+    },
+    "profileBackgroundImage": {
+      "_data": {
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787898850/profile/1787898833772_bk.png.png",
+        "key": "profileBackgroundImage"
+      }
+    },
+    "profileBgType": {
+      "_data": {
+        "value": "image",
+        "key": "profileBgType"
+      }
+    },
+    "profileEditIcon": {
+      "_data": {
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787901350/profile/1787901335337_dj.png.png",
+        "key": "profileEditIcon"
+      }
+    },
+    "profileSettingsIcon": {
+      "_data": {
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787901296/profile/1787901280605_gk.png.png",
+        "key": "profileSettingsIcon"
+      }
+    },
+    "profileShareIcon": {
+      "_data": {
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787901343/profile/1787901328062_f6.png.png",
+        "key": "profileShareIcon"
+      }
+    },
+    "rankConfig": {
+      "_data": {
+        "key": "rankConfig",
+        "value": "{\"wealth_bgAssetKey\":\"rank_wealth_bgAssetKey\",\"charm_bgAssetKey\":\"rank_charm_bgAssetKey\"}"
+      }
+    },
+    "roomBgImages": {
+      "_data": {
+        "value": "{}",
+        "key": "roomBgImages"
+      }
+    },
+    "roomBgPrice": {
+      "_data": {
+        "value": 50000,
+        "key": "roomBgPrice"
+      }
+    },
+    "roomGradients": {
+      "_data": {
+        "value": "{\"themeFriend\":[\"#E447E7\",\"#A136FF\"],\"themeChat\":[\"#24D5C3\",\"#03DF99\"],\"themeMusic\":[\"#3697FF\",\"#B534FF\"],\"themeGame\":[\"#DB9C16\",\"#F0C724\"],\"themeParty\":[\"#3590FF\",\"#294BF7\"],\"themeHobby\":[\"#26C889\",\"#86BC1B\"]}",
+        "key": "roomGradients"
+      }
+    },
+    "roomSendMessageImage": {
+      "_data": {
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1787901280/profile/1787901264709_df.png.png",
+        "key": "roomSendMessageImage"
+      }
+    },
+    "screenVisuals": {
+      "_data": {
+        "key": "screenVisuals",
+        "value": "{\"agency\":{\"backgroundImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1789122962/app_assets/1789122939537_room_ktv_bg.webp.webp\",\"headerBgColor\":\"#9d7341\",\"headerTextColor\":\"#ffffff\",\"cardBgColor\":\"#f5f5f5\",\"cardBorderColor\":\"#0f3460\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#a0a0b0\",\"accentColor\":\"#e94560\",\"tabActiveColor\":\"#e94560\",\"tabInactiveColor\":\"#555\",\"memberAvatarBorder\":\"#e94560\",\"leaderNecklaceName\":\"قلادة الوكيل (Agency Owner)\",\"leaderNecklaceSvga\":\"https://res.cloudinary.com/dl30muiuc/raw/upload/v1788055503/store_files/1788055482063_10.svga?assetType=svga\",\"hostNecklaceName\":\"قلادة المضيف (Agency Host)\",\"hostNecklaceSvga\":\"https://res.cloudinary.com/dl30muiuc/raw/upload/v1788055510/store_files/1788055491990_14.svga?assetType=svga\"},\"badges\":{\"backgroundImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757103/app_assets/1787757087821_m.png.png\",\"headerBgColor\":\"#241e0c\",\"headerBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787845115/app_assets/1787845100464_rank_tab_bg.webp.webp\",\"headerTextColor\":\"#000000\",\"cardBgColor\":\"#302b1e\",\"cardBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757163/app_assets/1787757148192_mine_mall_item_bg.webp.webp\",\"cardBorderColor\":\"#0f3460\",\"cardBorderImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757240/app_assets/1787757225476_mine_mall_item_bg.webp.webp\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#a0a0b0\",\"accentColor\":\"#f0c724\",\"accentImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787845115/app_assets/1787845100464_rank_tab_bg.webp.webp\",\"sectionBgColor\":\"#0d0d12\",\"sectionBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787845115/app_assets/1787845100464_rank_tab_bg.webp.webp\",\"badgeBorderColor\":\"#f0c724\",\"badgeBorderImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757187/app_assets/1787757172113_a4.png.png\",\"badgeBgColor\":\"#3d3521\",\"badgeBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757265/app_assets/1787757250492_mine_mall_item_bg.webp.webp\",\"lockImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757462/app_assets/1787757447977_ic_lock_room.png.png\"},\"necklaces\":{\"backgroundImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757103/app_assets/1787757087821_m.png.png\",\"headerBgColor\":\"#1a1a2e\",\"headerBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757211/app_assets/1787757196261_ap.png.png\",\"headerTextColor\":\"#ffffff\",\"cardBgColor\":\"#16213e\",\"cardBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757163/app_assets/1787757148192_mine_mall_item_bg.webp.webp\",\"cardBorderColor\":\"#0f3460\",\"cardBorderImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757240/app_assets/1787757225476_mine_mall_item_bg.webp.webp\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#a0a0b0\",\"accentColor\":\"#e94560\",\"accentImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757559/app_assets/1787757544294_mine_mall_type_item_bg.webp.webp\",\"sectionBgColor\":\"#0d0d12\",\"sectionBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757187/app_assets/1787757172113_a4.png.png\",\"necklaceBorderColor\":\"#e94560\",\"necklaceBorderImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757265/app_assets/1787757250492_mine_mall_item_bg.webp.webp\",\"necklaceBgColor\":\"#1a1a2e\",\"necklaceBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757265/app_assets/1787757250492_mine_mall_item_bg.webp.webp\",\"lockImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757462/app_assets/1787757447977_ic_lock_room.png.png\"},\"rank\":{\"headerBgColor\":\"#1a1a2e\",\"headerTextColor\":\"#ffffff\",\"cardBgColor\":\"#16213e\",\"cardBorderColor\":\"#0f3460\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#a0a0b0\",\"accentColor\":\"#ffd700\",\"goldColor\":\"#FFD700\",\"silverColor\":\"#C0C0C0\",\"bronzeColor\":\"#CD7F32\",\"pointsColor\":\"#FFD700\",\"trophyIcon\":\"emoji_events\",\"bgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1789130782/app_assets/1789130760051_rank_charm_bg.webp.webp\",\"listBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787844539/app_assets/1787844524299_i.png.png\",\"mainTabBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787845090/app_assets/1787845075734_mine_mall_type_tab_item_bg.webp.webp\",\"subTabBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787845115/app_assets/1787845100464_rank_tab_bg.webp.webp\"},\"checkbox\":{},\"store\":{\"backgroundImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757758/app_assets/1787757743304_u.png.png\",\"headerBgColor\":\"#1a1a2e\",\"headerTextColor\":\"#050505\",\"cardBgColor\":\"#16151A\",\"cardBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757822/app_assets/1787757807634_mine_mall_item_bg.webp.webp\",\"cardBorderColor\":\"#ffffff\",\"cardBorderImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757831/app_assets/1787757816053_mine_mall_item_bg.webp.webp\",\"textColor\":\"#000000\",\"subTextColor\":\"#9BA1B6\",\"accentColor\":\"#DE880F\",\"sectionBgColor\":\"#0d0d12\",\"sectionBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757860/app_assets/1787757845390_rank_tab_bg.webp.webp\"},\"backpack\":{\"headerBgColor\":\"#1a1a2e\",\"headerTextColor\":\"#ffffff\",\"tabBgColor\":\"#16151A\",\"tabActiveColor\":\"#ffffff\",\"tabInactiveColor\":\"#9BA1B6\",\"cardBgColor\":\"#16151A\",\"cardBorderColor\":\"#ffffff\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#9BA1B6\",\"accentColor\":\"#DE880F\",\"sectionBgColor\":\"#0d0d12\"},\"wallet\":{\"headerBgColor\":\"#1a1a2e\",\"headerTextColor\":\"#ffffff\",\"cardBgColor\":\"#16151A\",\"cardBorderColor\":\"#ffffff\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#9BA1B6\",\"accentColor\":\"#DE880F\",\"sectionBgColor\":\"#0d0d12\"},\"level\":{\"backgroundImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787757758/app_assets/1787757743304_u.png.png\",\"headerBgColor\":\"#1a1a2e\",\"headerTextColor\":\"#ffffff\",\"headerTextImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787845115/app_assets/1787845100464_rank_tab_bg.webp.webp\",\"cardBgColor\":\"#2e291f\",\"cardBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787547309/app_assets/1787547294645_mine_mall_item_bg.webp.webp\",\"cardBorderColor\":\"#0f3460\",\"cardBorderImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787547404/app_assets/1787547390078_mine_mall_item_bg.webp.webp\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#a0a0b0\",\"accentColor\":\"#f0c724\",\"lockImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787547459/app_assets/1787547444253_room_mic_seat_lock_ic.webp.webp\",\"sectionBgColor\":\"#0d0d12\",\"sectionBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787845115/app_assets/1787845100464_rank_tab_bg.webp.webp\"},\"cp\":{\"headerBgColor\":\"#E91E8C\",\"headerTextColor\":\"#ffffff\",\"cardBgColor\":\"#ffffff\",\"cardBorderColor\":\"#E91E8C\",\"textColor\":\"#5D1A3A\",\"subTextColor\":\"#a0a0b0\",\"accentColor\":\"#FF4FA3\",\"primaryColor\":\"#E91E8C\",\"gradientStart\":\"#E91E8C\",\"gradientEnd\":\"#FF4FA3\",\"goldColor\":\"#FFD700\",\"silverColor\":\"#C0C0C0\",\"bronzeColor\":\"#CD7F32\",\"sectionBgColor\":\"#FCE4EC\",\"tabActiveColor\":\"#E91E8C\",\"tabInactiveColor\":\"#ffffff\",\"tabBgColor\":\"#E91E8C\",\"countdownTextColor\":\"#E91E8C\",\"countdownLabelColor\":\"#000000\",\"invitationBgColor\":\"#ffffff\",\"buttonColor\":\"#E91E8C\",\"buttonTextColor\":\"#ffffff\",\"buttonOutlineColor\":\"#E91E8C\",\"giftButtonGradientStart\":\"#FF4FA3\",\"giftButtonGradientEnd\":\"#E91E8C\",\"sectionHeaderColor\":\"#E91E8C\",\"avatarBorderColor\":\"#E91E8C\",\"scoreTokenColor\":\"#FFD700\",\"scoreTokenLabelColor\":\"#ffffff\",\"scoreTokenBgColor\":\"#E91E8C\",\"podiumBgStart\":\"#FCE4EC\",\"podiumBgEnd\":\"#ffffff\",\"periodButtonActiveBg\":\"#E91E8C\",\"periodButtonActiveText\":\"#ffffff\",\"periodButtonInactiveBg\":\"#0000000D\",\"periodButtonInactiveText\":\"#00000073\",\"rankItemBg\":\"#ffffff\",\"rankShadowColor\":\"#E91E8C\",\"myRankPillGradientStart\":\"#FF4FA3\",\"myRankPillGradientEnd\":\"#E91E8C\",\"myRankPillText\":\"#ffffff\",\"myRankScoreColor\":\"#FFD700\",\"profileDaysBadgeBg\":\"#260105\",\"profileDaysBadgeBorder\":\"#81050f\",\"profileDaysBadgeBg2\":\"#a40b25\",\"profileDaysBadgeBorder2\":\"#e73d46\",\"profileDaysText\":\"#b3b3b3\",\"profileDaysTogetherText\":\"#cccccc\",\"profileLevelGradientStart\":\"#fff19f\",\"profileLevelGradientEnd\":\"#ffb565\",\"profileHeartIcon\":\"assets/cp/ic_cp_val_heart.png\",\"profileLevelBg\":\"assets/cp/ic_rs_lv_bg_cp.png\",\"profileNameFrame\":\"assets/cp/ic_send_invitation_name_frame.png\",\"profileTopBgSvga\":\"assets/svga/relationship_act_top_bg.svga\"},\"signin\":{\"backgroundImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787546406/app_assets/1787546391641_room_bg_friend.webp.webp\",\"headerBgColor\":\"#2e0d15\",\"headerBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787546432/app_assets/1787546418285_discover_item_chat_bg.webp.webp\",\"headerTextColor\":\"#FFD700\",\"cardBgColor\":\"#3d1520\",\"cardBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787546485/app_assets/1787546470884_room_gift_lucky_bg.webp.webp\",\"cardBorderColor\":\"#DE880F\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#B8A88A\",\"accentColor\":\"#FFD700\",\"goldColor\":\"#FFD700\",\"buttonColor\":\"#DE880F\",\"buttonTextColor\":\"#ffffff\",\"buttonGradientStart\":\"#FFD700\",\"buttonGradientEnd\":\"#DE880F\",\"dayBgColor\":\"#3d1520\",\"dayActiveColor\":\"#5a2030\",\"dayClaimedColor\":\"#1a4a1a\",\"dayLockedColor\":\"#2a1018\",\"dayBorderColor\":\"#DE880F\",\"dayClaimedBorderColor\":\"#4CAF50\",\"sectionBgColor\":\"#2e0d15\",\"sectionBgImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787546527/app_assets/1787546512665_discover_item_chat_bg.webp.webp\"},\"room\":{\"headerBgColor\":\"transparent\",\"headerTextColor\":\"#ffffff\",\"seatDefaultCircleImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787762264/app_assets/1787762248715_room_mic_seat_default_vip_ic.webp.webp\",\"seatLockCircleImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787762277/app_assets/1787762262266_room_mic_seat_lock_vip_ic.webp.webp\",\"seatDefaultClassicImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787762292/app_assets/1787762277772_room_mic_seat_style_default_ic.webp.webp\",\"seatLockClassicImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787762303/app_assets/1787762288118_room_mic_seat_lock_ic.webp.webp\",\"seatDefaultVipImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787762314/app_assets/1787762299521_room_mic_seat_default_vip_2_ic.webp.webp\",\"seatLockVipImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787762324/app_assets/1787762309016_room_mic_seat_lock_vip_ic.webp.webp\",\"exitSheetBgColor\":\"#16151A\",\"volumePanelBgColor\":\"#16151A\",\"functionsPanelBgColor\":\"#16151A\"},\"discover\":{\"backgroundImage\":\"\",\"backgroundColor\":\"#ffffff\",\"textColor\":\"#16151a\",\"subTextColor\":\"#ebb800\",\"cardBgColor\":\"#6f5134\"},\"message\":{\"backgroundImage\":\"\",\"backgroundColor\":\"#ffffff\",\"textColor\":\"#16151a\",\"subTextColor\":\"#9ba1b6\",\"cardBgColor\":\"#4d3a28\"},\"profile\":{\"backgroundImage\":\"\",\"backgroundColor\":\"#fafafa\",\"textColor\":\"#f5f5f5\",\"subTextColor\":\"#888888\",\"cardBgColor\":\"#f7f7f8\"},\"chat\":{\"backgroundImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787777600/app_assets/1787777584343_av.png.png\",\"backgroundColor\":\"#f2f3f5\",\"textColor\":\"#000000\",\"bubbleSelfBgColor\":\"#ffe082\",\"bubbleOtherBgColor\":\"#ffffff\"},\"userProfile\":{\"backgroundImage\":\"\",\"cardFrameImg\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1788050755/app_assets/1788050739105_ic_badge_bg_item_not_available.png.png\",\"backgroundColor\":\"#16151A\",\"borderColor\":\"#ffaf4d\",\"textColor\":\"#FFFFFF\",\"subTextColor\":\"#9BA1B6\",\"buttonColor\":\"#FFE082\",\"hostBadgeImg\":\"\",\"hostBadgeBg\":\"#1E5BB5\",\"giftBarBg\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1788050755/app_assets/1788050739105_ic_badge_bg_item_not_available.png.png\",\"giftBarBorderImg\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1788050755/app_assets/1788050739105_ic_badge_bg_item_not_available.png.png\",\"giftBarBorder\":\"#0a0a0b\",\"intimateCardBg\":\"\",\"familyCardBg\":\"\",\"supportersBanner\":\"\",\"supporterSlot\":\"\",\"goldCrown\":\"\",\"silverCrown\":\"\",\"bronzeCrown\":\"\",\"identityTitleImg\":\"\",\"badgesTitleImg\":\"\",\"achievementsTitleImg\":\"\",\"profileFollowIcon\":\"\",\"profileChatIcon\":\"\",\"profileGiftIcon\":\"\",\"profileMentionIcon\":\"\",\"profileMoreIcon\":\"\",\"profileReportIcon\":\"\",\"profileEditIcon\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787901350/profile/1787901335337_dj.png.png\",\"giftWallCardBg\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787956581/app_assets/1787956564950_aw.png.png\",\"giftWallCardBorder\":\"#382F24\",\"giftWallIcon\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787956562/app_assets/1787956546138_gv.png.png\",\"vehicleCardBg\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787956599/app_assets/1787956583162_aq.png.png\",\"vehicleCardBorder\":\"#382F24\",\"vehicleIcon\":\"\",\"frameCardBg\":\"\",\"frameCardBorder\":\"#382F24\",\"frameIcon\":\"\",\"dataCountColor\":\"#FFFFFF\",\"dataLabelColor\":\"#6DE5FF\",\"cpCardBg\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1789125914/profile_cp/1789125891371_ic_agency_charm_item_bg.png.png?assetType=png\",\"cpCardBorder\":\"#DE880F\",\"cpRingSvga\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1789125937/profile_rings/1789125914786_ic_cp_ranking_heart_top1.png.png?assetType=png\",\"cpRing2Svga\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1789125942/profile_rings/1789125920123_ic_cp_ranking_heart_top1.png.png?assetType=png\",\"cpRing3Svga\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1789125945/profile_rings/1789125922788_ic_cp_ranking_heart_top1.png.png?assetType=png\",\"cpMidDecorImage\":\"https://res.cloudinary.com/dl30muiuc/raw/upload/v1789126085/profile_cp/1789126062923_cp_ranking_award_ar.svga?assetType=svga\",\"cpDaysBg\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1789125958/profile_cp/1789125936409_ic_cp_space_tab_selected_bg.png.png?assetType=png\",\"cpAddIcon\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1789125950/profile_cp/1789125928046_ic_add_cp.png.png?assetType=png\",\"medalsCardBorder\":\"#26DE880F\",\"tabActiveColor\":\"#00E5C9\",\"tabInactiveColor\":\"#99FFFFFF\",\"profileSettingsIcon\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787901296/profile/1787901280605_gk.png.png\",\"profileShareIcon\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787901343/profile/1787901328062_f6.png.png\"},\"fullProfile\":{\"backgroundImage\":\"\",\"backgroundColor\":\"#16151A\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#9BA1B6\",\"coverImage\":\"\",\"intimateCardBg\":\"\",\"familyCardBg\":\"\",\"supportersBanner\":\"\",\"supporterSlot\":\"\",\"goldCrown\":\"\",\"silverCrown\":\"\",\"bronzeCrown\":\"\",\"identityTitleImg\":\"\",\"badgesTitleImg\":\"\",\"achievementsTitleImg\":\"\",\"profileEditIcon\":\"\",\"giftWallCardBg\":\"\",\"giftWallCardBorder\":\"#382F24\",\"giftWallIcon\":\"\",\"vehicleCardBg\":\"\",\"vehicleCardBorder\":\"#382F24\",\"vehicleIcon\":\"\",\"frameCardBg\":\"\",\"frameCardBorder\":\"#382F24\",\"frameIcon\":\"\"},\"eventInfo\":{\"backgroundImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787777665/app_assets/1787777650332_av.png.png\",\"backgroundColor\":\"#ffffff\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#888888\"},\"notifications\":{\"backgroundImage\":\"https://res.cloudinary.com/dl30muiuc/image/upload/v1787763284/app_assets/1787763268451_bk.png.png\",\"backgroundColor\":\"#211211\",\"textColor\":\"#ffffff\",\"subTextColor\":\"#b3b3b3\",\"cardBgColor\":\"#301c1a\"}}"
+      }
+    },
+    "splashActionType": {
+      "_data": {
+        "key": "splashActionType",
+        "value": "/cp_ranking"
+      }
+    },
+    "splashActionValue": {
+      "_data": {
+        "value": "",
+        "key": "splashActionValue"
+      }
+    },
+    "splashDurationSeconds": {
+      "_data": {
+        "key": "splashDurationSeconds",
+        "value": 5
+      }
+    },
+    "splashEnabled": {
+      "_data": {
+        "key": "splashEnabled",
+        "value": true
+      }
+    },
+    "splashGifUrl": {
+      "_data": {
+        "key": "splashGifUrl",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788447140/app_assets/1788447121244_ic_login_bg.webp.webp"
+      }
+    },
+    "splashImageUrl": {
+      "_data": {
+        "key": "splashImageUrl",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788800706/splash/1788800680115_bg_room.webp.webp?assetType=webp"
+      }
+    },
+    "splashNameColor": {
+      "_data": {
+        "value": "#16151A",
+        "key": "splashNameColor"
+      }
+    },
+    "splashSvgaUrl": {
+      "_data": {
+        "value": "",
+        "key": "splashSvgaUrl"
+      }
+    },
+    "splash_action_type": {
+      "_data": {
+        "key": "splash_action_type",
+        "value": "/cp_ranking"
+      }
+    },
+    "splash_action_value": {
+      "_data": {
+        "value": "",
+        "key": "splash_action_value"
+      }
+    },
+    "splash_duration_seconds": {
+      "_data": {
+        "key": "splash_duration_seconds",
+        "value": 5
+      }
+    },
+    "splash_enabled": {
+      "_data": {
+        "key": "splash_enabled",
+        "value": true
+      }
+    },
+    "splash_image_url": {
+      "_data": {
+        "key": "splash_image_url",
+        "value": "https://res.cloudinary.com/dl30muiuc/image/upload/v1788800706/splash/1788800680115_bg_room.webp.webp?assetType=webp"
+      }
+    },
+    "splash_svga_url": {
+      "_data": {
+        "value": "",
+        "key": "splash_svga_url"
+      }
+    },
+    "tabBarColor": {
+      "_data": {
+        "value": "#FFFFFF",
+        "key": "tabBarColor"
+      }
+    },
+    "textPrimary": {
+      "_data": {
+        "value": "#16151A",
+        "key": "textPrimary"
+      }
+    },
+    "textSecondary": {
+      "_data": {
+        "value": "#9BA1B6",
+        "key": "textSecondary"
+      }
+    },
+    "vipCardBgColor": {
+      "_data": {
+        "value": "#1A3D1A",
+        "key": "vipCardBgColor"
+      }
+    },
+    "vipCardBorderColor": {
+      "_data": {
+        "value": "#C9A84C",
+        "key": "vipCardBorderColor"
+      }
+    }
+  }
+}

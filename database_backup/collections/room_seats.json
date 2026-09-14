@@ -1,0 +1,19 @@
+{
+  "totalDocs": 1,
+  "docs": {
+    "2675257_16": {
+      "_data": {
+        "room_id": "2675257",
+        "uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "seat_index": 16,
+        "active_car": "store_1788676529693",
+        "taken_at": "2026-09-12T18:07:09.062247",
+        "custom_id": "10776012",
+        "name": "mido",
+        "photo_url": "https://lh3.googleusercontent.com/a/ACg8ocJRRngy9muLkXz099C4JpF3EI39MKY19wd3BKWTh8vB-Q5osmUCdA=s96-c",
+        "active_frame": "https://res.cloudinary.com/dl30muiuc/raw/upload/v1787546185/store_files/1787546166747_1.svga?assetType=svga",
+        "is_muted": false
+      }
+    }
+  }
+}

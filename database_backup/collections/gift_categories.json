@@ -1,0 +1,40 @@
+{
+  "totalDocs": 5,
+  "docs": {
+    "backpack": {
+      "_data": {
+        "name": "🎒 الحقيبة (Backpack)",
+        "id": "backpack",
+        "sort_order": 5
+      }
+    },
+    "cp": {
+      "_data": {
+        "name": "💍 الارتباط (CP)",
+        "id": "cp",
+        "sort_order": 4
+      }
+    },
+    "lucky": {
+      "_data": {
+        "name": "🍀 الحظ (Lucky)",
+        "id": "lucky",
+        "sort_order": 3
+      }
+    },
+    "luxury": {
+      "_data": {
+        "name": "👑 فاخر (VIP)",
+        "id": "luxury",
+        "sort_order": 2
+      }
+    },
+    "normal": {
+      "_data": {
+        "name": "شائع (عادي)",
+        "id": "normal",
+        "sort_order": 1
+      }
+    }
+  }
+}

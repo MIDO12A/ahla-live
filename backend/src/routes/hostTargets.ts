@@ -38,6 +38,9 @@ export async function evaluateHostTargets(hostUserId: string): Promise<string[]>
   const memberData = memberQs.docs[0].data() ?? {};
   const agencyId = String(memberData.agency_id ?? '');
   const diamondsMonthly = asInt(memberData.diamonds_earned_monthly);
+  const liveSecondsMonthly = asInt(memberData.live_seconds_monthly);
+  const liveHoursMonthly = asNum(memberData.live_hours_monthly ?? (liveSecondsMonthly / 3600));
+  const validDaysMonthly = asInt(memberData.valid_days_monthly);
 
   // 2. Gather active targets from milestones + dedicated config.
   const [milestonesSnap, targetsSnap] = await Promise.all([
@@ -54,8 +57,13 @@ export async function evaluateHostTargets(hostUserId: string): Promise<string[]>
 
   for (const t of allTargets) {
     const targetDiamonds = asInt(t.targetData.target_diamonds);
+    const requiredHours = asNum(t.targetData.required_hours ?? t.targetData.target_hours ?? 0);
+    const requiredDays = asInt(t.targetData.required_days ?? t.targetData.target_days ?? 0);
     const targetId = t.id;
+
     if (targetDiamonds <= 0 || diamondsMonthly < targetDiamonds) continue;
+    if (requiredHours > 0 && liveHoursMonthly < requiredHours) continue;
+    if (requiredDays > 0 && validDaysMonthly < requiredDays) continue;
 
     const achievedRef = db
       .collection('agency_achieved_targets')
@@ -221,6 +229,85 @@ router.post('/evaluate', authenticate, async (req: Request, res: Response) => {
   try {
     const awarded = await evaluateHostTargets(hostUserId);
     res.json({ evaluated: true, awarded });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/v1/host-targets/live-heartbeat
+ * Records live broadcast / mic session minutes for the host.
+ *  - body: { roomId, minutes }
+ *  - Increments live_seconds_monthly and computes live_hours_monthly
+ *  - Tracks today's date (YYYY-MM-DD) to increment valid_days_monthly (min 60 mins/day)
+ *  - Triggers target evaluation
+ */
+router.post('/live-heartbeat', authenticate, async (req: Request, res: Response) => {
+  const hostUserId = req.user?.uid;
+  if (!hostUserId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const { roomId, minutes: rawMinutes } = req.body ?? {};
+  const minutes = Math.max(1, Math.min(60, Number(rawMinutes) || 1));
+  const seconds = minutes * 60;
+
+  try {
+    const memberQs = await db
+      .collection('host_agency_members')
+      .where('user_id', '==', hostUserId)
+      .where('status', '==', 'active')
+      .limit(1)
+      .get();
+
+    if (memberQs.empty) {
+      res.json({ success: true, message: 'not_an_active_host' });
+      return;
+    }
+
+    const memberDoc = memberQs.docs[0];
+    const memberData = memberDoc.data() ?? {};
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const lastLiveDate = String(memberData.last_live_date ?? '');
+    let todaySeconds = asInt(memberData.today_live_seconds);
+    if (lastLiveDate !== todayStr) {
+      todaySeconds = 0;
+    }
+    todaySeconds += seconds;
+
+    const newTotalSeconds = asInt(memberData.live_seconds_monthly) + seconds;
+    const newTotalHours = Math.round((newTotalSeconds / 3600) * 100) / 100;
+    let validDays = asInt(memberData.valid_days_monthly);
+
+    // If reached 60 mins today and today wasn't counted yet
+    const lastCountedValidDay = String(memberData.last_counted_valid_day ?? '');
+    const reachedMinDay = todaySeconds >= 3600;
+    if (reachedMinDay && lastCountedValidDay !== todayStr) {
+      validDays += 1;
+    }
+
+    await memberDoc.ref.update({
+      live_seconds_monthly: newTotalSeconds,
+      live_hours_monthly: newTotalHours,
+      today_live_seconds: todaySeconds,
+      last_live_date: todayStr,
+      last_live_at: now.toISOString(),
+      valid_days_monthly: validDays,
+      ...(reachedMinDay && lastCountedValidDay !== todayStr ? { last_counted_valid_day: todayStr } : {}),
+    });
+
+    evaluateHostTargets(hostUserId).catch((err) => {
+      console.error('[live-heartbeat] host target evaluation error:', err);
+    });
+
+    res.json({
+      success: true,
+      live_hours_monthly: newTotalHours,
+      valid_days_monthly: validDays,
+      today_minutes: Math.round(todaySeconds / 60),
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

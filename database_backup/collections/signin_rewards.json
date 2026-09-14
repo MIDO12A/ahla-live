@@ -1,0 +1,103 @@
+{
+  "totalDocs": 7,
+  "docs": {
+    "day_1": {
+      "_data": {
+        "icon_url": "assets/mipmap-xxhdpi/ic_signing_ok.png",
+        "svga_url": "",
+        "value_type": "coins",
+        "is_active": true,
+        "label_ar": "اليوم 1",
+        "is_double": false,
+        "gift_id": "",
+        "day_number": 1,
+        "label_en": "Day 1",
+        "value": 50
+      }
+    },
+    "day_2": {
+      "_data": {
+        "icon_url": "assets/mipmap-xxhdpi/ic_signing_ok.png",
+        "svga_url": "",
+        "value_type": "coins",
+        "is_active": true,
+        "label_ar": "اليوم 2",
+        "is_double": false,
+        "gift_id": "",
+        "day_number": 2,
+        "label_en": "Day 2",
+        "value": 100
+      }
+    },
+    "day_3": {
+      "_data": {
+        "icon_url": "assets/mipmap-xxhdpi/ic_signing_ok.png",
+        "svga_url": "",
+        "value_type": "coins",
+        "is_active": true,
+        "label_ar": "اليوم 3",
+        "is_double": false,
+        "gift_id": "",
+        "day_number": 3,
+        "label_en": "Day 3",
+        "value": 150
+      }
+    },
+    "day_4": {
+      "_data": {
+        "icon_url": "assets/mipmap-xxhdpi/ic_signing_ok.png",
+        "svga_url": "",
+        "value_type": "coins",
+        "is_active": true,
+        "label_ar": "اليوم 4",
+        "is_double": false,
+        "gift_id": "",
+        "day_number": 4,
+        "label_en": "Day 4",
+        "value": 200
+      }
+    },
+    "day_5": {
+      "_data": {
+        "icon_url": "assets/mipmap-xxhdpi/ic_signing_ok.png",
+        "svga_url": "",
+        "value_type": "coins",
+        "is_active": true,
+        "label_ar": "اليوم 5",
+        "is_double": false,
+        "gift_id": "",
+        "day_number": 5,
+        "label_en": "Day 5",
+        "value": 300
+      }
+    },
+    "day_6": {
+      "_data": {
+        "icon_url": "assets/mipmap-xxhdpi/ic_signing_ok.png",
+        "svga_url": "",
+        "value_type": "coins",
+        "is_active": true,
+        "label_ar": "اليوم 6",
+        "is_double": false,
+        "gift_id": "",
+        "day_number": 6,
+        "label_en": "Day 6",
+        "value": 400
+      }
+    },
+    "day_7": {
+      "_data": {
+        "icon_url": "assets/mipmap-xxhdpi/ic_checkin_gift.png",
+        "svga_url": "",
+        "value_type": "coins",
+        "is_active": true,
+        "label_ar": "اليوم 7",
+        "is_double": true,
+        "gift_id": "",
+        "day_number": 7,
+        "label_en": "Day 7",
+        "value": 500
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "totalDocs": 2,
+  "docs": {
+    "o9a3npV62pMWMynP9us2Q1XxTB63_17v9pLKGP8WwzuEUCUCfTAHktKo1": {
+      "_data": {
+        "following_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "follower_uid": "o9a3npV62pMWMynP9us2Q1XxTB63",
+        "created_at": "2026-08-30T18:21:14.940170"
+      }
+    },
+    "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2_17v9pLKGP8WwzuEUCUCfTAHktKo1": {
+      "_data": {
+        "follower_uid": "uhNUlM9jdAR5ttzZ4nSQg1ncB2Y2",
+        "following_uid": "17v9pLKGP8WwzuEUCUCfTAHktKo1",
+        "created_at": "2026-09-10T08:58:49.449186"
+      }
+    }
+  }
+}

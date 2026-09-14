@@ -46,6 +46,9 @@ class AgencyTargetEvaluator {
       final d2 = (md['diamonds_balance'] as num?)?.toInt() ?? 0;
       final d3 = (md['diamonds'] as num?)?.toInt() ?? 0;
       final diamondsMonthly = [d1, d2, d3].reduce((curr, next) => curr > next ? curr : next);
+      final liveSeconds = (md['live_seconds_monthly'] as num?)?.toInt() ?? 0;
+      final liveHours = (md['live_hours_monthly'] as num?)?.toDouble() ?? (liveSeconds / 3600.0);
+      final validDays = (md['valid_days_monthly'] as num?)?.toInt() ?? 0;
 
       // 2. Get global targets config from host_milestones and agency_targets_config
       var milestonesSnap = await _db.collection('host_milestones')
@@ -78,9 +81,14 @@ class AgencyTargetEvaluator {
       // 3. For each target, check if achieved
       for (final td in allTargets) {
         final targetDiamonds = (td['target_diamonds'] as num?)?.toInt() ?? 0;
+        final requiredHours = (td['required_hours'] as num?)?.toDouble() ?? (td['target_hours'] as num?)?.toDouble() ?? 0.0;
+        final requiredDays = (td['required_days'] as num?)?.toInt() ?? (td['target_days'] as num?)?.toInt() ?? 0;
         final targetId = td['id']?.toString() ?? '';
 
         if (targetDiamonds > 0 && diamondsMonthly >= targetDiamonds) {
+          if (requiredHours > 0 && liveHours < requiredHours) continue;
+          if (requiredDays > 0 && validDays < requiredDays) continue;
+
           // Did they already achieve this target this month?
           final achievedId = '${hostUserId}_${targetId}_$currentMonth';
           final achievedRef = _db.collection('agency_achieved_targets').doc(achievedId);
@@ -101,6 +109,52 @@ class AgencyTargetEvaluator {
       }
     } catch (e) {
       debugPrint('Error evaluating host targets: $e');
+    }
+  }
+
+  /// Records active mic time for the host and updates monthly hours + valid days.
+  static Future<void> recordLiveMinutes(String hostUserId, int minutes) async {
+    try {
+      final memberQs = await _db.collection('host_agency_members')
+          .where('user_id', isEqualTo: hostUserId)
+          .where('status', isEqualTo: 'active')
+          .limit(1)
+          .get();
+      if (memberQs.docs.isEmpty) return;
+
+      final doc = memberQs.docs.first;
+      final data = doc.data();
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final lastDate = data['last_live_date']?.toString() ?? '';
+      int todaySec = (data['today_live_seconds'] as num?)?.toInt() ?? 0;
+      if (lastDate != todayStr) todaySec = 0;
+      todaySec += (minutes * 60);
+
+      final totalSec = ((data['live_seconds_monthly'] as num?)?.toInt() ?? 0) + (minutes * 60);
+      final totalHours = (totalSec / 3600.0);
+      int validDays = (data['valid_days_monthly'] as num?)?.toInt() ?? 0;
+
+      final lastCounted = data['last_counted_valid_day']?.toString() ?? '';
+      final reachedDay = todaySec >= 3600;
+      if (reachedDay && lastCounted != todayStr) {
+        validDays += 1;
+      }
+
+      await doc.reference.update({
+        'live_seconds_monthly': totalSec,
+        'live_hours_monthly': double.parse(totalHours.toStringAsFixed(2)),
+        'today_live_seconds': todaySec,
+        'last_live_date': todayStr,
+        'last_live_at': now.toIso8601String(),
+        'valid_days_monthly': validDays,
+        if (reachedDay && lastCounted != todayStr) 'last_counted_valid_day': todayStr,
+      });
+
+      await evaluateHostTargets(hostUserId);
+    } catch (e) {
+      debugPrint('Error recording live minutes: $e');
     }
   }
 

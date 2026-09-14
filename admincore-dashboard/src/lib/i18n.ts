@@ -7,6 +7,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'app.name': 'Zero Admin',
     'app.tagline': 'لوحة التحكم',
     'nav.dashboard': 'الإحصائيات',
+    'nav.rechargeEvent': '⚡ حدث الشحن الأسطوري',
     'nav.users': 'المستخدمين',
     'nav.gifts': 'الهدايا',
     'nav.store': 'المتجر',

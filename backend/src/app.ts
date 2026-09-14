@@ -11,6 +11,8 @@ import cpRewardRoutes from './routes/cpRewards';
 import luckyRoutes from './routes/lucky';
 import giftsRoutes from './routes/gifts';
 import hostTargetsRoutes from './routes/hostTargets';
+import eventsRoutes from './routes/events';
+
 
 import openapiDoc from './openapi.json';
 
@@ -66,6 +68,8 @@ app.use('/api/v1/cp-rewards', cpRewardRoutes);
 app.use('/api/v1/lucky', luckyRoutes);
 app.use('/api/v1/gifts', giftsRoutes);
 app.use('/api/v1/host-targets', hostTargetsRoutes);
+app.use('/api/v1/events', eventsRoutes);
+
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
