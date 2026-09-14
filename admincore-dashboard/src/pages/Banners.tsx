@@ -8,6 +8,7 @@ import { Plus, Save, X, Trash2, Layers, Sparkles, Smartphone, CheckCircle2, Arro
 
 const SCREEN_ACTIONS = [
   { value: 'none', label: 'بدون إجراء (عرض فقط)' },
+  { value: '/recharge_event', label: '⚡ حدث الشحن الملكي الأسطوري (Recharge Event)' },
   { value: '/mall', label: '🛍️ المتجر العام (Store / Mall)' },
   { value: '/cp_ranking', label: '🏆 مساحة الترتيب والمكافآت (CP Ranking & Rewards)' },
   { value: '/cp_space', label: '💑 مساحة الـ CP والارتباط (CP Space)' },

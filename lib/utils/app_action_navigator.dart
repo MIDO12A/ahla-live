@@ -10,6 +10,8 @@ import '../screens/vip/vip_center_screen.dart';
 import '../features/tasks/screens/daily_tasks_screen.dart';
 import '../features/signin/weekly_signin_screen.dart';
 import '../features/host_agency/host_agency_screen.dart';
+import '../features/events/screens/recharge_event_screen.dart';
+import '../screens/wallet/wallet_main_screen.dart';
 import '../screens/room/room_screen.dart';
 import '../services/supabase_service.dart';
 
@@ -31,6 +33,22 @@ class AppActionNavigator {
     final lower = value.toLowerCase();
 
     // 1. In-App Screens
+    // حدث الشحن الملكي الأسطوري
+    if (lower == '/recharge_event' ||
+        lower == 'recharge_event' ||
+        lower == '/recharge' ||
+        lower == 'recharge' ||
+        lower.contains('حدث الشحن') ||
+        lower.contains('شحن ملكي')) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const RechargeEventScreen()));
+      return;
+    }
+
+    if (lower == '/wallet' || lower == 'wallet' || lower.contains('محفظة')) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletMainScreen()));
+      return;
+    }
+
     if (lower == '/mall' || lower == 'mall' || lower.contains('متجر') || lower.contains('store')) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => const MallScreen()));
       return;
