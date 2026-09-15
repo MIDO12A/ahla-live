@@ -6,7 +6,40 @@ import 'package:intl/intl.dart';
 import '../../../screens/room/widgets/svga_player.dart';
 import '../../../screens/rank/rank_screen.dart';
 
-/// بيانات مستوى الشحن الأسطوري الملكي (المطابق لـ D:40)
+/// بيانات المكافأة الفردية داخل مستوى الشحن
+class TierRewardItemData {
+  final String id;
+  final String name;
+  final String type; // 'frame', 'entry', 'badge', 'bubble', 'coins', 'gift', 'svga'
+  final String icon;
+  final String svga;
+  final int daysValid;
+  final int bonusCoins;
+
+  const TierRewardItemData({
+    required this.id,
+    required this.name,
+    this.type = 'svga',
+    required this.icon,
+    this.svga = '',
+    this.daysValid = 30,
+    this.bonusCoins = 0,
+  });
+
+  factory TierRewardItemData.fromMap(Map<String, dynamic> map, String fallbackName, String fallbackIcon, String fallbackSvga) {
+    return TierRewardItemData(
+      id: map['id']?.toString() ?? 'item_${DateTime.now().microsecondsSinceEpoch}',
+      name: map['name']?.toString() ?? fallbackName,
+      type: map['type']?.toString() ?? 'svga',
+      icon: map['icon']?.toString().isNotEmpty == true ? map['icon'].toString() : fallbackIcon,
+      svga: map['svga']?.toString().isNotEmpty == true ? map['svga'].toString() : fallbackSvga,
+      daysValid: (map['daysValid'] as num?)?.toInt() ?? 30,
+      bonusCoins: (map['bonusCoins'] as num?)?.toInt() ?? (map['rewardCoins'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// بيانات مستوى الشحن الأسطوري الملكي (المطابق لـ D:40 مع دعم عدد مفتوح من المكافآت)
 class RechargeEventTierData {
   final String id;
   final int tier;
@@ -17,6 +50,7 @@ class RechargeEventTierData {
   final String tagText;
   final int durationDays;
   final int bonusCoins;
+  final List<TierRewardItemData> rewardsList;
 
   const RechargeEventTierData({
     required this.id,
@@ -28,25 +62,57 @@ class RechargeEventTierData {
     required this.tagText,
     required this.durationDays,
     required this.bonusCoins,
+    this.rewardsList = const [],
   });
+
+  int get totalBonusCoins {
+    if (rewardsList.isEmpty) return bonusCoins;
+    final sumRewards = rewardsList.fold<int>(0, (acc, item) => acc + item.bonusCoins);
+    return sumRewards > 0 ? sumRewards : bonusCoins;
+  }
 
   factory RechargeEventTierData.fromMap(Map<String, dynamic> map, int defaultTier) {
     final t = (map['tier'] as num?)?.toInt() ?? defaultTier;
     final label = map['rewardLabel']?.toString() ?? '${t}00K';
+    final icon = map['icon']?.toString().isNotEmpty == true 
+        ? map['icon'].toString() 
+        : 'assets/recharge_event/$label.png';
+    final svga = map['svga']?.toString().isNotEmpty == true 
+        ? map['svga'].toString() 
+        : '${label.toLowerCase()}.svga';
+    final defaultDays = (map['daysValid'] as num?)?.toInt() ?? 30;
+    final defaultCoins = (map['rewardCoins'] as num?)?.toInt() ?? 5000;
+
+    List<TierRewardItemData> parsedRewards = [];
+    if (map['rewards'] is List && (map['rewards'] as List).isNotEmpty) {
+      parsedRewards = (map['rewards'] as List).map((item) {
+        return TierRewardItemData.fromMap(Map<String, dynamic>.from(item), label, icon, svga);
+      }).toList();
+    } else {
+      parsedRewards = [
+        TierRewardItemData(
+          id: 'item_${label}_1',
+          name: label,
+          type: 'svga',
+          icon: icon,
+          svga: svga,
+          daysValid: defaultDays,
+          bonusCoins: defaultCoins,
+        ),
+      ];
+    }
+
     return RechargeEventTierData(
       id: 'tier_$label',
       tier: t,
       targetCoins: (map['requiredCoins'] as num?)?.toInt() ?? 100000,
       nameAr: label,
-      iconAsset: map['icon']?.toString().isNotEmpty == true 
-          ? map['icon'].toString() 
-          : 'assets/recharge_event/$label.png',
-      svgaAsset: map['svga']?.toString().isNotEmpty == true 
-          ? map['svga'].toString() 
-          : '${label.toLowerCase()}.svga',
+      iconAsset: icon,
+      svgaAsset: svga,
       tagText: map['tagText']?.toString().isNotEmpty == true ? map['tagText'].toString() : label,
-      durationDays: (map['daysValid'] as num?)?.toInt() ?? 30,
-      bonusCoins: (map['rewardCoins'] as num?)?.toInt() ?? 5000,
+      durationDays: defaultDays,
+      bonusCoins: defaultCoins,
+      rewardsList: parsedRewards,
     );
   }
 }
@@ -332,109 +398,227 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     final canClaim = remaining > 0;
     final alreadyClaimed = !canClaim && timesClaimed > 0;
 
+    int selectedItemIndex = 0;
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF141419),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(height: 16),
-            // SVGA Player or Icon inside Royal Frame
-            SizedBox(
-              width: 140,
-              height: 140,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  _buildImage(_itemBgAsset, width: 130, height: 130),
-                  if (tier.svgaAsset.isNotEmpty)
-                    SvgaPlayer(
-                      assetPath: tier.svgaAsset.startsWith('assets/') 
-                          ? tier.svgaAsset 
-                          : 'assets/recharge_event/${tier.svgaAsset}',
-                      width: 110,
-                      height: 110,
-                      fit: BoxFit.contain,
-                    )
-                  else
-                    _buildImage(tier.iconAsset, width: 85, height: 85),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final currentItem = tier.rewardsList.isNotEmpty && selectedItemIndex < tier.rewardsList.length
+              ? tier.rewardsList[selectedItemIndex]
+              : TierRewardItemData(
+                  id: tier.id,
+                  name: tier.nameAr,
+                  icon: tier.iconAsset,
+                  svga: tier.svgaAsset,
+                  daysValid: tier.durationDays,
+                  bonusCoins: tier.bonusCoins,
+                );
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 18.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                ),
+                const SizedBox(height: 14),
+
+                // Hero Preview (SVGA / Icon)
+                SizedBox(
+                  width: 135,
+                  height: 135,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      _buildImage(_itemBgAsset, width: 125, height: 125),
+                      if (currentItem.svga.isNotEmpty)
+                        SvgaPlayer(
+                          key: ValueKey(currentItem.svga),
+                          assetPath: currentItem.svga.startsWith('assets/') 
+                              ? currentItem.svga 
+                              : 'assets/recharge_event/${currentItem.svga}',
+                          width: 105,
+                          height: 105,
+                          fit: BoxFit.contain,
+                        )
+                      else
+                        _buildImage(currentItem.icon, width: 80, height: 80),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                Text(
+                  'مستوى ${tier.nameAr}',
+                  style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'تارجت الشحن: ${NumberFormat('#,###').format(tier.targetCoins)} كوينز',
+                  style: const TextStyle(color: Color(0xFFFFE957), fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+
+                // قائمة الجوائز المتعددة إذا كان المستوى يحتوي أكثر من جائزة
+                if (tier.rewardsList.length > 1) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '🎁 باقة الجوائز الملكية (${tier.rewardsList.length} مكافآت):',
+                        style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      const Text(
+                        'اضغط لمعاينة أي جائزة',
+                        style: TextStyle(color: Colors.white38, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 78,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: tier.rewardsList.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, idx) {
+                        final item = tier.rewardsList[idx];
+                        final isSelected = idx == selectedItemIndex;
+
+                        return GestureDetector(
+                          onTap: () {
+                            setSheetState(() => selectedItemIndex = idx);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 68,
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFFFFD700).withValues(alpha: 0.15)
+                                  : Colors.white.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected ? const Color(0xFFFFD700) : Colors.white12,
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 32,
+                                  height: 32,
+                                  child: _buildImage(item.icon, width: 32, height: 32),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  item.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: isSelected ? const Color(0xFFFFD700) : Colors.white70,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '${item.daysValid} يوم',
+                                  style: const TextStyle(color: Colors.white38, fontSize: 8),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'مستوى ${tier.nameAr}',
-              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'تارجت الشحن: ${NumberFormat('#,###').format(tier.targetCoins)} كوينز',
-              style: const TextStyle(color: Color(0xFFFFE957), fontSize: 13, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'بونص إضافي: +${NumberFormat('#,###').format(tier.bonusCoins)} كوينز | الصلاحية: ${tier.durationDays} يوم',
-              style: const TextStyle(color: Colors.white70, fontSize: 11),
-            ),
-            if (timesClaimed > 0 || remaining > 0) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
+
+                const SizedBox(height: 10),
+                // تفاصيل المكافأة المعروضة حالياً
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'الجائزة: ${currentItem.name}',
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'الصلاحية: ${currentItem.daysValid} يوم | +${NumberFormat('#,###').format(tier.totalBonusCoins)} كوينز',
+                        style: const TextStyle(color: Color(0xFFFFE957), fontSize: 10, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Text(
-                  'تم الاستلام سابقاً: $timesClaimed مرة | متاح للاستلام الآن: $remaining مرة',
-                  style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
+
+                if (timesClaimed > 0 || remaining > 0) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'تم الاستلام سابقاً: $timesClaimed مرة | متاح للاستلام الآن: $remaining مرة',
+                      style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: canClaim 
+                          ? Colors.amber 
+                          : (alreadyClaimed ? Colors.grey.shade800 : const Color(0xFFFF9800)),
+                      foregroundColor: canClaim ? Colors.black : Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      if (canClaim) {
+                        _claimTierReward(tier);
+                      } else if (!alreadyClaimed) {
+                        _onGoNow();
+                      }
+                    },
+                    child: Text(
+                      canClaim
+                          ? (remaining > 1
+                              ? 'استلام باقة المكافآت (${tier.rewardsList.length} جوائز - متبقي $remaining) 🎁'
+                              : 'استلام باقة المكافآت (${tier.rewardsList.length} جوائز) 🎁')
+                          : (alreadyClaimed
+                              ? 'تم استلام المكافأة ($timesClaimed مرة)'
+                              : 'اشحن للوصول لهذا المستوى'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
                 ),
-              ),
-            ],
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: canClaim 
-                      ? Colors.amber 
-                      : (alreadyClaimed ? Colors.grey.shade800 : const Color(0xFFFF9800)),
-                  foregroundColor: canClaim ? Colors.black : Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  if (canClaim) {
-                    _claimTierReward(tier);
-                  } else if (!alreadyClaimed) {
-                    _onGoNow();
-                  }
-                },
-                child: Text(
-                  canClaim
-                      ? (remaining > 1
-                          ? 'استلام الجائزة الملكية (متاح $remaining مرات) 🎁'
-                          : 'استلام الجائزة الملكية 🎁')
-                      : (alreadyClaimed
-                          ? 'تم استلام المكافأة ($timesClaimed مرة)'
-                          : 'اشحن للوصول لهذا المستوى'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-              ),
+                const SizedBox(height: 8),
+              ],
             ),
-            const SizedBox(height: 10),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -471,23 +655,28 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
         'updated_at': now.toIso8601String(),
       }, SetOptions(merge: true));
 
-      // إضافة المكافأة لحقيبة المستخدم
-      await FirebaseFirestore.instance.collection('user_backpack').add({
-        'user_id': uid,
-        'item_id': tier.id,
-        'name': tier.nameAr,
-        'icon_url': tier.iconAsset,
-        'svga_url': tier.svgaAsset,
-        'expires_at': now.add(Duration(days: tier.durationDays)).toIso8601String(),
-        'created_at': now.toIso8601String(),
-        'is_equipped': true,
-        'claim_round': newCount,
-      });
+      // إضافة جميع المكافآت في حزمة المستوى إلى حقيبة المستخدم
+      final backpack = FirebaseFirestore.instance.collection('user_backpack');
+      for (final item in tier.rewardsList) {
+        await backpack.add({
+          'user_id': uid,
+          'item_id': item.id,
+          'name': item.name,
+          'type': item.type,
+          'icon_url': item.icon,
+          'svga_url': item.svga,
+          'expires_at': now.add(Duration(days: item.daysValid)).toIso8601String(),
+          'created_at': now.toIso8601String(),
+          'is_equipped': true,
+          'claim_round': newCount,
+        });
+      }
 
-      // إضافة الكوينز البونص
-      if (tier.bonusCoins > 0) {
+      // إضافة مجموع الكوينز البونص لهذا المستوى
+      final totalBonus = tier.totalBonusCoins;
+      if (totalBonus > 0) {
         await FirebaseFirestore.instance.collection('users').doc(uid).update({
-          'coins': FieldValue.increment(tier.bonusCoins),
+          'coins': FieldValue.increment(totalBonus),
         });
       }
 
@@ -498,17 +687,16 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('🎉 تهانينا! تم استلام مكافأة ${tier.nameAr} (المرة رقم $newCount) وبونص ${tier.bonusCoins} كوينز بنجاح!'),
+            content: Text('🎉 تهانينا! تم استلام باقة مكافآت ${tier.nameAr} (${tier.rewardsList.length} جوائز وبونص $totalBonus كوينز) بنجاح!'),
             backgroundColor: Colors.green.shade800,
           ),
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ أثناء الاستلام: $e')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('حدث خطأ أثناء الاستلام: $e')),
+      );
     }
   }
 
@@ -1456,6 +1644,31 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                     ),
                   ),
                 ),
+
+                // شارة حزمة المكافآت المتعددة أعلى اليسار
+                if (tier.rewardsList.length > 1)
+                  Positioned(
+                    top: isFullScreen ? 10 : 8,
+                    left: isFullScreen ? 4 : 3,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFD700), Color(0xFFFF8F00)],
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 2)],
+                      ),
+                      child: Text(
+                        'x${tier.rewardsList.length}',
+                        style: TextStyle(
+                          fontSize: isFullScreen ? 9 : 8,
+                          fontWeight: FontWeight.w900,
+                          color: const Color(0xFF3E1F00),
+                        ),
+                      ),
+                    ),
+                  ),
 
                 // أيقونة الجائزة داخل الإطار
                 Positioned(

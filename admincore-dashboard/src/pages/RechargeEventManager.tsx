@@ -6,9 +6,19 @@ import { doc, setDoc, getDocs, collection, query, where, orderBy, limit, increme
 import { 
   Save, Upload, Eye, Plus, Trash2, Edit2, Palette, CheckCircle2, 
   Sparkles, Image as ImageIcon, Smartphone, Layers, Crown, Coins,
-  Trophy, Users, Search, RefreshCw, Send, Gift
+  Trophy, Users, Search, RefreshCw, Send, Gift, Package, X
 } from 'lucide-react';
 import { to6Hex } from '../lib/colors';
+
+export interface TierRewardItem {
+  id: string;
+  name: string;
+  type: 'frame' | 'entry' | 'badge' | 'bubble' | 'coins' | 'gift' | 'svga';
+  icon: string;
+  svga?: string;
+  daysValid: number;
+  bonusCoins?: number;
+}
 
 export interface RechargeTier {
   tier: number;
@@ -19,23 +29,94 @@ export interface RechargeTier {
   svga: string;
   daysValid: number;
   tagText?: string;
+  rewards?: TierRewardItem[];
 }
 
 const DEFAULT_TIERS: RechargeTier[] = [
-  { tier: 1, requiredCoins: 100000, rewardLabel: '100K', rewardCoins: 5000, icon: 'assets/recharge_event/100K.png', svga: '100k.svga', daysValid: 7, tagText: 'HOT' },
-  { tier: 2, requiredCoins: 500000, rewardLabel: '500K', rewardCoins: 30000, icon: 'assets/recharge_event/500K.png', svga: '500k.svga', daysValid: 15, tagText: 'VIP' },
-  { tier: 3, requiredCoins: 1000000, rewardLabel: '1M', rewardCoins: 70000, icon: 'assets/recharge_event/1M.png', svga: '1M.svga', daysValid: 30, tagText: '1M' },
-  { tier: 4, requiredCoins: 5000000, rewardLabel: '5M', rewardCoins: 400000, icon: 'assets/recharge_event/5M.png', svga: '5M.svga', daysValid: 30, tagText: '5M' },
-  { tier: 5, requiredCoins: 10000000, rewardLabel: '10M', rewardCoins: 900000, icon: 'assets/recharge_event/10M.png', svga: '10M.svga', daysValid: 60, tagText: '10M' },
-  { tier: 6, requiredCoins: 20000000, rewardLabel: '20M', rewardCoins: 2000000, icon: 'assets/recharge_event/20M.png', svga: '20m.svga', daysValid: 60, tagText: '20M' },
-  { tier: 7, requiredCoins: 40000000, rewardLabel: '40M', rewardCoins: 4500000, icon: 'assets/recharge_event/40M.png', svga: '40M.svga', daysValid: 90, tagText: '40M' },
-  { tier: 8, requiredCoins: 60000000, rewardLabel: '60M', rewardCoins: 7000000, icon: 'assets/recharge_event/60M.png', svga: '60M.svga', daysValid: 90, tagText: '60M' },
-  { tier: 9, requiredCoins: 80000000, rewardLabel: '80M', rewardCoins: 10000000, icon: 'assets/recharge_event/80M.png', svga: '80M.svga', daysValid: 90, tagText: '80M' },
-  { tier: 10, requiredCoins: 100000000, rewardLabel: '100M', rewardCoins: 14000000, icon: 'assets/recharge_event/100M.png', svga: '100M.svga', daysValid: 180, tagText: '100M' },
-  { tier: 11, requiredCoins: 200000000, rewardLabel: '200M', rewardCoins: 30000000, icon: 'assets/recharge_event/200M.png', svga: '200M.svga', daysValid: 180, tagText: '200M' },
-  { tier: 12, requiredCoins: 300000000, rewardLabel: '300M', rewardCoins: 50000000, icon: 'assets/recharge_event/300M.png', svga: '300M.svga', daysValid: 365, tagText: '300M' },
-  { tier: 13, requiredCoins: 400000000, rewardLabel: '400M', rewardCoins: 75000000, icon: 'assets/recharge_event/400M.png', svga: '400M.svga', daysValid: 365, tagText: '400M' },
-  { tier: 14, requiredCoins: 500000000, rewardLabel: '500M', rewardCoins: 100000000, icon: 'assets/recharge_event/500M.png', svga: '500M.svga', daysValid: 365, tagText: '500M' }
+  { 
+    tier: 1, requiredCoins: 100000, rewardLabel: '100K', rewardCoins: 5000, icon: 'assets/recharge_event/100K.png', svga: '100k.svga', daysValid: 7, tagText: 'HOT',
+    rewards: [
+      { id: 'item_100k_1', name: 'إطار تاج 100K الملكي', type: 'frame', icon: 'assets/recharge_event/100K.png', svga: '100k.svga', daysValid: 7, bonusCoins: 5000 }
+    ]
+  },
+  { 
+    tier: 2, requiredCoins: 500000, rewardLabel: '500K', rewardCoins: 30000, icon: 'assets/recharge_event/500K.png', svga: '500k.svga', daysValid: 15, tagText: 'VIP',
+    rewards: [
+      { id: 'item_500k_1', name: 'إطار صقر 500K الذهبي', type: 'frame', icon: 'assets/recharge_event/500K.png', svga: '500k.svga', daysValid: 15, bonusCoins: 30000 }
+    ]
+  },
+  { 
+    tier: 3, requiredCoins: 1000000, rewardLabel: '1M', rewardCoins: 70000, icon: 'assets/recharge_event/1M.png', svga: '1M.svga', daysValid: 30, tagText: '1M',
+    rewards: [
+      { id: 'item_1m_1', name: 'إطار أسد 1M الماسي', type: 'frame', icon: 'assets/recharge_event/1M.png', svga: '1M.svga', daysValid: 30, bonusCoins: 70000 }
+    ]
+  },
+  { 
+    tier: 4, requiredCoins: 5000000, rewardLabel: '5M', rewardCoins: 400000, icon: 'assets/recharge_event/5M.png', svga: '5M.svga', daysValid: 30, tagText: '5M',
+    rewards: [
+      { id: 'item_5m_1', name: 'دخولية تنين 5M الملكية', type: 'entry', icon: 'assets/recharge_event/5M.png', svga: '5M.svga', daysValid: 30, bonusCoins: 400000 }
+    ]
+  },
+  { 
+    tier: 5, requiredCoins: 10000000, rewardLabel: '10M', rewardCoins: 900000, icon: 'assets/recharge_event/10M.png', svga: '10M.svga', daysValid: 60, tagText: '10M',
+    rewards: [
+      { id: 'item_10m_1', name: 'إطار عرش 10M الأسطوري', type: 'frame', icon: 'assets/recharge_event/10M.png', svga: '10M.svga', daysValid: 60, bonusCoins: 900000 }
+    ]
+  },
+  { 
+    tier: 6, requiredCoins: 20000000, rewardLabel: '20M', rewardCoins: 2000000, icon: 'assets/recharge_event/20M.png', svga: '20m.svga', daysValid: 60, tagText: '20M',
+    rewards: [
+      { id: 'item_20m_1', name: 'دخولية طائرة 20M الملكية', type: 'entry', icon: 'assets/recharge_event/20M.png', svga: '20m.svga', daysValid: 60, bonusCoins: 2000000 }
+    ]
+  },
+  { 
+    tier: 7, requiredCoins: 40000000, rewardLabel: '40M', rewardCoins: 4500000, icon: 'assets/recharge_event/40M.png', svga: '40M.svga', daysValid: 90, tagText: '40M',
+    rewards: [
+      { id: 'item_40m_1', name: 'إطار قصر 40M الفخم', type: 'frame', icon: 'assets/recharge_event/40M.png', svga: '40M.svga', daysValid: 90, bonusCoins: 4500000 }
+    ]
+  },
+  { 
+    tier: 8, requiredCoins: 60000000, rewardLabel: '60M', rewardCoins: 7000000, icon: 'assets/recharge_event/60M.png', svga: '60M.svga', daysValid: 90, tagText: '60M',
+    rewards: [
+      { id: 'item_60m_1', name: 'دخولية يخت 60M الملكي', type: 'entry', icon: 'assets/recharge_event/60M.png', svga: '60M.svga', daysValid: 90, bonusCoins: 7000000 }
+    ]
+  },
+  { 
+    tier: 9, requiredCoins: 80000000, rewardLabel: '80M', rewardCoins: 10000000, icon: 'assets/recharge_event/80M.png', svga: '80M.svga', daysValid: 90, tagText: '80M',
+    rewards: [
+      { id: 'item_80m_1', name: 'إطار مجرة 80M الكونية', type: 'frame', icon: 'assets/recharge_event/80M.png', svga: '80M.svga', daysValid: 90, bonusCoins: 10000000 }
+    ]
+  },
+  { 
+    tier: 10, requiredCoins: 100000000, rewardLabel: '100M', rewardCoins: 14000000, icon: 'assets/recharge_event/100M.png', svga: '100M.svga', daysValid: 180, tagText: '100M',
+    rewards: [
+      { id: 'item_100m_1', name: 'دخولية قصر 100M الأبدي', type: 'entry', icon: 'assets/recharge_event/100M.png', svga: '100M.svga', daysValid: 180, bonusCoins: 14000000 }
+    ]
+  },
+  { 
+    tier: 11, requiredCoins: 200000000, rewardLabel: '200M', rewardCoins: 30000000, icon: 'assets/recharge_event/200M.png', svga: '200M.svga', daysValid: 180, tagText: '200M',
+    rewards: [
+      { id: 'item_200m_1', name: 'إطار إمبراطور 200M الخارق', type: 'frame', icon: 'assets/recharge_event/200M.png', svga: '200M.svga', daysValid: 180, bonusCoins: 30000000 }
+    ]
+  },
+  { 
+    tier: 12, requiredCoins: 300000000, rewardLabel: '300M', rewardCoins: 50000000, icon: 'assets/recharge_event/300M.png', svga: '300M.svga', daysValid: 365, tagText: '300M',
+    rewards: [
+      { id: 'item_300m_1', name: 'دخولية أسطول 300M الملكي', type: 'entry', icon: 'assets/recharge_event/300M.png', svga: '300M.svga', daysValid: 365, bonusCoins: 50000000 }
+    ]
+  },
+  { 
+    tier: 13, requiredCoins: 400000000, rewardLabel: '400M', rewardCoins: 75000000, icon: 'assets/recharge_event/400M.png', svga: '400M.svga', daysValid: 365, tagText: '400M',
+    rewards: [
+      { id: 'item_400m_1', name: 'إطار فرعون 400M الذهبي', type: 'frame', icon: 'assets/recharge_event/400M.png', svga: '400M.svga', daysValid: 365, bonusCoins: 75000000 }
+    ]
+  },
+  { 
+    tier: 14, requiredCoins: 500000000, rewardLabel: '500M', rewardCoins: 100000000, icon: 'assets/recharge_event/500M.png', svga: '500M.svga', daysValid: 365, tagText: '500M',
+    rewards: [
+      { id: 'item_500m_1', name: 'عرش الأساطير 500M المطلق', type: 'frame', icon: 'assets/recharge_event/500M.png', svga: '500M.svga', daysValid: 365, bonusCoins: 100000000 }
+    ]
+  }
 ];
 
 export interface LeaderboardEntry {
@@ -83,7 +164,20 @@ export default function RechargeEventManager() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [modalForm, setModalForm] = useState<RechargeTier>({
-    tier: 15, requiredCoins: 600000000, rewardLabel: '600M', rewardCoins: 120000000, icon: '', svga: '', daysValid: 365, tagText: '600M'
+    tier: 15, requiredCoins: 600000000, rewardLabel: '600M', rewardCoins: 120000000, icon: '', svga: '', daysValid: 365, tagText: '600M', rewards: []
+  });
+
+  // Rewards Sub-modal State for Multiple Rewards per Tier
+  const [editingRewardIndex, setEditingRewardIndex] = useState<number | null>(null);
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [rewardForm, setRewardForm] = useState<TierRewardItem>({
+    id: '',
+    name: '',
+    type: 'frame',
+    icon: '',
+    svga: '',
+    daysValid: 30,
+    bonusCoins: 0,
   });
 
   // Ranking & Leaderboard State
@@ -102,7 +196,27 @@ export default function RechargeEventManager() {
         if (cfg) {
           const raw = cfg as any;
           if (raw.recharge_event_tiers && Array.isArray(raw.recharge_event_tiers) && raw.recharge_event_tiers.length > 0) {
-            setTiers(raw.recharge_event_tiers);
+            const formattedTiers: RechargeTier[] = raw.recharge_event_tiers.map((t: any, idx: number) => {
+              let rewards = Array.isArray(t.rewards) ? t.rewards : [];
+              if (rewards.length === 0) {
+                rewards = [
+                  {
+                    id: `item_${t.rewardLabel || idx}_1`,
+                    name: `مكافأة ${t.rewardLabel || t.tier || idx + 1}`,
+                    type: 'frame',
+                    icon: t.icon || '',
+                    svga: t.svga || '',
+                    daysValid: t.daysValid || 30,
+                    bonusCoins: t.rewardCoins || 0
+                  }
+                ];
+              }
+              return {
+                ...t,
+                rewards
+              };
+            });
+            setTiers(formattedTiers);
           }
           const s = raw.recharge_event_settings || {};
           if (s.title !== undefined) setTitle(s.title);
@@ -266,6 +380,15 @@ export default function RechargeEventManager() {
 
   const openAdd = () => {
     const nextTier = tiers.length > 0 ? Math.max(...tiers.map(t => t.tier)) + 1 : 1;
+    const initialReward: TierRewardItem = {
+      id: `item_${nextTier}00m_1`,
+      name: `إطار ${nextTier}00M الملكي`,
+      type: 'frame',
+      icon: '',
+      svga: '',
+      daysValid: 365,
+      bonusCoins: 120000000
+    };
     setEditingIndex(null);
     setModalForm({
       tier: nextTier,
@@ -275,30 +398,129 @@ export default function RechargeEventManager() {
       icon: '',
       svga: '',
       daysValid: 365,
-      tagText: nextTier + '00M'
+      tagText: nextTier + '00M',
+      rewards: [initialReward]
     });
     setShowModal(true);
   };
 
   const openEdit = (idx: number) => {
     setEditingIndex(idx);
-    setModalForm({ ...tiers[idx] });
+    const t = tiers[idx];
+    const rewards = (t.rewards && t.rewards.length > 0)
+      ? [...t.rewards]
+      : [
+          {
+            id: `item_${t.rewardLabel || t.tier}_1`,
+            name: `مكافأة ${t.rewardLabel}`,
+            type: 'frame' as const,
+            icon: t.icon,
+            svga: t.svga,
+            daysValid: t.daysValid,
+            bonusCoins: t.rewardCoins,
+          }
+        ];
+    setModalForm({
+      ...t,
+      rewards
+    });
     setShowModal(true);
   };
 
+  const openAddReward = () => {
+    setEditingRewardIndex(null);
+    setRewardForm({
+      id: `item_${Date.now()}`,
+      name: '',
+      type: 'frame',
+      icon: '',
+      svga: '',
+      daysValid: modalForm.daysValid || 30,
+      bonusCoins: 0
+    });
+    setShowRewardModal(true);
+  };
+
+  const openEditReward = (idx: number) => {
+    setEditingRewardIndex(idx);
+    const item = (modalForm.rewards || [])[idx];
+    if (item) {
+      setRewardForm({ ...item });
+      setShowRewardModal(true);
+    }
+  };
+
+  const saveRewardItem = () => {
+    if (!rewardForm.name.trim()) {
+      alert('يرجى كتابة اسم المكافأة (مثال: إطار التنين الملكي، دخولية سيارة فيراري...)');
+      return;
+    }
+    const currentList = [...(modalForm.rewards || [])];
+    if (editingRewardIndex !== null && editingRewardIndex >= 0 && editingRewardIndex < currentList.length) {
+      currentList[editingRewardIndex] = { ...rewardForm };
+    } else {
+      currentList.push({
+        ...rewardForm,
+        id: rewardForm.id || `item_${Date.now()}_${currentList.length + 1}`
+      });
+    }
+
+    const first = currentList[0];
+    const totalBonus = currentList.reduce((acc, r) => acc + (Number(r.bonusCoins) || 0), 0);
+    setModalForm(prev => ({
+      ...prev,
+      rewards: currentList,
+      icon: prev.icon || first?.icon || '',
+      svga: prev.svga || first?.svga || '',
+      rewardCoins: totalBonus > 0 ? totalBonus : prev.rewardCoins,
+    }));
+    setShowRewardModal(false);
+  };
+
+  const deleteRewardItem = (idx: number) => {
+    const currentList = [...(modalForm.rewards || [])];
+    currentList.splice(idx, 1);
+    setModalForm(prev => ({
+      ...prev,
+      rewards: currentList,
+    }));
+  };
+
   const saveModal = () => {
+    const rewardsList = modalForm.rewards && modalForm.rewards.length > 0 ? modalForm.rewards : [
+      {
+        id: `item_${modalForm.rewardLabel}_1`,
+        name: modalForm.rewardLabel,
+        type: 'frame' as const,
+        icon: modalForm.icon,
+        svga: modalForm.svga,
+        daysValid: modalForm.daysValid,
+        bonusCoins: modalForm.rewardCoins,
+      }
+    ];
+    const totalBonus = rewardsList.reduce((acc, r) => acc + (Number(r.bonusCoins) || 0), 0);
+    const firstReward = rewardsList[0];
+    const finalTier: RechargeTier = {
+      ...modalForm,
+      rewards: rewardsList,
+      icon: modalForm.icon || firstReward.icon,
+      svga: modalForm.svga || firstReward.svga,
+      rewardCoins: totalBonus > 0 ? totalBonus : modalForm.rewardCoins,
+      daysValid: firstReward.daysValid || modalForm.daysValid,
+    };
+
     if (editingIndex !== null) {
       const copy = [...tiers];
-      copy[editingIndex] = { ...modalForm };
+      copy[editingIndex] = finalTier;
       copy.sort((a, b) => a.requiredCoins - b.requiredCoins);
       setTiers(copy);
     } else {
-      const copy = [...tiers, { ...modalForm }];
+      const copy = [...tiers, finalTier];
       copy.sort((a, b) => a.requiredCoins - b.requiredCoins);
       setTiers(copy);
     }
     setShowModal(false);
-    showNotification('تم تحديث المستوى في القائمة (اضغط حفظ التعديلات للتثبيت)');
+    showNotification('تم تحديث المستوى وباقة المكافآت بنجاح (اضغط حفظ التعديلات للتثبيت)');
   };
 
   const deleteTier = (idx: number) => {
@@ -436,9 +658,15 @@ export default function RechargeEventManager() {
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
                       #{t.tier}
                     </span>
-                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.2 rounded border border-rose-500/20">
-                      {t.tagText || t.rewardLabel}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] font-bold text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded-md border border-amber-500/30 flex items-center gap-0.5" title="عدد الجوائز المرفقة في هذا المستوى">
+                        <Gift className="w-2.5 h-2.5 text-amber-400" />
+                        <span>{t.rewards && t.rewards.length > 0 ? t.rewards.length : 1}</span>
+                      </span>
+                      <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.2 rounded border border-rose-500/20">
+                        {t.tagText || t.rewardLabel}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Frame Item with D:40 styling */}
@@ -466,6 +694,11 @@ export default function RechargeEventManager() {
                     <div className="text-[9px] text-emerald-400 font-medium">
                       +{t.rewardCoins.toLocaleString()} بونص
                     </div>
+                    {t.rewards && t.rewards.length > 1 && (
+                      <div className="text-[9px] text-amber-300 font-bold bg-amber-500/15 py-0.5 px-1.5 rounded-md border border-amber-500/30 truncate">
+                        🎁 باقة ({t.rewards.length}) مكافآت
+                      </div>
+                    )}
                     <div className="text-[9px] text-indigo-300 truncate font-mono" title={t.svga}>
                       🎬 {t.svga}
                     </div>
@@ -1086,18 +1319,19 @@ export default function RechargeEventManager() {
 
       {/* ─── ADD / EDIT MODAL ─── */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#141417] border border-amber-500/30 rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#141417] border border-amber-500/30 rounded-3xl w-full max-w-xl p-6 space-y-4 shadow-2xl my-8 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-white/5 shrink-0">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <Crown className="w-4 h-4 text-amber-400" />
-                <span>{editingIndex !== null ? 'تعديل مستوى ومكافأة الشحن' : 'إضافة مستوى ومكافأة جديدة'}</span>
+                <span>{editingIndex !== null ? 'تعديل مستوى الشحن وباقة المكافآت' : 'إضافة مستوى وباقة جديدة'}</span>
               </h3>
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-4 text-xs overflow-y-auto pr-1 flex-1">
+              {/* Basic Tier Config */}
+              <div className="grid grid-cols-3 gap-3 bg-slate-900/50 p-3.5 rounded-2xl border border-white/5">
                 <div>
                   <label className="block text-slate-400 font-bold mb-1">رقم المستوى (Tier):</label>
                   <input 
@@ -1128,9 +1362,9 @@ export default function RechargeEventManager() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 bg-slate-900/50 p-3.5 rounded-2xl border border-white/5">
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">الكوينز المطلوبة (Target):</label>
+                  <label className="block text-slate-400 font-bold mb-1">تارجت شحن الكوينز (Target):</label>
                   <input 
                     type="number" 
                     value={modalForm.requiredCoins} 
@@ -1139,77 +1373,189 @@ export default function RechargeEventManager() {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">بونص كوينز إضافي:</label>
+                  <label className="block text-slate-400 font-bold mb-1">إجمالي بونص الكوينز:</label>
                   <input 
                     type="number" 
                     value={modalForm.rewardCoins} 
                     onChange={e => setModalForm(p => ({ ...p, rewardCoins: Number(e.target.value) }))} 
-                    className="w-full bg-[#161618] border border-white/10 rounded-xl px-3 py-2 text-white font-mono" 
+                    className="w-full bg-[#161618] border border-white/10 rounded-xl px-3 py-2 text-emerald-400 font-mono font-bold" 
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-400 font-bold mb-1">أيقونة المكافأة (PNG):</label>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="text" 
-                    value={modalForm.icon} 
-                    onChange={e => setModalForm(p => ({ ...p, icon: e.target.value }))} 
-                    placeholder="assets/recharge_event/100K.png أو رابط..." 
-                    className="flex-1 bg-[#161618] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px]" 
-                  />
-                  <label className="cursor-pointer px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center gap-1 shrink-0">
-                    <Upload className="w-3.5 h-3.5" /> رفع PNG
+              {/* ── MULTIPLE REWARDS PACKAGE SECTION ── */}
+              <div className="bg-[#18181c] border border-amber-500/30 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-amber-400" />
+                    <div>
+                      <h4 className="font-bold text-white text-xs">
+                        باقة المكافآت المتعددة لهذا المستوى ({modalForm.rewards?.length || 0})
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        يمكنك إضافة عدد مفتوح وغير محدود من المكافآت يستلمها المستخدم معاً
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openAddReward}
+                    className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold text-[11px] rounded-xl flex items-center gap-1 shadow-md shadow-amber-500/20"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> إضافة مكافأة للباقة
+                  </button>
+                </div>
+
+                {/* List of rewards */}
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {(!modalForm.rewards || modalForm.rewards.length === 0) ? (
+                    <div className="p-4 text-center text-slate-400 bg-slate-900/60 rounded-xl border border-dashed border-white/10">
+                      <p>لا توجد مكافآت مضافة بعد في هذه الباقة.</p>
+                      <button
+                        type="button"
+                        onClick={openAddReward}
+                        className="mt-2 text-amber-400 font-bold hover:underline"
+                      >
+                        + اضغط هنا لإضافة أول مكافأة
+                      </button>
+                    </div>
+                  ) : (
+                    modalForm.rewards.map((r, rIdx) => {
+                      const typeLabels: Record<string, { label: string; color: string }> = {
+                        frame: { label: 'إطار ملكي', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' },
+                        entry: { label: 'دخولية روم', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+                        badge: { label: 'شارة بروفايل', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+                        bubble: { label: 'فقاعة محادثة', color: 'bg-sky-500/20 text-sky-300 border-sky-500/30' },
+                        coins: { label: 'كوينز بونص', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
+                        gift: { label: 'هدية حقيبة', color: 'bg-pink-500/20 text-pink-300 border-pink-500/30' },
+                        svga: { label: 'مؤثر SVGA', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+                      };
+                      const typeInfo = typeLabels[r.type] || { label: r.type, color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
+
+                      return (
+                        <div 
+                          key={r.id || rIdx}
+                          className="flex items-center justify-between p-2.5 bg-slate-900/80 border border-white/10 rounded-xl hover:border-amber-500/40 transition"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center overflow-hidden shrink-0">
+                              {r.icon ? (
+                                <img src={r.icon} alt="" className="w-8 h-8 object-contain" onError={e => { (e.target as HTMLElement).style.display = 'none'; }} />
+                              ) : (
+                                <Gift className="w-5 h-5 text-amber-400" />
+                              )}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-white text-xs">{r.name || 'مكافأة بدون اسم'}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${typeInfo.color}`}>
+                                  {typeInfo.label}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
+                                <span>⏳ {r.daysValid} يوم</span>
+                                {Number(r.bonusCoins) > 0 && (
+                                  <span className="text-emerald-400 font-bold">🪙 +{Number(r.bonusCoins).toLocaleString()}</span>
+                                )}
+                                {r.svga && (
+                                  <span className="text-purple-300 font-mono text-[9px] truncate max-w-[120px]">🎬 {r.svga}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEditReward(rIdx)}
+                              className="p-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 rounded-lg"
+                              title="تعديل المكافأة"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteRewardItem(rIdx)}
+                              className="p-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 rounded-lg"
+                              title="حذف المكافأة من الباقة"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Primary / Fallback Asset Overrides */}
+              <div className="p-3 bg-slate-900/40 rounded-2xl border border-white/5 space-y-3">
+                <p className="text-[11px] font-bold text-amber-400">
+                  ⚡ الأيقونة والمؤثر الرئيسي للمستوى (تتزامن تلقائياً مع أول مكافأة):
+                </p>
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">أيقونة العرض الرئيسية (PNG):</label>
+                  <div className="flex items-center gap-2">
                     <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f, 'icons', url => setModalForm(p => ({ ...p, icon: url }))); }} 
+                      type="text" 
+                      value={modalForm.icon} 
+                      onChange={e => setModalForm(p => ({ ...p, icon: e.target.value }))} 
+                      placeholder="assets/recharge_event/100K.png أو رابط..." 
+                      className="flex-1 bg-[#161618] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px]" 
                     />
-                  </label>
+                    <label className="cursor-pointer px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center gap-1 shrink-0">
+                      <Upload className="w-3.5 h-3.5" /> رفع PNG
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f, 'icons', url => setModalForm(p => ({ ...p, icon: url }))); }} 
+                      />
+                    </label>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-400 font-bold mb-1">مؤثر الـ SVGA المتحرك:</label>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="text" 
-                    value={modalForm.svga} 
-                    onChange={e => setModalForm(p => ({ ...p, svga: e.target.value }))} 
-                    placeholder="100k.svga أو رابط..." 
-                    className="flex-1 bg-[#161618] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px]" 
-                  />
-                  <label className="cursor-pointer px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold flex items-center gap-1 shrink-0">
-                    <Upload className="w-3.5 h-3.5" /> رفع SVGA
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">مؤثر الـ SVGA الرئيسي:</label>
+                  <div className="flex items-center gap-2">
                     <input 
-                      type="file" 
-                      accept=".svga" 
-                      className="hidden" 
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f, 'svga', url => setModalForm(p => ({ ...p, svga: url }))); }} 
+                      type="text" 
+                      value={modalForm.svga} 
+                      onChange={e => setModalForm(p => ({ ...p, svga: e.target.value }))} 
+                      placeholder="100k.svga أو رابط..." 
+                      className="flex-1 bg-[#161618] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px]" 
                     />
-                  </label>
+                    <label className="cursor-pointer px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold flex items-center gap-1 shrink-0">
+                      <Upload className="w-3.5 h-3.5" /> رفع SVGA
+                      <input 
+                        type="file" 
+                        accept=".svga" 
+                        className="hidden" 
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f, 'svga', url => setModalForm(p => ({ ...p, svga: url }))); }} 
+                      />
+                    </label>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-400 font-bold mb-1">صلاحية المكافأة (بالأيام):</label>
-                <input 
-                  type="number" 
-                  value={modalForm.daysValid} 
-                  onChange={e => setModalForm(p => ({ ...p, daysValid: Number(e.target.value) }))} 
-                  className="w-full bg-[#161618] border border-white/10 rounded-xl px-3 py-2 text-white" 
-                />
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">مدة الصلاحية الافتراضية (بالأيام):</label>
+                  <input 
+                    type="number" 
+                    value={modalForm.daysValid} 
+                    onChange={e => setModalForm(p => ({ ...p, daysValid: Number(e.target.value) }))} 
+                    className="w-full bg-[#161618] border border-white/10 rounded-xl px-3 py-2 text-white" 
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-white/5 flex gap-2">
+            <div className="pt-3 border-t border-white/5 flex gap-2 shrink-0">
               <button 
                 onClick={saveModal} 
                 className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-black text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20"
               >
-                تأكيد وإضافة للقائمة
+                تأكيد وحفظ المستوى بالباقة
               </button>
               <button 
                 onClick={() => setShowModal(false)} 
@@ -1222,10 +1568,138 @@ export default function RechargeEventManager() {
         </div>
       )}
 
+      {/* ─── REWARD SUB-MODAL (ADD / EDIT SINGLE REWARD ITEM) ─── */}
+      {showRewardModal && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#18181c] border border-amber-500/50 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in fade-in">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                <Gift className="w-4 h-4 text-amber-400" />
+                <span>{editingRewardIndex !== null ? 'تعديل المكافأة في الباقة' : 'إضافة مكافأة جديدة للباقة'}</span>
+              </h3>
+              <button onClick={() => setShowRewardModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">اسم المكافأة:</label>
+                <input 
+                  type="text" 
+                  value={rewardForm.name} 
+                  onChange={e => setRewardForm(p => ({ ...p, name: e.target.value }))} 
+                  placeholder="مثال: إطار تاج 100K الملكي / دخولية لامبورغيني / شارة الملوك..." 
+                  className="w-full bg-[#121214] border border-white/10 rounded-xl px-3 py-2 text-white font-bold" 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">نوع المكافأة:</label>
+                  <select
+                    value={rewardForm.type}
+                    onChange={e => setRewardForm(p => ({ ...p, type: e.target.value as any }))}
+                    className="w-full bg-[#121214] border border-white/10 rounded-xl px-3 py-2 text-white font-bold"
+                  >
+                    <option value="frame">🖼️ إطار ملكي (Frame)</option>
+                    <option value="entry">🚗 دخولية روم (Entry)</option>
+                    <option value="badge">🎖️ شارة بروفايل (Badge)</option>
+                    <option value="bubble">💬 فقاعة محادثة (Bubble)</option>
+                    <option value="coins">🪙 كوينز بونص (Coins)</option>
+                    <option value="gift">🎁 هدية في الحقيبة (Gift)</option>
+                    <option value="svga">🎬 مؤثر SVGA أسطوري (SVGA)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">مدة الصلاحية (بالأيام):</label>
+                  <input 
+                    type="number" 
+                    value={rewardForm.daysValid} 
+                    onChange={e => setRewardForm(p => ({ ...p, daysValid: Number(e.target.value) }))} 
+                    className="w-full bg-[#121214] border border-white/10 rounded-xl px-3 py-2 text-white font-mono" 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">بونص كوينز خاص بهذه المكافأة (اختياري):</label>
+                <input 
+                  type="number" 
+                  value={rewardForm.bonusCoins || 0} 
+                  onChange={e => setRewardForm(p => ({ ...p, bonusCoins: Number(e.target.value) }))} 
+                  placeholder="0"
+                  className="w-full bg-[#121214] border border-white/10 rounded-xl px-3 py-2 text-emerald-400 font-mono font-bold" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">أيقونة أو صورة المكافأة (PNG/WebP):</label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text" 
+                    value={rewardForm.icon} 
+                    onChange={e => setRewardForm(p => ({ ...p, icon: e.target.value }))} 
+                    placeholder="assets/recharge_event/100K.png أو رابط صورة..." 
+                    className="flex-1 bg-[#121214] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px]" 
+                  />
+                  <label className="cursor-pointer px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center gap-1 shrink-0">
+                    <Upload className="w-3.5 h-3.5" /> رفع PNG
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f, 'rewards', url => setRewardForm(p => ({ ...p, icon: url }))); }} 
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">مؤثر الـ SVGA المتحرك للمكافأة (اختياري):</label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text" 
+                    value={rewardForm.svga || ''} 
+                    onChange={e => setRewardForm(p => ({ ...p, svga: e.target.value }))} 
+                    placeholder="100k.svga أو رابط SVGA..." 
+                    className="flex-1 bg-[#121214] border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-[11px]" 
+                  />
+                  <label className="cursor-pointer px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold flex items-center gap-1 shrink-0">
+                    <Upload className="w-3.5 h-3.5" /> رفع SVGA
+                    <input 
+                      type="file" 
+                      accept=".svga" 
+                      className="hidden" 
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f, 'rewards_svga', url => setRewardForm(p => ({ ...p, svga: url }))); }} 
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-white/10 flex gap-2">
+              <button 
+                type="button"
+                onClick={saveRewardItem} 
+                className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20"
+              >
+                {editingRewardIndex !== null ? 'حفظ تعديل المكافأة' : 'إضافة المكافأة إلى الباقة'}
+              </button>
+              <button 
+                type="button"
+                onClick={() => setShowRewardModal(false)} 
+                className="px-4 py-2.5 bg-slate-800 text-slate-300 text-xs font-semibold rounded-xl"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── PREVIEW DETAIL MODAL ─── */}
       {previewTier && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#141417] border border-amber-500/40 rounded-3xl w-full max-w-sm p-6 text-center space-y-4 shadow-2xl relative">
+          <div className="bg-[#141417] border border-amber-500/40 rounded-3xl w-full max-w-md p-6 text-center space-y-4 shadow-2xl relative max-h-[90vh] flex flex-col">
             <button 
               onClick={() => setPreviewTier(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white"
@@ -1233,7 +1707,7 @@ export default function RechargeEventManager() {
               ✕
             </button>
 
-            <div className="relative w-28 h-32 mx-auto flex items-center justify-center">
+            <div className="relative w-28 h-32 mx-auto flex items-center justify-center shrink-0">
               <img src={itemBgImage} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
               <img 
                 src={previewTier.icon || `assets/recharge_event/${previewTier.rewardLabel}.png`} 
@@ -1243,14 +1717,14 @@ export default function RechargeEventManager() {
               />
             </div>
 
-            <div>
+            <div className="shrink-0">
               <h3 className="text-xl font-black text-white">{previewTier.rewardLabel}</h3>
               <p className="text-xs text-amber-400 font-bold mt-1">تارجت الشحن: {previewTier.requiredCoins.toLocaleString()} كوينز</p>
             </div>
 
-            <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-white/5 text-xs text-slate-300 space-y-2 text-right">
+            <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-white/5 text-xs text-slate-300 space-y-2 text-right shrink-0">
               <div className="flex justify-between">
-                <span className="text-slate-400">بونص كوينز فوري:</span>
+                <span className="text-slate-400">إجمالي بونص الكوينز:</span>
                 <span className="font-bold text-emerald-400">+{previewTier.rewardCoins.toLocaleString()} كوينز</span>
               </div>
               <div className="flex justify-between">
@@ -1258,14 +1732,46 @@ export default function RechargeEventManager() {
                 <span className="font-mono text-[11px] text-indigo-300">{previewTier.svga}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">مدة صلاحية المكافأة:</span>
+                <span className="text-slate-400">مدة الصلاحية:</span>
                 <span className="font-bold text-white">{previewTier.daysValid} يوم</span>
               </div>
             </div>
 
+            {/* Preview of all package rewards */}
+            {previewTier.rewards && previewTier.rewards.length > 0 && (
+              <div className="text-right space-y-2 flex-1 overflow-y-auto pr-1">
+                <h4 className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5" />
+                  <span>محتويات باقة المكافآت ({previewTier.rewards.length} جوائز):</span>
+                </h4>
+                <div className="space-y-1.5">
+                  {previewTier.rewards.map((rw, rk) => (
+                    <div key={rk} className="flex items-center justify-between p-2 bg-slate-950/60 rounded-xl border border-white/5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-black/40 flex items-center justify-center overflow-hidden shrink-0">
+                          {rw.icon ? (
+                            <img src={rw.icon} alt="" className="w-6 h-6 object-contain" onError={e => { (e.target as HTMLElement).style.display = 'none'; }} />
+                          ) : (
+                            <Gift className="w-4 h-4 text-amber-400" />
+                          )}
+                        </div>
+                        <span className="font-bold text-white text-[11px]">{rw.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px]">
+                        <span className="text-slate-400">{rw.daysValid} يوم</span>
+                        {Number(rw.bonusCoins) > 0 && (
+                          <span className="text-emerald-400 font-bold">+{Number(rw.bonusCoins).toLocaleString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button 
               onClick={() => setPreviewTier(null)}
-              className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl"
+              className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl shrink-0"
             >
               إغلاق
             </button>
