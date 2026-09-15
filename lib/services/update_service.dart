@@ -133,10 +133,12 @@ class UpdateService {
       if (latestVersion.isEmpty) return null;
 
       final currentBuild = int.tryParse(info.buildNumber) ?? 0;
-      final isNewerVersion = _versionCode(latestVersion) > _versionCode(info.version);
-      final isNewerBuild = latestBuild > currentBuild;
-
-      if (!isNewerVersion && !isNewerBuild) {
+      if (!_isNewer(
+        remoteVersion: latestVersion,
+        remoteBuild: latestBuild,
+        currentVersion: info.version,
+        currentBuild: currentBuild,
+      )) {
         return null;
       }
       return AppUpdateInfo(
@@ -174,9 +176,15 @@ class UpdateService {
 
       final latestBuild = int.tryParse('${d['build_number'] ?? ''}') ?? 0;
       final currentBuild = int.tryParse(info.buildNumber) ?? 0;
-      final newer = _versionCode(latestVersion) > _versionCode(info.version) ||
-          latestBuild > currentBuild;
-      if (!newer) return null;
+
+      if (!_isNewer(
+        remoteVersion: latestVersion,
+        remoteBuild: latestBuild,
+        currentVersion: info.version,
+        currentBuild: currentBuild,
+      )) {
+        return null;
+      }
 
       return AppUpdateInfo(
         latestVersion: latestVersion,
@@ -193,6 +201,31 @@ class UpdateService {
       if (throwOnError) rethrow;
       return null;
     }
+  }
+
+  /// Strictly determines if an update should be offered.
+  /// Prevents any accidental downgrade to an older version.
+  bool _isNewer({
+    required String remoteVersion,
+    required int remoteBuild,
+    required String currentVersion,
+    required int currentBuild,
+  }) {
+    final remoteVer = _versionCode(remoteVersion);
+    final currentVer = _versionCode(currentVersion);
+
+    // If remote version is strictly older than installed version, NEVER update!
+    if (remoteVer < currentVer) {
+      return false;
+    }
+
+    // If remote version is strictly higher (e.g. 1.0.114 > 1.0.113), always update!
+    if (remoteVer > currentVer) {
+      return true;
+    }
+
+    // If versions are identical (e.g. 1.0.114 == 1.0.114), only update if remote build is strictly greater
+    return remoteBuild > currentBuild;
   }
 
   /// '1.2.10' -> 102010 so versions compare numerically.

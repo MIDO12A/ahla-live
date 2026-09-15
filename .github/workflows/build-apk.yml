@@ -49,10 +49,14 @@ jobs:
 
       - name: Read app version
         id: ver
-        run: echo "ver=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d '+' -f1)" >> "$GITHUB_OUTPUT"
+        run: |
+          v=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d '+' -f1)
+          b=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d '+' -f2)
+          echo "ver=$v" >> "$GITHUB_OUTPUT"
+          echo "build=$b" >> "$GITHUB_OUTPUT"
 
       - name: Build release APKs
-        run: flutter build apk --release --split-per-abi --build-number=$((2000015000 + ${{ github.run_number }}))
+        run: flutter build apk --release --split-per-abi --build-name=${{ steps.ver.outputs.ver }} --build-number=${{ steps.ver.outputs.build }}
 
       - name: Rename APKs
         run: |
@@ -64,11 +68,10 @@ jobs:
       - name: Create build info
         env:
           APP_VER: ${{ steps.ver.outputs.ver }}
-          RUN_NUM: ${{ github.run_number }}
+          APP_BUILD: ${{ steps.ver.outputs.build }}
           SHA: ${{ github.sha }}
         run: |
-          bn=$((2000015000 + RUN_NUM))
-          printf '{"version":"%s","build_number":%s,"commit":"%s"}\n' "$APP_VER" "$bn" "$SHA" > build_info.json
+          printf '{"version":"%s","build_number":%s,"commit":"%s"}\n' "$APP_VER" "$APP_BUILD" "$SHA" > build_info.json
           cat build_info.json
 
       - name: Upload APKs to Workflow Artifacts
