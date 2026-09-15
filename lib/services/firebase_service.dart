@@ -3414,7 +3414,22 @@ class FirebaseService {
         final targetCoins = _asInt(targetData?['coins'] ?? 0);
 
         txn.update(agentRef, {'coins': agentCoins - coinsAmount});
-        txn.update(targetRef, {'coins': targetCoins + coinsAmount});
+        txn.update(targetRef, {
+          'coins': targetCoins + coinsAmount,
+          'recharged_coins': FieldValue.increment(coinsAmount),
+          'total_recharge': FieldValue.increment(coinsAmount),
+        });
+
+        // تحديث تقدم حدث الشحن للمستخدم المستلم
+        final now = DateTime.now();
+        final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
+        final progressRef = _db.collection('recharge_event_progress').doc('${eventId}_${targetRef.id}');
+        txn.set(progressRef, {
+          'event_id': eventId,
+          'user_id': targetRef.id,
+          'total_recharged_coins': FieldValue.increment(coinsAmount),
+          'updated_at': now.toIso8601String(),
+        }, SetOptions(merge: true));
 
         // تسجيل العملية في السجلات المالية
         final transferRef = _db.collection('agency_transfers').doc();

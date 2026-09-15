@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../../../screens/room/widgets/svga_player.dart';
+import '../../../screens/rank/rank_screen.dart';
 
 /// بيانات مستوى الشحن الأسطوري الملكي (المطابق لـ D:40)
 class RechargeEventTierData {
@@ -96,6 +97,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   List<RechargeEventTierData> _tiers = _defaultTiers;
   int _userTotalRecharge = 0;
   List<String> _claimedTiers = [];
+  Map<String, int> _claimedCounts = {};
 
   // إعدادات التصميم والتحكم الديناميكي من اللوحة
   String _titleText = 'اشحن واحصل على مكافآت ملكية فورية';
@@ -116,6 +118,8 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   Duration _timeLeft = Duration.zero;
 
   StreamSubscription? _configSub;
+  StreamSubscription? _userSub;
+  StreamSubscription? _progressSub;
 
   @override
   void initState() {
@@ -123,6 +127,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     _calculateTimeLeft();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _calculateTimeLeft());
     _loadUserProgress();
+    _listenToUserProgress();
     _listenToDynamicConfig();
   }
 
@@ -130,6 +135,8 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   void dispose() {
     _timer?.cancel();
     _configSub?.cancel();
+    _userSub?.cancel();
+    _progressSub?.cancel();
     super.dispose();
   }
 
@@ -204,7 +211,8 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     try {
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final rechargedCoins = (userDoc.data()?['recharged_coins'] as num?)?.toInt() ?? 
-                            (userDoc.data()?['total_recharge'] as num?)?.toInt() ?? 0;
+                            (userDoc.data()?['total_recharge'] as num?)?.toInt() ?? 
+                            (userDoc.data()?['total_recharged_coins'] as num?)?.toInt() ?? 0;
 
       final now = DateTime.now();
       final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
@@ -217,11 +225,86 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
         setState(() {
           _userTotalRecharge = rechargedCoins;
           if (progressDoc.exists) {
-            _claimedTiers = List<String>.from(progressDoc.data()?['claimed_tiers'] ?? []);
+            final data = progressDoc.data() ?? {};
+            _claimedTiers = List<String>.from(data['claimed_tiers'] ?? []);
+            if (data['claimed_counts'] is Map) {
+              _claimedCounts = Map<String, int>.from(
+                (data['claimed_counts'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
+              );
+            } else {
+              _claimedCounts = {for (final id in _claimedTiers) id: 1};
+            }
           }
         });
       }
     } catch (_) {}
+  }
+
+  void _listenToUserProgress() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final now = DateTime.now();
+    final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
+
+    // 1. مراقبة شحن المستخدم المباشر فورياً (عند التحويل من الوكيل أو أداة الإدارة)
+    _userSub = FirebaseFirestore.instance.collection('users').doc(uid).snapshots().listen((doc) {
+      if (!doc.exists) return;
+      final data = doc.data() ?? {};
+      final c1 = (data['recharged_coins'] as num?)?.toInt() ?? 0;
+      final c2 = (data['total_recharged_coins'] as num?)?.toInt() ?? 0;
+      final c3 = (data['total_recharge'] as num?)?.toInt() ?? 0;
+      final maxCoins = [c1, c2, c3, _userTotalRecharge].reduce((curr, next) => curr > next ? curr : next);
+      if (mounted && maxCoins != _userTotalRecharge) {
+        setState(() => _userTotalRecharge = maxCoins);
+      }
+    }, onError: (_) {});
+
+    // 2. مراقبة وثيقة تقدم حدث الشحن
+    _progressSub = FirebaseFirestore.instance
+        .collection('recharge_event_progress')
+        .doc('${eventId}_$uid')
+        .snapshots()
+        .listen((doc) {
+      if (!doc.exists) return;
+      final data = doc.data() ?? {};
+      final eventCoins = (data['total_recharged_coins'] as num?)?.toInt() ?? 0;
+      final claimedList = List<String>.from(data['claimed_tiers'] ?? []);
+      Map<String, int> counts = {};
+      if (data['claimed_counts'] is Map) {
+        counts = Map<String, int>.from(
+          (data['claimed_counts'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
+        );
+      } else {
+        counts = {for (final id in claimedList) id: 1};
+      }
+
+      if (mounted) {
+        setState(() {
+          if (eventCoins > _userTotalRecharge) {
+            _userTotalRecharge = eventCoins;
+          }
+          _claimedTiers = claimedList;
+          _claimedCounts = counts;
+        });
+      }
+    }, onError: (_) {});
+  }
+
+  int _getTimesEarned(RechargeEventTierData tier) {
+    if (tier.targetCoins <= 0) return 0;
+    return _userTotalRecharge ~/ tier.targetCoins;
+  }
+
+  int _getTimesClaimed(RechargeEventTierData tier) {
+    return _claimedCounts[tier.id] ?? (_claimedTiers.contains(tier.id) ? 1 : 0);
+  }
+
+  int _getRemainingClaims(RechargeEventTierData tier) {
+    final earned = _getTimesEarned(tier);
+    final claimed = _getTimesClaimed(tier);
+    final remaining = earned - claimed;
+    return remaining > 0 ? remaining : 0;
   }
 
   Widget _buildImage(String pathOrUrl, {double? width, double? height, BoxFit fit = BoxFit.contain}) {
@@ -244,8 +327,10 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   }
 
   void _previewReward(RechargeEventTierData tier) {
-    final canClaim = _userTotalRecharge >= tier.targetCoins && !_claimedTiers.contains(tier.id);
-    final alreadyClaimed = _claimedTiers.contains(tier.id);
+    final remaining = _getRemainingClaims(tier);
+    final timesClaimed = _getTimesClaimed(tier);
+    final canClaim = remaining > 0;
+    final alreadyClaimed = !canClaim && timesClaimed > 0;
 
     showModalBottomSheet(
       context: context,
@@ -301,7 +386,21 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
               'بونص إضافي: +${NumberFormat('#,###').format(tier.bonusCoins)} كوينز | الصلاحية: ${tier.durationDays} يوم',
               style: const TextStyle(color: Colors.white70, fontSize: 11),
             ),
-            const SizedBox(height: 20),
+            if (timesClaimed > 0 || remaining > 0) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'تم الاستلام سابقاً: $timesClaimed مرة | متاح للاستلام الآن: $remaining مرة',
+                  style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+            const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
               height: 46,
@@ -322,11 +421,13 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                   }
                 },
                 child: Text(
-                  alreadyClaimed
-                      ? 'تم الاستلام مسبقاً'
-                      : canClaim
-                          ? 'استلام الجائزة الملكية 🎁'
-                          : 'اشحن للوصول لهذا المستوى',
+                  canClaim
+                      ? (remaining > 1
+                          ? 'استلام الجائزة الملكية (متاح $remaining مرات) 🎁'
+                          : 'استلام الجائزة الملكية 🎁')
+                      : (alreadyClaimed
+                          ? 'تم استلام المكافأة ($timesClaimed مرة)'
+                          : 'اشحن للوصول لهذا المستوى'),
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ),
@@ -342,17 +443,31 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
+    final remaining = _getRemainingClaims(tier);
+    if (remaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لقد قمت باستلام جميع المكافآت المتاحة لهذا المستوى! اشحن للمزيد.')),
+      );
+      return;
+    }
+
     final now = DateTime.now();
     final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
 
     try {
       final docRef = FirebaseFirestore.instance.collection('recharge_event_progress').doc('${eventId}_$uid');
-      final newClaimed = [..._claimedTiers, tier.id];
+      final currentClaimed = _getTimesClaimed(tier);
+      final newCount = currentClaimed + 1;
+      final updatedCounts = Map<String, int>.from(_claimedCounts);
+      updatedCounts[tier.id] = newCount;
+      final newClaimedTiers = Set<String>.from(_claimedTiers)..add(tier.id);
 
       await docRef.set({
         'user_id': uid,
         'event_id': eventId,
-        'claimed_tiers': newClaimed,
+        'total_recharged_coins': _userTotalRecharge,
+        'claimed_tiers': newClaimedTiers.toList(),
+        'claimed_counts': updatedCounts,
         'updated_at': now.toIso8601String(),
       }, SetOptions(merge: true));
 
@@ -366,6 +481,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
         'expires_at': now.add(Duration(days: tier.durationDays)).toIso8601String(),
         'created_at': now.toIso8601String(),
         'is_equipped': true,
+        'claim_round': newCount,
       });
 
       // إضافة الكوينز البونص
@@ -375,20 +491,24 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
         });
       }
 
-      setState(() => _claimedTiers = newClaimed);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('🎉 تهانينا! تم استلام مكافأة ${tier.nameAr} وبونص ${tier.bonusCoins} كوينز بنجاح!'),
-          backgroundColor: Colors.green.shade800,
-        ),
-      );
+      if (mounted) {
+        setState(() {
+          _claimedTiers = newClaimedTiers.toList();
+          _claimedCounts = updatedCounts;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('🎉 تهانينا! تم استلام مكافأة ${tier.nameAr} (المرة رقم $newCount) وبونص ${tier.bonusCoins} كوينز بنجاح!'),
+            backgroundColor: Colors.green.shade800,
+          ),
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('حدث خطأ أثناء الاستلام: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ أثناء الاستلام: $e')),
+        );
+      }
     }
   }
 
@@ -397,6 +517,276 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
       Navigator.pop(context);
     }
     Navigator.of(context).pushNamed('/wallet_recharge');
+  }
+
+  void _showRankingDialog() {
+    final now = DateTime.now();
+    final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF14121F),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) => Container(
+        height: MediaQuery.of(context).size.height * 0.80,
+        decoration: const BoxDecoration(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          gradient: LinearGradient(
+            colors: [Color(0xFF1C172B), Color(0xFF0F0D17)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Column(
+          children: [
+            // المقبض العلوي
+            const SizedBox(height: 12),
+            Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // الترويسة
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.emoji_events, color: Color(0xFFFFD700), size: 24),
+                      SizedBox(width: 8),
+                      Text(
+                        'ترتيب كبار شاحني الحدث',
+                        style: TextStyle(
+                          color: Color(0xFFFFD700),
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const RankScreen()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.open_in_new, color: Color(0xFFFFD700), size: 14),
+                          SizedBox(width: 4),
+                          Text(
+                            'الترتيب العام',
+                            style: TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Divider(color: Colors.white12, height: 1),
+
+            // قائمة المتصدرين الحية
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('recharge_event_progress')
+                    .where('event_id', isEqualTo: eventId)
+                    .orderBy('total_recharged_coins', descending: true)
+                    .limit(30)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
+                  }
+                  final docs = snapshot.data?.docs ?? [];
+                  if (docs.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.military_tech_outlined, color: Colors.white24, size: 54),
+                          SizedBox(height: 12),
+                          Text(
+                            'كن أول من يشحن ويتصدر قائمة هذا الشهر!',
+                            style: TextStyle(color: Colors.white60, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      final docData = docs[index].data() as Map<String, dynamic>;
+                      final targetUid = docData['user_id']?.toString() ?? '';
+                      final coins = (docData['total_recharged_coins'] as num?)?.toInt() ?? 0;
+                      final isMe = targetUid == currentUid;
+
+                      Color rankColor;
+                      IconData? crownIcon;
+                      if (index == 0) {
+                        rankColor = const Color(0xFFFFD700);
+                        crownIcon = Icons.military_tech;
+                      } else if (index == 1) {
+                        rankColor = const Color(0xFFE0E0E0);
+                        crownIcon = Icons.military_tech;
+                      } else if (index == 2) {
+                        rankColor = const Color(0xFFCD7F32);
+                        crownIcon = Icons.military_tech;
+                      } else {
+                        rankColor = Colors.white54;
+                      }
+
+                      return FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance.collection('users').doc(targetUid).get(),
+                        builder: (context, userSnap) {
+                          final userData = userSnap.data?.data() as Map<String, dynamic>?;
+                          final name = userData?['name']?.toString() ?? 'مستخدم';
+                          final photoUrl = userData?['photo_url']?.toString() ?? userData?['photoUrl']?.toString();
+                          final customId = userData?['custom_id']?.toString() ?? userData?['customId']?.toString() ?? '';
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isMe
+                                  ? const Color(0xFFFFD700).withValues(alpha: 0.12)
+                                  : Colors.white.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isMe
+                                    ? const Color(0xFFFFD700).withValues(alpha: 0.6)
+                                    : (index < 3 ? rankColor.withValues(alpha: 0.3) : Colors.white10),
+                                width: isMe ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                // الرقم / المركز
+                                SizedBox(
+                                  width: 34,
+                                  child: crownIcon != null
+                                      ? Icon(crownIcon, color: rankColor, size: 24)
+                                      : Text(
+                                          '#${index + 1}',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: rankColor,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                ),
+                                const SizedBox(width: 8),
+
+                                // الصورة
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: Colors.white12,
+                                  backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+                                      ? NetworkImage(photoUrl)
+                                      : null,
+                                  child: photoUrl == null || photoUrl.isEmpty
+                                      ? const Icon(Icons.person, color: Colors.white60, size: 22)
+                                      : null,
+                                ),
+                                const SizedBox(width: 12),
+
+                                // الاسم والمعرف
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: isMe ? const Color(0xFFFFD700) : Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ),
+                                          if (isMe) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: Colors.amber,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: const Text('أنت', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold)),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      if (customId.isNotEmpty)
+                                        Text(
+                                          'ID: $customId',
+                                          style: const TextStyle(color: Colors.white38, fontSize: 10),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+
+                                // مجموع الشحن
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      NumberFormat('#,###').format(coins),
+                                      style: const TextStyle(
+                                        color: Color(0xFFFFE957),
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const Text('🪙 كوينز', style: TextStyle(color: Colors.white54, fontSize: 9)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showRulesDialog() {
@@ -475,6 +865,31 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
               right: 0,
               height: 385,
               child: _buildImage(_dialogBgAsset, width: 312, height: 385, fit: BoxFit.fill),
+            ),
+
+            // زر الترتيب الملكي في النافذة المنبثقة
+            Positioned(
+              top: 14,
+              right: 14,
+              child: GestureDetector(
+                onTap: _showRankingDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFFF8F00)]),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4)],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.emoji_events, color: Color(0xFF3E1F00), size: 14),
+                      SizedBox(width: 3),
+                      Text('الترتيب', style: TextStyle(color: Color(0xFF3E1F00), fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
             ),
 
             // عنوان الحدث أو صورة البانر المصممة
@@ -690,18 +1105,58 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                       ],
                                     ),
                                   ),
-                            GestureDetector(
-                              onTap: _showRulesDialog,
-                              child: Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.5),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white24),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                GestureDetector(
+                                  onTap: _showRankingDialog,
+                                  child: Container(
+                                    height: 38,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFFFFD700), Color(0xFFFF8F00)],
+                                      ),
+                                      borderRadius: BorderRadius.circular(19),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFFFFD700).withValues(alpha: 0.4),
+                                          blurRadius: 8,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(Icons.emoji_events, color: Color(0xFF3E1F00), size: 18),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'الترتيب',
+                                          style: TextStyle(
+                                            color: Color(0xFF3E1F00),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                                child: const Icon(Icons.info_outline, color: Color(0xFFFFD700), size: 20),
-                              ),
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: _showRulesDialog,
+                                  child: Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.5),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white24),
+                                    ),
+                                    child: const Icon(Icons.info_outline, color: Color(0xFFFFD700), size: 20),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -956,8 +1411,10 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
 
   /// كرت المكافأة الفردي المطابق لـ recharge_remind_list_item.xml
   Widget _buildTierItemCard(RechargeEventTierData tier, {bool isFullScreen = false}) {
-    final reached = _userTotalRecharge >= tier.targetCoins;
-    final claimed = _claimedTiers.contains(tier.id);
+    final remaining = _getRemainingClaims(tier);
+    final timesClaimed = _getTimesClaimed(tier);
+    final canClaim = remaining > 0;
+    final claimed = !canClaim && timesClaimed > 0;
 
     return GestureDetector(
       onTap: () => _previewReward(tier),
@@ -1012,19 +1469,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                 ),
 
                 // حالة الاستلام (في حال الشاشة الكاملة)
-                if (isFullScreen && claimed)
-                  Positioned(
-                    bottom: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade800.withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text('تم الاستلام ✓', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
-                    ),
-                  )
-                else if (isFullScreen && reached)
+                if (isFullScreen && canClaim)
                   Positioned(
                     bottom: 8,
                     child: Container(
@@ -1034,7 +1479,25 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: const [BoxShadow(color: Colors.amber, blurRadius: 4)],
                       ),
-                      child: const Text('استلام 🎁', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900)),
+                      child: Text(
+                        remaining > 1 ? 'استلام ($remaining) 🎁' : 'استلام 🎁',
+                        style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  )
+                else if (isFullScreen && claimed)
+                  Positioned(
+                    bottom: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade800.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        timesClaimed > 1 ? 'تم الاستلام ($timesClaimed) ✓' : 'تم الاستلام ✓',
+                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
               ],

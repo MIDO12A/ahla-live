@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { getAppConfig, updateAppConfig } from '../lib/db';
 import { uploadAppAsset } from '../lib/storage';
+import { firestoreDb } from '../lib/firebase';
+import { doc, setDoc, getDocs, collection, query, where, orderBy, limit, increment } from 'firebase/firestore';
 import { 
   Save, Upload, Eye, Plus, Trash2, Edit2, Palette, CheckCircle2, 
-  Sparkles, Image as ImageIcon, Smartphone, Layers, Crown, Coins
+  Sparkles, Image as ImageIcon, Smartphone, Layers, Crown, Coins,
+  Trophy, Users, Search, RefreshCw, Send, Gift
 } from 'lucide-react';
 import { to6Hex } from '../lib/colors';
 
@@ -35,9 +38,20 @@ const DEFAULT_TIERS: RechargeTier[] = [
   { tier: 14, requiredCoins: 500000000, rewardLabel: '500M', rewardCoins: 100000000, icon: 'assets/recharge_event/500M.png', svga: '500M.svga', daysValid: 365, tagText: '500M' }
 ];
 
+export interface LeaderboardEntry {
+  userId: string;
+  name: string;
+  photoUrl: string;
+  customId: string;
+  totalRechargedCoins: number;
+  claimedTiers: string[];
+  claimedCounts?: Record<string, number>;
+  updatedAt?: string;
+}
+
 export default function RechargeEventManager() {
   const [tiers, setTiers] = useState<RechargeTier[]>(DEFAULT_TIERS);
-  const [activeTab, setActiveTab] = useState<'tiers' | 'design' | 'preview'>('tiers');
+  const [activeTab, setActiveTab] = useState<'tiers' | 'design' | 'preview' | 'ranking'>('tiers');
   const [previewMode, setPreviewMode] = useState<'screen' | 'dialog'>('screen');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,6 +62,7 @@ export default function RechargeEventManager() {
   const [title, setTitle] = useState('اشحن واحصل على مكافآت ملكية فورية');
   const [titleColor, setTitleColor] = useState('#FFFFFF');
   const [headerTextImage, setHeaderTextImage] = useState('');
+  const [allowRepeatClaims, setAllowRepeatClaims] = useState(true);
   
   // Assets Overrides
   const [dialogBgImage, setDialogBgImage] = useState('assets/recharge_event/recharge_remind_dialog_bg.webp');
@@ -70,6 +85,15 @@ export default function RechargeEventManager() {
   const [modalForm, setModalForm] = useState<RechargeTier>({
     tier: 15, requiredCoins: 600000000, rewardLabel: '600M', rewardCoins: 120000000, icon: '', svga: '', daysValid: 365, tagText: '600M'
   });
+
+  // Ranking & Leaderboard State
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loadingRank, setLoadingRank] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [quickRechargeUid, setQuickRechargeUid] = useState('');
+  const [quickRechargeAmount, setQuickRechargeAmount] = useState('100000');
+  const [showQuickRechargeModal, setShowQuickRechargeModal] = useState(false);
+  const [processingRecharge, setProcessingRecharge] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -94,6 +118,7 @@ export default function RechargeEventManager() {
           if (s.tagTextColor) setTagTextColor(s.tagTextColor);
           if (s.itemLabelColor) setItemLabelColor(s.itemLabelColor);
           if (s.overlayBgColor) setOverlayBgColor(s.overlayBgColor);
+          if (s.allowRepeatClaims !== undefined) setAllowRepeatClaims(Boolean(s.allowRepeatClaims));
         }
       } catch (e) {
         console.warn(e);
@@ -101,7 +126,94 @@ export default function RechargeEventManager() {
         setLoading(false);
       }
     })();
+    loadLeaderboard();
   }, []);
+
+  const loadLeaderboard = async () => {
+    setLoadingRank(true);
+    try {
+      const now = new Date();
+      const eventId = `recharge_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const q = query(
+        collection(firestoreDb, 'recharge_event_progress'),
+        where('event_id', '==', eventId),
+        orderBy('total_recharged_coins', 'desc'),
+        limit(50)
+      );
+      const snap = await getDocs(q);
+      const entries: LeaderboardEntry[] = [];
+      for (const docSnap of snap.docs) {
+        const d = docSnap.data();
+        const uid = d.user_id || docSnap.id.replace(`${eventId}_`, '');
+        let name = 'مستخدم';
+        let photoUrl = '';
+        let customId = '';
+        try {
+          const userDoc = await getDocs(query(collection(firestoreDb, 'users'), where('uid', '==', uid), limit(1)));
+          if (userDoc && !userDoc.empty) {
+            const ud = userDoc.docs[0].data();
+            name = ud.name || ud.displayName || 'مستخدم';
+            photoUrl = ud.photo_url || ud.photoUrl || '';
+            customId = ud.custom_id || ud.customId || '';
+          }
+        } catch (_) {}
+
+        entries.push({
+          userId: uid,
+          name,
+          photoUrl,
+          customId,
+          totalRechargedCoins: Number(d.total_recharged_coins || 0),
+          claimedTiers: Array.isArray(d.claimed_tiers) ? d.claimed_tiers : [],
+          claimedCounts: d.claimed_counts || {},
+          updatedAt: d.updated_at,
+        });
+      }
+      setLeaderboard(entries);
+    } catch (err) {
+      console.warn('loadLeaderboard error:', err);
+    } finally {
+      setLoadingRank(false);
+    }
+  };
+
+  const handleQuickRecharge = async () => {
+    if (!quickRechargeUid || !quickRechargeAmount) return;
+    const amount = parseInt(quickRechargeAmount) || 0;
+    if (amount <= 0) return;
+
+    setProcessingRecharge(true);
+    try {
+      const now = new Date();
+      const eventId = `recharge_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      // 1. تحديث في Firestore users
+      const userRef = doc(firestoreDb, 'users', quickRechargeUid);
+      await setDoc(userRef, {
+        coins: increment(amount),
+        recharged_coins: increment(amount),
+        total_recharge: increment(amount),
+      }, { merge: true });
+
+      // 2. تحديث في recharge_event_progress
+      const progressRef = doc(firestoreDb, 'recharge_event_progress', `${eventId}_${quickRechargeUid}`);
+      await setDoc(progressRef, {
+        event_id: eventId,
+        user_id: quickRechargeUid,
+        total_recharged_coins: increment(amount),
+        updated_at: now.toISOString(),
+      }, { merge: true });
+
+      showNotification(`🎉 تم شحن ${amount.toLocaleString()} كوينز للمستخدم وتحديث تقدم الحدث فوراً!`);
+      setShowQuickRechargeModal(false);
+      setQuickRechargeUid('');
+      loadLeaderboard();
+    } catch (e: any) {
+      alert(`خطأ أثناء الشحن: ${e?.message || e}`);
+    } finally {
+      setProcessingRecharge(false);
+    }
+  };
 
   const showNotification = (text: string) => {
     setMsg(text);
@@ -111,15 +223,27 @@ export default function RechargeEventManager() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateAppConfig({
+      const configPayload = {
         recharge_event_tiers: tiers,
         recharge_event_settings: {
           title, titleColor, headerTextImage,
           dialogBgImage, itemBgImage, tagImage, coinsImage, btnImage, closeBtnImage,
-          btnText, btnTextColor, tagTextColor, itemLabelColor, overlayBgColor
+          btnText, btnTextColor, tagTextColor, itemLabelColor, overlayBgColor,
+          allowRepeatClaims
         }
-      } as any);
-      showNotification('✅ تم حفظ إعدادات وحدث الشحن المطابق لـ D:40 بنجاح!');
+      };
+
+      // 1. تحديث Supabase
+      await updateAppConfig(configPayload as any);
+
+      // 2. تحديث Firestore المباشر لمزامنة التطبيق فوراً
+      try {
+        await setDoc(doc(firestoreDb, 'app_config', 'general'), configPayload, { merge: true });
+      } catch (err) {
+        console.warn('Firestore sync warning:', err);
+      }
+
+      showNotification('✅ تم حفظ إعدادات وحدث الشحن ومزامنتها مع التطبيق فوراً بنجاح!');
     } catch (e) {
       showNotification('❌ فشل الحفظ، يرجى المحاولة لاحقاً');
     } finally {
@@ -273,6 +397,14 @@ export default function RechargeEventManager() {
         >
           <Eye className="w-4 h-4" />
           <span>المعاينة الحية للنافذة الملكية (D:40 Live Mockup)</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab('ranking'); loadLeaderboard(); }}
+          className={`px-5 py-2.5 text-xs font-bold rounded-xl transition flex items-center gap-2 ${activeTab === 'ranking' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+        >
+          <Trophy className="w-4 h-4" />
+          <span>ترتيب كبار الشاحنين والمتصدرين ({leaderboard.length})</span>
         </button>
       </div>
 
@@ -582,6 +714,25 @@ export default function RechargeEventManager() {
                     <span className="font-mono text-[11px] text-white">{itemLabelColor}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Allow repeat claims switch */}
+              <div className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white">السماح بتكرار استلام المكافآت لنفس المستوى عند مضاعفة الشحن</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    عند التفعيل، إذا شحن المستخدم مبالغ تغطي تارجت المستوى أكثر من مرة (مثلاً 500K لمستوى 100K)، سيتاح له استلام الجائزة عدة مرات متكررة.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allowRepeatClaims}
+                    onChange={(e) => setAllowRepeatClaims(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
               </div>
 
               {/* Tag Badge Image override */}
@@ -1119,6 +1270,277 @@ export default function RechargeEventManager() {
               إغلاق
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ─── RANKING & PARTICIPANTS TAB ─── */}
+      {activeTab === 'ranking' && (
+        <div className="space-y-6">
+          {/* Stats Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-[#141417] border border-white/5 p-5 rounded-2xl flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">إجمالي المشاركين هذا الشهر</p>
+                <h3 className="text-xl font-bold text-white mt-0.5">{leaderboard.length} مستخدم</h3>
+              </div>
+            </div>
+
+            <div className="bg-[#141417] border border-white/5 p-5 rounded-2xl flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                <Coins className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">مجموع شحن الحدث الحالي</p>
+                <h3 className="text-xl font-bold text-amber-400 mt-0.5">
+                  {leaderboard.reduce((acc, curr) => acc + curr.totalRechargedCoins, 0).toLocaleString()} 🪙
+                </h3>
+              </div>
+            </div>
+
+            <div className="bg-[#141417] border border-white/5 p-5 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-400">
+                  <Trophy className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">متصدر الترتيب الأول</p>
+                  <h3 className="text-base font-bold text-white mt-0.5">
+                    {leaderboard[0]?.name || 'لا يوجد بعد'}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setQuickRechargeUid('');
+                  setShowQuickRechargeModal(true);
+                }}
+                className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-black text-xs font-bold rounded-xl shadow-md hover:from-amber-600 hover:to-amber-700 transition flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>شحن لمستخدم</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Refresh */}
+          <div className="flex items-center justify-between gap-4 bg-[#141417] border border-white/5 p-4 rounded-2xl">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="البحث باسم المستخدم أو المعرف أو الـ UID..."
+                className="w-full bg-slate-900/80 border border-white/10 rounded-xl pr-9 pl-4 py-2 text-xs text-white placeholder-slate-500"
+              />
+            </div>
+            <button
+              onClick={loadLeaderboard}
+              disabled={loadingRank}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingRank ? 'animate-spin' : ''}`} />
+              <span>تحديث القائمة</span>
+            </button>
+          </div>
+
+          {/* Leaderboard Table */}
+          <div className="bg-[#141417] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right">
+                <thead>
+                  <tr className="border-b border-white/5 bg-slate-900/40 text-[11px] text-slate-400 uppercase">
+                    <th className="p-4 w-16 text-center">المركز</th>
+                    <th className="p-4">المستخدم</th>
+                    <th className="p-4">إجمالي الشحن هذا الشهر</th>
+                    <th className="p-4">أعلى مستوى محقق</th>
+                    <th className="p-4">المكافآت المستلمة</th>
+                    <th className="p-4 text-center">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-xs">
+                  {loadingRank ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-400">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500" />
+                        جارٍ تحميل ترتيب الشاحنين والمتصدرين...
+                      </td>
+                    </tr>
+                  ) : leaderboard.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-400">
+                        <Trophy className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                        لم يتم تسجيل أي عمليات شحن في حدث هذا الشهر حتى الآن.
+                      </td>
+                    </tr>
+                  ) : (
+                    leaderboard
+                      .filter(
+                        (u) =>
+                          u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          u.userId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          u.customId.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map((u, idx) => {
+                        const highestTier = [...tiers]
+                          .reverse()
+                          .find((t) => u.totalRechargedCoins >= t.requiredCoins);
+                        const totalClaims = Object.values(u.claimedCounts || {}).reduce((a, b) => a + b, 0) || u.claimedTiers.length;
+
+                        return (
+                          <tr key={u.userId} className="hover:bg-white/[0.02] transition">
+                            <td className="p-4 text-center">
+                              {idx === 0 ? (
+                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/20 text-amber-400 font-bold border border-amber-500/40">
+                                  👑 1
+                                </span>
+                              ) : idx === 1 ? (
+                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-400/20 text-slate-300 font-bold border border-slate-400/40">
+                                  🥈 2
+                                </span>
+                              ) : idx === 2 ? (
+                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-700/20 text-amber-600 font-bold border border-amber-700/40">
+                                  🥉 3
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 font-semibold font-mono">#{idx + 1}</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                {u.photoUrl ? (
+                                  <img
+                                    src={u.photoUrl}
+                                    className="w-10 h-10 rounded-full object-cover border border-white/10"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center">
+                                    {u.name?.[0] || 'U'}
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-bold text-white text-xs">{u.name}</p>
+                                  <p className="text-[10px] text-slate-400 font-mono">
+                                    {u.customId ? `ID: ${u.customId}` : u.userId.slice(0, 10)}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className="font-bold text-amber-400 text-sm">
+                                {u.totalRechargedCoins.toLocaleString()} 🪙
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              {highestTier ? (
+                                <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold text-[11px]">
+                                  {highestTier.rewardLabel}
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 text-[11px]">لم يصل لمستوى بعد</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <span className="text-slate-300 font-medium">
+                                {totalClaims > 0 ? `${totalClaims} مكافآت مستلمة` : 'لم يستلم بعد'}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <button
+                                onClick={() => {
+                                  setQuickRechargeUid(u.userId);
+                                  setShowQuickRechargeModal(true);
+                                }}
+                                className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-semibold transition"
+                              >
+                                شحن رصيد + تارجت
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Quick Recharge Modal */}
+          {showQuickRechargeModal && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-[#141417] border border-amber-500/30 rounded-2xl w-full max-w-md p-6 space-y-4 text-right shadow-2xl">
+                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                  <h3 className="font-bold text-white text-sm">شحن رصيد وتفعيل تارجت الحدث مباشرة</h3>
+                  <button
+                    onClick={() => setShowQuickRechargeModal(false)}
+                    className="text-slate-400 hover:text-white text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">معرّف المستخدم (UID أو Custom ID):</label>
+                  <input
+                    type="text"
+                    value={quickRechargeUid}
+                    onChange={(e) => setQuickRechargeUid(e.target.value)}
+                    placeholder="أدخل الـ UID..."
+                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">كمية الكوينز المراد شحنها:</label>
+                  <input
+                    type="number"
+                    value={quickRechargeAmount}
+                    onChange={(e) => setQuickRechargeAmount(e.target.value)}
+                    placeholder="100000"
+                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold"
+                  />
+                  <div className="flex gap-1.5 mt-2">
+                    {[100000, 500000, 1000000, 5000000, 10000000].map((val) => (
+                      <button
+                        key={val}
+                        onClick={() => setQuickRechargeAmount(String(val))}
+                        className="px-2 py-1 bg-white/5 hover:bg-white/10 text-slate-300 rounded text-[10px]"
+                      >
+                        +{val >= 1000000 ? `${val / 1000000}M` : `${val / 1000}K`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl text-[11px] text-amber-300 space-y-1">
+                  <p>⚡ <strong>ملاحظة:</strong> سيتم تزويد رصيد المستخدم بالكوينز، واحتساب الشحن ضمن حدث الشحن الشهري فوراً ليتمكن من استلام الجوائز مباشرة من داخل التطبيق!</p>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setShowQuickRechargeModal(false)}
+                    className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    onClick={handleQuickRecharge}
+                    disabled={processingRecharge}
+                    className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-black rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{processingRecharge ? 'جارٍ الشحن...' : 'تأكيد الشحن الفوري'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

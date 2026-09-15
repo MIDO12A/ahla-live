@@ -19,7 +19,8 @@ import {
 } from '../lib/db';
 import { uploadStoreItem } from '../lib/storage';
 import { supabase } from '../lib/supabase';
-import { firebaseAuth } from '../lib/firebase';
+import { firebaseAuth, firestoreDb } from '../lib/firebase';
+import { doc, setDoc, increment } from 'firebase/firestore';
 import { I18nContext } from '../lib/i18n';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
@@ -1487,7 +1488,33 @@ function RechargeAgenciesTab() {
 
     const currentCoins = Number(u.coins || 0);
     const newCoins = currentCoins + amount;
-    await supabase.from('users').update({ coins: newCoins }).eq('id', u.id);
+    await supabase.from('users').update({ 
+      coins: newCoins,
+      recharged_coins: Number(u.recharged_coins || 0) + amount,
+      total_recharge: Number(u.total_recharge || 0) + amount,
+    }).eq('id', u.id);
+
+    // مزامنة فورية مع Firestore لكي يظهر الشحن فوراً داخل حدث الشحن ويستلم المستخدم المكافأة
+    try {
+      const now = new Date();
+      const eventId = `recharge_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const userRef = doc(firestoreDb, 'users', u.id);
+      await setDoc(userRef, {
+        coins: increment(amount),
+        recharged_coins: increment(amount),
+        total_recharge: increment(amount),
+      }, { merge: true });
+
+      const progressRef = doc(firestoreDb, 'recharge_event_progress', `${eventId}_${u.id}`);
+      await setDoc(progressRef, {
+        event_id: eventId,
+        user_id: u.id,
+        total_recharged_coins: increment(amount),
+        updated_at: now.toISOString(),
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Firestore agency recharge sync:', err);
+    }
 
     const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
     await sendSystemNotification({
