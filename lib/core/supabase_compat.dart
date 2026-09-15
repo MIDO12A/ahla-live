@@ -1476,10 +1476,6 @@ class SupabaseClient {
     // Fetch active milestones/targets from host_milestones or agency_targets_config
     final List<Map<String, dynamic>> targetsList = [];
     try {
-      final milestonesSnap = await _db.collection('host_milestones')
-          .where('is_active', isEqualTo: true)
-          .get();
-      
       final earnedMonthly = (md['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
 
       // Check already achieved targets for this month
@@ -1491,24 +1487,33 @@ class SupabaseClient {
           .get();
       final achievedIds = achievedSnap.docs.map((d) => d.data()['target_id']?.toString() ?? d.id).toSet();
 
+      var milestonesSnap = await _db.collection('host_milestones')
+          .where('is_active', isEqualTo: true)
+          .get();
+      if (milestonesSnap.docs.isEmpty) {
+        milestonesSnap = await _db.collection('host_milestones').get();
+      }
+
       final docs = milestonesSnap.docs.toList();
       docs.sort((a, b) {
-        final aOrder = (a.data()['sort_order'] as num?)?.toInt() ?? 0;
-        final bOrder = (b.data()['sort_order'] as num?)?.toInt() ?? 0;
+        final aOrder = (a.data()['sort_order'] ?? a.data()['sortOrder'] as num?)?.toInt() ?? 0;
+        final bOrder = (b.data()['sort_order'] ?? b.data()['sortOrder'] as num?)?.toInt() ?? 0;
         if (aOrder != bOrder) return aOrder.compareTo(bOrder);
-        final aDiamonds = (a.data()['target_diamonds'] as num?)?.toInt() ?? 0;
-        final bDiamonds = (b.data()['target_diamonds'] as num?)?.toInt() ?? 0;
+        final aDiamonds = (a.data()['target_diamonds'] ?? a.data()['targetDiamonds'] as num?)?.toInt() ?? 0;
+        final bDiamonds = (b.data()['target_diamonds'] ?? b.data()['targetDiamonds'] as num?)?.toInt() ?? 0;
         return aDiamonds.compareTo(bDiamonds);
       });
 
       for (final doc in docs) {
         final data = doc.data();
-        final targetDiamonds = (data['target_diamonds'] as num?)?.toInt() ?? 0;
+        final targetDiamonds = (data['target_diamonds'] ?? data['targetDiamonds'] as num?)?.toInt() ?? 0;
+        if (targetDiamonds <= 0 || targetDiamonds > 1000000000) continue; // Skip invalid or corrupted trillion tiers
+
         final isAchieved = earnedMonthly >= targetDiamonds || achievedIds.contains(doc.id);
         final remaining = (targetDiamonds - earnedMonthly).clamp(0, targetDiamonds);
         final progressPct = targetDiamonds > 0 ? (earnedMonthly / targetDiamonds).clamp(0.0, 1.0) : 0.0;
-        final rewardVal = (data['reward_value'] as num?)?.toDouble() ?? 0.0;
-        final rewardType = data['reward_type']?.toString() ?? 'salary_usd';
+        final rewardVal = (data['reward_value'] ?? data['rewardValue'] as num?)?.toDouble() ?? 0.0;
+        final rewardType = data['reward_type']?.toString() ?? data['rewardType']?.toString() ?? 'salary_usd';
 
         int rewardCoins = 0;
         int rewardDiamonds = 0;
@@ -1525,23 +1530,59 @@ class SupabaseClient {
 
         targetsList.add({
           'id': doc.id,
-          'title': data['title'] ?? 'مرحلة ${targetsList.length + 1}',
+          'title': data['title'] ?? data['title_ar'] ?? 'المستوى ${targetsList.length + 1}',
           'target_diamonds': targetDiamonds,
           'reward_coins': rewardCoins,
           'reward_diamonds': rewardDiamonds,
           'reward_svip_days': rewardSvip,
           'reward_type': rewardType,
           'reward_value': rewardVal,
-          'reward_item_id': data['reward_item_id'],
-          'reward_image_url': data['reward_image_url'] ?? data['image_url'],
-          'background_url': data['background_url'],
-          'agent_commission_rate': (data['agent_commission_rate'] as num?)?.toDouble() ?? 0.1,
+          'reward_item_id': data['reward_item_id'] ?? data['rewardItemId'],
+          'reward_image_url': data['reward_image_url'] ?? data['rewardImageUrl'] ?? data['image_url'],
+          'background_url': data['background_url'] ?? data['backgroundUrl'],
+          'agent_commission_rate': (data['agent_commission_rate'] ?? data['agentCommissionRate'] as num?)?.toDouble() ?? 0.1,
           'earned_this_month': earnedMonthly,
           'remaining': remaining,
           'progress_pct': progressPct,
           'is_achieved': isAchieved,
-          'sort_order': (data['sort_order'] as num?)?.toInt() ?? targetsList.length,
+          'sort_order': (data['sort_order'] ?? data['sortOrder'] as num?)?.toInt() ?? targetsList.length,
         });
+      }
+
+      // If still empty, add default standard 9 host milestones
+      if (targetsList.isEmpty) {
+        final defaultMilestones = [
+          {'id': 'milestone_100k', 'title': 'المستوى 1 (100K)', 'target': 100000, 'coins': 5000, 'type': 'gold', 'val': 5000.0, 'order': 1},
+          {'id': 'milestone_300k', 'title': 'المستوى 2 (300K)', 'target': 300000, 'coins': 18000, 'type': 'gold', 'val': 18000.0, 'order': 2},
+          {'id': 'milestone_500k', 'title': 'المستوى 3 (500K)', 'target': 500000, 'coins': 35000, 'type': 'gold', 'val': 35000.0, 'order': 3},
+          {'id': 'milestone_1m',   'title': 'المستوى 4 (1M)',   'target': 1000000, 'coins': 15000, 'type': 'salary_usd', 'val': 150.0, 'order': 4},
+          {'id': 'milestone_2m',   'title': 'المستوى 5 (2M)',   'target': 2000000, 'coins': 32000, 'type': 'salary_usd', 'val': 320.0, 'order': 5},
+          {'id': 'milestone_5m',   'title': 'المستوى 6 (5M)',   'target': 5000000, 'coins': 85000, 'type': 'salary_usd', 'val': 850.0, 'order': 6},
+          {'id': 'milestone_10m',  'title': 'المستوى 7 (10M)',  'target': 10000000, 'coins': 180000, 'type': 'salary_usd', 'val': 1800.0, 'order': 7},
+          {'id': 'milestone_20m',  'title': 'المستوى 8 (20M)',  'target': 20000000, 'coins': 380000, 'type': 'salary_usd', 'val': 3800.0, 'order': 8},
+          {'id': 'milestone_50m',  'title': 'المستوى 9 (50M)',  'target': 50000000, 'coins': 1000000, 'type': 'salary_usd', 'val': 10000.0, 'order': 9},
+        ];
+        for (final m in defaultMilestones) {
+          final td = m['target'] as int;
+          final isAchieved = earnedMonthly >= td || achievedIds.contains(m['id']);
+          final remaining = (td - earnedMonthly).clamp(0, td);
+          final progressPct = td > 0 ? (earnedMonthly / td).clamp(0.0, 1.0) : 0.0;
+          targetsList.add({
+            'id': m['id'],
+            'title': m['title'],
+            'target_diamonds': td,
+            'reward_coins': m['coins'],
+            'reward_diamonds': 0,
+            'reward_svip_days': 0,
+            'reward_type': m['type'],
+            'reward_value': m['val'],
+            'earned_this_month': earnedMonthly,
+            'remaining': remaining,
+            'progress_pct': progressPct,
+            'is_achieved': isAchieved,
+            'sort_order': m['order'],
+          });
+        }
       }
     } catch (e) {
       // ignore

@@ -205,8 +205,22 @@ abstract final class AgencyRepository {
         .map((t) => t.id)
         .toList();
 
+    final agency = data['agency_id'] != null
+        ? AgencyCard(
+            id: data['agency_id'].toString(),
+            name: data['agency_name']?.toString() ?? 'الوكالة',
+            tier: AgencyTier.bronze,
+            memberCount: 1,
+            totalDiamondsMonthly: (data['diamonds_earned_monthly'] as num?)?.toInt() ?? 0,
+            totalDiamondsCumulative: (data['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0,
+            isHallOfFame: false,
+            status: 'active',
+          )
+        : null;
+
     return HostAgencyStats(
       member:            member,
+      agency:            agency,
       targets:           targets,
       recentLedger:      ledger,
       engine:            engine,

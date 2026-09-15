@@ -11,6 +11,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/supabase_compat.dart';
 
 import '../../core/realtime/realtime_subscription.dart';
@@ -65,6 +66,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
   late final AnimationController _shimmerCtrl;
 
   // Realtime بديل Timer.periodic
+  StreamSubscription? _fsMemberSub;
+  StreamSubscription? _fsLedgerSub;
   RealtimeSubscription? _rtDiamonds;
   RealtimeSubscription? _rtMilestones;
   RealtimeSubscription? _rtProgress;   // v3: monthly progress
@@ -96,6 +99,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     _shimmerCtrl.dispose();
     _debounce?.cancel();
     _countdownTimer?.cancel();
+    _fsMemberSub?.cancel();
+    _fsLedgerSub?.cancel();
     _rtDiamonds?.dispose();
     _rtMilestones?.dispose();
     _rtProgress?.dispose();
@@ -111,13 +116,57 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     });
   }
 
-  // ── subscribe realtime ────────────────────────────────────
+  // ── subscribe realtime (Firestore Live Stream for Gifts & Targets) ────────
   void _bindRealtime(String uid) {
+    _fsMemberSub?.cancel();
+    _fsLedgerSub?.cancel();
     _rtDiamonds?.dispose();
     _rtMilestones?.dispose();
     _rtV2Diamonds?.dispose();
 
-    // ✅ اشتراك بدفتر الألماس (المحرك القديم)
+    // ⚡ 1. استماع لحظي مباشر في Firestore لعضوية المضيف وألماسه عند استلام أي هدية
+    _fsMemberSub = FirebaseFirestore.instance
+        .collection('host_agency_members')
+        .where('user_id', isEqualTo: uid)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        final data = snapshot.docs.first.data();
+        final currentDiamonds = (data['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        if (_prevMonthDiamonds > 0 && currentDiamonds > _prevMonthDiamonds) {
+          final diff = currentDiamonds - _prevMonthDiamonds;
+          KayanInAppToast.diamond('🎁 استلمت هدية جديدة! +${_fmtN(diff)} 💎');
+          HapticFeedback.mediumImpact();
+        }
+        _prevMonthDiamonds = currentDiamonds;
+        _scheduleReload();
+      }
+    }, onError: (e) => debugPrint('[HostDashboard] fsMemberSub error: $e'));
+
+    // ⚡ 2. استماع لحظي لسجل هدايا المضيف في agency_diamond_ledger
+    _fsLedgerSub = FirebaseFirestore.instance
+        .collection('agency_diamond_ledger')
+        .where('user_id', isEqualTo: uid)
+        .snapshots()
+        .listen((snapshot) {
+      for (final change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final data = change.doc.data();
+          final amount = (data?['amount'] as num?)?.toInt() ?? 0;
+          final giftName = data?['gift_name']?.toString() ?? '';
+          if (amount > 0 && change.newIndex == 0) {
+            final title = giftName.isNotEmpty
+                ? '🎁 هدية "$giftName" (+${_fmtN(amount)} 💎)'
+                : '💎 هدية جديدة +${_fmtN(amount)} 💎';
+            KayanInAppToast.diamond(title);
+            HapticFeedback.lightImpact();
+          }
+          _scheduleReload();
+        }
+      }
+    }, onError: (e) => debugPrint('[HostDashboard] fsLedgerSub error: $e'));
+
+    // ✅ اشتراك بدفتر الألماس (المحرك القديم للتوافق)
     _rtDiamonds = SupabaseRealtimeBridge.subscribePostgres(
       topic: 'agency_ledger:$uid',
       event: PostgresChangeEvent.insert,
@@ -137,7 +186,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
       },
     );
 
-    // ✅ اشتراك بـ host_agency_members
+    // ✅ اشتراك بـ host_agency_members (للتوافق)
     _rtV2Diamonds = SupabaseRealtimeBridge.subscribePostgres(
       topic: 'agency_member_v2:$uid',
       event: PostgresChangeEvent.update,
@@ -255,6 +304,22 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
       final weekD  = weekRows.fold<int>(0,  (sum, r) => sum + ((r['amount'] as num?)?.toInt() ?? 0));
       final monthD = agencyStats?.member.diamondsEarnedMonthly ?? 0;
 
+      // جلب بيانات ساعات البث والأيام الفعالة من host_agency_members
+      int liveHours = 0;
+      int validDays = 0;
+      try {
+        final memSnap = await FirebaseFirestore.instance
+            .collection('host_agency_members')
+            .where('user_id', isEqualTo: uid)
+            .limit(1)
+            .get();
+        if (memSnap.docs.isNotEmpty) {
+          final mdata = memSnap.docs.first.data();
+          liveHours = (mdata['live_hours_monthly'] as num?)?.toInt() ?? 0;
+          validDays = (mdata['valid_days_monthly'] as num?)?.toInt() ?? 0;
+        }
+      } catch (_) {}
+
       // بناء بيانات لوحة التحكم
       final built = <String, dynamic>{
         'profile': {
@@ -290,6 +355,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         'month_diamonds': monthD,
         'week_diamonds':  weekD,
         'today_diamonds': todayD,
+        'live_hours_monthly': liveHours,
+        'valid_days_monthly': validDays,
       };
 
       // كشف تغيير ماسات الشهر وإظهار toast
@@ -469,6 +536,14 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
 
                 const SizedBox(height: 24),
 
+                // ─ بطاقة البيانات الشهرية ونظام التارجت الأصلي (D:40) ─────────
+                _D40MonthlyDataCard(
+                  data: d,
+                  milestones: milestones,
+                  pulse: _pulseCtrl,
+                ),
+                const SizedBox(height: 24),
+
                 // ─ v3 engine cards ────────────────────────────────────────
                 if (_engineV3Enabled && _v3Data != null) ...[
                   _EngineV3Banner(v3: _v3Data!),
@@ -487,60 +562,60 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                   const SizedBox(height: 24),
                 ],
 
-                // ─ milestones ────────────────────────────────────────────
-                if (milestones.isNotEmpty) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _SectionHeader(label: 'مراحل وتارجت الشهر', icon: '🎯'),
-                      if (milestones.any((m) => m['is_completed'] == true))
-                        GestureDetector(
-                          onTap: () {
-                            final totalAchievedDiamonds = milestones
-                                .where((m) => m['is_completed'] == true)
-                                .fold<int>(0, (sum, m) => sum + ((m['target_value'] as num?)?.toInt() ?? 0));
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => AgencyWithdrawalScreen(
-                                  initialTab: 2, // تبويب وكيل الشحن
-                                  initialDiamonds: totalAchievedDiamonds > 0 ? totalAchievedDiamonds : null,
+                // ─ milestones (مراحل وتارجت الشهر) ─────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _SectionHeader(label: 'مراحل وتارجت الشهر', icon: '🎯'),
+                    if (milestones.any((m) => m['is_completed'] == true))
+                      GestureDetector(
+                        onTap: () {
+                          final totalAchievedDiamonds = milestones
+                              .where((m) => m['is_completed'] == true)
+                              .fold<int>(0, (acc, m) => acc + ((m['target_value'] as num?)?.toInt() ?? 0));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AgencyWithdrawalScreen(
+                                initialTab: 2, // تبويب وكيل الشحن
+                                initialDiamonds: totalAchievedDiamonds > 0 ? totalAchievedDiamonds : null,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF00D4FF), Color(0xFF9C6BFF)],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(color: const Color(0xFF00D4FF).withOpacity(0.3), blurRadius: 8),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.account_balance_wallet_rounded, color: Colors.black, size: 14),
+                              SizedBox(width: 4),
+                              Text(
+                                'سحب جميع المراحل المحققة ⚡',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'IBM Plex Sans Arabic',
                                 ),
                               ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF00D4FF), Color(0xFF9C6BFF)],
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: [
-                                BoxShadow(color: const Color(0xFF00D4FF).withOpacity(0.3), blurRadius: 8),
-                              ],
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.account_balance_wallet_rounded, color: Colors.black, size: 14),
-                                SizedBox(width: 4),
-                                Text(
-                                  'سحب جميع المراحل المحققة ⚡',
-                                  style: TextStyle(
-                                    color: Colors.black,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    fontFamily: 'IBM Plex Sans Arabic',
-                                  ),
-                                ),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (milestones.isNotEmpty)
                   ...milestones.map((m) => _MilestoneCard(
                     milestone: m,
                     shimmer:   _shimmerCtrl,
@@ -556,9 +631,25 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                         ),
                       );
                     },
-                  )),
-                  const SizedBox(height: 24),
+                  ))
+                else ...[
+                  // بطاقة تنبيهية في حال عدم توفر مراحل
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _bgCard,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _border),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'جاري تحديث تارجت ومراحل هذا الشهر...',
+                        style: TextStyle(color: _textMuted, fontSize: 13, fontFamily: 'IBM Plex Sans Arabic'),
+                      ),
+                    ),
+                  ),
                 ],
+                const SizedBox(height: 24),
 
                 // ─ agency wallet & targets ────────────────────────────────
                 if (_agencyStats != null) ...[
@@ -1348,6 +1439,309 @@ class _WalletBtn extends StatelessWidget {
         ),
         alignment: Alignment.center,
         child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// بطاقة البيانات الشهرية ونظام التارجت الأصلي المطابق لـ D:40
+// layout: guild_anchor_monthly_data_view_layout.xml
+// ─────────────────────────────────────────────────────────────────────────────
+class _D40MonthlyDataCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final List<Map> milestones;
+  final AnimationController pulse;
+
+  const _D40MonthlyDataCard({
+    required this.data,
+    required this.milestones,
+    required this.pulse,
+  });
+
+  String _fmtCompact(num val) {
+    if (val >= 1000000) return '${(val / 1000000).toStringAsFixed(1)}M';
+    if (val >= 1000) return '${(val / 1000).toStringAsFixed(0)}K';
+    return val.toInt().toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    context.watch<DynamicConfigService>();
+
+    final monthDiamonds = (data['month_diamonds'] as num?)?.toInt() ?? 0;
+    final liveHours = (data['live_hours_monthly'] as num?)?.toInt() ?? 0;
+    final validDays = (data['valid_days_monthly'] as num?)?.toInt() ?? 0;
+    final profile = data['profile'] as Map? ?? {};
+    final level = profile['level'] ?? 1;
+
+    // العثور على التارجت التالي وتارجت الشهر المحقق
+    Map? nextMilestone;
+    Map? achievedMilestone;
+    for (final m in milestones) {
+      final target = (m['target_value'] as num?)?.toInt() ?? 0;
+      if (monthDiamonds >= target) {
+        achievedMilestone = m;
+      } else if (nextMilestone == null) {
+        nextMilestone = m;
+      }
+    }
+    nextMilestone ??= milestones.isNotEmpty ? milestones.last : null;
+
+    final targetVal = (nextMilestone?['target_value'] as num?)?.toInt() ?? 100000;
+    final progressPct = targetVal > 0 ? (monthDiamonds / targetVal).clamp(0.0, 1.0) : 0.0;
+    final bonusVal = achievedMilestone != null
+        ? (achievedMilestone['reward_value'] as num?)?.toInt() ?? (achievedMilestone['reward_coins'] as num?)?.toInt() ?? 0
+        : (nextMilestone?['reward_coins'] as num?)?.toInt() ?? 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF16192E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // عنوان البطاقة ورأس التقدم
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.insights_rounded, color: Color(0xFFF5A601), size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'البيانات الشهرية والتارجت (D:40)',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'IBM Plex Sans Arabic',
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5A601).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFF5A601).withOpacity(0.3)),
+                ),
+                child: Text(
+                  '${(progressPct * 100).toStringAsFixed(1)}% مكتمل',
+                  style: const TextStyle(
+                    color: Color(0xFFF5A601),
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Space Grotesk',
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          // شريط التقدم نحو التارجت التالي
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progressPct,
+              backgroundColor: Colors.white.withOpacity(0.08),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5A601)),
+              minHeight: 7,
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // شبكة الحقول الـ 6 المطابقة تماماً لـ guild_anchor_monthly_data_view_layout.xml
+          // الصف الأول: تارجت الكوينز + ألماس المضيف
+          Row(
+            children: [
+              Expanded(
+                child: _D40MetricTile(
+                  title: 'تارجت الهدف القادم',
+                  value: _fmtCompact(targetVal),
+                  unit: '💎',
+                  color: const Color(0xFFF5A601),
+                  icon: Icons.track_changes_rounded,
+                  bgGradient: const [Color(0x22F5A601), Color(0x05F5A601)],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _D40MetricTile(
+                  title: 'ألماس هذا الشهر',
+                  value: _fmtCompact(monthDiamonds),
+                  unit: '💎',
+                  color: const Color(0xFF7686FF),
+                  icon: Icons.diamond_rounded,
+                  bgGradient: const [Color(0x227686FF), Color(0x057686FF)],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // الصف الثاني: ساعات البث المباشر + أيام البث الفعالة
+          Row(
+            children: [
+              Expanded(
+                child: _D40MetricTile(
+                  title: 'ساعات البث',
+                  value: '$liveHours',
+                  unit: 'ساعة',
+                  color: const Color(0xFF8C5FFF),
+                  icon: Icons.access_time_filled_rounded,
+                  bgGradient: const [Color(0x228C5FFF), Color(0x058C5FFF)],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _D40MetricTile(
+                  title: 'أيام النشاط الفعالة',
+                  value: '$validDays',
+                  unit: 'يوم',
+                  color: const Color(0xFFFF5A7C),
+                  icon: Icons.calendar_today_rounded,
+                  bgGradient: const [Color(0x22FF5A7C), Color(0x05FF5A7C)],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // الصف الثالث: مستوى المضيف + بونص التارجت المالي
+          Row(
+            children: [
+              Expanded(
+                child: _D40MetricTile(
+                  title: 'رتبة وتصنيف المضيف',
+                  value: 'Lv.$level',
+                  unit: '',
+                  color: const Color(0xFF00E5A0),
+                  icon: Icons.military_tech_rounded,
+                  bgGradient: const [Color(0x2200E5A0), Color(0x0500E5A0)],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _D40MetricTile(
+                  title: 'بونص التارجت المالي',
+                  value: bonusVal > 0 ? _fmtCompact(bonusVal) : '0',
+                  unit: '🪙',
+                  color: const Color(0xFFFFCF5A),
+                  icon: Icons.card_giftcard_rounded,
+                  bgGradient: const [Color(0x22FFCF5A), Color(0x05FFCF5A)],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _D40MetricTile extends StatelessWidget {
+  final String title;
+  final String value;
+  final String unit;
+  final Color color;
+  final IconData icon;
+  final List<Color> bgGradient;
+
+  const _D40MetricTile({
+    required this.title,
+    required this.value,
+    required this.unit,
+    required this.color,
+    required this.icon,
+    required this.bgGradient,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: bgGradient,
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.2), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.65),
+                    fontSize: 11,
+                    fontFamily: 'IBM Plex Sans Arabic',
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Space Grotesk',
+                      ),
+                    ),
+                    if (unit.isNotEmpty) ...[
+                      const SizedBox(width: 3),
+                      Text(
+                        unit,
+                        style: TextStyle(
+                          color: color.withOpacity(0.8),
+                          fontSize: 11,
+                          fontFamily: 'IBM Plex Sans Arabic',
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
