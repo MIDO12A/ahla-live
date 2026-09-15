@@ -38,6 +38,7 @@ const DEFAULT_TIERS: RechargeTier[] = [
 export default function RechargeEventManager() {
   const [tiers, setTiers] = useState<RechargeTier[]>(DEFAULT_TIERS);
   const [activeTab, setActiveTab] = useState<'tiers' | 'design' | 'preview'>('tiers');
+  const [previewMode, setPreviewMode] = useState<'screen' | 'dialog'>('screen');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -611,129 +612,324 @@ export default function RechargeEventManager() {
         </div>
       )}
 
-      {/* ─── PREVIEW TAB: AUTHENTIC D:40 DIALOG ─── */}
+      {/* ─── PREVIEW TAB: DUAL MODE (FULL-SCREEN EVENT & AUTHENTIC D:40 DIALOG) ─── */}
       {activeTab === 'preview' && (
         <div className="bg-[#0b0b0e] border border-amber-500/30 rounded-3xl p-6 flex flex-col items-center justify-center relative min-h-[640px]">
-          <div className="absolute top-4 right-6 text-xs text-amber-400/80 font-bold flex items-center gap-1.5">
-            <Smartphone className="w-4 h-4" />
-            <span>معاينة حية دقيقة تحاكي ملف recharge_remind_dialog.xml في D:40</span>
-          </div>
-
-          {/* D:40 Royal Dialog Container (Width: 320px, Height: 460px proportional) */}
-          <div className="relative w-[310px] h-[450px] flex flex-col items-center justify-between select-none">
-            
-            {/* 1. Royal Crown Dialog Arch Background */}
-            <img 
-              src={dialogBgImage} 
-              alt="Dialog BG" 
-              className="absolute top-0 left-0 w-full h-[385px] object-fill pointer-events-none drop-shadow-2xl z-0"
-              onError={e => { (e.target as HTMLImageElement).src = 'assets/recharge_event/recharge_remind_dialog_bg.webp'; }}
-            />
-
-            {/* 2. Top Title / Guideline Area (starts at 25% height) */}
-            <div className="relative z-10 w-full pt-[96px] px-5 text-center">
-              {headerTextImage ? (
-                <img src={headerTextImage} alt="Header" className="max-h-8 object-contain mx-auto" />
-              ) : (
-                <p 
-                  className="text-[11px] font-bold leading-tight drop-shadow" 
-                  style={{ color: titleColor }}
-                >
-                  {title}
-                </p>
-              )}
+          {/* Header Controls: Switch between Screen & Dialog */}
+          <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-white/10">
+            <div className="text-xs text-amber-400 font-bold flex items-center gap-1.5">
+              <Smartphone className="w-4 h-4" />
+              <span>معاينة حية دقيقة للمستخدم النهائي (تطابق أصل D:40)</span>
             </div>
 
-            {/* 3. 3-Column Grid of Royal Frame Items */}
-            <div className="relative z-10 w-full px-4 pt-2 pb-8 h-[220px] overflow-y-auto grid grid-cols-3 gap-2">
-              {tiers.map((t) => (
-                <div 
-                  key={t.tier} 
-                  onClick={() => setPreviewTier(t)}
-                  className="flex flex-col items-center cursor-pointer transition hover:scale-105 active:scale-95 group"
-                >
-                  {/* Item Royal Frame Card */}
-                  <div className="relative w-[80px] h-[92px] flex items-center justify-center">
-                    {/* The Royal Frame with Rubies */}
-                    <img 
-                      src={itemBgImage} 
-                      alt="" 
-                      className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                    />
+            <div className="flex items-center gap-2 bg-[#161618] p-1.5 rounded-2xl border border-white/10">
+              <button
+                type="button"
+                onClick={() => setPreviewMode('screen')}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  previewMode === 'screen'
+                    ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                📱 شاشة الحدث الكاملة (Event Screen)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewMode('dialog')}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  previewMode === 'dialog'
+                    ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                🪟 النافذة المنبثقة (D:40 Dialog)
+              </button>
+            </div>
+          </div>
 
-                    {/* Tag badge on top right */}
-                    <div className="absolute top-[8px] right-[2px] w-[34px] h-[22px] flex items-center justify-center">
-                      <img src={tagImage} alt="" className="absolute inset-0 w-full h-full object-contain" />
-                      <span 
-                        className="relative z-10 text-[9px] font-black leading-none drop-shadow"
-                        style={{ color: tagTextColor }}
-                      >
-                        {t.tagText || t.rewardLabel}
-                      </span>
-                    </div>
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* 1. FULL SCREEN MOBILE EVENT VIEW */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {previewMode === 'screen' && (
+            <div className="relative w-[360px] h-[720px] bg-[#0C0A14] rounded-[40px] border-4 border-[#2A2338] shadow-2xl overflow-hidden flex flex-col select-none">
+              {/* Phone Speaker Notch */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-4 bg-[#1a1622] rounded-full z-40 flex items-center justify-center">
+                <div className="w-8 h-1 bg-white/20 rounded-full" />
+              </div>
 
-                    {/* Reward Tier Icon */}
-                    <div className="relative z-10 w-[50px] h-[40px] flex items-center justify-center pt-1">
-                      <img 
-                        src={t.icon || `assets/recharge_event/${t.rewardLabel}.png`} 
-                        alt={t.rewardLabel} 
-                        className="max-w-full max-h-full object-contain"
-                        onError={e => { (e.target as HTMLElement).style.display = 'none'; }}
-                      />
-                    </div>
+              {/* Scrollable Event Content */}
+              <div className="flex-1 overflow-y-auto pb-24 relative text-white">
+                {/* Header Royal Arch Banner */}
+                <div className="relative w-full h-[230px] flex flex-col items-center justify-between pt-7 px-4">
+                  <img
+                    src={dialogBgImage}
+                    alt="Arch"
+                    className="absolute top-0 left-0 w-full h-full object-fill pointer-events-none z-0"
+                    onError={e => { (e.target as HTMLImageElement).src = 'assets/recharge_event/recharge_remind_dialog_bg.webp'; }}
+                  />
+
+                  {/* Top Bar (Back, Title, Rules) */}
+                  <div className="relative z-10 w-full flex items-center justify-between">
+                    <button className="w-8 h-8 rounded-full bg-black/50 border border-white/20 flex items-center justify-center text-xs">
+                      ‹
+                    </button>
+                    {headerTextImage ? (
+                      <img src={headerTextImage} alt="Header" className="max-h-8 object-contain mx-auto" />
+                    ) : (
+                      <span className="text-xs font-black text-amber-400 drop-shadow">⚡ حدث الشحن الملكي الأسطوري</span>
+                    )}
+                    <button className="w-8 h-8 rounded-full bg-black/50 border border-white/20 flex items-center justify-center text-amber-300 text-xs font-bold">
+                      ℹ
+                    </button>
                   </div>
 
-                  {/* Reward Name & Coins */}
-                  <span 
-                    className="text-[10px] font-bold mt-0.5 drop-shadow text-center"
-                    style={{ color: itemLabelColor }}
-                  >
-                    {t.rewardLabel}
-                  </span>
+                  {/* Countdown Timer Badge */}
+                  <div className="relative z-10 -mt-2 flex flex-col items-center">
+                    <div className="bg-black/75 border border-amber-400/60 rounded-full px-3 py-1 flex items-center gap-1.5 shadow-md">
+                      <span className="text-amber-400 text-[10px]">⏱ ينتهي خلال: 15 يوم 12:45:30</span>
+                    </div>
+                    <p className="text-[10px] font-bold mt-1 text-center drop-shadow px-4" style={{ color: titleColor }}>
+                      {title}
+                    </p>
+                  </div>
+
+                  {/* User Progress Card */}
+                  <div className="relative z-20 w-full bg-gradient-to-r from-[#2C1F10] to-[#1B1428] border border-amber-500/50 rounded-2xl p-3 shadow-xl mt-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <div>
+                        <div className="text-slate-300 text-[10px]">شحنك التراكمي هذا الشهر:</div>
+                        <div className="text-amber-300 font-black text-base flex items-center gap-1">
+                          <span>1,250,000</span>
+                          <span className="text-[10px] text-amber-400">🪙 كوينز</span>
+                        </div>
+                      </div>
+                      <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl px-2 py-1 text-right">
+                        <div className="text-amber-300 font-bold text-[10px]">الهدف القادم: 5M</div>
+                        <div className="text-white/60 text-[9px]">متبقي: 3,750,000</div>
+                      </div>
+                    </div>
+                    {/* Golden Progress Bar */}
+                    <div className="w-full h-2 bg-white/10 rounded-full mt-2 overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-amber-600 to-amber-300 rounded-full" style={{ width: '25%' }} />
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            {/* 4. Bottom Pile of Coins */}
-            <div className="absolute bottom-[40px] left-0 right-0 h-[48px] px-2 pointer-events-none z-10">
-              <img 
-                src={coinsImage} 
-                alt="Coins" 
-                className="w-full h-full object-contain drop-shadow"
-              />
-            </div>
+                {/* Section Title */}
+                <div className="px-4 mt-6 mb-2 flex items-center gap-1.5 text-xs font-bold text-amber-300">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>مكافآت مستويات الشحن (14 مستوى ملكي)</span>
+                </div>
 
-            {/* 5. Golden Confirm Button (Go Now / اشحن الآن) */}
-            <div className="relative z-20 -mt-2">
-              <button 
-                onClick={() => alert('محاكاة زر اشحن الآن: سيتم فتح صفحة باقات الشحن في التطبيق')}
-                className="relative w-[138px] h-[48px] flex items-center justify-center cursor-pointer transition hover:brightness-110 active:scale-95"
-              >
-                <img 
-                  src={btnImage} 
-                  alt="Button" 
-                  className="absolute inset-0 w-full h-full object-contain drop-shadow-lg"
-                />
-                <span 
-                  className="relative z-10 font-black text-lg tracking-wide drop-shadow"
-                  style={{ color: btnTextColor }}
+                {/* 14 Tiers 3-Column Grid */}
+                <div className="px-3 grid grid-cols-3 gap-2">
+                  {tiers.map((t) => (
+                    <div
+                      key={t.tier}
+                      onClick={() => setPreviewTier(t)}
+                      className="flex flex-col items-center cursor-pointer transition hover:scale-105 active:scale-95 group bg-[#161324]/80 border border-white/5 rounded-2xl p-1.5 shadow"
+                    >
+                      {/* Frame Card */}
+                      <div className="relative w-[78px] h-[86px] flex items-center justify-center">
+                        <img
+                          src={itemBgImage}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                        />
+                        {/* Tag */}
+                        <div className="absolute top-[6px] right-[2px] w-[32px] h-[20px] flex items-center justify-center">
+                          <img src={tagImage} alt="" className="absolute inset-0 w-full h-full object-contain" />
+                          <span
+                            className="relative z-10 text-[8px] font-black leading-none drop-shadow"
+                            style={{ color: tagTextColor }}
+                          >
+                            {t.tagText || t.rewardLabel}
+                          </span>
+                        </div>
+                        {/* Icon */}
+                        <div className="relative z-10 w-[44px] h-[36px] flex items-center justify-center pt-1">
+                          <img
+                            src={t.icon || `assets/recharge_event/${t.rewardLabel}.png`}
+                            alt={t.rewardLabel}
+                            className="max-w-full max-h-full object-contain"
+                            onError={e => { (e.target as HTMLElement).style.display = 'none'; }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Label & Target */}
+                      <span
+                        className="text-[10px] font-black mt-0.5 drop-shadow text-center"
+                        style={{ color: itemLabelColor }}
+                      >
+                        {t.rewardLabel}
+                      </span>
+                      <span className="text-[8px] text-white/50 text-center font-mono">
+                        {t.requiredCoins >= 1000000 ? `${(t.requiredCoins / 1000000).toFixed(0)}M` : `${(t.requiredCoins / 1000).toFixed(0)}K`} 🪙
+                      </span>
+
+                      {/* Claim / Locked Pill */}
+                      <div className="mt-1 w-full text-center">
+                        {t.requiredCoins <= 1250000 ? (
+                          <span className="block text-[8px] font-black bg-green-600 text-white rounded-md py-0.5 px-1 shadow">
+                            جاهز للاستلام
+                          </span>
+                        ) : (
+                          <span className="block text-[8px] font-bold bg-white/10 text-white/60 rounded-md py-0.5 px-1">
+                            قيد التقدم
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Floating Bottom Action Bar */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#090710] via-[#090710]/95 to-transparent pt-4 pb-3 px-4 flex items-center justify-between border-t border-white/5 z-30">
+                {/* Coins pile */}
+                <div className="w-[100px] h-[38px]">
+                  <img src={coinsImage} alt="Coins" className="w-full h-full object-contain" />
+                </div>
+                {/* Golden Button */}
+                <button
+                  onClick={() => alert('محاكاة زر اشحن الآن: سيتم الانتقال لشاشة باقات شحن المحفظة')}
+                  className="relative w-[130px] h-[44px] flex items-center justify-center cursor-pointer transition hover:brightness-110 active:scale-95 shrink-0"
                 >
-                  {btnText}
-                </span>
-              </button>
+                  <img src={btnImage} alt="Button" className="absolute inset-0 w-full h-full object-contain drop-shadow" />
+                  <span
+                    className="relative z-10 font-black text-base tracking-wide drop-shadow"
+                    style={{ color: btnTextColor }}
+                  >
+                    {btnText}
+                  </span>
+                </button>
+              </div>
             </div>
+          )}
 
-            {/* 6. Close Button below button */}
-            <div className="relative z-20 mt-1">
-              <button 
-                onClick={() => alert('إغلاق نافذة حدث الشحن')}
-                className="w-8 h-8 rounded-full flex items-center justify-center transition hover:opacity-80 active:scale-90"
-              >
-                <img src={closeBtnImage} alt="Close" className="w-7 h-7 object-contain" />
-              </button>
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* 2. AUTHENTIC D:40 COMPACT DIALOG VIEW */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {previewMode === 'dialog' && (
+            <div className="relative w-[310px] h-[450px] flex flex-col items-center justify-between select-none">
+              
+              {/* 1. Royal Crown Dialog Arch Background */}
+              <img 
+                src={dialogBgImage} 
+                alt="Dialog BG" 
+                className="absolute top-0 left-0 w-full h-[385px] object-fill pointer-events-none drop-shadow-2xl z-0"
+                onError={e => { (e.target as HTMLImageElement).src = 'assets/recharge_event/recharge_remind_dialog_bg.webp'; }}
+              />
+
+              {/* 2. Top Title / Guideline Area (starts at 25% height) */}
+              <div className="relative z-10 w-full pt-[96px] px-5 text-center">
+                {headerTextImage ? (
+                  <img src={headerTextImage} alt="Header" className="max-h-8 object-contain mx-auto" />
+                ) : (
+                  <p 
+                    className="text-[11px] font-bold leading-tight drop-shadow" 
+                    style={{ color: titleColor }}
+                  >
+                    {title}
+                  </p>
+                )}
+              </div>
+
+              {/* 3. 3-Column Grid of Royal Frame Items */}
+              <div className="relative z-10 w-full px-4 pt-2 pb-8 h-[220px] overflow-y-auto grid grid-cols-3 gap-2">
+                {tiers.map((t) => (
+                  <div 
+                    key={t.tier} 
+                    onClick={() => setPreviewTier(t)}
+                    className="flex flex-col items-center cursor-pointer transition hover:scale-105 active:scale-95 group"
+                  >
+                    {/* Item Royal Frame Card */}
+                    <div className="relative w-[80px] h-[92px] flex items-center justify-center">
+                      {/* The Royal Frame with Rubies */}
+                      <img 
+                        src={itemBgImage} 
+                        alt="" 
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                      />
+
+                      {/* Tag badge on top right */}
+                      <div className="absolute top-[8px] right-[2px] w-[34px] h-[22px] flex items-center justify-center">
+                        <img src={tagImage} alt="" className="absolute inset-0 w-full h-full object-contain" />
+                        <span 
+                          className="relative z-10 text-[9px] font-black leading-none drop-shadow"
+                          style={{ color: tagTextColor }}
+                        >
+                          {t.tagText || t.rewardLabel}
+                        </span>
+                      </div>
+
+                      {/* Reward Tier Icon */}
+                      <div className="relative z-10 w-[50px] h-[40px] flex items-center justify-center pt-1">
+                        <img 
+                          src={t.icon || `assets/recharge_event/${t.rewardLabel}.png`} 
+                          alt={t.rewardLabel} 
+                          className="max-w-full max-h-full object-contain"
+                          onError={e => { (e.target as HTMLElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Reward Name & Coins */}
+                    <span 
+                      className="text-[10px] font-bold mt-0.5 drop-shadow text-center"
+                      style={{ color: itemLabelColor }}
+                    >
+                      {t.rewardLabel}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 4. Bottom Pile of Coins */}
+              <div className="absolute bottom-[40px] left-0 right-0 h-[48px] px-2 pointer-events-none z-10">
+                <img 
+                  src={coinsImage} 
+                  alt="Coins" 
+                  className="w-full h-full object-contain drop-shadow"
+                />
+              </div>
+
+              {/* 5. Golden Confirm Button (Go Now / اشحن الآن) */}
+              <div className="relative z-20 -mt-2">
+                <button 
+                  onClick={() => alert('محاكاة زر اشحن الآن: سيتم فتح صفحة باقات الشحن في التطبيق')}
+                  className="relative w-[138px] h-[48px] flex items-center justify-center cursor-pointer transition hover:brightness-110 active:scale-95"
+                >
+                  <img 
+                    src={btnImage} 
+                    alt="Button" 
+                    className="absolute inset-0 w-full h-full object-contain drop-shadow-lg"
+                  />
+                  <span 
+                    className="relative z-10 font-black text-lg tracking-wide drop-shadow"
+                    style={{ color: btnTextColor }}
+                  >
+                    {btnText}
+                  </span>
+                </button>
+              </div>
+
+              {/* 6. Close Button below button */}
+              <div className="relative z-20 mt-1">
+                <button 
+                  onClick={() => alert('إغلاق نافذة حدث الشحن')}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition hover:opacity-80 active:scale-90"
+                >
+                  <img src={closeBtnImage} alt="Close" className="w-7 h-7 object-contain" />
+                </button>
+              </div>
+
             </div>
-
-          </div>
+          )}
         </div>
       )}
 

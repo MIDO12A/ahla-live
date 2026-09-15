@@ -50,13 +50,13 @@ class RechargeEventTierData {
   }
 }
 
-/// الشاشة والنافذة الملكية لحدث الشحن (D:40 Recharge Remind Dialog)
+/// شاشة ونافذة حدث الشحن الملكي الأصلي (D:40 Recharge Event & Dialog)
 class RechargeEventScreen extends StatefulWidget {
   final bool isDialog;
 
   const RechargeEventScreen({super.key, this.isDialog = false});
 
-  /// دالة مساعدة لفتح الحدث كنافذة منبثقة أصلية كما في D:40
+  /// فتح الحدث كنافذة منبثقة أصلية D:40 (Recharge Remind Dialog)
   static Future<void> show(BuildContext context) {
     return showDialog(
       context: context,
@@ -97,7 +97,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   int _userTotalRecharge = 0;
   List<String> _claimedTiers = [];
 
-  // إعدادات التصميم والتحكم من اللوحة
+  // إعدادات التصميم والتحكم الديناميكي من اللوحة
   String _titleText = 'اشحن واحصل على مكافآت ملكية فورية';
   Color _titleColor = Colors.white;
   String? _headerTextImage;
@@ -112,19 +112,36 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   Color _tagTextColor = const Color(0xFFFFE957);
   Color _itemLabelColor = const Color(0xFFFFE957);
 
+  Timer? _timer;
+  Duration _timeLeft = Duration.zero;
+
   StreamSubscription? _configSub;
 
   @override
   void initState() {
     super.initState();
+    _calculateTimeLeft();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _calculateTimeLeft());
     _loadUserProgress();
     _listenToDynamicConfig();
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _configSub?.cancel();
     super.dispose();
+  }
+
+  void _calculateTimeLeft() {
+    final now = DateTime.now();
+    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+    final diff = endOfMonth.difference(now);
+    if (mounted) {
+      setState(() {
+        _timeLeft = diff.isNegative ? Duration.zero : diff;
+      });
+    }
   }
 
   void _listenToDynamicConfig() {
@@ -185,7 +202,6 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     if (uid == null) return;
 
     try {
-      // إجمالي شحن المستخدم
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final rechargedCoins = (userDoc.data()?['recharged_coins'] as num?)?.toInt() ?? 
                             (userDoc.data()?['total_recharge'] as num?)?.toInt() ?? 0;
@@ -248,7 +264,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
               decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(height: 16),
-            // SVGA Player or Icon
+            // SVGA Player or Icon inside Royal Frame
             SizedBox(
               width: 140,
               height: 140,
@@ -377,18 +393,74 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   }
 
   void _onGoNow() {
-    // إغلاق النافذة المنبثقة إذا كانت مفتوحة والانتقال لصفحة الشحن
     if (widget.isDialog) {
       Navigator.pop(context);
     }
-    // فتح متجر شحن الكوينز
     Navigator.of(context).pushNamed('/wallet_recharge');
+  }
+
+  void _showRulesDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF181524),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFFFFD700), width: 1),
+        ),
+        title: const Text(
+          '📜 قواعد حدث الشحن الملكي',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Color(0xFFFFD700), fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              '1. يتم احتساب جميع عمليات الشحن التراكمية خلال الشهر الحالي.',
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
+            SizedBox(height: 6),
+            Text(
+              '2. عند الوصول لتارجت أي مستوى يمكنك المطالبة بالمكافأة وبونص الكوينز فوراً.',
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
+            SizedBox(height: 6),
+            Text(
+              '3. مؤثرات الـ SVGA والجوائز الملكية تُضاف مباشرة إلى حقيبة المستخدم وتُفعّل تلقائياً.',
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
+            SizedBox(height: 6),
+            Text(
+              '4. يتجدد الحدث في بداية كل شهر ميلادي مع مكافآت جديدة.',
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('حسناً', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // التصميم الأصلي يحاكي أبعاد recharge_remind_dialog.xml (Width 302dp, Height 440dp)
-    final dialogWidget = Center(
+    if (widget.isDialog) {
+      return _buildAuthenticDialogView();
+    }
+    return _buildFullScreenEventView();
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // 1. نمط النافذة المنبثقة الأصلية D:40 (Recharge Remind Dialog)
+  // ══════════════════════════════════════════════════════════════
+  Widget _buildAuthenticDialogView() {
+    return Center(
       child: SizedBox(
         width: 312,
         height: 460,
@@ -396,7 +468,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
           alignment: Alignment.topCenter,
           clipBehavior: Clip.none,
           children: [
-            // 1. خلفية القوس الملكي مع التاج والمسجد الذهبي (recharge_remind_dialog_bg)
+            // خلفية القوس الملكي
             Positioned(
               top: 0,
               left: 0,
@@ -405,7 +477,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
               child: _buildImage(_dialogBgAsset, width: 312, height: 385, fit: BoxFit.fill),
             ),
 
-            // 2. Guideline بنسبة 25% من الأعلى: عنوان الحدث أو صورة البانر المصممة (Text-to-Image)
+            // عنوان الحدث أو صورة البانر المصممة
             Positioned(
               top: 96,
               left: 20,
@@ -427,7 +499,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                     ),
             ),
 
-            // 3. شبكة الـ 3 أعمدة الأصلية (recharge_remind_dialog_rv, spanCount="3")
+            // شبكة الـ 3 أعمدة
             Positioned(
               top: 130,
               left: 14,
@@ -445,12 +517,12 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                 itemCount: _tiers.length,
                 itemBuilder: (context, index) {
                   final tier = _tiers[index];
-                  return _buildTierItem(tier);
+                  return _buildTierItemCard(tier);
                 },
               ),
             ),
 
-            // 4. كومة الكوينز الذهبية السفلية (recharge_remind_coins_ic)
+            // كومة الكوينز السفلية
             Positioned(
               bottom: 46,
               left: 6,
@@ -461,7 +533,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
               ),
             ),
 
-            // 5. زر الشحن الذهبي الملكي (recharge_remind_btn_ic مع نص "اشحن الآن")
+            // زر الشحن الذهبي
             Positioned(
               bottom: 24,
               child: GestureDetector(
@@ -490,7 +562,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
               ),
             ),
 
-            // 6. زر الإغلاق الدائري الأصلي (recharge_remind_close_ic)
+            // زر الإغلاق
             Positioned(
               bottom: -22,
               child: GestureDetector(
@@ -508,33 +580,374 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
         ),
       ),
     );
+  }
 
-    if (widget.isDialog) {
-      return dialogWidget;
+  // ══════════════════════════════════════════════════════════════
+  // 2. نمط شاشة الحدث الكاملة الفخمة (Full Event Screen)
+  // ══════════════════════════════════════════════════════════════
+  Widget _buildFullScreenEventView() {
+    // حساب المستوى التالي
+    RechargeEventTierData? nextTier;
+    for (final t in _tiers) {
+      if (_userTotalRecharge < t.targetCoins) {
+        nextTier = t;
+        break;
+      }
     }
+    final progress = nextTier != null
+        ? (_userTotalRecharge / nextTier.targetCoins).clamp(0.0, 1.0)
+        : 1.0;
 
-    // عند فتح الصفحة بشكل كامل (Full Screen)
+    final days = _timeLeft.inDays;
+    final hours = _timeLeft.inHours % 24;
+    final minutes = _timeLeft.inMinutes % 60;
+    final seconds = _timeLeft.inSeconds % 60;
+    final timeStr = '$days يوم ${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
     return Scaffold(
-      backgroundColor: const Color(0xEE090910),
+      backgroundColor: const Color(0xFF0C0A14),
       body: Stack(
         children: [
-          // خلفية معتمة فخمة مع لمسات نجوم
+          // خلفية ملكية بتدرج أرجواني داكن مع ذهبي
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 0.8,
+                gradient: LinearGradient(
                   colors: [
-                    Color(0xFF1E1710),
-                    Color(0xFF0C0A0E),
+                    Color(0xFF22170D),
+                    Color(0xFF140F22),
+                    Color(0xFF090710),
                   ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
               ),
             ),
           ),
-          SafeArea(
-            child: dialogWidget,
+
+          // المحتوى الرئيسي القابل للتمرير
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // الرأس الملكي للحدث (Header Royal Banner)
+              SliverToBoxAdapter(
+                child: Stack(
+                  alignment: Alignment.topCenter,
+                  children: [
+                    // صورة القوس والتاج الملكي من D:40 ممتدة بعرض الشاشة
+                    SizedBox(
+                      width: double.infinity,
+                      height: 250,
+                      child: ShaderMask(
+                        shaderCallback: (rect) {
+                          return const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.black, Colors.black, Colors.transparent],
+                            stops: [0.0, 0.75, 1.0],
+                          ).createShader(rect);
+                        },
+                        blendMode: BlendMode.dstIn,
+                        child: _buildImage(
+                          _dialogBgAsset,
+                          width: double.infinity,
+                          height: 250,
+                          fit: BoxFit.fitWidth,
+                        ),
+                      ),
+                    ),
+
+                    // الترويسة وأزرار التحكم
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            GestureDetector(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white24),
+                                ),
+                                child: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                              ),
+                            ),
+                            _headerTextImage != null && _headerTextImage!.isNotEmpty
+                                ? _buildImage(_headerTextImage!, height: 36, fit: BoxFit.contain)
+                                : const Text(
+                                    '⚡ حدث الشحن الملكي الأسطوري',
+                                    style: TextStyle(
+                                      color: Color(0xFFFFD700),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: [
+                                        Shadow(color: Colors.black, blurRadius: 4),
+                                      ],
+                                    ),
+                                  ),
+                            GestureDetector(
+                              onTap: _showRulesDialog,
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white24),
+                                ),
+                                child: const Icon(Icons.info_outline, color: Color(0xFFFFD700), size: 20),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // شارة العداد التنازلي ونبذة الحدث
+                    Positioned(
+                      top: 100,
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6), width: 1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFFD700).withValues(alpha: 0.2),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.timer_outlined, color: Color(0xFFFFD700), size: 14),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'ينتهي خلال: $timeStr',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFE957),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _titleText,
+                            style: TextStyle(
+                              color: _titleColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // كرت تتبع شحن المستخدم (User Progress Card)
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(16, 175, 16, 0),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF2C1F10).withValues(alpha: 0.95),
+                            const Color(0xFF1B1428).withValues(alpha: 0.95),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5), width: 1.2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF9800).withValues(alpha: 0.2),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'شحنك التراكمي هذا الشهر:',
+                                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        NumberFormat('#,###').format(_userTotalRecharge),
+                                        style: const TextStyle(
+                                          color: Color(0xFFFFE957),
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Text('🪙 كوينز', style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              if (nextTier != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        'الهدف القادم: ${nextTier.nameAr}',
+                                        style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                      Text(
+                                        'متبقي: ${NumberFormat('#,###').format(nextTier.targetCoins - _userTotalRecharge)}',
+                                        style: const TextStyle(color: Colors.white60, fontSize: 10),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          // شريط التقدم الذهبي
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              height: 10,
+                              child: LinearProgressIndicator(
+                                value: progress,
+                                backgroundColor: Colors.white.withValues(alpha: 0.1),
+                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFFB300)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 20, 16, 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.workspace_premium, color: Color(0xFFFFD700), size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'مكافآت مستويات الشحن (14 مستوى ملكي)',
+                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // شبكة الـ 14 فئة الملكية الأصلية (D:40 Grid)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 110),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 0.64,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final tier = _tiers[index];
+                      return _buildTierItemCard(tier, isFullScreen: true);
+                    },
+                    childCount: _tiers.length,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // شريط الأزرار السفلي العائم (Floating Bottom Bar)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.black.withValues(alpha: 0.0),
+                    Colors.black.withValues(alpha: 0.95),
+                    Colors.black,
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  // كومة الكوينز الذهبية السفلية
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 52,
+                    child: IgnorePointer(
+                      child: _buildImage(_coinsAsset, height: 52, fit: BoxFit.contain),
+                    ),
+                  ),
+                  // زر الشحن الذهبي
+                  GestureDetector(
+                    onTap: _onGoNow,
+                    child: SizedBox(
+                      width: 175,
+                      height: 54,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          _buildImage(_btnAsset, width: 175, height: 54, fit: BoxFit.contain),
+                          Text(
+                            _btnText,
+                            style: TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.w900,
+                              color: _btnTextColor,
+                              shadows: const [
+                                Shadow(color: Color(0x66FFEB3B), blurRadius: 6, offset: Offset(0, 1)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -542,39 +955,41 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   }
 
   /// كرت المكافأة الفردي المطابق لـ recharge_remind_list_item.xml
-  Widget _buildTierItem(RechargeEventTierData tier) {
+  Widget _buildTierItemCard(RechargeEventTierData tier, {bool isFullScreen = false}) {
+    final reached = _userTotalRecharge >= tier.targetCoins;
+    final claimed = _claimedTiers.contains(tier.id);
+
     return GestureDetector(
       onTap: () => _previewReward(tier),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // إطار الياقوت الملكي (recharge_remind_item_bg)
+          // إطار الياقوت الملكي الأصلي من D:40 (recharge_remind_item_bg)
           SizedBox(
-            width: 82,
-            height: 94,
+            width: isFullScreen ? 100 : 82,
+            height: isFullScreen ? 116 : 94,
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // صورة الإطار الذهبي مع فصوص الياقوت
-                _buildImage(_itemBgAsset, width: 82, height: 94, fit: BoxFit.fill),
+                _buildImage(_itemBgAsset, width: isFullScreen ? 100 : 82, height: isFullScreen ? 116 : 94, fit: BoxFit.fill),
 
                 // شارة التاج الحمراء أعلى اليمين (recharge_remind_tag_ic)
                 Positioned(
-                  top: 8,
-                  right: 1,
+                  top: isFullScreen ? 10 : 8,
+                  right: isFullScreen ? 2 : 1,
                   child: SizedBox(
-                    width: 36,
-                    height: 24,
+                    width: isFullScreen ? 40 : 36,
+                    height: isFullScreen ? 26 : 24,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        _buildImage(_tagAsset, width: 36, height: 24, fit: BoxFit.contain),
+                        _buildImage(_tagAsset, width: isFullScreen ? 40 : 36, height: isFullScreen ? 26 : 24, fit: BoxFit.contain),
                         Padding(
                           padding: const EdgeInsets.only(left: 1),
                           child: Text(
                             tier.tagText,
                             style: TextStyle(
-                              fontSize: 9,
+                              fontSize: isFullScreen ? 10 : 9,
                               fontWeight: FontWeight.w900,
                               color: _tagTextColor,
                             ),
@@ -585,11 +1000,43 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                   ),
                 ),
 
-                // أيقونة الجائزة داخل الإطار (55x42dp)
+                // أيقونة الجائزة داخل الإطار
                 Positioned(
-                  top: 14,
-                  child: _buildImage(tier.iconAsset, width: 50, height: 42, fit: BoxFit.contain),
+                  top: isFullScreen ? 18 : 14,
+                  child: _buildImage(
+                    tier.iconAsset, 
+                    width: isFullScreen ? 64 : 50, 
+                    height: isFullScreen ? 52 : 42, 
+                    fit: BoxFit.contain,
+                  ),
                 ),
+
+                // حالة الاستلام (في حال الشاشة الكاملة)
+                if (isFullScreen && claimed)
+                  Positioned(
+                    bottom: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade800.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('تم الاستلام ✓', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                    ),
+                  )
+                else if (isFullScreen && reached)
+                  Positioned(
+                    bottom: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade700,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: const [BoxShadow(color: Colors.amber, blurRadius: 4)],
+                      ),
+                      child: const Text('استلام 🎁', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900)),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -602,7 +1049,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: isFullScreen ? 12 : 11,
               fontWeight: FontWeight.bold,
               color: _itemLabelColor,
               shadows: const [
@@ -610,6 +1057,17 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
               ],
             ),
           ),
+
+          // التارجت في الشاشة الكاملة
+          if (isFullScreen)
+            Text(
+              '${NumberFormat('#,###').format(tier.targetCoins)} 🪙',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.white70,
+              ),
+            ),
         ],
       ),
     );

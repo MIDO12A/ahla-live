@@ -186,9 +186,10 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           await SupabaseService().addCoins(user.uid, amount);
         } else {
           await Supabase.instance.client.from('users').update({
-            'diamonds': (user.diamonds ?? 0) + amount,
+            'diamonds': user.diamonds + amount,
           }).eq('uid', user.uid);
         }
+        if (!mounted) return;
         await context.read<UserProvider>().loadUser(user.uid);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -398,35 +399,46 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             },
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFFFF9800), Color(0xFFFF5722), Color(0xFFE91E63)],
+                  colors: [Color(0xFF2C1E0F), Color(0xFF1A1326), Color(0xFF0E0B16)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6), width: 1.2),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFF5722).withOpacity(0.4),
-                    blurRadius: 10,
+                    color: const Color(0xFFFF9800).withValues(alpha: 0.25),
+                    blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Image.asset(
-                      'assets/recharge_event/100K.png',
-                      width: 32,
-                      height: 32,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.military_tech, color: Colors.amber, size: 30),
+                  // Royal Item Frame Preview
+                  SizedBox(
+                    width: 46,
+                    height: 52,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Image.asset(
+                          'assets/recharge_event/recharge_remind_item_bg.webp',
+                          width: 46,
+                          height: 52,
+                          fit: BoxFit.fill,
+                        ),
+                        Image.asset(
+                          'assets/recharge_event/100K.png',
+                          width: 28,
+                          height: 28,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.workspace_premium, color: Colors.amber, size: 24),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -435,10 +447,10 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
                         Text(
-                          '⚡ حدث الشحن الأسطوري',
+                          '👑 حدث الشحن الملكي الأسطوري',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
+                            color: Color(0xFFFFD700),
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -456,15 +468,18 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFB300), Color(0xFFFF8F00)],
+                      ),
                       borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [BoxShadow(color: Color(0x66FF8F00), blurRadius: 4)],
                     ),
                     child: const Text(
-                      'دخول',
+                      'دخول ⚡',
                       style: TextStyle(
-                        color: Color(0xFFD81B60),
+                        color: Color(0xFF441200),
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
                       ),
                     ),
                   ),
