@@ -34,87 +34,87 @@ export interface RechargeTier {
 
 const DEFAULT_TIERS: RechargeTier[] = [
   { 
-    tier: 1, requiredCoins: 100000, rewardLabel: '100K', rewardCoins: 5000, icon: 'assets/recharge_event/100K.png', svga: '100k.svga', daysValid: 7, tagText: 'HOT',
+    tier: 1, requiredCoins: 100000, rewardLabel: '100K', rewardCoins: 5000, icon: '/assets/recharge_event/100K.png', svga: '100k.svga', daysValid: 7, tagText: 'HOT',
     rewards: [
-      { id: 'item_100k_1', name: 'إطار تاج 100K الملكي', type: 'frame', icon: 'assets/recharge_event/100K.png', svga: '100k.svga', daysValid: 7, bonusCoins: 5000 }
+      { id: 'item_100k_1', name: 'إطار تاج 100K الملكي', type: 'frame', icon: '/assets/recharge_event/100K.png', svga: '100k.svga', daysValid: 7, bonusCoins: 5000 }
     ]
   },
   { 
-    tier: 2, requiredCoins: 500000, rewardLabel: '500K', rewardCoins: 30000, icon: 'assets/recharge_event/500K.png', svga: '500k.svga', daysValid: 15, tagText: 'VIP',
+    tier: 2, requiredCoins: 500000, rewardLabel: '500K', rewardCoins: 30000, icon: '/assets/recharge_event/500K.png', svga: '500k.svga', daysValid: 15, tagText: 'VIP',
     rewards: [
-      { id: 'item_500k_1', name: 'إطار صقر 500K الذهبي', type: 'frame', icon: 'assets/recharge_event/500K.png', svga: '500k.svga', daysValid: 15, bonusCoins: 30000 }
+      { id: 'item_500k_1', name: 'إطار صقر 500K الذهبي', type: 'frame', icon: '/assets/recharge_event/500K.png', svga: '500k.svga', daysValid: 15, bonusCoins: 30000 }
     ]
   },
   { 
-    tier: 3, requiredCoins: 1000000, rewardLabel: '1M', rewardCoins: 70000, icon: 'assets/recharge_event/1M.png', svga: '1M.svga', daysValid: 30, tagText: '1M',
+    tier: 3, requiredCoins: 1000000, rewardLabel: '1M', rewardCoins: 70000, icon: '/assets/recharge_event/1M.png', svga: '1M.svga', daysValid: 30, tagText: '1M',
     rewards: [
-      { id: 'item_1m_1', name: 'إطار أسد 1M الماسي', type: 'frame', icon: 'assets/recharge_event/1M.png', svga: '1M.svga', daysValid: 30, bonusCoins: 70000 }
+      { id: 'item_1m_1', name: 'إطار أسد 1M الماسي', type: 'frame', icon: '/assets/recharge_event/1M.png', svga: '1M.svga', daysValid: 30, bonusCoins: 70000 }
     ]
   },
   { 
-    tier: 4, requiredCoins: 5000000, rewardLabel: '5M', rewardCoins: 400000, icon: 'assets/recharge_event/5M.png', svga: '5M.svga', daysValid: 30, tagText: '5M',
+    tier: 4, requiredCoins: 5000000, rewardLabel: '5M', rewardCoins: 400000, icon: '/assets/recharge_event/5M.png', svga: '5M.svga', daysValid: 30, tagText: '5M',
     rewards: [
-      { id: 'item_5m_1', name: 'دخولية تنين 5M الملكية', type: 'entry', icon: 'assets/recharge_event/5M.png', svga: '5M.svga', daysValid: 30, bonusCoins: 400000 }
+      { id: 'item_5m_1', name: 'دخولية تنين 5M الملكية', type: 'entry', icon: '/assets/recharge_event/5M.png', svga: '5M.svga', daysValid: 30, bonusCoins: 400000 }
     ]
   },
   { 
-    tier: 5, requiredCoins: 10000000, rewardLabel: '10M', rewardCoins: 900000, icon: 'assets/recharge_event/10M.png', svga: '10M.svga', daysValid: 60, tagText: '10M',
+    tier: 5, requiredCoins: 10000000, rewardLabel: '10M', rewardCoins: 900000, icon: '/assets/recharge_event/10M.png', svga: '10M.svga', daysValid: 60, tagText: '10M',
     rewards: [
-      { id: 'item_10m_1', name: 'إطار عرش 10M الأسطوري', type: 'frame', icon: 'assets/recharge_event/10M.png', svga: '10M.svga', daysValid: 60, bonusCoins: 900000 }
+      { id: 'item_10m_1', name: 'إطار عرش 10M الأسطوري', type: 'frame', icon: '/assets/recharge_event/10M.png', svga: '10M.svga', daysValid: 60, bonusCoins: 900000 }
     ]
   },
   { 
-    tier: 6, requiredCoins: 20000000, rewardLabel: '20M', rewardCoins: 2000000, icon: 'assets/recharge_event/20M.png', svga: '20m.svga', daysValid: 60, tagText: '20M',
+    tier: 6, requiredCoins: 20000000, rewardLabel: '20M', rewardCoins: 2000000, icon: '/assets/recharge_event/20M.png', svga: '20m.svga', daysValid: 60, tagText: '20M',
     rewards: [
-      { id: 'item_20m_1', name: 'دخولية طائرة 20M الملكية', type: 'entry', icon: 'assets/recharge_event/20M.png', svga: '20m.svga', daysValid: 60, bonusCoins: 2000000 }
+      { id: 'item_20m_1', name: 'دخولية طائرة 20M الملكية', type: 'entry', icon: '/assets/recharge_event/20M.png', svga: '20m.svga', daysValid: 60, bonusCoins: 2000000 }
     ]
   },
   { 
-    tier: 7, requiredCoins: 40000000, rewardLabel: '40M', rewardCoins: 4500000, icon: 'assets/recharge_event/40M.png', svga: '40M.svga', daysValid: 90, tagText: '40M',
+    tier: 7, requiredCoins: 40000000, rewardLabel: '40M', rewardCoins: 4500000, icon: '/assets/recharge_event/40M.png', svga: '40M.svga', daysValid: 90, tagText: '40M',
     rewards: [
-      { id: 'item_40m_1', name: 'إطار قصر 40M الفخم', type: 'frame', icon: 'assets/recharge_event/40M.png', svga: '40M.svga', daysValid: 90, bonusCoins: 4500000 }
+      { id: 'item_40m_1', name: 'إطار قصر 40M الفخم', type: 'frame', icon: '/assets/recharge_event/40M.png', svga: '40M.svga', daysValid: 90, bonusCoins: 4500000 }
     ]
   },
   { 
-    tier: 8, requiredCoins: 60000000, rewardLabel: '60M', rewardCoins: 7000000, icon: 'assets/recharge_event/60M.png', svga: '60M.svga', daysValid: 90, tagText: '60M',
+    tier: 8, requiredCoins: 60000000, rewardLabel: '60M', rewardCoins: 7000000, icon: '/assets/recharge_event/60M.png', svga: '60M.svga', daysValid: 90, tagText: '60M',
     rewards: [
-      { id: 'item_60m_1', name: 'دخولية يخت 60M الملكي', type: 'entry', icon: 'assets/recharge_event/60M.png', svga: '60M.svga', daysValid: 90, bonusCoins: 7000000 }
+      { id: 'item_60m_1', name: 'دخولية يخت 60M الملكي', type: 'entry', icon: '/assets/recharge_event/60M.png', svga: '60M.svga', daysValid: 90, bonusCoins: 7000000 }
     ]
   },
   { 
-    tier: 9, requiredCoins: 80000000, rewardLabel: '80M', rewardCoins: 10000000, icon: 'assets/recharge_event/80M.png', svga: '80M.svga', daysValid: 90, tagText: '80M',
+    tier: 9, requiredCoins: 80000000, rewardLabel: '80M', rewardCoins: 10000000, icon: '/assets/recharge_event/80M.png', svga: '80M.svga', daysValid: 90, tagText: '80M',
     rewards: [
-      { id: 'item_80m_1', name: 'إطار مجرة 80M الكونية', type: 'frame', icon: 'assets/recharge_event/80M.png', svga: '80M.svga', daysValid: 90, bonusCoins: 10000000 }
+      { id: 'item_80m_1', name: 'إطار مجرة 80M الكونية', type: 'frame', icon: '/assets/recharge_event/80M.png', svga: '80M.svga', daysValid: 90, bonusCoins: 10000000 }
     ]
   },
   { 
-    tier: 10, requiredCoins: 100000000, rewardLabel: '100M', rewardCoins: 14000000, icon: 'assets/recharge_event/100M.png', svga: '100M.svga', daysValid: 180, tagText: '100M',
+    tier: 10, requiredCoins: 100000000, rewardLabel: '100M', rewardCoins: 14000000, icon: '/assets/recharge_event/100M.png', svga: '100M.svga', daysValid: 180, tagText: '100M',
     rewards: [
-      { id: 'item_100m_1', name: 'دخولية قصر 100M الأبدي', type: 'entry', icon: 'assets/recharge_event/100M.png', svga: '100M.svga', daysValid: 180, bonusCoins: 14000000 }
+      { id: 'item_100m_1', name: 'دخولية قصر 100M الأبدي', type: 'entry', icon: '/assets/recharge_event/100M.png', svga: '100M.svga', daysValid: 180, bonusCoins: 14000000 }
     ]
   },
   { 
-    tier: 11, requiredCoins: 200000000, rewardLabel: '200M', rewardCoins: 30000000, icon: 'assets/recharge_event/200M.png', svga: '200M.svga', daysValid: 180, tagText: '200M',
+    tier: 11, requiredCoins: 200000000, rewardLabel: '200M', rewardCoins: 30000000, icon: '/assets/recharge_event/200M.png', svga: '200M.svga', daysValid: 180, tagText: '200M',
     rewards: [
-      { id: 'item_200m_1', name: 'إطار إمبراطور 200M الخارق', type: 'frame', icon: 'assets/recharge_event/200M.png', svga: '200M.svga', daysValid: 180, bonusCoins: 30000000 }
+      { id: 'item_200m_1', name: 'إطار إمبراطور 200M الخارق', type: 'frame', icon: '/assets/recharge_event/200M.png', svga: '200M.svga', daysValid: 180, bonusCoins: 30000000 }
     ]
   },
   { 
-    tier: 12, requiredCoins: 300000000, rewardLabel: '300M', rewardCoins: 50000000, icon: 'assets/recharge_event/300M.png', svga: '300M.svga', daysValid: 365, tagText: '300M',
+    tier: 12, requiredCoins: 300000000, rewardLabel: '300M', rewardCoins: 50000000, icon: '/assets/recharge_event/300M.png', svga: '300M.svga', daysValid: 365, tagText: '300M',
     rewards: [
-      { id: 'item_300m_1', name: 'دخولية أسطول 300M الملكي', type: 'entry', icon: 'assets/recharge_event/300M.png', svga: '300M.svga', daysValid: 365, bonusCoins: 50000000 }
+      { id: 'item_300m_1', name: 'دخولية أسطول 300M الملكي', type: 'entry', icon: '/assets/recharge_event/300M.png', svga: '300M.svga', daysValid: 365, bonusCoins: 50000000 }
     ]
   },
   { 
-    tier: 13, requiredCoins: 400000000, rewardLabel: '400M', rewardCoins: 75000000, icon: 'assets/recharge_event/400M.png', svga: '400M.svga', daysValid: 365, tagText: '400M',
+    tier: 13, requiredCoins: 400000000, rewardLabel: '400M', rewardCoins: 75000000, icon: '/assets/recharge_event/400M.png', svga: '400M.svga', daysValid: 365, tagText: '400M',
     rewards: [
-      { id: 'item_400m_1', name: 'إطار فرعون 400M الذهبي', type: 'frame', icon: 'assets/recharge_event/400M.png', svga: '400M.svga', daysValid: 365, bonusCoins: 75000000 }
+      { id: 'item_400m_1', name: 'إطار فرعون 400M الذهبي', type: 'frame', icon: '/assets/recharge_event/400M.png', svga: '400M.svga', daysValid: 365, bonusCoins: 75000000 }
     ]
   },
   { 
-    tier: 14, requiredCoins: 500000000, rewardLabel: '500M', rewardCoins: 100000000, icon: 'assets/recharge_event/500M.png', svga: '500M.svga', daysValid: 365, tagText: '500M',
+    tier: 14, requiredCoins: 500000000, rewardLabel: '500M', rewardCoins: 100000000, icon: '/assets/recharge_event/500M.png', svga: '500M.svga', daysValid: 365, tagText: '500M',
     rewards: [
-      { id: 'item_500m_1', name: 'عرش الأساطير 500M المطلق', type: 'frame', icon: 'assets/recharge_event/500M.png', svga: '500M.svga', daysValid: 365, bonusCoins: 100000000 }
+      { id: 'item_500m_1', name: 'عرش الأساطير 500M المطلق', type: 'frame', icon: '/assets/recharge_event/500M.png', svga: '500M.svga', daysValid: 365, bonusCoins: 100000000 }
     ]
   }
 ];
@@ -128,6 +128,16 @@ export interface LeaderboardEntry {
   claimedTiers: string[];
   claimedCounts?: Record<string, number>;
   updatedAt?: string;
+}
+
+export function resolveAssetUrl(url: string | undefined): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/')) return trimmed;
+  return '/' + trimmed;
 }
 
 export default function RechargeEventManager() {
@@ -146,12 +156,12 @@ export default function RechargeEventManager() {
   const [allowRepeatClaims, setAllowRepeatClaims] = useState(true);
   
   // Assets Overrides
-  const [dialogBgImage, setDialogBgImage] = useState('assets/recharge_event/recharge_remind_dialog_bg.webp');
-  const [itemBgImage, setItemBgImage] = useState('assets/recharge_event/recharge_remind_item_bg.webp');
-  const [tagImage, setTagImage] = useState('assets/recharge_event/recharge_remind_tag_ic.png');
-  const [coinsImage, setCoinsImage] = useState('assets/recharge_event/recharge_remind_coins_ic.webp');
-  const [btnImage, setBtnImage] = useState('assets/recharge_event/recharge_remind_btn_ic.webp');
-  const [closeBtnImage, setCloseBtnImage] = useState('assets/recharge_event/recharge_remind_close_ic.png');
+  const [dialogBgImage, setDialogBgImage] = useState('/assets/recharge_event/recharge_remind_dialog_bg.webp');
+  const [itemBgImage, setItemBgImage] = useState('/assets/recharge_event/recharge_remind_item_bg.webp');
+  const [tagImage, setTagImage] = useState('/assets/recharge_event/recharge_remind_tag_ic.png');
+  const [coinsImage, setCoinsImage] = useState('/assets/recharge_event/recharge_remind_coins_ic.webp');
+  const [btnImage, setBtnImage] = useState('/assets/recharge_event/recharge_remind_btn_ic.webp');
+  const [closeBtnImage, setCloseBtnImage] = useState('/assets/recharge_event/recharge_remind_close_ic.png');
 
   // Text & Colors
   const [btnText, setBtnText] = useState('اشحن الآن');
@@ -248,16 +258,23 @@ export default function RechargeEventManager() {
     try {
       const now = new Date();
       const eventId = `recharge_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const q = query(
-        collection(firestoreDb, 'recharge_event_progress'),
-        where('event_id', '==', eventId),
-        orderBy('total_recharged_coins', 'desc'),
-        limit(50)
-      );
-      const snap = await getDocs(q);
+      
+      let snap;
+      try {
+        const q = query(
+          collection(firestoreDb, 'recharge_event_progress'),
+          where('event_id', '==', eventId)
+        );
+        snap = await getDocs(q);
+      } catch (err) {
+        console.warn('Fallback loading all progress documents:', err);
+        snap = await getDocs(collection(firestoreDb, 'recharge_event_progress'));
+      }
+
       const entries: LeaderboardEntry[] = [];
       for (const docSnap of snap.docs) {
         const d = docSnap.data();
+        if (d.event_id && d.event_id !== eventId) continue;
         const uid = d.user_id || docSnap.id.replace(`${eventId}_`, '');
         let name = 'مستخدم';
         let photoUrl = '';
@@ -283,7 +300,10 @@ export default function RechargeEventManager() {
           updatedAt: d.updated_at,
         });
       }
-      setLeaderboard(entries);
+
+      // Sort client-side so Firestore never requires a composite index
+      entries.sort((a, b) => b.totalRechargedCoins - a.totalRechargedCoins);
+      setLeaderboard(entries.slice(0, 50));
     } catch (err) {
       console.warn('loadLeaderboard error:', err);
     } finally {
@@ -536,11 +556,11 @@ export default function RechargeEventManager() {
       setTitle('اشحن واحصل على مكافآت ملكية فورية');
       setTitleColor('#FFFFFF');
       setHeaderTextImage('');
-      setDialogBgImage('assets/recharge_event/recharge_remind_dialog_bg.webp');
-      setItemBgImage('assets/recharge_event/recharge_remind_item_bg.webp');
-      setTagImage('assets/recharge_event/recharge_remind_tag_ic.png');
-      setCoinsImage('assets/recharge_event/recharge_remind_coins_ic.webp');
-      setBtnImage('assets/recharge_event/recharge_remind_btn_ic.webp');
+      setDialogBgImage('/assets/recharge_event/recharge_remind_dialog_bg.webp');
+      setItemBgImage('/assets/recharge_event/recharge_remind_item_bg.webp');
+      setTagImage('/assets/recharge_event/recharge_remind_tag_ic.png');
+      setCoinsImage('/assets/recharge_event/recharge_remind_coins_ic.webp');
+      setBtnImage('/assets/recharge_event/recharge_remind_btn_ic.webp');
       setBtnText('اشحن الآن');
       setBtnTextColor('#441200');
       setTagTextColor('#FFE957');
@@ -672,13 +692,13 @@ export default function RechargeEventManager() {
                   {/* Frame Item with D:40 styling */}
                   <div className="relative w-20 h-24 mx-auto mb-2 flex items-center justify-center">
                     <img 
-                      src={itemBgImage} 
+                      src={resolveAssetUrl(itemBgImage)} 
                       alt="" 
                       className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-md"
                     />
                     <div className="relative z-10 w-12 h-12 flex items-center justify-center">
                       <img
-                        src={t.icon || `assets/recharge_event/${t.rewardLabel}.png`}
+                        src={resolveAssetUrl(t.icon || `/assets/recharge_event/${t.rewardLabel}.png`)}
                         alt={t.rewardLabel}
                         className="w-full h-full object-contain"
                         onError={e => { (e.target as HTMLElement).style.display = 'none'; }}
@@ -1049,10 +1069,10 @@ export default function RechargeEventManager() {
                 {/* Header Royal Arch Banner */}
                 <div className="relative w-full h-[230px] flex flex-col items-center justify-between pt-7 px-4">
                   <img
-                    src={dialogBgImage}
+                    src={resolveAssetUrl(dialogBgImage)}
                     alt="Arch"
                     className="absolute top-0 left-0 w-full h-full object-fill pointer-events-none z-0"
-                    onError={e => { (e.target as HTMLImageElement).src = 'assets/recharge_event/recharge_remind_dialog_bg.webp'; }}
+                    onError={e => { (e.target as HTMLImageElement).src = '/assets/recharge_event/recharge_remind_dialog_bg.webp'; }}
                   />
 
                   {/* Top Bar (Back, Title, Rules) */}
@@ -1061,7 +1081,7 @@ export default function RechargeEventManager() {
                       ‹
                     </button>
                     {headerTextImage ? (
-                      <img src={headerTextImage} alt="Header" className="max-h-8 object-contain mx-auto" />
+                      <img src={resolveAssetUrl(headerTextImage)} alt="Header" className="max-h-8 object-contain mx-auto" />
                     ) : (
                       <span className="text-xs font-black text-amber-400 drop-shadow">⚡ حدث الشحن الملكي الأسطوري</span>
                     )}
@@ -1119,13 +1139,13 @@ export default function RechargeEventManager() {
                       {/* Frame Card */}
                       <div className="relative w-[78px] h-[86px] flex items-center justify-center">
                         <img
-                          src={itemBgImage}
+                          src={resolveAssetUrl(itemBgImage)}
                           alt=""
                           className="absolute inset-0 w-full h-full object-contain pointer-events-none"
                         />
                         {/* Tag */}
                         <div className="absolute top-[6px] right-[2px] w-[32px] h-[20px] flex items-center justify-center">
-                          <img src={tagImage} alt="" className="absolute inset-0 w-full h-full object-contain" />
+                          <img src={resolveAssetUrl(tagImage)} alt="" className="absolute inset-0 w-full h-full object-contain" />
                           <span
                             className="relative z-10 text-[8px] font-black leading-none drop-shadow"
                             style={{ color: tagTextColor }}
@@ -1136,7 +1156,7 @@ export default function RechargeEventManager() {
                         {/* Icon */}
                         <div className="relative z-10 w-[44px] h-[36px] flex items-center justify-center pt-1">
                           <img
-                            src={t.icon || `assets/recharge_event/${t.rewardLabel}.png`}
+                            src={resolveAssetUrl(t.icon || `/assets/recharge_event/${t.rewardLabel}.png`)}
                             alt={t.rewardLabel}
                             className="max-w-full max-h-full object-contain"
                             onError={e => { (e.target as HTMLElement).style.display = 'none'; }}
@@ -1176,14 +1196,14 @@ export default function RechargeEventManager() {
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#090710] via-[#090710]/95 to-transparent pt-4 pb-3 px-4 flex items-center justify-between border-t border-white/5 z-30">
                 {/* Coins pile */}
                 <div className="w-[100px] h-[38px]">
-                  <img src={coinsImage} alt="Coins" className="w-full h-full object-contain" />
+                  <img src={resolveAssetUrl(coinsImage)} alt="Coins" className="w-full h-full object-contain" />
                 </div>
                 {/* Golden Button */}
                 <button
                   onClick={() => alert('محاكاة زر اشحن الآن: سيتم الانتقال لشاشة باقات شحن المحفظة')}
                   className="relative w-[130px] h-[44px] flex items-center justify-center cursor-pointer transition hover:brightness-110 active:scale-95 shrink-0"
                 >
-                  <img src={btnImage} alt="Button" className="absolute inset-0 w-full h-full object-contain drop-shadow" />
+                  <img src={resolveAssetUrl(btnImage)} alt="Button" className="absolute inset-0 w-full h-full object-contain drop-shadow" />
                   <span
                     className="relative z-10 font-black text-base tracking-wide drop-shadow"
                     style={{ color: btnTextColor }}
@@ -1203,16 +1223,16 @@ export default function RechargeEventManager() {
               
               {/* 1. Royal Crown Dialog Arch Background */}
               <img 
-                src={dialogBgImage} 
+                src={resolveAssetUrl(dialogBgImage)} 
                 alt="Dialog BG" 
                 className="absolute top-0 left-0 w-full h-[385px] object-fill pointer-events-none drop-shadow-2xl z-0"
-                onError={e => { (e.target as HTMLImageElement).src = 'assets/recharge_event/recharge_remind_dialog_bg.webp'; }}
+                onError={e => { (e.target as HTMLImageElement).src = '/assets/recharge_event/recharge_remind_dialog_bg.webp'; }}
               />
 
               {/* 2. Top Title / Guideline Area (starts at 25% height) */}
               <div className="relative z-10 w-full pt-[96px] px-5 text-center">
                 {headerTextImage ? (
-                  <img src={headerTextImage} alt="Header" className="max-h-8 object-contain mx-auto" />
+                  <img src={resolveAssetUrl(headerTextImage)} alt="Header" className="max-h-8 object-contain mx-auto" />
                 ) : (
                   <p 
                     className="text-[11px] font-bold leading-tight drop-shadow" 
@@ -1235,14 +1255,14 @@ export default function RechargeEventManager() {
                     <div className="relative w-[80px] h-[92px] flex items-center justify-center">
                       {/* The Royal Frame with Rubies */}
                       <img 
-                        src={itemBgImage} 
+                        src={resolveAssetUrl(itemBgImage)} 
                         alt="" 
                         className="absolute inset-0 w-full h-full object-contain pointer-events-none"
                       />
 
                       {/* Tag badge on top right */}
                       <div className="absolute top-[8px] right-[2px] w-[34px] h-[22px] flex items-center justify-center">
-                        <img src={tagImage} alt="" className="absolute inset-0 w-full h-full object-contain" />
+                        <img src={resolveAssetUrl(tagImage)} alt="" className="absolute inset-0 w-full h-full object-contain" />
                         <span 
                           className="relative z-10 text-[9px] font-black leading-none drop-shadow"
                           style={{ color: tagTextColor }}
@@ -1254,7 +1274,7 @@ export default function RechargeEventManager() {
                       {/* Reward Tier Icon */}
                       <div className="relative z-10 w-[50px] h-[40px] flex items-center justify-center pt-1">
                         <img 
-                          src={t.icon || `assets/recharge_event/${t.rewardLabel}.png`} 
+                          src={resolveAssetUrl(t.icon || `/assets/recharge_event/${t.rewardLabel}.png`)} 
                           alt={t.rewardLabel} 
                           className="max-w-full max-h-full object-contain"
                           onError={e => { (e.target as HTMLElement).style.display = 'none'; }}
@@ -1276,7 +1296,7 @@ export default function RechargeEventManager() {
               {/* 4. Bottom Pile of Coins */}
               <div className="absolute bottom-[40px] left-0 right-0 h-[48px] px-2 pointer-events-none z-10">
                 <img 
-                  src={coinsImage} 
+                  src={resolveAssetUrl(coinsImage)} 
                   alt="Coins" 
                   className="w-full h-full object-contain drop-shadow"
                 />
@@ -1289,7 +1309,7 @@ export default function RechargeEventManager() {
                   className="relative w-[138px] h-[48px] flex items-center justify-center cursor-pointer transition hover:brightness-110 active:scale-95"
                 >
                   <img 
-                    src={btnImage} 
+                    src={resolveAssetUrl(btnImage)} 
                     alt="Button" 
                     className="absolute inset-0 w-full h-full object-contain drop-shadow-lg"
                   />
@@ -1308,7 +1328,7 @@ export default function RechargeEventManager() {
                   onClick={() => alert('إغلاق نافذة حدث الشحن')}
                   className="w-8 h-8 rounded-full flex items-center justify-center transition hover:opacity-80 active:scale-90"
                 >
-                  <img src={closeBtnImage} alt="Close" className="w-7 h-7 object-contain" />
+                  <img src={resolveAssetUrl(closeBtnImage)} alt="Close" className="w-7 h-7 object-contain" />
                 </button>
               </div>
 
@@ -1440,7 +1460,7 @@ export default function RechargeEventManager() {
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center overflow-hidden shrink-0">
                               {r.icon ? (
-                                <img src={r.icon} alt="" className="w-8 h-8 object-contain" onError={e => { (e.target as HTMLElement).style.display = 'none'; }} />
+                                <img src={resolveAssetUrl(r.icon)} alt="" className="w-8 h-8 object-contain" onError={e => { (e.target as HTMLElement).style.display = 'none'; }} />
                               ) : (
                                 <Gift className="w-5 h-5 text-amber-400" />
                               )}
@@ -1708,9 +1728,9 @@ export default function RechargeEventManager() {
             </button>
 
             <div className="relative w-28 h-32 mx-auto flex items-center justify-center shrink-0">
-              <img src={itemBgImage} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
+              <img src={resolveAssetUrl(itemBgImage)} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
               <img 
-                src={previewTier.icon || `assets/recharge_event/${previewTier.rewardLabel}.png`} 
+                src={resolveAssetUrl(previewTier.icon || `/assets/recharge_event/${previewTier.rewardLabel}.png`)} 
                 alt="" 
                 className="relative z-10 w-16 h-16 object-contain" 
                 onError={e => { (e.target as HTMLElement).style.display = 'none'; }}
@@ -1750,7 +1770,7 @@ export default function RechargeEventManager() {
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-black/40 flex items-center justify-center overflow-hidden shrink-0">
                           {rw.icon ? (
-                            <img src={rw.icon} alt="" className="w-6 h-6 object-contain" onError={e => { (e.target as HTMLElement).style.display = 'none'; }} />
+                            <img src={resolveAssetUrl(rw.icon)} alt="" className="w-6 h-6 object-contain" onError={e => { (e.target as HTMLElement).style.display = 'none'; }} />
                           ) : (
                             <Gift className="w-4 h-4 text-amber-400" />
                           )}
@@ -1919,7 +1939,7 @@ export default function RechargeEventManager() {
                               <div className="flex items-center gap-3">
                                 {u.photoUrl ? (
                                   <img
-                                    src={u.photoUrl}
+                                    src={resolveAssetUrl(u.photoUrl)}
                                     className="w-10 h-10 rounded-full object-cover border border-white/10"
                                     onError={(e) => {
                                       (e.target as HTMLImageElement).style.display = 'none';
