@@ -6,6 +6,7 @@ services:
     rootDir: backend
     buildCommand: npm install && npm run build
     startCommand: node dist/index.js
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
@@ -25,3 +26,14 @@ services:
         sync: false
       - key: PAYMENT_WEBHOOK_SECRET
         sync: false
+
+  - type: static
+    name: zero-dashboard
+    plan: free
+    rootDir: admincore-dashboard
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
