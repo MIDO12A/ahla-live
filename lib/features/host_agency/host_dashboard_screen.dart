@@ -22,21 +22,23 @@ import 'data/agency_repository.dart';
 import 'screens/agency_withdrawal_screen.dart';
 import 'screens/agency_leaderboard_screen.dart';
 import 'screens/agency_exit_screen.dart';
+import 'screens/agency_item_detail_screen.dart';
+import '../../config/r.dart';
 
 import '../../core/cache/encrypted_image_provider.dart';
 import 'package:provider/provider.dart';
 import '../../services/dynamic_config_service.dart';
 
 // ── palette ──────────────────────────────────────────────────────────────────
-const Color _bgDeep     = Color(0xFF03030A);
-const Color _bgCard     = Color(0x800A0820);
-const Color _border     = Color(0x2D9C6BFF);
+const Color _bgDeep     = Color(0xFF1A1A1A);
+const Color _bgCard     = Color(0xFF242424);
+const Color _border     = Color(0x22FFFFFF);
 const Color _purple     = Color(0xFF9C6BFF);
-const Color _gold       = Color(0xFFF6C453);
+const Color _gold       = Color(0xFFFFD700);
 const Color _cyan       = Color(0xFF00D4FF);
 const Color _red        = Color(0xFFFF4D6D);
-const Color _textMain   = Color(0xFFE8E6FF);
-const Color _textMuted  = Color(0xFF8A88AA);
+const Color _textMain   = Color(0xFFFFFFFF);
+const Color _textMuted  = Color(0x99FFFFFF);
 
 // ─────────────────────────────────────────────────────────────────────────────
 class HostDashboardScreen extends StatefulWidget {
@@ -520,17 +522,74 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                     Expanded(child: _StatCard(
                       label: 'المستوى',
                       value: (_v3Data!['current_level_number'] ?? 0).toString(),
-                      icon: 'ðŸ†', color: _gold, pulse: _pulseCtrl,
+                      icon: '🏆', color: _gold, pulse: _pulseCtrl,
                     )),
                   ]),
                 ] else ...[
                   // v1 engine: عرض الألماس من دفتر الوكالة
                   Row(children: [
-                    Expanded(child: _StatCard(label: 'اليوم',   value: _fmt(todayD), icon: '💎', color: _cyan,   pulse: _pulseCtrl)),
+                    Expanded(child: _StatCard(
+                      label: 'اليوم',
+                      value: _fmt(todayD),
+                      icon: '💎',
+                      color: _cyan,
+                      pulse: _pulseCtrl,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AgencyItemDetailScreen(
+                            agencyId: (agency?['id'] as String?) ?? '',
+                            agencyName: (agency?['name'] as String?) ?? 'الوكالة',
+                            periodTitle: 'اليوم',
+                            totalDiamonds: todayD,
+                            commissionRate: 0.10,
+                            members: const [],
+                          ),
+                        ),
+                      ),
+                    )),
                     const SizedBox(width: 10),
-                    Expanded(child: _StatCard(label: 'الأسبوع', value: _fmt(weekD),  icon: '⚡', color: _purple, pulse: _pulseCtrl)),
+                    Expanded(child: _StatCard(
+                      label: 'الأسبوع',
+                      value: _fmt(weekD),
+                      icon: '⚡',
+                      color: _purple,
+                      pulse: _pulseCtrl,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AgencyItemDetailScreen(
+                            agencyId: (agency?['id'] as String?) ?? '',
+                            agencyName: (agency?['name'] as String?) ?? 'الوكالة',
+                            periodTitle: 'هذا الأسبوع',
+                            totalDiamonds: weekD,
+                            commissionRate: 0.10,
+                            members: const [],
+                          ),
+                        ),
+                      ),
+                    )),
                     const SizedBox(width: 10),
-                    Expanded(child: _StatCard(label: 'الشهر',   value: _fmt(monthD), icon: 'ðŸ†', color: _gold,   pulse: _pulseCtrl)),
+                    Expanded(child: _StatCard(
+                      label: 'الشهر',
+                      value: _fmt(monthD),
+                      icon: '🏆',
+                      color: _gold,
+                      pulse: _pulseCtrl,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AgencyItemDetailScreen(
+                            agencyId: (agency?['id'] as String?) ?? '',
+                            agencyName: (agency?['name'] as String?) ?? 'الوكالة',
+                            periodTitle: 'هذا الشهر',
+                            totalDiamonds: monthD,
+                            commissionRate: 0.10,
+                            members: const [],
+                          ),
+                        ),
+                      ),
+                    )),
                   ]),
                 ],
 
@@ -718,73 +777,95 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     final avatar   = profile['avatar_url'];
     final isVip    = profile['is_vip'] == true;
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: AlignmentDirectional.topStart,
-          end:   AlignmentDirectional.bottomEnd,
-          colors: [Color(0xFF1A0A3A), Color(0xFF03030A)],
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Image.asset(
+            R.unionMyAgencyBg,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1A1A1A)),
+          ),
         ),
-      ),
-      padding: EdgeInsets.only(
-        top:    MediaQuery.of(context).padding.top + 12,
-        left:   20,
-        right:  20,
-        bottom: 20,
-      ),
-      child: Row(
-        children: [
-          // avatar
-          Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: _purple, width: 2),
-              boxShadow: [BoxShadow(color: _purple.withOpacity(.4), blurRadius: 16)],
-            ),
-            child: CircleAvatar(
-              backgroundImage: avatar != null ? EncryptedImageProvider(avatar) : null,
-              backgroundColor: _bgCard,
-              child: avatar == null
-                  ? Icon(Icons.person, color: _textMuted, size: 32)
-                  : null,
-            ),
+        Container(
+          color: Colors.black.withValues(alpha: 0.35),
+        ),
+        Padding(
+          padding: EdgeInsets.only(
+            top:    MediaQuery.of(context).padding.top + 12,
+            left:   20,
+            right:  20,
+            bottom: 20,
           ),
-          const SizedBox(width: 16),
+          child: Row(
+            children: [
+              // avatar with authentic crown
+              Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 64, height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFFFD700), width: 2),
+                    ),
+                    child: CircleAvatar(
+                      backgroundImage: avatar != null ? EncryptedImageProvider(avatar) : null,
+                      backgroundColor: _bgCard,
+                      child: avatar == null
+                          ? const Icon(Icons.person, color: Colors.white54, size: 32)
+                          : null,
+                    ),
+                  ),
+                  Positioned(
+                    top: -12,
+                    child: Image.asset(
+                      R.unionAgencyAvatarHeaderIc,
+                      width: 28,
+                      height: 24,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 16),
 
-          // info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment:  MainAxisAlignment.center,
-              children: [
-                Row(children: [
-                  Text(name,
-                      style: const TextStyle(
-                        color: _textMain, fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'IBM Plex Sans Arabic',
-                      )),
-                  if (isVip) ...[
-                    const SizedBox(width: 8),
-                    _VipBadge(),
+              // info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment:  MainAxisAlignment.center,
+                  children: [
+                    Row(children: [
+                      Text(name,
+                          style: const TextStyle(
+                            color: Colors.white, fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'IBM Plex Sans Arabic',
+                          )),
+                      if (isVip) ...[
+                        const SizedBox(width: 8),
+                        const _VipBadge(),
+                      ],
+                    ]),
+                    const SizedBox(height: 4),
+                    Text('المستوى $level',
+                        style: const TextStyle(color: Color(0xFFFFF5AD), fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'IBM Plex Sans Arabic')),
                   ],
-                ]),
-                const SizedBox(height: 4),
-                Text('المستوى $level',
-                    style: TextStyle(color: _textMuted, fontSize: 13,
-                        fontFamily: 'IBM Plex Sans Arabic')),
-              ],
-            ),
-          ),
+                ),
+              ),
 
-          // refresh icon
-          IconButton(
-            icon: Icon(Icons.refresh_rounded, color: _textMuted),
-            onPressed: _loadData,
+              // refresh icon
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+                onPressed: _loadData,
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -800,6 +881,7 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.pulse,
+    this.onTap,
   });
 
   final String label;
@@ -807,46 +889,66 @@ class _StatCard extends StatelessWidget {
   final String icon;
   final Color  color;
   final AnimationController pulse;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     context.watch<DynamicConfigService>();
-    return AnimatedBuilder(
-      animation: pulse,
-      builder: (_, __) {
-        final glow = pulse.value;
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: _bgCard,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(.25 + .15 * glow)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(.12 + .08 * glow),
-                blurRadius: 16 + 8 * glow,
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedBuilder(
+        animation: pulse,
+        builder: (_, __) {
+          final glow = pulse.value;
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              image: const DecorationImage(
+                image: AssetImage(R.unionAgencyItemBg),
+                fit: BoxFit.fill,
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(icon, style: const TextStyle(fontSize: 22)),
-              const SizedBox(height: 8),
-              Text(value,
-                  style: TextStyle(
-                    color: color, fontSize: 20, fontWeight: FontWeight.bold,
-                    fontFamily: 'Space Grotesk',
-                    shadows: [Shadow(color: color.withOpacity(.6), blurRadius: 8)],
-                  )),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: TextStyle(color: _textMuted, fontSize: 11,
-                      fontFamily: 'IBM Plex Sans Arabic')),
-            ],
-          ),
-        );
-      },
+              color: _bgCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: .25 + .15 * glow)),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: .12 + .08 * glow),
+                  blurRadius: 16 + 8 * glow,
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(icon, style: const TextStyle(fontSize: 20)),
+                    if (onTap != null)
+                      Image.asset(
+                        R.commonNext3Ic,
+                        width: 16,
+                        height: 16,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 12),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(value,
+                    style: TextStyle(
+                      color: color, fontSize: 18, fontWeight: FontWeight.bold,
+                      fontFamily: 'Space Grotesk',
+                      shadows: [Shadow(color: color.withValues(alpha: .6), blurRadius: 8)],
+                    )),
+                const SizedBox(height: 2),
+                Text(label,
+                    style: const TextStyle(color: _textMuted, fontSize: 11,
+                        fontFamily: 'IBM Plex Sans Arabic')),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

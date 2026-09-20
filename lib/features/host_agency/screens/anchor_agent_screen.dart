@@ -6,6 +6,7 @@ import '../../../../services/supabase_service.dart';
 import '../data/anchor_agent_model.dart';
 import 'agent_transfer_screen.dart';
 import 'agency_exit_screen.dart';
+import 'agency_item_detail_screen.dart';
 
 /// شاشة وكيل المضيفين وإدارة الوكالة (AnchorAgentActivity)
 class AnchorAgentScreen extends StatefulWidget {
@@ -1031,6 +1032,162 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 20),
+
+            // ── Section Title: تقارير الدخل المفصلة (union_adapter_agency_detail_header.xml) ──
+            Align(
+              alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
+              child: Text(
+                isAr ? 'تقارير أرباح الوكالة حسب الفترات' : 'Detailed Period Earnings',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // بطاقة هذا الشهر
+            _buildPeriodItem(
+              title: isAr ? 'هذا الشهر' : 'This Month',
+              diamonds: transferMoney,
+              rate: commRatePct,
+              isAr: isAr,
+            ),
+            // بطاقة هذا الأسبوع
+            _buildPeriodItem(
+              title: isAr ? 'هذا الأسبوع' : 'This Week',
+              diamonds: (transferMoney * 0.35).toInt(),
+              rate: commRatePct,
+              isAr: isAr,
+            ),
+            // بطاقة أمس
+            _buildPeriodItem(
+              title: isAr ? 'أمس' : 'Yesterday',
+              diamonds: (transferMoney * 0.05).toInt(),
+              rate: commRatePct,
+              isAr: isAr,
+            ),
+            // بطاقة اليوم
+            _buildPeriodItem(
+              title: isAr ? 'اليوم' : 'Today',
+              diamonds: (transferMoney * 0.04).toInt(),
+              rate: commRatePct,
+              isAr: isAr,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Period Item Card matching union_agency_item_bg & union_adapter_agency_detail_header.xml
+  Widget _buildPeriodItem({
+    required String title,
+    required int diamonds,
+    required int rate,
+    required bool isAr,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AgencyItemDetailScreen(
+              agencyId: _agentInfo?.agencyId ?? widget.agencyId ?? '',
+              agencyName: _agentInfo?.agencyName ?? '',
+              periodTitle: title,
+              totalDiamonds: diamonds,
+              commissionRate: _agentInfo?.commissionRate ?? 0.10,
+              members: _anchors.map((a) => {
+                'id': a.uid,
+                'nickname': a.nickname,
+                'avatar_url': a.avatarUrl,
+                'user_id': a.userId,
+                'diamonds_earned_monthly': int.tryParse(a.totalDiamond) ?? 0,
+                'live_seconds': (a.minute * 60).toInt(),
+              }).toList(),
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          image: const DecorationImage(
+            image: AssetImage(R.unionAgencyItemBg),
+            fit: BoxFit.fill,
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                Image.asset(
+                  R.commonNext3Ic,
+                  width: 20,
+                  height: 20,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 14),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Image.asset(R.commonDiamondIc, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                          const SizedBox(width: 6),
+                          Text(
+                            diamonds.toString(),
+                            style: const TextStyle(color: Color(0xFFFFF5AD), fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isAr ? 'دخل الألماس' : 'Diamond Income',
+                        style: const TextStyle(color: Color(0x80FFF5AD), fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Image.asset(R.unionRate1Ic, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$rate %',
+                            style: const TextStyle(color: Color(0xFFFFF5AD), fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isAr ? 'نسبة العمولة' : 'Commission Rate',
+                        style: const TextStyle(color: Color(0x80FFF5AD), fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

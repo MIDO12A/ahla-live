@@ -101,6 +101,28 @@ class R {
   static const String roomMicSeatDefaultVip2Ic = '$_m/room_mic_seat_default_vip_2_ic.webp';
   static const String commonCloseIc2 = '$_m/common_close_ic_2.webp';
 
+  // Union & Agency assets (matching union_activity_my_agency.xml & union_activity_agency_item_detail.xml)
+  static const String unionMyAgencyBg = 'assets/mipmap-xxhdpi/union_my_agency_bg.png';
+  static const String unionMyAgencyAvatarBg = '$_m/union_my_agency_avatar_bg.webp';
+  static const String unionAgencyAvatarHeaderIc = '$_m/union_agency_avatar_heder_ic.webp';
+  static const String unionAvatarBorderIc = 'assets/mipmap-xxhdpi/union_avatar_border_ic.9.png';
+  static const String unionSubAgentInviteBg = '$_m/union_sub_agent_invite_bg.webp';
+  static const String unionSubAgentInviteIc = '$_m/union_sub_agent_invite_ic.webp';
+  static const String unionAgencyRank1Ic = '$_m/union_agency_rank_1_ic.webp';
+  static const String unionAgencyMemberIc = '$_m/union_agency_member_ic.webp';
+  static const String unionSubAgentIc = '$_m/union_sub_agent_ic.webp';
+  static const String unionNoticeIc = '$_m/union_notice_ic.webp';
+  static const String unionIdIc = '$_m/union_id_ic.webp';
+  static const String unionRuleIc = '$_m/union_rule_ic.webp';
+  static const String unionEditIc = '$_m/union_edit_ic.webp';
+  static const String unionTabBg = '$_m/union_tab_bg.webp';
+  static const String unionAgencyItemBg = '$_m/union_agency_item_bg.webp';
+  static const String unionRate1Ic = '$_m/union_rate_1_ic.webp';
+  static const String commonDiamondIc = '$_m/common_diamond_ic.webp';
+  static const String commonNext3Ic = '$_m/common_next_3_ic.webp';
+  static const String commonNext5 = '$_m/common_next_5.webp';
+  static const String backWhite2 = '$_m/back_white_2.webp';
+
   // Drawable shapes (XML shape drawables – used as widget equivalents in code)
   static const String roomPackageGiftBg = 'assets/drawable/room_package_gift_bg.xml';
   static const String roomGiftPanelHeaderMemberPre = 'assets/drawable/room_gift_panel_header_member_pre.xml';

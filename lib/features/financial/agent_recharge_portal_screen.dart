@@ -5,7 +5,6 @@ import '../../providers/user_provider.dart';
 import '../../core/supabase_compat.dart';
 
 import '../../core/auth/auth_service.dart';
-import '../../core/theme/brand_colors.dart';
 import 'agent_recharge/agent_recharge_models.dart';
 import 'agent_recharge/tabs/agent_dashboard_tab.dart';
 import 'agent_recharge/tabs/agent_recharge_tab.dart';
@@ -98,7 +97,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5FA),
+      backgroundColor: const Color(0xFF16151A),
       body: Column(children: [
         AgentRechargeHeader(
           agencyGold: dash.agencyGold,
@@ -106,17 +105,17 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
           onBack: () => Navigator.of(context).pop(),
         ),
         Container(
-          color: Colors.white,
+          color: const Color(0xFF1E1D24),
           child: TabBar(
             controller: _tabs,
-            indicatorColor: KayanBrandColors.logoPrimary,
+            indicatorColor: const Color(0xFFFFD700),
             indicatorWeight: 3,
             labelStyle: GoogleFonts.tajawal(
                 fontSize: 13, fontWeight: FontWeight.w800),
             unselectedLabelStyle: GoogleFonts.tajawal(
                 fontSize: 13, fontWeight: FontWeight.w600),
-            labelColor: KayanBrandColors.logoPrimary,
-            unselectedLabelColor: Colors.black45,
+            labelColor: const Color(0xFFFFD700),
+            unselectedLabelColor: Colors.white54,
             tabs: const [
               Tab(text: '📊 لوحة التحكم'),
               Tab(text: '💸 شحن'),
