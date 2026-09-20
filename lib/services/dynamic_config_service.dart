@@ -576,6 +576,36 @@ class DynamicConfigService extends ChangeNotifier {
   Color get roomVolumePanelBgColor => _screenColor('room', 'volumePanelBgColor', const Color(0xFF16151A));
   Color get roomFunctionsPanelBgColor => _screenColor('room', 'functionsPanelBgColor', const Color(0xFF16151A));
 
+  // Seat Style Panel
+  Color get roomSeatPanelBgColor => _screenColor('room', 'seatPanelBgColor', const Color(0xF51D1111));
+  String get roomSeatPanelTopBg => _screenStr('room', 'seatPanelTopBg', '');
+  String get roomSeatRadioCheckedBg => _screenStr('room', 'seatRadioCheckedBg', '');
+  String get roomSeatRadioUncheckedBg => _screenStr('room', 'seatRadioUncheckedBg', '');
+  String get roomSeatGameIcon => _screenStr('room', 'seatGameIcon', '');
+  String get roomSeatClassicIcon => _screenStr('room', 'seatClassicIcon', '');
+  String get roomSeatVipIcon => _screenStr('room', 'seatVipIcon', '');
+  String get roomSeatPreviewFrame => _screenStr('room', 'seatPreviewFrame', '');
+  Color get roomSeatConfirmBtnStart => _screenColor('room', 'seatConfirmBtnStart', const Color(0xFFFCCE5E));
+  Color get roomSeatConfirmBtnEnd => _screenColor('room', 'seatConfirmBtnEnd', const Color(0xFFD19C3B));
+  Color get roomSeatConfirmBtnTextColor => _screenColor('room', 'seatConfirmBtnTextColor', Colors.white);
+
+  // Functions Panel Icons
+  String get roomFuncMixerIcon => _screenStr('room', 'funcMixerIcon', '');
+  String get roomFuncSettingsIcon => _screenStr('room', 'funcSettingsIcon', '');
+  String get roomFuncSeatStyleIcon => _screenStr('room', 'funcSeatStyleIcon', '');
+  String get roomFuncBgIcon => _screenStr('room', 'funcBgIcon', '');
+  String get roomFuncReportIcon => _screenStr('room', 'funcReportIcon', '');
+  String get roomFuncEffectIcon => _screenStr('room', 'funcEffectIcon', '');
+  String get roomFuncVolumeIcon => _screenStr('room', 'funcVolumeIcon', '');
+  String get roomFuncGiftValIcon => _screenStr('room', 'funcGiftValIcon', '');
+
+  // Room Settings Screen Visuals
+  String get roomSettingsHeaderBg => _screenStr('room', 'settingsHeaderBg', '');
+  String get roomSettingsLabelIcon => _screenStr('room', 'settingsLabelIcon', '');
+  String get roomSettingsCameraIcon => _screenStr('room', 'settingsCameraIcon', '');
+  Color get roomSettingsConfirmBtnStart => _screenColor('room', 'settingsConfirmBtnStart', const Color(0xFFFCCE5E));
+  Color get roomSettingsConfirmBtnEnd => _screenColor('room', 'settingsConfirmBtnEnd', const Color(0xFFD19C3B));
+
   // Discover screen visuals
   String get discoverBackgroundImage => _screenStr('discover', 'backgroundImage', '');
   Color get discoverBackgroundColor => _screenColor('discover', 'backgroundColor', const Color(0xFFFFFFFF));
@@ -709,7 +739,7 @@ class DynamicConfigService extends ChangeNotifier {
   Color get cpPeriodButtonActiveBg => _screenColor('cp', 'periodButtonActiveBg', const Color(0xFFE91E8C));
   Color get cpPeriodButtonActiveText => _screenColor('cp', 'periodButtonActiveText', Colors.white);
   Color get cpPeriodButtonInactiveBg => _screenColor('cp', 'periodButtonInactiveBg', const Color(0xFF00000D));
-  Color get cpPeriodButtonInactiveText => _screenColor('cp', 'periodButtonInactiveText', const Color(0xFF00000073));
+  Color get cpPeriodButtonInactiveText => _screenColor('cp', 'periodButtonInactiveText', const Color(0x73000000));
   Color get cpRankItemBg => _screenColor('cp', 'rankItemBg', Colors.white);
   Color get cpRankShadowColor => _screenColor('cp', 'rankShadowColor', const Color(0xFFE91E8C));
   Color get cpMyRankPillGradientStart => _screenColor('cp', 'myRankPillGradientStart', const Color(0xFFFF4FA3));

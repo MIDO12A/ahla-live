@@ -7,9 +7,11 @@ import '../../config/r.dart';
 import '../../config/app_colors.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/dynamic_config_service.dart';
 import 'room_admins_screen.dart';
 import 'blacklist_screen.dart';
 import 'reports_admin_screen.dart';
+import 'widgets/room_background_bottom_sheet.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // RoomSettingsScreen — activity_room_set.xml
@@ -109,6 +111,8 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final cfg = DynamicConfigService();
     final navH = MediaQuery.of(context).padding.bottom;
     final statusH = MediaQuery.of(context).padding.top;
 
@@ -121,7 +125,8 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
             height: statusH + 100,
             child: Stack(
               children: [
-                R.image(
+                R.loadAssetOr(
+                  cfg.roomSettingsHeaderBg,
                   R.roomCreateRoomBg,
                   width: double.infinity,
                   height: double.infinity,
@@ -131,7 +136,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                   top: statusH,
                   left: 0,
                   right: 0,
-                  child: _buildAppBar(context),
+                  child: _buildAppBar(context, isAr, cfg),
                 ),
               ],
             ),
@@ -147,26 +152,47 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                   const SizedBox(height: 16),
 
                   // ── Room image ─────────────────────────────────
-                  _buildRoomImage(),
+                  _buildRoomImage(cfg),
                   const SizedBox(height: 24),
 
                   // ── Room name ──────────────────────────────────
-                  _buildSectionLabel('Room Name'),
+                  _buildSectionLabel(isAr ? 'اسم الغرفة' : 'Room Name'),
                   const SizedBox(height: 8),
-                  _buildNameField(),
+                  _buildNameField(isAr),
                   const SizedBox(height: 24),
 
                   // ── Topic ──────────────────────────────────────
-                  _buildSectionLabel('Topic'),
+                  _buildSectionLabel(isAr ? 'الموضوع' : 'Topic'),
                   const SizedBox(height: 8),
-                  _buildTopicField(),
+                  _buildTopicField(isAr),
                   const SizedBox(height: 24),
 
                   // ── Room lock (owner only) ─────────────────────
                   if (!widget.isModerator) ...[
-                    _buildSectionLabel('Lock Room'),
+                    _buildSectionLabel(isAr ? 'قفل الغرفة' : 'Lock Room'),
                     const SizedBox(height: 8),
-                    _buildLockRow(),
+                    _buildLockRow(isAr),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // ── Room Background (owner only) ───────────────
+                  if (!widget.isModerator) ...[
+                    _buildListRow(
+                      icon: R.icGoJiantou,
+                      label: isAr ? 'خلفية الغرفة' : 'Room Background',
+                      count: 0,
+                      onTap: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => RoomBackgroundBottomSheet(
+                            roomId: widget.roomId,
+                            currentBackground: '',
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 24),
                   ],
 
@@ -174,7 +200,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                   if (!widget.isModerator) ...[
                     _buildListRow(
                       icon: R.next2Ic,
-                      label: 'Admin',
+                      label: isAr ? 'المشرفين' : 'Admin',
                       count: _adminCount,
                       onTap: () => _showAdminSheet(context),
                     ),
@@ -185,7 +211,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                   if (!widget.isModerator) ...[
                     _buildListRow(
                       icon: R.icGoJiantou,
-                      label: 'Blacklist',
+                      label: isAr ? 'قائمة الحظر' : 'Blacklist',
                       count: _blacklistCount,
                       onTap: () => _showBlacklistSheet(context),
                     ),
@@ -195,7 +221,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                   // ── Reports ─────────────────────────────────────
                   _buildListRow(
                     icon: R.icGoJiantou,
-                    label: 'Reports',
+                    label: isAr ? 'البلاغات' : 'Reports',
                     count: 0,
                     onTap: () {
                       Navigator.push(
@@ -225,16 +251,28 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                 width: double.infinity,
                 height: 50,
                 decoration: BoxDecoration(
-                  gradient: AppColors.giftBtnGradient,
+                  gradient: LinearGradient(
+                    colors: [
+                      cfg.roomSettingsConfirmBtnStart,
+                      cfg.roomSettingsConfirmBtnEnd,
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(25),
+                  boxShadow: [
+                    BoxShadow(
+                      color: cfg.roomSettingsConfirmBtnEnd.withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 alignment: Alignment.center,
-                child: const Text(
-                  'Confirm',
-                  style: TextStyle(
+                child: Text(
+                  isAr ? 'تأكيد' : 'Confirm',
+                  style: const TextStyle(
                     fontSize: 15,
                     color: Color(0xFFFFFFFF),
-                    fontWeight: FontWeight.w400,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -245,7 +283,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
     );
   }
 
-  Widget _buildAppBar(BuildContext context) {
+  Widget _buildAppBar(BuildContext context, bool isAr, DynamicConfigService cfg) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -259,19 +297,20 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          R.image(
+          R.loadAssetOr(
+            cfg.roomSettingsLabelIcon,
             R.roomCreateLabelIc,
             width: 20,
             height: 20,
           ),
           const SizedBox(width: 4),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Room Settings',
-              style: TextStyle(
-                fontSize: 24,
+              isAr ? 'إعدادات الغرفة' : 'Room Settings',
+              style: const TextStyle(
+                fontSize: 22,
                 color: Color(0xFF16151A),
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -292,7 +331,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
   }
 
   // ── Room image: 108×108 circle + camera icon ────────────────────
-  Widget _buildRoomImage() {
+  Widget _buildRoomImage(DynamicConfigService cfg) {
     return GestureDetector(
       onTap: _pickRoomImage,
       child: Center(
@@ -331,7 +370,8 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
               Positioned(
                 bottom: 8,
                 right: 0,
-                child: R.image(
+                child: R.loadAssetOr(
+                  cfg.roomSettingsCameraIcon,
                   R.roomCameraLogoIc,
                   width: 30,
                   height: 30,
@@ -365,7 +405,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
   }
 
   // ── Room name field ─────────────────────────────────────────────
-  Widget _buildNameField() {
+  Widget _buildNameField(bool isAr) {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFFF5F7FB),
@@ -377,11 +417,11 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
         controller: _nameCtrl,
         style: const TextStyle(fontSize: 13, color: Color(0xFF16151A)),
         maxLength: 20,
-        decoration: const InputDecoration(
-          hintText: 'Enter room name',
-          hintStyle: TextStyle(color: Color(0xFF9BA1B6)),
+        decoration: InputDecoration(
+          hintText: isAr ? 'أدخل اسم الغرفة' : 'Enter room name',
+          hintStyle: const TextStyle(color: Color(0xFF9BA1B6)),
           border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
           isDense: true,
           counterText: '',
         ),
@@ -390,7 +430,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
   }
 
   // ── Topic field (multiline, 92dp, max 100) ──────────────────────
-  Widget _buildTopicField() {
+  Widget _buildTopicField(bool isAr) {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFFF5F7FB),
@@ -405,11 +445,11 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
         maxLines: null,
         textAlignVertical: TextAlignVertical.top,
         expands: true,
-        decoration: const InputDecoration(
-          hintText: 'Enter topic description',
-          hintStyle: TextStyle(color: Color(0xFF9BA1B6)),
+        decoration: InputDecoration(
+          hintText: isAr ? 'أدخل موضوع أو إعلان الغرفة' : 'Enter topic description',
+          hintStyle: const TextStyle(color: Color(0xFF9BA1B6)),
           border: InputBorder.none,
-          contentPadding: EdgeInsets.only(top: 12, bottom: 32),
+          contentPadding: const EdgeInsets.only(top: 12, bottom: 32),
           isDense: true,
           counterText: '',
         ),
@@ -418,7 +458,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
   }
 
   // ── Lock switch row ─────────────────────────────────────────────
-  Widget _buildLockRow() {
+  Widget _buildLockRow(bool isAr) {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFFF5F7FB),
@@ -437,11 +477,11 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
               maxLength: 6,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                hintText: 'Set room password',
-                hintStyle: TextStyle(color: Color(0xFF9BA1B6)),
+              decoration: InputDecoration(
+                hintText: isAr ? 'تعيين كلمة مرور الغرفة (6 أرقام)' : 'Set room password',
+                hintStyle: const TextStyle(color: Color(0xFF9BA1B6)),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 isDense: true,
                 counterText: '',
               ),

@@ -94,6 +94,13 @@ class R {
   static const String roomNoticeBg = '$_m/room_gift_notice_bg.webp';
   static const String roomGiftImgPre = '$_m/room_gift_img_pre.webp';
   static const String roomWindowFloatBg = '$_m/room_window_float_bg.webp';
+  static const String roomMicSeatStyleTopBg = 'assets/mipmap-xxhdpi/room_mic_seat_style_top_bg.9.png';
+  static const String roomSeatStylePre = '$_m/room_seat_style_pre.webp';
+  static const String roomSeatStyleNor = '$_m/room_seat_style_nor.webp';
+  static const String roomMicSeatStyleDefaultIc = '$_m/room_mic_seat_style_default_ic.webp';
+  static const String roomMicSeatDefaultVip2Ic = '$_m/room_mic_seat_default_vip_2_ic.webp';
+  static const String commonCloseIc2 = '$_m/common_close_ic_2.webp';
+  static String mipmap(String name) => '$_m/$name.webp';
 
   // Drawable shapes (XML shape drawables – used as widget equivalents in code)
   static const String roomPackageGiftBg = 'assets/drawable/room_package_gift_bg.xml';
@@ -511,6 +518,19 @@ class R {
       fit: fit,
       color: color,
     );
+  }
+
+  /// Convenience helper to load a dynamic asset if set, otherwise fallback to local asset.
+  static Widget loadAssetOr(
+    String dynamicPath,
+    String fallbackPath, {
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.contain,
+    Color? color,
+  }) {
+    final path = dynamicPath.isNotEmpty ? dynamicPath : fallbackPath;
+    return loadAsset(path, width: width, height: height, fit: fit, color: color);
   }
 
   // Dynamic Image widget builder that intercepts asset loading

@@ -19,33 +19,34 @@ class FunctionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final cfg = DynamicConfigService();
 
     final functionItems = [
       {
         'key': 'Mixer',
         'label': isAr ? 'الميكسر' : 'Mixer',
-        'asset': R.roomSetMixerIc,
+        'asset': cfg.roomFuncMixerIcon.isNotEmpty ? cfg.roomFuncMixerIcon : R.roomSetMixerIc,
       },
       {
         'key': 'Settings',
         'label': isAr ? 'إعداد الغرفة' : 'Room Settings',
-        'asset': R.roomSetSetIc,
+        'asset': cfg.roomFuncSettingsIcon.isNotEmpty ? cfg.roomFuncSettingsIcon : R.roomSetSetIc,
       },
       {
         'key': 'Seat Style',
         'label': isAr ? 'شكل المقاعد' : 'Seat Style',
-        'asset': R.roomSetSeatStyle,
+        'asset': cfg.roomFuncSeatStyleIcon.isNotEmpty ? cfg.roomFuncSeatStyleIcon : R.roomSetSeatStyle,
       },
       {
         'key': 'Report',
         'label': isAr ? 'إبلاغ' : 'Report',
-        'asset': R.roomSetReportIc,
+        'asset': cfg.roomFuncReportIcon.isNotEmpty ? cfg.roomFuncReportIcon : R.roomSetReportIc,
       },
       if (isOwner)
         {
           'key': 'Room Background',
           'label': isAr ? 'خلفية الغرفة' : 'Room Background',
-          'asset': R.roomSetSeatStyle,
+          'asset': cfg.roomFuncBgIcon.isNotEmpty ? cfg.roomFuncBgIcon : R.roomSetSeatStyle,
         },
     ];
 
@@ -53,24 +54,24 @@ class FunctionPanel extends StatelessWidget {
       {
         'key': 'Effect',
         'label': isAr ? 'إعدادات التأثيرات' : 'Effect Settings',
-        'asset': R.roomSetEffectIc,
+        'asset': cfg.roomFuncEffectIcon.isNotEmpty ? cfg.roomFuncEffectIcon : R.roomSetEffectIc,
       },
       {
         'key': 'Volume',
         'label': isAr ? 'صوت الغرفة' : 'Room Volume',
-        'asset': R.roomSetVolumeIc,
+        'asset': cfg.roomFuncVolumeIcon.isNotEmpty ? cfg.roomFuncVolumeIcon : R.roomSetVolumeIc,
       },
       {
         'key': 'Gift Value',
         'label': isAr ? 'قيمة الهدية' : 'Gift Value',
-        'asset': R.roomSetGiftIc,
+        'asset': cfg.roomFuncGiftValIcon.isNotEmpty ? cfg.roomFuncGiftValIcon : R.roomSetGiftIc,
       },
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF16151A), // shape_room_chat_bg
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      decoration: BoxDecoration(
+        color: cfg.roomFunctionsPanelBgColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       ),
       padding: const EdgeInsets.only(top: 20, bottom: 32),
       child: SingleChildScrollView(
@@ -162,11 +163,10 @@ class FunctionPanel extends StatelessWidget {
 
   Widget _getIconWidget(String labelKey, String? assetPath) {
     if (assetPath != null && assetPath.isNotEmpty) {
-      return Image.asset(
+      return R.loadAsset(
         assetPath,
         width: 48,
         height: 48,
-        errorBuilder: (_, __, ___) => _fallbackIcon(labelKey),
       );
     }
     return _fallbackIcon(labelKey);

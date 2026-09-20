@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
 import '../../../models/app_asset_model.dart';
+import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/cloudinary_service.dart';
@@ -147,11 +148,18 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white54),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: R.loadAssetOr(
+                      '',
+                      R.commonCloseIc2,
+                      width: 22,
+                      height: 22,
+                    ),
+                  ),
                 ),
               ],
             ),
