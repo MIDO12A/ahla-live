@@ -845,7 +845,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                           )),
                       if (isVip) ...[
                         const SizedBox(width: 8),
-                        const _VipBadge(),
+                        _VipBadge(),
                       ],
                     ]),
                     const SizedBox(height: 4),

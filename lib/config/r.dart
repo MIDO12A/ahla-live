@@ -251,8 +251,6 @@ class R {
   static const String backIc = '$_m/back_ic.webp';
   static const String commonCloseIc = '$_m/common_close_ic.webp';
   static const String commonGoldIc2 = '$_m/common_gold_ic_2.webp';
-  static const String commonDiamondIc = '$_m/common_diamond_ic.webp';
-  static const String commonNext3Ic = '$_m/common_next_3_ic.webp';
   static const String commonBack2 = '$_m/common_back_2.webp';
   static const String splashImgLogo = '$_m/splash_img_logo.webp';
 
@@ -270,20 +268,6 @@ class R {
   // Union / Agency assets
   static const String unionsTitleIc = '$_m/unions_title_ic.webp';
   static const String unionsSearchIc = '$_m/unions_search_ic.webp';
-  static const String unionMyAgencyBg = 'assets/mipmap-xxhdpi/union_my_agency_bg.png';
-  static const String unionMyAgencyAvatarBg = '$_m/union_my_agency_avatar_bg.webp';
-  static const String unionAvatarBorderIc = 'assets/mipmap-xxhdpi/union_avatar_border_ic.png';
-  static const String unionAgencyAvatarHeaderIc = '$_m/union_agency_avatar_heder_ic.webp';
-  static const String unionSubAgentInviteBg = '$_m/union_sub_agent_invite_bg.webp';
-  static const String unionSubAgentInviteIc = '$_m/union_sub_agent_invite_ic.webp';
-  static const String unionIdIc = '$_m/union_id_ic.webp';
-  static const String unionAgencyRank1Ic = '$_m/union_agency_rank_1_ic.webp';
-  static const String unionAgencyMemberIc = '$_m/union_agency_member_ic.webp';
-  static const String unionSubAgentIc = '$_m/union_sub_agent_ic.webp';
-  static const String unionNoticeIc = '$_m/union_notice_ic.webp';
-  static const String unionRuleIc = '$_m/union_rule_ic.webp';
-  static const String unionEditIc = '$_m/union_edit_ic.webp';
-  static const String unionTabBg = '$_m/union_tab_bg.webp';
   static const String unionCreateGuild = '$_m/union_create_guild.webp';
   static const String unionMyAgency = '$_m/union_my_agency.webp';
   static const String unionRank1Bg = '$_m/union_rank_1_bg.webp';
