@@ -100,7 +100,6 @@ class R {
   static const String roomMicSeatStyleDefaultIc = '$_m/room_mic_seat_style_default_ic.webp';
   static const String roomMicSeatDefaultVip2Ic = '$_m/room_mic_seat_default_vip_2_ic.webp';
   static const String commonCloseIc2 = '$_m/common_close_ic_2.webp';
-  static String mipmap(String name) => '$_m/$name.webp';
 
   // Drawable shapes (XML shape drawables – used as widget equivalents in code)
   static const String roomPackageGiftBg = 'assets/drawable/room_package_gift_bg.xml';
