@@ -1,7 +1,5 @@
 import {
   loginWithFirebaseEmail,
-  registerWithFirebaseEmail,
-  resetFirebasePassword,
   onFirebaseAuthChange,
   firebaseLogout,
   type FirebaseUser,
@@ -30,14 +28,6 @@ export function onAuthChange(callback: (user: AppUser | null) => void) {
 
 export async function loginWithEmail(email: string, password: string) {
   await loginWithFirebaseEmail(email, password)
-}
-
-export async function registerWithEmail(email: string, password: string) {
-  await registerWithFirebaseEmail(email, password)
-}
-
-export async function resetPassword(email: string) {
-  await resetFirebasePassword(email)
 }
 
 export async function logout() {
