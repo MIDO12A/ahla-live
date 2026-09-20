@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../config/app_colors.dart';
+import '../../../services/dynamic_config_service.dart';
 
 class RoomHeader extends StatelessWidget {
   final String? roomName;
@@ -103,13 +104,15 @@ class RoomHeader extends StatelessWidget {
           if (gameDesc != null && gameDesc!.isNotEmpty)
             Container(
               height: 32,
-              color: const Color(0x1AFFFFFF),
+              color: DynamicConfigService.instance.roomGameBarBgColor,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(
                 children: [
                   const SizedBox(width: 5),
-                  R.image(
-                    R.roomGameIc,
+                  R.loadAsset(
+                    DynamicConfigService.instance.roomGameIcon.isNotEmpty
+                        ? DynamicConfigService.instance.roomGameIcon
+                        : R.roomGameIc,
                     width: 24,
                     height: 24,
                     fit: BoxFit.cover,
@@ -120,12 +123,12 @@ class RoomHeader extends StatelessWidget {
                       horizontal: 6,
                       vertical: 2,
                     ),
-                    child: const Text(
+                    child: Text(
                       'GAME',
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: DynamicConfigService.instance.roomGameBarTextColor,
                       ),
                     ),
                   ),
@@ -133,9 +136,9 @@ class RoomHeader extends StatelessWidget {
                   Expanded(
                     child: Text(
                       gameDesc ?? '',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
-                        color: Color(0x80FFFFFF),
+                        color: DynamicConfigService.instance.roomGameBarDescColor,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -148,7 +151,9 @@ class RoomHeader extends StatelessWidget {
                       padding: const EdgeInsets.only(left: 4),
                       decoration: BoxDecoration(
                         image: DecorationImage(
-                          image: AssetImage(R.roomOnlineInfoBg),
+                          image: (DynamicConfigService.instance.roomOnlineCapsuleBg.isNotEmpty)
+                              ? R.cachedImage(DynamicConfigService.instance.roomOnlineCapsuleBg)
+                              : AssetImage(R.roomOnlineInfoBg) as ImageProvider,
                           fit: BoxFit.fill,
                         ),
                       ),
@@ -207,9 +212,9 @@ class RoomHeader extends StatelessWidget {
         children: [
           Text(
             roomName ?? 'Room',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: Color(0xFFFFFFFF),
+              color: DynamicConfigService.instance.roomHeaderTextColor,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -241,11 +246,14 @@ class RoomHeader extends StatelessWidget {
   }
 
   Widget _buildExitButton() {
+    final exitIcon = DynamicConfigService.instance.roomExitIcon.isNotEmpty
+        ? DynamicConfigService.instance.roomExitIcon
+        : R.roomExitIc;
     return GestureDetector(
       onTap: onExit,
       child: Center(
-        child: R.image(
-          R.roomExitIc,
+        child: R.loadAsset(
+          exitIcon,
           width: 24,
           height: 24,
         ),

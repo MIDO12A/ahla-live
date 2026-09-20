@@ -606,12 +606,21 @@ class _UserProfileState extends State<UserProfile> {
                       GestureDetector(
                         onTap: widget.onMicDown,
                         child: Container(
-                          padding: const EdgeInsets.all(8),
+                          width: 40,
+                          height: 40,
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.08),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.mic_off, color: Colors.white70, size: 22),
+                          child: Center(
+                            child: R.loadAsset(
+                              DynamicConfigService.instance.roomUserMicDownIcon.isNotEmpty
+                                  ? DynamicConfigService.instance.roomUserMicDownIcon
+                                  : R.roomMicDown,
+                              width: 24,
+                              height: 24,
+                            ),
+                          ),
                         ),
                       ),
                     const SizedBox(width: 24),
@@ -619,12 +628,21 @@ class _UserProfileState extends State<UserProfile> {
                       GestureDetector(
                         onTap: widget.onMicMute,
                         child: Container(
-                          padding: const EdgeInsets.all(8),
+                          width: 40,
+                          height: 40,
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.08),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.volume_off, color: Colors.white70, size: 22),
+                          child: Center(
+                            child: R.loadAsset(
+                              DynamicConfigService.instance.roomUserMicMuteIcon.isNotEmpty
+                                  ? DynamicConfigService.instance.roomUserMicMuteIcon
+                                  : R.roomMicOff,
+                              width: 24,
+                              height: 24,
+                            ),
+                          ),
                         ),
                       ),
                   ],

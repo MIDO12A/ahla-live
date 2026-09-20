@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
-import '../../../config/app_colors.dart';
+import '../../../services/dynamic_config_service.dart';
 
 class BottomBar extends StatelessWidget {
   final bool isMicOn;
@@ -32,6 +32,16 @@ class BottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
 
+    final cfg = DynamicConfigService.instance;
+    final giftIcon = cfg.roomGiftIcon.isNotEmpty ? cfg.roomGiftIcon : R.roomGiftIc;
+    final chatIcon = cfg.roomChatIcon.isNotEmpty ? cfg.roomChatIcon : R.roomChatIc;
+    final emojiIcon = cfg.roomEmojiIcon.isNotEmpty ? cfg.roomEmojiIcon : R.roomEmojIc;
+    final micOnIcon = cfg.roomMicOnIcon.isNotEmpty ? cfg.roomMicOnIcon : R.roomMicphoneIc;
+    final micOffIcon = cfg.roomMicOffIcon.isNotEmpty ? cfg.roomMicOffIcon : R.roomMicphoneCloseIc;
+    final musicIcon = cfg.roomMusicIcon.isNotEmpty ? cfg.roomMusicIcon : R.roomSetMusicIc;
+    final msgIcon = cfg.roomMsgIcon.isNotEmpty ? cfg.roomMsgIcon : R.roomMsgIc;
+    final functionIcon = cfg.roomFunctionIcon.isNotEmpty ? cfg.roomFunctionIcon : R.roomFunctionIc;
+
     return SizedBox(
       height: 63,
       child: Stack(
@@ -52,10 +62,10 @@ class BottomBar extends StatelessWidget {
                     color: Colors.transparent,
                   ),
                   child: Center(
-                    child: R.image(
-                      R.roomGiftIc,
-                      width: 46,
-                      height: 46,
+                    child: R.loadAsset(
+                      giftIcon,
+                      width: 48,
+                      height: 48,
                     ),
                   ),
                 ),
@@ -77,26 +87,26 @@ class BottomBar extends StatelessWidget {
                     ? [
                         if (showMic) ...[
                           _Btn(
-                            asset: isMicOn ? R.roomMicphoneIc : R.roomMicphoneCloseIc,
+                            asset: isMicOn ? micOnIcon : micOffIcon,
                             size: 32,
                             onTap: onMic,
                           ),
                           const SizedBox(width: 10),
                         ],
-                        _Btn(asset: R.roomEmojIc, size: 32, onTap: onEmoj),
+                        _Btn(asset: emojiIcon, size: 32, onTap: onEmoj),
                         const SizedBox(width: 10),
-                        _Btn(asset: R.roomChatIc, size: 32, onTap: onChat),
+                        _Btn(asset: chatIcon, size: 32, onTap: onChat),
                         const SizedBox(width: 14),
                       ]
                     : [
                         const SizedBox(width: 14),
-                        _Btn(asset: R.roomChatIc, size: 32, onTap: onChat),
+                        _Btn(asset: chatIcon, size: 32, onTap: onChat),
                         const SizedBox(width: 10),
-                        _Btn(asset: R.roomEmojIc, size: 32, onTap: onEmoj),
+                        _Btn(asset: emojiIcon, size: 32, onTap: onEmoj),
                         if (showMic) ...[
                           const SizedBox(width: 10),
                           _Btn(
-                            asset: isMicOn ? R.roomMicphoneIc : R.roomMicphoneCloseIc,
+                            asset: isMicOn ? micOnIcon : micOffIcon,
                             size: 32,
                             onTap: onMic,
                           ),
@@ -119,12 +129,12 @@ class BottomBar extends StatelessWidget {
                 children: isAr
                     ? [
                         const SizedBox(width: 14),
-                        _Btn(asset: R.roomFunctionIc, size: 32, onTap: onFunction),
+                        _Btn(asset: functionIcon, size: 32, onTap: onFunction),
                         const SizedBox(width: 10),
                         Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            _Btn(asset: R.roomMsgIc, size: 32, onTap: onMsg),
+                            _Btn(asset: msgIcon, size: 32, onTap: onMsg),
                             if (msgCount > 0)
                               Positioned(
                                 top: -4,
@@ -134,15 +144,15 @@ class BottomBar extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(width: 10),
-                        _Btn(asset: R.roomSetMusicIc, size: 32, onTap: onMusic),
+                        _Btn(asset: musicIcon, size: 32, onTap: onMusic),
                       ]
                     : [
-                        _Btn(asset: R.roomSetMusicIc, size: 32, onTap: onMusic),
+                        _Btn(asset: musicIcon, size: 32, onTap: onMusic),
                         const SizedBox(width: 10),
                         Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            _Btn(asset: R.roomMsgIc, size: 32, onTap: onMsg),
+                            _Btn(asset: msgIcon, size: 32, onTap: onMsg),
                             if (msgCount > 0)
                               Positioned(
                                 top: -4,
@@ -152,7 +162,7 @@ class BottomBar extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(width: 10),
-                        _Btn(asset: R.roomFunctionIc, size: 32, onTap: onFunction),
+                        _Btn(asset: functionIcon, size: 32, onTap: onFunction),
                         const SizedBox(width: 14),
                       ],
               ),
@@ -199,7 +209,7 @@ class _Btn extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: R.image(
+      child: R.loadAsset(
         asset,
         width: size,
         height: size,

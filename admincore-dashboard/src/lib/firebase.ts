@@ -11,14 +11,14 @@ import {
 } from 'firebase/auth'
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyCGASmIR9P8ylA3Oia2HSMNa4K80d0xHMk',
-  authDomain: 'zeroappzero-e1b4a.firebaseapp.com',
-  databaseURL: 'https://zeroappzero-e1b4a-default-rtdb.firebaseio.com',
-  projectId: 'zeroappzero-e1b4a',
-  storageBucket: 'zeroappzero-e1b4a.firebasestorage.app',
-  messagingSenderId: '95008435096',
-  appId: '1:95008435096:web:aaf5b8c78a397b133099ed',
-  measurementId: 'G-JG150HLC1N',
+  apiKey: 'AIzaSyDP0bNjlUFU38F5HLWqJARdtrUWyc7R3gg',
+  authDomain: 'ahla-live.firebaseapp.com',
+  databaseURL: 'https://ahla-live-default-rtdb.firebaseio.com',
+  projectId: 'ahla-live',
+  storageBucket: 'ahla-live.firebasestorage.app',
+  messagingSenderId: '183199730954',
+  appId: '1:183199730954:web:a169a64cda908c51383ef3',
+  measurementId: 'G-ZYK2BGX5X3',
 }
 
 export const firebaseApp: FirebaseApp = initializeApp(firebaseConfig)

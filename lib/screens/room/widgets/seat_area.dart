@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../config/app_colors.dart';
+import '../../../services/dynamic_config_service.dart';
 import '../models/seat_model.dart';
 import 'svga_frame.dart';
 
@@ -371,21 +372,27 @@ class _NormalSeat extends StatelessWidget {
     const double borderSize = 64.0;
 
     if (!hasUser) {
+      final cfg = DynamicConfigService.instance;
       if (seatStyle == SeatStyle.circle) {
+        final circleDefault = cfg.roomSeatDefaultCircle.isNotEmpty ? cfg.roomSeatDefaultCircle : R.roomMicSeatDefaultCircle;
+        final circleLock = cfg.roomSeatLockCircle.isNotEmpty ? cfg.roomSeatLockCircle : R.roomMicSeatLockCircle;
         return Center(
           child: SizedBox(
             width: size,
             height: size,
             child: seat.isLocked
-                ? R.image(R.roomMicSeatLockCircle, fit: BoxFit.cover)
-                : R.image(R.roomMicSeatDefaultCircle, fit: BoxFit.cover),
+                ? R.loadAsset(circleLock, fit: BoxFit.cover)
+                : R.loadAsset(circleDefault, fit: BoxFit.cover),
           ),
         );
       }
 
-      String emptyIcon = R.roomMicSeatDefaultIc;
+      String emptyIcon = cfg.roomSeatDefaultClassic.isNotEmpty ? cfg.roomSeatDefaultClassic : R.roomMicSeatDefaultIc;
+      String lockIcon = cfg.roomSeatLockClassic.isNotEmpty ? cfg.roomSeatLockClassic : R.roomMicSeatLockIc;
+
       if (seatStyle == SeatStyle.heart) {
-        emptyIcon = R.mipmap('room_mic_seat_default_vip_2_ic');
+        emptyIcon = cfg.roomSeatDefaultVip.isNotEmpty ? cfg.roomSeatDefaultVip : R.mipmap('room_mic_seat_default_vip_2_ic');
+        lockIcon = cfg.roomSeatLockVip.isNotEmpty ? cfg.roomSeatLockVip : R.roomMicSeatLockIc;
       }
       return Center(
         child: SizedBox(
@@ -396,11 +403,10 @@ class _NormalSeat extends StatelessWidget {
               width: size,
               height: size,
               child: seat.isLocked
-                  ? R.image(R.roomMicSeatLockIc, fit: BoxFit.cover)
-                  : Image.asset(
+                  ? R.loadAsset(lockIcon, fit: BoxFit.cover)
+                  : R.loadAsset(
                       emptyIcon,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(Icons.chair, color: Colors.white54, size: size * 0.5),
                     ),
             ),
           ),
