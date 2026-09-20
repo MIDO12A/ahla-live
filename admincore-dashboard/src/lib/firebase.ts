@@ -4,6 +4,8 @@ import { getAnalytics, isSupported, type Analytics } from 'firebase/analytics'
 import {
   getAuth,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   onAuthStateChanged,
   signOut,
   type Auth,
@@ -27,6 +29,14 @@ export const firestoreDb: Firestore = getFirestore(firebaseApp)
 
 export async function loginWithFirebaseEmail(email: string, password: string) {
   await signInWithEmailAndPassword(firebaseAuth, email, password)
+}
+
+export async function registerWithFirebaseEmail(email: string, password: string) {
+  await createUserWithEmailAndPassword(firebaseAuth, email, password)
+}
+
+export async function resetFirebasePassword(email: string) {
+  await sendPasswordResetEmail(firebaseAuth, email)
 }
 
 export function onFirebaseAuthChange(callback: (user: FirebaseUser | null) => void) {
