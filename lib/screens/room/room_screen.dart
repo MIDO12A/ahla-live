@@ -974,20 +974,61 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     });
 
+    final joinedMs = _joinedAt?.millisecondsSinceEpoch ?? 0;
+    final seenMsgIds = <String>{};
+    bool _msgStreamInitial = true;
+
     _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
       if (!mounted || broadcasts.isEmpty) return;
       final latest = broadcasts.first;
       final createdAt = DateTime.tryParse(latest['created_at']?.toString() ?? '');
       if (createdAt != null && DateTime.now().difference(createdAt).inSeconds < 15) {
-        setState(() {
-          _currentBroadcast = latest;
-        });
+        final bId = latest['id']?.toString() ?? '${createdAt.millisecondsSinceEpoch}_${latest['sender_uid']}';
+        if (!seenMsgIds.contains(bId)) {
+          seenMsgIds.add(bId);
+          setState(() {
+            _currentBroadcast = latest;
+
+            // ✅ عرض الهدية/الفوز مباشرة في شات وتعليقات الغرفة تزامناً مع البانر
+            final isLucky = latest['is_lucky'] == true || (latest['multiplier'] != null && (latest['multiplier'] as num) > 0);
+            _chatMessages.add(MessageModel(
+              msgId: bId,
+              roomId: widget.roomId,
+              senderUid: latest['sender_uid']?.toString() ?? '',
+              senderName: latest['sender_name']?.toString() ?? 'مستخدم',
+              senderPhotoUrl: latest['sender_photo_url']?.toString() ?? '',
+              text: latest['content']?.toString() ?? '',
+              type: isLucky ? 'lucky_gift' : 'gift',
+              timestamp: DateTime.now().millisecondsSinceEpoch,
+              imageUrl: latest['gift_icon']?.toString() ?? '',
+              giftPayload: {
+                'gift_name': latest['gift_name'] ?? '',
+                'gift_icon': latest['gift_icon'] ?? '',
+                'count': latest['count'] ?? 1,
+                'receiver_name': latest['receiver_name'] ?? '',
+                'results': {
+                  'totalWonCoins': latest['won_coins'] ?? latest['coins'] ?? 0,
+                  'maxMultiplier': latest['multiplier'] ?? 0,
+                },
+                'gift': {
+                  'giftName': latest['gift_name'] ?? '',
+                  'giftNameAr': latest['gift_name'] ?? '',
+                },
+              },
+            ));
+            _msgCount = _chatMessages.length;
+          });
+          if (_chatScroll.hasClients) {
+            _chatScroll.animateTo(
+              _chatScroll.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        }
       }
     });
 
-    final joinedMs = _joinedAt?.millisecondsSinceEpoch ?? 0;
-    final seenMsgIds = <String>{};
-    bool _msgStreamInitial = true;
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
       if (mounted) {
         final clearedAt = _currentRoom?.chatClearedAt ?? 0;
@@ -3361,13 +3402,31 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _openVolume();
         break;
       case 'Settings':
-        if (_isOwnerOrModerator) _openSettings();
+        if (_isOwnerOrModerator) {
+          _openSettings();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'إعدادات الغرفة متاحة للمالك والمشرفين فقط' : 'Room settings available for owner and admins only')),
+          );
+        }
         break;
       case 'Seat Style':
-        if (_isOwnerOrModerator) _openSeatStyle();
+        if (_isOwnerOrModerator) {
+          _openSeatStyle();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'تغيير شكل المقاعد متاح للمالك والمشرفين فقط' : 'Seat style available for owner and admins only')),
+          );
+        }
         break;
       case 'Room Background':
-        if (_isOwner) _openRoomBackground();
+        if (_isOwner || _isOwnerOrModerator) {
+          _openRoomBackground();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'تغيير خلفية الغرفة متاح للمالك والمشرفين فقط' : 'Room background available for owner and admins only')),
+          );
+        }
         break;
       case 'Mixer':
         _openMixer();
@@ -3545,12 +3604,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (m.type == 'lucky_gift') {
       final payload = m.giftPayload;
       final gift = payload?['gift'];
-      final giftName = gift?['giftNameAr'] ?? gift?['giftName'] ?? '';
+      final giftName = gift?['giftNameAr'] ?? gift?['giftName'] ?? payload?['gift_name'] ?? 'هدية الحظ';
+      final giftIcon = payload?['gift_icon']?.toString() ??
+          gift?['default_image']?.toString() ??
+          gift?['gift_icon']?.toString() ??
+          m.imageUrl;
       final results = payload?['results'];
-      final totalWon = (results?['totalWonCoins'] as num?)?.toInt() ?? 0;
-      final maxMultiplier = (results?['maxMultiplier'] as num?)?.toInt() ?? 0;
+      final totalWon = (results?['totalWonCoins'] as num?)?.toInt() ?? (payload?['won_coins'] as num?)?.toInt() ?? 0;
+      final maxMultiplier = (results?['maxMultiplier'] as num?)?.toInt() ?? (payload?['multiplier'] as num?)?.toInt() ?? 0;
 
-      // عرض رسائل الحظ والمضاعفات دون إخفاء أي مضاعف
       if (totalWon <= 0 && maxMultiplier <= 0) {
         return const SizedBox.shrink();
       }
@@ -3559,72 +3621,172 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final senderDisplayName = m.senderName.length > 14 ? m.senderName.substring(0, 14) : m.senderName;
 
       return Padding(
-        padding: const EdgeInsets.only(top: 8, left: 10, right: 10),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 280),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.35),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Colors.white,
-                  height: 1.35,
+        padding: const EdgeInsets.only(top: 8, left: 8, right: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Sender Avatar with gold border
+            GestureDetector(
+              onTap: () => _openChatUserProfile(m.senderUid, m.senderName, m.senderPhotoUrl),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
                 ),
+                child: ClipOval(
+                  child: m.senderPhotoUrl.isNotEmpty
+                      ? Image(
+                          image: R.cachedImage(m.senderPhotoUrl),
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _defaultAvatar(),
+                        )
+                      : _defaultAvatar(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextSpan(
-                    text: isAr ? 'تهانينا لـ ' : 'Congratulations to ',
-                    style: const TextStyle(color: Colors.white),
+                  // Sender name + Winner tag
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        senderDisplayName,
+                        style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF8008), Color(0xFFFFC837)],
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isAr ? 'فوز حظ' : 'LUCKY WIN',
+                          style: const TextStyle(fontSize: 9, color: Colors.black, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ],
                   ),
-                  TextSpan(
-                    text: senderDisplayName,
-                    style: const TextStyle(
-                      color: Color(0xFFFFD700),
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(height: 4),
+                  // cl_msg with golden gradient border and gift details
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFFFFD700).withValues(alpha: 0.18),
+                          const Color(0x33000000),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.45)),
                     ),
-                  ),
-                  TextSpan(
-                    text: isAr ? ' لإرسال هدية حظ ' : ' for sending a lucky gift ',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  TextSpan(
-                    text: giftName,
-                    style: const TextStyle(
-                      color: Color(0xFFFF80AB),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  TextSpan(
-                    text: isAr ? ' والفوز بمكافأة مضاعفة ' : ' winning ',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  TextSpan(
-                    text: '${maxMultiplier}X ',
-                    style: const TextStyle(
-                      color: Color(0xFFFF416C),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  TextSpan(
-                    text: isAr ? 'بقيمة ' : 'times reward, coins ',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  TextSpan(
-                    text: '$totalWon عملة',
-                    style: const TextStyle(
-                      color: Color(0xFFFFEB3B),
-                      fontWeight: FontWeight.bold,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isAr
+                              ? 'حالفه الحظ وحصل على مكافأة مضاعفة!'
+                              : 'Hit the jackpot with a lucky multiplier!',
+                          style: const TextStyle(fontSize: 12, color: Colors.white70),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Gift Icon (40×40)
+                            if (giftIcon != null && giftIcon.isNotEmpty)
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: Image(
+                                  image: R.cachedImage(giftIcon!),
+                                  width: 38,
+                                  height: 38,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.stars_rounded, color: Color(0xFFFFD700), size: 32),
+                                ),
+                              )
+                            else
+                              const Icon(Icons.stars_rounded, color: Color(0xFFFFD700), size: 32),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      giftName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    if (maxMultiplier > 0) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [Color(0xFFFF416C), Color(0xFFFF4B2B)],
+                                          ),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          '${maxMultiplier}X',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                if (totalWon > 0) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Image.asset(
+                                        'assets/mipmap-xxhdpi/common_gold_ic_4.webp',
+                                        width: 14,
+                                        height: 14,
+                                        errorBuilder: (_, __, ___) => const Icon(Icons.monetization_on, color: Color(0xFFFFEB3B), size: 13),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '+$totalWon ${isAr ? 'عملة' : 'coins'}',
+                                        style: const TextStyle(
+                                          color: Color(0xFFFFEB3B),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ),
+          ],
         ),
       );
     }
