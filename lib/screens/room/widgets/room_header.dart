@@ -100,52 +100,67 @@ class RoomHeader extends StatelessWidget {
               ],
             ),
           ),
-          // Game Description panel below header
-          if (gameDesc != null && gameDesc!.isNotEmpty)
-            Container(
-              height: 32,
-              color: DynamicConfigService.instance.roomGameBarBgColor,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  const SizedBox(width: 5),
-                  R.loadAsset(
-                    DynamicConfigService.instance.roomGameIcon.isNotEmpty
-                        ? DynamicConfigService.instance.roomGameIcon
-                        : R.roomGameIc,
-                    width: 24,
-                    height: 24,
-                    fit: BoxFit.cover,
-                  ),
-                  const SizedBox(width: 5),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
+          // Game Description panel below header (matches cl_game_them in fragment_room_info.xml)
+          Container(
+            height: 32,
+            color: DynamicConfigService.instance.roomGameBarBgColor,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: onGameTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 5),
+                        R.loadAsset(
+                          DynamicConfigService.instance.roomGameIcon.isNotEmpty
+                              ? DynamicConfigService.instance.roomGameIcon
+                              : R.roomGameIc,
+                          width: 24,
+                          height: 24,
+                          fit: BoxFit.cover,
+                        ),
+                        const SizedBox(width: 5),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white12,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'GAME',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: DynamicConfigService.instance.roomGameBarTextColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            (gameDesc != null && gameDesc!.isNotEmpty)
+                                ? gameDesc!
+                                : (isAr ? 'ألعاب الغرفة التفاعلية 🎮' : 'Room Games 🎮'),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: DynamicConfigService.instance.roomGameBarDescColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      'GAME',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: DynamicConfigService.instance.roomGameBarTextColor,
-                      ),
-                    ),
                   ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      gameDesc ?? '',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: DynamicConfigService.instance.roomGameBarDescColor,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: onOnlineTap,
+                ),
+                GestureDetector(
+                  onTap: onOnlineTap,
                     child: Container(
                       height: 24,
                       padding: const EdgeInsets.only(left: 4),

@@ -49,6 +49,7 @@ import 'widgets/room_marquee_broadcast.dart';
 import 'widgets/room_rocket_widget.dart';
 import 'widgets/room_member_enter_banner.dart';
 import 'widgets/room_message_bottom_sheet.dart';
+import 'widgets/room_game_bottom_sheet.dart';
 import '../../features/lucky_gift/widgets/room_burst_settlement_dialog.dart';
 import 'widgets/svga_player.dart'; // ✅ لاستخدام SvgaPlayer.prefetch قبل عرض الأنيميشن
 import 'widgets/vap_player.dart'; // ✅ لاستخدام VapPlayer.prefetch قبل عرض الأنيميشن
@@ -2727,7 +2728,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 },
                 onInfoTap: () => setState(() => _showRoomInfo = true),
                 onOnlineTap: _showMembersSheet,
-                onGameTap: () {},
+                onGameTap: _showGameBottomSheet,
                 onFollow: _toggleFollow,
               ),
 
@@ -2810,17 +2811,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             child: LuckyBagFloatingWidget(roomId: widget.roomId),
           ),
 
-          // ── Game button ───────────────────────────────────────
+          // ── Game button (room_game_ic) ──────────────────────
           Positioned(
             bottom: navH + 63 + 17,
             right: 14,
             child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const GameTeamingScreen()),
-                );
-              },
+              onTap: _showGameBottomSheet,
               child: R.image(
                 R.roomGameIc,
                 width: 44,
@@ -3473,9 +3469,26 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       case 'Lucky Bag':
         LuckyBagSendDialog.show(context, roomId: widget.roomId);
         break;
+      case 'Game':
+        _showGameBottomSheet();
+        break;
       default:
         break;
     }
+  }
+
+  void _showGameBottomSheet() {
+    RoomGameBottomSheet.show(
+      context,
+      roomId: widget.roomId,
+      onGameSelect: (gameKey, gameName) {
+        if (_isOwner) {
+          FirebaseFirestore.instance.collection('rooms').doc(widget.roomId).update({
+            'game_desc': gameName,
+          }).catchError((_) {});
+        }
+      },
+    );
   }
 
   // ── Chat area (uses Firebase messages) ──────────────────────

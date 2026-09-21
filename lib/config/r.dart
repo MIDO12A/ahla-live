@@ -71,6 +71,12 @@ class R {
   static const String roomMsgIc = '$_m/room_msg_ic.webp';
   static const String roomExitIc = '$_m/room_exit_ic.webp';
   static const String roomGameIc = '$_m/room_game_ic.webp';
+  static const String roomGameBg = '$_m/room_game_bg.webp';
+  static const String roomGameTopBg = '$_m/room_game_top_bg.webp';
+  static const String roomGameTitleIc = '$_m/room_game_title_ic.webp';
+  static const String roomGameBroadcastBg = '$_m/room_game_broadcast_bg.webp';
+  static const String roomGameBroadcastIc = '$_m/room_game_broadcast_ic.webp';
+  static const String roomGameCloseIc = '$_m/room_game_close_ic.webp';
   static const String roomMusicEmptyIc = '$_m/room_music_empty_ic.webp';
   static const String roomMicOn = '$_m/room_mic_on.webp';
   static const String roomMicOff = '$_m/room_mic_off.webp';

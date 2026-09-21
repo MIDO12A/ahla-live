@@ -37,6 +37,8 @@ class _MixerPanelState extends State<MixerPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+
     return Container(
       decoration: BoxDecoration(
         color: DynamicConfigService().roomVolumePanelBgColor,
@@ -50,10 +52,10 @@ class _MixerPanelState extends State<MixerPanel> {
           // Title row
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Mixer',
-                  style: TextStyle(
+                  isAr ? 'الميكسر' : 'Mixer',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -110,10 +112,10 @@ class _MixerPanelState extends State<MixerPanel> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Open Microphone Mixer',
-                    style: TextStyle(
+                    isAr ? 'ميكسر الميكروفون' : 'Open Microphone Mixer',
+                    style: const TextStyle(
                       fontSize: 15,
                       color: Colors.white,
                       fontWeight: FontWeight.w500,
@@ -128,8 +130,12 @@ class _MixerPanelState extends State<MixerPanel> {
           // Description text
           Text(
             _mixerEnabled
-                ? 'Microphone mixer is enabled. Your voice will be mixed with background music for a better listening experience.'
-                : 'Enable the microphone mixer to mix your voice with background music for a richer audio experience in the room.',
+                ? (isAr
+                    ? 'تم تفعيل ميكسر الميكروفون. سيتم دمج صوتك مع الموسيقى والمؤثرات للحصول على تجربة استماع احترافية.'
+                    : 'Microphone mixer is enabled. Your voice will be mixed with background music for a better listening experience.')
+                : (isAr
+                    ? 'قم بتفعيل ميكسر الميكروفون لدمج صوتك مع موسيقى الخلفية والمؤثرات الصوتية داخل الغرفة.'
+                    : 'Enable the microphone mixer to mix your voice with background music for a richer audio experience in the room.'),
             style: const TextStyle(
               fontSize: 12,
               color: Color(0xB3FFFFFF),
@@ -140,11 +146,11 @@ class _MixerPanelState extends State<MixerPanel> {
 
           // EQ sliders (shown when mixer is enabled)
           if (_mixerEnabled) ...[
-            _buildEqRow('Treble', 0.6),
+            _buildEqRow(isAr ? 'العالي' : 'Treble', 0.6),
             const SizedBox(height: 8),
-            _buildEqRow('Mid', 0.5),
+            _buildEqRow(isAr ? 'المتوسط' : 'Mid', 0.5),
             const SizedBox(height: 8),
-            _buildEqRow('Bass', 0.4),
+            _buildEqRow(isAr ? 'المنخفض' : 'Bass', 0.4),
             const SizedBox(height: 8),
           ],
         ],

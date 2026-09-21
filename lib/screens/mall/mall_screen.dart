@@ -494,7 +494,7 @@ class _MallScreenState extends State<MallScreen>
                         R.image(
                           dc.storeLockImage.isNotEmpty
                               ? dc.storeLockImage
-                              : 'assets/mipmap-xxhdpi/common_diamond_ic.webp',
+                              : 'assets/mipmap-xxhdpi/common_gold_ic_1.webp',
                           width: 14,
                           height: 14,
                         ),
@@ -529,18 +529,20 @@ class _MallScreenState extends State<MallScreen>
                       },
                       child: Container(
                         width: 100,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          color: dc.goldColor,
-                          borderRadius: BorderRadius.circular(dc.borderRadius.toDouble()),
+                        height: 32,
+                        decoration: const BoxDecoration(
+                          image: DecorationImage(
+                            image: AssetImage('assets/mipmap-xxhdpi/mine_mall_buy_ic.webp'),
+                            fit: BoxFit.fill,
+                          ),
                         ),
                         child: Center(
                           child: Text(
                             dc.getScreenTitle('buy', 'شراء'),
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: dc.buttonTextColor,
+                              color: Colors.white,
                             ),
                           ),
                         ),

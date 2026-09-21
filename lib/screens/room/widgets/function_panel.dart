@@ -23,6 +23,11 @@ class FunctionPanel extends StatelessWidget {
 
     final functionItems = [
       {
+        'key': 'Game',
+        'label': isAr ? 'الألعاب' : 'Games',
+        'asset': R.roomGameIc,
+      },
+      {
         'key': 'Mixer',
         'label': isAr ? 'الميكسر' : 'Mixer',
         'asset': cfg.roomFuncMixerIcon.isNotEmpty ? cfg.roomFuncMixerIcon : R.roomSetMixerIc,
@@ -42,12 +47,18 @@ class FunctionPanel extends StatelessWidget {
         'label': isAr ? 'إبلاغ' : 'Report',
         'asset': cfg.roomFuncReportIcon.isNotEmpty ? cfg.roomFuncReportIcon : R.roomSetReportIc,
       },
-      if (isOwner)
+      if (isOwner) ...[
         {
           'key': 'Room Background',
           'label': isAr ? 'خلفية الغرفة' : 'Room Background',
           'asset': cfg.roomFuncBgIcon.isNotEmpty ? cfg.roomFuncBgIcon : R.roomSetSeatStyle,
         },
+        {
+          'key': 'Clear Messages',
+          'label': isAr ? 'مسح المحادثة' : 'Clear Chat',
+          'asset': R.commonCloseIc2,
+        },
+      ],
     ];
 
     final effectItems = [
@@ -119,7 +130,7 @@ class FunctionPanel extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
                     final key = item['key']!;
-                    if (key == 'Settings' || key == 'Mixer' || key == 'Volume' || key == 'Seat Style' || key == 'Effect' || key == 'Gift Value' || key == 'Report' || key == 'Room Background' || key == 'Clear Messages' || key == 'Message Settings' || key == 'Lucky Bag') {
+                    if (key == 'Settings' || key == 'Mixer' || key == 'Volume' || key == 'Seat Style' || key == 'Effect' || key == 'Gift Value' || key == 'Report' || key == 'Room Background' || key == 'Clear Messages' || key == 'Message Settings' || key == 'Lucky Bag' || key == 'Game') {
                       onItemTap?.call(key);
                     } else {
                       final label = item['label']!;
