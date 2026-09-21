@@ -331,7 +331,6 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
         return;
       }
 
-      await _injectDynamicContent(videoItem);
       if (mounted) {
         perf.ok(token, bytes: 0, source: 'cache');
         _loadTimeout?.cancel();
@@ -347,6 +346,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
           }
         });
       }
+      unawaited(_injectDynamicContent(videoItem));
     } catch (e) {
       perf.err(token, e);
       debugPrint('SVGA error for ${widget.assetPath}: $e');

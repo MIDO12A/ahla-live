@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../config/app_colors.dart';
 import '../../../config/r.dart';
 import '../../../features/cp/cp_service.dart';
 import '../../../models/gift_model.dart' as gm;
@@ -777,6 +776,12 @@ class _GiftPanelState extends State<GiftPanel> {
               comboCount: widget.selectedCount,
             );
             ok = res != null;
+            if (res != null && res['wonCoins'] != null) {
+              final won = (res['wonCoins'] as num).toInt();
+              if (won > 0) {
+                userProvider.addCoinsLocally(won);
+              }
+            }
           } else {
             final cover = gift.defaultImage ?? gift.iconAsset;
             ok = await fb.sendGift(

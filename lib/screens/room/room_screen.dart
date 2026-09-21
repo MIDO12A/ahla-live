@@ -825,6 +825,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   StreamSubscription? _userBanSub;
   StreamSubscription? _broadcastSub;
   Map<String, dynamic>? _currentBroadcast;
+  final ValueNotifier<Map<String, dynamic>?> _broadcastNotifier = ValueNotifier<Map<String, dynamic>?>(null);
+  final ValueNotifier<Map<String, dynamic>?> _giftBannerNotifier = ValueNotifier<Map<String, dynamic>?>(null);
+  final ValueNotifier<int> _chatUpdateNotifier = ValueNotifier<int>(0);
   Map<String, dynamic>? _currentEnterMember;
   Timer? _seatsRefreshTimer;
   Timer? _bannerHideTimer;
@@ -986,38 +989,38 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final bId = latest['id']?.toString() ?? '${createdAt.millisecondsSinceEpoch}_${latest['sender_uid']}';
         if (!seenMsgIds.contains(bId)) {
           seenMsgIds.add(bId);
-          setState(() {
-            _currentBroadcast = latest;
+          _currentBroadcast = latest;
+          _broadcastNotifier.value = latest;
 
-            // ✅ عرض الهدية/الفوز مباشرة في شات وتعليقات الغرفة تزامناً مع البانر
-            final isLucky = latest['is_lucky'] == true || (latest['multiplier'] != null && (latest['multiplier'] as num) > 0);
-            _chatMessages.add(MessageModel(
-              msgId: bId,
-              roomId: widget.roomId,
-              senderUid: latest['sender_uid']?.toString() ?? '',
-              senderName: latest['sender_name']?.toString() ?? 'مستخدم',
-              senderPhotoUrl: latest['sender_photo_url']?.toString() ?? '',
-              text: latest['content']?.toString() ?? '',
-              type: isLucky ? 'lucky_gift' : 'gift',
-              timestamp: DateTime.now().millisecondsSinceEpoch,
-              imageUrl: latest['gift_icon']?.toString() ?? '',
-              giftPayload: {
-                'gift_name': latest['gift_name'] ?? '',
-                'gift_icon': latest['gift_icon'] ?? '',
-                'count': latest['count'] ?? 1,
-                'receiver_name': latest['receiver_name'] ?? '',
-                'results': {
-                  'totalWonCoins': latest['won_coins'] ?? latest['coins'] ?? 0,
-                  'maxMultiplier': latest['multiplier'] ?? 0,
-                },
-                'gift': {
-                  'giftName': latest['gift_name'] ?? '',
-                  'giftNameAr': latest['gift_name'] ?? '',
-                },
+          // ✅ عرض الهدية/الفوز مباشرة في شات وتعليقات الغرفة تزامناً مع البانر
+          final isLucky = latest['is_lucky'] == true || (latest['multiplier'] != null && (latest['multiplier'] as num) > 0);
+          _chatMessages.add(MessageModel(
+            msgId: bId,
+            roomId: widget.roomId,
+            senderUid: latest['sender_uid']?.toString() ?? '',
+            senderName: latest['sender_name']?.toString() ?? 'مستخدم',
+            senderPhotoUrl: latest['sender_photo_url']?.toString() ?? '',
+            text: latest['content']?.toString() ?? '',
+            type: isLucky ? 'lucky_gift' : 'gift',
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            imageUrl: latest['gift_icon']?.toString() ?? '',
+            giftPayload: {
+              'gift_name': latest['gift_name'] ?? '',
+              'gift_icon': latest['gift_icon'] ?? '',
+              'count': latest['count'] ?? 1,
+              'receiver_name': latest['receiver_name'] ?? '',
+              'results': {
+                'totalWonCoins': latest['won_coins'] ?? latest['coins'] ?? 0,
+                'maxMultiplier': latest['multiplier'] ?? 0,
               },
-            ));
-            _msgCount = _chatMessages.length;
-          });
+              'gift': {
+                'giftName': latest['gift_name'] ?? '',
+                'giftNameAr': latest['gift_name'] ?? '',
+              },
+            },
+          ));
+          _msgCount = _chatMessages.length;
+          _chatUpdateNotifier.value++;
           if (_chatScroll.hasClients) {
             _chatScroll.animateTo(
               _chatScroll.position.maxScrollExtent,
@@ -1034,12 +1037,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final clearedAt = _currentRoom?.chatClearedAt ?? 0;
         final filterTime = max(joinedMs - 5000, clearedAt);
         final currentSessionMsgs = msgs.where((m) => m.timestamp >= filterTime).toList();
-        setState(() {
-          _chatMessages
-            ..clear()
-            ..addAll(currentSessionMsgs);
-          _msgCount = _chatMessages.length;
-        });
+        _chatMessages
+          ..clear()
+          ..addAll(currentSessionMsgs);
+        _msgCount = _chatMessages.length;
+        _chatUpdateNotifier.value++;
 
         // إذا كانت هذه المرة الأولى عند دخول الغرفة، نعتبر كافة الرسائل السابقة شوهدت بالفعل
         // لمنع تشغيل مضاعفات الحظ أو مؤثرات الهدايا القديمة إطلاقاً
@@ -1126,10 +1128,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             }
           } else if (m.type == 'lucky_gift' && m.giftPayload != null) {
             try {
-              if (m.senderUid != _currentUserId) {
-                final data = LuckyGiftBroadcastData.fromJson(m.giftPayload!);
-                LuckyGiftService().enqueueLuckyGift(context, data);
-              }
+              final data = LuckyGiftBroadcastData.fromJson(m.giftPayload!);
+              LuckyGiftService().enqueueLuckyGift(context, data);
             } catch (_) {}
           } else if (m.type == 'lucky_bag' && m.luckyBagPayload != null) {
             try {
@@ -1742,6 +1742,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _entranceSub?.cancel();
     _userBanSub?.cancel();
     _broadcastSub?.cancel();
+    _broadcastNotifier.dispose();
+    _giftBannerNotifier.dispose();
+    _chatUpdateNotifier.dispose();
     super.dispose();
   }
 
@@ -1854,53 +1857,45 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     if (config != null && totalCost >= config.thresholdCoins) {
       final cfg = config;
-      setState(() {
-        _giftBannerAsset = cfg.svgaUrl;
-        _giftBannerSenderPhoto = data['senderPhotoUrl']?.toString();
-        _giftBannerReceiverPhoto = receiverPhoto;
-        _giftBannerGiftImage = data['defaultImage']?.toString();
-        _giftBannerCount = giftCount;
-        _giftBannerUserRKey = cfg.userRKey;
-        _giftBannerUserLKey = cfg.userLKey;
-        _giftBannerNumberKey = cfg.numberKey;
-        _giftBannerGiftKey = cfg.giftKey;
-        _showGiftBanner = true;
-      });
+      _showGiftBanner = true;
+      _giftBannerNotifier.value = {
+        'animationAsset': cfg.svgaUrl,
+        'senderPhotoUrl': data['senderPhotoUrl']?.toString(),
+        'receiverPhotoUrl': receiverPhoto,
+        'defaultImage': data['defaultImage']?.toString(),
+        'giftCount': giftCount,
+        'userRKey': cfg.userRKey,
+        'userLKey': cfg.userLKey,
+        'numberKey': cfg.numberKey,
+        'giftKey': cfg.giftKey,
+      };
       // إخفاء إجباري حتى لو لم يُستدع onFinished (حماية من شريطة عالقة)
       _bannerHideTimer?.cancel();
       _bannerHideTimer = Timer(const Duration(seconds: 8), () {
-        if (mounted && _showGiftBanner) {
-          setState(() {
-            _showGiftBanner = false;
-            _giftBannerAsset = null;
-          });
-        }
+        _showGiftBanner = false;
+        _giftBannerNotifier.value = null;
       });
       return;
     }
 
     // لا نظهر شريط البانر للهدايا العادية الصغيرة (يظهر فقط للهدايا الكبيرة 500+ عملة)
     if (totalCost >= 500) {
-      setState(() {
-        _giftBannerAsset = 'assets/svga/gift_banner_strip.svga';
-        _giftBannerSenderPhoto = data['senderPhotoUrl']?.toString();
-        _giftBannerReceiverPhoto = receiverPhoto;
-        _giftBannerGiftImage = data['defaultImage']?.toString();
-        _giftBannerCount = giftCount;
-        _giftBannerUserRKey = 'user_r';
-        _giftBannerUserLKey = 'user_l';
-        _giftBannerNumberKey = 'number';
-        _giftBannerGiftKey = 'gift';
-        _showGiftBanner = true;
-      });
+      _showGiftBanner = true;
+      _giftBannerNotifier.value = {
+        'animationAsset': 'assets/svga/gift_banner_strip.svga',
+        'senderPhotoUrl': data['senderPhotoUrl']?.toString(),
+        'receiverPhotoUrl': receiverPhoto,
+        'defaultImage': data['defaultImage']?.toString(),
+        'giftCount': giftCount,
+        'userRKey': 'user_r',
+        'userLKey': 'user_l',
+        'numberKey': 'number',
+        'giftKey': 'gift',
+      };
       _bannerHideTimer?.cancel();
       _bannerHideTimer = Timer(const Duration(seconds: 8), () {
-        if (mounted && _showGiftBanner) {
-          setState(() {
-            _showGiftBanner = false;
-            _giftBannerAsset = null;
-          });
-        }
+        _showGiftBanner = false;
+        _giftBannerNotifier.value = null;
       });
     }
   }
@@ -3194,27 +3189,28 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               ),
             ),
           // ── Gift banner strip (high-value gifts) ──
-          if (_showGiftBanner && _giftBannerAsset != null)
-            GiftBannerOverlay(
-              animationAsset: _giftBannerAsset,
-              senderPhotoUrl: _giftBannerSenderPhoto,
-              receiverPhotoUrl: _giftBannerReceiverPhoto,
-              giftImageUrl: _giftBannerGiftImage,
-              giftCount: _giftBannerCount,
-              userRKey: _giftBannerUserRKey,
-              userLKey: _giftBannerUserLKey,
-              numberKey: _giftBannerNumberKey,
-              giftKey: _giftBannerGiftKey,
-              onFinished: () => setState(() {
-                _bannerHideTimer?.cancel();
-                _showGiftBanner = false;
-                _giftBannerAsset = null;
-                _giftBannerSenderPhoto = null;
-                _giftBannerReceiverPhoto = null;
-                _giftBannerGiftImage = null;
-                _giftBannerCount = 1;
-              }),
-            ),
+          ValueListenableBuilder<Map<String, dynamic>?>(
+            valueListenable: _giftBannerNotifier,
+            builder: (context, bannerData, _) {
+              if (bannerData == null) return const SizedBox.shrink();
+              return GiftBannerOverlay(
+                animationAsset: bannerData['animationAsset']?.toString(),
+                senderPhotoUrl: bannerData['senderPhotoUrl']?.toString(),
+                receiverPhotoUrl: bannerData['receiverPhotoUrl']?.toString(),
+                giftImageUrl: bannerData['defaultImage']?.toString(),
+                giftCount: (bannerData['giftCount'] as num?)?.toInt() ?? 1,
+                userRKey: bannerData['userRKey']?.toString() ?? 'user_r',
+                userLKey: bannerData['userLKey']?.toString() ?? 'user_l',
+                numberKey: bannerData['numberKey']?.toString() ?? 'number',
+                giftKey: bannerData['giftKey']?.toString() ?? 'gift',
+                onFinished: () {
+                  _bannerHideTimer?.cancel();
+                  _showGiftBanner = false;
+                  _giftBannerNotifier.value = null;
+                },
+              );
+            },
+          ),
           // ── أنيميشن دخول الغرفة (car effect) ──
           if (_showEntranceAnim && _entranceAnimAsset != null)
             Positioned.fill(
@@ -3361,18 +3357,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             ),
 
           // ── Global Marquee Broadcast (view_room_all_banner.xml) ──
-          if (_currentBroadcast != null)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 46,
-              left: 0,
-              right: 0,
-              child: RoomMarqueeBroadcast(
-                broadcast: _currentBroadcast!,
-                onDismissed: () {
-                  if (mounted) setState(() => _currentBroadcast = null);
-                },
-              ),
-            ),
+          ValueListenableBuilder<Map<String, dynamic>?>(
+            valueListenable: _broadcastNotifier,
+            builder: (context, broadcast, _) {
+              if (broadcast == null) return const SizedBox.shrink();
+              return Positioned(
+                top: MediaQuery.of(context).padding.top + 46,
+                left: 0,
+                right: 0,
+                child: RoomMarqueeBroadcast(
+                  broadcast: broadcast,
+                  onDismissed: () {
+                    _currentBroadcast = null;
+                    _broadcastNotifier.value = null;
+                  },
+                ),
+              );
+            },
+          ),
 
           // ── Member Entrance Banner (layout_room_member_enter.xml) ──
           if (_currentEnterMember != null)
@@ -3485,26 +3487,56 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: _chatMessages.isEmpty
-                ? const SizedBox.shrink()
-                : ListView.builder(
-                    controller: _chatScroll,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    itemCount: _chatMessages.length,
-                    itemBuilder: (_, i) {
-                      final m = _chatMessages[i];
-                      final userProvider = Provider.of<UserProvider>(context, listen: false);
-                      final isMe = m.senderUid == userProvider.currentUser?.uid;
-                      return _buildChatMsg(m, isMe);
-                    },
-                  ),
+            child: ValueListenableBuilder<int>(
+              valueListenable: _chatUpdateNotifier,
+              builder: (_, __, ___) {
+                if (_chatMessages.isEmpty) return const SizedBox.shrink();
+                return ListView.builder(
+                  controller: _chatScroll,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  itemCount: _chatMessages.length,
+                  itemBuilder: (_, i) {
+                    final m = _chatMessages[i];
+                    final userProvider = Provider.of<UserProvider>(context, listen: false);
+                    final isMe = m.senderUid == userProvider.currentUser?.uid;
+                    return _buildChatMsg(m, isMe);
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildUserLevelMedal(String uid) {
+    final cached = _cachedUsers[uid];
+    final lvl = cached?.wealthLevel ?? 1;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
+        ),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'Lv.$lvl',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+
   Widget _buildChatMsg(MessageModel m, bool isMe) {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+
     if (m.type == 'gift') {
       final payload = m.giftPayload;
       final giftName = payload?['gift_name']?.toString() ?? '';
@@ -3537,28 +3569,34 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Sender name (tv_name 13sp white)
-                  Text(
-                    m.senderName.length > 15 ? m.senderName.substring(0, 15) : m.senderName,
-                    style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
+                  // Sender name + Level medal (tv_name 13sp white + user_level_medal)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        m.senderName.length > 15 ? m.senderName.substring(0, 15) : m.senderName,
+                        style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      _buildUserLevelMedal(m.senderUid),
+                    ],
                   ),
                   const SizedBox(height: 4),
-                  // cl_msg with room_chat_item_bg
+                  // cl_msg with room_chat_item_bg (corners 8dp, solid #33000000)
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0x33000000), // room_chat_item_bg (corners 8dp, solid #33000000)
+                      color: const Color(0x33000000),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // tv_send_gift_msg
+                        // tv_send_gift_msg (13sp white)
                         Text(
                           receiverName.isNotEmpty
                               ? 'أرسل إلى $receiverName $giftName'
                               : (m.text.isNotEmpty ? m.text : 'أرسل هدية $giftName'),
-                          style: const TextStyle(fontSize: 12, color: Colors.white),
+                          style: const TextStyle(fontSize: 13, color: Colors.white),
                         ),
                         const SizedBox(height: 4),
                         Row(
@@ -3570,8 +3608,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 borderRadius: BorderRadius.circular(6),
                                 child: Image(
                                   image: R.cachedImage(giftIcon),
-                                  width: 36,
-                                  height: 36,
+                                  width: 40,
+                                  height: 40,
                                   fit: BoxFit.contain,
                                   errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Color(0xFFFFEB3B), size: 32),
                                 ),
@@ -3583,7 +3621,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             Text(
                               'x$count',
                               style: const TextStyle(
-                                fontSize: 15,
+                                fontSize: 13,
                                 color: Color(0xFFFFEB3B),
                                 fontWeight: FontWeight.bold,
                               ),
@@ -3612,26 +3650,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final results = payload?['results'];
       final totalWon = (results?['totalWonCoins'] as num?)?.toInt() ?? (payload?['won_coins'] as num?)?.toInt() ?? 0;
       final maxMultiplier = (results?['maxMultiplier'] as num?)?.toInt() ?? (payload?['multiplier'] as num?)?.toInt() ?? 0;
+      final receiverName = payload?['receiver_name'] ?? payload?['receiver']?['nickname'] ?? '';
+      final count = payload?['count'] ?? 1;
 
-      if (totalWon <= 0 && maxMultiplier <= 0) {
-        return const SizedBox.shrink();
-      }
-
-      final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
       final senderDisplayName = m.senderName.length > 14 ? m.senderName.substring(0, 14) : m.senderName;
+      final hasWon = totalWon > 0 || maxMultiplier > 0;
 
       return Padding(
         padding: const EdgeInsets.only(top: 8, left: 8, right: 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Sender Avatar with gold border
+            // Sender Avatar (32×32 circle with gold border if won)
             GestureDetector(
               onTap: () => _openChatUserProfile(m.senderUid, m.senderName, m.senderPhotoUrl),
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+                  border: hasWon ? Border.all(color: const Color(0xFFFFD700), width: 1.5) : null,
                 ),
                 child: ClipOval(
                   child: m.senderPhotoUrl.isNotEmpty
@@ -3651,7 +3687,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Sender name + Winner tag
+                  // Sender name + Level medal + Winner tag
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -3659,59 +3695,61 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         senderDisplayName,
                         style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFF8008), Color(0xFFFFC837)],
+                      _buildUserLevelMedal(m.senderUid),
+                      if (hasWon) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFF8008), Color(0xFFFFC837)],
+                            ),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                          borderRadius: BorderRadius.circular(6),
+                          child: Text(
+                            isAr ? 'فوز حظ' : 'LUCKY WIN',
+                            style: const TextStyle(fontSize: 9, color: Colors.black, fontWeight: FontWeight.w900),
+                          ),
                         ),
-                        child: Text(
-                          isAr ? 'فوز حظ' : 'LUCKY WIN',
-                          style: const TextStyle(fontSize: 9, color: Colors.black, fontWeight: FontWeight.w900),
-                        ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 4),
-                  // cl_msg with golden gradient border and gift details
+                  // cl_msg (room_chat_item_bg)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFFFFD700).withValues(alpha: 0.18),
-                          const Color(0x33000000),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.45)),
+                      color: const Color(0x33000000), // room_chat_item_bg (corners 8dp, #33000000)
+                      borderRadius: BorderRadius.circular(8),
+                      border: hasWon ? Border.all(color: const Color(0x66FFD700), width: 1) : null,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // tv_msg_notice / tv_send_gift_msg
                         Text(
-                          isAr
-                              ? 'حالفه الحظ وحصل على مكافأة مضاعفة!'
-                              : 'Hit the jackpot with a lucky multiplier!',
-                          style: const TextStyle(fontSize: 12, color: Colors.white70),
+                          hasWon
+                              ? (isAr ? 'أرسل هدية الحظ وحصل على مكافأة مضاعفة!' : 'Hit the jackpot with a lucky multiplier!')
+                              : (receiverName.toString().isNotEmpty
+                                  ? 'أرسل هدية الحظ $giftName إلى $receiverName'
+                                  : 'أرسل هدية الحظ $giftName'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: hasWon ? const Color(0xFFFFEB3B) : Colors.white,
+                          ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 5),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Gift Icon (40×40)
+                            // iv_gift_icon (40×40)
                             if (giftIcon != null && giftIcon.isNotEmpty)
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(6),
                                 child: Image(
-                                  image: R.cachedImage(giftIcon!),
-                                  width: 38,
-                                  height: 38,
+                                  image: R.cachedImage(giftIcon),
+                                  width: 40,
+                                  height: 40,
                                   fit: BoxFit.contain,
                                   errorBuilder: (_, __, ___) => const Icon(Icons.stars_rounded, color: Color(0xFFFFD700), size: 32),
                                 ),
@@ -3740,7 +3778,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                           gradient: const LinearGradient(
                                             colors: [Color(0xFFFF416C), Color(0xFFFF4B2B)],
                                           ),
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(6),
                                         ),
                                         child: Text(
                                           '${maxMultiplier}X',
@@ -3754,8 +3792,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                     ],
                                   ],
                                 ),
-                                if (totalWon > 0) ...[
-                                  const SizedBox(height: 2),
+                                const SizedBox(height: 2),
+                                if (totalWon > 0)
                                   Row(
                                     children: [
                                       Image.asset(
@@ -3774,8 +3812,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                         ),
                                       ),
                                     ],
+                                  )
+                                else
+                                  Text(
+                                    'x$count',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFFFFEB3B),
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ],
                               ],
                             ),
                           ],
@@ -3877,14 +3923,21 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  m.senderName.length > 15
-                      ? m.senderName.substring(0, 15)
-                      : m.senderName,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isMe ? AppColors.goldLight : const Color(0xFF24D5C3),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      m.senderName.length > 15
+                          ? m.senderName.substring(0, 15)
+                          : m.senderName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isMe ? AppColors.goldLight : Colors.white,
+                      ),
+                    ),
+                    _buildUserLevelMedal(m.senderUid),
+                  ],
                 ),
                 const SizedBox(height: 9),
                 if (m.type == 'image' && m.imageUrl != null)

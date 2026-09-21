@@ -74,9 +74,10 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
     final giftIcon = widget.broadcast['gift_icon']?.toString();
     final multiplier = widget.broadcast['multiplier'];
 
-    return SlideTransition(
-      position: _slideAnim,
-      child: GestureDetector(
+    return RepaintBoundary(
+      child: SlideTransition(
+        position: _slideAnim,
+        child: GestureDetector(
         onTap: () {
           if (roomId.isNotEmpty) {
             navigateToRoom(
@@ -202,6 +203,7 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

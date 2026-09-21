@@ -178,6 +178,13 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void addCoinsLocally(int amount) {
+    if (_currentUser == null || amount <= 0) return;
+    final newCoins = _currentUser!.coins + amount;
+    _currentUser = _currentUser!.copyWith(coins: newCoins);
+    notifyListeners();
+  }
+
   Future<bool> purchaseItem(StoreItemModel item) async {
     if (_currentUser == null) return false;
     final success = await _supabaseService.purchaseItem(_currentUser!.uid, item);
