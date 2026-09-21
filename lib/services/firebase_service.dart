@@ -946,8 +946,16 @@ class FirebaseService {
           'sender_name': senderName,
           'sender_photo_url': senderPhotoUrl,
           'type': 'lucky_gift',
+          'image_url': giftIconUrl,
           'text': '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)',
           'gift_payload': {
+            'gift_icon': giftIconUrl,
+            'image_url': giftIconUrl,
+            'gift_name': giftNameAr,
+            'count': count,
+            'won_coins': totalWonCoins,
+            'multiplier': maxMultiplier,
+            'receiver_name': receiverName,
             'roomId': roomId,
             'sender': {
               'id': senderId,

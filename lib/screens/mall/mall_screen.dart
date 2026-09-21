@@ -22,6 +22,7 @@ class _MallScreenState extends State<MallScreen>
   final SupabaseService _firebaseService = SupabaseService();
   List<StoreItemModel> _allItems = [];
   StoreItemModel? _previewItem;
+  StoreItemModel? _selectedItem;
 
   static const _categories = ['car', 'bubble', 'entrance', 'frame', 'cover'];
   static const _categoryNames = ['السيارات', 'الفقاعات', 'المخرجات', 'الاطارات', 'غلاف المستخدم'];
@@ -60,6 +61,9 @@ class _MallScreenState extends State<MallScreen>
           stream: _firebaseService.storeItemsStream(),
           builder: (context, snapshot) {
             _allItems = snapshot.data ?? [];
+            if (_selectedItem == null && _allItems.isNotEmpty) {
+              _selectedItem = _allItems.first;
+            }
 
             final categoryItems = _categories.map((cat) =>
               _allItems.where((item) => !item.isHidden && item.category == cat).toList()
@@ -141,6 +145,14 @@ class _MallScreenState extends State<MallScreen>
                         ),
                       ),
                       Divider(height: 1, color: dc.textSecondary.withValues(alpha: 0.2)),
+                      // cl_preview matching mine_activity_mall.xml
+                      Container(
+                        height: 140,
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        child: Center(
+                          child: _buildClPreview(dc, _selectedItem, user),
+                        ),
+                      ),
                       Expanded(
                         child: TabBarView(
                           controller: _tabController,
@@ -150,42 +162,37 @@ class _MallScreenState extends State<MallScreen>
                         ),
                       ),
                       Container(
-                        color: dc.storeAccentImage.isNotEmpty ? null : dc.storeAccentColor.withValues(alpha: 0.2),
-                        decoration: dc.storeAccentImage.isNotEmpty
-                            ? BoxDecoration(image: DecorationImage(image: R.cachedImage(dc.storeAccentImage), fit: BoxFit.cover))
-                            : null,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: Row(
-                            children: [
+                        color: const Color(0xFF302218), // color_FF302218 from mine_activity_mall.xml
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            R.image(
+                              dc.storeLockImage.isNotEmpty
+                                  ? dc.storeLockImage
+                                  : 'assets/mipmap-xxhdpi/common_gold_ic_1.webp',
+                              width: 28,
+                              height: 28,
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              user?.coins.toString() ?? '0',
+                              style: TextStyle(
+                                fontSize: 17,
+                                color: dc.goldColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (_selectedItem != null)
+                              _buildBottomActionButton(userProvider, dc, _selectedItem!, user)
+                            else
                               R.image(
-                                dc.storeLockImage.isNotEmpty
-                                    ? dc.storeLockImage
-                                    : 'assets/mipmap-xxhdpi/common_gold_ic_1.webp',
-                                width: 28,
-                                height: 28,
+                                'assets/mipmap-xxhdpi/mine_mall_buy_ic.webp',
+                                width: 126,
+                                height: 40,
+                                fit: BoxFit.contain,
                               ),
-                              const SizedBox(width: 7),
-                              Text(
-                                user?.coins.toString() ?? '0',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  color: dc.goldColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const Spacer(),
-                              GestureDetector(
-                                onTap: () {},
-                                child: R.image(
-                                  'assets/mipmap-xxhdpi/mine_mall_buy_ic.webp',
-                                  width: 126,
-                                  height: 40,
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
                       ),
                     ],
@@ -454,11 +461,19 @@ class _MallScreenState extends State<MallScreen>
         itemCount: items.length,
         itemBuilder: (context, index) {
           final item = items[index];
+          final isSelected = _selectedItem?.itemId == item.itemId;
           final isOwned = userProvider.currentUser?.ownedItems.contains(item.itemId) ?? false;
           return GestureDetector(
-            onTap: () => _openPreview(item),
+            onTap: () {
+              setState(() => _selectedItem = item);
+            },
+            onDoubleTap: () => _openPreview(item),
             child: Container(
-              decoration: _cardDecoration(dc),
+              decoration: _cardDecoration(
+                dc,
+                borderColor: isSelected ? const Color(0xFFFFD700) : null,
+                borderWidth: isSelected ? 2.0 : 1.0,
+              ),
               child: Column(
                 children: [
                   Expanded(
@@ -518,6 +533,7 @@ class _MallScreenState extends State<MallScreen>
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(dc.getScreenTitle('purchase_success', 'تم الشراء بنجاح!'))),
                             );
+                            setState(() {});
                           }
                         } else {
                           if (context.mounted) {
@@ -563,6 +579,192 @@ class _MallScreenState extends State<MallScreen>
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildClPreview(DynamicConfigService dc, StoreItemModel? item, dynamic user) {
+    final photoUrl = user?.photoUrl?.isNotEmpty == true ? user.photoUrl : null;
+    if (item == null) {
+      return Container(
+        width: 120,
+        height: 120,
+        alignment: Alignment.center,
+        child: CircleAvatar(
+          radius: 46,
+          backgroundColor: Colors.white12,
+          backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
+          child: photoUrl == null ? const Icon(Icons.person, size: 46, color: Colors.white54) : null,
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 130,
+          height: 110,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // iv_avatar (96x96 circle)
+              CircleAvatar(
+                radius: 44,
+                backgroundColor: Colors.white12,
+                backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
+                child: photoUrl == null ? const Icon(Icons.person, size: 44, color: Colors.white54) : null,
+              ),
+              // Live frame / car / entrance / bubble overlay (cl_preview)
+              if (item.category == 'frame') ...[
+                if (item.animationUrl?.isNotEmpty == true)
+                  SvgaPlayer(
+                    assetPath: item.animationUrl!,
+                    width: 130,
+                    height: 130,
+                    fit: BoxFit.contain,
+                  )
+                else if (item.iconAsset.isNotEmpty)
+                  R.loadImage(item.iconAsset, width: 120, height: 120, fit: BoxFit.contain),
+              ] else if (item.category == 'bubble') ...[
+                Positioned(
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0x33000000),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0x66FFD700)),
+                    ),
+                    child: const Text('مرحباً!', style: TextStyle(color: Colors.white, fontSize: 11)),
+                  ),
+                ),
+              ] else ...[
+                if (item.animationUrl?.isNotEmpty == true)
+                  SvgaPlayer(
+                    assetPath: item.animationUrl!,
+                    width: 130,
+                    height: 110,
+                    fit: BoxFit.contain,
+                  )
+                else
+                  R.loadImage(item.iconAsset, width: 90, height: 90, fit: BoxFit.contain),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              item.name,
+              style: TextStyle(
+                color: dc.goldColor,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 8),
+            R.image('assets/mipmap-xxhdpi/common_gold_ic_1.webp', width: 14, height: 14),
+            const SizedBox(width: 4),
+            Text(
+              '${item.price}',
+              style: const TextStyle(color: Color(0xFFFFEB3B), fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomActionButton(UserProvider userProvider, DynamicConfigService dc, StoreItemModel item, dynamic user) {
+    final isOwned = userProvider.currentUser?.ownedItems.contains(item.itemId) ?? false;
+    final isEquipped = (item.category == 'frame' && user?.activeFrame == item.itemId) ||
+        (item.category == 'bubble' && user?.activeBubble == item.itemId) ||
+        (item.category == 'car' && user?.activeCar == item.itemId) ||
+        (item.category == 'entrance' && user?.activeEntrance == item.itemId);
+
+    if (isOwned) {
+      return GestureDetector(
+        onTap: () async {
+          if (isEquipped) {
+            await userProvider.unequipItem(item.category);
+          } else {
+            await userProvider.equipItem(item.itemId, item.category);
+          }
+          if (mounted) setState(() {});
+        },
+        child: Container(
+          width: 126,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isEquipped ? const Color(0x33FFFFFF) : const Color(0xFFD98B2B),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFFFD700), width: 1),
+          ),
+          child: Center(
+            child: Text(
+              isEquipped ? 'مُرتدى' : 'ارتداء',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        final success = await userProvider.purchaseItem(item);
+        if (mounted) {
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(dc.getScreenTitle('purchase_success', 'تم الشراء بنجاح!'))),
+            );
+            setState(() {});
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(dc.getScreenTitle('insufficient_coins', 'لا توجد عملات كافية!'))),
+            );
+          }
+        }
+      },
+      child: Container(
+        width: 126,
+        height: 40,
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/mipmap-xxhdpi/mine_mall_buy_ic.webp'),
+            fit: BoxFit.fill,
+          ),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${item.price} ',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                dc.getScreenTitle('buy', 'شراء'),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

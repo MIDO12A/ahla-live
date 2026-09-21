@@ -50,6 +50,7 @@ import 'widgets/room_rocket_widget.dart';
 import 'widgets/room_member_enter_banner.dart';
 import 'widgets/room_message_bottom_sheet.dart';
 import 'widgets/room_game_bottom_sheet.dart';
+import 'widgets/room_music_bottom_sheet.dart';
 import '../../features/lucky_gift/widgets/room_burst_settlement_dialog.dart';
 import 'widgets/svga_player.dart'; // ✅ لاستخدام SvgaPlayer.prefetch قبل عرض الأنيميشن
 import 'widgets/vap_player.dart'; // ✅ لاستخدام VapPlayer.prefetch قبل عرض الأنيميشن
@@ -227,21 +228,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // ── UI state ──────────────────────────────────────────────────
   bool _isMicOn = true;
   bool _showGift = false;
-  bool _showGiftAnim = false;
+  final ValueNotifier<Map<String, dynamic>?> _giftAnimNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   String? _giftAnimAsset;
   Timer? _giftAnimWatchdog;
 
   void _clearGiftAnim() {
     _giftAnimWatchdog?.cancel();
     _giftAnimWatchdog = null;
-    if (mounted && _showGiftAnim) {
-      setState(() {
-        _showGiftAnim = false;
-        _giftAnimAsset = null; // ✅ نُصفِّر تماماً لضمان إعادة بناء SvgaPlayer عند الكومبو
-        _giftTextReplacement = null;
-        _giftImageReplacement = null;
-        _giftDefaultImage = null;
-      });
+    if (_giftAnimNotifier.value != null) {
+      _giftAnimNotifier.value = null;
+      _giftAnimAsset = null; // ✅ نُصفِّر تماماً لضمان إعادة بناء SvgaPlayer عند الكومبو
+      _giftTextReplacement = null;
+      _giftImageReplacement = null;
+      _giftDefaultImage = null;
     }
   }
 
@@ -251,7 +250,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     // ✅ مثل التطبيق الأصلي تماماً:
     // إذا كانت نفس الهدية قيد العرض بالفعل (مثل نقرات الكومبو السريعة)،
     // نترك الأنيميشن يكمل تشغيله بسلاسة ونمدد فقط مؤقت الأمان دون وميض أو تجميد الشاشة
-    if (_giftAnimAsset == asset && _showGiftAnim) {
+    if (_giftAnimAsset == asset && _giftAnimNotifier.value != null) {
       _giftAnimWatchdog = Timer(const Duration(seconds: 12), () {
         _clearGiftAnim();
       });
@@ -261,13 +260,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _giftAnimWatchdog = Timer(const Duration(seconds: 12), () {
       _clearGiftAnim();
     });
-    setState(() {
-      _giftAnimAsset = asset;
-      _showGiftAnim = true;
-      _giftTextReplacement = textReplacement;
-      _giftImageReplacement = imageReplacement;
-      _giftDefaultImage = defaultImage;
-    });
+    _giftAnimAsset = asset;
+    _giftTextReplacement = textReplacement;
+    _giftImageReplacement = imageReplacement;
+    _giftDefaultImage = defaultImage;
+    _giftAnimNotifier.value = {
+      'asset': asset,
+      'textReplacement': textReplacement,
+      'imageReplacement': imageReplacement,
+      'defaultImage': defaultImage,
+    };
   }
 
   Map<String, String>? _buildTextReplacements({
@@ -1745,6 +1747,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _broadcastSub?.cancel();
     _broadcastNotifier.dispose();
     _giftBannerNotifier.dispose();
+    _giftAnimNotifier.dispose();
     _chatUpdateNotifier.dispose();
     super.dispose();
   }
@@ -2621,13 +2624,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _openMusic() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF211211),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => _MusicListSheet(),
+    RoomMusicBottomSheet.show(
+      context,
+      onOpenPlaylist: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MusicScreen()),
+        );
+      },
     );
   }
 
@@ -3141,18 +3145,28 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           if (_showExit) _buildExitDialog(),
           if (_showShare) _buildShare(),
           // ── أنيميشن gift.svga يملأ الشاشة عند الإرسال مع عزله لمنع إعادة رسم الغرفة ──
-          if (_showGiftAnim && _giftAnimAsset != null && _giftAnimAsset!.isNotEmpty)
-            Positioned.fill(
-              child: RepaintBoundary(
-                child: GiftSvgaOverlay(
-                  animationAsset: _giftAnimAsset,
-                  textReplacement: _giftTextReplacement,
-                  imageReplacement: _giftImageReplacement,
-                  defaultImageUrl: _giftDefaultImage,
-                  onFinished: _clearGiftAnim,
+          ValueListenableBuilder<Map<String, dynamic>?>(
+            valueListenable: _giftAnimNotifier,
+            builder: (context, animData, _) {
+              if (animData == null) return const SizedBox.shrink();
+              final asset = animData['asset']?.toString();
+              if (asset == null || asset.isEmpty) return const SizedBox.shrink();
+              return Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: true,
+                  child: RepaintBoundary(
+                    child: GiftSvgaOverlay(
+                      animationAsset: asset,
+                      textReplacement: animData['textReplacement'] as Map<String, String>?,
+                      imageReplacement: animData['imageReplacement'] as Map<String, String>?,
+                      defaultImageUrl: animData['defaultImage']?.toString(),
+                      onFinished: _clearGiftAnim,
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
+          ),
           // ── أنيميشن طيران الهدية إلى المقعد المحدد أو جميع المقاعد ──
           if (_showGiftFlight && _giftFlightIconUrl.isNotEmpty && _giftFlightTargets.isNotEmpty)
             Positioned.fill(
@@ -3167,7 +3181,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       _giftFlightIconUrl = '';
                       _giftFlightTargets = [];
                       // تشغيل الهدية الكبيرة فقط إن لم تكن تعمل بالفعل
-                      if (!_showGiftAnim && _giftAnimAsset != null && _giftAnimAsset!.isNotEmpty) {
+                      if (_giftAnimNotifier.value == null && _giftAnimAsset != null && _giftAnimAsset!.isNotEmpty) {
                         _triggerGiftAnim(
                           _giftAnimAsset!,
                           textReplacement: _giftTextReplacement,
@@ -3185,27 +3199,32 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               ),
             ),
           // ── Gift banner strip (high-value gifts) ──
-          ValueListenableBuilder<Map<String, dynamic>?>(
-            valueListenable: _giftBannerNotifier,
-            builder: (context, bannerData, _) {
-              if (bannerData == null) return const SizedBox.shrink();
-              return GiftBannerOverlay(
-                animationAsset: bannerData['animationAsset']?.toString(),
-                senderPhotoUrl: bannerData['senderPhotoUrl']?.toString(),
-                receiverPhotoUrl: bannerData['receiverPhotoUrl']?.toString(),
-                giftImageUrl: bannerData['defaultImage']?.toString(),
-                giftCount: (bannerData['giftCount'] as num?)?.toInt() ?? 1,
-                userRKey: bannerData['userRKey']?.toString() ?? 'user_r',
-                userLKey: bannerData['userLKey']?.toString() ?? 'user_l',
-                numberKey: bannerData['numberKey']?.toString() ?? 'number',
-                giftKey: bannerData['giftKey']?.toString() ?? 'gift',
-                onFinished: () {
-                  _bannerHideTimer?.cancel();
-                  _showGiftBanner = false;
-                  _giftBannerNotifier.value = null;
-                },
-              );
-            },
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ValueListenableBuilder<Map<String, dynamic>?>(
+              valueListenable: _giftBannerNotifier,
+              builder: (context, bannerData, _) {
+                if (bannerData == null) return const SizedBox.shrink();
+                return GiftBannerOverlay(
+                  animationAsset: bannerData['animationAsset']?.toString(),
+                  senderPhotoUrl: bannerData['senderPhotoUrl']?.toString(),
+                  receiverPhotoUrl: bannerData['receiverPhotoUrl']?.toString(),
+                  giftImageUrl: bannerData['defaultImage']?.toString(),
+                  giftCount: (bannerData['giftCount'] as num?)?.toInt() ?? 1,
+                  userRKey: bannerData['userRKey']?.toString() ?? 'user_r',
+                  userLKey: bannerData['userLKey']?.toString() ?? 'user_l',
+                  numberKey: bannerData['numberKey']?.toString() ?? 'number',
+                  giftKey: bannerData['giftKey']?.toString() ?? 'gift',
+                  onFinished: () {
+                    _bannerHideTimer?.cancel();
+                    _showGiftBanner = false;
+                    _giftBannerNotifier.value = null;
+                  },
+                );
+              },
+            ),
           ),
           // ── أنيميشن دخول الغرفة (car effect) ──
           if (_showEntranceAnim && _entranceAnimAsset != null)
@@ -3554,7 +3573,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final payload = m.giftPayload;
       final giftName = payload?['gift_name']?.toString() ?? '';
       final receiverName = payload?['receiver_name']?.toString() ?? '';
-      final giftIcon = payload?['gift_icon']?.toString() ?? m.imageUrl;
+      final giftIcon = payload?['gift_icon']?.toString() ??
+          payload?['image_url']?.toString() ??
+          payload?['gift']?['giftIconUrl']?.toString() ??
+          payload?['gift']?['giftCoverUrl']?.toString() ??
+          payload?['gift']?['iconAsset']?.toString() ??
+          payload?['gift']?['default_image']?.toString() ??
+          m.imageUrl;
       final count = payload?['count'] ?? 1;
 
       return Padding(
@@ -3619,12 +3644,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             if (giftIcon != null && giftIcon.isNotEmpty)
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(6),
-                                child: Image(
-                                  image: R.cachedImage(giftIcon),
+                                child: R.loadImage(
+                                  giftIcon,
                                   width: 40,
                                   height: 40,
                                   fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Color(0xFFFFEB3B), size: 32),
                                 ),
                               )
                             else
@@ -3657,8 +3681,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final gift = payload?['gift'];
       final giftName = gift?['giftNameAr'] ?? gift?['giftName'] ?? payload?['gift_name'] ?? 'هدية الحظ';
       final giftIcon = payload?['gift_icon']?.toString() ??
+          payload?['image_url']?.toString() ??
+          gift?['giftIconUrl']?.toString() ??
+          gift?['giftCoverUrl']?.toString() ??
+          gift?['iconAsset']?.toString() ??
           gift?['default_image']?.toString() ??
           gift?['gift_icon']?.toString() ??
+          payload?['image_url']?.toString() ??
           m.imageUrl;
       final results = payload?['results'];
       final totalWon = (results?['totalWonCoins'] as num?)?.toInt() ?? (payload?['won_coins'] as num?)?.toInt() ?? 0;
@@ -3759,12 +3788,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             if (giftIcon != null && giftIcon.isNotEmpty)
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(6),
-                                child: Image(
-                                  image: R.cachedImage(giftIcon),
+                                child: R.loadImage(
+                                  giftIcon,
                                   width: 40,
                                   height: 40,
                                   fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.stars_rounded, color: Color(0xFFFFD700), size: 32),
                                 ),
                               )
                             else
@@ -4003,27 +4031,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     required bool isMe,
     String? activeBubble,
   }) {
-    final bubbleColor = isMe ? AppColors.chatBubbleSelf : AppColors.chatBubbleOther;
-    final textColor = isMe ? AppColors.chatBubbleSelfText : AppColors.chatBubbleOtherText;
-    final borderRadius = isMe
-        ? const BorderRadius.only(
-            topLeft: Radius.circular(10.96),
-            topRight: Radius.circular(2.19),
-            bottomLeft: Radius.circular(10.96),
-            bottomRight: Radius.circular(10.96),
-          )
-        : const BorderRadius.only(
-            topLeft: Radius.circular(2.19),
-            topRight: Radius.circular(10.96),
-            bottomLeft: Radius.circular(10.96),
-            bottomRight: Radius.circular(10.96),
-          );
+    // In original Android app (adapter_chat_msg_text.xml & room_chat_item_bg.xml):
+    // Standard chat bubble is Color(0x33000000) with 8dp radius for all users,
+    // with 13sp white text (#FFFFFF).
+    const bubbleColor = Color(0x33000000);
+    const textColor = Colors.white;
+    final borderRadius = BorderRadius.circular(8);
 
     Widget bubbleContent = Padding(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       child: Text(
         text,
-        style: TextStyle(fontSize: 13, color: textColor),
+        style: const TextStyle(fontSize: 13, color: textColor, height: 1.3),
       ),
     );
 
@@ -5780,100 +5799,7 @@ class _EmojiTab extends StatelessWidget {
   }
 }
 
-// ── Music list sheet ─────────────────────────────────────────────
-class _MusicListSheet extends StatelessWidget {
-  static const _songs = [
-    {'title': 'Chill Vibes', 'artist': 'Lo-Fi Beats', 'duration': '3:24'},
-    {'title': 'Summer Wind', 'artist': 'DJ Wave', 'duration': '4:12'},
-    {'title': 'Night Drive', 'artist': 'Synthwave', 'duration': '5:08'},
-    {'title': 'Morning Coffee', 'artist': 'Acoustic', 'duration': '2:55'},
-    {'title': 'Deep Ocean', 'artist': 'Ambient', 'duration': '6:30'},
-  ];
 
-  const _MusicListSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.55,
-      child: Column(
-        children: [
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(top: 8, bottom: 4),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0x33FFFFFF),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                const Text(
-                  'Music',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.close, color: Colors.white70),
-                ),
-              ],
-            ),
-          ),
-          Container(height: 0.5, color: const Color(0x1AFFFFFF)),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: _songs.length,
-              separatorBuilder: (_, __) =>
-                  Container(height: 0.5, color: const Color(0x1AFFFFFF)),
-              itemBuilder: (_, i) {
-                final s = _songs[i];
-                return ListTile(
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.music_note,
-                      color: AppColors.goldLight,
-                      size: 22,
-                    ),
-                  ),
-                  title: Text(
-                    s['title']!,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                  ),
-                  subtitle: Text(
-                    s['artist']!,
-                    style: const TextStyle(color: Colors.white54, fontSize: 11),
-                  ),
-                  trailing: Text(
-                    s['duration']!,
-                    style: const TextStyle(color: Colors.white54, fontSize: 11),
-                  ),
-                  onTap: () => Navigator.pop(context),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 /// حالة زر الكومبو — Immutable لتجنب إعادة رسم شاشة الغرفة كلها
 class _ComboState {

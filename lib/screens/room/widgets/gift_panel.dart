@@ -1327,43 +1327,38 @@ class GiftBannerOverlay extends StatelessWidget {
     final bannerHeight = 110.0;
     final topPadding = MediaQuery.of(context).padding.top;
 
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: RepaintBoundary(
-        child: GestureDetector(
-          onTap: onFinished,
-          child: SizedBox(
-            height: topPadding + bannerHeight,
-            child: Stack(
-              children: [
-                if (isVideoType(aa))
-                  VapPlayer(
-                    url: aa,
-                    width: screenSize.width,
-                    height: topPadding + bannerHeight,
-                    loops: false,
-                    onFinished: onFinished,
-                    fit: BoxFit.contain,
-                  )
-                else
-                  SvgaPlayer(
-                    assetPath: aa,
-                    width: screenSize.width,
-                    height: topPadding + bannerHeight,
-                    loops: false,
-                    fit: BoxFit.contain,
-                    onFinished: onFinished,
-                    imageReplacement: imageReplacement.isNotEmpty
-                        ? imageReplacement
-                        : null,
-                    textReplacement: textReplacement.isNotEmpty
-                        ? textReplacement
-                        : null,
-                  ),
-              ],
-            ),
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: onFinished,
+        child: SizedBox(
+          height: topPadding + bannerHeight,
+          child: Stack(
+            children: [
+              if (isVideoType(aa))
+                VapPlayer(
+                  url: aa,
+                  width: screenSize.width,
+                  height: topPadding + bannerHeight,
+                  loops: false,
+                  onFinished: onFinished,
+                  fit: BoxFit.contain,
+                )
+              else
+                SvgaPlayer(
+                  assetPath: aa,
+                  width: screenSize.width,
+                  height: topPadding + bannerHeight,
+                  loops: false,
+                  fit: BoxFit.contain,
+                  onFinished: onFinished,
+                  imageReplacement: imageReplacement.isNotEmpty
+                      ? imageReplacement
+                      : null,
+                  textReplacement: textReplacement.isNotEmpty
+                      ? textReplacement
+                      : null,
+                ),
+            ],
           ),
         ),
       ),

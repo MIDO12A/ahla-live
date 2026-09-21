@@ -462,7 +462,9 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
               _setSvgImage(dynamicItem, frame.image, entry.key);
             } else {
               try {
-                final dlBytes = await MediaCacheService().downloadToBytes(entry.value);
+                final dlBytes = await MediaCacheService()
+                    .downloadToBytes(entry.value)
+                    .timeout(const Duration(milliseconds: 1200));
                 final codec = await ui.instantiateImageCodec(dlBytes, targetWidth: 120, targetHeight: 120);
                 final frame = await codec.getNextFrame();
                 _setSvgImage(dynamicItem, frame.image, entry.key);
