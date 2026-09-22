@@ -1165,8 +1165,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             }
           } else if (m.type == 'lucky_gift' && m.giftPayload != null) {
             try {
-              final data = LuckyGiftBroadcastData.fromJson(m.giftPayload!);
-              LuckyGiftService().enqueueLuckyGift(context, data);
+              if (m.senderUid != _currentUserId) {
+                final data = LuckyGiftBroadcastData.fromJson(m.giftPayload!);
+                LuckyGiftService().enqueueLuckyGift(context, data);
+              }
             } catch (_) {}
           } else if (m.type == 'lucky_bag' && m.luckyBagPayload != null) {
             try {
@@ -2074,10 +2076,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     // Optimistic UI: place the user on the target seat immediately so the
     // move feels instant; the seats stream reconciles with the server state.
+    final optimisticFrame = _resolveFrameAsset(currentUser?.activeFrame);
     setState(() {
       _seats[idx] = SeatModel(
         index: idx,
         state: SeatState.occupied,
+        hasFrame: optimisticFrame != null && optimisticFrame.isNotEmpty,
+        frameAsset: optimisticFrame,
+        carAsset: currentUser?.activeCar,
         user: UserModel(
           name: name,
           avatar: currentUser?.photoUrl ?? '',

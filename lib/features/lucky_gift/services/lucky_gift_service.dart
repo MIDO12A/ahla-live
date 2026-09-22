@@ -23,6 +23,10 @@ class LuckyGiftService {
 
   /// إضافة حدث هدية حظ إلى طابور العرض
   void enqueueLuckyGift(BuildContext context, LuckyGiftBroadcastData data) {
+    // إذا تراكم الطابور بسبب النقر السريع، نتخلص من الأحداث الصغيرة القديمة لمنع التأخر
+    if (_broadcastQueue.length > 2) {
+      _broadcastQueue.removeWhere((item) => item.maxMultiplier < 50);
+    }
     _broadcastQueue.add(data);
     if (!_isPlayingAnim) {
       _processNextInQueue(context);
@@ -40,10 +44,9 @@ class LuckyGiftService {
     _isPlayingAnim = true;
     final nextData = _broadcastQueue.removeAt(0);
 
-    // مهلة أمان: لو فشل/علق العارض الحالي لأي سبب، نتجاوزه بعد 15 ثانية
-    // حتى لا تعلق الشاشة بطبقة الحظ (كان سبب تجمد الشاشة عند هدية الحظ).
+    // مهلة أمان قصوى لمنع التعليق
     _queueWatchdog?.cancel();
-    _queueWatchdog = Timer(const Duration(seconds: 15), () {
+    _queueWatchdog = Timer(const Duration(seconds: 10), () {
       if (_isPlayingAnim && !_broadcastQueue.isEmpty) {
         _processNextInQueue(context);
       } else if (_isPlayingAnim) {
@@ -51,13 +54,9 @@ class LuckyGiftService {
       }
     });
 
-    // 1. تشغيل أنيميشن الرقم SVGA في منتصف الشاشة إذا كان الرقم مخصصاً
-    if (LuckyComboSvgaOverlay.hasSvgaForCount(nextData.comboCount)) {
-      showComboSvgaOverlay(context, nextData.comboCount);
-    }
-
-    // 2. تشغيل أنيميشن مكسب الحظ SVGA لجميع المتواجدين في نفس الغرفة عند تحقيق مضاعف
-    if (LuckyRoomWinSvgaOverlay.hasWinSvga(nextData.maxMultiplier)) {
+    // 1. إذا كان هناك فوز بمضاعف (5X فما فوق)، نشغل أنيميشن مكسب الحظ في الروم فقط لمنع تشغيل اثنين SVGA معاً
+    final bool hasWin = LuckyRoomWinSvgaOverlay.hasWinSvga(nextData.maxMultiplier);
+    if (hasWin) {
       showRoomWinSvgaOverlay(
         context,
         multiplier: nextData.maxMultiplier,
@@ -66,9 +65,12 @@ class LuckyGiftService {
         senderName: nextData.senderName,
         senderAvatar: nextData.senderAvatar,
       );
+    } else if (LuckyComboSvgaOverlay.hasSvgaForCount(nextData.comboCount)) {
+      // نشغل أنيميشن رقم الكومبو فقط إذا لم يكن هناك فوز مضاعف تجنباً لتشنج الـ GPU
+      showComboSvgaOverlay(context, nextData.comboCount);
     }
 
-    // 3. إذا كان فوزاً كبيراً بمضاعف 100X فما فوق، نعرض بانر الفوز العام الأسطوري لكافة الغرف
+    // 2. إذا كان فوزاً كبيراً بمضاعف 100X فما فوق، نعرض بانر الفوز العام الأسطوري لكافة الغرف
     if (nextData.isBigWin && nextData.maxMultiplier >= 100) {
       showBigWinBanner(
         context,
@@ -80,12 +82,12 @@ class LuckyGiftService {
       );
     }
 
-    // 4. مهلة عرض الأنيميشن قبل تمرير الطابور للحدث التالي لمنع تراكم وتشنج الشاشة
+    // 3. مهلة عرض الأنيميشن قبل تمرير الطابور للحدث التالي
     int waitMs = 0;
-    if (LuckyRoomWinSvgaOverlay.hasWinSvga(nextData.maxMultiplier)) {
-      waitMs = 3200;
+    if (hasWin) {
+      waitMs = 2800;
     } else if (LuckyComboSvgaOverlay.hasSvgaForCount(nextData.comboCount)) {
-      waitMs = 2000;
+      waitMs = 1500;
     }
 
     if (waitMs > 0) {

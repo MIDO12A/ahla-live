@@ -138,10 +138,15 @@ class UserProvider extends ChangeNotifier {
           .where('user_id', isEqualTo: uid)
           .get();
 
-      final now = DateTime.now().toIso8601String();
-      final expired = qs.docs
-          .where((d) => (d['expires_at']?.toString() ?? '').compareTo(now) <= 0)
-          .toList();
+      final now = DateTime.now();
+      final expired = qs.docs.where((d) {
+        final data = d.data();
+        final expStr = data['expires_at']?.toString()?.trim();
+        if (expStr == null || expStr.isEmpty || expStr == 'null') return false; // دائم لا ينتهي
+        final expDate = DateTime.tryParse(expStr);
+        if (expDate == null) return false;
+        return expDate.isBefore(now);
+      }).toList();
 
       if (expired.isNotEmpty) {
         bool frameExpired = false;

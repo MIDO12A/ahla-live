@@ -26,10 +26,12 @@ class SvgaFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!visible) return const SizedBox.shrink();
+    if (!visible || svgaPath.isEmpty) return const SizedBox.shrink();
 
     Widget player;
-    if (isVideoType(svgaPath)) {
+    if (isImageType(svgaPath)) {
+      player = R.loadImage(svgaPath, width: size, height: size, fit: fit);
+    } else if (isVideoType(svgaPath)) {
       player = VapPlayer(url: svgaPath, width: size, height: size, loops: true, fit: fit);
     } else {
       player = RepaintBoundary(
