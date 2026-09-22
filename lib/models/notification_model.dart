@@ -5,8 +5,10 @@ class NotificationModel {
   final String actorUid;
   final String title;
   final String body;
-  final Map<String, dynamic>? data;
+  final bool isRead;
   final DateTime sentAt;
+
+  DateTime get createdAt => sentAt;
 
   NotificationModel({
     required this.id,
@@ -16,6 +18,7 @@ class NotificationModel {
     this.title = '',
     this.body = '',
     this.data,
+    this.isRead = false,
     DateTime? sentAt,
   }) : sentAt = sentAt ?? DateTime.now();
 
@@ -28,6 +31,7 @@ class NotificationModel {
       title: map['title']?.toString() ?? '',
       body: map['body']?.toString() ?? map['message']?.toString() ?? '',
       data: map['data'] is Map ? Map<String, dynamic>.from(map['data'] as Map) : null,
+      isRead: map['is_read'] as bool? ?? map['isRead'] as bool? ?? false,
       sentAt: map['created_at'] != null
           ? DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now()
           : (map['sent_at'] != null
