@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -113,16 +112,11 @@ class SvgaPlayer extends StatefulWidget {
     this.defaultImageUrl,
   });
 
-  // ── طبقة ذاكرة محدودة (LRU) للبايتات — بديلة للـ Map غير المحدودة سابقاً
-  //    التي كانت تحتفظ بكل SVGAs حتى موت التطبيق (تسريب ذاكرة).
+  // ── طبقة ذاكرة محدودة (LRU) للبايتات — تحتفظ بالبايتات الخام فقط لتفادي تسريب الذاكرة
+  //    بدون تخزين كائنات MovieEntity التي تحتوي على مراجع للرسم ويؤدي تشاركها لتوقف الأنيميشن
   static final LinkedHashMap<String, Uint8List> _bytesCache = LinkedHashMap();
   static int _bytesTotal = 0;
   static const int _maxBytesTotal = 32 * 1024 * 1024; // 32MB with cap
-
-  // ── ذاكرة Decoded (MovieEntity) WHY: تجنّب إعادة فك بروتوكول SVGA
-  //    لنفس الملف بلا Dynamic Content — 8 إدخالات (4 عادي + 4 template).
-  static final LinkedHashMap<String, MovieEntity> _decodedCache = LinkedHashMap();
-  static const int _maxDecoded = 8;
 
   static bool _isNetwork(String url) =>
       url.startsWith('http://') || url.startsWith('https://');
@@ -136,10 +130,10 @@ class SvgaPlayer extends StatefulWidget {
       final cached = await MediaCacheService().getCachedBytes(url);
       if (cached != null) return url;
       final bytes = await MediaCacheService().downloadToBytesBackground(url);
-    SvgaPlayer._writeBytes(url, bytes);
+      SvgaPlayer._writeBytes(url, bytes);
       return url;
     } catch (e) {
-      print('SVGA prefetch error: $e');
+      debugPrint('SVGA prefetch error: $e');
       return null;
     }
   }
@@ -162,21 +156,6 @@ class SvgaPlayer extends StatefulWidget {
     }
   }
 
-  static MovieEntity? _readDecoded(String url) {
-    final movie = _decodedCache.remove(url);
-    if (movie == null) return null;
-    _decodedCache[url] = movie; // تصبح الأحدث (LRU)
-    return movie;
-  }
-
-  static void _writeDecoded(String url, MovieEntity movie) {
-    if (_decodedCache.containsKey(url)) return;
-    _decodedCache[url] = movie;
-    while (_decodedCache.length > _maxDecoded) {
-      _decodedCache.remove(_decodedCache.keys.first);
-    }
-  }
-
   /// يفرّغ طبقة الذاكرة لـ SVGA (يُستدعى عند الخروج من الغرفة).
   static void trimMemoryCache({int keepBytes = 8 * 1024 * 1024}) {
     while (_bytesTotal > keepBytes && _bytesCache.isNotEmpty) {
@@ -184,13 +163,11 @@ class SvgaPlayer extends StatefulWidget {
       final removed = _bytesCache.remove(first);
       if (removed != null) _bytesTotal -= removed.length;
     }
-    _decodedCache.clear();
   }
 
   static void evictMemory(String url) {
     final removed = _bytesCache.remove(url);
     if (removed != null) _bytesTotal -= removed.length;
-    _decodedCache.remove(url);
   }
 
   @override
@@ -225,9 +202,6 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
     if (bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70) return true;
     return false;
   }
-
-  bool get _usesDynamicReplacement =>
-      widget.textReplacement != null || widget.imageReplacement != null;
 
   @override
   void initState() {
@@ -340,6 +314,9 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
         _loadTimeout?.cancel();
         setState(() {
           isLoading = false;
+          try {
+            animationController?.reset();
+          } catch (_) {}
           animationController?.videoItem = videoItem;
           if (widget.loops) {
             animationController?.repeat();
@@ -520,13 +497,6 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
   ///   3) قرص MediaCacheService.
   ///   4) شبكة عبر Dio مشترك ثم فك في نفس الوقت.
   Future<MovieEntity?> _loadFromUrl(String url) async {
-    if (!_usesDynamicReplacement) {
-      final decoded = SvgaPlayer._readDecoded(url);
-      if (decoded != null) {
-        return decoded;
-      }
-    }
-
     var bytes = SvgaPlayer._readBytes(url);
     if (bytes == null) {
       bytes = await MediaCacheService().getCachedBytes(url);
@@ -549,18 +519,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
 
     final t = PerformanceMonitor.instance.begin('svga_decode', url);
     try {
-      final cacheKey = '${url}_template';
-      final cachedTemplate = SvgaPlayer._readDecoded(cacheKey);
-      MovieEntity movie;
-      if (!_usesDynamicReplacement && cachedTemplate != null) {
-        movie = cachedTemplate;
-      } else {
-        movie = await SVGAParser.shared.decodeFromBuffer(bytes);
-        if (!_usesDynamicReplacement) {
-          SvgaPlayer._writeDecoded(cacheKey, movie);
-          SvgaPlayer._writeDecoded(url, movie);
-        }
-      }
+      final movie = await SVGAParser.shared.decodeFromBuffer(bytes);
       PerformanceMonitor.instance.ok(t, bytes: bytes.length, source: 'cache');
       return movie;
     } catch (e) {

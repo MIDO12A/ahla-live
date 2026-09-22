@@ -7,27 +7,40 @@ import '../../core/cache/encrypted_image_provider.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// شريط عنوان بوابة وكيل الشحن مع رصيد محفظة الوكالة متطابق 100% مع تطبيق الأصل.
+import '../../services/dynamic_config_service.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// شريط عنوان بوابة وكيل الشحن مع رصيد محفظة الوكالة متطابق 100% مع تطبيق الأصل.
 class AgentRechargeHeader extends StatelessWidget {
   const AgentRechargeHeader({
     super.key,
     required this.agencyGold,
     required this.onBack,
     this.agentPublicId,
+    this.onResetPin,
   });
 
   final int          agencyGold;
   final VoidCallback onBack;
   final String?      agentPublicId;
+  final VoidCallback? onResetPin;
 
   @override
   Widget build(BuildContext context) {
+    final dc = DynamicConfigService();
+    final headerBg = dc.agentRechargeHeaderBgImage.isNotEmpty
+        ? dc.agentRechargeHeaderBgImage
+        : 'assets/images/agency/mine_wallet_header_bg.webp';
+
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF16151A),
-        image: DecorationImage(
-          image: AssetImage('assets/images/agency/mine_wallet_header_bg.webp'),
-          fit: BoxFit.cover,
-        ),
+      decoration: BoxDecoration(
+        color: dc.agentRechargeHeaderColor,
+        image: headerBg.isNotEmpty
+            ? (headerBg.startsWith('http')
+                ? DecorationImage(image: NetworkImage(headerBg), fit: BoxFit.cover)
+                : DecorationImage(image: AssetImage(headerBg), fit: BoxFit.cover))
+            : null,
       ),
       child: SafeArea(
         bottom: false,
@@ -150,6 +163,27 @@ class AgentRechargeHeader extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onResetPin != null) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onResetPin,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF25252B).withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFFFD770).withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.lock_reset_rounded,
+                      color: Color(0xFFFFD770),
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

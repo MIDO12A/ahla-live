@@ -339,28 +339,53 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
   @override
   Widget build(BuildContext context) {
     final cfg = context.watch<DynamicConfigService>();
+    final bgImg = cfg.hostAgencyBgImage;
+
+    final scrollView = CustomScrollView(
+      slivers: [
+        _buildHeader(cfg),
+        SliverToBoxAdapter(child: _buildRechargeAgentBanner()),
+        if (cfg.hostAgencyBannerImage.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: cfg.hostAgencyBannerImage.startsWith('http')
+                    ? Image.network(cfg.hostAgencyBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover)
+                    : Image.asset(cfg.hostAgencyBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover),
+              ),
+            ),
+          ),
+        SliverToBoxAdapter(child: _buildUnionRankHeader(cfg)),
+        if (_showForm) ...[
+          SliverToBoxAdapter(child: const SizedBox(height: 16)),
+          SliverToBoxAdapter(child: _buildCreateForm(cfg)),
+        ],
+        SliverToBoxAdapter(child: const SizedBox(height: 12)),
+        SliverToBoxAdapter(child: _buildRankTitleBanner()),
+        const SliverToBoxAdapter(child: SizedBox(height: 10)),
+        _buildRankAgenciesList(cfg),
+        const SliverToBoxAdapter(child: SizedBox(height: 100)),
+      ],
+    );
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: cfg.hostAgencyHeaderColor,
         body: FadeTransition(
           opacity: _anim,
-          child: CustomScrollView(
-            slivers: [
-              _buildHeader(cfg),
-              SliverToBoxAdapter(child: _buildRechargeAgentBanner()),
-              SliverToBoxAdapter(child: _buildUnionRankHeader(cfg)),
-              if (_showForm) ...[
-                SliverToBoxAdapter(child: const SizedBox(height: 16)),
-                SliverToBoxAdapter(child: _buildCreateForm(cfg)),
-              ],
-              SliverToBoxAdapter(child: const SizedBox(height: 12)),
-              SliverToBoxAdapter(child: _buildRankTitleBanner()),
-              const SliverToBoxAdapter(child: SizedBox(height: 10)),
-              _buildRankAgenciesList(cfg),
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
-            ],
-          ),
+          child: bgImg.isNotEmpty
+              ? Container(
+                  decoration: BoxDecoration(
+                    image: bgImg.startsWith('http')
+                        ? DecorationImage(image: NetworkImage(bgImg), fit: BoxFit.cover)
+                        : DecorationImage(image: AssetImage(bgImg), fit: BoxFit.cover),
+                  ),
+                  child: scrollView,
+                )
+              : scrollView,
         ),
       ),
     );
@@ -515,19 +540,23 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
         children: [
           // Header background image
           Positioned.fill(
-            child: Image.asset(
-              'assets/mipmap-xxhdpi/unions_rank_header_bg.webp',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF2E1A47), Color(0xFF1A1A1A)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+            child: cfg.hostAgencyHeaderBgImage.isNotEmpty
+                ? (cfg.hostAgencyHeaderBgImage.startsWith('http')
+                    ? Image.network(cfg.hostAgencyHeaderBgImage, fit: BoxFit.cover)
+                    : Image.asset(cfg.hostAgencyHeaderBgImage, fit: BoxFit.cover))
+                : Image.asset(
+                    'assets/mipmap-xxhdpi/unions_rank_header_bg.webp',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF2E1A47), Color(0xFF1A1A1A)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
           ),
           // 4 function buttons
           Positioned(

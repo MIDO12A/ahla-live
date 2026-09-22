@@ -86,10 +86,14 @@ class _SplashScreenState extends State<SplashScreen> {
       debugPrint('Update flow error: $e');
     }
 
+    // Phase 1: عرض لوجو التطبيق واسمه باللون الغامق أولاً لمدة 1800ms
+    await Future.delayed(const Duration(milliseconds: 1800));
+
     final config = DynamicConfigService();
     final hasCustomSplash = config.splashEnabled &&
         (config.splashSvgaUrl.isNotEmpty || config.splashImageUrl.isNotEmpty || config.splashUrl.isNotEmpty);
 
+    // Phase 2: بعد ذلك فتح شاشة السبلاش المخصصة المحددة من لوحة التحكم إذا كانت مفعلة
     if (hasCustomSplash) {
       if (mounted) {
         setState(() {
@@ -113,7 +117,6 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 1500));
     if (mounted) {
       widget.onNavigate();
     }
@@ -284,23 +287,12 @@ class _SplashScreenState extends State<SplashScreen> {
       );
     }
 
-    // Dynamic splash render
-    final splashImgUrl = config.splashUrl;
+    // Phase 1: عرض لوجو التطبيق واسمه باللون الأسود/الغامق على خلفية نظيفة
     final logoImgUrl = config.logoUrl;
 
     return Scaffold(
-      backgroundColor: config.primaryBg,
-      body: Stack(
-        children: [
-          // Dynamic Splash Background
-          if (splashImgUrl.isNotEmpty)
-            Positioned.fill(
-              child: Image(
-                image: R.cachedImage(splashImgUrl),
-                fit: BoxFit.cover,
-              ),
-            ),
-          Center(
+      backgroundColor: Colors.white,
+      body: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -330,8 +322,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ],
             ),
           ),
-        ],
-      ),
     );
   }
 }

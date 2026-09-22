@@ -356,17 +356,291 @@ class _AgentPinVerifyDialogState extends State<_AgentPinVerifyDialog> {
                       color: Colors.red,
                       fontWeight: FontWeight.w700)),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             if (_busy)
               const CircularProgressIndicator(color: Color(0xFFFFB800))
-            else
+            else ...[
+              TextButton.icon(
+                onPressed: () async {
+                  final ok = await AgentResetPinDialog.show(context);
+                  if (ok == true && context.mounted) {
+                    Navigator.of(context).pop(true);
+                  }
+                },
+                icon: const Icon(Icons.lock_reset_rounded, size: 18, color: Color(0xFFFFB800)),
+                label: Text(
+                  'إعادة تعيين رمز PIN',
+                  style: GoogleFonts.tajawal(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFFFB800),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
                 child: Text('إلغاء',
                     style: GoogleFonts.tajawal(
                         fontSize: 14, color: Colors.white54)),
               ),
+            ],
           ]),
+        ),
+      );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  Agent Reset PIN Dialog — نافذة إعادة تعيين رمز PIN
+// ══════════════════════════════════════════════════════════════════════
+class AgentResetPinDialog extends StatefulWidget {
+  const AgentResetPinDialog({super.key, this.onSuccess});
+  final VoidCallback? onSuccess;
+
+  static Future<bool?> show(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => const AgentResetPinDialog(),
+    );
+  }
+
+  @override
+  State<AgentResetPinDialog> createState() => _AgentResetPinDialogState();
+}
+
+class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
+  final List<TextEditingController> _newPinCtrls =
+      List.generate(4, (_) => TextEditingController());
+  final List<TextEditingController> _confirmPinCtrls =
+      List.generate(4, (_) => TextEditingController());
+  final List<FocusNode> _newPinNodes = List.generate(4, (_) => FocusNode());
+  final List<FocusNode> _confirmPinNodes = List.generate(4, (_) => FocusNode());
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _newPinNodes[0].requestFocus());
+  }
+
+  @override
+  void dispose() {
+    for (final c in _newPinCtrls) {
+      c.dispose();
+    }
+    for (final c in _confirmPinCtrls) {
+      c.dispose();
+    }
+    for (final n in _newPinNodes) {
+      n.dispose();
+    }
+    for (final n in _confirmPinNodes) {
+      n.dispose();
+    }
+    super.dispose();
+  }
+
+  String get _newPin => _newPinCtrls.map((c) => c.text).join();
+  String get _confirmPin => _confirmPinCtrls.map((c) => c.text).join();
+
+  void _onDigit(int idx, String val, bool isConfirm) {
+    setState(() => _error = null);
+    final nodes = isConfirm ? _confirmPinNodes : _newPinNodes;
+    if (val.isNotEmpty && idx < 3) {
+      nodes[idx + 1].requestFocus();
+    } else if (val.isNotEmpty && idx == 3 && !isConfirm) {
+      _confirmPinNodes[0].requestFocus();
+    }
+  }
+
+  Future<void> _submit() async {
+    final pin = _newPin;
+    final confirm = _confirmPin;
+    if (pin.length != 4) {
+      setState(() => _error = 'يرجى إدخال رمز PIN المكون من 4 أرقام');
+      return;
+    }
+    if (confirm != pin) {
+      setState(() => _error = 'رمز التأكيد غير متطابق مع الرمز الجديد');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    try {
+      final res = await Supabase.instance.client
+          .rpc('agent_set_pin', params: {'p_pin': pin});
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      if (uid != null) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set(
+          {'agent_pin': pin},
+          SetOptions(merge: true),
+        );
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'تم تعيين رمز PIN الجديد بنجاح ✅',
+            style: GoogleFonts.tajawal(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFF2E7D32),
+        ),
+      );
+      widget.onSuccess?.call();
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      debugPrint('[reset_pin] $e');
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = 'حدث خطأ أثناء حفظ الرمز: $e';
+        });
+      }
+    }
+  }
+
+  Widget _buildPinRow(List<TextEditingController> ctrls, List<FocusNode> nodes, bool isConfirm) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(
+        4,
+        (i) => Container(
+          width: 48,
+          height: 54,
+          margin: const EdgeInsets.symmetric(horizontal: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: nodes[i].hasFocus
+                  ? const Color(0xFFFFB800)
+                  : Colors.white24,
+              width: 1.5,
+            ),
+          ),
+          child: TextField(
+            controller: ctrls[i],
+            focusNode: nodes[i],
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            maxLength: 1,
+            obscureText: true,
+            obscuringCharacter: '●',
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: GoogleFonts.tajawal(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+            ),
+            decoration: const InputDecoration(counterText: '', border: InputBorder.none),
+            onChanged: (v) => _onDigit(i, v, isConfirm),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: const Color(0xFF1a0a2e),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🔑', style: TextStyle(fontSize: 36)),
+                const SizedBox(height: 10),
+                Text(
+                  'إعادة تعيين رمز PIN',
+                  style: GoogleFonts.tajawal(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'أدخل رمز PIN الجديد المكون من 4 أرقام',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.tajawal(fontSize: 12, color: Colors.white54),
+                ),
+                const SizedBox(height: 20),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'رمز PIN الجديد:',
+                    style: GoogleFonts.tajawal(fontSize: 12, color: const Color(0xFFFFD770), fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildPinRow(_newPinCtrls, _newPinNodes, false),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'تأكيد رمز PIN الجديد:',
+                    style: GoogleFonts.tajawal(fontSize: 12, color: const Color(0xFFFFD770), fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildPinRow(_confirmPinCtrls, _confirmPinNodes, true),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.tajawal(
+                      fontSize: 12,
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 24),
+                if (_busy)
+                  const CircularProgressIndicator(color: Color(0xFFFFB800))
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: Text(
+                            'إلغاء',
+                            style: GoogleFonts.tajawal(fontSize: 14, color: Colors.white54),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _submit,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFB800),
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          child: Text(
+                            'حفظ الرمز',
+                            style: GoogleFonts.tajawal(fontSize: 14, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
         ),
       );
 }
@@ -1384,6 +1658,24 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
               textAlign: TextAlign.center,
               style: GoogleFonts.tajawal(
                   fontSize: 13, color: Colors.black38)),
+          const SizedBox(height: 28),
+          OutlinedButton.icon(
+            onPressed: () => AgentResetPinDialog.show(context),
+            icon: const Icon(Icons.lock_reset_rounded, size: 20, color: Color(0xFFB78103)),
+            label: Text(
+              'إعادة تعيين رمز PIN الخاص بك',
+              style: GoogleFonts.tajawal(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFFB78103),
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFFFFD770), width: 1.5),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+          ),
         ]),
       );
 }

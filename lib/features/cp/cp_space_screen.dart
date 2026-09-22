@@ -41,65 +41,93 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
     final cfg = DynamicConfigService();
     final couple = _data['couple'] as Map<String, dynamic>?;
     final hasCp = _data['has_cp'] == true;
+    final bgImg = cfg.cpSpaceBgImage;
+    final title = cfg.cpSpaceTitle;
+
+    Widget body = _loading
+        ? const Center(child: CircularProgressIndicator())
+        : !hasCp
+            ? _buildNoCpState(cfg)
+            : NestedScrollView(
+                headerSliverBuilder: (context, innerBoxScrolled) {
+                  return [
+                    SliverAppBar(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      leading: IconButton(
+                        icon: Image.asset('assets/cp/ic_cp_ranking_back.png', width: 26, height: 26,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.arrow_back, color: Colors.white)),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      title: Text(title,
+                          style: TextStyle(color: cfg.cpSpaceTextColor, fontSize: 16)),
+                      centerTitle: true,
+                      actions: [
+                        IconButton(
+                          icon: Image.asset('assets/cp/ic_cp_ranking_entrance.png', width: 26, height: 26,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.emoji_events, color: Colors.amber)),
+                          tooltip: 'ترتيب CP',
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CPDetailFullScreen())),
+                        ),
+                      ],
+                    ),
+                  ];
+                },
+                body: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      if (cfg.cpSpaceBannerImage.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: cfg.cpSpaceBannerImage.startsWith('http')
+                                ? Image.network(cfg.cpSpaceBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover)
+                                : Image.asset(cfg.cpSpaceBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover),
+                          ),
+                        ),
+                      _buildTopSection(cfg, couple),
+                      const SizedBox(height: 10),
+                      _buildProgressBar(cfg, couple),
+                      const SizedBox(height: 16),
+                      _buildBorderSection(cfg),
+                      const SizedBox(height: 12),
+                      _buildTasksSection(cfg),
+                    ],
+                  ),
+                ),
+              );
 
     return Scaffold(
       backgroundColor: const Color(0xFF2e0d15),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : !hasCp
-              ? _buildNoCpState()
-              : NestedScrollView(
-                  headerSliverBuilder: (context, innerBoxScrolled) {
-                    return [
-                      SliverAppBar(
-                        backgroundColor: Colors.transparent,
-                        elevation: 0,
-                        leading: IconButton(
-                          icon: Image.asset('assets/cp/ic_cp_ranking_back.png', width: 26, height: 26,
-                              errorBuilder: (_, __, ___) => const Icon(Icons.arrow_back, color: Colors.white)),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        title: const Text('مساحة العلاقة',
-                            style: TextStyle(color: Colors.white, fontSize: 16)),
-                        centerTitle: true,
-                        actions: [
-                          IconButton(
-                            icon: Image.asset('assets/cp/ic_cp_ranking_entrance.png', width: 26, height: 26,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.emoji_events, color: Colors.amber)),
-                            tooltip: 'ترتيب CP',
-                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CPDetailFullScreen())),
-                          ),
-                        ],
-                      ),
-                    ];
-                  },
-                  body: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        _buildTopSection(cfg, couple),
-                        const SizedBox(height: 10),
-                        _buildProgressBar(cfg, couple),
-                        const SizedBox(height: 16),
-                        _buildBorderSection(cfg),
-                        const SizedBox(height: 12),
-                        _buildTasksSection(cfg),
-                      ],
-                    ),
-                  ),
-                ),
+      body: bgImg.isNotEmpty
+          ? Container(
+              decoration: BoxDecoration(
+                image: bgImg.startsWith('http')
+                    ? DecorationImage(image: NetworkImage(bgImg), fit: BoxFit.cover)
+                    : DecorationImage(image: AssetImage(bgImg), fit: BoxFit.cover),
+              ),
+              child: body,
+            )
+          : body,
     );
   }
 
-  Widget _buildNoCpState() {
+  Widget _buildNoCpState(DynamicConfigService cfg) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final bgImg = cfg.cpSpaceBgImage;
     return Stack(
       children: [
         Positioned.fill(
-          child: Image.asset(
-            'assets/cp/ic_cp_main_bg_top.webp',
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF2E0D15)),
-          ),
+          child: bgImg.isNotEmpty
+              ? (bgImg.startsWith('http')
+                  ? Image.network(bgImg, fit: BoxFit.cover)
+                  : Image.asset(bgImg, fit: BoxFit.cover))
+              : Image.asset(
+                  'assets/cp/ic_cp_main_bg_top.webp',
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(color: const Color(0xFF2E0D15)),
+                ),
         ),
         SafeArea(
           child: Column(
@@ -114,8 +142,8 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                   ),
                   const Spacer(),
                   Text(
-                    isAr ? 'مساحة الـ CP' : 'CP Space',
-                    style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                    cfg.cpSpaceTitle.isNotEmpty ? cfg.cpSpaceTitle : (isAr ? 'مساحة الـ CP' : 'CP Space'),
+                    style: TextStyle(color: cfg.cpSpaceTextColor, fontSize: 17, fontWeight: FontWeight.bold),
                   ),
                   const Spacer(),
                   IconButton(
@@ -266,11 +294,15 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
 
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/cp/ic_cp_main_bg_top.webp'),
-          fit: BoxFit.cover,
-        ),
+      decoration: BoxDecoration(
+        image: cfg.cpSpaceBgImage.isNotEmpty
+            ? (cfg.cpSpaceBgImage.startsWith('http')
+                ? DecorationImage(image: NetworkImage(cfg.cpSpaceBgImage), fit: BoxFit.cover)
+                : DecorationImage(image: AssetImage(cfg.cpSpaceBgImage), fit: BoxFit.cover))
+            : const DecorationImage(
+                image: AssetImage('assets/cp/ic_cp_main_bg_top.webp'),
+                fit: BoxFit.cover,
+              ),
       ),
       child: Stack(
         alignment: Alignment.topCenter,

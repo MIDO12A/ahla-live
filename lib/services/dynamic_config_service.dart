@@ -383,6 +383,50 @@ class DynamicConfigService extends ChangeNotifier {
 
   String get agencyHostNecklaceName => _screenStr('agency', 'hostNecklaceName', _rawConfig['agency']?['hostNecklaceName']?.toString() ?? 'قلادة المضيف');
 
+  // ── Agent Recharge Screen Customization (من لوحة التحكم) ──
+  String get agentRechargeBgImage => _screenStr('agentRecharge', 'backgroundImage', '');
+  String get agentRechargeHeaderBgImage => _screenStr('agentRecharge', 'headerBgImage', '');
+  Color get agentRechargeHeaderColor => _screenColor('agentRecharge', 'headerColor', const Color(0xFF16151A));
+  Color get agentRechargeTextColor => _screenColor('agentRecharge', 'textColor', Colors.white);
+  Color get agentRechargeCardColor => _screenColor('agentRecharge', 'cardColor', Colors.white);
+  Color get agentRechargeAccentColor => _screenColor('agentRecharge', 'accentColor', const Color(0xFFFFD700));
+  String get agentRechargeBannerImage => _screenStr('agentRecharge', 'bannerImage', '');
+
+  // ── Host Agency & Hosts Screens Customization (من لوحة التحكم) ──
+  String get hostAgencyBgImage => _screenStr('hostAgency', 'backgroundImage', '');
+  String get hostAgencyHeaderBgImage => _screenStr('hostAgency', 'headerBgImage', '');
+  Color get hostAgencyHeaderColor => _screenColor('hostAgency', 'headerColor', const Color(0xFF16151A));
+  Color get hostAgencyTextColor => _screenColor('hostAgency', 'textColor', Colors.white);
+  Color get hostAgencyCardColor => _screenColor('hostAgency', 'cardColor', Colors.white);
+  String get hostAgencyBannerImage => _screenStr('hostAgency', 'bannerImage', '');
+
+  String get hostsBgImage => _screenStr('hosts', 'backgroundImage', hostAgencyBgImage);
+  Color get hostsHeaderColor => _screenColor('hosts', 'headerColor', hostAgencyHeaderColor);
+  Color get hostsTextColor => _screenColor('hosts', 'textColor', hostAgencyTextColor);
+
+  // ── CP Space Screen Customization (من لوحة التحكم) ──
+  String get cpSpaceBgImage => _screenStr('cp', 'backgroundImage', _screenStr('cpSpace', 'backgroundImage', ''));
+  String get cpSpaceBannerImage => _screenStr('cp', 'bannerImage', _screenStr('cpSpace', 'bannerImage', ''));
+  String get cpSpaceTitle => _screenStr('cp', 'title', 'علاقة CP');
+  Color get cpSpaceTextColor => _screenColor('cp', 'textColor', Colors.white);
+  Color get cpSpaceCardColor => _screenColor('cp', 'cardColor', const Color(0xFF1E1D24));
+
+  // ── Profile Screen Icons Customization (من لوحة التحكم) ──
+  String get profileCpIcon => _screenStr('profile', 'cpIcon',
+      _assetsOverride['assets/mipmap-xxhdpi/mine_cp_ic.webp'] ??
+      _assetsOverride['mine_cp_ic'] ??
+      'assets/mipmap-xxhdpi/mine_cp_ic.webp');
+
+  String get profileRechargeAgentIcon => _screenStr('profile', 'rechargeAgentIcon',
+      _assetsOverride['assets/images/profile/ic_coinseller_entrance.png'] ??
+      _assetsOverride['ic_coinseller_entrance'] ??
+      'assets/images/profile/ic_coinseller_entrance.png');
+
+  String get profileHostAgencyIcon => _screenStr('profile', 'hostAgencyIcon',
+      _assetsOverride['assets/mipmap-xxhdpi/mine_union_ic.webp'] ??
+      _assetsOverride['mine_union_ic'] ??
+      'assets/mipmap-xxhdpi/mine_union_ic.webp');
+
   // Getters
   String get appName => _appName;
   String get logoUrl => _logoUrl;

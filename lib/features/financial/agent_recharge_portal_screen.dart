@@ -13,6 +13,7 @@ import 'agent_recharge/tabs/agent_history_tab.dart';
 import 'agent_recharge/tabs/agent_diamond_tab.dart';
 import 'agent_recharge/tabs/agent_usd_tab.dart';
 import 'agent_recharge_widgets.dart';
+import '../../services/dynamic_config_service.dart';
 
 // ══════════════════════════════════════════════════════════════════════
 //  AgentRechargePortalScreen — Orchestrator
@@ -152,35 +153,48 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
       return AgentPinSetupScreen(onDone: _bootstrap);
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF16151A),
-      body: Column(children: [
-        AgentRechargeHeader(
-          agencyGold: dash.agencyGold,
-          agentPublicId: dash.agentPublicId,
-          onBack: () => Navigator.of(context).pop(),
-        ),
-        Container(
-          color: const Color(0xFF1E1D24),
-          child: TabBar(
-            controller: _tabs,
-            indicatorColor: const Color(0xFFFFD700),
-            indicatorWeight: 3,
-            labelStyle: GoogleFonts.tajawal(
-                fontSize: 13, fontWeight: FontWeight.w800),
-            unselectedLabelStyle: GoogleFonts.tajawal(
-                fontSize: 13, fontWeight: FontWeight.w600),
-            labelColor: const Color(0xFFFFD700),
-            unselectedLabelColor: Colors.white54,
-            tabs: const [
-              Tab(text: '📊 لوحة التحكم'),
-              Tab(text: '💸 شحن'),
-              Tab(text: '📋 السجل'),
-              Tab(text: '💎 ألماسي'),
-              Tab(text: '💵 الدولار'),
-            ],
+    final dc = DynamicConfigService();
+    final bgImg = dc.agentRechargeBgImage;
+    final accentColor = dc.agentRechargeAccentColor;
+
+    Widget content = Column(children: [
+      AgentRechargeHeader(
+        agencyGold: dash.agencyGold,
+        agentPublicId: dash.agentPublicId,
+        onBack: () => Navigator.of(context).pop(),
+        onResetPin: () => AgentResetPinDialog.show(context),
+      ),
+      if (dc.agentRechargeBannerImage.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: dc.agentRechargeBannerImage.startsWith('http')
+                ? Image.network(dc.agentRechargeBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover)
+                : Image.asset(dc.agentRechargeBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover),
           ),
         ),
+      Container(
+        color: const Color(0xFF1E1D24),
+        child: TabBar(
+          controller: _tabs,
+          indicatorColor: accentColor,
+          indicatorWeight: 3,
+          labelStyle: GoogleFonts.tajawal(
+              fontSize: 13, fontWeight: FontWeight.w800),
+          unselectedLabelStyle: GoogleFonts.tajawal(
+              fontSize: 13, fontWeight: FontWeight.w600),
+          labelColor: accentColor,
+          unselectedLabelColor: Colors.white54,
+          tabs: const [
+            Tab(text: '📊 لوحة التحكم'),
+            Tab(text: '💸 شحن'),
+            Tab(text: '📋 السجل'),
+            Tab(text: '💎 ألماسي'),
+            Tab(text: '💵 الدولار'),
+          ],
+        ),
+      ),
         Expanded(
           child: TabBarView(
             controller: _tabs,
@@ -211,6 +225,20 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
           ),
         ),
       ]),
+    );
+
+    return Scaffold(
+      backgroundColor: dc.agentRechargeHeaderColor,
+      body: bgImg.isNotEmpty
+          ? Container(
+              decoration: BoxDecoration(
+                image: bgImg.startsWith('http')
+                    ? DecorationImage(image: NetworkImage(bgImg), fit: BoxFit.cover)
+                    : DecorationImage(image: AssetImage(bgImg), fit: BoxFit.cover),
+              ),
+              child: content,
+            )
+          : content,
     );
   }
 

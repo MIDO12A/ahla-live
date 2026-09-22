@@ -23,6 +23,8 @@ import '../vip/vip_center_screen.dart';
 import '../../features/cp/cp_space_screen.dart';
 import '../../features/host_agency/host_agency_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
+import '../../services/dynamic_config_service.dart';
+import '../../services/level_service.dart';
 
 /// شاشة "أنا" (الملف الشخصي) المطابقة تماماً لملف fragment_mine.xml
 /// وكود MineFragment.java من المشروع الأصلي (F:\Medal\New folder\nu):
@@ -330,95 +332,110 @@ class ProfileScreen extends StatelessWidget {
     final wealthLevel = user?.wealthLevel ?? 1;
     final rechargeLevel = user?.rechargeLevel ?? 1;
     final vipLevel = _getUserVipTier(user);
+    final wealthConfig = LevelService().getLevelConfig('wealth', wealthLevel);
+    final rechargeConfig = LevelService().getLevelConfig('recharge', rechargeLevel);
 
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const BadgesScreen()),
+          MaterialPageRoute(builder: (_) => const LevelScreen()),
         );
       },
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // شارة الثروة (50x18dp)
-          Container(
-            width: 50,
-            height: 18,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFB038), Color(0xFFFF7A00)],
-              ),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.star, size: 10, color: Colors.white),
-                const SizedBox(width: 2),
-                Text(
-                  'Lv.$wealthLevel',
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-              ],
-            ),
+          // شارة الثروة
+          _buildLevelBadge(
+            level: wealthLevel,
+            type: 'wealth',
+            config: wealthConfig,
+            defaultColors: [const Color(0xFFFFB038), const Color(0xFFFF7A00)],
+            icon: Icons.star,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
 
-          // شارة الشحن / الجاذبية (50x18dp)
-          Container(
-            width: 50,
-            height: 18,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF5C9E), Color(0xFFD61877)],
-              ),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.favorite, size: 10, color: Colors.white),
-                const SizedBox(width: 2),
-                Text(
-                  'Lv.$rechargeLevel',
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-              ],
-            ),
+          // شارة الشحن / الجاذبية
+          _buildLevelBadge(
+            level: rechargeLevel,
+            type: 'recharge',
+            config: rechargeConfig,
+            defaultColors: [const Color(0xFFFF5C9E), const Color(0xFFD61877)],
+            icon: Icons.favorite,
           ),
 
-          // وسام VIP المصور الأصلي
+          // وسام VIP المصور الأصلي بحجم مكافئ للمستوى
           if (vipLevel > 0) ...[
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
             Image.asset(
               'assets/images/vip_medal_${vipLevel.clamp(1, 5)}.png',
-              height: 20,
+              height: 24,
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFFFFD700), Color(0xFFB8860B)],
                   ),
-                  borderRadius: BorderRadius.circular(9),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   'VIP $vipLevel',
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
               ),
             ),
           ],
 
-          // قلادة VIP أو القلادة النشطة للمستخدم (SVGA)
+          // قلادة VIP بحجم مكافئ ومحترم
           if (_hasVipNecklace(user, vipLevel)) ...[
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
             _buildVipNecklaceBadge(user, vipLevel),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLevelBadge({
+    required int level,
+    required String type,
+    LevelConfig? config,
+    required List<Color> defaultColors,
+    required IconData icon,
+  }) {
+    final badgeAsset = config?.badgeUrl ?? config?.imageUrl;
+    if (badgeAsset != null && badgeAsset.isNotEmpty) {
+      return R.loadImage(
+        badgeAsset,
+        height: 24,
+        fit: BoxFit.contain,
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+      height: 24,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: defaultColors),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: defaultColors.first.withValues(alpha: 0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.white),
+          const SizedBox(width: 3),
+          Text(
+            'Lv.$level',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white),
+          ),
         ],
       ),
     );
@@ -440,11 +457,11 @@ class ProfileScreen extends StatelessWidget {
     if (necklace.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
-      width: 24,
-      height: 24,
+      width: 32,
+      height: 32,
       child: SvgaFrame(
         svgaPath: necklace,
-        size: 24,
+        size: 32,
         fit: BoxFit.contain,
       ),
     );
@@ -779,7 +796,7 @@ class ProfileScreen extends StatelessWidget {
           children: [
             // 1. الوكالة (cl_union)
             _buildFunctionItem(
-              icon: 'assets/mipmap-xxhdpi/mine_union_ic.webp',
+              icon: DynamicConfigService().profileHostAgencyIcon,
               title: 'الوكالة',
               onTap: () {
                 Navigator.push(
@@ -828,7 +845,7 @@ class ProfileScreen extends StatelessWidget {
 
             // 5. علاقة CP
             _buildFunctionItem(
-              icon: 'assets/mipmap-xxhdpi/mine_cp_ic.webp',
+              icon: DynamicConfigService().profileCpIcon,
               title: 'علاقة CP',
               onTap: () {
                 Navigator.push(
@@ -841,7 +858,7 @@ class ProfileScreen extends StatelessWidget {
             // 6. بوابة شحن الوكلاء والرواتب (خاص بالوكلاء المعتمدين)
             if (isAgent)
               _buildFunctionItem(
-                icon: 'assets/images/profile/ic_coinseller_entrance.png',
+                icon: DynamicConfigService().profileRechargeAgentIcon,
                 title: 'بوابة شحن الوكلاء والرواتب',
                 onTap: () {
                   Navigator.push(

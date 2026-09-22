@@ -2854,6 +2854,21 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             child: LuckyBagFloatingWidget(roomId: widget.roomId),
           ),
 
+          // ── صاروخ الغرفة الكريستالي ومستوى الطاقة (Room Rocket) ─────────
+          Positioned(
+            bottom: navH + 63 + 17 + 56,
+            left: 10,
+            child: RoomRocketWidget(
+              energy: _currentRoom?.totalGifts ?? 0,
+              target: 10000,
+              onTap: () => RoomRocketWidget.showRocketInfoSheet(
+                context,
+                _currentRoom?.totalGifts ?? 0,
+                10000,
+              ),
+            ),
+          ),
+
           // ── Game button (room_game_ic) ──────────────────────
           Positioned(
             bottom: navH + 63 + 17,
@@ -2902,9 +2917,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             ? _seats[_selectedSeatIdx!].user!.name
                             : null,
                         onSend: () {
-                          setState(() {
-                            _showGift = false;
-                          });
+                          // إبقاء البانل مفتوحاً للاستمرار في الإرسال والكومبو كما في التطبيق الأصلي
                         },
                         onSendGift: (asset) {
                           _giftAnimAsset = asset;
@@ -4090,12 +4103,46 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (activeBubble.startsWith('http://') || activeBubble.startsWith('https://')) {
         bubbleUrl = activeBubble;
       } else {
-        final storeItem = SupabaseService().getStoreItemSync(activeBubble);
-        bubbleUrl = storeItem?.svgaAsset ?? storeItem?.iconAsset;
+        final storeItem = SupabaseService().getStoreItemSync(activeBubble) ??
+            FirebaseService().getStoreItemSync(activeBubble);
+        bubbleUrl = storeItem?.svgaAsset ?? storeItem?.videoAsset ?? storeItem?.iconAsset;
+        if (bubbleUrl == null || bubbleUrl.isEmpty) {
+          bubbleUrl = activeBubble;
+        }
       }
     }
 
     if (bubbleUrl != null && bubbleUrl.isNotEmpty) {
+      Widget bubbleBg;
+      if (detectAssetType(bubbleUrl) == AssetType.svga) {
+        bubbleBg = SvgaPlayer(
+          assetPath: bubbleUrl,
+          fit: BoxFit.fill,
+        );
+      } else if (bubbleUrl.startsWith('assets/')) {
+        bubbleBg = Image.asset(
+          bubbleUrl,
+          fit: BoxFit.fill,
+          errorBuilder: (_, __, ___) => Container(
+            decoration: BoxDecoration(
+              color: bubbleColor,
+              borderRadius: borderRadius,
+            ),
+          ),
+        );
+      } else {
+        bubbleBg = NinePatchImage(
+          imageUrl: bubbleUrl,
+          fit: BoxFit.fill,
+          errorWidget: (_, url) => Container(
+            decoration: BoxDecoration(
+              color: bubbleColor,
+              borderRadius: borderRadius,
+            ),
+          ),
+        );
+      }
+
       return Container(
         constraints: const BoxConstraints(maxWidth: 240),
         clipBehavior: Clip.antiAlias,
@@ -4104,18 +4151,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         ),
         child: Stack(
           children: [
-            Positioned.fill(
-              child: NinePatchImage(
-                imageUrl: bubbleUrl,
-                fit: BoxFit.fill,
-                errorWidget: (_, url) => Container(
-                  decoration: BoxDecoration(
-                    color: bubbleColor,
-                    borderRadius: borderRadius,
-                  ),
-                ),
-              ),
-            ),
+            Positioned.fill(child: bubbleBg),
             bubbleContent,
           ],
         ),

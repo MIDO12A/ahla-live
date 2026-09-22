@@ -9,6 +9,7 @@ import '../data/anchor_agent_model.dart';
 import 'agent_transfer_screen.dart';
 import 'agency_exit_screen.dart';
 import 'agency_item_detail_screen.dart';
+import '../../../../services/dynamic_config_service.dart';
 
 /// شاشة وكيل المضيفين وإدارة الوكالة (AnchorAgentActivity)
 class AnchorAgentScreen extends StatefulWidget {
@@ -131,44 +132,58 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   Widget build(BuildContext context) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
     final info = _agentInfo;
+    final dc = DynamicConfigService();
+    final bgImg = dc.hostsBgImage;
+    final headerColor = dc.hostsHeaderColor;
+
+    final scrollWidget = RefreshIndicator(
+      color: const Color(0xFFFFD700),
+      onRefresh: _loadAgencyData,
+      child: CustomScrollView(
+        slivers: [
+          // ── CollapsingToolbar / App Bar matching union_activity_my_agency.xml ──
+          SliverToBoxAdapter(
+            child: _buildCollapsingHeader(info, isAr),
+          ),
+
+          // ── Tab Bar with union_tab_bg ──
+          SliverToBoxAdapter(
+            child: _buildTabBar(isAr),
+          ),
+
+          // ── Tab Content ──
+          if (_currentTab == 0)
+            _buildMembersList(isAr)
+          else if (_currentTab == 1)
+            _buildIncomeTab(info, isAr)
+          else
+            _buildSubAgentsTab(isAr),
+
+          _buildExitAgencyCard(isAr),
+
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 60),
+          ),
+        ],
+      ),
+    );
 
     return Directionality(
       textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: headerColor,
         body: _loading
             ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)))
-            : RefreshIndicator(
-                color: const Color(0xFFFFD700),
-                onRefresh: _loadAgencyData,
-                child: CustomScrollView(
-                  slivers: [
-                    // ── CollapsingToolbar / App Bar matching union_activity_my_agency.xml ──
-                    SliverToBoxAdapter(
-                      child: _buildCollapsingHeader(info, isAr),
+            : (bgImg.isNotEmpty
+                ? Container(
+                    decoration: BoxDecoration(
+                      image: bgImg.startsWith('http')
+                          ? DecorationImage(image: NetworkImage(bgImg), fit: BoxFit.cover)
+                          : DecorationImage(image: AssetImage(bgImg), fit: BoxFit.cover),
                     ),
-
-                    // ── Tab Bar with union_tab_bg ──
-                    SliverToBoxAdapter(
-                      child: _buildTabBar(isAr),
-                    ),
-
-                    // ── Tab Content ──
-                    if (_currentTab == 0)
-                      _buildMembersList(isAr)
-                    else if (_currentTab == 1)
-                      _buildIncomeTab(info, isAr)
-                    else
-                      _buildSubAgentsTab(isAr),
-
-                    _buildExitAgencyCard(isAr),
-
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: 60),
-                    ),
-                  ],
-                ),
-              ),
+                    child: scrollWidget,
+                  )
+                : scrollWidget),
       ),
     );
   }
@@ -246,6 +261,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
   /// Collapsing Header matching union_activity_my_agency.xml
   Widget _buildCollapsingHeader(AgentInfoModel? info, bool isAr) {
+    final dc = DynamicConfigService();
     final agencyName = info?.agencyName.isNotEmpty == true ? info!.agencyName : (isAr ? 'وكالتي الرسمية' : 'My Agency');
     final agencyId = info?.userId.toString() ?? '10001';
     final memberCount = _anchors.length;
@@ -254,11 +270,15 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       children: [
         // Background: union_my_agency_bg
         Positioned.fill(
-          child: Image.asset(
-            R.unionMyAgencyBg,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF221A1A)),
-          ),
+          child: dc.hostAgencyHeaderBgImage.isNotEmpty
+              ? (dc.hostAgencyHeaderBgImage.startsWith('http')
+                  ? Image.network(dc.hostAgencyHeaderBgImage, fit: BoxFit.cover)
+                  : Image.asset(dc.hostAgencyHeaderBgImage, fit: BoxFit.cover))
+              : Image.asset(
+                  R.unionMyAgencyBg,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(color: const Color(0xFF221A1A)),
+                ),
         ),
 
         SafeArea(

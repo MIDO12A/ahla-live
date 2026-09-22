@@ -730,10 +730,11 @@ class _GiftPanelState extends State<GiftPanel> {
     }
 
     final totalCost = gift.value * widget.selectedCount * selectedTargets.length;
+    final availableCoins = Provider.of<UserProvider>(context, listen: false).currentUser?.coins ?? widget.coins;
 
-    if (widget.coins < totalCost) {
+    if (availableCoins < totalCost) {
       if (!mounted) return;
-      _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: widget.coins);
+      _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: availableCoins);
       return;
     }
 
@@ -1060,7 +1061,8 @@ class _GiftPanelState extends State<GiftPanel> {
         .where((u) => _selectedUserIds.contains(u['id']?.toString()))
         .length;
     final totalCost = gift != null ? gift.value * widget.selectedCount * (selectedTargetsCount > 0 ? selectedTargetsCount : 1) : 0;
-    final canAfford = widget.coins >= totalCost;
+    final liveCoins = Provider.of<UserProvider>(context).currentUser?.coins ?? widget.coins;
+    final canAfford = liveCoins >= totalCost && totalCost > 0;
     final double comboProgress = _comboRemainingMs > 0 ? (_comboRemainingMs / 10000.0).clamp(0.0, 1.0) : 0.0;
 
     return Container(
@@ -1107,7 +1109,7 @@ class _GiftPanelState extends State<GiftPanel> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        R.formatCoins(widget.coins),
+                        R.formatCoins(liveCoins),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -1129,7 +1131,7 @@ class _GiftPanelState extends State<GiftPanel> {
                 GestureDetector(
                   onTap: () {
                     if (!canAfford) {
-                      _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: widget.coins);
+                      _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: liveCoins);
                       return;
                     }
                     _sendGift();
@@ -1276,7 +1278,7 @@ class _GiftPanelState extends State<GiftPanel> {
                     GestureDetector(
                       onTap: () {
                         if (!canAfford) {
-                          _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: widget.coins);
+                          _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: liveCoins);
                           return;
                         }
                         _sendGift();

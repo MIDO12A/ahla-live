@@ -17,8 +17,11 @@ class NinePatchImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ImageProvider provider = imageUrl.startsWith('assets/')
+        ? AssetImage(imageUrl) as ImageProvider
+        : cachedNetworkImageProvider(imageUrl);
     return _NinePatchImage(
-      imageProvider: cachedNetworkImageProvider(imageUrl),
+      imageProvider: provider,
       fit: fit,
       errorWidget: errorWidget,
       imageUrl: imageUrl,
