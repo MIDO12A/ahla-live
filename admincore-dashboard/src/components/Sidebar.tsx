@@ -3,8 +3,8 @@ import {
   LayoutDashboard, Users, Gift, Store, DoorOpen,
   Building2, Crown, BarChart3, Award, Handshake,
   TrendingUp, Image, Palette, Bug,
-  Bell, Settings, Shield, ChevronLeft, LogOut,   SlidersHorizontal, Grid, Gift as GiftIcon,
-  Tag, Sparkles, Eye, ImageIcon, Calendar, Rocket, Phone, CheckSquare, Volume2, Mic, User, Zap,
+  Bell, Settings, Shield, ChevronLeft, LogOut, SlidersHorizontal, Grid, Gift as GiftIcon,
+  Tag, Sparkles, Eye, ImageIcon, Calendar, Rocket, Phone, CheckSquare, Volume2, Mic, User, Zap, X,
 } from 'lucide-react';
 import { logout } from '../lib/auth';
 import { useContext } from 'react';
@@ -61,23 +61,36 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
 
   return (
     <>
-    {/* Mobile overlay sidebar */}
-    <aside className={`fixed inset-y-0 z-20 lg:hidden transition-transform duration-300 bg-[#0D0D0E] flex flex-col ${lang === 'ar' ? 'left-0 border-l border-white/5' : 'right-0 border-r border-white/5'} ${mobileOpen ? 'translate-x-0' : lang === 'ar' ? 'translate-x-full' : '-translate-x-full'}`} style={{ width: '16rem' }}>
-      <div className="p-4 flex items-center justify-between border-b border-white/5 h-14">
-        <div className={`flex items-center gap-2 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-          <div className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center text-white font-bold text-xs">Z</div>
-          <span className="text-white font-semibold text-sm" style={{ fontFamily: lang === 'ar' ? 'system-ui' : 'inherit' }}>{t('app.name')}</span>
+    {/* Mobile overlay sidebar drawer */}
+    <aside
+      className={`fixed inset-y-0 z-50 lg:hidden transition-transform duration-300 ease-in-out bg-[#0D0D0E] shadow-2xl flex flex-col w-72 max-w-[85vw] ${
+        lang === 'ar'
+          ? `right-0 border-l border-white/10 ${mobileOpen ? 'translate-x-0' : 'translate-x-full'}`
+          : `left-0 border-r border-white/10 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`
+      }`}
+    >
+      <div className="p-4 flex items-center justify-between border-b border-white/5 h-14 shrink-0">
+        <div className={`flex items-center gap-2.5 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-md shadow-indigo-600/20">Z</div>
+          <div>
+            <span className="text-white font-bold text-sm block leading-tight" style={{ fontFamily: lang === 'ar' ? 'system-ui' : 'inherit' }}>{t('app.name')}</span>
+            <span className="text-[10px] text-slate-500 font-mono">لوحة الإدارة</span>
+          </div>
         </div>
-        <button onClick={onMobileClose} className="p-1 rounded text-slate-500 hover:text-white hover:bg-white/5">
-          <ChevronLeft className="w-4 h-4" />
+        <button
+          onClick={onMobileClose}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          aria-label="Close menu"
+        >
+          <X className="w-5 h-5" />
         </button>
       </div>
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+      <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-1 custom-scrollbar">
         {navItems.map(item => (
           <NavLink key={item.to} to={item.to} end={item.end} onClick={onMobileClose}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                isActive ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/10' : 'text-slate-400 border border-transparent hover:bg-white/5 hover:text-white'
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                isActive ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
               } ${lang === 'ar' ? 'flex-row-reverse' : ''}`
             }
           >
@@ -86,8 +99,8 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
           </NavLink>
         ))}
       </nav>
-      <div className="p-3 border-t border-white/5">
-        <button onClick={() => logout()} className={`flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 w-full transition-all ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+      <div className="p-3 border-t border-white/5 shrink-0">
+        <button onClick={() => logout()} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs text-rose-400 hover:bg-rose-500/10 w-full transition-all ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
           <LogOut className="w-4 h-4 shrink-0" />
           <span>{t('sign.out')}</span>
         </button>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { onAuthChange } from '../lib/auth';
@@ -11,6 +11,12 @@ export default function Layout() {
   const [uid, setUid] = useState<string | null>(null);
   const [status, setStatus] = useState<{ fixed: boolean; reason: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const location = useLocation();
+
+  // Automatically close mobile menu on page navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   const check = useCallback(async (u: string) => {
     const s = await getAdminStatus(u);
@@ -48,12 +54,30 @@ export default function Layout() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
+  // Lock body scroll on mobile when menu drawer is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
   return (
-    <div className="h-screen bg-[#0A0A0B] text-slate-300 flex overflow-hidden">
+    <div className="h-screen bg-[#0A0A0B] text-slate-300 flex overflow-hidden w-full relative">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
       {/* Mobile overlay backdrop */}
-      {mobileOpen && <div className="fixed inset-0 bg-black/50 z-10 lg:hidden" onClick={() => setMobileOpen(false)} />}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/75 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden w-full">
         <Header onMenuClick={() => setMobileOpen(true)} />
         {status && !status.fixed && (
           <div className="mx-3 mt-3 lg:mx-6 lg:mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 flex flex-wrap items-center gap-2 shrink-0">
@@ -69,7 +93,7 @@ export default function Layout() {
             {uid && <code className="opacity-60 whitespace-nowrap">uid: {uid}</code>}
           </div>
         )}
-        <main className="flex-1 overflow-y-auto p-3 lg:p-6 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 custom-scrollbar w-full max-w-full">
           <Outlet />
         </main>
       </div>

@@ -879,123 +879,195 @@ export default function ScreenCustomizationPage() {
   if (loading) return <div className="text-slate-400 text-sm p-6">{t('loading')}</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-white text-lg font-semibold">
-          {lang === 'ar' ? 'تخصيص الشاشات' : 'Screen Customization'}
-        </h2>
-        <div className="flex gap-2">
-          <button onClick={handleReset} className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 text-xs font-semibold rounded-lg flex items-center gap-1">
-            <RotateCcw className="w-3.5 h-3.5" /> {lang === 'ar' ? 'إعادة تعيين' : 'Reset'}
+    <div className="space-y-6 pb-20 lg:pb-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-white text-lg sm:text-xl font-bold flex items-center gap-2">
+            <SlidersHorizontal className="w-5 h-5 text-indigo-400" />
+            <span>{lang === 'ar' ? 'تخصيص الشاشات والمظهر' : 'Screen Customization'}</span>
+          </h2>
+          <p className="text-slate-400 text-xs mt-1">
+            {lang === 'ar'
+              ? 'تخصيص ألوان وخلفيات وبانرات وأيقونات شاشات التطبيق لتعمل فوراً على الهاتف واللابتوب'
+              : 'Customize colors, backgrounds, banners, and icons for all app screens in real-time'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 self-stretch sm:self-auto">
+          <button
+            onClick={handleReset}
+            className="flex-1 sm:flex-none px-3.5 py-2 bg-rose-600/15 hover:bg-rose-600/25 active:bg-rose-600/30 text-rose-400 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 border border-rose-500/20 transition-all"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>{lang === 'ar' ? 'إعادة ضبط' : 'Reset'}</span>
           </button>
-          <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs text-white font-semibold rounded-lg flex items-center gap-1">
-            <Save className="w-3.5 h-3.5" /> {saving ? t('saving') : t('save')}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 sm:flex-none px-5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-xs sm:text-sm text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 disabled:opacity-50 transition-all"
+          >
+            <Save className="w-4 h-4" />
+            <span>{saving ? t('saving') : t('save')}</span>
           </button>
         </div>
       </div>
 
-      {msg && <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs px-4 py-2 rounded-lg">{msg}</div>}
+      {msg && (
+        <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center gap-2 animate-fade-in">
+          <span>✓</span>
+          <span>{msg}</span>
+        </div>
+      )}
 
-      <div className="flex gap-1 border-b border-white/5 overflow-x-auto">
+      {/* Tabs navigation */}
+      <div className="flex gap-1.5 border-b border-white/5 overflow-x-auto pb-2 scrollbar-thin">
         {screenTabs.map(s => (
           <button
             key={s}
             onClick={() => setActiveTab(s)}
-            className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-all ${
+            className={`px-3.5 py-2 text-xs font-medium whitespace-nowrap rounded-xl transition-all shrink-0 ${
               activeTab === s
-                ? 'text-indigo-300 border-indigo-500'
-                : 'text-slate-400 border-transparent hover:text-white'
+                ? 'text-white bg-indigo-600 shadow-md shadow-indigo-600/30 font-bold'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            {lang === 'ar' ? screenLabels[s].ar : screenLabels[s].en}
+            {lang === 'ar' ? screenLabels[s]?.ar || s : screenLabels[s]?.en || s}
           </button>
         ))}
       </div>
 
-      <div className="bg-[#141417] rounded-2xl border border-white/5 p-6 space-y-4">
-        {Object.entries(visuals[activeTab as keyof ScreenVisuals] || {}).map(([field, value]) => {
-          const label = fieldLabels[field]?.[lang === 'ar' ? 'ar' : 'en'] || field;
-          const isImg = imageFields.includes(field);
-          const isColor = isColorField(field);
+      {/* Inputs Form */}
+      <div className="bg-[#141417] rounded-2xl border border-white/5 p-4 sm:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Object.entries(visuals[activeTab as keyof ScreenVisuals] || {}).map(([field, value]) => {
+            const label = fieldLabels[field]?.[lang === 'ar' ? 'ar' : 'en'] || field;
+            const isImg = imageFields.includes(field);
+            const isColor = isColorField(field);
 
-          return (
-            <div key={field}>
-              <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">{label}</label>
-              <div className="flex gap-2 items-start">
-                <input
-                  type={isColor ? 'color' : 'text'}
-                  value={isColor ? to6Hex(value || '') : value || ''}
-                  onChange={e => updateField(activeTab, field, e.target.value)}
-                  className={`${isColor ? 'w-10 h-10 p-0.5' : 'flex-1'} bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white`}
-                />
-                {isImg && (
-                  <label className="cursor-pointer px-2 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg">
-                    <Upload className="w-3.5 h-3.5" />
-                    <input type="file" accept="image/*,.svga,.mp4,.gif,.vap,.json,.webp,.mp3,.wav,.lottie" className="hidden" onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) handleImageUpload(file, activeTab, field);
-                    }} />
-                  </label>
+            return (
+              <div key={field} className="bg-[#18181c] p-3.5 rounded-xl border border-white/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold text-slate-300 truncate">{label}</label>
+                  <span className="text-[9px] text-slate-500 font-mono">{field}</span>
+                </div>
+
+                <div className="flex gap-2 items-center">
+                  {isColor && (
+                    <input
+                      type="color"
+                      value={to6Hex(value || '')}
+                      onChange={e => updateField(activeTab, field, e.target.value)}
+                      className="w-9 h-9 p-0.5 rounded-lg border border-white/20 bg-transparent cursor-pointer shrink-0"
+                      title={label}
+                    />
+                  )}
+                  <input
+                    type="text"
+                    value={value || ''}
+                    placeholder={isColor ? '#RRGGBB' : isImg ? 'https://...' : ''}
+                    onChange={e => updateField(activeTab, field, e.target.value)}
+                    className="flex-1 min-w-0 bg-[#121214] border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-600 font-mono"
+                  />
+                  {isImg && (
+                    <label className="cursor-pointer px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 active:scale-95 rounded-lg border border-indigo-500/20 flex items-center justify-center shrink-0 transition-all">
+                      <Upload className="w-3.5 h-3.5" />
+                      <input
+                        type="file"
+                        accept="image/*,.svga,.mp4,.gif,.vap,.json,.webp,.mp3,.wav,.lottie"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file, activeTab, field);
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {isImg && value && (
+                  <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-3">
+                    {value.endsWith('.mp4') || value.endsWith('.webm') ? (
+                      <video src={value} className="w-16 h-16 object-contain rounded-lg border border-white/10 bg-black/40" controls />
+                    ) : value.endsWith('.mp3') || value.endsWith('.wav') ? (
+                      <audio src={value} className="w-full h-8" controls />
+                    ) : (
+                      <a href={value} target="_blank" rel="noopener noreferrer" className="relative group">
+                        <img
+                          src={value}
+                          alt={label}
+                          className="w-16 h-16 object-contain rounded-lg border border-white/10 bg-black/40 p-1 group-hover:scale-105 transition-transform"
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </a>
+                    )}
+                    <span className="text-[10px] text-slate-500 truncate flex-1 break-all">{value}</span>
+                  </div>
                 )}
               </div>
-              {isImg && value && (
-                value.endsWith('.mp4') || value.endsWith('.webm') ? (
-                  <video src={value} className="mt-1 w-16 h-16 object-contain rounded border border-white/5" controls />
-                ) : value.endsWith('.mp3') || value.endsWith('.wav') ? (
-                  <audio src={value} className="mt-1 w-full h-8" controls />
-                ) : (
-                  <img src={value} alt={label} className="mt-1 w-16 h-16 object-contain rounded border border-white/5" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                )
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* Preview */}
-      <div className="bg-[#141417] rounded-2xl border border-white/5 p-6">
-        <h3 className="text-white text-sm font-semibold mb-3">{lang === 'ar' ? 'معاينة' : 'Preview'}</h3>
+      {/* Preview Section */}
+      <div className="bg-[#141417] rounded-2xl border border-white/5 p-4 sm:p-6">
+        <h3 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+          <span>👁️</span>
+          <span>{lang === 'ar' ? 'معاينة تجريبية' : 'Live Preview'}</span>
+        </h3>
         <div
-          className="rounded-xl p-4 space-y-3"
+          className="rounded-xl p-4 sm:p-6 space-y-3 shadow-inner"
           style={{
-            background: visuals[activeTab as keyof ScreenVisuals]?.backgroundImage
-              ? `url(${visuals[activeTab as keyof ScreenVisuals]?.backgroundImage}) center/cover no-repeat`
-              : visuals[activeTab as keyof ScreenVisuals]?.headerBgColor || '#1a1a2e',
+            background: visuals[activeTab as keyof ScreenVisuals]?.backgroundImage || visuals[activeTab as keyof ScreenVisuals]?.bgImage
+              ? `url(${visuals[activeTab as keyof ScreenVisuals]?.backgroundImage || visuals[activeTab as keyof ScreenVisuals]?.bgImage}) center/cover no-repeat`
+              : visuals[activeTab as keyof ScreenVisuals]?.headerBgColor || visuals[activeTab as keyof ScreenVisuals]?.headerColor || '#1a1a2e',
             color: visuals[activeTab as keyof ScreenVisuals]?.textColor || '#fff',
           }}
         >
           <div
-            className="rounded-lg p-3"
+            className="rounded-xl p-4 shadow-lg backdrop-blur-sm"
             style={{
-              background: visuals[activeTab as keyof ScreenVisuals]?.cardBgColor || '#16213e',
+              background: visuals[activeTab as keyof ScreenVisuals]?.cardBgColor || visuals[activeTab as keyof ScreenVisuals]?.cardColor || 'rgba(22, 33, 62, 0.9)',
               border: `1px solid ${visuals[activeTab as keyof ScreenVisuals]?.cardBorderColor || '#0f3460'}`,
             }}
           >
-            <p style={{ color: visuals[activeTab as keyof ScreenVisuals]?.accentColor || '#e94560' }}>
-              {activeTab === 'rechargeEvent' ? (lang === 'ar' ? '⚡ حدث الشحن الأسطوري' : '⚡ Recharge Event') :
-               activeTab === 'badges' ? (lang === 'ar' ? 'الشارات' : 'Badges') :
-               activeTab === 'necklaces' ? (lang === 'ar' ? 'القلائد' : 'Necklaces') :
-               activeTab === 'rank' ? (lang === 'ar' ? 'الترتيب' : 'Rank') :
-               activeTab === 'checkbox' ? (lang === 'ar' ? 'الاختيار' : 'Checkbox') :
-               activeTab === 'store' ? (lang === 'ar' ? 'المتجر' : 'Store') :
-               activeTab === 'backpack' ? (lang === 'ar' ? 'الحقيبة' : 'Backpack') :
-               activeTab === 'wallet' ? (lang === 'ar' ? 'المحفظة' : 'Wallet') :
-               activeTab === 'level' ? (lang === 'ar' ? 'المستويات' : 'Levels') :
-               activeTab === 'cp' ? (lang === 'ar' ? '💑 CP' : '💑 CP') :
-               activeTab === 'miniprofile' ? (lang === 'ar' ? 'الميني بروفايل' : 'Mini Profile') :
-               activeTab === 'signin' ? (lang === 'ar' ? '📅 تسجيل الدخول' : '📅 Weekly Sign-In') :
-                (lang === 'ar' ? 'الوكالة' : 'Agency')}
+            <p className="font-bold text-sm" style={{ color: visuals[activeTab as keyof ScreenVisuals]?.accentColor || '#e94560' }}>
+              {screenLabels[activeTab]?.[lang === 'ar' ? 'ar' : 'en'] || activeTab}
             </p>
-            <p className="text-xs mt-1" style={{ color: visuals[activeTab as keyof ScreenVisuals]?.subTextColor || '#a0a0b0' }}>
-              {lang === 'ar' ? 'نموذج توضيحي للمعاينة' : 'Sample preview text'}
+            <p className="text-xs mt-1 opacity-80" style={{ color: visuals[activeTab as keyof ScreenVisuals]?.subTextColor || '#a0a0b0' }}>
+              {lang === 'ar' ? 'معاينة حية لتدرج الألوان والخلفيات على الشاشات' : 'Live visual sample showing current color palette and themes'}
             </p>
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <div className="w-5 h-5 rounded border flex items-center justify-center text-[8px] bg-white/10">✓</div>
+            <div className="w-5 h-5 rounded border flex items-center justify-center text-[8px] bg-white/10 font-bold">✓</div>
             <span className="text-xs">{lang === 'ar' ? 'محدد' : 'Checked'}</span>
             <div className="w-5 h-5 rounded border flex items-center justify-center text-[8px] bg-white/5"></div>
             <span className="text-xs">{lang === 'ar' ? 'غير محدد' : 'Unchecked'}</span>
           </div>
+        </div>
+      </div>
+
+      {/* Floating Sticky Save Bar on Mobile */}
+      <div className="fixed bottom-3 inset-x-3 z-30 lg:hidden bg-[#161618]/95 backdrop-blur-lg p-3 rounded-2xl border border-white/10 shadow-2xl flex items-center justify-between">
+        <div className="text-xs font-semibold text-slate-300 truncate pr-2">
+          {screenLabels[activeTab]?.[lang === 'ar' ? 'ar' : 'en'] || activeTab}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleReset}
+            className="p-2 bg-rose-600/20 text-rose-400 rounded-xl border border-rose-500/20 active:scale-95"
+            title="Reset"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-bold rounded-xl flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all"
+          >
+            <Save className="w-4 h-4" />
+            <span>{saving ? t('saving') : (lang === 'ar' ? 'حفظ التعديلات' : 'Save')}</span>
+          </button>
         </div>
       </div>
     </div>
