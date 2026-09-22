@@ -199,10 +199,16 @@ class R {
   static const String nextBlack = '$_m/next_black.webp';
   static const String roomOwnerInfoRoomBg = '$_m/room_owner_info_room_bg.9.png';
 
-  // Chat
+  // Chat & Message (matching frag_msg.xml, item_session_systeom.xml, rc_official_msg_item.xml)
   static const String chatMessageSystemBg = '$_m/chat_message_system_bg.webp';
   static const String chatMessageInformationBg =
       '$_m/chat_message_information_bg.webp';
+  static const String icSystemMsg = '$_m/ic_system_msg.png';
+  static const String icOfficialMsg = '$_m/ic_official_msg.png';
+  static const String msgVisitor = '$_m/visitor.png';
+  static const String msgFollower = '$_m/follower.png';
+  static const String msgFollowing = '$_m/following.png';
+  static const String bgPagerTop = 'assets/drawable/bg_pager_top.png';
 
   // Tab assets
   static const String tabDiscoverNor = '$_m/tab_discover_nor.webp';
