@@ -238,6 +238,8 @@ class _UserProfileState extends State<UserProfile> {
     if (mounted) setState(() => _dataLoaded = true);
   }
 
+  final Set<String> _pendingFrameFetches = {};
+
   String _resolveSvga(String itemId) {
     if (itemId.isEmpty) return '';
     if (itemId.startsWith('http://') || itemId.startsWith('https://') || itemId.startsWith('assets/')) {
@@ -248,17 +250,37 @@ class _UserProfileState extends State<UserProfile> {
     }
     final storeItem = SupabaseService().getStoreItemSync(itemId);
     if (storeItem != null) {
-      final anim = (storeItem.videoAsset != null && storeItem.videoAsset!.isNotEmpty)
-          ? storeItem.videoAsset!
-          : (storeItem.svgaAsset != null && storeItem.svgaAsset!.isNotEmpty)
-              ? storeItem.svgaAsset!
-              : storeItem.iconAsset;
+      final anim = (storeItem.svgaAsset != null && storeItem.svgaAsset!.isNotEmpty)
+          ? storeItem.svgaAsset!
+          : (storeItem.videoAsset != null && storeItem.videoAsset!.isNotEmpty)
+              ? storeItem.videoAsset!
+              : (storeItem.animationUrl != null && storeItem.animationUrl!.isNotEmpty)
+                  ? storeItem.animationUrl!
+                  : storeItem.iconAsset;
       if (anim.isNotEmpty) {
         _storeSvgaMap[itemId] = anim;
         return anim;
       }
     }
-    return itemId;
+    if (!_pendingFrameFetches.contains(itemId)) {
+      _pendingFrameFetches.add(itemId);
+      SupabaseService().getStoreItems().then((items) {
+        for (final item in items) {
+          final anim = (item.svgaAsset != null && item.svgaAsset!.isNotEmpty)
+              ? item.svgaAsset!
+              : (item.videoAsset != null && item.videoAsset!.isNotEmpty)
+                  ? item.videoAsset!
+                  : (item.animationUrl != null && item.animationUrl!.isNotEmpty)
+                      ? item.animationUrl!
+                      : item.iconAsset;
+          if (anim.isNotEmpty) {
+            _storeSvgaMap[item.itemId] = anim;
+          }
+        }
+        if (mounted) setState(() {});
+      }).catchError((_) {});
+    }
+    return '';
   }
 
   String _formatCount(int count) {

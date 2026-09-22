@@ -251,8 +251,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       // Update user
       final updatedUser = currentUser.copyWith(
         album: finalAlbum,
-        activeCover: finalAlbum.isNotEmpty ? finalAlbum.first : currentUser.activeCover,
-        profileBgUrl: finalAlbum.isNotEmpty ? finalAlbum.first : currentUser.profileBgUrl,
+        activeCover: currentUser.activeCover,
+        profileBgUrl: currentUser.profileBgUrl,
         name: name,
         photoUrl: photoUrl,
         gender: _selectedGender,

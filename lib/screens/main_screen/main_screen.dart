@@ -12,8 +12,7 @@ import '../message/message_screen.dart';
 import '../login/profile_screen.dart';
 import '../room/widgets/svga_player.dart';
 import '../../widgets/app_update_dialog.dart';
-
-
+import '../../features/signin/weekly_signin_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -33,9 +32,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     super.initState();
     _pageController = PageController(initialPage: 0);
     WidgetsBinding.instance.addObserver(this);
-    // Check for updates immediately after the first frame is rendered
+    // Check for updates and daily checkin immediately after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkUpdate();
+      WeeklySigninScreen.showIfNeeded(context);
     });
     // Periodic update check while the app is open (splash only checks cold start)
     _updatePoll = Timer.periodic(const Duration(minutes: 15), (_) => _checkUpdate());

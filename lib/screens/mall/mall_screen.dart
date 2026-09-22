@@ -479,11 +479,7 @@ class _MallScreenState extends State<MallScreen>
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
-                      child: item.isVideo
-                          ? VapPlayer(url: item.animationUrl!, width: 80, height: 80, fit: BoxFit.contain)
-                          : ((item.svgaAsset != null && item.svgaAsset!.isNotEmpty) || item.iconAsset.endsWith('.svga') || detectAssetType(item.iconAsset) == AssetType.svga)
-                              ? SvgaPlayer(assetPath: item.svgaAsset ?? item.iconAsset, width: 80, height: 80, fit: BoxFit.contain)
-                              : R.loadImage(item.iconAsset, fit: BoxFit.contain),
+                      child: R.loadImage(item.iconAsset, fit: BoxFit.contain),
                     ),
                   ),
                   Padding(

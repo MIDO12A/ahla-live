@@ -244,6 +244,40 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
   }
 
+  final Map<String, int> _recentGiftTimestamps = {};
+
+  bool _isDuplicateGiftEvent(String senderId, String giftId) {
+    if (senderId.isEmpty || giftId.isEmpty) return false;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final key = '${senderId}_$giftId';
+    if (_recentGiftTimestamps.containsKey(key)) {
+      final last = _recentGiftTimestamps[key]!;
+      if (now - last < 2500) {
+        return true;
+      }
+    }
+    _recentGiftTimestamps[key] = now;
+    if (_recentGiftTimestamps.length > 200) {
+      _recentGiftTimestamps.removeWhere((_, ts) => now - ts > 10000);
+    }
+    return false;
+  }
+
+  String? _resolveFrameAsset(String? activeFrame) {
+    if (activeFrame == null || activeFrame.isEmpty) return null;
+    if (activeFrame.startsWith('http://') || activeFrame.startsWith('https://') || activeFrame.startsWith('assets/')) {
+      return activeFrame;
+    }
+    final item = _storeItemsIndex[activeFrame] ?? SupabaseService().getStoreItemSync(activeFrame);
+    if (item != null) {
+      if (item.svgaAsset != null && item.svgaAsset!.isNotEmpty) return item.svgaAsset;
+      if (item.videoAsset != null && item.videoAsset!.isNotEmpty) return item.videoAsset;
+      if (item.animationUrl != null && item.animationUrl!.isNotEmpty) return item.animationUrl;
+      if (item.iconAsset.isNotEmpty) return item.iconAsset;
+    }
+    return null;
+  }
+
   void _triggerGiftAnim(String asset, {Map<String, String>? textReplacement, Map<String, String>? imageReplacement, String? defaultImage}) {
     if (!_giftEffectsEnabled) return;
     _giftAnimWatchdog?.cancel();
@@ -1071,7 +1105,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               final giftDef = _cachedGiftItems[giftId];
               final isLucky = giftDef?.isLucky == true || giftDef?.type == 3 || giftDef?.categoryId == 'lucky';
 
-              if (!isLucky) {
+              if (!isLucky && (giftId.isEmpty || !_isDuplicateGiftEvent(m.senderUid, giftId))) {
                 final flyIcon = (payload['default_image']?.toString().isNotEmpty == true)
                     ? payload['default_image'].toString()
                     : ((payload['gift_icon']?.toString().isNotEmpty == true)
@@ -1201,7 +1235,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         // They are handled by LuckyGiftService through the messages stream
         final isLuckyGift = giftDef != null && (giftDef.isLucky || giftDef.type == 3);
         
-        if (!isLuckyGift) {
+        if (!isLuckyGift && !_isDuplicateGiftEvent(latest.senderId, latest.giftId)) {
           // ── طيران الهدية إلى مقعد المستلم لكافة المتواجدين في الغرفة ──
           final flyIcon = (latest.defaultImage != null && latest.defaultImage!.isNotEmpty)
               ? latest.defaultImage!
@@ -1325,8 +1359,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           final cachedUser = _cachedUsers[seat.user!.id!];
           if (cachedUser != null) {
             final af = cachedUser.activeFrame;
-            final isFrameUrl = af != null && af.startsWith('http');
-            final frameAsset = isFrameUrl ? af : index[af]?.svgaAsset;
+            final frameAsset = _resolveFrameAsset(af);
             final carVal = cachedUser.activeCar;
             final carStoreItem = carVal != null && !carVal.startsWith('http')
                 ? index[carVal]
@@ -1335,6 +1368,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 ? carVal
                 : carStoreItem?.svgaAsset;
             _seats[i] = seat.copyWith(
+              hasFrame: frameAsset != null && frameAsset.isNotEmpty,
               frameAsset: frameAsset,
               carAsset: carAsset,
             );
@@ -1540,8 +1574,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         }
         final cachedUser = _cachedUsers[uid];
         final activeFrame = data['active_frame']?.toString() ?? cachedUser?.activeFrame;
-        final isFrameUrl = activeFrame != null && activeFrame.startsWith('http');
-        final frameAsset = isFrameUrl ? activeFrame! : _storeItemsIndex[activeFrame]?.svgaAsset;
+        final frameAsset = _resolveFrameAsset(activeFrame);
         final activeCar = data['active_car']?.toString() ?? cachedUser?.activeCar;
         final carStoreItem = activeCar != null && !activeCar.startsWith('http')
             ? _storeItemsIndex[activeCar]
@@ -1565,7 +1598,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             charm: giftTotal.toString(),
           ),
           isMuted: isMuted,
-          hasFrame: activeFrame != null && activeFrame.isNotEmpty,
+          hasFrame: frameAsset != null && frameAsset.isNotEmpty,
           frameAsset: frameAsset,
           carAsset: carAsset,
         );
@@ -5446,133 +5479,70 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     return Positioned.fill(
       child: GestureDetector(
         onTap: () => setState(() => _showExit = false),
+        behavior: HitTestBehavior.opaque,
         child: Container(
-          color: DynamicConfigService().roomExitSheetBgColor.withOpacity(0.9),
-          child: Stack(
-            children: [
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Minimize Room Button
-                    GestureDetector(
-                      onTap: _minimizeRoom,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFFFFD54F),
-                                  Color(0xFFFFB300),
-                                  Color(0xFFE65100),
-                                ],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.close_fullscreen,
-                              color: Colors.white,
-                              size: 34,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            isAr ? 'تصغير' : 'Minimize',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+          color: const Color(0xB3000000),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Minimize Room Button (ll_room_minimize from dialog_room_colose_toip.xml)
+                GestureDetector(
+                  onTap: () {
+                    setState(() => _showExit = false);
+                    _minimizeRoom();
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/room_dialog_minimize_ic.webp',
+                        width: 88,
+                        height: 88,
+                        fit: BoxFit.contain,
                       ),
-                    ),
-                    const SizedBox(height: 48),
-                    // Exit Room Button
-                    GestureDetector(
-                      onTap: _exitRoom,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFFFFD54F),
-                                  Color(0xFFFFB300),
-                                  Color(0xFFE65100),
-                                ],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.power_settings_new,
-                              color: Colors.white,
-                              size: 38,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            isAr ? 'خروج' : 'Exit',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 10),
+                      Text(
+                        isAr ? 'تصغير الغرفة' : 'Minimize Room',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              // Fullscreen back button in bottom-left corner
-              Positioned(
-                bottom: 48,
-                left: 32,
-                child: GestureDetector(
-                  onTap: () => setState(() => _showExit = false),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withOpacity(0.4),
-                      border: Border.all(color: Colors.white30, width: 1),
-                    ),
-                    child: const Icon(
-                      Icons.open_in_full,
-                      color: Colors.white,
-                      size: 22,
-                    ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 48),
+                // Exit Room Button (ll_room_exit from dialog_room_colose_toip.xml)
+                GestureDetector(
+                  onTap: () {
+                    setState(() => _showExit = false);
+                    _exitRoom();
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/room_dialog_exit_ic.webp',
+                        width: 88,
+                        height: 88,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        isAr ? 'الخروج من الغرفة' : 'Exit Room',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

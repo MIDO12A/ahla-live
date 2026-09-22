@@ -11,6 +11,33 @@ import 'signin_service.dart';
 class WeeklySigninScreen extends StatefulWidget {
   const WeeklySigninScreen({super.key});
 
+  /// إظهار نافذة تسجيل الدخول اليومي تلقائياً إذا لم يستلم المستخدم مكافأته اليوم
+  static Future<void> showIfNeeded(BuildContext context) async {
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final uid = userProvider.currentUser?.uid;
+      if (uid == null) return;
+      final hasClaimed = await SigninService.hasClaimedToday(uid);
+      if (!hasClaimed && context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (_) => const Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.all(Radius.circular(20)),
+              child: SizedBox(
+                height: 560,
+                child: WeeklySigninScreen(),
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (_) {}
+  }
+
   @override
   State<WeeklySigninScreen> createState() => _WeeklySigninScreenState();
 }

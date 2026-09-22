@@ -160,6 +160,87 @@ class SeatArea extends StatelessWidget {
     final items = seats;
     final rows = <Widget>[];
 
+    if (items.length == 12) {
+      // 12-mic layout matching Mic12CenterGridLayoutManger.kt:
+      // Row 0: 2 center seats (columns 1 and 3)
+      // Row 1: 5 seats
+      // Row 2: 5 seats
+      rows.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            const Expanded(child: SizedBox()),
+            Expanded(
+              child: Center(
+                child: GestureDetector(
+                  onTap: () => onSeatTap(0),
+                  child: _NormalSeat(
+                    seat: items[0],
+                    emoji: seatEmojis?[0],
+                    isModerator: items[0].user != null ? moderators?.contains(items[0].user!.id) ?? false : false,
+                    seatStyle: seatStyle,
+                    isCaptain: true,
+                    showCharmValues: showCharmValues,
+                    onCharmTap: onCharmTap,
+                  ),
+                ),
+              ),
+            ),
+            const Expanded(child: SizedBox()),
+            Expanded(
+              child: Center(
+                child: GestureDetector(
+                  onTap: () => onSeatTap(1),
+                  child: _NormalSeat(
+                    seat: items[1],
+                    emoji: seatEmojis?[1],
+                    isModerator: items[1].user != null ? moderators?.contains(items[1].user!.id) ?? false : false,
+                    seatStyle: seatStyle,
+                    isCaptain: false,
+                    showCharmValues: showCharmValues,
+                    onCharmTap: onCharmTap,
+                  ),
+                ),
+              ),
+            ),
+            const Expanded(child: SizedBox()),
+          ],
+        ),
+      );
+      rows.add(const SizedBox(height: 6));
+
+      for (int i = 2; i < 12; i += 5) {
+        final end = math.min(i + 5, 12);
+        final rowItems = items.sublist(i, end);
+        rows.add(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              for (int j = 0; j < rowItems.length; j++)
+                Expanded(
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: () => onSeatTap(i + j),
+                      child: _NormalSeat(
+                        seat: rowItems[j],
+                        emoji: seatEmojis?[i + j],
+                        isModerator: rowItems[j].user != null ? moderators?.contains(rowItems[j].user!.id) ?? false : false,
+                        seatStyle: seatStyle,
+                        isCaptain: false,
+                        showCharmValues: showCharmValues,
+                        onCharmTap: onCharmTap,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+        if (end < 12) rows.add(const SizedBox(height: 6));
+      }
+      return Column(mainAxisSize: MainAxisSize.min, children: rows);
+    }
+
     for (int i = 0; i < items.length; i += seatsPerRow) {
       final end = math.min(i + seatsPerRow, items.length);
       final rowItems = items.sublist(i, end);
@@ -180,7 +261,7 @@ class SeatArea extends StatelessWidget {
                           ? moderators?.contains(rowItems[j].user!.id) ?? false
                           : false,
                       seatStyle: seatStyle,
-                      isCaptain: false,
+                      isCaptain: (i + j == 0),
                       showCharmValues: showCharmValues,
                       onCharmTap: onCharmTap,
                     ),
@@ -226,7 +307,7 @@ class _NormalSeat extends StatelessWidget {
     final name = user?.name ?? '';
     final charm = user?.charm;
     final avatar = user?.avatar;
-    final hasFrame = seat.hasFrame;
+    final hasFrame = seat.hasFrame || (seat.frameAsset != null && seat.frameAsset!.isNotEmpty);
     final frameAsset = seat.frameAsset;
 
     Widget child = Column(
@@ -422,7 +503,7 @@ class _NormalSeat extends StatelessWidget {
       ),
     );
 
-    if (hasFrame && frameAsset != null) {
+    if ((hasFrame || (frameAsset != null && frameAsset.isNotEmpty)) && frameAsset != null && frameAsset.isNotEmpty) {
       return Stack(
         alignment: Alignment.center,
         children: [

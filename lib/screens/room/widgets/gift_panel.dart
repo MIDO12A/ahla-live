@@ -190,30 +190,63 @@ class _GiftPanelState extends State<GiftPanel> {
   @override
   Widget build(BuildContext context) {
     final dc = DynamicConfigService();
+    final selectedGift = (_sel >= 0 && _sel < _gifts.length) ? _gifts[_sel] : null;
+    final isLuckyActive = _selectedCategoryId == 'lucky' || (selectedGift != null && (selectedGift.isLucky || selectedGift.categoryId == 'lucky' || selectedGift.type == 3));
 
     return ListenableBuilder(
       listenable: dc,
       builder: (context, _) {
-        return Container(
-          height: 370,
-          decoration: BoxDecoration(
-            color: dc.giftPanelBgColor,
-            image: dc.giftPanelBgImage.isNotEmpty
-                ? DecorationImage(
-                    image: R.cachedImage(dc.giftPanelBgImage),
-                    fit: BoxFit.cover,
-                  )
-                : null,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          ),
-          child: Column(
-            children: [
-              _buildHeader(dc),
-              Container(height: 0.5, color: const Color(0x1AFFFFFF)),
-              Expanded(child: _buildGrid(dc)),
-              _buildBottomOperate(dc),
-            ],
-          ),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isLuckyActive)
+              Container(
+                height: 52,
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage('assets/images/room_gift_lucky_introduce_bg.webp'),
+                    fit: BoxFit.fill,
+                  ),
+                ),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: const Text(
+                  'أرسل هدية الحظ واكسب مكافآت مضاعفة تصل إلى 500X!',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(color: Colors.black54, offset: Offset(1, 1), blurRadius: 2),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            Container(
+              height: 370,
+              decoration: BoxDecoration(
+                color: dc.giftPanelBgColor,
+                image: dc.giftPanelBgImage.isNotEmpty
+                    ? DecorationImage(
+                        image: R.cachedImage(dc.giftPanelBgImage),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Column(
+                children: [
+                  _buildHeader(dc),
+                  Container(height: 0.5, color: const Color(0x1AFFFFFF)),
+                  Expanded(child: _buildGrid(dc)),
+                  _buildBottomOperate(dc),
+                ],
+              ),
+            ),
+          ],
         );
       },
     );
@@ -509,15 +542,17 @@ class _GiftPanelState extends State<GiftPanel> {
         margin: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
           color: hasCardBgImage ? null : dc.giftPanelCardBgColor,
-          image: hasCardBgImage
-              ? DecorationImage(
-                  image: R.cachedImage(dc.giftPanelCardBgImage),
-                  fit: BoxFit.fill,
-                )
-              : const DecorationImage(
-                  image: AssetImage(R.roomGiftImgPre),
-                  fit: BoxFit.fill,
-                ),
+          image: sel
+              ? (hasCardBgImage
+                  ? DecorationImage(
+                      image: R.cachedImage(dc.giftPanelCardBgImage),
+                      fit: BoxFit.fill,
+                    )
+                  : const DecorationImage(
+                      image: AssetImage(R.roomGiftImgPre),
+                      fit: BoxFit.fill,
+                    ))
+              : null,
           borderRadius: BorderRadius.circular(4),
           border: sel
               ? Border.all(color: dc.giftPanelCardSelectedBorderColor, width: 1.5)

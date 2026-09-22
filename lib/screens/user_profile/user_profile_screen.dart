@@ -168,9 +168,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         // Resolve activeFrame path
         String? resolvedFrame = targetUser.activeFrame;
         if (resolvedFrame != null && resolvedFrame.isNotEmpty) {
-          final match = allStoreItems.where((i) => i.itemId == resolvedFrame || i.svgaAsset == resolvedFrame).firstOrNull;
-          if (match != null && match.svgaAsset != null && match.svgaAsset!.isNotEmpty) {
-            resolvedFrame = match.svgaAsset;
+          if (!resolvedFrame.startsWith('http') && !resolvedFrame.startsWith('assets/')) {
+            final match = allStoreItems.where((i) => i.itemId == resolvedFrame || i.svgaAsset == resolvedFrame).firstOrNull;
+            if (match != null) {
+              final anim = (match.svgaAsset != null && match.svgaAsset!.isNotEmpty)
+                  ? match.svgaAsset
+                  : (match.videoAsset != null && match.videoAsset!.isNotEmpty)
+                      ? match.videoAsset
+                      : (match.animationUrl != null && match.animationUrl!.isNotEmpty)
+                          ? match.animationUrl
+                          : match.iconAsset;
+              resolvedFrame = (anim != null && anim.isNotEmpty) ? anim : null;
+            } else {
+              resolvedFrame = null;
+            }
           }
         }
 

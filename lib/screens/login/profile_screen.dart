@@ -74,25 +74,28 @@ class ProfileScreen extends StatelessWidget {
     if (activeFrame.isEmpty) return const SizedBox();
     String resolved = activeFrame;
     final storeItem = SupabaseService().getStoreItemSync(activeFrame);
-    if (storeItem != null && storeItem.svgaAsset != null && storeItem.svgaAsset!.isNotEmpty) {
-      resolved = storeItem.svgaAsset!;
+    if (storeItem != null) {
+      final anim = (storeItem.svgaAsset != null && storeItem.svgaAsset!.isNotEmpty)
+          ? storeItem.svgaAsset!
+          : (storeItem.videoAsset != null && storeItem.videoAsset!.isNotEmpty)
+              ? storeItem.videoAsset!
+              : (storeItem.animationUrl != null && storeItem.animationUrl!.isNotEmpty)
+                  ? storeItem.animationUrl!
+                  : storeItem.iconAsset;
+      if (anim.isNotEmpty) resolved = anim;
     }
     if (resolved.toLowerCase().endsWith('.svga') ||
         resolved.toLowerCase().endsWith('.vap') ||
         resolved.toLowerCase().endsWith('.mp4') ||
         resolved.startsWith('http') ||
-        resolved.startsWith('assets/svga/')) {
+        resolved.startsWith('assets/')) {
       return SvgaFrame(
         svgaPath: resolved,
         size: 122,
         fit: BoxFit.contain,
       );
     }
-    return Image.asset(
-      resolved,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => const SizedBox(),
-    );
+    return const SizedBox();
   }
 
   Widget _buildInfoSection(BuildContext context, dynamic user) {

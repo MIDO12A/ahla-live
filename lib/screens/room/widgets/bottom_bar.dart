@@ -54,19 +54,14 @@ class BottomBar extends StatelessWidget {
             child: Center(
               child: GestureDetector(
                 onTap: onGift,
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.transparent,
-                  ),
-                  child: Center(
-                    child: R.loadAsset(
-                      giftIcon,
-                      width: 48,
-                      height: 48,
-                    ),
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: R.loadAsset(
+                    giftIcon,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),

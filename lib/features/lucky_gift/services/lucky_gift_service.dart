@@ -80,10 +80,29 @@ class LuckyGiftService {
       );
     }
 
-    // 4. إنهاء الحدث فوراً وتمرير الطابور للحدث التالي بسلاسة دون كروت مربعة
-    _isPlayingAnim = false;
-    _queueWatchdog?.cancel();
-    _processNextInQueue(context);
+    // 4. مهلة عرض الأنيميشن قبل تمرير الطابور للحدث التالي لمنع تراكم وتشنج الشاشة
+    int waitMs = 0;
+    if (LuckyRoomWinSvgaOverlay.hasWinSvga(nextData.maxMultiplier)) {
+      waitMs = 3200;
+    } else if (LuckyComboSvgaOverlay.hasSvgaForCount(nextData.comboCount)) {
+      waitMs = 2000;
+    }
+
+    if (waitMs > 0) {
+      Timer(Duration(milliseconds: waitMs), () {
+        _isPlayingAnim = false;
+        _queueWatchdog?.cancel();
+        if (context.mounted) {
+          _processNextInQueue(context);
+        } else {
+          _isPlayingAnim = false;
+        }
+      });
+    } else {
+      _isPlayingAnim = false;
+      _queueWatchdog?.cancel();
+      _processNextInQueue(context);
+    }
   }
 
   OverlayEntry? _roomWinOverlay;

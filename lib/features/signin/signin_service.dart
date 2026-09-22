@@ -172,6 +172,18 @@ class SigninService {
     }
   }
 
+  /// التحقق مما إذا كان المستخدم قد استلم مكافأة اليوم بالفعل
+  static Future<bool> hasClaimedToday(String uid) async {
+    try {
+      final today = _todayUtc();
+      final todayStr = _dateStr(today);
+      final doc = await _db.collection('signin_records').doc('${uid}_$todayStr').get();
+      return doc.exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ═══════════════════════════════════════════════════════
   // Claim today's reward (transactional)
   // ═══════════════════════════════════════════════════════
