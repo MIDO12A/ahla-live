@@ -224,8 +224,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
             ],
           ),
         ),
-      ]),
-    );
+      ]);
 
     return Scaffold(
       backgroundColor: dc.agentRechargeHeaderColor,
