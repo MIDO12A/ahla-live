@@ -40,11 +40,27 @@ const KEY_FIELDS: Record<string, string> = {
 }
 
 function docKeyFor(table: string, values: Record<string, unknown>): string | undefined {
+  // Collections that should ALWAYS use auto-generated document IDs via addDoc:
+  if (
+    table === 'notifications' ||
+    table === 'feedbacks' ||
+    table === 'reports' ||
+    table === 'transactions' ||
+    table === 'agency_withdrawal_requests' ||
+    table === 'agency_diamond_ledger' ||
+    table === 'agency_chat_messages' ||
+    table === 'audit_logs' ||
+    table === 'host_agency_join_requests'
+  ) {
+    return undefined
+  }
   if (values['key'] != null) return String(values['key'])
   if (values['id'] != null) return String(values['id'])
   if (values['item_id'] != null) return String(values['item_id'])
   if (values['room_id'] != null) return String(values['room_id'])
-  if (values['uid'] != null) return String(values['uid'])
+  if ((table === 'users' || table === 'admin_users' || table === 'recharge_agents') && values['uid'] != null) {
+    return String(values['uid'])
+  }
   if (table === 'level_config' && values['type'] != null && values['level'] != null) {
     return `${values['type']}_${values['level']}`
   }

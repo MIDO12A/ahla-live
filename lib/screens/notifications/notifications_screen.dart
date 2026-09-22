@@ -9,6 +9,7 @@ import '../../core/widgets/cached_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../features/cp/cp_service.dart';
 import '../../features/cp/cp_detail_full_screen.dart';
+import '../../features/financial/agent_recharge_portal_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -260,6 +261,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           ),
                                         );
                                       }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (action == 'recharge_agency_approved' ||
+                              notif.type == 'agency_recharge_approved' ||
+                              notif.title.contains('تفعيل وكالة الشحن') ||
+                              notif.title.contains('وكالة الشحن'))
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Row(
+                                children: [
+                                  _actionButton(
+                                    label: 'دخول لوحة تحكم وكالة الشحن 💼',
+                                    color: const Color(0xFFFFD700),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (_) => const AgentRechargePortalScreen()),
+                                      );
                                     },
                                   ),
                                 ],

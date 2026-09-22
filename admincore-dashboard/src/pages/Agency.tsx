@@ -1405,8 +1405,21 @@ function RechargeAgenciesTab() {
   const load = async () => {
     setLoading(true);
     try {
-      const { data: usersData } = await supabase.from('users').select('*').eq('is_recharge_agent', true);
-      setAgents(usersData || []);
+      const [u1, u2, raSnap] = await Promise.all([
+        supabase.from('users').select('*').eq('is_recharge_agent', true),
+        supabase.from('users').select('*').eq('isRechargeAgent', true),
+        supabase.from('recharge_agents').select('*'),
+      ]);
+      const map = new Map<string, any>();
+      (u1.data || []).forEach((u: any) => map.set(u.id || u.uid, u));
+      (u2.data || []).forEach((u: any) => map.set(u.id || u.uid, { ...(map.get(u.id || u.uid) || {}), ...u }));
+      (raSnap.data || []).forEach((r: any) => {
+        const key = r.id || r.uid || r.owner_id;
+        const prev = map.get(key) || {};
+        map.set(key, { ...prev, ...r, id: key, uid: key, is_recharge_agent: true });
+      });
+      setAgents(Array.from(map.values()));
+
       const { data: wData } = await supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false });
       setWithdrawals(wData || []);
     } catch (_) {}
@@ -1421,7 +1434,11 @@ function RechargeAgenciesTab() {
 
     // Resolve user
     const u = await searchUserProfile(q);
-    const userId = u ? u.id : q;
+    if (!u) {
+      alert(`لم يتم العثور على أي مستخدم بالمعرف "${q}". يرجى التأكد من كتابة الـ ID أو الـ UID الصحيح.`);
+      return;
+    }
+    const userId = u.uid || u.id;
     const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
 
     await updateRechargeAgency(userId, {
@@ -1436,7 +1453,7 @@ function RechargeAgenciesTab() {
     setShowAddModal(false);
     setTargetUid(''); setAgencyName(''); setAgencyLogo(''); setWhatsappPhone(''); setInitialCoins('0');
     setRechargeCommissionRate('5');
-    alert(`تم تعيين وتفعيل وكيل الشحن (${u?.name || userId}) بنجاح وإرسال إشعار تهنئة له باسم المشرف [${adminName}]!`);
+    alert(`تم تعيين وتفعيل وكيل الشحن (${u.name}) بنجاح وإرسال إشعار تهنئة وافتتاح له!`);
     load();
   };
 

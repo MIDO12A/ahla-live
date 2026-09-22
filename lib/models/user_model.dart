@@ -325,8 +325,11 @@ class UserModel {
       ownedVipItems: ((map['owned_vip_items'] as List?) ?? const [])
           .map((e) => (e as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? '')))
           .toList(),
-      album: (map['album'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      isRechargeAgent: map['is_recharge_agent'] == true || map['isRechargeAgent'] == true,
+      isRechargeAgent: map['is_recharge_agent'] == true ||
+          map['isRechargeAgent'] == true ||
+          map['is_agent'] == true ||
+          map['role'] == 'agent' ||
+          map['role'] == 'recharge_agent',
       rechargeAgencyName: map['recharge_agency_name']?.toString(),
       rechargeAgencyLogo: map['recharge_agency_logo']?.toString(),
       whatsappNumber: map['whatsapp_number']?.toString() ?? map['phone']?.toString(),

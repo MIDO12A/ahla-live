@@ -72,9 +72,8 @@ service cloud.firestore {
 
     // ── الإشعارات: المستخدم يقرأ/يعدل إشعاراته فقط ─────────────────────
     match /notifications/{id} {
-      allow read, update: if signedIn() && request.auth.uid == resource.data.user_id;
-      allow create: if signedIn();
-      allow delete: if signedIn() && request.auth.uid == resource.data.user_id;
+      allow read, update, delete: if signedIn() && (request.auth.uid == resource.data.user_id || request.auth.uid == resource.data.uid || isAdmin());
+      allow create: if signedIn() || isAdmin();
     }
 
     // ── الغرف والدردشة والهدايا: نموذج مفتوح للمستخدمين المسجلين ───────

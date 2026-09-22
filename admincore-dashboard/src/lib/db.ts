@@ -1,4 +1,6 @@
 import { supabase, getAdminSupabase } from './supabase'
+import { firestoreDb } from './firebase'
+import { doc, getDoc, getDocs, collection, query, where, setDoc, increment } from 'firebase/firestore'
 import type {
   UserModel, RoomModel, GiftModel, SentGiftModel,
   StoreItemModel, UnionModel, BugReport, AppConfig,
@@ -1462,7 +1464,8 @@ export async function sendSystemNotification(data: {
         ...(data.extraData || {}),
       },
     };
-    await supabase.from('notifications').insert(payload);
+    // Direct addDoc to notifications collection
+    await setDoc(doc(collection(firestoreDb, 'notifications')), payload);
     return true;
   } catch (e) {
     console.warn('sendSystemNotification failed:', e);
@@ -1480,30 +1483,83 @@ export async function searchUserProfile(queryStr: string): Promise<{
   agency_id?: string;
   is_recharge_agent?: boolean;
 } | null> {
-  const q = queryStr.trim().toLowerCase();
+  const q = queryStr.trim();
   if (!q) return null;
+  const qLower = q.toLowerCase();
+
   try {
+    // 1. Direct lookup by Firestore document ID / Firebase UID
+    const directDoc = await getDoc(doc(firestoreDb, 'users', q));
+    if (directDoc.exists()) {
+      const data = directDoc.data();
+      return {
+        id: directDoc.id,
+        uid: directDoc.id,
+        name: data.name || data.display_name || 'بدون اسم',
+        custom_id: String(data.custom_id || data.customId || data.display_id || directDoc.id.slice(0, 8)),
+        photo_url: data.photo_url || data.photoUrl || data.avatar || '',
+        coins: Number(data.coins || 0),
+        agency_id: data.agency_id || undefined,
+        is_recharge_agent: Boolean(data.is_recharge_agent || data.isRechargeAgent || data.is_agent),
+      };
+    }
+
+    // 2. Query by custom_id (string or number)
+    const customIdQueries = [
+      query(collection(firestoreDb, 'users'), where('custom_id', '==', q)),
+      query(collection(firestoreDb, 'users'), where('customId', '==', q)),
+      query(collection(firestoreDb, 'users'), where('display_id', '==', q)),
+    ];
+    if (!isNaN(Number(q))) {
+      customIdQueries.push(query(collection(firestoreDb, 'users'), where('custom_id', '==', Number(q))));
+      customIdQueries.push(query(collection(firestoreDb, 'users'), where('customId', '==', Number(q))));
+    }
+
+    for (const qObj of customIdQueries) {
+      try {
+        const snap = await getDocs(qObj);
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          const data = d.data();
+          return {
+            id: d.id,
+            uid: d.id,
+            name: data.name || data.display_name || 'بدون اسم',
+            custom_id: String(data.custom_id || data.customId || data.display_id || d.id.slice(0, 8)),
+            photo_url: data.photo_url || data.photoUrl || data.avatar || '',
+            coins: Number(data.coins || 0),
+            agency_id: data.agency_id || undefined,
+            is_recharge_agent: Boolean(data.is_recharge_agent || data.isRechargeAgent || data.is_agent),
+          };
+        }
+      } catch (_) {}
+    }
+
+    // 3. Fallback scan across users
     const { data: users } = await supabase.from('users').select('*');
-    if (!users || !Array.isArray(users)) return null;
-    const found = users.find((u: any) => {
-      const uid = String(u.id || u.uid || '').toLowerCase();
-      const cid = String(u.custom_id || u.customId || u.display_id || '').toLowerCase();
-      return uid === q || cid === q;
-    });
-    if (!found) return null;
-    return {
-      id: found.id || found.uid,
-      uid: found.uid || found.id,
-      name: found.name || 'بدون اسم',
-      custom_id: String(found.custom_id || found.customId || found.id?.slice(0, 8) || ''),
-      photo_url: found.photo_url || found.photoUrl || found.avatar || '',
-      coins: Number(found.coins || 0),
-      agency_id: found.agency_id || undefined,
-      is_recharge_agent: Boolean(found.is_recharge_agent),
-    };
-  } catch {
-    return null;
+    if (users && Array.isArray(users)) {
+      const found = users.find((u: any) => {
+        const uid = String(u.id || u.uid || '').toLowerCase();
+        const cid = String(u.custom_id || u.customId || u.display_id || '').toLowerCase();
+        return uid === qLower || cid === qLower;
+      });
+      if (found) {
+        return {
+          id: found.id || found.uid,
+          uid: found.uid || found.id,
+          name: found.name || 'بدون اسم',
+          custom_id: String(found.custom_id || found.customId || found.id?.slice(0, 8) || ''),
+          photo_url: found.photo_url || found.photoUrl || found.avatar || '',
+          coins: Number(found.coins || 0),
+          agency_id: found.agency_id || undefined,
+          is_recharge_agent: Boolean(found.is_recharge_agent || found.isRechargeAgent || found.is_agent),
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('searchUserProfile failed:', e);
   }
+  return null;
 }
 
 export async function sendAgencyInvitation(params: {
@@ -1541,35 +1597,107 @@ export async function updateRechargeAgency(userId: string, data: {
   adminName?: string;
 }): Promise<boolean> {
   try {
-    const adminName = data.adminName || 'إدارة التطبيق';
-    await supabase.from('users').update({
-      ...data,
-      is_recharge_agent: true,
-    }).eq('id', userId);
+    let resolvedUid = userId.trim();
+    // Resolve user if userId is not a direct doc ID or if it's a numeric ID
+    const u = await searchUserProfile(resolvedUid);
+    if (u) {
+      resolvedUid = u.uid || u.id;
+    }
 
-    // Send congratulation notification
+    const adminName = data.adminName || 'إدارة التطبيق';
+    const nowIso = new Date().toISOString();
+    const agencyName = data.recharge_agency_name || 'وكالة الشحن المعتمدة';
+
+    // 1. Prepare user update payload
+    const userUpdate: Record<string, any> = {
+      is_recharge_agent: true,
+      isRechargeAgent: true,
+      is_agent: true,
+      recharge_agency_name: agencyName,
+      recharge_agency_logo: data.recharge_agency_logo || '',
+      whatsapp_number: data.whatsapp_number || '',
+      recharge_commission_rate: data.recharge_commission_rate ?? 5,
+      updated_at: nowIso,
+    };
+
+    // If initial coins specified > 0, increment or set
+    if (data.coins && data.coins > 0) {
+      userUpdate.coins = increment(data.coins);
+    }
+
+    // Write to users/{resolvedUid}
+    await setDoc(doc(firestoreDb, 'users', resolvedUid), userUpdate, { merge: true });
+
+    // 2. Write to recharge_agents/{resolvedUid} for direct agency queries
+    await setDoc(doc(firestoreDb, 'recharge_agents', resolvedUid), {
+      id: resolvedUid,
+      uid: resolvedUid,
+      name: agencyName,
+      owner_id: resolvedUid,
+      owner_name: u?.name || 'وكيل شحن',
+      custom_id: u?.custom_id || '',
+      whatsapp_number: data.whatsapp_number || '',
+      logo: data.recharge_agency_logo || '',
+      commission_rate: data.recharge_commission_rate ?? 5,
+      is_active: true,
+      created_at: nowIso,
+      updated_at: nowIso,
+    }, { merge: true });
+
+    // 3. Send official system opening notification
     await sendSystemNotification({
-      userId,
+      userId: resolvedUid,
       title: 'مبروك! تم تفعيل وكالة الشحن 🎉',
-      body: `مبروك! تم تفعيل وكالة الشحن المعتمدة [${data.recharge_agency_name || 'وكالة الشحن'}] لحسابك بنجاح بواسطة المشرف [${adminName}]. يمكنك الآن البدء بشحن العملات للمستخدمين.`,
-      type: 'system',
+      body: `مبروك! تم تفعيل وكالة الشحن المعتمدة [${agencyName}] لحسابك بنجاح بواسطة المشرف [${adminName}]. يمكنك الآن البدء بشحن العملات للمستخدمين وإدارة الرصيد.`,
+      type: 'agency_recharge_approved',
       action: 'recharge_agency_approved',
       extraData: {
         admin_name: adminName,
+        agency_name: agencyName,
+        whatsapp_number: data.whatsapp_number || '',
+        commission_rate: data.recharge_commission_rate ?? 5,
+        activated_at: nowIso,
       },
     });
 
     return true;
-  } catch { return false; }
+  } catch (e) {
+    console.error('updateRechargeAgency failed:', e);
+    return false;
+  }
 }
 
 export async function revokeRechargeAgency(userId: string): Promise<boolean> {
   try {
-    await supabase.from('users').update({
+    let resolvedUid = userId.trim();
+    const u = await searchUserProfile(resolvedUid);
+    if (u) resolvedUid = u.uid || u.id;
+
+    await setDoc(doc(firestoreDb, 'users', resolvedUid), {
       is_recharge_agent: false,
-    }).eq('id', userId);
+      isRechargeAgent: false,
+      is_agent: false,
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+
+    await setDoc(doc(firestoreDb, 'recharge_agents', resolvedUid), {
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+
+    await sendSystemNotification({
+      userId: resolvedUid,
+      title: 'إلغاء صفة وكيل الشحن',
+      body: 'تم إلغاء صفة وكيل الشحن لحسابك من قبل الإدارة.',
+      type: 'system',
+      action: 'recharge_agency_revoked',
+    });
+
     return true;
-  } catch { return false; }
+  } catch (e) {
+    console.error('revokeRechargeAgency failed:', e);
+    return false;
+  }
 }
 
 // ---- Agency Ledger ----

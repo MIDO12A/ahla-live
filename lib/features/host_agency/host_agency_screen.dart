@@ -13,6 +13,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/ui/in_app_toast.dart';
 import 'screens/agency_profile_screen.dart';
 import 'screens/anchor_agent_screen.dart';
+import '../financial/agent_recharge_portal_screen.dart';
 
 import '../../core/cache/encrypted_image_provider.dart';
 import '../../config/r.dart';
@@ -347,6 +348,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
           child: CustomScrollView(
             slivers: [
               _buildHeader(cfg),
+              SliverToBoxAdapter(child: _buildRechargeAgentBanner()),
               SliverToBoxAdapter(child: _buildUnionRankHeader(cfg)),
               if (_showForm) ...[
                 SliverToBoxAdapter(child: const SizedBox(height: 16)),
@@ -360,6 +362,106 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRechargeAgentBanner() {
+    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+    if (user?.isRechargeAgent != true) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2A1E07), Color(0xFF1F1805)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFD700).withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFD700)),
+            ),
+            child: const Center(
+              child: Text('💼', style: TextStyle(fontSize: 22)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        user?.rechargeAgencyName ?? 'وكالة الشحن المعتمدة',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD700),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFD700).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'وكيل معتمد',
+                        style: TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                const Text(
+                  'أنت وكيل شحن معتمد. انقر هنا لدخول لوحة تحكم الوكالة وشحن الرصيد.',
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AgentRechargePortalScreen()),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFD700),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text(
+              'دخول البوابة',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }

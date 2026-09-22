@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/supabase_compat.dart';
 
 import '../../core/auth/auth_service.dart';
@@ -53,9 +54,15 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
   }
 
   Future<void> _loadDashboard() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final user = userProvider.currentUser;
+    final uid = AuthService.currentSession?.user.id ?? user?.uid;
+
     try {
-      final res =
-          await Supabase.instance.client.rpc('agent_get_dashboard');
+      final res = await Supabase.instance.client.rpc(
+        'agent_get_dashboard',
+        params: {'uid': uid},
+      );
       if (!mounted) return;
       if (res is Map && res['ok'] == true) {
         setState(() {
@@ -64,15 +71,64 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
               Map<String, dynamic>.from(res));
           _loading = false;
         });
-      } else {
-        setState(() {
-          _isAgent = false;
-          _loading = false;
-        });
+        return;
       }
     } catch (e) {
-      debugPrint('[agent_recharge] bootstrap error: $e');
-      if (mounted) setState(() => _loading = false);
+      debugPrint('[agent_recharge] rpc error: $e');
+    }
+
+    // Fallback: Check user provider and Firestore directly
+    if (user?.isRechargeAgent == true || uid != null) {
+      try {
+        final uDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        final data = uDoc.data() ?? {};
+        final isAgent = user?.isRechargeAgent == true ||
+            data['is_recharge_agent'] == true ||
+            data['isRechargeAgent'] == true ||
+            data['is_agent'] == true ||
+            data['role'] == 'agent';
+
+        if (isAgent && mounted) {
+          final coins = (data['coins'] as num?)?.toInt() ?? user?.coins ?? 0;
+          final customId = data['custom_id']?.toString() ?? user?.customId ?? uid;
+          final pin = data['agent_pin']?.toString();
+
+          setState(() {
+            _isAgent = true;
+            _dashboard = AgentDashboardData(
+              enabled: true,
+              pinSet: pin != null && pin.isNotEmpty,
+              dailyLimit: 10000000,
+              agencyGold: coins,
+              agentPublicId: customId,
+              todayTotal: 0,
+              todayCount: 0,
+              todayRemaining: 10000000,
+              weekTotal: 0,
+              weekCount: 0,
+              monthTotal: 0,
+              monthCount: 0,
+              allTotal: 0,
+              allCount: 0,
+              weekChart: const [],
+              recentTxns: const [],
+              quickAmounts: const [1000, 5000, 10000, 50000, 100000],
+              usdBalance: 0.0,
+            );
+            _loading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        debugPrint('[agent_recharge] fallback error: $e');
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isAgent = false;
+        _loading = false;
+      });
     }
   }
 

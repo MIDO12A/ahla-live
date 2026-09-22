@@ -1716,11 +1716,17 @@ class SupabaseClient {
   }
 
   Future<Map<String, dynamic>> _rpcAgentGetDashboard(Map<String, dynamic>? p) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = p?['uid']?.toString() ??
+        FirebaseAuth.instance.currentUser?.uid ??
+        auth.currentUser?.id;
     if (uid == null) return {'ok': false, 'error': 'unauthorized'};
     final uDoc = await _db.collection('users').doc(uid).get();
     final data = uDoc.data() ?? {};
-    final isAgent = data['is_recharge_agent'] == true || data['isRechargeAgent'] == true;
+    final isAgent = data['is_recharge_agent'] == true ||
+        data['isRechargeAgent'] == true ||
+        data['is_agent'] == true ||
+        data['role'] == 'agent' ||
+        data['role'] == 'recharge_agent';
     if (!isAgent) return {'ok': false, 'error': 'not_an_agent'};
 
     final coins = (data['coins'] as num?)?.toInt() ?? 0;
