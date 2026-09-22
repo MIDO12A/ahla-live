@@ -5,12 +5,16 @@ import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../providers/user_provider.dart';
+import '../../models/user_model.dart';
+import '../../services/firebase_service.dart';
 import '../../services/level_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/update_service.dart';
 import '../../widgets/app_update_dialog.dart';
 import '../../core/supabase_compat.dart';
 import '../../screens/room/widgets/svga_frame.dart';
+import '../../screens/room/room_screen.dart' show navigateToRoom;
+import '../discover/create_room_screen.dart';
 import '../follow/follow_recent_screen.dart';
 import '../profile/account_management_screen.dart';
 import '../wallet/wallet_main_screen.dart';
@@ -108,7 +112,7 @@ class ProfileScreen extends StatelessWidget {
   Widget _buildFrameWidget(String activeFrame) {
     if (activeFrame.isEmpty) return const SizedBox();
     String resolved = activeFrame;
-    final storeItem = SupabaseService().getStoreItemSync(activeFrame);
+    final storeItem = FirebaseService().getStoreItemSync(activeFrame);
     if (storeItem != null) {
       final anim = (storeItem.svgaAsset != null && storeItem.svgaAsset!.isNotEmpty)
           ? storeItem.svgaAsset!
@@ -134,10 +138,10 @@ class ProfileScreen extends StatelessWidget {
   }
 
   /// لوحة المستخدم العلوية المطابقة لـ vh_mine_user_panel.xml
-  Widget _buildUserPanel(BuildContext context, dynamic user) {
-    final photoUrl = user?.photoUrl?.isNotEmpty == true ? user.photoUrl : null;
-    final userId = user?.customId?.isNotEmpty == true
-        ? user!.customId!
+  Widget _buildUserPanel(BuildContext context, UserModel? user) {
+    final photoUrl = (user?.photoUrl != null && user!.photoUrl.isNotEmpty) ? user.photoUrl : null;
+    final userId = (user?.customId != null && user!.customId.isNotEmpty)
+        ? user.customId
         : ((1000000 + (user?.uid.hashCode.abs() ?? 0) % 9000000).toString());
 
     return Padding(
@@ -228,7 +232,7 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            user?.name?.isNotEmpty == true ? user.name : 'مستخدم جديد',
+                            (user?.name != null && user!.name.isNotEmpty) ? user.name : 'مستخدم جديد',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -242,12 +246,12 @@ class ProfileScreen extends StatelessWidget {
                         // شارة الجنس والعمر userGender (SexAgeView)
                         _buildGenderAgeBadge(user),
                         // علم الدولة
-                        if (user?.country != null && user.country.toString().isNotEmpty) ...[
+                        if (user?.country != null && user!.country.isNotEmpty) ...[
                           const SizedBox(width: 6),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(2),
                             child: Text(
-                              _countryFlag(user.country.toString()),
+                              _countryFlag(user.country),
                               style: const TextStyle(fontSize: 14),
                             ),
                           ),
@@ -257,7 +261,7 @@ class ProfileScreen extends StatelessWidget {
 
                     const SizedBox(height: 6),
 
-                    // السطر 2: معرف المستخدم userId + زر النسخ idCopyIv + زر ID
+                    // السطر 2: معرف المستخدم userId + زر النسخ idCopyIv + زر ID (llBuyID)
                     Row(
                       children: [
                         Text(
@@ -271,13 +275,15 @@ class ProfileScreen extends StatelessWidget {
                         const SizedBox(width: 6),
                         GestureDetector(
                           onTap: () {
-                            Clipboard.setData(ClipboardData(text: userId));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('تم نسخ الـ ID بنجاح'),
-                                duration: Duration(seconds: 1),
-                              ),
-                            );
+                            try {
+                              Clipboard.setData(ClipboardData(text: userId));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('تم نسخ الـ ID بنجاح'),
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            } catch (_) {}
                           },
                           child: Image.asset(
                             'assets/mipmap-xxhdpi/id_id_copy.png',
@@ -285,19 +291,42 @@ class ProfileScreen extends StatelessWidget {
                             height: 16,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.35),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Text(
-                            'ID',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Color(0xB3FFFFFF),
-                              fontWeight: FontWeight.bold,
+                        const SizedBox(width: 8),
+                        // زر شراء وتغيير المعرف llBuyID
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const MallScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0x59000000),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'ID',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xB3FFFFFF),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Image.asset(
+                                  'assets/mipmap-xxhdpi/ic_wallet_arrow_right.png',
+                                  width: 10,
+                                  height: 10,
+                                  color: const Color(0xB3FFFFFF),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -319,9 +348,9 @@ class ProfileScreen extends StatelessWidget {
   }
 
   /// شارة الجنس والعمر SexAgeView
-  Widget _buildGenderAgeBadge(dynamic user) {
+  Widget _buildGenderAgeBadge(UserModel? user) {
     final isGirl = user?.gender == 'female';
-    final age = (user?.age != null && (user.age as int) > 0) ? user.age.toString() : '20';
+    final age = (user != null && user.age > 0) ? user.age.toString() : '20';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
@@ -352,20 +381,24 @@ class ProfileScreen extends StatelessWidget {
   }
 
   String _countryFlag(String countryCode) {
-    if (countryCode.length != 2) return '';
-    final int first = countryCode.toUpperCase().codeUnitAt(0) - 0x41 + 0x1F1E6;
-    final int second = countryCode.toUpperCase().codeUnitAt(1) - 0x41 + 0x1F1E6;
-    return String.fromCharCode(first) + String.fromCharCode(second);
+    try {
+      if (countryCode.length != 2) return '';
+      final int first = countryCode.toUpperCase().codeUnitAt(0) - 0x41 + 0x1F1E6;
+      final int second = countryCode.toUpperCase().codeUnitAt(1) - 0x41 + 0x1F1E6;
+      return String.fromCharCode(first) + String.fromCharCode(second);
+    } catch (_) {
+      return '';
+    }
   }
 
   /// أوسمة المستويات والـ VIP
-  Widget _buildLevelDisplay(dynamic user) {
+  Widget _buildLevelDisplay(UserModel? user) {
     return Row(
       children: [
         _levelIcon(user?.wealthLevel ?? 1, 'wealth'),
         const SizedBox(width: 6),
         _levelIcon(user?.rechargeLevel ?? 1, 'recharge'),
-        if (user?.activeNecklace != null && user.activeNecklace.toString().isNotEmpty) ...[
+        if (user?.activeNecklace != null && user!.activeNecklace!.isNotEmpty) ...[
           const SizedBox(width: 6),
           _buildVipNecklace(user),
         ],
@@ -374,8 +407,8 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVipNecklace(dynamic user) {
-    final necklace = user?.activeNecklace?.toString() ?? '';
+  Widget _buildVipNecklace(UserModel? user) {
+    final necklace = user?.activeNecklace ?? '';
     if (necklace.isEmpty) return const SizedBox();
     return SizedBox(
       width: 24,
@@ -384,12 +417,12 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBadgesRow(dynamic user) {
-    final badges = (user?.ownedBadges as List<dynamic>?)?.cast<String>() ?? [];
+  Widget _buildBadgesRow(UserModel? user) {
+    final badges = user?.ownedBadges ?? const [];
     if (badges.isEmpty) return const SizedBox();
     return Row(
       children: badges.take(3).map((badgeId) {
-        final storeItem = SupabaseService().getStoreItemSync(badgeId);
+        final storeItem = FirebaseService().getStoreItemSync(badgeId);
         final iconUrl = storeItem?.iconAsset ?? storeItem?.svgaAsset;
         if (iconUrl == null || iconUrl.isEmpty) return const SizedBox();
         return Padding(
@@ -399,7 +432,7 @@ class ProfileScreen extends StatelessWidget {
             height: 20,
             child: iconUrl.endsWith('.svga')
                 ? SvgaFrame(svgaPath: iconUrl, size: 20)
-                : Image.network(iconUrl, width: 20, height: 20, errorBuilder: (_, __, ___) => const SizedBox()),
+                : R.image(iconUrl, width: 20, height: 20),
           ),
         );
       }).toList(),
@@ -438,7 +471,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   /// شريط البيانات المطابق لـ vh_mine_user_data_panel.xml
-  Widget _buildUserDataPanel(BuildContext context, dynamic user) {
+  Widget _buildUserDataPanel(BuildContext context, UserModel? user) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
@@ -535,7 +568,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   /// بطاقة المحفظة والأزرار الأربعة المطابقة لـ ic_mine_wallet_bg.png
-  Widget _buildWalletAndMiddleFunctionsPanel(BuildContext context, dynamic user) {
+  Widget _buildWalletAndMiddleFunctionsPanel(BuildContext context, UserModel? user) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -785,9 +818,29 @@ class ProfileScreen extends StatelessWidget {
     return num.toString();
   }
 
+  /// حساب مستوى VIP الفعلي للمستخدم بطريقة آمنة بدون أي خطأ وقت التشغيل
+  int _getUserVipTier(UserModel? user) {
+    if (user == null) return 0;
+    if (user.ownedVipItems.isNotEmpty) {
+      for (final item in user.ownedVipItems) {
+        final name = item['name'] ?? item['title'] ?? '';
+        final match = RegExp(r'VIP\s*(\d+)', caseSensitive: false).firstMatch(name);
+        if (match != null) {
+          final val = int.tryParse(match.group(1) ?? '1') ?? 1;
+          return val.clamp(1, 6);
+        }
+      }
+      return 1;
+    }
+    if (user.rechargeLevel > 1) {
+      return (user.rechargeLevel ~/ 2).clamp(1, 6);
+    }
+    return 0;
+  }
+
   /// مدخل VIP المطابق لـ vh_mine_vip_entrance.xml
-  Widget _buildVipEntrance(BuildContext context, dynamic user) {
-    final int tier = (user?.vipTier ?? 0) as int;
+  Widget _buildVipEntrance(BuildContext context, UserModel? user) {
+    final int tier = _getUserVipTier(user);
     final bgPath = 'assets/mipmap-xxhdpi/vip_level${tier.clamp(0, 6)}_bg.png';
 
     return GestureDetector(
@@ -815,6 +868,11 @@ class ProfileScreen extends StatelessWidget {
                       'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
                       width: 22,
                       height: 22,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.workspace_premium,
+                        size: 22,
+                        color: Color(0xFFFAE9B5),
+                      ),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -874,7 +932,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   /// قائمة الوظائف والإعدادات المطابقة لـ settingListRv & item_mine_setting.xml
-  Widget _buildBottomFunctions(BuildContext context, dynamic user) {
+  Widget _buildBottomFunctions(BuildContext context, UserModel? user) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -937,9 +995,25 @@ class ProfileScreen extends StatelessWidget {
           _buildFunctionItem(
             icon: 'assets/mipmap-xxhdpi/ic_mine_create_room.png',
             title: 'غرفتي',
-            onTap: () {
+            onTap: () async {
               if (user?.hostedRoomId != null && user!.hostedRoomId!.isNotEmpty) {
-                // دخول الغرفة
+                final room = await FirebaseService().getRoom(user.hostedRoomId!);
+                if (room != null && context.mounted) {
+                  navigateToRoom(
+                    context,
+                    roomName: room.name,
+                    hostName: user.name,
+                    hostUid: room.hostUid,
+                    roomId: user.hostedRoomId!,
+                  );
+                  return;
+                }
+              }
+              if (context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CreateRoomScreen()),
+                );
               }
             },
           ),
