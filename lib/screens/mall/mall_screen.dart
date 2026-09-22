@@ -944,8 +944,6 @@ class _MallScreenState extends State<MallScreen> {
   /// شريط الشراء السفلي المطابق لـ cl_buy في mine_activity_mall.xml
   Widget _buildBottomBar(UserProvider userProvider, dynamic user) {
     final selected = _selectedItem;
-    final isOwned = selected != null && _isItemOwned(selected, userProvider);
-    final isEquipped = selected != null && _isItemEquipped(selected, user);
 
     return Container(
       color: const Color(0xFF302218), // color_FF302218
@@ -969,22 +967,11 @@ class _MallScreenState extends State<MallScreen> {
           ),
           const Spacer(),
 
-          // زر الشراء أو الارتداء tv_buy
+          // زر الشراء tv_buy (في المتجر دائماً "شراء")
           if (selected != null)
             GestureDetector(
-              onTap: () async {
-                if (isOwned) {
-                  // إذا كان مملوكاً -> ارتداء أو إلغاء الارتداء
-                  if (isEquipped) {
-                    await userProvider.unequipItem(selected.category);
-                  } else {
-                    await userProvider.equipItem(selected.itemId, selected.category);
-                  }
-                  if (mounted) setState(() {});
-                } else {
-                  // إذا لم يكن مملوكاً -> فتح نافذة الشراء
-                  _showBuyConfirmDialog(selected, userProvider);
-                }
+              onTap: () {
+                _showBuyConfirmDialog(selected, userProvider);
               },
               child: Container(
                 width: 126,
@@ -996,11 +983,9 @@ class _MallScreenState extends State<MallScreen> {
                     fit: BoxFit.fill,
                   ),
                 ),
-                child: Text(
-                  isOwned
-                      ? (isEquipped ? 'إلغاء الارتداء' : 'ارتداء')
-                      : 'شراء',
-                  style: const TextStyle(
+                child: const Text(
+                  'شراء',
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,

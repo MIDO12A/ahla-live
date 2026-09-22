@@ -3,18 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
-import '../../services/dynamic_config_service.dart';
 import '../../providers/user_provider.dart';
 import '../../models/user_model.dart';
 import '../../services/firebase_service.dart';
-import '../../services/level_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/update_service.dart';
 import '../../widgets/app_update_dialog.dart';
-import '../../core/supabase_compat.dart';
 import '../../screens/room/widgets/svga_frame.dart';
-import '../../screens/room/room_screen.dart' show navigateToRoom;
-import '../discover/create_room_screen.dart';
 import '../follow/follow_recent_screen.dart';
 import '../profile/account_management_screen.dart';
 import '../wallet/wallet_main_screen.dart';
@@ -26,21 +21,18 @@ import '../backpack/backpack_screen.dart';
 import 'edit_profile_screen.dart';
 import '../setting/feedback_screen.dart';
 import '../vip/vip_center_screen.dart';
-import '../vip/vip_intro_screen.dart';
-import '../../features/cp/cp_space_screen.dart';
 import '../../features/host_agency/host_agency_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
-import '../../features/signin/weekly_signin_screen.dart';
-import '../../features/tasks/screens/daily_tasks_screen.dart';
 
-/// شاشة "أنا" (الملف الشخصي) المطابقة تماماً لملف frag_mine_v3.xml
-/// ومكوناتها الأصلية:
-/// - vh_mine_user_panel.xml (بيانات المستخدم وصورته والأوسمة)
-/// - vh_mine_user_data_panel.xml (الزوار، المتابعون، المعجبون، الأصدقاء)
-/// - vh_mine_wallet_panel.xml (المحفظة: الكوينز والماسات)
-/// - vh_mine_middle_funcions_panel.xml (الوكالة، المتجر، الارتباط، المستوى)
-/// - vh_mine_vip_entrance.xml (مدخل كبار الشخصيات VIP)
-/// - vh_mine_bottom_functions_item.xml (قائمة الوظائف والإعدادات)
+/// شاشة "أنا" (الملف الشخصي) المطابقة تماماً لملف fragment_mine.xml
+/// وكود MineFragment.java من المشروع الأصلي (F:\Medal\New folder\nu):
+/// - الخلفية بلون #F2F5FC مع صورة الغلاف العلوية mine_top_bg.webp
+/// - الصورة الشخصية المركزية (iv_avatar) بقطر 92dp وحدود بيضاء 4dp داخل إطار mine_avatar_ic.webp (122dp)
+/// - الاسم والجنس (sex_male_ic / sex_female_ic) ومعرف المستخدم (ID) وأزرار النسخ والأوسمة في المنتصف
+/// - إحصائيات المتابعة الثلاثية: المتابَعون (cl_following)، المعجبون (cl_followers)، الزوار (cl_visitor)
+/// - بطاقة المحفظة البيضاء (ll_wallet_info): mine_wallet_ic + common_gold_ic_3 + رصيد الكوينز والماسات
+/// - بطاقة VIP الفاخرة (cl_vip): mine_vip_center_bg + mine_mall_tab_vip_ic + mine_vip_label_ic + mine_vip_go
+/// - قائمة الوظائف البيضاء (ll_set): الوكالة، المستوى، المتجر، الحقيبة، بوابة الوكلاء، الشكاوى، الإعدادات، التحديثات
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -48,25 +40,22 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
     final user = userProvider.currentUser;
-    final bgImg = DynamicConfigService().profileBackgroundImage;
 
     return Container(
-      color: const Color(0xFF13131A), // dark_95
+      color: const Color(0xFFF2F5FC), // color_F2F5FC
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(
           children: [
-            // 1. الخلفية الأصلية العلوية ic_hilla_top_bg
+            // 1. الخلفية العلوية mine_top_bg.webp
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: Image.asset(
-                'assets/mipmap-xxhdpi/ic_hilla_top_bg.png',
+                'assets/mipmap-xxhdpi/mine_top_bg.webp',
                 fit: BoxFit.fitWidth,
-                errorBuilder: (_, __, ___) => bgImg.isNotEmpty
-                    ? Image(image: R.cachedImage(bgImg), fit: BoxFit.fitWidth)
-                    : const SizedBox.shrink(),
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),
             ),
 
@@ -74,30 +63,29 @@ class ProfileScreen extends StatelessWidget {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 90),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 2. لوحة المستخدم idUserPanel + vh_mine_user_panel
-                    _buildUserPanel(context, user),
+                    // 2. لوحة المستخدم المركزية (cl_info)
+                    _buildUserInfoPanel(context, user),
+
+                    const SizedBox(height: 24),
+
+                    // 3. شريط الإحصائيات الثلاثي (cl_data_info)
+                    _buildStatsRow(context, user),
+
+                    const SizedBox(height: 16),
+
+                    // 4. بطاقة المحفظة (ll_wallet_info)
+                    _buildWalletCard(context, user),
 
                     const SizedBox(height: 12),
 
-                    // 3. شريط الإحصائيات الأربعة userDataPanel (vh_mine_user_data_panel)
-                    _buildUserDataPanel(context, user),
-
-                    const SizedBox(height: 14),
-
-                    // 4. بطاقة المحفظة والأزرار الأربعة (ic_mine_wallet_bg)
-                    _buildWalletAndMiddleFunctionsPanel(context, user),
+                    // 5. بطاقة مركز VIP (cl_vip)
+                    _buildVipBanner(context, user),
 
                     const SizedBox(height: 12),
 
-                    // 5. مدخل VIP (vh_mine_vip_entrance)
-                    _buildVipEntrance(context, user),
-
-                    const SizedBox(height: 12),
-
-                    // 6. قائمة الوظائف والإعدادات (settingListRv)
-                    _buildBottomFunctions(context, user),
+                    // 6. قائمة الوظائف والإعدادات (ll_set)
+                    _buildSettingsList(context, user),
                   ],
                 ),
               ),
@@ -110,7 +98,7 @@ class ProfileScreen extends StatelessWidget {
 
   /// حل إطار الرأس النشط سواء SVGA أو صورة عادية
   Widget _buildFrameWidget(String activeFrame) {
-    if (activeFrame.isEmpty) return const SizedBox();
+    if (activeFrame.isEmpty) return const SizedBox.shrink();
     String resolved = activeFrame;
     final storeItem = FirebaseService().getStoreItemSync(activeFrame);
     if (storeItem != null) {
@@ -130,27 +118,29 @@ class ProfileScreen extends StatelessWidget {
         resolved.startsWith('assets/')) {
       return SvgaFrame(
         svgaPath: resolved,
-        size: 98,
+        size: 122,
         fit: BoxFit.contain,
       );
     }
-    return const SizedBox();
+    return const SizedBox.shrink();
   }
 
-  /// لوحة المستخدم العلوية المطابقة لـ vh_mine_user_panel.xml
-  Widget _buildUserPanel(BuildContext context, UserModel? user) {
+  /// لوحة المستخدم العلوية المركزية cl_info المطابقة لـ fragment_mine.xml
+  Widget _buildUserInfoPanel(BuildContext context, UserModel? user) {
     final photoUrl = (user?.photoUrl != null && user!.photoUrl.isNotEmpty) ? user.photoUrl : null;
     final userId = (user?.customId != null && user!.customId.isNotEmpty)
         ? user.customId
         : ((1000000 + (user?.uid.hashCode.abs() ?? 0) % 9000000).toString());
+    final isMale = user?.gender != 'female';
+    final hasFrame = user?.activeFrame != null && user!.activeFrame!.isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      child: Column(
-        children: [
-          // زر التعديل العلوي في الزاوية اليمنى userEditBtn
-          Align(
-            alignment: Alignment.centerRight,
+    return Column(
+      children: [
+        // زر التعديل العلوي في أقصى اليمين (iv_edit_info)
+        Padding(
+          padding: const EdgeInsets.only(top: 8, right: 16, left: 16),
+          child: Align(
+            alignment: Alignment.topRight,
             child: GestureDetector(
               onTap: () {
                 Navigator.push(
@@ -158,667 +148,259 @@ class ProfileScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const EditProfileScreen()),
                 );
               },
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Image.asset(
-                  'assets/mipmap-xxhdpi/ic_mine_user_edit.png',
-                  width: 26,
-                  height: 26,
-                ),
+              child: Image.asset(
+                'assets/mipmap-xxhdpi/mine_btn_edit_ic.webp',
+                width: 28,
+                height: 28,
+                errorBuilder: (_, __, ___) => const Icon(Icons.edit, color: Colors.black87),
               ),
             ),
           ),
+        ),
 
-          const SizedBox(height: 4),
+        const SizedBox(height: 8),
 
-          // محتوى اللوحة: الصورة على اليسار والبيانات على اليمين
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // صورة المستخدم userHeader (94x94dp)
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const UserProfileScreen()),
-                  );
-                },
-                child: SizedBox(
-                  width: 94,
-                  height: 94,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // الصورة الدائرية
-                      Container(
-                        width: 76,
-                        height: 76,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white12,
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: photoUrl != null
-                            ? Image(
-                                image: R.cachedImage(photoUrl),
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    Image.asset(R.avaBoy, fit: BoxFit.cover),
-                              )
-                            : Image.asset(R.avaBoy, fit: BoxFit.cover),
+        // الصورة المركزية المحاطة بإطار mine_avatar_ic (122x122) أو إطار SVGA
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const UserProfileScreen()),
+            );
+          },
+          child: SizedBox(
+            width: 122,
+            height: 122,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // الصورة الدائرية iv_avatar (92x92) بحدود بيضاء 4dp
+                Container(
+                  width: 92,
+                  height: 92,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 4),
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                      // الإطار النشط
-                      if (user?.activeFrame != null && user!.activeFrame!.isNotEmpty)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: _buildFrameWidget(user.activeFrame!),
-                          ),
-                        ),
                     ],
                   ),
+                  clipBehavior: Clip.antiAlias,
+                  child: photoUrl != null
+                      ? Image(
+                          image: R.cachedImage(photoUrl),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Image.asset(
+                            isMale ? R.avaBoy : R.avaGirl,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Image.asset(
+                          isMale ? R.avaBoy : R.avaGirl,
+                          fit: BoxFit.cover,
+                        ),
                 ),
-              ),
 
-              const SizedBox(width: 12),
-
-              // التفاصيل النصية بجانب الصورة
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // السطر 1: اسم المستخدم + شارة الجنس والعمر + علم الدولة
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            (user?.name != null && user!.name.isNotEmpty) ? user.name : 'مستخدم جديد',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        // شارة الجنس والعمر userGender (SexAgeView)
-                        _buildGenderAgeBadge(user),
-                        // علم الدولة
-                        if (user?.country != null && user!.country.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: Text(
-                              _countryFlag(user.country),
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ),
-                        ],
-                      ],
+                // الإطار الخارجي: إطار SVGA النشط أو mine_avatar_ic.webp
+                if (hasFrame)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: _buildFrameWidget(user.activeFrame!),
                     ),
-
-                    const SizedBox(height: 6),
-
-                    // السطر 2: معرف المستخدم userId + زر النسخ idCopyIv + زر ID (llBuyID)
-                    Row(
-                      children: [
-                        Text(
-                          'ID: $userId',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xCCFFFFFF),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: () {
-                            try {
-                              Clipboard.setData(ClipboardData(text: userId));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('تم نسخ الـ ID بنجاح'),
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                            } catch (_) {}
-                          },
-                          child: Image.asset(
-                            'assets/mipmap-xxhdpi/id_id_copy.png',
-                            width: 16,
-                            height: 16,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // زر شراء وتغيير المعرف llBuyID
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const MallScreen(),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0x59000000),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  'ID',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xB3FFFFFF),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(width: 2),
-                                Image.asset(
-                                  'assets/mipmap-xxhdpi/ic_wallet_arrow_right.png',
-                                  width: 10,
-                                  height: 10,
-                                  color: const Color(0xB3FFFFFF),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                  )
+                else
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Image.asset(
+                        'assets/mipmap-xxhdpi/mine_avatar_ic.webp',
+                        width: 122,
+                        height: 122,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
                     ),
-
-                    const SizedBox(height: 6),
-
-                    // السطر 3: الأوسمة والمستويات userLevelsView
-                    _buildLevelDisplay(user),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// شارة الجنس والعمر SexAgeView
-  Widget _buildGenderAgeBadge(UserModel? user) {
-    final isGirl = user?.gender == 'female';
-    final age = (user != null && user.age > 0) ? user.age.toString() : '20';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-      decoration: BoxDecoration(
-        color: isGirl ? const Color(0xFFFF5286) : const Color(0xFF2E89FF),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isGirl ? Icons.female : Icons.male,
-            size: 11,
-            color: Colors.white,
-          ),
-          const SizedBox(width: 2),
-          Text(
-            age,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+                  ),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  String _countryFlag(String countryCode) {
-    try {
-      if (countryCode.length != 2) return '';
-      final int first = countryCode.toUpperCase().codeUnitAt(0) - 0x41 + 0x1F1E6;
-      final int second = countryCode.toUpperCase().codeUnitAt(1) - 0x41 + 0x1F1E6;
-      return String.fromCharCode(first) + String.fromCharCode(second);
-    } catch (_) {
-      return '';
-    }
-  }
-
-  /// أوسمة المستويات والـ VIP
-  Widget _buildLevelDisplay(UserModel? user) {
-    return Row(
-      children: [
-        _levelIcon(user?.wealthLevel ?? 1, 'wealth'),
-        const SizedBox(width: 6),
-        _levelIcon(user?.rechargeLevel ?? 1, 'recharge'),
-        if (user?.activeNecklace != null && user!.activeNecklace!.isNotEmpty) ...[
-          const SizedBox(width: 6),
-          _buildVipNecklace(user),
-        ],
-        _buildBadgesRow(user),
-      ],
-    );
-  }
-
-  Widget _buildVipNecklace(UserModel? user) {
-    final necklace = user?.activeNecklace ?? '';
-    if (necklace.isEmpty) return const SizedBox();
-    return SizedBox(
-      width: 24,
-      height: 24,
-      child: SvgaFrame(svgaPath: necklace, size: 24, fit: BoxFit.contain),
-    );
-  }
-
-  Widget _buildBadgesRow(UserModel? user) {
-    final badges = user?.ownedBadges ?? const [];
-    if (badges.isEmpty) return const SizedBox();
-    return Row(
-      children: badges.take(3).map((badgeId) {
-        final storeItem = FirebaseService().getStoreItemSync(badgeId);
-        final iconUrl = storeItem?.iconAsset ?? storeItem?.svgaAsset;
-        if (iconUrl == null || iconUrl.isEmpty) return const SizedBox();
-        return Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: iconUrl.endsWith('.svga')
-                ? SvgaFrame(svgaPath: iconUrl, size: 20)
-                : R.image(iconUrl, width: 20, height: 20),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _levelIcon(int level, String type) {
-    final config = LevelService().getLevelConfig(type, level);
-    final url = config?.imageUrl;
-    if (url != null && url.isNotEmpty) {
-      return SizedBox(
-        width: 32,
-        height: 18,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: R.loadAsset(url),
         ),
-      );
-    }
-    final isWealth = type == 'wealth';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isWealth
-              ? [const Color(0xFFFF9500), const Color(0xFFFF5E00)]
-              : [const Color(0xFF00C6FF), const Color(0xFF0072FF)],
-        ),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        'Lv.$level',
-        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
-      ),
-    );
-  }
 
-  /// شريط البيانات المطابق لـ vh_mine_user_data_panel.xml
-  Widget _buildUserDataPanel(BuildContext context, UserModel? user) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          // 1. الزوار visitorsCl
-          _buildDataItem(
-            count: '${user?.visitors ?? 0}',
-            label: 'الزوار',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FollowRecentScreen(initialTab: 2, targetUid: user?.uid),
-                ),
-              );
-            },
-          ),
+        const SizedBox(height: 12),
 
-          // 2. المتابعون followingCl
-          _buildDataItem(
-            count: '${user?.following ?? 0}',
-            label: 'المتابَعون',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FollowRecentScreen(initialTab: 0, targetUid: user?.uid),
-                ),
-              );
-            },
-          ),
-
-          // 3. المعجبون fansCl
-          _buildDataItem(
-            count: '${user?.followers ?? 0}',
-            label: 'المعجبون',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FollowRecentScreen(initialTab: 1, targetUid: user?.uid),
-                ),
-              );
-            },
-          ),
-
-          // 4. الأصدقاء friendsCl
-          _buildDataItem(
-            count: '0',
-            label: 'الأصدقاء',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FollowRecentScreen(initialTab: 0, targetUid: user?.uid),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDataItem({required String count, required String label, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 80,
-        alignment: Alignment.center,
-        child: Column(
+        // اسم المستخدم + أيقونة الجنس (ll_name)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              count,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+            Flexible(
+              child: Text(
+                (user?.name != null && user!.name.isNotEmpty) ? user.name : 'مستخدم جديد',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF16151A), // color_16151A
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0x99FFFFFF),
+            const SizedBox(width: 4),
+            Image.asset(
+              isMale
+                  ? 'assets/mipmap-xxhdpi/sex_male_ic.webp'
+                  : 'assets/mipmap-xxhdpi/sex_female_ic.webp',
+              width: 18,
+              height: 16,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Icon(
+                isMale ? Icons.male : Icons.female,
+                size: 16,
+                color: isMale ? Colors.blue : Colors.pink,
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
 
-  /// بطاقة المحفظة والأزرار الأربعة المطابقة لـ ic_mine_wallet_bg.png
-  Widget _buildWalletAndMiddleFunctionsPanel(BuildContext context, UserModel? user) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B1B26),
-        image: const DecorationImage(
-          image: AssetImage('assets/mipmap-xxhdpi/ic_mine_wallet_bg.png'),
-          fit: BoxFit.fill,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          // ── القسم العلوي: المحفظة vh_mine_wallet_panel.xml ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
-            child: Column(
+        const SizedBox(height: 6),
+
+        // معرف المستخدم + زر النسخ (user_id_view)
+        GestureDetector(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: userId));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('تم نسخ المعرّف بنجاح!', textAlign: TextAlign.center),
+                duration: Duration(seconds: 1),
+                backgroundColor: Color(0xFF16151A),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // ترويسة المحفظة walletIv + walletTv + walletArrowIv
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const WalletMainScreen()),
-                    );
-                  },
-                  child: Row(
-                    children: [
-                      Image.asset(
-                        'assets/mipmap-xxhdpi/ic_wallet.png',
-                        width: 22,
-                        height: 20,
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'محفظتي',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const Spacer(),
-                      Image.asset(
-                        'assets/mipmap-xxhdpi/ic_wallet_arrow_right.png',
-                        width: 14,
-                        height: 14,
-                      ),
-                    ],
+                Text(
+                  'ID: $userId',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF757A90),
                   ),
                 ),
-
-                const SizedBox(height: 10),
-
-                // بطاقتا الرصيد: الكوينز والماسات جنباً إلى جنب
-                Row(
-                  children: [
-                    // بطاقة الكوينز coinBgIv + coinIconIv + coinNumTv
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const WalletMainScreen()),
-                          );
-                        },
-                        child: Container(
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            image: DecorationImage(
-                              image: AssetImage('assets/mipmap-xxhdpi/ic_mine_wallet_coin_bg.png'),
-                              fit: BoxFit.fill,
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Row(
-                            children: [
-                              Image.asset(
-                                'assets/mipmap-xxhdpi/ic_coin.png',
-                                width: 26,
-                                height: 26,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  _formatBalance(user?.coins ?? 0),
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF9F3D0C),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 8),
-
-                    // بطاقة الماسات diamondBgIv + diamondIconIv + diamondNumTv
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const WalletMainScreen()),
-                          );
-                        },
-                        child: Container(
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            image: DecorationImage(
-                              image: AssetImage('assets/mipmap-xxhdpi/ic_mine_wallet_diamond_bg.png'),
-                              fit: BoxFit.fill,
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Row(
-                            children: [
-                              Image.asset(
-                                'assets/mipmap-xxhdpi/ic_diamond.png',
-                                width: 26,
-                                height: 26,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  _formatBalance(user?.diamonds ?? 0),
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0B53A7),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 5),
+                Image.asset(
+                  'assets/mipmap-xxhdpi/mine_copy_ic_2.webp',
+                  width: 13,
+                  height: 13,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.copy, size: 13, color: Color(0xFF757A90)),
                 ),
               ],
             ),
           ),
+        ),
 
-          const Divider(color: Colors.white10, height: 16),
+        const SizedBox(height: 8),
 
-          // ── القسم السفلي: الأزرار الأربعة vh_mine_middle_funcions_panel.xml ──
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12, top: 2),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                // 1. الوكالة itemAgency
-                _buildMiddleItem(
-                  icon: 'assets/mipmap-xxhdpi/ic_mine_agency_entrance.png',
-                  name: 'الوكالة',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const HostAgencyScreen()),
-                    );
-                  },
-                ),
-
-                // 2. المتجر itemStore
-                _buildMiddleItem(
-                  icon: 'assets/mipmap-xxhdpi/ic_mine_store_entrance.png',
-                  name: 'المتجر',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const MallScreen()),
-                    );
-                  },
-                ),
-
-                // 3. الارتباط itemRelationship
-                _buildMiddleItem(
-                  icon: 'assets/mipmap-xxhdpi/ic_mine_relationship_entrance.png',
-                  name: 'الارتباط',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const CpSpaceScreen()),
-                    );
-                  },
-                ),
-
-                // 4. المستوى itemLevel
-                _buildMiddleItem(
-                  icon: 'assets/mipmap-xxhdpi/ic_mine_level_entrance.png',
-                  name: 'المستوى',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LevelScreen()),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        // صف الأوسمة والمستوى (level_view)
+        _buildRankLevelView(context, user),
+      ],
     );
   }
 
-  Widget _buildMiddleItem({required String icon, required String name, required VoidCallback onTap}) {
+  /// شارات المستوى والـ VIP (level_view)
+  Widget _buildRankLevelView(BuildContext context, UserModel? user) {
+    final wealthLevel = user?.wealthLevel ?? 1;
+    final rechargeLevel = user?.rechargeLevel ?? 1;
+    final vipLevel = _getUserVipTier(user);
+
     return GestureDetector(
-      onTap: onTap,
-      child: Column(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const BadgesScreen()),
+        );
+      },
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Image.asset(
-            icon,
-            width: 48,
-            height: 48,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(Icons.star, size: 44, color: Colors.amber),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Colors.white,
+          // شارة الثروة
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFB038), Color(0xFFFF7A00)],
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.star, size: 11, color: Colors.white),
+                const SizedBox(width: 2),
+                Text(
+                  'Lv.$wealthLevel',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: 6),
+
+          // شارة الشحن / المستوى
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF5C9E), Color(0xFFD61877)],
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.favorite, size: 11, color: Colors.white),
+                const SizedBox(width: 2),
+                Text(
+                  'Lv.$rechargeLevel',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+
+          if (vipLevel > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFD700), Color(0xFFB8860B)],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'VIP $vipLevel',
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  String _formatBalance(int num) {
-    if (num >= 1000000) {
-      return '${(num / 1000000).toStringAsFixed(1)}M';
-    } else if (num >= 1000) {
-      return '${(num / 1000).toStringAsFixed(1)}K';
-    }
-    return num.toString();
-  }
-
-  /// حساب مستوى VIP الفعلي للمستخدم بطريقة آمنة بدون أي خطأ وقت التشغيل
   int _getUserVipTier(UserModel? user) {
     if (user == null) return 0;
     if (user.ownedVipItems.isNotEmpty) {
@@ -826,8 +408,7 @@ class ProfileScreen extends StatelessWidget {
         final name = item['name'] ?? item['title'] ?? '';
         final match = RegExp(r'VIP\s*(\d+)', caseSensitive: false).firstMatch(name);
         if (match != null) {
-          final val = int.tryParse(match.group(1) ?? '1') ?? 1;
-          return val.clamp(1, 6);
+          return (int.tryParse(match.group(1) ?? '1') ?? 1).clamp(1, 6);
         }
       }
       return 1;
@@ -838,237 +419,53 @@ class ProfileScreen extends StatelessWidget {
     return 0;
   }
 
-  /// مدخل VIP المطابق لـ vh_mine_vip_entrance.xml
-  Widget _buildVipEntrance(BuildContext context, UserModel? user) {
-    final int tier = _getUserVipTier(user);
-    final bgPath = 'assets/mipmap-xxhdpi/vip_level${tier.clamp(0, 6)}_bg.png';
-
-    return GestureDetector(
-      onTap: () => _openVip(context),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12),
-        height: 64,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          image: DecorationImage(
-            image: AssetImage(bgPath),
-            fit: BoxFit.fill,
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Image.asset(
-                      'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
-                      width: 22,
-                      height: 22,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.workspace_premium,
-                        size: 22,
-                        color: Color(0xFFFAE9B5),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      tier > 0 ? 'عضوية VIP $tier النشطة' : 'مركز كبار الشخصيات VIP',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFFAE9B5),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  tier > 0 ? 'استمتع بمزاياك الحصرية' : 'انضم الآن واحصل على امتيازات استثنائية',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFFDEB979),
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            Image.asset(
-              'assets/mipmap-xxhdpi/ic_wallet_arrow_right.png',
-              width: 16,
-              height: 16,
-              color: const Color(0xFFFAE9B5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openVip(BuildContext context) async {
-    try {
-      final res = await Supabase.instance.client
-          .from('vip_config')
-          .select('intro_video_url')
-          .order('tier')
-          .limit(1)
-          .maybeSingle();
-      if (!context.mounted) return;
-      final introUrl = res?['intro_video_url']?.toString();
-      if (introUrl != null && introUrl.isNotEmpty) {
-        Navigator.push(context, MaterialPageRoute(
-          builder: (_) => VipIntroScreen(videoUrl: introUrl),
-        ));
-        return;
-      }
-    } catch (_) {}
-    if (!context.mounted) return;
-    Navigator.push(context, MaterialPageRoute(
-      builder: (_) => const VipCenterScreen(),
-    ));
-  }
-
-  /// قائمة الوظائف والإعدادات المطابقة لـ settingListRv & item_mine_setting.xml
-  Widget _buildBottomFunctions(BuildContext context, UserModel? user) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B1B26),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
+  /// شريط الإحصائيات الثلاثي cl_data_info المطابق لـ fragment_mine.xml:
+  /// cl_following (المتابَعون) | cl_followers (المعجبون) | cl_visitor (الزوار)
+  Widget _buildStatsRow(BuildContext context, UserModel? user) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
         children: [
-          // 1. الحقيبة ic_mine_backpack.png
-          _buildFunctionItem(
-            icon: 'assets/mipmap-xxhdpi/ic_mine_backpack.png',
-            title: 'الحقيبة',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const BackpackScreen()),
-              );
-            },
-          ),
-          _buildFunctionDivider(),
-
-          // 2. المهام اليومية ic_mine_task_entrance.png
-          _buildFunctionItem(
-            icon: 'assets/mipmap-xxhdpi/ic_mine_task_entrance.png',
-            title: 'المهام اليومية والمكافآت',
-            subtitle: '🌟 كوينز وجوائز يومية',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DailyTasksScreen()),
-              );
-            },
-          ),
-          _buildFunctionDivider(),
-
-          // 3. التسجيل اليومي ic_mine_task.png
-          _buildFunctionItem(
-            icon: 'assets/mipmap-xxhdpi/ic_mine_task.png',
-            title: 'التسجيل اليومي',
-            onTap: () {
-              WeeklySigninScreen.show(context);
-            },
-          ),
-          _buildFunctionDivider(),
-
-          // 4. حائط الهدايا والأوسمة ic_mine_giftwall_entrance.png
-          _buildFunctionItem(
-            icon: 'assets/mipmap-xxhdpi/ic_mine_giftwall_entrance.png',
-            title: 'حائط الهدايا والأوسمة',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const BadgesScreen()),
-              );
-            },
-          ),
-          _buildFunctionDivider(),
-
-          // 5. غرفتي ic_mine_create_room.png
-          _buildFunctionItem(
-            icon: 'assets/mipmap-xxhdpi/ic_mine_create_room.png',
-            title: 'غرفتي',
-            onTap: () async {
-              if (user?.hostedRoomId != null && user!.hostedRoomId!.isNotEmpty) {
-                final room = await FirebaseService().getRoom(user.hostedRoomId!);
-                if (room != null && context.mounted) {
-                  navigateToRoom(
-                    context,
-                    roomName: room.name,
-                    hostName: user.name,
-                    hostUid: room.hostUid,
-                    roomId: user.hostedRoomId!,
-                  );
-                  return;
-                }
-              }
-              if (context.mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CreateRoomScreen()),
-                );
-              }
-            },
-          ),
-
-          // 6. شحن الوكلاء (إذا كان وكيلاً)
-          if (user?.isRechargeAgent == true) ...[
-            _buildFunctionDivider(),
-            _buildFunctionItem(
-              icon: 'assets/mipmap-xxhdpi/ic_coinseller_entrance.png',
-              title: 'بوابة شحن الوكلاء والرواتب',
+          // 1. المتابَعون cl_following
+          Expanded(
+            child: _buildStatItem(
+              context: context,
+              count: user?.following ?? 0,
+              label: 'المتابَعون',
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const AgentRechargePortalScreen()),
+                  MaterialPageRoute(builder: (_) => FollowRecentScreen(initialTab: 0, targetUid: user?.uid)),
                 );
               },
             ),
-          ],
-
-          _buildFunctionDivider(),
-
-          // 7. الملاحظات والشكاوى ic_mine_feedback.png
-          _buildFunctionItem(
-            icon: 'assets/mipmap-xxhdpi/ic_mine_feedback.png',
-            title: 'الملاحظات والشكاوى',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const FeedbackScreen()),
-              );
-            },
           ),
-          _buildFunctionDivider(),
-
-          // 8. إعدادات الحساب ic_mine_setting.png
-          _buildFunctionItem(
-            icon: 'assets/mipmap-xxhdpi/ic_mine_setting.png',
-            title: 'إعدادات الحساب',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AccountManagementScreen()),
-              );
-            },
+          // 2. المعجبون cl_followers
+          Expanded(
+            child: _buildStatItem(
+              context: context,
+              count: user?.followers ?? 0,
+              label: 'المعجبون',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => FollowRecentScreen(initialTab: 1, targetUid: user?.uid)),
+                );
+              },
+            ),
           ),
-          _buildFunctionDivider(),
-
-          // 9. فحص التحديثات
-          FutureBuilder<PackageInfo>(
-            future: PackageInfo.fromPlatform(),
-            builder: (context, snap) => _buildFunctionItem(
-              icon: 'assets/mipmap-xxhdpi/ic_mine_setting.png',
-              title: 'فحص التحديثات',
-              subtitle: snap.hasData ? 'v${snap.data!.version}+${snap.data!.buildNumber}' : null,
-              onTap: () => _checkUpdatesManually(context),
+          // 3. الزوار cl_visitor
+          Expanded(
+            child: _buildStatItem(
+              context: context,
+              count: user?.visitors ?? 0,
+              label: 'الزوار',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => FollowRecentScreen(initialTab: 2, targetUid: user?.uid)),
+                );
+              },
             ),
           ),
         ],
@@ -1076,51 +473,162 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFunctionItem({
-    required String icon,
-    required String title,
-    String? subtitle,
+  Widget _buildStatItem({
+    required BuildContext context,
+    required int count,
+    required String label,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: [
+          Text(
+            '$count',
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF16151A), // color_16151A
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF9BA1B6), // color_9BA1B6
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// بطاقة المحفظة البيضاء ll_wallet_info المطابقة لـ fragment_mine.xml
+  Widget _buildWalletCard(BuildContext context, UserModel? user) {
+    final coins = user?.coins ?? 0;
+    final diamonds = user?.diamonds ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Row(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1E284B).withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
           children: [
-            Image.asset(
-              icon,
-              width: 26,
-              height: 26,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(Icons.circle, size: 20, color: Colors.white54),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.white,
-              ),
-            ),
-            const Spacer(),
-            if (subtitle != null) ...[
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0x99FFFFFF),
+            // السطر 1: عنوان المحفظة ورابط الشحن (cl_recharge)
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WalletMainScreen()),
+                );
+              },
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Container(
+                height: 50,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Image.asset(
+                      'assets/mipmap-xxhdpi/mine_wallet_ic.webp',
+                      width: 24,
+                      height: 24,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'المحفظة',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF000000),
+                      ),
+                    ),
+                    const Spacer(),
+                    const Text(
+                      'إعادة شحن العملات الذهبية',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF9BA1B6),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Image.asset(
+                      'assets/mipmap-xxhdpi/common_next_4_ic.webp',
+                      width: 16,
+                      height: 16,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.chevron_left, size: 16, color: Color(0xFF9BA1B6)),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 6),
-            ],
-            Image.asset(
-              'assets/mipmap-xxhdpi/ic_wallet_arrow_right.png',
-              width: 14,
-              height: 14,
+            ),
+
+            const Divider(height: 1, color: Color(0xFFF4F5F8), indent: 16, endIndent: 16),
+
+            // السطر 2: الرصيد بالعملات الذهبية والماسات (cl_coin)
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WalletMainScreen()),
+                );
+              },
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+              child: Container(
+                height: 50,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Image.asset(
+                      'assets/mipmap-xxhdpi/common_gold_ic_3.webp',
+                      width: 24,
+                      height: 24,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$coins',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF000000),
+                      ),
+                    ),
+                    if (diamonds > 0) ...[
+                      const Spacer(),
+                      Image.asset(
+                        'assets/mipmap-xxhdpi/common_diamond_ic.webp',
+                        width: 20,
+                        height: 20,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.diamond, size: 18, color: Colors.blueAccent),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$diamonds',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF000000),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -1128,45 +636,274 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFunctionDivider() {
-    return const Divider(
-      color: Colors.white10,
-      height: 1,
-      indent: 52,
-      endIndent: 14,
+  /// بطاقة مركز VIP الفاخرة cl_vip المطابقة لـ fragment_mine.xml
+  Widget _buildVipBanner(BuildContext context, UserModel? user) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const VipCenterScreen()),
+          );
+        },
+        child: SizedBox(
+          height: 64,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // خلفية كارت VIP mine_vip_center_bg.webp
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/mipmap-xxhdpi/mine_vip_center_bg.webp',
+                    fit: BoxFit.fill,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    // أيقونة mine_mall_tab_vip_ic
+                    Image.asset(
+                      'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
+                      width: 24,
+                      height: 24,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'مركز VIP',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFFAE9B5), // color_FFFAE9B5
+                      ),
+                    ),
+                    const Spacer(),
+                    // ملصق تاج VIP mine_vip_label_ic
+                    Image.asset(
+                      'assets/mipmap-xxhdpi/mine_vip_label_ic.webp',
+                      width: 52,
+                      height: 52,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 10),
+                    // سهم التخطي mine_vip_go
+                    Image.asset(
+                      'assets/mipmap-xxhdpi/mine_vip_go.webp',
+                      width: 16,
+                      height: 16,
+                      fit: BoxFit.contain,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Future<void> _checkUpdatesManually(BuildContext context) async {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('جاري فحص التحديثات...'), duration: Duration(seconds: 2)),
+  /// قائمة الوظائف والإعدادات البيضاء ll_set المطابقة لـ fragment_mine.xml
+  Widget _buildSettingsList(BuildContext context, UserModel? user) {
+    final isAgent = user?.isRechargeAgent == true;
+    final wealthLevel = user?.wealthLevel ?? 1;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1E284B).withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          children: [
+            // 1. وكالة المضيفين (cl_union)
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/mine_union_ic.webp',
+              title: 'وكالة المضيفين',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HostAgencyScreen()),
+                );
+              },
+            ),
+
+            // 2. المستوى (cl_level) مع إظهار Lv.X
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/mine_level_ic.webp',
+              title: 'المستوى',
+              trailingText: 'Lv.$wealthLevel',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LevelScreen()),
+                );
+              },
+            ),
+
+            // 3. المتجر (cl_mall)
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/mine_mall_ic.webp',
+              title: 'المتجر',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MallScreen()),
+                );
+              },
+            ),
+
+            // 4. الحقيبة (cl_package)
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/mine_backpack_ic.webp',
+              title: 'الحقيبة',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BackpackScreen()),
+                );
+              },
+            ),
+
+            // 5. بوابة شحن الوكلاء والرواتب (خاص بالوكلاء المعتمدين)
+            if (isAgent)
+              _buildFunctionItem(
+                icon: 'assets/images/profile/ic_coinseller_entrance.png',
+                title: 'بوابة شحن الوكلاء والرواتب',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AgentRechargePortalScreen()),
+                  );
+                },
+              ),
+
+            // 6. الشكاوى والاقتراحات (cl_feedback)
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/mine_feedback_ic.webp',
+              title: 'الشكاوى والاقتراحات',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FeedbackScreen()),
+                );
+              },
+            ),
+
+            // 7. الإعدادات (cl_setting)
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/mine_setting_ic.webp',
+              title: 'الإعدادات',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AccountManagementScreen()),
+                );
+              },
+            ),
+
+            // 8. التحقق من التحديثات
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/mine_set_increase_version_ic.webp',
+              title: 'التحقق من التحديثات',
+              onTap: () => _handleCheckUpdates(context),
+            ),
+          ],
+        ),
+      ),
     );
-    try {
-      final update = await UpdateService.instance.checkForUpdate();
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      if (update != null) {
-        await AppUpdateDialog.show(context, update);
-        return;
-      }
-      final info = await PackageInfo.fromPlatform();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('أنت على أحدث نسخة (بناء ${info.buildNumber})')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('أنت على أحدث نسخة حالياً'),
-            duration: Duration(seconds: 3),
+  }
+
+  Widget _buildFunctionItem({
+    required String icon,
+    required String title,
+    String? trailingText,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Image.asset(
+              icon,
+              width: 36,
+              height: 36,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.circle, size: 30, color: Colors.blueAccent),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF000000),
+              ),
+            ),
+            const Spacer(),
+            if (trailingText != null) ...[
+              Text(
+                trailingText,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF16151A),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Image.asset(
+              'assets/mipmap-xxhdpi/next_black_ic.webp',
+              width: 18,
+              height: 18,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.chevron_left, size: 18, color: Colors.black45),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleCheckUpdates(BuildContext context) async {
+    final updateService = UpdateService.instance;
+    final updateInfo = await updateService.checkForUpdate();
+    final info = await PackageInfo.fromPlatform();
+    final currentVer = '${info.version}+${info.buildNumber}';
+
+    if (!context.mounted) return;
+
+    if (updateInfo != null) {
+      await AppUpdateDialog.show(context, updateInfo);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'أنت تستخدم أحدث إصدار ($currentVer) ✅',
+            textAlign: TextAlign.center,
           ),
-        );
-      }
+          backgroundColor: const Color(0xFF2E7D32),
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 }
-

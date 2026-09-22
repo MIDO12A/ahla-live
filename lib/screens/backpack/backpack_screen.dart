@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
-import '../../services/dynamic_config_service.dart';
-import '../../services/supabase_service.dart';
-import '../../models/store_item_model.dart';
 import '../../models/gift_model.dart' as gm;
+import '../../models/store_item_model.dart';
 import '../../providers/user_provider.dart';
+import '../../services/supabase_service.dart';
+import '../mall/mall_screen.dart';
 import '../room/widgets/svga_player.dart';
 
 class BackpackScreen extends StatefulWidget {
@@ -15,157 +15,296 @@ class BackpackScreen extends StatefulWidget {
   State<BackpackScreen> createState() => _BackpackScreenState();
 }
 
-class _BackpackScreenState extends State<BackpackScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _BackpackScreenState extends State<BackpackScreen> {
   final SupabaseService _firebaseService = SupabaseService();
-  static const _categories = ['car', 'bubble', 'entrance', 'frame', 'cover'];
-  static const _categoryNames = ['السيارات', 'الفقاعات', 'المخرجات', 'الاطارات', 'غلاف المستخدم'];
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: _categories.length + 1, vsync: this);
-  }
+  // التصنيفات الأربعة الأصلية من PackageActivity.java + قسم الهدايا
+  // ملاحظة هامة: تم تغيير مسمى "المخرجات" إلى "مؤثرات الدخول" بناءً على طلب المستخدم
+  static const List<Map<String, String>> _categories = [
+    {
+      'key': 'frame',
+      'name': 'إطار الرأس',
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_head_wear_nor_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_head_wear_pre_ic.webp',
+    },
+    {
+      'key': 'car',
+      'name': 'المركبة',
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_nor_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_pre_ic.webp',
+    },
+    {
+      'key': 'entrance',
+      'name': 'مؤثرات الدخول', // الاسم الدقيق لمؤثرات الدخول (TYPE_ENTRANCE)
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_entrance_nor_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_entrance_pre_ic.webp',
+    },
+    {
+      'key': 'bubble',
+      'name': 'الفقاعة',
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_bubble_nor_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_bubble_pre_ic.webp',
+    },
+    {
+      'key': 'gifts',
+      'name': 'الهدايا',
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_union_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_union_ic.webp',
+    },
+  ];
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+  int _selectedCategoryIndex = 0;
+  StoreItemModel? _selectedItem;
+  StoreItemModel? _previewItem; // معاينة ملء الشاشة للسيارات ومؤثرات الدخول
 
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
-    final dc = DynamicConfigService();
+    final user = userProvider.currentUser;
 
-    return ListenableBuilder(
-      listenable: dc,
-      builder: (context, _) {
-        final dc = DynamicConfigService();
-        return Scaffold(
-          backgroundColor: dc.backpackCardBgColor,
-          body: Stack(
-            children: [
-              Positioned.fill(
-                child: R.loadAsset(
-                  dc.backpackBackgroundImage.isNotEmpty
-                      ? dc.backpackBackgroundImage
-                      : 'assets/mipmap-xxhdpi/mine_mall_top_bg.webp',
-                  fit: BoxFit.cover,
+    return Scaffold(
+      backgroundColor: const Color(0xFF16151A), // color_16151A
+      body: Stack(
+        children: [
+          // 1. خلفية المتجر والحقيبة العلوية mine_mall_top_bg
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 260,
+            child: Image.asset(
+              'assets/mipmap-xxhdpi/mine_mall_top_bg.webp',
+              fit: BoxFit.cover,
+            ),
+          ),
+
+          // 2. الهيكل الرئيسي للشاشة
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                // شريط العنوان العلوي title_bar
+                _buildTopBar(context),
+
+                // شريط التبويبات التصنيفية الأفقي recyclerview_type
+                _buildCategoryTabs(),
+
+                const SizedBox(height: 12),
+
+                // الحاوية السفلية الممتدة مع خلفية mine_mall_type_tab_item_bg
+                Expanded(
+                  child: Stack(
+                    children: [
+                      // الخلفية الداكنة
+                      Positioned.fill(
+                        top: 15,
+                        child: Container(
+                          color: const Color(0xFF16151A),
+                        ),
+                      ),
+                      // رأس الحاوية المزخرف mine_mall_type_tab_item_bg
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: 50,
+                        child: Image.asset(
+                          'assets/mipmap-xxhdpi/mine_mall_type_tab_item_bg.webp',
+                          fit: BoxFit.fill,
+                        ),
+                      ),
+                      // المحتوى: شبكة العناصر أو تبويب الهدايا
+                      Positioned.fill(
+                        top: 20,
+                        child: _buildMainContent(userProvider, user),
+                      ),
+                    ],
+                  ),
                 ),
+
+                // شريط الارتداء السفلي المطابق لـ cl_use في mine_mall_package.xml
+                if (_categories[_selectedCategoryIndex]['key'] != 'gifts')
+                  _buildBottomBar(userProvider, user),
+              ],
+            ),
+          ),
+
+          // 3. طبقة معاينة SVGA بالحجم الكامل (للسيارات ومؤثرات الدخول car_svga_play)
+          if (_previewItem != null)
+            _buildFullscreenAnimationOverlay(user),
+        ],
+      ),
+    );
+  }
+
+  /// شريط العنوان العلوي المطابق لـ CommonTopBar
+  Widget _buildTopBar(BuildContext context) {
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          // زر الرجوع
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              color: Colors.transparent,
+              child: Image.asset(
+                'assets/mipmap-xxhdpi/back_white.webp',
+                width: 22,
+                height: 22,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
               ),
-              Column(
+            ),
+          ),
+          const Spacer(),
+          const Text(
+            'الحقيبة',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const Spacer(),
+          // رابط مباشر للمتجر لسهولة التنقل
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MallScreen()),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0x33FAE9B5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0x66FAE9B5)),
+              ),
+              child: Row(
                 children: [
-                  SafeArea(
-                    bottom: false,
-                    child: Stack(
-                      children: [
-                        if (dc.backpackHeaderBgImage.isNotEmpty)
-                          Positioned.fill(
-                            child: R.loadAsset(dc.backpackHeaderBgImage, fit: BoxFit.cover),
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: SizedBox(
-                            height: 56,
-                            child: Row(
-                              children: [
-                                GestureDetector(
-                                  onTap: () => Navigator.pop(context),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8),
-                                    child: R.image(
-                                      R.backIc,
-                                      width: 24,
-                                      height: 24,
-                                    ),
-                                  ),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  dc.screenTitles['backpack'] ?? 'الحقيبة',
-                                  style: TextStyle(
-                                    color: dc.backpackHeaderTextColor,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const Spacer(),
-                                const SizedBox(width: 40),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                  Image.asset(
+                    'assets/mipmap-xxhdpi/mine_mall_ic.webp',
+                    width: 16,
+                    height: 16,
                   ),
-                  // Type tabs
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: dc.backpackSectionBgImage.isNotEmpty ? null : Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        image: dc.backpackSectionBgImage.isNotEmpty
-                            ? DecorationImage(image: R.cachedImage(dc.backpackSectionBgImage), fit: BoxFit.cover)
-                            : null,
-                      ),
-                      child: TabBar(
-                        controller: _tabController,
-                        dividerColor: Colors.transparent,
-                        indicator: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        labelColor: Colors.white,
-                        unselectedLabelColor: Colors.white70,
-                        isScrollable: true,
-                        tabs: [
-                          ..._categoryNames.map((n) => Tab(text: n)),
-                          const Tab(text: 'الهدايا'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Content
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        ..._categories.map((cat) => _buildCategoryTab(userProvider, cat)),
-                        _buildGiftsTab(),
-                      ],
+                  const SizedBox(width: 4),
+                  const Text(
+                    'المتجر',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFFAE9B5),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
-  Widget _buildCategoryTab(UserProvider userProvider, String category) {
-    final dc = DynamicConfigService();
+  /// شريط التبويبات التصنيفية الأفقي المطابق لـ mine_adapter_mall_type.xml
+  Widget _buildCategoryTabs() {
+    return SizedBox(
+      height: 85,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        itemCount: _categories.length,
+        itemBuilder: (context, index) {
+          final cat = _categories[index];
+          final isSelected = _selectedCategoryIndex == index;
+          final iconPath = isSelected ? cat['pre_ic']! : cat['nor_ic']!;
+          final isAsset = iconPath.startsWith('assets/');
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedCategoryIndex = index;
+                _selectedItem = null;
+              });
+            },
+            child: Container(
+              width: 78,
+              height: 85,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // خلفية التحديد mine_mall_type_item_bg
+                  if (isSelected)
+                    Positioned.fill(
+                      child: Image.asset(
+                        'assets/mipmap-xxhdpi/mine_mall_type_item_bg.webp',
+                        fit: BoxFit.fill,
+                      ),
+                    ),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: isAsset
+                            ? Image.asset(iconPath, fit: BoxFit.contain)
+                            : R.loadImage(iconPath, fit: BoxFit.contain),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        cat['name']!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected ? const Color(0xFFFAE9B5) : const Color(0x80FAE9B5),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// المحتوى الرئيسي للحقيبة
+  Widget _buildMainContent(UserProvider userProvider, dynamic user) {
+    final currentCat = _categories[_selectedCategoryIndex]['key']!;
+    if (currentCat == 'gifts') {
+      return _buildGiftsTab();
+    }
+    return _buildCategoryItems(userProvider, user, currentCat);
+  }
+
+  /// شبكة العناصر المملوكة للتصنيف الحالي
+  Widget _buildCategoryItems(UserProvider userProvider, dynamic user, String category) {
     return StreamBuilder<List<StoreItemModel>>(
       stream: _firebaseService.storeItemsStream(),
       builder: (context, snapshot) {
         final allItems = snapshot.data ?? [];
-        final user = userProvider.currentUser;
         final userOwnedIds = user?.ownedItems ?? [];
 
+        // 1. العناصر المشتراة من المتجر
         final storeItems = allItems
             .where((item) => item.category == category && userOwnedIds.contains(item.itemId))
             .toList();
 
+        // 2. إطارات المستوى المكتسبة
         final levelFrames = category == 'frame'
             ? (user?.ownedLevelFrames ?? []).map((url) {
                 return StoreItemModel(
                   itemId: url,
-                  name: 'Level Frame',
+                  name: 'إطار المستوى',
                   category: 'frame',
                   iconAsset: url,
                   price: 0,
@@ -173,8 +312,7 @@ class _BackpackScreenState extends State<BackpackScreen>
               }).toList()
             : <StoreItemModel>[];
 
-        // VIP accessories owned as raw URLs (http...) that aren't store items
-        // VIP accessories with known type/category from owned_vip_items
+        // 3. ملحقات VIP المملوكة
         final vipItems = (user?.ownedVipItems ?? [])
             .where((m) => m['type'] == category)
             .map((m) {
@@ -193,121 +331,480 @@ class _BackpackScreenState extends State<BackpackScreen>
 
         final displayItems = [...storeItems, ...vipItems, ...levelFrames];
 
+        // إذا لم يكن هناك أي عنصر محدد حالياً، حدد أول عنصر تلقائياً
+        if (displayItems.isNotEmpty && _selectedItem == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _selectedItem == null) {
+              setState(() => _selectedItem = displayItems.first);
+            }
+          });
+        }
+
+        // حالة الفراغ المطابقة لـ mine_layout_package_empty.xml
         if (displayItems.isEmpty) {
-          return _emptyState('لا توجد عناصر في هذا القسم');
+          return _buildEmptyState();
         }
 
         return GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 0.7,
+            childAspectRatio: 0.85,
           ),
           itemCount: displayItems.length,
           itemBuilder: (context, index) {
             final item = displayItems[index];
-            final isEquipped = _isEquipped(item, user);
+            final isSelected = _selectedItem?.itemId == item.itemId;
+            final isEquipped = _isItemEquipped(item, user);
+            final isAnimated = (item.svgaAsset != null && item.svgaAsset!.isNotEmpty) ||
+                (item.videoAsset != null && item.videoAsset!.isNotEmpty) ||
+                (item.animationUrl != null && item.animationUrl!.isNotEmpty) ||
+                item.iconAsset.endsWith('.svga');
 
-            return Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: dc.backpackCardBgImage.isNotEmpty || dc.backpackCardBorderImage.isNotEmpty
-                    ? null
-                    : dc.backpackCardBgColor.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isEquipped
-                      ? dc.backpackAccentColor
-                      : Colors.white.withValues(alpha: 0.08),
-                  width: isEquipped ? 2 : 1,
+            return GestureDetector(
+              onTap: () {
+                setState(() => _selectedItem = item);
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFF262732),
+                  image: isSelected
+                      ? const DecorationImage(
+                          image: AssetImage('assets/mipmap-xxhdpi/mine_mall_item_bg.webp'),
+                          fit: BoxFit.fill,
+                        )
+                      : null,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                image: dc.backpackCardBgImage.isNotEmpty
-                    ? DecorationImage(image: R.cachedImage(dc.backpackCardBgImage), fit: BoxFit.cover)
-                    : dc.backpackCardBorderImage.isNotEmpty
-                        ? DecorationImage(image: R.cachedImage(dc.backpackCardBorderImage), fit: BoxFit.cover)
-                        : null,
-              ),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Builder(builder: (_) {
-                      final hasSvga = (item.svgaAsset != null && item.svgaAsset!.isNotEmpty) ||
-                          item.iconAsset.endsWith('.svga') ||
-                          detectAssetType(item.iconAsset) == AssetType.svga;
-                      final svgaUrl = (item.svgaAsset != null && item.svgaAsset!.isNotEmpty)
-                          ? item.svgaAsset!
-                          : item.iconAsset;
-                      if (hasSvga) {
-                        return SvgaPlayer(assetPath: svgaUrl, width: 80, height: 80);
-                      }
-                      return R.loadImage(item.iconAsset, fit: BoxFit.contain);
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  dc.backpackTextImage.isNotEmpty
-                      ? R.loadAsset(dc.backpackTextImage, width: 16, height: 16)
-                      : Text(
-                          item.name,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: dc.backpackTextColor,
+                child: Column(
+                  children: [
+                    // معاينة الأيقونة
+                    Expanded(
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Builder(builder: (_) {
+                              final hasSvga = (item.svgaAsset != null && item.svgaAsset!.isNotEmpty) ||
+                                  item.iconAsset.endsWith('.svga');
+                              final svgaUrl = (item.svgaAsset != null && item.svgaAsset!.isNotEmpty)
+                                  ? item.svgaAsset!
+                                  : item.iconAsset;
+                              if (hasSvga) {
+                                return SvgaPlayer(
+                                  assetPath: svgaUrl,
+                                  width: 80,
+                                  height: 80,
+                                  fit: BoxFit.contain,
+                                  loops: true,
+                                );
+                              }
+                              return R.loadImage(item.iconAsset, fit: BoxFit.contain);
+                            }),
                           ),
-                        ),
-                  const SizedBox(height: 8),
-                  if (isEquipped)
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.withValues(alpha: 0.7),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () async {
-                        await userProvider.unequipItem(item.category);
-                      },
-                      child: const Text(
-                        'إلغاء الاستخدام',
-                        style: TextStyle(color: Colors.white, fontSize: 11),
-                      ),
-                    )
-                  else
-                    dc.backpackAccentImage.isNotEmpty
-                        ? Container(
-                            width: double.infinity,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              image: DecorationImage(image: R.cachedImage(dc.backpackAccentImage), fit: BoxFit.cover),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+
+                          // شارة قيد الاستخدام tv_dress_up_state
+                          if (isEquipped)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFFFFC525), Color(0xFFDE880F)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'قيد الاستخدام',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
-                              onPressed: () async {
-                                await userProvider.equipItem(item.itemId, item.category);
-                              },
-                              child: const Text('استخدم', style: TextStyle(color: Colors.white)),
                             ),
-                          )
-                        : ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: dc.backpackAccentColor,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+
+                          // علامة الفيديو لمعاينة التأثير الكامل iv_video_label
+                          if (isAnimated)
+                            Positioned(
+                              left: 8,
+                              bottom: 8,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() => _previewItem = item);
+                                },
+                                child: Image.asset(
+                                  'assets/mipmap-xxhdpi/mine_mall_video_ic.webp',
+                                  width: 20,
+                                  height: 20,
+                                ),
+                              ),
                             ),
-                            onPressed: () async {
-                              await userProvider.equipItem(item.itemId, item.category);
-                            },
-                            child: const Text('استخدم', style: TextStyle(color: Colors.white)),
+                        ],
+                      ),
+                    ),
+
+                    // اسم العنصر tv_item_name
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text(
+                        item.name,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    // المدة الزمنية / الصلاحية tv_gold_time مع أيقونة mine_mall_time_ic
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/mipmap-xxhdpi/mine_mall_time_ic.webp',
+                            width: 14,
+                            height: 14,
+                            fit: BoxFit.contain,
                           ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'دائم',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF9BA1B6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// الحالة الفارغة المطابقة لـ mine_layout_package_empty.xml
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // أيقونة الحقيبة الفارغة mine_wallet_empty_ic (136x136)
+          Image.asset(
+            'assets/mipmap-xxhdpi/mine_wallet_empty_ic.webp',
+            width: 136,
+            height: 136,
+            fit: BoxFit.contain,
+          ),
+          const SizedBox(height: 10),
+          // النص التوضيحي tv_tip
+          const Text(
+            'لا توجد عناصر حالياً في هذا القسم',
+            style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF9BA1B6),
+            ),
+          ),
+          const SizedBox(height: 36),
+          // زر الذهاب إلى المتجر tv_goto_mall
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MallScreen()),
+              );
+            },
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFC525), Color(0xFFDE880F)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFDE880F).withValues(alpha: 0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                'الذهاب إلى المتجر',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// شريط الارتداء السفلي المطابق لـ cl_use في mine_mall_package.xml
+  Widget _buildBottomBar(UserProvider userProvider, dynamic user) {
+    final selected = _selectedItem;
+    final isEquipped = selected != null && _isItemEquipped(selected, user);
+
+    return Container(
+      color: const Color(0xFF302218), // color_FF302218
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          if (selected != null)
+            Text(
+              'العنصر المحدد: ${selected.name}',
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFFFAE9B5),
+                fontWeight: FontWeight.w500,
+              ),
+            )
+          else
+            const Text(
+              'يرجى تحديد عنصر لارتدائه',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF9BA1B6),
+              ),
+            ),
+          const Spacer(),
+
+          // زر الارتداء أو إلغاء الارتداء tv_use
+          GestureDetector(
+            onTap: selected == null
+                ? null
+                : () async {
+                    if (isEquipped) {
+                      await userProvider.unequipItem(selected.category);
+                    } else {
+                      await userProvider.equipItem(selected.itemId, selected.category);
+                    }
+                    if (mounted) setState(() {});
+                  },
+            child: Container(
+              width: 126,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: const AssetImage('assets/mipmap-xxhdpi/mine_mall_buy_ic.webp'),
+                  fit: BoxFit.fill,
+                  colorFilter: selected == null
+                      ? ColorFilter.mode(Colors.black.withValues(alpha: 0.5), BlendMode.dstIn)
+                      : null,
+                ),
+              ),
+              child: Text(
+                isEquipped ? 'إلغاء الارتداء' : 'ارتداء',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// معاينة ملء الشاشة للسيارات ومؤثرات الدخول car_svga_play
+  Widget _buildFullscreenAnimationOverlay(dynamic user) {
+    final item = _previewItem!;
+    final svgaUrl = (item.svgaAsset != null && item.svgaAsset!.isNotEmpty)
+        ? item.svgaAsset!
+        : (item.animationUrl ?? item.iconAsset);
+    final photoUrl = user?.photoUrl?.isNotEmpty == true ? user.photoUrl : null;
+    final userName = user?.nickname ?? user?.name ?? '';
+
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.8),
+        child: Stack(
+          children: [
+            // تشغيل SVGA مع الاستبدال الديناميكي للصورة والاسم
+            Center(
+              child: SvgaPlayer(
+                key: ValueKey('preview_${item.itemId}'),
+                assetPath: svgaUrl,
+                width: double.infinity,
+                height: 380,
+                fit: BoxFit.contain,
+                loops: true,
+                imageReplacement: photoUrl != null
+                    ? {'avatar': photoUrl, 'user_avatar': photoUrl}
+                    : null,
+                textReplacement: userName.isNotEmpty
+                    ? {'name': 'مرحباً $userName', 'nickname': userName}
+                    : null,
+              ),
+            ),
+
+            // زر إغلاق المعاينة العلوية
+            Positioned(
+              top: 50,
+              right: 20,
+              child: GestureDetector(
+                onTap: () => setState(() => _previewItem = null),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black54,
+                  ),
+                  child: Image.asset(
+                    'assets/mipmap-xxhdpi/mine_mall_close_ic.webp',
+                    width: 28,
+                    height: 28,
+                  ),
+                ),
+              ),
+            ),
+
+            // عنوان العنصر المعروض
+            Positioned(
+              bottom: 60,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    item.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFFAE9B5),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// تبويب سجل الهدايا المستلمة
+  Widget _buildGiftsTab() {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final uid = userProvider.currentUser?.uid;
+    if (uid == null) {
+      return const Center(
+        child: Text(
+          'لا توجد هدايا',
+          style: TextStyle(color: Color(0xFF9BA1B6), fontSize: 14),
+        ),
+      );
+    }
+
+    return StreamBuilder<List<gm.SentGiftModel>>(
+      stream: _firebaseService.userReceivedGiftsStream(uid),
+      builder: (context, snapshot) {
+        final gifts = snapshot.data ?? [];
+        if (gifts.isEmpty) {
+          return const Center(
+            child: Text(
+              'لا توجد هدايا مستلمة حتى الآن',
+              style: TextStyle(color: Color(0xFF9BA1B6), fontSize: 14),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          itemCount: gifts.length,
+          itemBuilder: (context, index) {
+            final g = gifts[index];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF262732),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundImage: g.senderPhotoUrl != null && g.senderPhotoUrl!.isNotEmpty
+                        ? R.cachedImage(g.senderPhotoUrl!)
+                        : null,
+                    child: g.senderPhotoUrl == null || g.senderPhotoUrl!.isEmpty
+                        ? Text(
+                            g.senderName.isNotEmpty ? g.senderName[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Colors.white),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          g.senderName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'أرسل ${g.giftName} (x${g.count})',
+                          style: const TextStyle(
+                            color: Color(0xFFFAE9B5),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${g.value} ذهب',
+                    style: const TextStyle(
+                      color: Color(0xFFFFC525),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -317,7 +814,7 @@ class _BackpackScreenState extends State<BackpackScreen>
     );
   }
 
-  bool _isEquipped(StoreItemModel item, dynamic user) {
+  bool _isItemEquipped(StoreItemModel item, dynamic user) {
     if (user == null) return false;
     switch (item.category) {
       case 'frame':
@@ -330,244 +827,8 @@ class _BackpackScreenState extends State<BackpackScreen>
         return user.activeEntrance == item.itemId;
       case 'car':
         return user.activeCar == item.itemId;
-      case 'cover':
-        return user.activeCover == item.itemId;
       default:
         return false;
     }
-  }
-
-  Widget _buildGiftsTab() {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final uid = userProvider.currentUser?.uid;
-    if (uid == null) return _emptyState('لا توجد هدايا');
-
-    return StreamBuilder<List<gm.SentGiftModel>>(
-      stream: _firebaseService.userReceivedGiftsStream(uid),
-      builder: (context, snapshot) {
-        final gifts = snapshot.data ?? [];
-        if (gifts.isEmpty) return _emptyState('لا توجد هدايا');
-
-        final grouped = <String, List<gm.SentGiftModel>>{};
-        for (final g in gifts) {
-          final key = '${g.timestamp.year}-${g.timestamp.month.toString().padLeft(2, '0')}';
-          grouped.putIfAbsent(key, () => []).add(g);
-        }
-        final keys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
-
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: keys.length,
-          itemBuilder: (context, sectionIdx) {
-            final key = keys[sectionIdx];
-            final sectionGifts = grouped[key]!;
-            final months = [
-              '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-            ];
-            final parts = key.split('-');
-            final monthName = months[int.parse(parts[1])];
-            final yearName = parts[0];
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 4,
-                        height: 16,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [DynamicConfigService().backpackAccentColor, DynamicConfigService().backpackAccentColor.withValues(alpha: 0.6)],
-                          ),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '$monthName $yearName',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: DynamicConfigService().backpackSubTextColor,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '${sectionGifts.length} gifts',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: DynamicConfigService().backpackSubTextColor.withValues(alpha: 0.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ...sectionGifts.map((g) => _buildGiftItem(g)),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildGiftItem(gm.SentGiftModel g) {
-    final dc = DynamicConfigService();
-    final months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0.08),
-            Colors.white.withValues(alpha: 0.03),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
-        ),
-      ),
-      child: Row(
-        children: [
-          Stack(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: dc.backpackAccentColor.withValues(alpha: 0.3),
-                    width: 1.5,
-                  ),
-                ),
-                child: CircleAvatar(
-                  backgroundColor: Colors.black26,
-                  child: g.senderPhotoUrl != null &&
-                          g.senderPhotoUrl!.isNotEmpty
-                      ? ClipOval(
-                          child: Image(
-                            image: R.cachedImage(g.senderPhotoUrl!),
-                            width: 48,
-                            height: 48,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Text(
-                              g.senderName.isNotEmpty
-                                  ? g.senderName[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                          ),
-                        )
-                      : Text(
-                          g.senderName.isNotEmpty
-                              ? g.senderName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      g.senderName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: dc.backpackAccentColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'x${g.count}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: dc.backpackAccentColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.monetization_on,
-                        size: 14, color: dc.backpackAccentColor.withValues(alpha: 0.7)),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${g.value} coins',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Icon(Icons.access_time,
-                        size: 12, color: Colors.white.withValues(alpha: 0.3)),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${g.timestamp.day} ${months[g.timestamp.month]}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.white.withValues(alpha: 0.3),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _emptyState(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          R.image(
-            'assets/mipmap-xxhdpi/common_empty_ic_1.webp',
-            width: 100,
-            height: 100,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.white.withValues(alpha: 0.6),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
