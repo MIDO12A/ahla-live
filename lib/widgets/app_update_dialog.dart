@@ -70,6 +70,12 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
     _sub = UpdateService.instance.stateStream.listen((_) {
       if (mounted) setState(() {});
     });
+    // بدء التنزيل تلقائياً في الخلفية فور ظهور نافذة التحديث
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!UpdateService.instance.isDownloading && !UpdateService.instance.isDownloaded) {
+        _startDownload();
+      }
+    });
   }
 
   @override
