@@ -19,11 +19,10 @@ import {
   where,
   type QueryConstraint,
 } from 'firebase/firestore'
-import { getFirestore, type Firestore } from 'firebase/firestore'
 import { sendPasswordResetEmail } from 'firebase/auth'
-import { firebaseApp, firebaseAuth } from './firebase'
+import { firebaseApp, firebaseAuth, firestoreDb } from './firebase'
 
-const db: Firestore = getFirestore(firebaseApp)
+const db: Firestore = firestoreDb
 
 // Which document field is the document ID for each collection.
 const KEY_FIELDS: Record<string, string> = {

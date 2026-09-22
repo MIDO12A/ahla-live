@@ -10,6 +10,7 @@ import '../../../providers/user_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/media_prefetch_service.dart';
 import '../../../services/dynamic_config_service.dart';
+import '../../wallet/wallet_main_screen.dart';
 import 'svga_player.dart';
 import 'vap_player.dart';
 
@@ -732,13 +733,7 @@ class _GiftPanelState extends State<GiftPanel> {
 
     if (widget.coins < totalCost) {
       if (!mounted) return;
-      setState(() {
-        _errorMsg = 'عملات غير كافية! تحتاج ${R.formatCoins(totalCost)}، لديك ${R.formatCoins(widget.coins)}';
-      });
-      final d2 = Timer(const Duration(seconds: 3), () {
-        if (mounted) setState(() => _errorMsg = null);
-      });
-      _pendingDelays.add(d2);
+      _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: widget.coins);
       return;
     }
 
@@ -890,6 +885,175 @@ class _GiftPanelState extends State<GiftPanel> {
     });
   }
 
+  void _showInsufficientCoinsDialog(BuildContext context, {int totalCost = 0, int currentCoins = 0}) {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 36),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 16,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 25, 20, 25),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // FrameLayout matching dialog_coin_recharge_tip.xml: shadow_coins + dialog_coins
+              SizedBox(
+                height: 125,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Positioned(
+                      top: 45,
+                      child: Image.asset(
+                        'assets/mipmap-xxhdpi/shadow_coins.png',
+                        width: 120,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                    Image.asset(
+                      'assets/mipmap-xxhdpi/dialog_coins.png',
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.monetization_on_rounded,
+                        size: 80,
+                        color: Color(0xFFFFD700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // tvContent (18sp #333333 matching dialog_coin_recharge_tip.xml)
+              Text(
+                isAr
+                    ? 'رصيد العملات غير كافٍ،\nهل ترغب في الشحن للحصول على المزيد؟'
+                    : 'Insufficient coins balance.\nWould you like to recharge for more?',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF333333),
+                  height: 1.35,
+                ),
+              ),
+
+              if (totalCost > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  isAr
+                      ? 'المطلوب: ${R.formatCoins(totalCost)} كوينز  |  لديك: ${R.formatCoins(currentCoins)} كوينز'
+                      : 'Required: ${R.formatCoins(totalCost)} coins  |  Available: ${R.formatCoins(currentCoins)} coins',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF888888),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
+              // Action buttons: btnCancel + btnConfirm
+              Row(
+                children: [
+                  // btnCancel: #f5f5f5, radius 20, text #555555 "إلغاء"
+                  Expanded(
+                    child: SizedBox(
+                      height: 42,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(dialogCtx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF5F5F5),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: Text(
+                          isAr ? 'إلغاء' : 'Cancel',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF555555),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+
+                  // btnConfirm: gradient #00deff -> #14fab1, radius 20, text white "شحن الآن"
+                  Expanded(
+                    child: Container(
+                      height: 42,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF00DEFF), Color(0xFF14FAB1)],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF14FAB1).withOpacity(0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () {
+                            Navigator.pop(dialogCtx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const WalletMainScreen(),
+                              ),
+                            );
+                          },
+                          child: Center(
+                            child: Text(
+                              isAr ? 'شحن الآن' : 'Recharge Now',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomOperate(DynamicConfigService dc) {
     final gift = _sel >= 0 && _sel < _gifts.length ? _gifts[_sel] : null;
     final selectedTargetsCount = widget.targetUsers
@@ -917,32 +1081,43 @@ class _GiftPanelState extends State<GiftPanel> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Left: Coins Display (tv_coins from layout_gift_panel_bottom_operate.xml)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.25),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    R.image(
-                      R.commonGoldIc1,
-                      width: 18,
-                      height: 18,
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const WalletMainScreen(),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      R.formatCoins(widget.coins),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: canAfford ? dc.giftPanelCoinsTextColor : Colors.redAccent,
+                  );
+                },
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      R.image(
+                        R.commonGoldIc1,
+                        width: 18,
+                        height: 18,
                       ),
-                    ),
-                    const SizedBox(width: 2),
-                    const Icon(Icons.chevron_right, size: 14, color: Colors.white54),
-                  ],
+                      const SizedBox(width: 4),
+                      Text(
+                        R.formatCoins(widget.coins),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: canAfford ? dc.giftPanelCoinsTextColor : Colors.redAccent,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.chevron_right, size: 14, color: Colors.white54),
+                    ],
+                  ),
                 ),
               ),
 
@@ -952,7 +1127,13 @@ class _GiftPanelState extends State<GiftPanel> {
               if (_comboSeconds > 0)
                 // Authentic Combo Button matching room_gift_combo_button.xml
                 GestureDetector(
-                  onTap: canAfford ? _sendGift : null,
+                  onTap: () {
+                    if (!canAfford) {
+                      _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: widget.coins);
+                      return;
+                    }
+                    _sendGift();
+                  },
                   behavior: HitTestBehavior.opaque,
                   child: SizedBox(
                     width: 106,
@@ -1093,7 +1274,13 @@ class _GiftPanelState extends State<GiftPanel> {
                     ),
                     // Send button (tv_gift_send 72x30dp)
                     GestureDetector(
-                      onTap: canAfford ? _sendGift : null,
+                      onTap: () {
+                        if (!canAfford) {
+                          _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: widget.coins);
+                          return;
+                        }
+                        _sendGift();
+                      },
                       child: Container(
                         width: 72,
                         height: 30,
