@@ -818,15 +818,27 @@ class _BackpackScreenState extends State<BackpackScreen> {
     if (user == null) return false;
     switch (item.category) {
       case 'frame':
-        return user.activeFrame == item.itemId;
+        return user.activeFrame == item.itemId ||
+            (item.svgaAsset != null && item.svgaAsset!.isNotEmpty && user.activeFrame == item.svgaAsset);
       case 'bubble':
         return user.activeBubble == item.itemId ||
             user.activeBubble == item.svgaAsset ||
             user.activeBubble == item.iconAsset;
       case 'entrance':
-        return user.activeEntrance == item.itemId;
+        return user.activeEntrance == item.itemId ||
+            (item.svgaAsset != null && item.svgaAsset!.isNotEmpty && user.activeEntrance == item.svgaAsset);
       case 'car':
-        return user.activeCar == item.itemId;
+        return user.activeCar == item.itemId ||
+            (item.svgaAsset != null && item.svgaAsset!.isNotEmpty && user.activeCar == item.svgaAsset);
+      case 'headwear':
+        return user.activeHeadwear == item.itemId ||
+            (item.svgaAsset != null && item.svgaAsset!.isNotEmpty && user.activeHeadwear == item.svgaAsset);
+      case 'cover':
+        return user.activeCover == item.itemId ||
+            (item.svgaAsset != null && item.svgaAsset!.isNotEmpty && user.activeCover == item.svgaAsset);
+      case 'necklace':
+        return user.activeNecklace == item.itemId ||
+            (item.svgaAsset != null && item.svgaAsset!.isNotEmpty && user.activeNecklace == item.svgaAsset);
       default:
         return false;
     }

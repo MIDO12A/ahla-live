@@ -87,10 +87,6 @@ class UserProvider extends ChangeNotifier {
   }
 
   UserModel? _ensureFrame(UserModel? user) {
-    if (user == null) return null;
-    if ((user.activeFrame == null || user.activeFrame!.isEmpty) && user.ownedLevelFrames.isNotEmpty) {
-      return user.copyWith(activeFrame: user.ownedLevelFrames.last);
-    }
     return user;
   }
 
@@ -207,6 +203,30 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> unequipItem(String category) async {
     if (_currentUser == null) return;
+    switch (category) {
+      case 'frame':
+        _currentUser = _currentUser!.copyWith(activeFrame: '');
+        break;
+      case 'headwear':
+        _currentUser = _currentUser!.copyWith(activeHeadwear: '');
+        break;
+      case 'bubble':
+        _currentUser = _currentUser!.copyWith(activeBubble: '');
+        break;
+      case 'entrance':
+        _currentUser = _currentUser!.copyWith(activeEntrance: '');
+        break;
+      case 'car':
+        _currentUser = _currentUser!.copyWith(activeCar: '');
+        break;
+      case 'cover':
+        _currentUser = _currentUser!.copyWith(activeCover: '');
+        break;
+      case 'necklace':
+        _currentUser = _currentUser!.copyWith(activeNecklace: '');
+        break;
+    }
+    notifyListeners();
     await _supabaseService.unequipItem(_currentUser!.uid, category);
     await loadUser(_currentUser!.uid);
   }

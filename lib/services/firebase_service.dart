@@ -484,7 +484,7 @@ class FirebaseService {
 
         if (agencyMemberRef == null || resolvedAgencyId == null || resolvedAgencyId.isEmpty) {
           final uSnap = await _db.collection('users').doc(receiverId).get();
-          final aid = uSnap.data()?['agency_id']?.toString();
+          final aid = uSnap.data()?['agency_id']?.toString() ?? uSnap.data()?['agencyId']?.toString();
           if (aid != null && aid.isNotEmpty) {
             resolvedAgencyId = aid;
             final mDocDirect = await _db.collection('host_agency_members').doc('${aid}_$receiverId').get();
@@ -503,6 +503,14 @@ class FirebaseService {
                 agencyMemberRef = _db.collection('host_agency_members').doc('${aid}_$receiverId');
               }
             }
+          }
+        }
+
+        if (agencyMemberRef == null || resolvedAgencyId == null || resolvedAgencyId.isEmpty) {
+          final ownerSnap = await _db.collection('host_agencies').where('owner_id', isEqualTo: receiverId).limit(1).get();
+          if (ownerSnap.docs.isNotEmpty) {
+            resolvedAgencyId = ownerSnap.docs.first.id;
+            agencyMemberRef = _db.collection('host_agency_members').doc('${resolvedAgencyId}_$receiverId');
           }
         }
 
@@ -678,23 +686,25 @@ class FirebaseService {
     }
 
     // Host target evaluation and ledger update (only for non-self send)
-    if (!isSelfSend && resolvedAgencyId != null && resolvedAgencyId.isNotEmpty) {
+    if (!isSelfSend) {
       unawaited(Future(() async {
-        try {
-          await _db.collection('agency_diamond_ledger').add({
-            'agency_id': resolvedAgencyId,
-            'user_id': receiverId,
-            'sender_id': senderId,
-            'sender_name': senderName,
-            'gift_id': giftId,
-            'gift_name': giftName,
-            'amount': totalCost,
-            'direction': 1,
-            'txn_type': 'gift',
-            'created_at': DateTime.now().toUtc().toIso8601String(),
-          });
-        } catch (e) {
-          debugPrint('agency_diamond_ledger error: $e');
+        if (resolvedAgencyId != null && resolvedAgencyId.isNotEmpty) {
+          try {
+            await _db.collection('agency_diamond_ledger').add({
+              'agency_id': resolvedAgencyId,
+              'user_id': receiverId,
+              'sender_id': senderId,
+              'sender_name': senderName,
+              'gift_id': giftId,
+              'gift_name': giftName,
+              'amount': totalCost,
+              'direction': 1,
+              'txn_type': 'gift',
+              'created_at': DateTime.now().toUtc().toIso8601String(),
+            });
+          } catch (e) {
+            debugPrint('agency_diamond_ledger error: $e');
+          }
         }
 
         try {
@@ -1547,6 +1557,9 @@ class FirebaseService {
       case 'cover':
         updateMap['active_cover'] = itemId;
         break;
+      case 'necklace':
+        updateMap['active_necklace'] = itemId;
+        break;
     }
     await _db.collection('users').doc(uid).update(updateMap);
   }
@@ -1555,25 +1568,30 @@ class FirebaseService {
     final updateMap = <String, dynamic>{};
     switch (category) {
       case 'frame':
-        updateMap['active_frame'] = null;
+        updateMap['active_frame'] = FieldValue.delete();
         break;
       case 'headwear':
-        updateMap['active_headwear'] = null;
+        updateMap['active_headwear'] = FieldValue.delete();
         break;
       case 'bubble':
-        updateMap['active_bubble'] = null;
+        updateMap['active_bubble'] = FieldValue.delete();
         break;
       case 'entrance':
-        updateMap['active_entrance'] = null;
+        updateMap['active_entrance'] = FieldValue.delete();
         break;
       case 'car':
-        updateMap['active_car'] = null;
+        updateMap['active_car'] = FieldValue.delete();
         break;
       case 'cover':
-        updateMap['active_cover'] = null;
+        updateMap['active_cover'] = FieldValue.delete();
+        break;
+      case 'necklace':
+        updateMap['active_necklace'] = FieldValue.delete();
         break;
     }
-    await _db.collection('users').doc(uid).set(_stripNulls(updateMap), SetOptions(merge: true));
+    if (updateMap.isNotEmpty) {
+      await _db.collection('users').doc(uid).update(updateMap);
+    }
   }
 
   // ═══════════════════════════════════════════════════════

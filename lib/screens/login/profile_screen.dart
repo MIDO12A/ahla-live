@@ -20,6 +20,7 @@ import '../backpack/backpack_screen.dart';
 import 'edit_profile_screen.dart';
 import '../setting/feedback_screen.dart';
 import '../vip/vip_center_screen.dart';
+import '../../features/cp/cp_space_screen.dart';
 import '../../features/host_agency/host_agency_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
 
@@ -152,12 +153,11 @@ class ProfileScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const EditProfileScreen()),
                 );
               },
-              child: Image.asset(
+              child: R.loadAsset(
                 'assets/mipmap-xxhdpi/mine_btn_edit_ic.webp',
                 width: 36,
                 height: 28,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(Icons.edit, size: 24, color: Colors.black87),
               ),
             ),
           ),
@@ -225,12 +225,11 @@ class ProfileScreen extends StatelessWidget {
                           else
                             Positioned.fill(
                               child: IgnorePointer(
-                                child: Image.asset(
+                                child: R.loadAsset(
                                   'assets/mipmap-xxhdpi/mine_avatar_ic.webp',
                                   width: 122,
                                   height: 122,
                                   fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                                 ),
                               ),
                             ),
@@ -260,18 +259,13 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    Image.asset(
+                    R.loadAsset(
                       isMale
                           ? 'assets/mipmap-xxhdpi/sex_male_ic.webp'
                           : 'assets/mipmap-xxhdpi/sex_female_ic.webp',
                       width: 18,
                       height: 16,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Icon(
-                        isMale ? Icons.male : Icons.female,
-                        size: 16,
-                        color: isMale ? Colors.blue : Colors.pink,
-                      ),
                     ),
                   ],
                 ),
@@ -308,12 +302,11 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 5),
-                        Image.asset(
+                        R.loadAsset(
                           'assets/mipmap-xxhdpi/mine_copy_ic_2.webp',
                           width: 13,
                           height: 13,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.copy, size: 13, color: Color(0xFF9BA1B6)),
                         ),
                       ],
                     ),
@@ -398,25 +391,61 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
 
+          // وسام VIP المصور الأصلي
           if (vipLevel > 0) ...[
             const SizedBox(width: 4),
-            Container(
-              width: 50,
-              height: 18,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFD700), Color(0xFFB8860B)],
+            Image.asset(
+              'assets/images/vip_medal_${vipLevel.clamp(1, 5)}.png',
+              height: 20,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFD700), Color(0xFFB8860B)],
+                  ),
+                  borderRadius: BorderRadius.circular(9),
                 ),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                'VIP $vipLevel',
-                style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                child: Text(
+                  'VIP $vipLevel',
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
               ),
             ),
           ],
+
+          // قلادة VIP أو القلادة النشطة للمستخدم (SVGA)
+          if (_hasVipNecklace(user, vipLevel)) ...[
+            const SizedBox(width: 4),
+            _buildVipNecklaceBadge(user, vipLevel),
+          ],
         ],
+      ),
+    );
+  }
+
+  bool _hasVipNecklace(UserModel? user, int vipLevel) {
+    if (user == null) return false;
+    if (user.activeNecklace != null && user.activeNecklace!.isNotEmpty) return true;
+    if (vipLevel > 0) return true;
+    return false;
+  }
+
+  Widget _buildVipNecklaceBadge(UserModel? user, int vipLevel) {
+    String necklace = user?.activeNecklace ?? '';
+    if (necklace.isEmpty && vipLevel > 0) {
+      final lvl = vipLevel.clamp(1, 5);
+      necklace = 'assets/svga/v${lvl}_left_bottom.svga';
+    }
+    if (necklace.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: SvgaFrame(
+        svgaPath: necklace,
+        size: 24,
+        fit: BoxFit.contain,
       ),
     );
   }
@@ -560,7 +589,7 @@ class ProfileScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Image.asset(
+                    R.loadAsset(
                       'assets/mipmap-xxhdpi/mine_wallet_ic.webp',
                       width: 24,
                       height: 24,
@@ -584,12 +613,11 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Image.asset(
+                    R.loadAsset(
                       'assets/mipmap-xxhdpi/common_next_4_ic.webp',
                       width: 16,
                       height: 16,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.chevron_left, size: 16, color: Color(0xFF9BA1B6)),
                     ),
                   ],
                 ),
@@ -612,7 +640,7 @@ class ProfileScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Image.asset(
+                    R.loadAsset(
                       'assets/mipmap-xxhdpi/common_gold_ic_3.webp',
                       width: 24,
                       height: 24,
@@ -629,12 +657,11 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     if (diamonds > 0) ...[
                       const Spacer(),
-                      Image.asset(
+                      R.loadAsset(
                         'assets/mipmap-xxhdpi/common_diamond_ic.webp',
                         width: 20,
                         height: 20,
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.diamond, size: 18, color: Colors.blueAccent),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -676,7 +703,7 @@ class ProfileScreen extends StatelessWidget {
               Positioned.fill(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: Image.asset(
+                  child: R.loadAsset(
                     'assets/mipmap-xxhdpi/mine_vip_center_bg.webp',
                     fit: BoxFit.fill,
                   ),
@@ -687,7 +714,7 @@ class ProfileScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     // أيقونة mine_mall_tab_vip_ic
-                    Image.asset(
+                    R.loadAsset(
                       'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
                       width: 24,
                       height: 24,
@@ -704,7 +731,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const Spacer(),
                     // ملصق تاج VIP mine_vip_label_ic
-                    Image.asset(
+                    R.loadAsset(
                       'assets/mipmap-xxhdpi/mine_vip_label_ic.webp',
                       width: 52,
                       height: 52,
@@ -712,7 +739,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     // سهم التخطي mine_vip_go
-                    Image.asset(
+                    R.loadAsset(
                       'assets/mipmap-xxhdpi/mine_vip_go.webp',
                       width: 16,
                       height: 16,
@@ -799,7 +826,19 @@ class ProfileScreen extends StatelessWidget {
               },
             ),
 
-            // 5. بوابة شحن الوكلاء والرواتب (خاص بالوكلاء المعتمدين)
+            // 5. علاقة CP
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/mine_cp_ic.webp',
+              title: 'علاقة CP',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CpSpaceScreen()),
+                );
+              },
+            ),
+
+            // 6. بوابة شحن الوكلاء والرواتب (خاص بالوكلاء المعتمدين)
             if (isAgent)
               _buildFunctionItem(
                 icon: 'assets/images/profile/ic_coinseller_entrance.png',
@@ -812,7 +851,7 @@ class ProfileScreen extends StatelessWidget {
                 },
               ),
 
-            // 6. الشكاوى والاقتراحات (cl_feedback)
+            // 7. الشكاوى والاقتراحات (cl_feedback)
             _buildFunctionItem(
               icon: 'assets/mipmap-xxhdpi/mine_feedback_ic.webp',
               title: 'الشكاوى والاقتراحات',
@@ -824,7 +863,7 @@ class ProfileScreen extends StatelessWidget {
               },
             ),
 
-            // 7. الإعدادات (cl_setting)
+            // 8. الإعدادات (cl_setting)
             _buildFunctionItem(
               icon: 'assets/mipmap-xxhdpi/mine_setting_ic.webp',
               title: 'الإعدادات',
@@ -836,7 +875,7 @@ class ProfileScreen extends StatelessWidget {
               },
             ),
 
-            // 8. التحقق من التحديثات
+            // 9. التحقق من التحديثات
             _buildFunctionItem(
               icon: 'assets/mipmap-xxhdpi/mine_set_increase_version_ic.webp',
               title: 'التحقق من التحديثات',
@@ -862,12 +901,11 @@ class ProfileScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            Image.asset(
+            R.loadAsset(
               icon,
               width: 44,
               height: 44,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(Icons.circle, size: 30, color: Colors.blueAccent),
             ),
             const SizedBox(width: 12),
             Text(
@@ -890,12 +928,11 @@ class ProfileScreen extends StatelessWidget {
               ),
               const SizedBox(width: 6),
             ],
-            Image.asset(
+            R.loadAsset(
               'assets/mipmap-xxhdpi/next_black_ic.webp',
               width: 24,
               height: 24,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(Icons.chevron_left, size: 24, color: Colors.black45),
             ),
           ],
         ),

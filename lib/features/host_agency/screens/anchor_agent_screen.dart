@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../config/r.dart';
@@ -23,6 +25,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   List<AnchorAgentUserInfoDataModel> _anchors = [];
   bool _loading = true;
   String? _error;
+  StreamSubscription? _membersSub;
+  StreamSubscription? _agencySub;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -30,11 +35,47 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     _loadAgencyData();
   }
 
-  Future<void> _loadAgencyData() async {
-    setState(() {
-      _loading = true;
-      _error = null;
+  @override
+  void dispose() {
+    _membersSub?.cancel();
+    _agencySub?.cancel();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void _listenRealtime(String aid) {
+    if (aid.isEmpty) return;
+    _membersSub?.cancel();
+    _membersSub = FirebaseFirestore.instance
+        .collection('host_agency_members')
+        .where('agency_id', isEqualTo: aid)
+        .snapshots()
+        .listen((_) => _scheduleReload());
+
+    _agencySub?.cancel();
+    _agencySub = FirebaseFirestore.instance
+        .collection('host_agencies')
+        .doc(aid)
+        .snapshots()
+        .listen((_) => _scheduleReload());
+  }
+
+  void _scheduleReload() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _loadAgencyData(silent: true);
+      }
     });
+  }
+
+  Future<void> _loadAgencyData({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
     try {
       final user = Provider.of<UserProvider>(context, listen: false).currentUser;
@@ -67,11 +108,16 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               [];
           _loading = false;
         });
+
+        final aid = _agentInfo?.agencyId ?? widget.agencyId;
+        if (aid != null && aid.isNotEmpty && _membersSub == null) {
+          _listenRealtime(aid);
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'حدث خطأ في تحميل بيانات الوكالة';
+          if (!silent) _error = 'حدث خطأ في تحميل بيانات الوكالة';
           _loading = false;
         });
       }

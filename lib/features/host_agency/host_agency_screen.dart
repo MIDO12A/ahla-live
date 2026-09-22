@@ -11,7 +11,6 @@ import '../../core/supabase_compat.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/ui/in_app_toast.dart';
-import 'host_dashboard_screen.dart';
 import 'screens/agency_profile_screen.dart';
 import 'screens/anchor_agent_screen.dart';
 
@@ -124,9 +123,8 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
     switch (_role) {
       case _UserAgencyRole.owner:
       case _UserAgencyRole.supervisor:
-        return AnchorAgentScreen(agencyId: _agencyId);
       case _UserAgencyRole.host:
-        return const HostDashboardScreen();
+        return AnchorAgentScreen(agencyId: _agencyId);
       case _UserAgencyRole.none:
         return _BrowseCreateScreen(
           role: _role,

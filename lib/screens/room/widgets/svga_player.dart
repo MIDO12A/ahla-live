@@ -236,7 +236,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
     _activeUrl = _networkUrlOrNull();
     // مهلة أمان: لو تعطل التحميل/الحقن الديناميكي لا تبقى الشاشة على الـ spinner
     // إلى الأبد (كانت المشكلة: تهنيج الشاشة عند إرسال هدية SVGA).
-    _loadTimeout = Timer(const Duration(seconds: 8), () {
+    _loadTimeout = Timer(const Duration(seconds: 4), () {
       if (mounted && isLoading) {
         _finishOrFallback();
       }
@@ -257,6 +257,10 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
     if (old.assetPath != widget.assetPath ||
         !mapEquals(old.textReplacement, widget.textReplacement) ||
         !mapEquals(old.imageReplacement, widget.imageReplacement)) {
+      try {
+        animationController?.stop();
+        animationController?.reset();
+      } catch (_) {}
       _activeUrl = _networkUrlOrNull();
       setState(() {
         isLoading = true;
@@ -264,7 +268,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
         _finishedOnce = false;
       });
       _loadTimeout?.cancel();
-      _loadTimeout = Timer(const Duration(seconds: 8), () {
+      _loadTimeout = Timer(const Duration(seconds: 4), () {
         if (mounted && isLoading) {
           _finishOrFallback();
         }
@@ -593,7 +597,9 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
         width: w,
         height: h,
         child: isLoading
-            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+            ? ((w <= 80 || h <= 80)
+                ? const SizedBox.shrink()
+                : const Center(child: CircularProgressIndicator(strokeWidth: 2)))
             : hasError
                 ? (widget.defaultImageUrl != null && widget.defaultImageUrl!.isNotEmpty
                     ? Image.network(widget.defaultImageUrl!, width: w, height: h, fit: widget.fit,
