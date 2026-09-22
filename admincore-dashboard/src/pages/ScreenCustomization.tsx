@@ -6,6 +6,9 @@ import { Save, RotateCcw, Upload, Check, Image, Type, Layers } from 'lucide-reac
 import { to6Hex } from '../lib/colors';
 
 interface ScreenVisuals {
+  agentRecharge: Record<string, string>;
+  hostAgency: Record<string, string>;
+  hosts: Record<string, string>;
   agency: Record<string, string>;
   badges: Record<string, string>;
   necklaces: Record<string, string>;
@@ -31,6 +34,28 @@ interface ScreenVisuals {
 }
 
 const defaultVisuals: ScreenVisuals = {
+  agentRecharge: {
+    backgroundImage: '',
+    headerBgImage: '',
+    headerColor: '#16151A',
+    accentColor: '#FFD700',
+    bannerImage: '',
+    textColor: '#ffffff',
+    cardColor: '#1E1D24',
+  },
+  hostAgency: {
+    backgroundImage: '',
+    headerBgImage: '',
+    headerColor: '#1A1A1A',
+    bannerImage: '',
+    textColor: '#ffffff',
+    cardColor: '#1E1D24',
+  },
+  hosts: {
+    backgroundImage: '',
+    headerColor: '#1A1A1A',
+    textColor: '#ffffff',
+  },
   agency: {
     backgroundImage: '',
     headerBgColor: '#1a1a2e',
@@ -246,6 +271,8 @@ const defaultVisuals: ScreenVisuals = {
     sectionBgImage: '',
   },
   cp: {
+    title: 'علاقة CP',
+    bannerImage: '',
     backgroundImage: '',
     headerBgColor: '#E91E8C',
     headerBgImage: '',
@@ -462,6 +489,9 @@ const defaultVisuals: ScreenVisuals = {
     textColor: '#000000',
     subTextColor: '#888888',
     cardBgColor: '#ffffff',
+    cpIcon: '',
+    rechargeAgentIcon: '',
+    hostAgencyIcon: '',
   },
   chat: {
     backgroundImage: '',
@@ -521,9 +551,12 @@ const defaultVisuals: ScreenVisuals = {
   },
 };
 
-const screenTabs = ['rechargeEvent', 'agency', 'badges', 'necklaces', 'rank', 'checkbox', 'store', 'backpack', 'giftPanel', 'wallet', 'level', 'cp', 'miniprofile', 'signin', 'room', 'discover', 'message', 'profile', 'chat', 'userProfile', 'eventInfo', 'notifications'] as const;
+const screenTabs = ['agentRecharge', 'hostAgency', 'hosts', 'rechargeEvent', 'agency', 'badges', 'necklaces', 'rank', 'checkbox', 'store', 'backpack', 'giftPanel', 'wallet', 'level', 'cp', 'miniprofile', 'signin', 'room', 'discover', 'message', 'profile', 'chat', 'userProfile', 'eventInfo', 'notifications'] as const;
 
 const screenLabels: Record<string, Record<string, string>> = {
+  agentRecharge: { ar: '💸 بوابة وكالة الشحن المعتمدة', en: '💸 Agent Recharge Portal' },
+  hostAgency: { ar: '🏢 شاشة وكالات المضيفين الرسمية', en: '🏢 Host Agencies Screen' },
+  hosts: { ar: '🎙️ شاشة إدارة المضيفين بالوكالة', en: '🎙️ Hosts Management Screen' },
   rechargeEvent: { ar: '⚡ شاشة حدث الشحن الأسطوري', en: '⚡ Recharge Event Screen' },
   agency: { ar: 'شاشة الوكالة', en: 'Agency Screen' },
   badges: { ar: 'شاشة الشارات', en: 'Badges Screen' },
@@ -754,9 +787,16 @@ const fieldLabels: Record<string, Record<string, string>> = {
   badgeTextColor: { ar: 'لون نص وسام الحدث', en: 'Event Badge Text Color' },
   progressFillStart: { ar: 'بداية لون شريط التقدم', en: 'Progress Bar Fill Start' },
   progressFillEnd: { ar: 'نهاية لون شريط التقدم', en: 'Progress Bar Fill End' },
+  headerColor: { ar: 'لون الترويسة / الشريط العلوي', en: 'Header Background Color' },
+  bannerImage: { ar: 'صورة البانر الإعلاني', en: 'Banner Image' },
+  cardColor: { ar: 'لون البطاقات / الكروت', en: 'Card Background Color' },
+  title: { ar: 'عنوان الشاشة', en: 'Screen Title' },
+  cpIcon: { ar: 'أيقونة علاقة CP في شاشة أنا', en: 'CP Space Icon in Me Screen' },
+  rechargeAgentIcon: { ar: 'أيقونة بوابة شحن الوكلاء في شاشة أنا', en: 'Recharge Agent Icon in Me Screen' },
+  hostAgencyIcon: { ar: 'أيقونة وكالة المضيفين في شاشة أنا', en: 'Host Agency Icon in Me Screen' },
 };
 
-const imageFields = ['bgImage', 'listBgImage', 'rank1Frame', 'rank2Frame', 'rank3Frame', 'rank1Banner', 'rank2Banner', 'rank3Banner', 'backgroundImage', 'checkboxCheckedImage', 'checkboxUncheckedImage', 'coinIcon', 'diamondIcon', 'rankIcon', 'crownIcon', 'rankBgImage', 'checkedImage', 'uncheckedImage', 'cardBgImage', 'sectionBgImage', 'badgeBgImage', 'necklaceBgImage', 'headerBgImage', 'headerTextImage', 'cardBorderImage', 'textImage', 'subTextImage', 'accentImage', 'badgeBorderImage', 'necklaceBorderImage', 'lockImage', 'fullScreenBg', 'cabinBg', 'cabinDefaultBg', 'leftFrame', 'rightFrame', 'heartImage', 'noCpHeartSvg', 'tokenBg', 'mineBg', 'tabBgImage', 'invitationBgImage', 'countdownDaySvg', 'countdownHourSvg', 'countdownMinSvg', 'countdownSecSvg', 'rankTagGoldSvg', 'rankTagSilverSvg', 'rankTagBronzeSvg', 'historyCardSvg', 'giftsBannerSvg', 'profileHeartIcon', 'profileLevelBg', 'profileNameFrame', 'profileTopBgSvga', 'checkmarkImage', 'streakIcon', 'topBgSvga', 'buttonImage', 'seatDefaultCircleImage', 'seatLockCircleImage', 'seatDefaultClassicImage', 'seatLockClassicImage', 'seatDefaultVipImage', 'seatLockVipImage', 'gameIconImage', 'exitIconImage', 'onlineCapsuleBgImage', 'giftIconImage', 'chatIconImage', 'emojiIconImage', 'micOnIconImage', 'micOffIconImage', 'musicIconImage', 'msgIconImage', 'functionIconImage', 'userCardBgImage', 'userGiftBgImage', 'userFollowIconImage', 'userChatIconImage', 'userAtIconImage', 'userGiftBtnImage', 'userMicDownIconImage', 'userMicMuteIconImage', 'seatPanelTopBg', 'seatRadioCheckedBg', 'seatRadioUncheckedBg', 'seatGameIcon', 'seatClassicIcon', 'seatVipIcon', 'seatPreviewFrame', 'funcMixerIcon', 'funcSettingsIcon', 'funcSeatStyleIcon', 'funcBgIcon', 'funcReportIcon', 'funcEffectIcon', 'funcVolumeIcon', 'funcGiftValIcon', 'settingsHeaderBg', 'settingsLabelIcon', 'settingsCameraIcon'];
+const imageFields = ['bgImage', 'listBgImage', 'rank1Frame', 'rank2Frame', 'rank3Frame', 'rank1Banner', 'rank2Banner', 'rank3Banner', 'backgroundImage', 'bannerImage', 'cpIcon', 'rechargeAgentIcon', 'hostAgencyIcon', 'checkboxCheckedImage', 'checkboxUncheckedImage', 'coinIcon', 'diamondIcon', 'rankIcon', 'crownIcon', 'rankBgImage', 'checkedImage', 'uncheckedImage', 'cardBgImage', 'sectionBgImage', 'badgeBgImage', 'necklaceBgImage', 'headerBgImage', 'headerTextImage', 'cardBorderImage', 'textImage', 'subTextImage', 'accentImage', 'badgeBorderImage', 'necklaceBorderImage', 'lockImage', 'fullScreenBg', 'cabinBg', 'cabinDefaultBg', 'leftFrame', 'rightFrame', 'heartImage', 'noCpHeartSvg', 'tokenBg', 'mineBg', 'tabBgImage', 'invitationBgImage', 'countdownDaySvg', 'countdownHourSvg', 'countdownMinSvg', 'countdownSecSvg', 'rankTagGoldSvg', 'rankTagSilverSvg', 'rankTagBronzeSvg', 'historyCardSvg', 'giftsBannerSvg', 'profileHeartIcon', 'profileLevelBg', 'profileNameFrame', 'profileTopBgSvga', 'checkmarkImage', 'streakIcon', 'topBgSvga', 'buttonImage', 'seatDefaultCircleImage', 'seatLockCircleImage', 'seatDefaultClassicImage', 'seatLockClassicImage', 'seatDefaultVipImage', 'seatLockVipImage', 'gameIconImage', 'exitIconImage', 'onlineCapsuleBgImage', 'giftIconImage', 'chatIconImage', 'emojiIconImage', 'micOnIconImage', 'micOffIconImage', 'musicIconImage', 'msgIconImage', 'functionIconImage', 'userCardBgImage', 'userGiftBgImage', 'userFollowIconImage', 'userChatIconImage', 'userAtIconImage', 'userGiftBtnImage', 'userMicDownIconImage', 'userMicMuteIconImage', 'seatPanelTopBg', 'seatRadioCheckedBg', 'seatRadioUncheckedBg', 'seatGameIcon', 'seatClassicIcon', 'seatVipIcon', 'seatPreviewFrame', 'funcMixerIcon', 'funcSettingsIcon', 'funcSeatStyleIcon', 'funcBgIcon', 'funcReportIcon', 'funcEffectIcon', 'funcVolumeIcon', 'funcGiftValIcon', 'settingsHeaderBg', 'settingsLabelIcon', 'settingsCameraIcon'];
 
 const colorRegex = /^(bg|header|text|card|border|accent|tab|gold|silver|bronze|points|section|badge|necklace|member|primary|gradient|countdown|invitation|button|avatar|score|period|rank|shadow|Color)/i;
 
