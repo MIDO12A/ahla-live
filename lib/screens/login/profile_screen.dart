@@ -639,10 +639,7 @@ class ProfileScreen extends StatelessWidget {
             'المكافآت اليومية',
             null,
             () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const WeeklySigninScreen()),
-              );
+              WeeklySigninScreen.show(context);
             },
           ),
           _buildDivider(),

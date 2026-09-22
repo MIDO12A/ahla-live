@@ -332,6 +332,11 @@ class R {
   static const String icSigningOk = '$_m/ic_signing_ok.png';
   static const String icSigningClock = '$_m/ic_signing_clock.png';
   static const String bgDialogTask = '$_m/bg_dialog_task.png';
+  static const String dialogCoins = '$_m/dialog_coins.png';
+  static const String giveCoinIcon = '$_m/give_coin_icon.png';
+  static const String miniCoins = '$_m/mini_coins.png';
+  static const String icMinCoins = '$_m/ic_min_coins.png';
+  static const String bgGetTaskCoin = '$_m/bg_get_task_coin.png';
 
   // SVGA frames & animations
   static const String superAdminFrame = 'assets/svga/super_admin_frame.svga';

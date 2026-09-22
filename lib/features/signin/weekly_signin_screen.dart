@@ -3,15 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../providers/user_provider.dart';
-import '../../screens/room/widgets/svga_frame.dart';
-import '../../services/dynamic_config_service.dart';
-import '../../services/media_prefetch_service.dart';
+import '../tasks/screens/daily_tasks_screen.dart';
 import 'signin_service.dart';
 
-class WeeklySigninScreen extends StatefulWidget {
+/// الشاشة والنافذة المنبثقة لتسجيل الوصول اليومي
+/// مطابقة بالكامل لتصميم التطبيق الأصلي:
+/// - dialog_signin_coins.xml
+/// - item_sign_coin.xml
+/// - item_sign_coin2.xml
+/// - dialog_task_coin.xml
+class WeeklySigninScreen extends StatelessWidget {
   const WeeklySigninScreen({super.key});
 
-  /// إظهار نافذة تسجيل الدخول اليومي تلقائياً إذا لم يستلم المستخدم مكافأته اليوم
+  /// إظهار نافذة تسجيل الوصول اليومي تلقائياً إذا لم يستلم المستخدم مكافأته لليوم
   static Future<void> showIfNeeded(BuildContext context) async {
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
@@ -19,33 +23,62 @@ class WeeklySigninScreen extends StatefulWidget {
       if (uid == null) return;
       final hasClaimed = await SigninService.hasClaimedToday(uid);
       if (!hasClaimed && context.mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: true,
-          builder: (_) => const Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            child: ClipRRect(
-              borderRadius: BorderRadius.all(Radius.circular(20)),
-              child: SizedBox(
-                height: 560,
-                child: WeeklySigninScreen(),
-              ),
-            ),
-          ),
-        );
+        show(context);
       }
     } catch (_) {}
   }
 
+  /// فتح نافذة تسجيل الوصول اليومي كـ Dialog أصلي مطابق
+  static Future<void> show(BuildContext context) {
+    return showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (_) => const Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        elevation: 0,
+        child: WeeklySigninDialog(),
+      ),
+    );
+  }
+
   @override
-  State<WeeklySigninScreen> createState() => _WeeklySigninScreenState();
+  Widget build(BuildContext context) {
+    // في حال فتحها كشاشة كاملة عبر Navigator.push
+    return Scaffold(
+      backgroundColor: Colors.black.withValues(alpha: 0.6),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(context).maybePop(),
+        child: Center(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {}, // منع الإغلاق عند النقر داخل النافذة
+            child: const SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                child: WeeklySigninDialog(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _WeeklySigninScreenState extends State<WeeklySigninScreen> {
+/// نافذة تسجيل الوصول اليومي المطابقة لـ dialog_signin_coins.xml
+class WeeklySigninDialog extends StatefulWidget {
+  const WeeklySigninDialog({super.key});
+
+  @override
+  State<WeeklySigninDialog> createState() => _WeeklySigninDialogState();
+}
+
+class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
   List<Map<String, dynamic>> _rewards = [];
   List<Map<String, dynamic>> _records = [];
-  Map<String, dynamic> _weekly = {};
   bool _loading = true;
   bool _signingIn = false;
   String? _error;
@@ -62,7 +95,10 @@ class _WeeklySigninScreenState extends State<WeeklySigninScreen> {
       final userProvider = context.read<UserProvider>();
       final uid = userProvider.currentUser?.uid;
       if (uid == null) {
-        setState(() { _loading = false; _error = 'User not logged in'; });
+        setState(() {
+          _loading = false;
+          _error = 'User not logged in';
+        });
         return;
       }
       final data = await SigninService.getUserSigninData(uid);
@@ -71,19 +107,39 @@ class _WeeklySigninScreenState extends State<WeeklySigninScreen> {
       setState(() {
         _rewards = (data['rewards'] as List?)?.cast<Map<String, dynamic>>() ?? rewards;
         _records = (data['records'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        _weekly = data['weekly'] is Map ? Map<String, dynamic>.from(data['weekly']) : {};
         _loading = false;
         _error = null;
       });
-      MediaPrefetchService().prefetchMaps(_rewards);
     } catch (e) {
       if (!mounted) return;
-      setState(() { _loading = false; _error = e.toString(); });
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
     }
   }
 
+  bool _isDayChecked(int dayNumber) {
+    return _records.any((r) => (r['day_number'] as num?)?.toInt() == dayNumber);
+  }
+
+  bool _hasClaimedToday() {
+    final checkedCount = _records.length;
+    if (checkedCount >= 7) return true;
+    final userProvider = context.read<UserProvider>();
+    final uid = userProvider.currentUser?.uid;
+    if (uid == null) return false;
+    final now = DateTime.now().toUtc();
+    final todayStr = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return _records.any((r) => (r['claimed_date'] ?? r['claim_date'] ?? r['date']) == todayStr);
+  }
+
+  int _todayDayNumber() {
+    return (_records.length + 1).clamp(1, 7);
+  }
+
   Future<void> _doSignin() async {
-    if (_signingIn) return;
+    if (_signingIn || _hasClaimedToday()) return;
     setState(() => _signingIn = true);
     try {
       final userProvider = context.read<UserProvider>();
@@ -92,11 +148,18 @@ class _WeeklySigninScreenState extends State<WeeklySigninScreen> {
       final result = await SigninService.doSignin(uid);
       if (!mounted) return;
       if (result['success'] == true) {
-        _showRewardDialog(result);
         await _loadData();
+        if (mounted) {
+          _showRewardSuccessDialog(result);
+        }
       } else {
         if (result['error'] == 'already_signed_in') {
-          _showAlreadySignedIn();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('لقد قمت بتسجيل الوصول اليوم بالفعل', textAlign: TextAlign.center),
+              backgroundColor: Color(0xFFFEB606),
+            ),
+          );
         }
       }
     } catch (_) {}
@@ -104,399 +167,196 @@ class _WeeklySigninScreenState extends State<WeeklySigninScreen> {
     setState(() => _signingIn = false);
   }
 
-  void _showRewardDialog(Map<String, dynamic> result) {
+  /// نافذة التأكيد والتهنئة المطابقة لـ dialog_task_coin.xml
+  void _showRewardSuccessDialog(Map<String, dynamic> result) {
+    final rewardValue = result['reward_value'] ?? 50;
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        child: _buildRewardDialogContent(result),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        elevation: 0,
+        child: _buildTaskCoinDialogContent(ctx, rewardValue),
       ),
     );
   }
 
-  Widget _buildRewardDialogContent(Map<String, dynamic> result) {
-    final cfg = DynamicConfigService();
-    final dayNumber = result['day_number'] ?? 1;
-    final rewardValue = result['reward_value'] ?? 0;
-    final rewardType = result['reward_type'] ?? 'coins';
-    final isDouble = result['is_double'] == true;
-
-    final dayReward = _rewards.where((r) => r['day_number'] == dayNumber).toList();
-    final iconUrl = dayReward.isNotEmpty ? (dayReward.first['icon_url'] as String? ?? '') : '';
-    final svgaUrl = dayReward.isNotEmpty ? (dayReward.first['svga_url'] as String? ?? '') : '';
-    final labelAr = dayReward.isNotEmpty ? (dayReward.first['label_ar'] as String? ?? '') : '';
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        image: const DecorationImage(
-          image: AssetImage(R.bgDialogTask),
-          fit: BoxFit.cover,
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+  Widget _buildTaskCoinDialogContent(BuildContext ctx, dynamic rewardValue) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 340),
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          const SizedBox(height: 40),
-          R.loadImage(R.signCoinTop, width: 80, height: 80),
-          const SizedBox(height: 8),
-          Text(
-            labelAr.isNotEmpty ? labelAr : 'اليوم $dayNumber',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: cfg.signinGoldColor,
-            ),
+          // خلفية نافذة المكافأة bg_get_task_coin
+          Image.asset(
+            R.bgGetTaskCoin,
+            fit: BoxFit.fill,
+            width: double.infinity,
           ),
-          const SizedBox(height: 16),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: cfg.signinCardBorderColor.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              children: [
-                if (svgaUrl.isNotEmpty)
-                  SvgaFrame(svgaPath: svgaUrl, size: 64, fit: BoxFit.contain)
-                else
-                  R.loadImage(
-                    iconUrl.isNotEmpty ? iconUrl : R.icSigningOk,
-                    width: 48, height: 48,
-                  ),
-                const SizedBox(height: 12),
-                Text(
-                  '$rewardValue',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: cfg.signinAccentColor,
-                  ),
-                ),
-                Text(
-                  rewardType == 'coins' ? 'عملات' :
-                  rewardType == 'diamonds' ? 'ماس' :
-                  rewardType == 'xp' ? 'نقاط خبرة' : '',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: cfg.signinSubTextColor,
-                  ),
-                ),
-                if (isDouble)
-                  Container(
-                    margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [cfg.signinButtonGradientStart, cfg.signinButtonGradientEnd],
-                      ),
-                      borderRadius: BorderRadius.circular(20),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 60),
+              // تهانينا (congratulations)
+              const Text(
+                'تهانينا',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFFFD6BF),
+                  shadows: [
+                    Shadow(
+                      color: Color(0xFF944307),
+                      offset: Offset(0, 1),
+                      blurRadius: 3,
                     ),
-                    child: Text(
-                      'مضاعف',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: cfg.signinButtonTextColor,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 50),
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [cfg.signinButtonGradientStart, cfg.signinButtonGradientEnd],
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: cfg.signinButtonGradientStart.withValues(alpha: 0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+              ),
+              const SizedBox(height: 24),
+              // قيمة المكافأة مع أيقونة mini_coins
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    R.miniCoins,
+                    width: 34,
+                    height: 34,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '+$rewardValue',
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFFECB15),
+                      shadows: [
+                        Shadow(
+                          color: Color(0xFF614C00),
+                          offset: Offset(0, 2),
+                          blurRadius: 3,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-              child: Text(
-                'ممتاز',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: cfg.signinButtonTextColor,
+              const SizedBox(height: 32),
+              // زر التأكيد (confirm)
+              GestureDetector(
+                onTap: () => Navigator.of(ctx).pop(),
+                child: Container(
+                  height: 48,
+                  margin: const EdgeInsets.symmetric(horizontal: 45),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDE301),
+                    borderRadius: BorderRadius.circular(60),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFDE301).withValues(alpha: 0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'تأكيد',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 40),
+            ],
           ),
-          const SizedBox(height: 25),
         ],
       ),
     );
-  }
-
-  void _showAlreadySignedIn() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'لقد قمت بالتسجيل اليوم بالفعل',
-          style: const TextStyle(color: Colors.white),
-        ),
-        backgroundColor: DynamicConfigService().signinDayBgColor,
-      ),
-    );
-  }
-
-  int _checkedDays() {
-    return _records.length;
-  }
-
-  int _consecutiveDays() {
-    return (_weekly['consecutive_days'] as num?)?.toInt() ?? _checkedDays();
-  }
-
-  bool _isDayChecked(int dayNumber) {
-    return _records.any((r) => (r['day_number'] as num?)?.toInt() == dayNumber);
-  }
-
-  bool _isTodayDay(int dayNumber) {
-    final checkedCount = _checkedDays();
-    return dayNumber == checkedCount + 1 && dayNumber <= 7;
   }
 
   @override
   Widget build(BuildContext context) {
-    final cfg = DynamicConfigService();
-    return Scaffold(
-      backgroundColor: cfg.signinSectionBgColor,
-      body: Stack(
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 340),
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
         children: [
-          _buildBackground(cfg),
-          SafeArea(
+          // البطاقة البيضاء الأساسية بزوايا 18dp (ShapeConstraintLayout)
+          Container(
+            margin: const EdgeInsets.only(top: 36),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildAppBar(cfg),
+                // رأس البطاقة bg_dialog_task
+                _buildHeader(),
+
+                // شبكة الأيام والمكافآت
                 if (_loading)
-                  const Expanded(
-                    child: Center(child: CircularProgressIndicator(color: Color(0xFFFFD700))),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Center(
+                      child: CircularProgressIndicator(color: Color(0xFFFEB606)),
+                    ),
                   )
                 else if (_error != null)
-                  Expanded(
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.cloud_off, color: cfg.signinSubTextColor, size: 48),
-                          const SizedBox(height: 12),
-                          Text(
-                            'تعذر تحميل البيانات',
-                            style: TextStyle(color: cfg.signinSubTextColor, fontSize: 16),
-                          ),
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: _loadData,
-                            child: Text('إعادة المحاولة', style: TextStyle(color: cfg.signinGoldColor)),
-                          ),
-                        ],
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+                    child: Column(
+                      children: [
+                        Text(_error!, style: const TextStyle(color: Colors.red)),
+                        const SizedBox(height: 10),
+                        TextButton(
+                          onPressed: _loadData,
+                          child: const Text('إعادة المحاولة', style: TextStyle(color: Color(0xFFFEB606))),
+                        ),
+                      ],
                     ),
                   )
-                else
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                      child: Column(
-                        children: [
-                          _buildStreakHeader(cfg),
-                          const SizedBox(height: 16),
-                          _buildRewardGrid(cfg),
-                          const SizedBox(height: 20),
-                          _buildSigninButton(cfg),
-                          const SizedBox(height: 16),
-                          _buildStatsRow(cfg),
-                          const SizedBox(height: 16),
-                          _buildRules(cfg),
-                        ],
-                      ),
-                    ),
-                  ),
+                else ...[
+                  // شبكة 7 أيام (item_sign_coin & item_sign_coin2)
+                  _buildDaysGrid(),
+
+                  // الأيقونة الكبيرة وإجمالي كويزات اليوم
+                  _buildCoinsRow(),
+
+                  // زر تسجيل الوصول tvCheckIn
+                  _buildCheckInButton(),
+
+                  // شريط المزيد من المهام llMoreTask
+                  _buildMoreTasksBar(),
+                ],
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildBackground(DynamicConfigService cfg) {
-    final bg = cfg.signinBackgroundImage;
-    if (bg.isNotEmpty) {
-      if (bg.startsWith('assets/')) {
-        return Container(
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage(bg),
-              fit: BoxFit.cover,
-            ),
-          ),
-        );
-      }
-      return Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: R.cachedImage(bg),
-            fit: BoxFit.cover,
-          ),
-        ),
-      );
-    }
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF2e0d15),
-            Color(0xFF1a080d),
-            Color(0xFF0d0408),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAppBar(DynamicConfigService cfg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: cfg.signinCardBorderColor.withValues(alpha: 0.3)),
-            ),
-            child: IconButton(
-              icon: Icon(Icons.arrow_back, color: cfg.signinTextColor, size: 20),
-              onPressed: () => Navigator.pop(context),
-              padding: EdgeInsets.zero,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            'تسجيل الدخول اليومي',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: cfg.signinGoldColor,
-            ),
-          ),
-          const Spacer(),
-          const SizedBox(width: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStreakHeader(DynamicConfigService cfg) {
-    final consecutive = _consecutiveDays();
-    final totalCoins = (_weekly['total_coins'] as num?)?.toInt() ?? 0;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            cfg.signinCardBgColor,
-            cfg.signinCardBgColor.withValues(alpha: 0.8),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: cfg.signinCardBorderColor.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: cfg.signinGoldColor.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          _buildStreakItem(
-            cfg,
-            icon: R.icSigningTopBg,
-            label: 'أيام متتالية',
-            value: '$consecutive',
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: cfg.signinCardBorderColor.withValues(alpha: 0.3),
-          ),
-          _buildStreakItem(
-            cfg,
-            icon: R.signCoinTop,
-            label: 'إجمالي العملات',
-            value: '$totalCoins',
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: cfg.signinCardBorderColor.withValues(alpha: 0.3),
-          ),
-          _buildStreakItem(
-            cfg,
-            icon: R.icCheckinGift,
-            label: 'الأيام المسجلة',
-            value: '${_checkedDays()}/7',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStreakItem(DynamicConfigService cfg, {
-    required String icon,
-    required String label,
-    required String value,
-  }) {
-    return Expanded(
-      child: Column(
-        children: [
-          R.loadImage(icon, width: 28, height: 28),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: cfg.signinGoldColor,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: cfg.signinSubTextColor,
+          // الميدالية الذهبية العائمة في الأعلى sign_coin_top (80x80dp)
+          Positioned(
+            top: 0,
+            child: Image.asset(
+              R.signCoinTop,
+              width: 76,
+              height: 76,
+              fit: BoxFit.contain,
             ),
           ),
         ],
@@ -504,370 +364,448 @@ class _WeeklySigninScreenState extends State<WeeklySigninScreen> {
     );
   }
 
-  Widget _buildRewardGrid(DynamicConfigService cfg) {
-    if (_rewards.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(32),
-        child: Text(
-          'لا توجد مكافآت متاحة',
-          style: TextStyle(color: cfg.signinSubTextColor),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cfg.signinCardBgColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: cfg.signinCardBorderColor.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [cfg.signinButtonGradientStart, cfg.signinButtonGradientEnd],
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                'مكافآت 7 أيام',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: cfg.signinButtonTextColor,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
-            children: _rewards.map((reward) {
-              final dayNumber = (reward['day_number'] as num?)?.toInt() ?? 1;
-              return _buildDayCell(cfg, reward, dayNumber);
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDayCell(DynamicConfigService cfg, Map<String, dynamic> reward, int dayNumber) {
-    final isChecked = _isDayChecked(dayNumber);
-    final isToday = _isTodayDay(dayNumber);
-    final isLocked = dayNumber > _checkedDays() + 1;
-    final iconUrl = reward['icon_url'] as String? ?? '';
-    final svgaUrl = reward['svga_url'] as String? ?? '';
-    final value = (reward['value'] as num?)?.toInt() ?? 0;
-    final isDouble = reward['is_double'] == true;
-    final labelAr = reward['label_ar'] as String? ?? 'اليوم $dayNumber';
-
-    Color bgColor;
-    Color borderColor;
-    if (isChecked) {
-      bgColor = cfg.signinDayClaimedColor;
-      borderColor = cfg.signinDayClaimedBorderColor;
-    } else if (isToday) {
-      bgColor = cfg.signinDayActiveColor;
-      borderColor = cfg.signinGoldColor;
-    } else if (isLocked) {
-      bgColor = cfg.signinDayLockedColor;
-      borderColor = cfg.signinDayLockedColor;
-    } else {
-      bgColor = cfg.signinDayBgColor;
-      borderColor = cfg.signinDayBorderColor;
-    }
-
-    return Container(
-      width: 76,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: borderColor.withValues(alpha: isChecked ? 0.6 : isToday ? 0.9 : 0.3),
-          width: isToday ? 2 : 1.5,
-        ),
-        boxShadow: isToday ? [
-          BoxShadow(
-            color: cfg.signinGoldColor.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 0),
-          ),
-        ] : null,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isChecked)
-            R.loadImage(
-              cfg.signinCheckmarkImage.isNotEmpty ? cfg.signinCheckmarkImage : R.icHaveCheckedIn,
-              width: 18, height: 18,
-            )
-          else if (isLocked)
-            R.loadImage(
-              cfg.signinLockImage.isNotEmpty ? cfg.signinLockImage : R.icHaveNotCheckedIn,
-              width: 18, height: 18,
-            )
-          else
-            R.loadImage(R.icSigningClock, width: 18, height: 18),
-          const SizedBox(height: 4),
-          Text(
-            labelAr,
-            style: TextStyle(
-              fontSize: 10,
-              color: isChecked ? cfg.signinDayClaimedBorderColor : cfg.signinTextColor,
-              fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 6),
-          svgaUrl.isNotEmpty
-            ? SizedBox(
-                width: 36,
-                height: 36,
-                child: SvgaFrame(svgaPath: svgaUrl, size: 36, fit: BoxFit.contain),
-              )
-            : R.loadImage(
-                iconUrl.isNotEmpty ? iconUrl : R.icSigningOk,
-                width: 36, height: 36,
-              ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'x$value',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: cfg.signinGoldColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (isDouble)
-                Padding(
-                  padding: const EdgeInsets.only(left: 2),
-                  child: Icon(Icons.star, color: cfg.signinGoldColor, size: 10),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSigninButton(DynamicConfigService cfg) {
-    final allChecked = _checkedDays() >= 7;
-    final todayChecked = _checkedDays() > 0 && _isDayChecked(_checkedDays());
-
-    if (allChecked) {
-      return Container(
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle, color: cfg.signinGoldColor, size: 24),
-            const SizedBox(width: 8),
-            Text(
-              'أكملت جميع المكافآت لهذا الأسبوع',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: cfg.signinGoldColor,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (todayChecked) {
-      return Container(
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: cfg.signinCardBorderColor.withValues(alpha: 0.3),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            R.loadImage(R.icHaveCheckedIn, width: 24, height: 24),
-            const SizedBox(width: 8),
-            Text(
-              'تم التسجيل اليوم',
-              style: TextStyle(
-                fontSize: 16,
-                color: cfg.signinSubTextColor,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: _signingIn ? null : _doSignin,
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_signingIn
-              ? cfg.signinCardBorderColor
-              : cfg.signinButtonGradientStart,
-              _signingIn
-              ? cfg.signinCardBorderColor
-              : cfg.signinButtonGradientEnd,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: cfg.signinButtonGradientStart.withValues(alpha: 0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_signingIn)
-              SizedBox(
-                width: 20, height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: cfg.signinButtonTextColor,
-                ),
-              )
-            else
-              R.loadImage(cfg.signinButtonImage.isNotEmpty ? cfg.signinButtonImage : R.icSigningOk,
-                  width: 24, height: 24),
-            const SizedBox(width: 8),
-            Text(
-              _signingIn ? 'جاري التسجيل...' : 'تسجيل الدخول اليومي',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: cfg.signinButtonTextColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatsRow(DynamicConfigService cfg) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(
-        color: cfg.signinCardBgColor.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: cfg.signinCardBorderColor.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildStatDot(cfg, 'اليوم', _checkedDays().toString(), true),
-          _buildStatDot(cfg, 'متبقي', '${7 - _checkedDays()}', false),
-          _buildStatDot(cfg, 'السجل', '${_consecutiveDays()} أيام', true),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatDot(DynamicConfigService cfg, String label, String value, bool isHighlight) {
-    return Column(
+  /// ترويسة النافذة (خلفية bg_dialog_task + العنوان + زر الإغلاق)
+  Widget _buildHeader() {
+    return Stack(
       children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: isHighlight ? cfg.signinGoldColor : cfg.signinSubTextColor,
+        // صورة الترويسة العليا bg_dialog_task
+        ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+          ),
+          child: Image.asset(
+            R.bgDialogTask,
+            width: double.infinity,
+            height: 72,
+            fit: BoxFit.fill,
           ),
         ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: cfg.signinSubTextColor,
+
+        // العنوان "تسجيل الوصول اليومي"
+        const Positioned(
+          left: 0,
+          right: 0,
+          bottom: 10,
+          child: Text(
+            'تسجيل الوصول اليومي',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFA54800),
+            ),
+          ),
+        ),
+
+        // زر الإغلاق imgClose
+        Positioned(
+          top: 10,
+          right: 10,
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).maybePop(),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close,
+                size: 18,
+                color: Color(0xFFC46200),
+              ),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildRules(DynamicConfigService cfg) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: cfg.signinCardBorderColor.withValues(alpha: 0.15),
-        ),
-      ),
+  /// شبكة الأيام الـ 7 (السطر الأول: أيام 1-4، السطر الثاني: أيام 5-6 ويوم 7 مضاعف العرض)
+  Widget _buildDaysGrid() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // الصف الأول: الأيام 1 إلى 4
+          Row(
+            children: List.generate(4, (index) {
+              final dayNum = index + 1;
+              final reward = _getRewardForDay(dayNum);
+              return Expanded(
+                child: _buildStandardDayCard(dayNum, reward),
+              );
+            }),
+          ),
+          const SizedBox(height: 6),
+          // الصف الثاني: الأيام 5 و 6 (1 flex لكل منهما) واليوم 7 (2 flex مضاعف)
           Row(
             children: [
-              Icon(Icons.info_outline, color: cfg.signinGoldColor, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                'القواعد',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: cfg.signinGoldColor,
-                ),
+              Expanded(
+                flex: 1,
+                child: _buildStandardDayCard(5, _getRewardForDay(5)),
+              ),
+              Expanded(
+                flex: 1,
+                child: _buildStandardDayCard(6, _getRewardForDay(6)),
+              ),
+              Expanded(
+                flex: 2,
+                child: _buildDay7Card(_getRewardForDay(7)),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            '• سجل دخولك يومياً لجمع المكافآت\n'
-            '• المكافآت تتضاعف في اليوم السابع\n'
-            '• يحافظ التسجيل المتتالي على سلسلة الأيام\n'
-            '• يتم تحديث المكافآت كل أسبوع',
-            style: TextStyle(
-              fontSize: 12,
-              color: cfg.signinSubTextColor,
-              height: 1.8,
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic> _getRewardForDay(int dayNum) {
+    final match = _rewards.where((r) => (r['day_number'] as num?)?.toInt() == dayNum).toList();
+    if (match.isNotEmpty) return match.first;
+    // قيم افتراضية متطابقة مع التطبيق الأصلي
+    final defaultValues = [50, 100, 150, 200, 300, 400, 500];
+    return {
+      'day_number': dayNum,
+      'value': defaultValues[(dayNum - 1).clamp(0, 6)],
+    };
+  }
+
+  /// بطاقة الأيام العادية (1-6) مطابقة لـ item_sign_coin.xml
+  Widget _buildStandardDayCard(int dayNum, Map<String, dynamic> reward) {
+    final isChecked = _isDayChecked(dayNum);
+    final value = reward['value'] ?? (dayNum * 50);
+    final isToday = !_hasClaimedToday() && dayNum == _todayDayNumber();
+
+    return Container(
+      margin: const EdgeInsets.all(2.5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F9F9),
+        borderRadius: BorderRadius.circular(8),
+        border: isToday
+            ? Border.all(color: const Color(0xFFFEB606), width: 1.5)
+            : null,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // عنوان اليوم (tvTitle)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              'Day $dayNum',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF333333),
+              ),
+            ),
+          ),
+          // فاصل أبيض
+          Container(
+            height: 1,
+            color: Colors.white,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+          // محتوى المكافأة بارتفاع 54dp
+          SizedBox(
+            height: 54,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Image.asset(
+                      R.miniCoins,
+                      width: 24,
+                      height: 24,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'X$value',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFFF6953),
+                      ),
+                    ),
+                  ],
+                ),
+                // أيقونة تم التسجيل (has_signed)
+                if (isChecked)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFFEB606), width: 1.5),
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          size: 16,
+                          color: Color(0xFFFEB606),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// بطاقة اليوم السابع المميزة (item_sign_coin2.xml)
+  Widget _buildDay7Card(Map<String, dynamic> reward) {
+    final isChecked = _isDayChecked(7);
+    final value = reward['value'] ?? 500;
+    final isToday = !_hasClaimedToday() && _todayDayNumber() == 7;
+
+    return Container(
+      margin: const EdgeInsets.all(2.5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F9F9),
+        borderRadius: BorderRadius.circular(8),
+        border: isToday
+            ? Border.all(color: const Color(0xFFFEB606), width: 1.5)
+            : null,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // عنوان اليوم السابع
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              'Day 7',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF333333),
+              ),
+            ),
+          ),
+          // فاصل أبيض
+          Container(
+            height: 1,
+            color: Colors.white,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+          // محتوى بارتفاع 54dp مع رسمة كومة الكويزات في الخلفية sign_coin_bg_coin
+          SizedBox(
+            height: 54,
+            child: Stack(
+              children: [
+                // صورة الكويزات الجانبية sign_coin_bg_coin
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Image.asset(
+                    R.signCoinBgCoin,
+                    width: 50,
+                    height: 48,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                // أيقونة dialog_coins والقيمة
+                Padding(
+                  padding: const EdgeInsets.only(left: 10, top: 4),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Image.asset(
+                        R.dialogCoins,
+                        width: 24,
+                        height: 24,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'X$value',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFFF6953),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // أيقونة تم التسجيل
+                if (isChecked)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFFEB606), width: 1.5),
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          size: 16,
+                          color: Color(0xFFFEB606),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// قسم عرض الكويزات الكبيرة لليوم الحالي (give_coin_icon + llCoins)
+  Widget _buildCoinsRow() {
+    final todayDay = _todayDayNumber();
+    final todayReward = _getRewardForDay(todayDay);
+    final value = todayReward['value'] ?? 50;
+
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Image.asset(
+          R.giveCoinIcon,
+          width: 80,
+          height: 48,
+          fit: BoxFit.contain,
+        ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              '$value',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFFF6953),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              'كويزات',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF333333),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// زر تسجيل الوصول (tvCheckIn)
+  Widget _buildCheckInButton() {
+    final claimed = _hasClaimedToday();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(40, 14, 40, 18),
+      child: GestureDetector(
+        onTap: (_signingIn || claimed) ? null : _doSignin,
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            gradient: claimed
+                ? const LinearGradient(
+                    colors: [Color(0xFFD6D6D6), Color(0xFFB0B0B0)],
+                  )
+                : const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFFEB606), Color(0xFFFF6953)],
+                  ),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: claimed
+                ? null
+                : [
+                    BoxShadow(
+                      color: const Color(0xFFFF6953).withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+          ),
+          child: _signingIn
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+              : Text(
+                  claimed ? 'تم تسجيل الوصول اليوم' : 'تسجيل الوصول',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// شريط المزيد من المهام السفلي (llMoreTask)
+  Widget _buildMoreTasksBar() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).maybePop();
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DailyTasksScreen()),
+        );
+      },
+      child: Container(
+        height: 46,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE0F6F4),
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'المزيد من المهام',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF00D9C5),
+              ),
+            ),
+            SizedBox(width: 4),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 13,
+              color: Color(0xFF00D9C5),
+            ),
+          ],
+        ),
       ),
     );
   }
