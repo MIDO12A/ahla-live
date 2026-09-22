@@ -5,6 +5,7 @@ class NotificationModel {
   final String actorUid;
   final String title;
   final String body;
+  final Map<String, dynamic>? data;
   final bool isRead;
   final DateTime sentAt;
 

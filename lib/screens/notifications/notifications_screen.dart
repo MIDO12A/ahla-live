@@ -457,6 +457,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (isToday) {
       return 'اليوم $hour:$minute';
     }
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}  $hour:$minute';
   }
 
   Widget _actionButton({
