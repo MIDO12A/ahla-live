@@ -1482,6 +1482,25 @@ class FirebaseService {
     return StoreItemModel.fromMap(_data(doc));
   }
 
+  Stream<List<Map<String, dynamic>>> storeCategoriesStream() {
+    return _db.collection('store_categories').snapshots().map((snap) {
+      final list = snap.docs.map((e) {
+        final d = _data(e);
+        return {
+          'id': d['id']?.toString() ?? e.id,
+          'key': d['key']?.toString() ?? d['id']?.toString() ?? e.id,
+          'name': d['name']?.toString() ?? '',
+          'icon_asset': d['icon_asset']?.toString() ?? d['iconAsset']?.toString() ?? '',
+          'selected_icon_asset': d['selected_icon_asset']?.toString() ?? d['selectedIconAsset']?.toString() ?? '',
+          'sort_order': (d['sort_order'] ?? d['sortOrder'] ?? 0) as num,
+          'is_active': d['is_active'] ?? d['isActive'] ?? true,
+        };
+      }).where((c) => c['is_active'] == true).toList();
+      list.sort((a, b) => (a['sort_order'] as num).compareTo(b['sort_order'] as num));
+      return list;
+    });
+  }
+
   // ═══════════════════════════════════════════════════════
   // BACKPACK & PURCHASES
   // ═══════════════════════════════════════════════════════

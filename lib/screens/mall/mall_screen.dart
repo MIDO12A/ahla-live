@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
@@ -24,8 +25,11 @@ class _MallScreenState extends State<MallScreen> {
   List<StoreItemModel> _allItems = [];
   StoreItemModel? _selectedItem;
   int _selectedCategoryIndex = 0;
+  List<Map<String, String>> _categories = [];
+  StreamSubscription? _itemsSub;
+  StreamSubscription? _catsSub;
 
-  static const List<Map<String, String>> _categoriesData = [
+  static const List<Map<String, String>> _defaultCategories = [
     {
       'key': 'frame',
       'name': 'إطار الرأس',
@@ -50,31 +54,116 @@ class _MallScreenState extends State<MallScreen> {
       'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_nor_ic.webp',
       'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_pre_ic.webp',
     },
+    {
+      'key': 'cover',
+      'name': 'غلاف الملف',
+      'nor_ic': 'assets/mipmap-xxhdpi/ic_profile_card.png',
+      'pre_ic': 'assets/mipmap-xxhdpi/ic_profile_card.png',
+    },
+    {
+      'key': 'ring',
+      'name': 'الخواتم',
+      'nor_ic': 'assets/mipmap-xxhdpi/ic_id_card_prop.png',
+      'pre_ic': 'assets/mipmap-xxhdpi/ic_id_card_prop.png',
+    },
+    {
+      'key': 'badge',
+      'name': 'الشارات',
+      'nor_ic': 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
+      'pre_ic': 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
+    },
+    {
+      'key': 'special',
+      'name': 'المؤثرات',
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
+    },
   ];
 
   @override
   void initState() {
     super.initState();
-    _loadItems();
+    _categories = List.from(_defaultCategories);
+    _loadData();
   }
 
-  void _loadItems() {
-    _firebaseService.storeItemsStream().listen((items) {
-      if (mounted) {
-        setState(() {
-          _allItems = items;
-          if (_selectedItem == null && _allItems.isNotEmpty) {
-            final firstCat = _categoriesData[_selectedCategoryIndex]['key']!;
-            final catItems = _allItems.where((i) => i.category == firstCat).toList();
-            if (catItems.isNotEmpty) {
-              _selectedItem = catItems.first;
-            } else {
-              _selectedItem = _allItems.first;
-            }
-          }
-        });
+  @override
+  void dispose() {
+    _itemsSub?.cancel();
+    _catsSub?.cancel();
+    super.dispose();
+  }
+
+  void _loadData() {
+    // 1. Categories stream
+    _catsSub = _firebaseService.storeCategoriesStream().listen((remoteCats) {
+      if (!mounted) return;
+      final merged = <String, Map<String, String>>{};
+      for (final def in _defaultCategories) {
+        merged[def['key']!] = Map.from(def);
       }
+      for (final rc in remoteCats) {
+        final key = rc['key']?.toString() ?? rc['id']?.toString() ?? '';
+        if (key.isEmpty) continue;
+        final name = rc['name']?.toString() ?? key;
+        final icon = rc['icon_asset']?.toString() ?? '';
+        final selIcon = rc['selected_icon_asset']?.toString() ?? icon;
+
+        if (merged.containsKey(key)) {
+          merged[key] = {
+            'key': key,
+            'name': name.isNotEmpty ? name : merged[key]!['name']!,
+            'nor_ic': icon.isNotEmpty ? icon : merged[key]!['nor_ic']!,
+            'pre_ic': selIcon.isNotEmpty ? selIcon : merged[key]!['pre_ic']!,
+          };
+        } else {
+          merged[key] = {
+            'key': key,
+            'name': name,
+            'nor_ic': icon.isNotEmpty ? icon : 'assets/mipmap-xxhdpi/mine_mall_ic.webp',
+            'pre_ic': selIcon.isNotEmpty ? selIcon : (icon.isNotEmpty ? icon : 'assets/mipmap-xxhdpi/mine_mall_ic.webp'),
+          };
+        }
+      }
+      setState(() {
+        _categories = merged.values.toList();
+        _ensureSelectedItem();
+      });
     });
+
+    // 2. Items stream
+    _itemsSub = _firebaseService.storeItemsStream().listen((items) {
+      if (!mounted) return;
+      setState(() {
+        _allItems = items;
+        // Dynamically add any category present in items that isn't in _categories yet
+        final existingKeys = _categories.map((c) => c['key']).toSet();
+        for (final item in items) {
+          if (item.category.isNotEmpty && !existingKeys.contains(item.category)) {
+            existingKeys.add(item.category);
+            _categories.add({
+              'key': item.category,
+              'name': item.category,
+              'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_ic.webp',
+              'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_ic.webp',
+            });
+          }
+        }
+        _ensureSelectedItem();
+      });
+    });
+  }
+
+  void _ensureSelectedItem() {
+    if (_categories.isEmpty) return;
+    if (_selectedCategoryIndex >= _categories.length) {
+      _selectedCategoryIndex = 0;
+    }
+    final currentCat = _categories[_selectedCategoryIndex]['key']!;
+    final catItems = _getItemsForCategory(currentCat);
+    if (_selectedItem == null || _selectedItem!.category != currentCat) {
+      _selectedItem = catItems.isNotEmpty ? catItems.first : null;
+    }
   }
 
   List<StoreItemModel> _getItemsForCategory(String categoryKey) {
@@ -179,7 +268,28 @@ class _MallScreenState extends State<MallScreen> {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      R.loadImage(item.iconAsset, width: 100, height: 100, fit: BoxFit.contain),
+                      if (isAnimated) ...[
+                        if (item.isVideo && item.animationUrl != null)
+                          VapPlayer(
+                            key: ValueKey('dialog_${item.itemId}'),
+                            url: item.animationUrl!,
+                            width: 100,
+                            height: 100,
+                          )
+                        else if (item.animationUrl != null)
+                          SvgaPlayer(
+                            key: ValueKey('dialog_${item.itemId}'),
+                            assetPath: item.animationUrl!,
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.contain,
+                            loops: true,
+                          )
+                        else
+                          R.loadImage(item.iconAsset, width: 100, height: 100, fit: BoxFit.contain),
+                      ] else ...[
+                        R.loadImage(item.iconAsset, width: 100, height: 100, fit: BoxFit.contain),
+                      ],
                       if (isAnimated)
                         Positioned(
                           right: 4,
@@ -312,11 +422,31 @@ class _MallScreenState extends State<MallScreen> {
     );
   }
 
+  String? _resolveAnimationUrl(StoreItemModel? item) {
+    if (item == null) return null;
+    if (item.videoAsset != null && item.videoAsset!.trim().isNotEmpty) return item.videoAsset!.trim();
+    if (item.svgaAsset != null && item.svgaAsset!.trim().isNotEmpty) return item.svgaAsset!.trim();
+    if (item.animationUrl != null && item.animationUrl!.trim().isNotEmpty) return item.animationUrl!.trim();
+    final lower = item.iconAsset.toLowerCase().trim();
+    if (lower.endsWith('.svga') || lower.endsWith('.vap') || lower.endsWith('.mp4')) {
+      return item.iconAsset.trim();
+    }
+    return null;
+  }
+
+  bool _isVideo(String? url) {
+    if (url == null) return false;
+    final lower = url.toLowerCase();
+    return lower.endsWith('.mp4') || lower.endsWith('.vap');
+  }
+
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
     final user = userProvider.currentUser;
-    final currentCat = _categoriesData[_selectedCategoryIndex]['key']!;
+    final currentCat = (_categories.isNotEmpty && _selectedCategoryIndex < _categories.length)
+        ? _categories[_selectedCategoryIndex]['key']!
+        : 'frame';
     final items = _getItemsForCategory(currentCat);
 
     return Scaffold(
@@ -397,10 +527,12 @@ class _MallScreenState extends State<MallScreen> {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 10),
-        itemCount: _categoriesData.length,
+        itemCount: _categories.length,
         itemBuilder: (context, index) {
-          final cat = _categoriesData[index];
+          final cat = _categories[index];
           final isSelected = _selectedCategoryIndex == index;
+          final iconPath = isSelected ? cat['pre_ic']! : cat['nor_ic']!;
+          final isAsset = iconPath.startsWith('assets/');
 
           return GestureDetector(
             onTap: () {
@@ -432,11 +564,12 @@ class _MallScreenState extends State<MallScreen> {
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Image.asset(
-                        isSelected ? cat['pre_ic']! : cat['nor_ic']!,
+                      SizedBox(
                         width: 44,
                         height: 44,
-                        fit: BoxFit.contain,
+                        child: isAsset
+                            ? Image.asset(iconPath, fit: BoxFit.contain)
+                            : R.loadImage(iconPath, fit: BoxFit.contain),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -447,6 +580,7 @@ class _MallScreenState extends State<MallScreen> {
                           color: isSelected ? const Color(0xFFFAE9B5) : const Color(0x80FAE9B5),
                         ),
                         maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -459,22 +593,47 @@ class _MallScreenState extends State<MallScreen> {
     );
   }
 
-  /// منطقة المعاينة الحية cl_preview (صورة المستخدم وعليها الإطار/السيارة/الفقاعة)
+  /// منطقة المعاينة الحية cl_preview المطابقة لـ mine_activity_mall.xml
   Widget _buildLivePreviewArea(dynamic user) {
     final photoUrl = user?.photoUrl?.isNotEmpty == true ? user.photoUrl : null;
     final item = _selectedItem;
+    final animUrl = _resolveAnimationUrl(item);
+    final isVideo = _isVideo(animUrl) || (item != null && item.isVideo);
 
     return Container(
       height: 120,
       margin: const EdgeInsets.symmetric(vertical: 8),
       alignment: Alignment.center,
-      child: SizedBox(
-        width: 120,
-        height: 120,
+      child: item == null
+          ? CircleAvatar(
+              radius: 44,
+              backgroundColor: Colors.white12,
+              backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
+              child: photoUrl == null
+                  ? const Icon(Icons.person, size: 44, color: Colors.white54)
+                  : null,
+            )
+          : _buildCategoryPreviewWidget(item, animUrl, isVideo, photoUrl, user),
+    );
+  }
+
+  Widget _buildCategoryPreviewWidget(
+    StoreItemModel item,
+    String? animUrl,
+    bool isVideo,
+    String? photoUrl,
+    dynamic user,
+  ) {
+    final keyStr = '${item.itemId}_${animUrl ?? item.iconAsset}';
+
+    // 1. معاينة إطار الرأس frame
+    if (item.category == 'frame') {
+      return SizedBox(
+        width: 130,
+        height: 130,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // صورة المستخدم الدائرية iv_avatar (96x96)
             CircleAvatar(
               radius: 44,
               backgroundColor: Colors.white12,
@@ -483,49 +642,160 @@ class _MallScreenState extends State<MallScreen> {
                   ? const Icon(Icons.person, size: 44, color: Colors.white54)
                   : null,
             ),
-
-            // معاينة الإطار frame
-            if (item != null && item.category == 'frame') ...[
-              if (item.animationUrl?.isNotEmpty == true)
-                SvgaPlayer(
-                  assetPath: item.animationUrl!,
-                  width: 126,
-                  height: 126,
-                  fit: BoxFit.contain,
-                )
-              else if (item.iconAsset.isNotEmpty)
-                R.loadImage(item.iconAsset, width: 120, height: 120, fit: BoxFit.contain),
-            ] else if (item != null && item.category == 'bubble') ...[
-              // معاينة الفقاعة bubble
-              Positioned(
-                bottom: 2,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0x66000000),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0x88FFD700)),
-                  ),
-                  child: const Text(
-                    'مرحباً بك!',
-                    style: TextStyle(color: Colors.white, fontSize: 10),
-                  ),
-                ),
-              ),
-            ] else if (item != null) ...[
-              // معاينة السيارة أو الدخولية
-              if (item.animationUrl?.isNotEmpty == true)
-                SvgaPlayer(
-                  assetPath: item.animationUrl!,
-                  width: 120,
-                  height: 110,
-                  fit: BoxFit.contain,
-                )
-              else
-                R.loadImage(item.iconAsset, width: 85, height: 85, fit: BoxFit.contain),
-            ],
+            if (animUrl != null && !isVideo)
+              SvgaPlayer(
+                key: ValueKey(keyStr),
+                assetPath: animUrl,
+                width: 130,
+                height: 130,
+                fit: BoxFit.contain,
+                loops: true,
+              )
+            else if (item.iconAsset.isNotEmpty)
+              R.loadImage(item.iconAsset, width: 126, height: 126, fit: BoxFit.contain),
           ],
         ),
+      );
+    }
+
+    // 2. معاينة الفقاعة bubble
+    if (item.category == 'bubble') {
+      return SizedBox(
+        height: 120,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 36,
+              backgroundColor: Colors.white12,
+              backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
+              child: photoUrl == null
+                  ? const Icon(Icons.person, size: 36, color: Colors.white54)
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 170,
+              height: 75,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (animUrl != null && !isVideo)
+                    SvgaPlayer(
+                      key: ValueKey(keyStr),
+                      assetPath: animUrl,
+                      width: 170,
+                      height: 75,
+                      fit: BoxFit.fill,
+                      loops: true,
+                    )
+                  else if (item.iconAsset.isNotEmpty)
+                    R.loadImage(item.iconAsset, width: 170, height: 75, fit: BoxFit.fill)
+                  else
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0x66000000),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0x88FFD700)),
+                      ),
+                    ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Text(
+                      'مرحباً بك في التطبيق! 👋',
+                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 3. معاينة سيارة الدخول أو تأثير الدخول (car / entrance) المطابقة لـ iv_entrance / vap_entrance
+    if (item.category == 'car' || item.category == 'entrance') {
+      return SizedBox(
+        width: 320,
+        height: 120,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (isVideo && animUrl != null)
+              VapPlayer(
+                key: ValueKey(keyStr),
+                url: animUrl,
+                width: 320,
+                height: 120,
+              )
+            else if (animUrl != null)
+              SvgaPlayer(
+                key: ValueKey(keyStr),
+                assetPath: animUrl,
+                width: 320,
+                height: 120,
+                fit: BoxFit.contain,
+                loops: true,
+                imageReplacement: (item.photoKey != null && photoUrl != null)
+                    ? {item.photoKey!: photoUrl}
+                    : null,
+                textReplacement: (item.nameKey != null && user != null)
+                    ? {item.nameKey!: user.nickname ?? user.name ?? ''}
+                    : null,
+              )
+            else
+              R.loadImage(item.iconAsset, width: 140, height: 110, fit: BoxFit.contain),
+          ],
+        ),
+      );
+    }
+
+    // 4. معاينة غلاف الملف الشخصي cover
+    if (item.category == 'cover') {
+      return Container(
+        width: 240,
+        height: 110,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0x44FAE9B5), width: 1.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: animUrl != null && !isVideo
+            ? SvgaPlayer(
+                key: ValueKey(keyStr),
+                assetPath: animUrl,
+                width: 240,
+                height: 110,
+                fit: BoxFit.cover,
+                loops: true,
+              )
+            : R.loadImage(item.iconAsset, fit: BoxFit.cover, width: 240, height: 110),
+      );
+    }
+
+    // 5. أي قسم آخر (خواتم، أوسمة، مؤثرات خاصة، إلخ)
+    return SizedBox(
+      width: 130,
+      height: 120,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (isVideo && animUrl != null)
+            VapPlayer(key: ValueKey(keyStr), url: animUrl, width: 120, height: 120)
+          else if (animUrl != null)
+            SvgaPlayer(
+              key: ValueKey(keyStr),
+              assetPath: animUrl,
+              width: 120,
+              height: 120,
+              fit: BoxFit.contain,
+              loops: true,
+            )
+          else
+            R.loadImage(item.iconAsset, width: 95, height: 95, fit: BoxFit.contain),
+        ],
       ),
     );
   }

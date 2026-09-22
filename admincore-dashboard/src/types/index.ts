@@ -101,10 +101,20 @@ export interface SentGiftModel {
   timestamp: number;
 }
 
+export interface StoreCategory {
+  id: string;
+  key: string;
+  name: string;
+  iconAsset: string;
+  selectedIconAsset?: string;
+  sortOrder: number;
+  isActive?: boolean;
+}
+
 export interface StoreItemModel {
   itemId: string;
   name: string;
-  category: 'frame' | 'bubble' | 'entrance' | 'car' | 'cover' | 'necklace' | 'badge' | 'ring';
+  category: string;
   iconAsset: string;
   price: number;
   svgaAsset: string | null;

@@ -404,6 +404,42 @@ export async function deleteStoreItem(id: string) {
   }
 }
 
+// ---- Store Categories ----
+
+export async function getStoreCategories(): Promise<import('../types').StoreCategory[]> {
+  try {
+    const { data } = await supabase.from('store_categories').select('*').order('sort_order')
+    return mapList<import('../types').StoreCategory>(data ?? [])
+  } catch {
+    return []
+  }
+}
+
+export async function addStoreCategory(id: string, data: import('../types').StoreCategory) {
+  try {
+    await supabase.from('store_categories').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
+  } catch (e) {
+    console.warn('addStoreCategory failed:', e)
+  }
+}
+
+export async function updateStoreCategory(id: string, data: Partial<import('../types').StoreCategory>) {
+  try {
+    await supabase.from('store_categories').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
+  } catch (e) {
+    console.warn('updateStoreCategory failed:', e)
+  }
+}
+
+export async function deleteStoreCategory(id: string) {
+  try {
+    await supabase.from('store_categories').delete().eq('id', id)
+  } catch (e) {
+    console.warn('deleteStoreCategory failed:', e)
+  }
+}
+
+
 // ---- Rooms ----
 
 export async function getRooms(): Promise<RoomModel[]> {

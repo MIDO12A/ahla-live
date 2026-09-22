@@ -36,6 +36,7 @@ const KEY_FIELDS: Record<string, string> = {
   admin_users: 'uid',
   app_assets: 'id',
   level_config: 'id',
+  store_categories: 'id',
 }
 
 function docKeyFor(table: string, values: Record<string, unknown>): string | undefined {

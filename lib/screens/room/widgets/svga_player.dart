@@ -394,13 +394,28 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
       return await SVGAParser.shared.decodeFromAssets(cleanPath);
     } catch (e) {
       debugPrint('[SvgaPlayer] decodeFromAssets failed ($e), trying rootBundle directly for $cleanPath');
-      final byteData = await rootBundle.load(cleanPath);
-      final bytes = byteData.buffer.asUint8List();
-      if (_isImageMagicBytes(bytes) || _isVideoMagicBytes(bytes) || cleanPath.toLowerCase().endsWith('.png') || cleanPath.toLowerCase().endsWith('.jpg') || cleanPath.toLowerCase().endsWith('.mp4')) {
-        _fallbackImageBytes = bytes;
-        return null;
+      try {
+        final byteData = await rootBundle.load(cleanPath);
+        final bytes = byteData.buffer.asUint8List();
+        if (_isImageMagicBytes(bytes) || _isVideoMagicBytes(bytes) || cleanPath.toLowerCase().endsWith('.png') || cleanPath.toLowerCase().endsWith('.jpg') || cleanPath.toLowerCase().endsWith('.mp4')) {
+          _fallbackImageBytes = bytes;
+          return null;
+        }
+        return await SVGAParser.shared.decodeFromBuffer(bytes);
+      } catch (e2) {
+        if (!cleanPath.startsWith('assets/')) {
+          try {
+            final byteData = await rootBundle.load('assets/$cleanPath');
+            final bytes = byteData.buffer.asUint8List();
+            if (_isImageMagicBytes(bytes) || _isVideoMagicBytes(bytes) || cleanPath.toLowerCase().endsWith('.png') || cleanPath.toLowerCase().endsWith('.jpg') || cleanPath.toLowerCase().endsWith('.mp4')) {
+              _fallbackImageBytes = bytes;
+              return null;
+            }
+            return await SVGAParser.shared.decodeFromBuffer(bytes);
+          } catch (_) {}
+        }
+        rethrow;
       }
-      return await SVGAParser.shared.decodeFromBuffer(bytes);
     }
   }
 
