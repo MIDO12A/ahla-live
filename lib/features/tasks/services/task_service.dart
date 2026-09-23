@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/user_provider.dart';
@@ -64,7 +64,7 @@ class TaskService {
       int progress = 0;
       bool isClaimed = false;
 
-      if (group == 'growth') {
+      if (group != 'daily') {
         progress = (userGrowthData['${id}_progress'] as num?)?.toInt() ?? 0;
         isClaimed = userGrowthData['${id}_claimed'] == true;
       } else {
@@ -104,7 +104,7 @@ class TaskService {
   Future<bool> claimTaskReward(BuildContext context, String userId, TaskModel task) async {
     if (!task.canClaim) return false;
     final today = _getTodayKey();
-    final isGrowth = task.group == 'growth';
+    final isGrowth = task.group != 'daily';
 
     try {
       // 1. تحديث حالة الاستلام
@@ -174,7 +174,7 @@ class TaskService {
   /// المهام الافتراضية المطابقة للتطبيق الأصلي
   List<Map<String, dynamic>> _getDefaultTasks() {
     return [
-      // 🌟 مهام النشاط اليومي (Daily Tasks)
+      // 🌟 المهام اليومية (Daily Tasks)
       {
         'id': 'daily_login',
         'title_ar': 'تسجيل الدخول اليومي',
@@ -223,69 +223,93 @@ class TaskService {
         'exp_reward': 40,
         'action_route': 'room',
       },
-
-      // 🌱 مهام النمو والمستوى (Growth Tasks)
       {
-        'id': 'growth_profile_complete',
-        'title_ar': 'إكمال بيانات الملف الشخصي',
-        'title_en': 'Complete Profile Info',
-        'description_ar': 'قم بتعيين صورتك الرمزية واسمك والتوقيع',
-        'description_en': 'Set avatar, nickname, and signature',
-        'group': 'growth',
+        'id': 'daily_send_gift',
+        'title_ar': 'إرسال هدية في الغرفة',
+        'title_en': 'Send a Gift in Room',
+        'description_ar': 'أرسل أي هدية للأصدقاء داخل الغرفة',
+        'description_en': 'Send any gift to friends in room',
+        'group': 'daily',
         'target_count': 1,
-        'coins_reward': 1000,
-        'exp_reward': 100,
-        'action_route': 'profile',
-      },
-      {
-        'id': 'growth_follow_friends',
-        'title_ar': 'متابعة 5 أصدقاء ومستخدمين',
-        'title_en': 'Follow 5 Users',
-        'description_ar': 'تابع 5 أشخاص لتوسيع دائرة أصدقائك',
-        'description_en': 'Follow 5 users to expand friends',
-        'group': 'growth',
-        'target_count': 5,
         'coins_reward': 600,
         'exp_reward': 60,
+        'action_route': 'gift',
+      },
+
+      // 🎙️ مهام المضيف (Host Tasks)
+      {
+        'id': 'host_live_time',
+        'title_ar': 'البث الصوتي المباشر لمدة 30 دقيقة',
+        'title_en': 'Live Audio Broadcast for 30 Mins',
+        'description_ar': 'افتح غرفتك الصوتية وتحدث مع الجمهور لمدة 30 دقيقة',
+        'description_en': 'Open voice room and host for 30 minutes',
+        'group': 'host',
+        'target_count': 1,
+        'coins_reward': 1500,
+        'exp_reward': 150,
         'action_route': 'room',
       },
       {
-        'id': 'growth_reach_level_5',
-        'title_ar': 'الوصول إلى المستوى 5',
-        'title_en': 'Reach User Level 5',
-        'description_ar': 'ارفع مستواك عبر النشاط والإهداء',
-        'description_en': 'Level up to level 5 through activity',
-        'group': 'growth',
-        'target_count': 1,
+        'id': 'host_receive_gift',
+        'title_ar': 'استقبال هدايا بقيمة 5,000 كوينز',
+        'title_en': 'Receive 5,000 Coins in Gifts',
+        'description_ar': 'احصل على دعم وهدايا من جمهور الغرفة',
+        'description_en': 'Receive gifts from room audience',
+        'group': 'host',
+        'target_count': 5000,
         'coins_reward': 2000,
         'exp_reward': 200,
-        'action_route': 'none',
+        'action_route': 'room',
       },
-
-      // 🍀 مهام الحظ والفعاليات (Lucky Tasks)
       {
-        'id': 'lucky_send_gift',
-        'title_ar': 'إرسال هدية حظ واحدة في الروم',
-        'title_en': 'Send 1 Lucky Gift',
-        'description_ar': 'جرب حظك وأرسل أي هدية حظ لمضاعفة كوينزك',
-        'description_en': 'Send 1 lucky gift to try multipliers',
-        'group': 'lucky',
-        'target_count': 1,
+        'id': 'host_invite_guest',
+        'title_ar': 'دعوة 3 ضيوف إلى مقاعد المايك',
+        'title_en': 'Invite 3 Guests to Mic',
+        'description_ar': 'ادعُ 3 مستخدمين للصعود والتحدث على المايك',
+        'description_en': 'Invite 3 users to take mic seats',
+        'group': 'host',
+        'target_count': 3,
         'coins_reward': 800,
         'exp_reward': 80,
-        'action_route': 'gift',
+        'action_route': 'room',
+      },
+
+      // 🏢 مهام الوكيل (Agency Tasks)
+      {
+        'id': 'agency_target_coins',
+        'title_ar': 'تحقيق تارجت الوكالة اليومي 50,000 كوينز',
+        'title_en': 'Reach Daily Agency Target 50,000 Coins',
+        'description_ar': 'مجموع نشاط إهداء وتلقي الهدايا لمضيفي الوكالة',
+        'description_en': 'Total gift volume for agency hosts',
+        'group': 'agency',
+        'target_count': 50000,
+        'coins_reward': 5000,
+        'exp_reward': 500,
+        'action_route': 'none',
       },
       {
-        'id': 'lucky_first_recharge',
-        'title_ar': 'أول شحن رصيد عملات اليوم',
-        'title_en': 'First Coin Recharge of Today',
-        'description_ar': 'اشحن أي باقة عملات واحصل على مكافأة مضاعفة',
-        'description_en': 'Recharge any coin package today',
-        'group': 'lucky',
+        'id': 'agency_recruit_host',
+        'title_ar': 'تسجيل مذيع نشط جديد في الوكالة',
+        'title_en': 'Recruit a New Active Host',
+        'description_ar': 'ضم مضيف جديد وتفعيله في غرف الوكالة',
+        'description_en': 'Onboard new host to agency',
+        'group': 'agency',
         'target_count': 1,
         'coins_reward': 3000,
         'exp_reward': 300,
-        'action_route': 'recharge',
+        'action_route': 'profile',
+      },
+      {
+        'id': 'agency_active_hosts',
+        'title_ar': 'نشاط 5 مضيفين في وقت واحد',
+        'title_en': '5 Hosts Live Concurrently',
+        'description_ar': 'بث مباشر متزامن لـ 5 مضيفين من وكالتك',
+        'description_en': '5 agency hosts live simultaneously',
+        'group': 'agency',
+        'target_count': 5,
+        'coins_reward': 4000,
+        'exp_reward': 400,
+        'action_route': 'none',
       },
     ];
   }

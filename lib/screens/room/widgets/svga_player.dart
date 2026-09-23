@@ -209,8 +209,8 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
     animationController = SVGAAnimationController(vsync: this);
     _activeUrl = _networkUrlOrNull();
     // مهلة أمان: لو تعطل التحميل/الحقن الديناميكي لا تبقى الشاشة على الـ spinner
-    // إلى الأبد (كانت المشكلة: تهنيج الشاشة عند إرسال هدية SVGA).
-    _loadTimeout = Timer(const Duration(seconds: 4), () {
+    // إلى الأبد مع إعطاء وقت كافٍ لتحميل الملفات الكبيرة والشبكات البطيئة (15 ثانية)
+    _loadTimeout = Timer(const Duration(seconds: 15), () {
       if (mounted && isLoading) {
         _finishOrFallback();
       }
@@ -242,7 +242,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
         _finishedOnce = false;
       });
       _loadTimeout?.cancel();
-      _loadTimeout = Timer(const Duration(seconds: 4), () {
+      _loadTimeout = Timer(const Duration(seconds: 15), () {
         if (mounted && isLoading) {
           _finishOrFallback();
         }
@@ -333,7 +333,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
       debugPrint('SVGA error for ${widget.assetPath}: $e');
       if (mounted) {
         final bytes = SvgaPlayer._readBytes(widget.assetPath);
-        if (bytes != null && bytes.isNotEmpty) {
+        if (bytes != null && bytes.isNotEmpty && _isImageMagicBytes(bytes)) {
           setState(() {
             _fallbackImageBytes = bytes;
             isLoading = false;
@@ -524,7 +524,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
       return movie;
     } catch (e) {
       PerformanceMonitor.instance.err(t, e);
-      if (bytes.isNotEmpty) {
+      if (bytes.isNotEmpty && _isImageMagicBytes(bytes)) {
         _fallbackImageBytes = bytes;
         return null;
       }

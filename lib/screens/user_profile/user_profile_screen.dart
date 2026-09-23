@@ -1525,33 +1525,65 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// Avatar with resolved SvgaFrame
   Widget _buildAvatarView(UserModel user) {
     final frame = _resolvedFramePath ?? user.activeFrame;
+    final hasFrame = frame != null && frame.isNotEmpty;
     return SizedBox(
-      width: 116,
-      height: 116,
+      width: 122,
+      height: 122,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Circular Avatar
-          ClipOval(
-            child: CachedImg(
-              user.photoUrl,
-              width: 96,
-              height: 96,
-              fit: BoxFit.cover,
-              placeholder: (_, __) => Container(color: Colors.white12),
-              error: (_, __, ___) => Container(
-                color: Colors.white12,
-                child: const Icon(Icons.person, color: Colors.white54, size: 50),
-              ),
+          // Circular Avatar (iv_avatar 92dp with 4dp white border)
+          Container(
+            width: 92,
+            height: 92,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 4),
+              color: Colors.white,
             ),
+            clipBehavior: Clip.antiAlias,
+            child: user.photoUrl.isNotEmpty
+                ? CachedImg(
+                    user.photoUrl,
+                    width: 92,
+                    height: 92,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(color: Colors.white12),
+                    error: (_, __, ___) => Image.asset(
+                      'assets/images/default_header.png',
+                      width: 92,
+                      height: 92,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                : Image.asset(
+                    'assets/images/default_header.png',
+                    width: 92,
+                    height: 92,
+                    fit: BoxFit.cover,
+                  ),
           ),
 
-          // SvgaFrame if active
-          if (frame != null && frame.isNotEmpty)
+          // Outer frame: active SVGA frame or default mine_avatar_ic.webp
+          if (hasFrame)
             Positioned.fill(
-              child: SvgaFrame(
-                svgaPath: frame,
-                size: 116,
+              child: IgnorePointer(
+                child: SvgaFrame(
+                  svgaPath: frame,
+                  size: 122,
+                ),
+              ),
+            )
+          else
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Image.asset(
+                  'assets/mipmap-xxhdpi/mine_avatar_ic.webp',
+                  width: 122,
+                  height: 122,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
               ),
             ),
         ],

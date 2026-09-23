@@ -1372,22 +1372,7 @@ class GiftSvgaOverlay extends StatelessWidget {
                         imageReplacement: imageReplacement,
                         defaultImageUrl: defaultImageUrl,
                       )
-                    // ── ✅ Android: Native SVGAImageView — نفس سرعة الأصلي ──
-                    // بدون textReplacement/imageReplacement → Native مباشر
-                    // مع textReplacement/imageReplacement → Flutter (يدعم الحقن الديناميكي)
-                    : (Platform.isAndroid &&
-                              textReplacement == null &&
-                              imageReplacement == null &&
-                              aa.startsWith('http'))
-                        ? SvgaNativePlayer(
-                            url: aa,
-                            width: screenSize.width,
-                            height: screenSize.height,
-                            loops: false,
-                            onReady: null,
-                            onError: onFinished,
-                          )
-                        : SvgaPlayer(
+                    : SvgaPlayer(
                         assetPath: aa,
                         width: screenSize.width,
                         height: screenSize.height,

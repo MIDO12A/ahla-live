@@ -209,13 +209,21 @@ class ProfileScreen extends StatelessWidget {
                                     image: R.cachedImage(photoUrl),
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => Image.asset(
-                                      isMale ? R.avaBoy : R.avaGirl,
+                                      'assets/images/default_header.png',
                                       fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Image.asset(
+                                        isMale ? R.avaBoy : R.avaGirl,
+                                        fit: BoxFit.cover,
+                                      ),
                                     ),
                                   )
                                 : Image.asset(
-                                    isMale ? R.avaBoy : R.avaGirl,
+                                    'assets/images/default_header.png',
                                     fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Image.asset(
+                                      isMale ? R.avaBoy : R.avaGirl,
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                           ),
 
@@ -847,7 +855,7 @@ class ProfileScreen extends StatelessWidget {
 
             // 5. مركز المهام اليومية (Task Center)
             _buildFunctionItem(
-              icon: 'assets/images/tasks/ic_me_menu_task_center.webp',
+              icon: 'assets/images/mine_task.png',
               title: 'مركز المهام',
               onTap: () {
                 Navigator.push(
