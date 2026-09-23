@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/banner_config.dart';
 import '../../../services/firebase_service.dart';
-import '../../../core/navigation/app_action_navigator.dart';
-import '../../../widgets/cached_net_image.dart';
+import '../../../utils/app_action_navigator.dart';
+import '../../../core/widgets/cached_image.dart';
 
 /// ويدجت بنرات الغرفة المطابقة للتطبيق الأصلي
 /// Layout: vh_room_banner.xml (ConflictBanner, aspect ratio 351:101)
