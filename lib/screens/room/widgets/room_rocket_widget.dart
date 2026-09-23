@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../services/dynamic_config_service.dart';
+import 'svga_player.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RoomRocketWidget — صاروخ الغرفة الكريستالي ومستوى الطاقة والانفجار
@@ -18,21 +20,25 @@ class RoomRocketWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveTarget = target > 0 ? target : 5000;
+    final cfg = DynamicConfigService();
+    final effectiveTarget = target > 0 ? target : cfg.roomRocketTarget;
     final progress = (energy / effectiveTarget).clamp(0.0, 1.0);
     final percent = (progress * 100).toInt();
+
+    final rocketSvga = cfg.roomRocketSvga;
+    final rocketIcon = cfg.roomRocketIcon;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.45),
+          color: Colors.black.withValues(alpha: 0.55),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6), width: 1),
+          border: Border.all(color: cfg.roomRocketAccentColor.withValues(alpha: 0.7), width: 1),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFFFD700).withValues(alpha: 0.25),
+              color: cfg.roomRocketAccentColor.withValues(alpha: 0.3),
               blurRadius: 8,
               spreadRadius: 1,
             ),
@@ -41,13 +47,30 @@ class RoomRocketWidget extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Rocket Icon
-            Image.asset(
-              'assets/images/icon_crysatal_rocket.png',
-              width: 22,
-              height: 22,
-              errorBuilder: (_, __, ___) => const Icon(Icons.rocket_launch, color: Color(0xFFFFD700), size: 18),
-            ),
+            // Rocket Icon or Animated SVGA
+            if (rocketSvga.isNotEmpty && rocketSvga.endsWith('.svga'))
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: SvgaPlayer(
+                  assetPath: rocketSvga,
+                  fit: BoxFit.contain,
+                ),
+              )
+            else if (rocketIcon.startsWith('http://') || rocketIcon.startsWith('https://'))
+              Image.network(
+                rocketIcon,
+                width: 22,
+                height: 22,
+                errorBuilder: (_, __, ___) => const Icon(Icons.rocket_launch, color: Color(0xFFFFD700), size: 18),
+              )
+            else
+              Image.asset(
+                'assets/images/icon_crysatal_rocket.png',
+                width: 22,
+                height: 22,
+                errorBuilder: (_, __, ___) => const Icon(Icons.rocket_launch, color: Color(0xFFFFD700), size: 18),
+              ),
             const SizedBox(width: 4),
 
             // Progress bar and percentage

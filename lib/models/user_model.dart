@@ -14,6 +14,7 @@ class UserModel {
   final String? activeCar;
   final String? activeCover;
   final String? activeNecklace;
+  final String? activeMicWave;
   final String? profileBgUrl;
   final List<String> ownedItems;
   final String? hostedRoomId;
@@ -64,6 +65,7 @@ class UserModel {
     this.activeCar,
     this.activeCover,
     this.activeNecklace,
+    this.activeMicWave,
     this.profileBgUrl,
     this.ownedItems = const [],
     this.ownedBadges = const [],
@@ -114,6 +116,7 @@ class UserModel {
     String? activeCar,
     String? activeCover,
     String? activeNecklace,
+    String? activeMicWave,
     String? profileBgUrl,
     List<String>? album,
     List<String>? ownedItems,
@@ -164,6 +167,7 @@ class UserModel {
       activeCar: (activeCar != null && activeCar.isEmpty) ? null : (activeCar ?? this.activeCar),
       activeCover: (activeCover != null && activeCover.isEmpty) ? null : (activeCover ?? this.activeCover),
       activeNecklace: (activeNecklace != null && activeNecklace.isEmpty) ? null : (activeNecklace ?? this.activeNecklace),
+      activeMicWave: (activeMicWave != null && activeMicWave.isEmpty) ? null : (activeMicWave ?? this.activeMicWave),
       profileBgUrl: profileBgUrl ?? this.profileBgUrl,
       album: album ?? this.album,
       ownedItems: ownedItems ?? this.ownedItems,
@@ -295,6 +299,7 @@ class UserModel {
       activeCar: map['active_car']?.toString(),
       activeCover: map['active_cover']?.toString(),
       activeNecklace: map['active_necklace']?.toString(),
+      activeMicWave: map['active_mic_wave']?.toString() ?? map['activeMicWave']?.toString(),
       profileBgUrl: map['profile_bg_url']?.toString() ?? map['profileBgUrl']?.toString(),
       ownedItems: (map['owned_items'] as List?)?.map((e) => e.toString()).toList() ?? [],
       ownedBadges: (map['owned_badges'] as List?)?.map((e) => e.toString()).toList() ?? [],
@@ -352,6 +357,7 @@ class UserModel {
         'active_car': activeCar,
         'active_cover': activeCover,
         'active_necklace': activeNecklace,
+        'active_mic_wave': activeMicWave,
         'profile_bg_url': profileBgUrl,
       'album': album,
         'owned_items': ownedItems,

@@ -47,6 +47,7 @@ import 'widgets/user_profile.dart';
 import 'widgets/function_panel.dart';
 import 'widgets/room_marquee_broadcast.dart';
 import 'widgets/room_rocket_widget.dart';
+import 'widgets/room_banner_widget.dart';
 import 'widgets/room_member_enter_banner.dart';
 import 'widgets/room_message_bottom_sheet.dart';
 import 'widgets/room_game_bottom_sheet.dart';
@@ -72,6 +73,8 @@ import '../../features/lucky_bag/widgets/lucky_bag_floating_widget.dart';
 import '../../core/widgets/user_id_display_widget.dart';
 import '../../widgets/user_id_widget.dart';
 import 'package:just_audio/just_audio.dart';
+import '../../features/tasks/screens/daily_tasks_screen.dart';
+import '../../features/signin/weekly_signin_screen.dart';
 
 /// Helper to navigate to a room, exiting any minimized room first
 Future<void> navigateToRoom(
@@ -1587,6 +1590,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
         final giftTotal = _giftReceiverTotals[uid] ?? 0;
         final isMuted = data['is_muted'] == true;
+        final activeMicWave = data['active_mic_wave']?.toString() ?? cachedUser?.activeMicWave;
+        final gender = data['gender']?.toString() ?? cachedUser?.gender ?? 'male';
         _seats[idx] = SeatModel(
           index: idx,
           state: SeatState.occupied,
@@ -1595,6 +1600,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             avatar: data['photo_url']?.toString(),
             id: uid,
             customId: cachedUser?.customId ?? data['custom_id']?.toString(),
+            activeMicWave: activeMicWave,
+            gender: gender,
             giftCount: giftTotal,
             totalGiftsReceived: giftTotal,
             charm: giftTotal.toString(),
@@ -2089,6 +2096,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           avatar: currentUser?.photoUrl ?? '',
           id: _currentUserId!,
           customId: currentUser?.customId,
+          activeMicWave: currentUser?.activeMicWave,
+          gender: currentUser?.gender ?? 'male',
         ),
       );
       if (previousIdx != null) {
@@ -2103,6 +2112,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         photoUrl: currentUser?.photoUrl ?? '',
         activeFrame: currentUser?.activeFrame,
         activeCar: currentUser?.activeCar,
+        activeMicWave: currentUser?.activeMicWave,
+        gender: currentUser?.gender ?? 'male',
       ));
       _takingSeat = false;
     }
@@ -2788,6 +2799,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 showCharmValues: _showCharmValues,
                 onCharmTap: () => setState(() => _showCharmValues = !_showCharmValues),
               ),
+
+              // Room Banners (ConflictBanner 351:101)
+              const RoomBannerWidget(),
 
               // Chat area fills remaining
               Expanded(child: _buildChatArea()),
@@ -3536,6 +3550,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         break;
       case 'Share':
         setState(() => _showShare = true);
+        break;
+      case 'Tasks':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DailyTasksScreen()),
+        );
+        break;
+      case 'DailyReward':
+        WeeklySigninScreen.show(context);
         break;
       case 'Lucky Bag':
         LuckyBagSendDialog.show(context, roomId: widget.roomId);

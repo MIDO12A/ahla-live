@@ -25,9 +25,10 @@ const DEFAULT_CATEGORIES: StoreCategory[] = [
   { id: 'ring', key: 'ring', name: 'الخواتم', iconAsset: 'assets/mipmap-xxhdpi/ic_id_card_prop.png', selectedIconAsset: 'assets/mipmap-xxhdpi/ic_id_card_prop.png', sortOrder: 6, isActive: true },
   { id: 'badge', key: 'badge', name: 'الشارات والأوسمة', iconAsset: 'assets/mipmap-xxhdpi/ic_new_user_badge.png', selectedIconAsset: 'assets/mipmap-xxhdpi/ic_new_user_badge.png', sortOrder: 7, isActive: true },
   { id: 'special', key: 'special', name: 'المؤثرات الخاصة', iconAsset: 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp', selectedIconAsset: 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp', sortOrder: 8, isActive: true },
+  { id: 'mic_wave', key: 'mic_wave', name: 'موجات المايك الصوتية', iconAsset: 'assets/room_speaking_wave_male.svga', selectedIconAsset: 'assets/room_speaking_wave_male.svga', sortOrder: 9, isActive: true },
 ];
 
-const svgaCategories = new Set(['entrance', 'car', 'cover']);
+const svgaCategories = new Set(['entrance', 'car', 'cover', 'mic_wave']);
 
 export default function StorePage() {
   const [activeTab, setActiveTab] = useState<'items' | 'categories'>('items');

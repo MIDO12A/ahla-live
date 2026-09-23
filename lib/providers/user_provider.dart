@@ -225,6 +225,9 @@ class UserProvider extends ChangeNotifier {
       case 'necklace':
         _currentUser = _currentUser!.copyWith(activeNecklace: '');
         break;
+      case 'mic_wave':
+        _currentUser = _currentUser!.copyWith(activeMicWave: '');
+        break;
     }
     notifyListeners();
     await _supabaseService.unequipItem(_currentUser!.uid, category);

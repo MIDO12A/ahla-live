@@ -20,6 +20,8 @@ class UserModel {
   final String visitors;
   final int giftCount;
   final bool isBlacked;
+  final String? activeMicWave;
+  final String gender;
   final int totalGiftsReceived;
 
   const UserModel({
@@ -31,6 +33,8 @@ class UserModel {
     this.frameAsset,
     this.id,
     this.customId,
+    this.activeMicWave,
+    this.gender = 'male',
     this.level = 1,
     this.following = '0',
     this.fans = '0',
@@ -49,6 +53,8 @@ class UserModel {
     String? frameAsset,
     String? id,
     String? customId,
+    String? activeMicWave,
+    String? gender,
     int? level,
     String? following,
     String? fans,
@@ -66,6 +72,8 @@ class UserModel {
       frameAsset: frameAsset ?? this.frameAsset,
       id: id ?? this.id,
       customId: customId ?? this.customId,
+      activeMicWave: activeMicWave ?? this.activeMicWave,
+      gender: gender ?? this.gender,
       level: level ?? this.level,
       following: following ?? this.following,
       fans: fans ?? this.fans,
@@ -84,6 +92,8 @@ class UserModel {
     'isOwner': isOwner,
     'id': id,
     'custom_id': customId,
+    'active_mic_wave': activeMicWave,
+    'gender': gender,
     'level': level,
     'following': following,
     'fans': fans,
@@ -102,6 +112,8 @@ class UserModel {
     frameAsset: map['frameAsset'] as String?,
     id: map['id'] as String?,
     customId: map['custom_id'] as String? ?? map['customId'] as String?,
+    activeMicWave: map['active_mic_wave'] as String?,
+    gender: map['gender'] as String? ?? 'male',
     level: map['level'] as int? ?? 1,
     following: map['following'] as String? ?? '0',
     fans: map['fans'] as String? ?? '0',

@@ -5,6 +5,8 @@ import '../../../config/app_colors.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../models/seat_model.dart';
 import 'svga_frame.dart';
+import 'svga_player.dart';
+import '../../../services/room_audio_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // SeatArea — fragment_mic_seat.xml
@@ -310,20 +312,25 @@ class _NormalSeat extends StatelessWidget {
     final hasFrame = seat.hasFrame || (seat.frameAsset != null && seat.frameAsset!.isNotEmpty);
     final frameAsset = seat.frameAsset;
 
-    Widget child = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: 76,
-          height: 88,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                top: 6,
-                left: 6,
-                child: _buildAvatarPart(hasUser, avatar, hasFrame, frameAsset),
-              ),
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: RoomAudioService().speakingUsersNotifier,
+      builder: (context, speakingUsers, _) {
+        final isSpeaking = hasUser && user?.id != null && speakingUsers.contains(user!.id);
+
+        Widget child = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 76,
+              height: 88,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: _buildAvatarPart(hasUser, user, isSpeaking, hasFrame, frameAsset),
+                  ),
               if (emoji != null && emoji!.isNotEmpty && hasUser)
                 Positioned.fill(
                   child: IgnorePointer(
@@ -436,6 +443,8 @@ class _NormalSeat extends StatelessWidget {
       );
     }
     return child;
+      },
+    );
   }
 
   String _formatCharm(String charmStr) {
@@ -448,9 +457,10 @@ class _NormalSeat extends StatelessWidget {
     return charmStr;
   }
 
-  Widget _buildAvatarPart(bool hasUser, String? avatar, bool hasFrame, String? frameAsset) {
+  Widget _buildAvatarPart(bool hasUser, UserModel? user, bool isSpeaking, bool hasFrame, String? frameAsset) {
     const double size = 52.0;
     const double borderSize = 64.0;
+    final avatar = user?.avatar;
 
     if (!hasUser) {
       final cfg = DynamicConfigService.instance;
@@ -503,8 +513,9 @@ class _NormalSeat extends StatelessWidget {
       ),
     );
 
+    Widget baseAvatar;
     if ((hasFrame || (frameAsset != null && frameAsset.isNotEmpty)) && frameAsset != null && frameAsset.isNotEmpty) {
-      return Stack(
+      baseAvatar = Stack(
         alignment: Alignment.center,
         children: [
           avatarWidget,
@@ -513,11 +524,9 @@ class _NormalSeat extends StatelessWidget {
           ),
         ],
       );
-    }
-
-    if (seatStyle == SeatStyle.circle) {
+    } else if (seatStyle == SeatStyle.circle) {
       // Game style: thick metallic silver ring
-      return Container(
+      baseAvatar = Container(
         width: borderSize,
         height: borderSize,
         decoration: const BoxDecoration(
@@ -544,7 +553,7 @@ class _NormalSeat extends StatelessWidget {
       );
     } else if (seatStyle == SeatStyle.heart) {
       // VIP style: thick metallic gold ring
-      return Container(
+      baseAvatar = Container(
         width: borderSize,
         height: borderSize,
         decoration: const BoxDecoration(
@@ -569,29 +578,65 @@ class _NormalSeat extends StatelessWidget {
           ),
         ),
       );
-    }
-
-    // Classic style: thin gold border (original)
-    return SizedBox(
-      width: borderSize,
-      height: borderSize,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          avatarWidget,
-          Container(
-            width: borderSize,
-            height: borderSize,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.goldLight.withValues(alpha: 0.45),
-                width: 1.5,
+    } else {
+      // Classic style: thin gold border (original)
+      baseAvatar = SizedBox(
+        width: borderSize,
+        height: borderSize,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            avatarWidget,
+            Container(
+              width: borderSize,
+              height: borderSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.goldLight.withValues(alpha: 0.45),
+                  width: 1.5,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    }
+
+    if (isSpeaking && user != null) {
+      final waveAsset = (user.activeMicWave != null && user.activeMicWave!.isNotEmpty)
+          ? user.activeMicWave!
+          : (user.gender == 'female'
+              ? 'assets/room_speaking_wave_female.svga'
+              : 'assets/room_speaking_wave_male.svga');
+
+      return SizedBox(
+        width: borderSize,
+        height: borderSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Positioned(
+              left: -12,
+              right: -12,
+              top: -12,
+              bottom: -12,
+              child: IgnorePointer(
+                child: SvgaPlayer(
+                  key: ValueKey('mic_wave_${user.id}_$waveAsset'),
+                  assetPath: waveAsset,
+                  fit: BoxFit.contain,
+                  loops: true,
+                ),
+              ),
+            ),
+            baseAvatar,
+          ],
+        ),
+      );
+    }
+
+    return baseAvatar;
   }
 }

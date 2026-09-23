@@ -976,6 +976,17 @@ class DynamicConfigService extends ChangeNotifier {
   Color get levelSectionBgColor => _screenColor('level', 'sectionBgColor', const Color(0xFF0d0d12));
   String get levelSectionBgImage => _screenStr('level', 'sectionBgImage', '');
 
+  // Room Rocket & Treasure Box visuals
+  String get roomRocketIcon => _screenStr('rocket', 'rocketIcon', 'assets/images/icon_crysatal_rocket.png');
+  String get roomRocketSvga => _screenStr('rocket', 'rocketSvga', '');
+  String get roomRocketExplosionSvga => _screenStr('rocket', 'rocketExplosionSvga', '');
+  int get roomRocketTarget => int.tryParse(_screenStr('rocket', 'rocketTarget', '')) ?? 10000;
+  String get roomRocketBanner => _screenStr('rocket', 'rocketBanner', '');
+  Color get roomRocketCardColor => _screenColor('rocket', 'cardColor', const Color(0xFF1A1A2E));
+  Color get roomRocketHeaderColor => _screenColor('rocket', 'headerColor', const Color(0xFF0F3460));
+  Color get roomRocketTextColor => _screenColor('rocket', 'textColor', Colors.white);
+  Color get roomRocketAccentColor => _screenColor('rocket', 'accentColor', const Color(0xFFFFD700));
+
   int _assetVersion = 0;
   int get assetVersion => _assetVersion;
 

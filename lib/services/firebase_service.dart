@@ -300,6 +300,8 @@ class FirebaseService {
       'photo_url': user.photoUrl,
       'active_frame': user.activeFrame,
       'active_car': user.activeCar,
+      'active_mic_wave': user.activeMicWave,
+      'gender': user.gender,
       'is_muted': false,
       'taken_at': _now(),
     };
@@ -1560,6 +1562,10 @@ class FirebaseService {
       case 'necklace':
         updateMap['active_necklace'] = itemId;
         break;
+      case 'mic_wave':
+        final storeItem = getStoreItemSync(itemId);
+        updateMap['active_mic_wave'] = storeItem?.svgaAsset ?? storeItem?.iconAsset ?? itemId;
+        break;
     }
     await _db.collection('users').doc(uid).update(updateMap);
   }
@@ -1587,6 +1593,9 @@ class FirebaseService {
         break;
       case 'necklace':
         updateMap['active_necklace'] = FieldValue.delete();
+        break;
+      case 'mic_wave':
+        updateMap['active_mic_wave'] = FieldValue.delete();
         break;
     }
     if (updateMap.isNotEmpty) {

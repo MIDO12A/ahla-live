@@ -25,6 +25,8 @@ class RoomAudioService {
   bool get isMicEnabled => _micEnabled;
   bool get isPublishing => _isPublishing;
 
+  final ValueNotifier<Set<String>> speakingUsersNotifier = ValueNotifier<Set<String>>({});
+
   int get effectiveAppId {
     final id = DynamicConfigService().zegoAppId;
     return id != 0 ? id : AppConfig.zegoAppId;
@@ -104,6 +106,41 @@ class RoomAudioService {
         appId, scenario, appSign: appSign,
       ));
       ZegoExpressEngine.onRoomStreamUpdate = _onRoomStreamUpdate;
+
+      // Monitor captured mic and remote streams to trigger speaking wave animations
+      ZegoExpressEngine.onCapturedSoundLevelUpdate = (double soundLevel) {
+        if (!_isPublishing || !_micEnabled || _currentUid == null) {
+          _removeSpeaker(_currentUid);
+          return;
+        }
+        if (soundLevel > 5.0) {
+          _addSpeaker(_currentUid!);
+        } else {
+          _removeSpeaker(_currentUid);
+        }
+      };
+
+      ZegoExpressEngine.onRemoteSoundLevelUpdate = (Map<String, double> soundLevels) {
+        soundLevels.forEach((streamID, level) {
+          final uid = _extractUidFromStream(streamID);
+          if (uid != null) {
+            if (level > 5.0) {
+              _addSpeaker(uid);
+            } else {
+              _removeSpeaker(uid);
+            }
+          }
+        });
+      };
+
+      try {
+        await ZegoExpressEngine.instance.startSoundLevelMonitor(
+          config: ZegoSoundLevelConfig(100, true),
+        );
+      } catch (e) {
+        debugPrint('[RoomAudioService] startSoundLevelMonitor failed: $e');
+      }
+
       _initialized = true;
       debugPrint('[RoomAudioService] Zego engine initialized successfully (appId=$appId, scenario=$scenario)');
       return true;
@@ -166,6 +203,7 @@ class RoomAudioService {
     }
     _currentRoomId = null;
     _isPublishing = false;
+    speakingUsersNotifier.value = {};
   }
 
   Future<bool> toggleMic(bool on) async {
@@ -278,6 +316,30 @@ class RoomAudioService {
     }
     _initialized = false;
     _micEnabled = true;
+    speakingUsersNotifier.value = {};
     debugPrint('[RoomAudioService] Disposed');
+  }
+
+  String? _extractUidFromStream(String streamId) {
+    if (!streamId.startsWith('audio_')) return null;
+    final rest = streamId.substring(6);
+    final lastUnder = rest.lastIndexOf('_');
+    if (lastUnder > 0) {
+      return rest.substring(0, lastUnder);
+    }
+    return rest;
+  }
+
+  void _addSpeaker(String uid) {
+    if (!speakingUsersNotifier.value.contains(uid)) {
+      speakingUsersNotifier.value = Set<String>.from(speakingUsersNotifier.value)..add(uid);
+    }
+  }
+
+  void _removeSpeaker(String? uid) {
+    if (uid == null) return;
+    if (speakingUsersNotifier.value.contains(uid)) {
+      speakingUsersNotifier.value = Set<String>.from(speakingUsersNotifier.value)..remove(uid);
+    }
   }
 }

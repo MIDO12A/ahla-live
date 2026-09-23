@@ -25,6 +25,8 @@ import '../../features/host_agency/host_agency_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/level_service.dart';
+import '../../features/tasks/screens/daily_tasks_screen.dart';
+import '../../features/signin/weekly_signin_screen.dart';
 
 /// شاشة "أنا" (الملف الشخصي) المطابقة تماماً لملف fragment_mine.xml
 /// وكود MineFragment.java من المشروع الأصلي (F:\Medal\New folder\nu):
@@ -843,7 +845,28 @@ class ProfileScreen extends StatelessWidget {
               },
             ),
 
-            // 5. علاقة CP
+            // 5. مركز المهام اليومية (Task Center)
+            _buildFunctionItem(
+              icon: 'assets/images/tasks/ic_me_menu_task_center.webp',
+              title: 'مركز المهام',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DailyTasksScreen()),
+                );
+              },
+            ),
+
+            // 6. مكافآت تسجيل الدخول اليومي (Daily Sign-In)
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/mine_user_sign_ic.webp',
+              title: 'تسجيل الوصول والمكافآت اليومية',
+              onTap: () {
+                WeeklySigninScreen.show(context);
+              },
+            ),
+
+            // 7. علاقة CP
             _buildFunctionItem(
               icon: DynamicConfigService().profileCpIcon,
               title: 'علاقة CP',

@@ -51,6 +51,12 @@ class _BackpackScreenState extends State<BackpackScreen> {
       'nor_ic': 'assets/mipmap-xxhdpi/mine_union_ic.webp',
       'pre_ic': 'assets/mipmap-xxhdpi/mine_union_ic.webp',
     },
+    {
+      'key': 'mic_wave',
+      'name': 'موجات المايك',
+      'nor_ic': 'assets/mipmap-xxhdpi/room_mic_on.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/room_mic_on.webp',
+    },
   ];
 
   int _selectedCategoryIndex = 0;
@@ -839,6 +845,10 @@ class _BackpackScreenState extends State<BackpackScreen> {
       case 'necklace':
         return user.activeNecklace == item.itemId ||
             (item.svgaAsset != null && item.svgaAsset!.isNotEmpty && user.activeNecklace == item.svgaAsset);
+      case 'mic_wave':
+        return user.activeMicWave == item.itemId ||
+            (item.svgaAsset != null && item.svgaAsset!.isNotEmpty && user.activeMicWave == item.svgaAsset) ||
+            user.activeMicWave == item.iconAsset;
       default:
         return false;
     }

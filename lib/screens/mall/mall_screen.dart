@@ -78,6 +78,12 @@ class _MallScreenState extends State<MallScreen> {
       'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
       'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
     },
+    {
+      'key': 'mic_wave',
+      'name': 'موجات المايك',
+      'nor_ic': 'assets/mipmap-xxhdpi/room_mic_on.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/room_mic_on.webp',
+    },
   ];
 
   @override
@@ -775,7 +781,39 @@ class _MallScreenState extends State<MallScreen> {
       );
     }
 
-    // 5. أي قسم آخر (خواتم، أوسمة، مؤثرات خاصة، إلخ)
+    // 5. معاينة موجات المايك الصوتية mic_wave
+    if (item.category == 'mic_wave') {
+      return SizedBox(
+        width: 130,
+        height: 120,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (animUrl != null && !isVideo)
+              Positioned.fill(
+                child: SvgaPlayer(
+                  key: ValueKey(keyStr),
+                  assetPath: animUrl,
+                  width: 120,
+                  height: 120,
+                  fit: BoxFit.contain,
+                  loops: true,
+                ),
+              ),
+            CircleAvatar(
+              radius: 36,
+              backgroundColor: Colors.white12,
+              backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
+              child: photoUrl == null
+                  ? const Icon(Icons.person, size: 36, color: Colors.white54)
+                  : null,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 6. أي قسم آخر (خواتم، أوسمة، مؤثرات خاصة، إلخ)
     return SizedBox(
       width: 130,
       height: 120,
