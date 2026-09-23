@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
-import '../../../screens/room/widgets/svga_player.dart';
+﻿import 'package:flutter/material.dart';
 import '../models/lucky_bag_model.dart';
 import '../services/lucky_bag_service.dart';
 import 'lucky_bag_claim_dialog.dart';
+import 'lucky_bag_list_dialog.dart';
 
-/// أيقونة المظروف الأحمر العائمة داخل الغرفة (Floating Red Envelope)
+/// أيقونة حقيبة الحظ العائمة داخل الغرفة المطابقة لـ view_luckybag_item.xml
+/// الحجم: 52.0dp x 52.0dp مع عداد تنازلي وشارة العدد
 class LuckyBagFloatingWidget extends StatefulWidget {
   final String roomId;
 
@@ -23,9 +24,9 @@ class _LuckyBagFloatingWidgetState extends State<LuckyBagFloatingWidget> with Si
     super.initState();
     _pulseCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
-    _scaleAnim = Tween<double>(begin: 0.95, end: 1.06).animate(
+    _scaleAnim = Tween<double>(begin: 0.96, end: 1.05).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
   }
@@ -45,57 +46,60 @@ class _LuckyBagFloatingWidgetState extends State<LuckyBagFloatingWidget> with Si
         if (bags.isEmpty) return const SizedBox.shrink();
 
         final currentBag = bags.first;
-        final isSuper = currentBag.isSuper;
 
         return ScaleTransition(
           scale: _scaleAnim,
           child: GestureDetector(
             onTap: () {
-              LuckyBagClaimDialog.show(
-                context,
-                bag: currentBag,
-                roomId: widget.roomId,
-              );
+              if (bags.length > 1) {
+                LuckyBagListDialog.show(
+                  context,
+                  roomId: widget.roomId,
+                  bags: bags,
+                );
+              } else {
+                LuckyBagClaimDialog.show(
+                  context,
+                  bag: currentBag,
+                  roomId: widget.roomId,
+                );
+              }
             },
             child: SizedBox(
-              width: 58,
-              height: 68,
+              width: 52,
+              height: 52,
               child: Stack(
                 alignment: Alignment.center,
+                clipBehavior: Clip.none,
                 children: [
-                  // Original SVGA animation or fallback PNG
-                  SvgaPlayer(
-                    assetPath: 'assets/svga/wait_click_red.svga',
-                    width: 58,
-                    height: 58,
-                    loops: true,
+                  // luckybagIv (52x52dp with ic_luckybag)
+                  Image.asset(
+                    'assets/images/ic_luckybag.png',
+                    width: 52,
+                    height: 52,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.card_giftcard,
+                      color: Color(0xFFFBA806),
+                      size: 40,
+                    ),
                   ),
 
-                  // Remaining coins badge
+                  // countDownTv (ShapeTextView: 8dp, black_trans_70, stroke white, text white)
                   Positioned(
                     bottom: 0,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isSuper
-                              ? [const Color(0xFFFFD700), const Color(0xFFD32F2F)]
-                              : [const Color(0xFFB71C1C), const Color(0xFF7B0000)],
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFFFD54F), width: 1),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.5),
-                            blurRadius: 4,
-                          ),
-                        ],
+                        color: const Color(0xB3000000), // black_trans_70
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(color: Colors.white, width: 0.6),
                       ),
                       child: Text(
-                        '${currentBag.remainingValue} 🪙',
+                        ' 🪙',
                         style: const TextStyle(
-                          color: Color(0xFFFFF9C4),
-                          fontSize: 9,
+                          color: Colors.white,
+                          fontSize: 8,
                           fontWeight: FontWeight.bold,
                         ),
                         maxLines: 1,
@@ -104,22 +108,23 @@ class _LuckyBagFloatingWidgetState extends State<LuckyBagFloatingWidget> with Si
                     ),
                   ),
 
-                  // Multiple bags count badge
+                  // numDot / count badge at top right
                   if (bags.length > 1)
-                    Positioned(
-                      top: 0,
-                      right: 0,
+                    PositionedDirectional(
+                      top: -2,
+                      end: -2,
                       child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFFD700),
-                          shape: BoxShape.circle,
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF2442),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white, width: 1),
                         ),
                         child: Text(
-                          '${bags.length}',
+                          '',
                           style: const TextStyle(
-                            color: Color(0xFF5D1000),
-                            fontSize: 8,
+                            color: Colors.white,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

@@ -23,19 +23,9 @@ class FunctionPanel extends StatelessWidget {
 
     final functionItems = [
       {
-        'key': 'Tasks',
-        'label': isAr ? 'مركز المهام' : 'Tasks',
-        'asset': 'assets/images/tasks/ic_chat_room_actionbar_task.webp',
-      },
-      {
-        'key': 'DailyReward',
-        'label': isAr ? 'المكافآت اليومية' : 'Daily Rewards',
-        'asset': 'assets/mipmap-xxhdpi/mine_user_sign_ic.webp',
-      },
-      {
         'key': 'Lucky Bag',
         'label': isAr ? 'حقيبة الحظ' : 'Lucky Bag',
-        'asset': 'assets/images/red_packet_custom.png',
+        'asset': 'assets/images/ic_luckybag.png',
       },
       {
         'key': 'Game',

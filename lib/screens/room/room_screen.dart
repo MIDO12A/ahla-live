@@ -73,8 +73,6 @@ import '../../features/lucky_bag/widgets/lucky_bag_floating_widget.dart';
 import '../../core/widgets/user_id_display_widget.dart';
 import '../../widgets/user_id_widget.dart';
 import 'package:just_audio/just_audio.dart';
-import '../../features/tasks/screens/daily_tasks_screen.dart';
-import '../../features/signin/weekly_signin_screen.dart';
 
 /// Helper to navigate to a room, exiting any minimized room first
 Future<void> navigateToRoom(
@@ -2800,9 +2798,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 onCharmTap: () => setState(() => _showCharmValues = !_showCharmValues),
               ),
 
-              // Room Banners (ConflictBanner 351:101)
-              const RoomBannerWidget(),
-
               // Chat area fills remaining
               Expanded(child: _buildChatArea()),
 
@@ -2861,39 +2856,44 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             ],
           ),
 
-          // ── Lucky Bag / Red Envelope floating button ─────────
-          Positioned(
-            bottom: navH + 63 + 17 + 56,
-            right: 10,
-            child: LuckyBagFloatingWidget(roomId: widget.roomId),
-          ),
+          // ── الحاوية الجانبية اليمنى المطابقة لـ act_voice_room.xml (bottomSideContainer) ──
+          PositionedDirectional(
+            bottom: navH + 58,
+            end: 8,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // 1. حقيبة الحظ المطابقة لـ view_luckybag_item.xml (52dp x 52dp)
+                LuckyBagFloatingWidget(roomId: widget.roomId),
+                const SizedBox(height: 8),
 
-          // ── صاروخ الغرفة الكريستالي ومستوى الطاقة (Room Rocket) ─────────
-          Positioned(
-            bottom: navH + 63 + 17 + 56,
-            left: 10,
-            child: RoomRocketWidget(
-              energy: _currentRoom?.totalGifts ?? 0,
-              target: 10000,
-              onTap: () => RoomRocketWidget.showRocketInfoSheet(
-                context,
-                _currentRoom?.totalGifts ?? 0,
-                10000,
-              ),
-            ),
-          ),
+                // 2. البنر الدوار المصغر المطابق لـ act_voice_room.xml (53dp x 45dp)
+                const RoomBannerWidget(),
+                const SizedBox(height: 8),
 
-          // ── Game button (room_game_ic) ──────────────────────
-          Positioned(
-            bottom: navH + 63 + 17,
-            right: 14,
-            child: GestureDetector(
-              onTap: _showGameBottomSheet,
-              child: R.image(
-                R.roomGameIc,
-                width: 44,
-                height: 44,
-              ),
+                // 3. صاروخ الغرفة الكريستالي المطابق لـ treasureBoxEntrance (44dp)
+                RoomRocketWidget(
+                  energy: _currentRoom?.totalGifts ?? 0,
+                  target: 10000,
+                  onTap: () => RoomRocketWidget.showRocketInfoSheet(
+                    context,
+                    _currentRoom?.totalGifts ?? 0,
+                    10000,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // 4. أيقونة الألعاب المطابقة لـ imgGameCenter (44dp x 44dp)
+                GestureDetector(
+                  onTap: _showGameBottomSheet,
+                  child: R.image(
+                    R.roomGameIc,
+                    width: 44,
+                    height: 44,
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -3550,15 +3550,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         break;
       case 'Share':
         setState(() => _showShare = true);
-        break;
-      case 'Tasks':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const DailyTasksScreen()),
-        );
-        break;
-      case 'DailyReward':
-        WeeklySigninScreen.show(context);
         break;
       case 'Lucky Bag':
         LuckyBagSendDialog.show(context, roomId: widget.roomId);

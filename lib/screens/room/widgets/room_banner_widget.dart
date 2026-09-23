@@ -5,8 +5,9 @@ import '../../../services/firebase_service.dart';
 import '../../../utils/app_action_navigator.dart';
 import '../../../core/widgets/cached_image.dart';
 
-/// ويدجت بنرات الغرفة المطابقة للتطبيق الأصلي
-/// Layout: vh_room_banner.xml (ConflictBanner, aspect ratio 351:101)
+/// البنر الدوار المصغر داخل الغرفة المطابق للأصل
+/// Layout: act_voice_room.xml (@id/banner)
+/// الحجم الأصلي: layout_width=53.0dp layout_height=45.0dp app:banner_auto_loop=true
 class RoomBannerWidget extends StatefulWidget {
   const RoomBannerWidget({super.key});
 
@@ -56,91 +57,70 @@ class _RoomBannerWidgetState extends State<RoomBannerWidget> {
         _banners = list;
         if (list.isEmpty) return const SizedBox.shrink();
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final double bannerWidth = constraints.maxWidth > 0
-                ? constraints.maxWidth - 24
-                : 351.0;
-            final double bannerHeight = (bannerWidth / (351.0 / 101.0)).clamp(70.0, 105.0);
-
-            return Container(
-              width: bannerWidth,
-              height: bannerHeight,
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: list.length,
-                      onPageChanged: (index) {
-                        setState(() => _currentPage = index);
-                      },
-                      itemBuilder: (context, index) {
-                        final banner = list[index];
-                        return GestureDetector(
-                          onTap: () {
-                            AppActionNavigator.handleAction(
-                              context,
-                              actionType: banner.actionType,
-                              actionValue: banner.actionValue,
-                              rawLink: banner.linkUrl,
-                            );
-                          },
-                          child: CachedNetImage(
-                            banner.imageUrl,
-                            width: bannerWidth,
-                            height: bannerHeight,
-                            fit: BoxFit.cover,
-                            placeholder: (_, __) => Container(
-                              color: Colors.black26,
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Color(0xFFFFD700),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            error: (_, __, ___) => const SizedBox.shrink(),
+        // الحجم المصغر الأصلي 53dp x 45dp
+        return SizedBox(
+          width: 53.0,
+          height: 45.0,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: list.length,
+              onPageChanged: (index) {
+                _currentPage = index;
+              },
+              itemBuilder: (context, index) {
+                final banner = list[index];
+                return GestureDetector(
+                  onTap: () {
+                    AppActionNavigator.handleAction(
+                      context,
+                      actionType: banner.actionType,
+                      actionValue: banner.actionValue,
+                      rawLink: banner.linkUrl,
+                    );
+                  },
+                  child: CachedNetImage(
+                    banner.imageUrl,
+                    width: 53.0,
+                    height: 45.0,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      width: 53.0,
+                      height: 45.0,
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Colors.white38,
                           ),
-                        );
-                      },
-                    ),
-                  ),
-
-                  // Indicator dots at bottom center
-                  if (list.length > 1)
-                    Positioned(
-                      bottom: 4,
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(list.length, (i) {
-                          final isActive = _currentPage == i;
-                          return Container(
-                            width: isActive ? 12 : 5,
-                            height: 4,
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: BoxDecoration(
-                              color: isActive
-                                  ? const Color(0xFFFFD700)
-                                  : Colors.white.withValues(alpha: 0.4),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          );
-                        }),
+                        ),
                       ),
                     ),
-                ],
-              ),
-            );
-          },
+                    error: (_, __, ___) => Container(
+                      width: 53.0,
+                      height: 45.0,
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(
+                        Icons.campaign_rounded,
+                        color: Colors.white54,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         );
       },
     );

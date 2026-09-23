@@ -30,81 +30,51 @@ class RoomRocketWidget extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cfg.roomRocketAccentColor.withValues(alpha: 0.7), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: cfg.roomRocketAccentColor.withValues(alpha: 0.3),
-              blurRadius: 8,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Row(
+      child: SizedBox(
+        width: 44,
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Rocket Icon or Animated SVGA
-            if (rocketSvga.isNotEmpty && rocketSvga.endsWith('.svga'))
-              SizedBox(
-                width: 26,
-                height: 26,
-                child: SvgaPlayer(
-                  assetPath: rocketSvga,
-                  fit: BoxFit.contain,
-                ),
-              )
-            else if (rocketIcon.startsWith('http://') || rocketIcon.startsWith('https://'))
-              Image.network(
-                rocketIcon,
-                width: 22,
-                height: 22,
-                errorBuilder: (_, __, ___) => const Icon(Icons.rocket_launch, color: Color(0xFFFFD700), size: 18),
-              )
-            else
-              Image.asset(
-                'assets/images/icon_crysatal_rocket.png',
-                width: 22,
-                height: 22,
-                errorBuilder: (_, __, ___) => const Icon(Icons.rocket_launch, color: Color(0xFFFFD700), size: 18),
-              ),
-            const SizedBox(width: 4),
+            // Rocket Icon or Animated SVGA (44x44dp)
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: (rocketSvga.isNotEmpty && rocketSvga.endsWith('.svga'))
+                  ? SvgaPlayer(
+                      assetPath: rocketSvga,
+                      fit: BoxFit.contain,
+                    )
+                  : (rocketIcon.startsWith('http://') || rocketIcon.startsWith('https://'))
+                      ? Image.network(
+                          rocketIcon,
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.rocket_launch, color: Color(0xFFFBA806), size: 36),
+                        )
+                      : Image.asset(
+                          'assets/images/icon_crysatal_rocket.png',
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.rocket_launch, color: Color(0xFFFBA806), size: 36),
+                        ),
+            ),
+            const SizedBox(height: 2),
 
-            // Progress bar and percentage
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '$percent%',
-                      style: const TextStyle(
-                        color: Color(0xFFFFD700),
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+            // Progress bar (44dp x 6dp with color #FBA806, background white_50)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: SizedBox(
+                width: 44,
+                height: 6,
+                child: LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: Colors.white.withValues(alpha: 0.5),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFBA806)),
                 ),
-                const SizedBox(height: 2),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: SizedBox(
-                    width: 36,
-                    height: 4,
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: Colors.white24,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFFD700)),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),
