@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <TextView android:textSize="@dimen/rc_font_text_third_size" android:textColor="@color/rc_ext_menu_item_text_color" android:id="@id/rc_menu_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:singleLine="true" android:layout_centerInParent="true" style="@style/TextStyle.Alignment" />
-    <ImageView android:id="@id/rc_menu_icon" android:background="@android:color/transparent" android:visibility="gone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="5.0dp" android:src="@drawable/rc_default_portrait" android:layout_alignParentBottom="true" android:layout_marginEnd="5.0dp" android:layout_alignParentEnd="true" />
-    <View android:background="@android:color/darker_gray" android:layout_width="0.049999952dp" android:layout_height="match_parent" android:layout_alignParentEnd="true" />
-</RelativeLayout>

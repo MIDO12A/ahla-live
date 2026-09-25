@@ -68,7 +68,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           <Menu className="w-5 h-5" />
         </button>
         <div className={`flex items-center gap-1.5 sm:gap-2.5 min-w-0 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-          <span className="text-slate-500 text-xs uppercase tracking-wider font-bold hidden md:inline">Zero</span>
+          <span className="text-slate-500 text-xs uppercase tracking-wider font-bold hidden md:inline">Ahla Live</span>
           <span className="text-slate-600 text-sm hidden md:inline">/</span>
           <span className="text-white text-xs sm:text-sm font-bold truncate max-w-[120px] xs:max-w-[160px] sm:max-w-none">{title}</span>
         </div>

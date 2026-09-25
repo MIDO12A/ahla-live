@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.hjq.shape.view.ShapeTextView android:textSize="10.0dp" android:gravity="center" android:id="@id/idNum" android:layout_width="wrap_content" android:layout_height="15.0dp" android:text="2389" android:paddingStart="16.0dp" android:paddingEnd="8.0dp" android:layout_marginStart="5.0dp" app:layout_constrainedHeight="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:shape_radius="37.0dp" app:shape_solidGradientEndColor="#060b2d" app:shape_solidGradientStartColor="#2448cd" app:shape_strokeColor="#9aabff" app:shape_strokeSize="1.0dp" app:shape_textColor="#fdff83" />
-    <ImageView android:id="@id/idIcon" android:layout_width="20.0dp" android:layout_height="20.0dp" android:src="@mipmap/ic_agency_id_icon" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-</androidx.constraintlayout.widget.ConstraintLayout>

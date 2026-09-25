@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<shape android:shape="rectangle"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="@color/rc_image_count_down" />
-    <size android:height="@dimen/rc_margin_size_20" android:width="@dimen/rc_margin_size_20" />
-    <corners android:radius="20.0dp" />
-</shape>

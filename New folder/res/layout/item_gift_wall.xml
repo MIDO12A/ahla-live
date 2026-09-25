@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="center_horizontal" android:orientation="vertical" android:paddingTop="20.0dp" android:paddingBottom="20.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="4.0dp" app:shape_radius="14.0dp" app:shape_solidGradientEndColor="#241453" app:shape_solidGradientOrientation="topToBottom" app:shape_solidGradientStartColor="#352964"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/img" android:layout_width="50.0dp" android:layout_height="50.0dp" />
-    <TextView android:textSize="14.0sp" android:textColor="#ffd4d2de" android:ellipsize="end" android:id="@id/tvName" android:visibility="gone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10.0dp" android:text="Name" android:singleLine="true" android:paddingStart="8.0dp" android:paddingEnd="8.0dp" />
-    <TextView android:textSize="12.0sp" android:textColor="#ff675d89" android:id="@id/tvNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10.0dp" android:text="X11" />
-</com.hjq.shape.layout.ShapeLinearLayout>

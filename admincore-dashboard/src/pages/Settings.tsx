@@ -174,11 +174,11 @@ export default function Settings() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[9px] uppercase text-slate-500 font-bold mb-1">{t('cloudinary.cloudName')}</label>
-                <input type="text" value={cloudName} onChange={e => setCloudName(e.target.value)} className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder="dl30muiuc" />
+                <input type="text" value={cloudName} onChange={e => setCloudName(e.target.value)} className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder="r5kohqhd" />
               </div>
               <div>
                 <label className="block text-[9px] uppercase text-slate-500 font-bold mb-1">{t('cloudinary.apiKey')}</label>
-                <input type="text" value={apiKey} onChange={e => setApiKey(e.target.value)} className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder="865669713469485" />
+                <input type="text" value={apiKey} onChange={e => setApiKey(e.target.value)} className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder="183298827798548" />
               </div>
               <div>
                 <label className="block text-[9px] uppercase text-slate-500 font-bold mb-1">{t('cloudinary.apiSecret')}</label>

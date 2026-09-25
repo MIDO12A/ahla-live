@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:gravity="center" android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/iconMedalBg" android:layout_width="wrap_content" android:layout_height="wrap_content" android:src="@mipmap/ic_metal_bg" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <com.opensource.svgaplayer.SVGAImageView android:id="@id/iconMedal" android:layout_width="78.0dp" android:layout_height="78.0dp" android:layout_marginTop="16.0dp" android:src="@mipmap/ic_head_default" app:layout_constraintEnd_toEndOf="@id/iconMedalBg" app:layout_constraintStart_toStartOf="@id/iconMedalBg" app:layout_constraintTop_toTopOf="@id/iconMedalBg" />
-    <TextView android:textSize="13.0dp" android:textColor="#f9ce99" android:id="@id/medalNameTv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8.0dp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/iconMedal" />
-    <TextView android:textSize="12.0dp" android:textColor="#f9ce99" android:id="@id/expireTimeTv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4.0dp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/medalNameTv" />
-</androidx.constraintlayout.widget.ConstraintLayout>

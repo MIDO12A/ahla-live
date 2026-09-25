@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_horizontal" android:orientation="horizontal" android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <ImageView android:layout_gravity="start|bottom" android:id="@id/imgTag" android:visibility="gone" android:layout_width="16.0dp" android:layout_height="16.0dp" android:layout_marginBottom="15.0dp" android:src="@mipmap/tag_union_host" android:layout_marginStart="73.0dp" />
-</LinearLayout>

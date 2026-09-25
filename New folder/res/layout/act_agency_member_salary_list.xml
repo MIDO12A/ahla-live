@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:background="@color/dark_95" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/toolBar" android:layout_width="match_parent" android:layout_height="wrap_content" app:layout_constraintTop_toTopOf="parent" />
-    <com.approom.chatapp.common.view.SmartHeaderRefreshLayout android:id="@id/swipeRefresh" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_constrainedHeight="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintTop_toBottomOf="@id/toolBar">
-        <androidx.recyclerview.widget.RecyclerView android:id="@id/rv" android:clipToPadding="false" android:layout_width="match_parent" android:layout_height="match_parent" />
-    </com.approom.chatapp.common.view.SmartHeaderRefreshLayout>
-</androidx.constraintlayout.widget.ConstraintLayout>

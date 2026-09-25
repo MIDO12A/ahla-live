@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:paddingBottom="10.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" app:layout_constraintTop_toBottomOf="@id/userWalletPanel" app:shape_radiusInBottomLeft="10.0dp" app:shape_radiusInBottomRight="10.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <include android:id="@id/itemAgency" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintEnd_toStartOf="@id/itemStore" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" layout="@layout/vh_mine_middle_functions_item" />
-    <include android:id="@id/itemStore" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintEnd_toStartOf="@id/itemRelationship" app:layout_constraintStart_toEndOf="@id/itemAgency" app:layout_constraintTop_toTopOf="parent" layout="@layout/vh_mine_middle_functions_item" />
-    <include android:id="@id/itemRelationship" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintEnd_toStartOf="@id/itemLevel" app:layout_constraintStart_toEndOf="@id/itemStore" app:layout_constraintTop_toTopOf="parent" layout="@layout/vh_mine_middle_functions_item" />
-    <include android:id="@id/itemLevel" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toEndOf="@id/itemRelationship" app:layout_constraintTop_toTopOf="parent" layout="@layout/vh_mine_middle_functions_item" />
-</com.hjq.shape.layout.ShapeConstraintLayout>

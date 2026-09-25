@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:id="@id/rc_message" android:layout_width="200.0dp" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <TextView android:textSize="17.0dp" android:textColor="@color/rc_text_main_color" android:ellipsize="end" android:id="@id/title" android:layout_width="180.0dp" android:layout_height="wrap_content" android:layout_marginTop="6.0dp" android:layout_marginBottom="2.0dp" android:text="title" android:lines="1" android:layout_marginStart="12.0dp" android:layout_marginEnd="7.0dp" style="@style/TextStyle.Alignment" />
-    <TextView android:textSize="12.0dp" android:textColor="@color/rc_secondary_color" android:ellipsize="end" android:id="@id/summary" android:layout_width="180.0dp" android:layout_height="wrap_content" android:text="summary" android:maxLines="4" android:layout_marginStart="12.0dp" android:layout_marginEnd="9.0dp" android:breakStrategy="simple" style="@style/TextStyle.Alignment" />
-    <View android:background="@color/rc_dialog_bottom_selection_separate_color" android:layout_width="match_parent" android:layout_height="0.5dp" android:layout_marginTop="6.0dp" android:layout_marginBottom="2.0dp" android:layout_marginStart="12.0dp" android:layout_marginEnd="10.0dp" />
-    <TextView android:textSize="12.0dp" android:textColor="@color/rc_secondary_color" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="3.0dp" android:layout_marginBottom="3.0dp" android:text="@string/rc_combine_chat_history" android:layout_marginStart="12.0dp" android:layout_marginEnd="9.0dp" style="@style/TextStyle.Alignment" />
-</LinearLayout>

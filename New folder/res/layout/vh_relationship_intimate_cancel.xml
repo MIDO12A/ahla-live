@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:layout_width="230.0dp" android:layout_height="wrap_content" android:paddingHorizontal="10.0dp" android:paddingVertical="18.0dp" app:shape_radiusInBottomLeft="12.0dp" app:shape_radiusInBottomRight="12.0dp" app:shape_radiusInTopLeft="12.0dp" app:shape_solidColor="#00d9c5"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/ivHeart" android:layout_width="36.0dp" android:layout_height="36.0dp" android:src="@mipmap/ic_heartbeat_broken" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toStartOf="@id/tvContent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="14.0dp" android:textColor="@color/white" android:id="@id/tvContent" android:layout_width="0.0dp" android:layout_height="wrap_content" android:text="@string/relationship_unbind_notice" android:layout_marginStart="10.0dp" app:layout_constraintBottom_toBottomOf="@id/ivHeart" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toEndOf="@id/ivHeart" app:layout_constraintTop_toTopOf="@id/ivHeart" />
-</com.hjq.shape.layout.ShapeConstraintLayout>

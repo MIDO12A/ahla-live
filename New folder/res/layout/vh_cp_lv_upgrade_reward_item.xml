@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:layout_width="64.0dp" android:layout_height="76.0dp" android:src="@mipmap/ic_cp_lv_reward_bg" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/rewardIcon" android:layout_width="52.0dp" android:layout_height="52.0dp" android:src="@drawable/music_volume_seek" app:layout_constraintBottom_toTopOf="@id/rewardName" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:layout_constraintVertical_chainStyle="packed" />
-    <TextView android:textSize="10.0dp" android:textColor="@color/white" android:ellipsize="end" android:gravity="center" android:id="@id/rewardName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/rewardIcon" />
-</androidx.constraintlayout.widget.ConstraintLayout>

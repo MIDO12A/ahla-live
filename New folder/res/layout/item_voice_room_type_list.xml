@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/iv_room_bg" android:layout_width="match_parent" android:layout_height="55.0dp" android:src="@mipmap/bg_room_game" android:scaleType="fitXY" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="16.0sp" android:textColor="#ffffffff" android:id="@id/tv_room_type_name" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="10.0dp" android:text="@string/game" app:layout_constraintStart_toStartOf="@id/iv_room_bg" app:layout_constraintTop_toTopOf="@id/iv_room_bg" />
-    <ImageView android:id="@id/iv_select_room_tag" android:layout_width="wrap_content" android:layout_height="wrap_content" android:src="@drawable/ic_selected_room" app:layout_constraintBottom_toBottomOf="@id/iv_room_bg" app:layout_constraintEnd_toEndOf="@id/iv_room_bg" />
-</androidx.constraintlayout.widget.ConstraintLayout>

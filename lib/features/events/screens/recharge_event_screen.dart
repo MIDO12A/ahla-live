@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -218,7 +219,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   }
 
   void _listenToDynamicConfig() {
-    _configSub = FirebaseFirestore.instance
+    _configSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
         .collection('app_config')
         .doc('general')
         .snapshots()
@@ -275,14 +276,14 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     if (uid == null) return;
 
     try {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
       final rechargedCoins = (userDoc.data()?['recharged_coins'] as num?)?.toInt() ?? 
                             (userDoc.data()?['total_recharge'] as num?)?.toInt() ?? 
                             (userDoc.data()?['total_recharged_coins'] as num?)?.toInt() ?? 0;
 
       final now = DateTime.now();
       final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
-      final progressDoc = await FirebaseFirestore.instance
+      final progressDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
           .collection('recharge_event_progress')
           .doc('${eventId}_$uid')
           .get();
@@ -314,7 +315,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
 
     // 1. مراقبة شحن المستخدم المباشر فورياً (عند التحويل من الوكيل أو أداة الإدارة)
-    _userSub = FirebaseFirestore.instance.collection('users').doc(uid).snapshots().listen((doc) {
+    _userSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).snapshots().listen((doc) {
       if (!doc.exists) return;
       final data = doc.data() ?? {};
       final c1 = (data['recharged_coins'] as num?)?.toInt() ?? 0;
@@ -327,7 +328,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     }, onError: (_) {});
 
     // 2. مراقبة وثيقة تقدم حدث الشحن
-    _progressSub = FirebaseFirestore.instance
+    _progressSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
         .collection('recharge_event_progress')
         .doc('${eventId}_$uid')
         .snapshots()
@@ -639,7 +640,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
 
     try {
-      final docRef = FirebaseFirestore.instance.collection('recharge_event_progress').doc('${eventId}_$uid');
+      final docRef = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('recharge_event_progress').doc('${eventId}_$uid');
       final currentClaimed = _getTimesClaimed(tier);
       final newCount = currentClaimed + 1;
       final updatedCounts = Map<String, int>.from(_claimedCounts);
@@ -656,7 +657,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
       }, SetOptions(merge: true));
 
       // إضافة جميع المكافآت في حزمة المستوى إلى حقيبة المستخدم
-      final backpack = FirebaseFirestore.instance.collection('user_backpack');
+      final backpack = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('user_backpack');
       for (final item in tier.rewardsList) {
         await backpack.add({
           'user_id': uid,
@@ -675,7 +676,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
       // إضافة مجموع الكوينز البونص لهذا المستوى
       final totalBonus = tier.totalBonusCoins;
       if (totalBonus > 0) {
-        await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).update({
           'coins': FieldValue.increment(totalBonus),
         });
       }
@@ -799,7 +800,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
             // قائمة المتصدرين الحية
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
+                stream: FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                     .collection('recharge_event_progress')
                     .where('event_id', isEqualTo: eventId)
                     .orderBy('total_recharged_coins', descending: true)
@@ -851,7 +852,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                       }
 
                       return FutureBuilder<DocumentSnapshot>(
-                        future: FirebaseFirestore.instance.collection('users').doc(targetUid).get(),
+                        future: FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(targetUid).get(),
                         builder: (context, userSnap) {
                           final userData = userSnap.data?.data() as Map<String, dynamic>?;
                           final name = userData?['name']?.toString() ?? 'مستخدم';

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:background="@android:color/white" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <TextView android:textSize="17.0sp" android:textColor="#333333" android:gravity="center" android:id="@id/tv_title" android:paddingTop="20.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/rc_ext_plugin_destruct" android:paddingStart="25.0dp" android:paddingEnd="25.0dp" style="@style/TextStyle.Alignment" />
-    <TextView android:textSize="16.0sp" android:textColor="#333333" android:gravity="center" android:id="@id/tv_content" android:paddingTop="15.0dp" android:paddingBottom="15.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/rc_dialog_destruct_hint" android:paddingStart="25.0dp" android:paddingEnd="25.0dp" style="@style/TextStyle.Alignment" />
-    <View android:id="@id/view_horizontal" android:background="#e0e0e0" android:layout_width="match_parent" android:layout_height="1.0px" />
-    <TextView android:textSize="16.0sp" android:textStyle="bold" android:textColor="#5795f3" android:gravity="center" android:id="@id/tv_confirm" android:layout_width="match_parent" android:layout_height="40.0dp" android:text="@string/rc_dialog_got_it" style="@style/TextStyle.Alignment" />
-</LinearLayout>

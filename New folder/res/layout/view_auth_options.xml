@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="start|center" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="11.0dp" android:paddingVertical="20.0dp" app:shape_radius="14.0dp" app:shape_solidColor="#fff"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content">
-        <com.approom.chatapp.view.anchor.AuthLaberView android:textSize="16.0sp" android:textColor="#ff333333" android:id="@id/tvLaber" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/auth_info_upload_pic" android:layout_marginEnd="50.0dp" android:paddingHorizontal="4.0dp" />
-        <ImageView android:layout_gravity="end|center" android:id="@id/imgOpen" android:padding="6.0dp" android:layout_width="30.0dp" android:layout_height="30.0dp" android:src="@drawable/ic_array_item" android:rotation="90.0" />
-    </FrameLayout>
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/recyclerView" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" />
-</com.hjq.shape.layout.ShapeLinearLayout>

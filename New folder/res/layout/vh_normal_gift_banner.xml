@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/bg" android:layout_width="wrap_content" android:layout_height="wrap_content" android:src="@mipmap/ic_normal_gift_banner_bg" android:scaleType="fitXY" android:adjustViewBounds="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="11.0dp" android:textStyle="bold" android:textColor="@color/white" android:ellipsize="end" android:id="@id/tv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3.0dp" android:maxLines="3" android:layout_marginHorizontal="70.0dp" app:layout_constrainedWidth="true" app:layout_constraintBottom_toBottomOf="@id/bg" app:layout_constraintEnd_toEndOf="@id/bg" app:layout_constraintHorizontal_bias="0.0" app:layout_constraintStart_toStartOf="@id/bg" app:layout_constraintTop_toTopOf="@id/bg" />
-</androidx.constraintlayout.widget.ConstraintLayout>

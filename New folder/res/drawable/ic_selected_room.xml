@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="12.0dp" android:width="29.0dp" android:viewportWidth="29.0" android:viewportHeight="12.0"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt">
-    <path android:fillColor="@drawable/$ic_selected_room__0" android:pathData="M8,0H29a0,0 0,0 1,0 0V4a8,8 0,0 1,-8 8H0a0,0 0,0 1,0 0V8A8,8 0,0 1,8 0Z" />
-    <path android:fillColor="#fff" android:pathData="M20.037,1.542a0.549,0.549 0,0 0,-0.859 0.11l-5.869,6.49 -3.209,-3.129 -0.057,-0.068a0.583,0.583 0,0 0,-0.842 0c-0.3,0.248 -0.235,0.576 0,0.889l3.092,4.294 0.073,0.09a1.323,1.323 0,0 0,1.855 0.149,1.429 1.429,0 0,0 0.234,-0.25l5.534,-7.67 0.049,-0.075c0.174,-0.31 0.277,-0.6 0,-0.83h0Z" />
-</vector>

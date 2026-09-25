@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 // lib/features/host_agency/screens/agency_item_detail_screen.dart
 // ─────────────────────────────────────────────────────────────────────────────
 // 100% Match for union_activity_agency_item_detail.xml,
@@ -33,7 +34,7 @@ class AgencyItemDetailScreen extends StatefulWidget {
 }
 
 class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
-  final _db = FirebaseFirestore.instance;
+  final _db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
   List<Map<String, dynamic>> _liveMembers = [];
   bool _loading = true;
 

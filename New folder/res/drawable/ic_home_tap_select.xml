@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="9.534973dp" android:width="16.069977dp" android:autoMirrored="true" android:viewportWidth="16.07" android:viewportHeight="9.535"
-  xmlns:aapt="http://schemas.android.com/aapt" xmlns:android="http://schemas.android.com/apk/res/android">
-    <path android:fillColor="@drawable/$ic_home_tap_select__0" android:pathData="M8.035,9.535A8.044,8.044 0,0 1,0 1.5,1.5 1.5,0 0,1 1.5,0 1.5,1.5 0,0 1,3 1.5a5.035,5.035 0,1 0,10.07 0,1.5 1.5,0 0,1 3,0A8.044,8.044 0,0 1,8.035 9.535Z" />
-</vector>

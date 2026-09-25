@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 // lib/features/host_agency/host_agency_screen.dart
 // ─────────────────────────────────────────────────────────────────────────────
 // Smart Agency Gateway Screen & Unions Hub
@@ -75,7 +76,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
 
       // 3. If not found, check users/{uid}.agency_id
       if (row == null) {
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        final userDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
         final agencyId = userDoc.data()?['agency_id'] as String?;
         if (agencyId != null && agencyId.isNotEmpty) {
           row = {

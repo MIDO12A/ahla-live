@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:layout_gravity="center_horizontal" android:id="@id/rc_msg" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="39.0dp" android:paddingEnd="39.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <View android:gravity="center_vertical" android:layout_gravity="center_vertical" android:background="@color/rc_notification_bg" android:layout_width="wrap_content" android:layout_height="1.0dp" android:layout_weight="1.0" />
-    <TextView android:textSize="12.0sp" android:textColor="@color/rc_new_message_divider_text_color" android:id="@id/tv_divider_message" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_centerHorizontal="true" android:layout_marginStart="9.0dp" android:layout_marginEnd="9.0dp" style="@style/TextStyle.Alignment" />
-    <View android:gravity="center_vertical" android:layout_gravity="center_vertical" android:background="@color/rc_notification_bg" android:layout_width="wrap_content" android:layout_height="1.0dp" android:layout_weight="1.0" />
-</LinearLayout>

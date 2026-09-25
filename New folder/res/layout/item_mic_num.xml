@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeFrameLayout android:layout_width="match_parent" android:layout_height="32.0dp" android:layoutDirection="ltr" android:layout_marginHorizontal="7.5dp" android:layout_marginVertical="5.0dp" app:shape_radius="4.0dp" app:shape_solidColor="#f9f9f9" app:shape_solidSelectedColor="#e0f6f4" app:shape_strokeColor="#f9f9f9" app:shape_strokeSelectedColor="#00d9c5" app:shape_strokeSize="1.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <TextView android:textSize="16.0sp" android:textColor="#ff555555" android:layout_gravity="center" android:id="@id/tvNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="9" />
-    <com.makeramen.roundedimageview.RoundedImageView android:layout_gravity="end|bottom" android:id="@id/imgSelect" android:layout_width="wrap_content" android:layout_height="wrap_content" android:src="@drawable/is_select_mic_num" app:riv_corner_radius_bottom_right="4.0dp" />
-</com.hjq.shape.layout.ShapeFrameLayout>

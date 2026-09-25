@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <TextView android:textSize="16.0sp" android:textColor="@color/rc_secondary_color" android:gravity="start" android:id="@id/rc_phrases_tv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="2" android:maxEms="20" android:maxLength="50" android:layout_centerInParent="true" android:layout_centerHorizontal="true" android:layout_marginStart="22.0dp" android:layout_marginEnd="22.0dp" style="@style/TextStyle.Alignment" />
-</RelativeLayout>

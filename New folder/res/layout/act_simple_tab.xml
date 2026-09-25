@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:background="@color/white" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/toolBar" android:layout_width="match_parent" android:layout_height="wrap_content" app:bar_icImg="@drawable/ic_back" app:bar_titleColor="#333333" app:layout_constraintTop_toTopOf="parent" />
-    <com.google.android.material.tabs.TabLayout android:layout_gravity="center" android:id="@id/tabLayout" android:layout_width="match_parent" android:layout_height="62.0dp" app:tabBackground="@color/trans" app:tabGravity="fill" app:tabIndicator="@drawable/tab_indictor" app:tabIndicatorColor="@color/trans" app:tabIndicatorFullWidth="false" app:tabMaxWidth="0.0dp" app:tabMode="fixed" app:tabRippleColor="@color/trans" app:tabSelectedTextAppearance="@style/MyTabLayoutTextStyle" app:tabSelectedTextColor="#333333" app:tabTextAppearance="@style/MyTabLayoutTextNormalStyle" app:tabTextColor="#666666" />
-    <com.approom.chatapp.view.NestedScrollableHost android:layout_width="match_parent" android:layout_height="match_parent">
-        <androidx.viewpager2.widget.ViewPager2 android:id="@id/viewPager" android:layout_width="match_parent" android:layout_height="match_parent" android:paddingStart="10.0dp" android:paddingEnd="10.0dp" />
-    </com.approom.chatapp.view.NestedScrollableHost>
-</LinearLayout>

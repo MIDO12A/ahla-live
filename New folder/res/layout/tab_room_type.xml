@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingEnd="12.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.hjq.shape.view.ShapeButton android:textSize="14.0dp" android:id="@id/chatBtn" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/chat" android:paddingHorizontal="16.0dp" android:paddingVertical="8.0dp" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:shape_radius="20.0dp" />
-</androidx.constraintlayout.widget.ConstraintLayout>

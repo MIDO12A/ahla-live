@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -47,14 +48,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   void _listenRealtime(String aid) {
     if (aid.isEmpty) return;
     _membersSub?.cancel();
-    _membersSub = FirebaseFirestore.instance
+    _membersSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
         .collection('host_agency_members')
         .where('agency_id', isEqualTo: aid)
         .snapshots()
         .listen((_) => _scheduleReload());
 
     _agencySub?.cancel();
-    _agencySub = FirebaseFirestore.instance
+    _agencySub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
         .collection('host_agencies')
         .doc(aid)
         .snapshots()

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:paddingBottom="10.0dp" android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/ivBg" android:layout_width="match_parent" android:layout_height="wrap_content" android:src="@mipmap/ic_rs_task_gift_bg" android:scaleType="fitXY" android:adjustViewBounds="true" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/ivGift" android:layout_width="42.0dp" android:layout_height="42.0dp" app:layout_constraintBottom_toBottomOf="@id/ivBg" app:layout_constraintEnd_toEndOf="@id/ivBg" app:layout_constraintStart_toStartOf="@id/ivBg" app:layout_constraintTop_toTopOf="@id/ivBg" app:layout_constraintVertical_bias="0.75" />
-</androidx.constraintlayout.widget.ConstraintLayout>

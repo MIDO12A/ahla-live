@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeFrameLayout android:id="@id/shapeFl" android:layout_width="wrap_content" android:layout_height="24.0dp" android:layoutDirection="ltr" android:layout_marginHorizontal="5.0dp" android:layout_marginVertical="5.0dp" app:shape_radius="20.0dp" app:shape_solidColor="#2e8449fa"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/img" android:layout_width="22.0dp" android:layout_height="match_parent" android:src="@mipmap/tag_union_host" android:adjustViewBounds="true" android:layout_marginStart="5.0dp" android:layout_marginVertical="2.0dp" />
-    <TextView android:textSize="12.0sp" android:textColor="#e6ffffff" android:gravity="center_vertical" android:id="@id/shapeTv" android:layout_width="wrap_content" android:layout_height="match_parent" android:text="@string/agent" android:layout_marginStart="28.0dp" android:layout_marginEnd="5.0dp" />
-</com.hjq.shape.layout.ShapeFrameLayout>

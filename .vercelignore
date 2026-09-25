@@ -23,7 +23,16 @@ node_modules
 /supabase
 /.github
 /android/.gradle
+/database_backup
 *.apk
 *.aab
 *.log
+*.zip
+*.png
+*.jpg
+*.jpeg
+*.svga
+*.mp4
+/plugins
+/scripts
 .tsbuildinfo

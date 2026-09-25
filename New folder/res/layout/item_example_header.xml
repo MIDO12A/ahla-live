@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_horizontal" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="11.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content">
-        <com.approom.chatapp.common.view.EqRoundImage android:id="@id/imgHeader" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="9.0dp" android:src="@drawable/default_header" />
-        <ImageView android:layout_gravity="center|bottom" android:layout_width="18.0dp" android:layout_height="18.0dp" android:src="@drawable/ic_red_dekete" />
-    </FrameLayout>
-    <TextView android:textSize="12.0sp" android:textColor="#ffb8b8b8" android:gravity="center" android:id="@id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10.0dp" android:text="Pornography" android:textAlignment="center" />
-</LinearLayout>

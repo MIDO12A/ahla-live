@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:background="#21212e" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/titleBar" android:background="@color/deep_blue" android:layout_width="match_parent" android:layout_height="wrap_content" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textColor="#c1c1c1" android:id="@id/rulesTv" android:paddingTop="24.0dp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="15.0dp" android:paddingHorizontal="15.0dp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/titleBar" />
-</androidx.constraintlayout.widget.ConstraintLayout>

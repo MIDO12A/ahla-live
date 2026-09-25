@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/recycleView" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginHorizontal="10.0dp" />
-    <TextView android:textSize="14.0dp" android:textColor="@color/sub_text" android:gravity="center" android:layout_gravity="center" android:id="@id/emptyTips" android:visibility="gone" android:layout_width="253.0dp" android:layout_height="wrap_content" android:text="@string/backpack_empty_tips" />
-</FrameLayout>

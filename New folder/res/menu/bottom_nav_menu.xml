@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<menu
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:icon="@drawable/nav_home" android:id="@id/navigation_home" android:title="" />
-    <item android:icon="@drawable/nav_found" android:id="@id/navigation_found" android:title="" />
-    <item android:icon="@drawable/nav_game" android:id="@id/navigation_game" android:title="" />
-    <item android:icon="@drawable/nav_msg" android:id="@id/navigation_msg" android:title="" />
-    <item android:icon="@drawable/nav_user" android:id="@id/navigation_user" android:title="" />
-</menu>

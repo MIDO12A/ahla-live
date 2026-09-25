@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="10.0dp" android:paddingVertical="20.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.hjq.shape.view.ShapeTextView android:textSize="14.0dp" android:id="@id/nameTv" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:shape_textColor="@color/first_text" app:shape_textSelectedColor="@color/hilla_light" />
-    <com.hjq.shape.view.ShapeImageView android:id="@id/bingo" android:layout_width="wrap_content" android:layout_height="13.0dp" android:src="@mipmap/ic_bingo" android:adjustViewBounds="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="parent" />
-</androidx.constraintlayout.widget.ConstraintLayout>

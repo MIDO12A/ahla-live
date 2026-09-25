@@ -1,3 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.view.ShapeTextView android:textSize="16.0sp" android:ellipsize="end" android:gravity="center" android:layout_width="wrap_content" android:layout_height="30.0dp" android:minWidth="72.0dp" android:singleLine="true" android:textDirection="locale" android:textAlignment="gravity" android:layout_marginHorizontal="5.0dp" android:paddingHorizontal="5.0dp" app:shape_radius="4.0dp" app:shape_solidColor="#eeeeee" app:shape_solidSelectedColor="#e0f6f4" app:shape_textColor="#8b8b8b" app:shape_textSelectedColor="#00d9c5"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" />

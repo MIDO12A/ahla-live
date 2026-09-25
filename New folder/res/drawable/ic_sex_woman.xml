@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="42.0dp" android:width="42.0dp" android:autoMirrored="true" android:viewportWidth="42.0" android:viewportHeight="42.0"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt">
-    <path android:fillColor="@drawable/$ic_sex_woman__0" android:pathData="M21,0a20.975,20.975 0,1 1,0 41.95c-3.5,0 -13.338,0.423 -16.439,-1.2 -1.921,-1 2.858,-3.6 1.17,-5.343A20.995,20.995 0,0 1,21 0Z" />
-    <path android:fillColor="#fff" android:pathData="M14,11.212L14,11.212A2,2 0,0 1,16 13.212L16,17.212A2,2 0,0 1,14 19.212L14,19.212A2,2 0,0 1,12 17.212L12,13.212A2,2 0,0 1,14 11.212z" />
-    <path android:fillColor="#fff" android:pathData="M28,11.212L28,11.212A2,2 0,0 1,30 13.212L30,17.212A2,2 0,0 1,28 19.212L28,19.212A2,2 0,0 1,26 17.212L26,13.212A2,2 0,0 1,28 11.212z" />
-</vector>

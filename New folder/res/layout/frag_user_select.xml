@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/rv_user_list_data" android:layout_width="match_parent" android:layout_height="0.0dp" android:layout_weight="1.0" />
-    <com.hjq.shape.view.ShapeButton android:textSize="16.0sp" android:textColor="#ffffffff" android:gravity="center" android:id="@id/sb_invite_data" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="42.0dp" android:text="@string/next" android:layout_marginHorizontal="30.0dp" android:paddingVertical="15.0dp" app:shape_radius="25.0dp" app:shape_solidGradientEndColor="#14fab1" app:shape_solidGradientStartColor="#00deff" />
-</LinearLayout>

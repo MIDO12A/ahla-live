@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="24.0dp" android:width="24.0dp" android:autoMirrored="true" android:viewportWidth="24.0" android:viewportHeight="24.0"
-  xmlns:aapt="http://schemas.android.com/aapt" xmlns:android="http://schemas.android.com/apk/res/android">
-    <path android:fillColor="@drawable/$ic_room_background__0" android:pathData="M24,14.911L24,19.093c0,2.708 -1.89,4.9 -4.222,4.9L4.222,23.993c-2.332,0 -4.222,-2.2 -4.222,-4.9L-0,4.903c0,-2.708 1.89,-4.9 4.222,-4.9h15.556c2.332,0 4.222,2.2 4.222,4.9v10.008ZM22.222,13.298L22.222,4.903a2.664,2.664 0,0 0,-2.445 -2.839L4.222,2.064a2.664,2.664 0,0 0,-2.444 2.839L1.778,19.093a2.664,2.664 0,0 0,2.444 2.839h1.859l8.27,-9.423a3.794,3.794 0,0 1,4.771 -0.926l3.1,1.712ZM22.222,15.584 L18.358,13.449a2.2,2.2 0,0 0,-2.762 0.538l-6.976,7.948h11.158a2.664,2.664 0,0 0,2.444 -2.839v-3.512Z" />
-    <path android:fillColor="@drawable/$ic_room_background__1" android:pathData="M6.508,11.735a3.142,3.142 0,1 0,-3.142 -3.142A3.142,3.142 0,0 0,6.508 11.735ZM6.508,9.935a1.347,1.347 0,1 1,1.347 -1.347A1.347,1.347 0,0 1,6.508 9.939Z" />
-</vector>

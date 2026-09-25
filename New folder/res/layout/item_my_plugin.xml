@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="center_horizontal" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="7.5dp" android:layout_marginVertical="10.0dp" android:paddingVertical="15.0dp" app:shape_radius="8.0dp" app:shape_solidColor="#f9f9f9"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/img" android:layout_width="24.0dp" android:layout_height="24.0dp" android:src="@drawable/msg_give_away" app:tint="#333333" />
-    <TextView android:textSize="12.0sp" android:textColor="#ffb8b8b8" android:ellipsize="end" android:id="@id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5.0dp" android:text="@string/give_away" android:singleLine="true" android:paddingHorizontal="2.0dp" />
-</com.hjq.shape.layout.ShapeLinearLayout>

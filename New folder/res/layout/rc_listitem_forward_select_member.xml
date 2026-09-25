@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:background="@android:color/transparent" android:paddingTop="8.0dp" android:paddingBottom="8.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <ImageView android:id="@id/rc_checkbox" android:layout_width="wrap_content" android:layout_height="wrap_content" android:src="@drawable/rc_select_conversation_checkbox" android:layout_marginStart="20.0dp" />
-    <ImageView android:id="@id/rc_user_portrait" android:background="@android:color/transparent" android:layout_width="36.0dp" android:layout_height="36.0dp" android:src="@drawable/rc_default_portrait" android:scaleType="centerCrop" android:layout_marginStart="16.0dp" />
-    <TextView android:textSize="16.0sp" android:textColor="#262626" android:gravity="center" android:layout_gravity="center" android:id="@id/rc_user_name" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8.0dp" style="@style/TextStyle.Alignment" />
-</LinearLayout>

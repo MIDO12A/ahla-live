@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="start|center" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="15.0dp" android:paddingVertical="20.0dp" app:shape_radius="14.0dp" app:shape_solidColor="#fff"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.view.anchor.AuthLaberView android:textSize="16.0sp" android:textColor="#ff333333" android:id="@id/tvLaber" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/auth_info_upload_pic" />
-    <com.hjq.shape.view.ShapeEditText android:textSize="14.0sp" android:textColor="#333333" android:textColorHint="#ffb8b8b8" android:gravity="start|center" android:id="@id/etInput" android:background="@color/trans" android:padding="15.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="15.0dp" android:hint="@string/please_enter" android:textAlignment="viewStart" app:shape_radius="8.0dp" app:shape_solidColor="#f9f9f9" />
-</com.hjq.shape.layout.ShapeLinearLayout>

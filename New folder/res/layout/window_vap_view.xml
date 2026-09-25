@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:id="@id/topRoot" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <FrameLayout android:id="@id/animViewContainer" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent">
-        <com.approom.chatapp.util.effect.HillaAnimView android:layout_gravity="center" android:id="@id/hillaAnimView" android:layout_width="match_parent" android:layout_height="match_parent" />
-    </FrameLayout>
-</androidx.constraintlayout.widget.ConstraintLayout>

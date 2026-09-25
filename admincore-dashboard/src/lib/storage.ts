@@ -2,10 +2,10 @@
 // Firebase Storage is not enabled on this project (no billing account linked).
 // The returned URL is a secure_url that the app reads normally via R.cachedImage().
 
-const CLOUD_NAME = 'dl30muiuc';
+const CLOUD_NAME = 'r5kohqhd';
 // Uploads are unsigned (upload_preset only) — no API secret is needed or stored.
 // Configure cloudName/apiKey/apiSecret per-browser from the Settings page if needed.
-const UPLOAD_PRESET = 'zero_app';
+const UPLOAD_PRESET = 'ahla_live';
 
 interface CloudinaryConfig {
   cloudName: string;
@@ -24,8 +24,8 @@ function getCloudinaryConfig(): CloudinaryConfig {
   }
   return {
     cloudName: localStorage.getItem('cloudinary_cloud_name') || CLOUD_NAME,
-    apiKey: localStorage.getItem('cloudinary_api_key') || '',
-    apiSecret: localStorage.getItem('cloudinary_api_secret') || '',
+    apiKey: localStorage.getItem('cloudinary_api_key') || '183298827798548',
+    apiSecret: localStorage.getItem('cloudinary_api_secret') || 'R9S7Ybk8tTTkVckWGAlgdwvppJw',
   };
 }
 

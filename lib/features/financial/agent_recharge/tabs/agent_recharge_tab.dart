@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -478,7 +479,7 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
           .rpc('agent_set_pin', params: {'p_pin': pin});
       final uid = Supabase.instance.client.auth.currentUser?.id;
       if (uid != null) {
-        await FirebaseFirestore.instance.collection('users').doc(uid).set(
+        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).set(
           {'agent_pin': pin},
           SetOptions(merge: true),
         );
@@ -709,7 +710,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
       return;
     }
     try {
-      final db = FirebaseFirestore.instance;
+      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
       final intId = int.tryParse(q);
       final List<Map<String, dynamic>> results = [];
       final Set<String> seenUids = {};
@@ -938,7 +939,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     }
 
     try {
-      final db = FirebaseFirestore.instance;
+      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
       final agentRef = db.collection('users').doc(agentUid);
       final targetRef = db.collection('users').doc(targetUid);
 
@@ -1010,7 +1011,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     }
 
     try {
-      final db = FirebaseFirestore.instance;
+      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
       final agentRef = db.collection('users').doc(agentUid);
       final targetRef = db.collection('users').doc(targetUid);
 

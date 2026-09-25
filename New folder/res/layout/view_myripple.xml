@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.approom.chatapp.common.view.EqFrameLayout android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:layout_gravity="center_horizontal" android:id="@id/img1" android:background="@drawable/bg_round_fff" android:layout_width="match_parent" android:layout_height="match_parent" />
-    <ImageView android:layout_gravity="center_horizontal" android:id="@id/img2" android:background="@drawable/bg_round_fff" android:layout_width="match_parent" android:layout_height="match_parent" />
-</com.approom.chatapp.common.view.EqFrameLayout>

@@ -1,0 +1,12 @@
+{
+  "services": {
+    "api": {
+      "root": ".",
+      "framework": "express",
+      "entrypoint": "api/index.ts"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": { "service": "api" } }
+  ]
+}

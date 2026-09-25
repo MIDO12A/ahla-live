@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
@@ -70,7 +71,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   .currentUser
                   ?.uid;
               if (uid != null) {
-                final snap = await FirebaseFirestore.instance
+                final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                     .collection('notifications')
                     .where('uid', isEqualTo: uid)
                     .where('is_read', isEqualTo: false)
@@ -369,7 +370,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
                                   if (currentUid != null) {
                                     if (agencyType == 'recharge') {
-                                      await FirebaseFirestore.instance
+                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                                           .collection('users')
                                           .doc(currentUid)
                                           .set({
@@ -378,7 +379,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                         'recharge_agency_name': agencyName,
                                       }, SetOptions(merge: true));
                                     } else {
-                                      final agDoc = FirebaseFirestore.instance
+                                      final agDoc = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                                           .collection('host_agencies')
                                           .doc();
                                       await agDoc.set({
@@ -390,7 +391,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                             .toUtc()
                                             .toIso8601String(),
                                       });
-                                      await FirebaseFirestore.instance
+                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                                           .collection('host_agency_members')
                                           .doc('${agDoc.id}_$currentUid')
                                           .set({
@@ -402,7 +403,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                             .toUtc()
                                             .toIso8601String(),
                                       });
-                                      await FirebaseFirestore.instance
+                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                                           .collection('users')
                                           .doc(currentUid)
                                           .set({
@@ -410,7 +411,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       }, SetOptions(merge: true));
                                     }
 
-                                    await FirebaseFirestore.instance
+                                    await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                                         .collection('notifications')
                                         .add({
                                       'user_id': currentUid,
@@ -428,7 +429,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     });
 
                                     if (notif.id.isNotEmpty) {
-                                      await FirebaseFirestore.instance
+                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                                           .collection('notifications')
                                           .doc(notif.id)
                                           .delete();
@@ -454,7 +455,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 color: const Color(0xFFEF4444),
                                 onTap: () async {
                                   if (notif.id.isNotEmpty) {
-                                    await FirebaseFirestore.instance
+                                    await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                                         .collection('notifications')
                                         .doc(notif.id)
                                         .delete();
@@ -491,7 +492,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     await CpService.respondRequest(reqId, true);
                                   }
                                   if (notif.id.isNotEmpty) {
-                                    await FirebaseFirestore.instance
+                                    await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                                         .collection('notifications')
                                         .doc(notif.id)
                                         .delete();
@@ -513,7 +514,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 color: const Color(0xFF9BA1B6),
                                 onTap: () async {
                                   if (notif.id.isNotEmpty) {
-                                    await FirebaseFirestore.instance
+                                    await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                                         .collection('notifications')
                                         .doc(notif.id)
                                         .delete();

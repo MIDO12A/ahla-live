@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:paddingTop="40.0dp" android:paddingBottom="60.0dp" android:layout_width="match_parent" android:layout_height="match_parent" android:paddingHorizontal="30.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <TextView android:textSize="16.0sp" android:textColor="#ff555555" android:id="@id/tvTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/union_desc" />
-    <com.hjq.shape.view.ShapeEditText android:textSize="16.0sp" android:textColor="#333333" android:textColorHint="#ffb8b8b8" android:gravity="start|top" android:id="@id/etInput" android:padding="15.0dp" android:layout_width="match_parent" android:layout_height="126.0dp" android:layout_marginTop="88.0dp" android:text="Introduction" android:maxLength="60" android:textAlignment="viewStart" app:shape_radius="12.0dp" app:shape_solidColor="@color/white" />
-    <TextView android:textSize="14.0sp" android:textColor="#ffd1cece" android:layout_gravity="end" android:id="@id/tvNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="183.0dp" android:text="0/60" android:layout_marginEnd="15.0dp" />
-</FrameLayout>

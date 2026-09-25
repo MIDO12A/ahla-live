@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <LinearLayout android:layout_width="0.0dp" android:layout_height="wrap_content" android:layout_marginStart="15.0dp" android:layout_marginEnd="80.0dp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent">
-        <com.hjq.shape.view.ShapeTextView android:textSize="@dimen/room_bubble_tvs" android:textColor="@color/white" android:id="@id/tv_prompt_msg_data" android:padding="10.0dp" android:layout_width="wrap_content" android:layout_height="wrap_content" app:shape_radius="@dimen/room_bubble_radius" app:shape_solidColor="@color/room_bubble" />
-    </LinearLayout>
-</androidx.constraintlayout.widget.ConstraintLayout>

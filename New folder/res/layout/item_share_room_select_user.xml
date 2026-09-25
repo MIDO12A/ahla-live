@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="15.0dp" android:paddingVertical="15.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.makeramen.roundedimageview.RoundedImageView android:id="@id/iv_user_tou_xiang" android:layout_width="60.0dp" android:layout_height="60.0dp" android:scaleType="centerCrop" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:riv_oval="true" />
-    <ImageView android:id="@id/iv_select_tag" android:layout_width="18.0dp" android:layout_height="18.0dp" android:src="@drawable/ic_item_select" app:layout_constraintBottom_toBottomOf="@id/iv_user_tou_xiang" app:layout_constraintEnd_toEndOf="@id/iv_user_tou_xiang" />
-    <TextView android:textSize="14.0sp" android:textColor="#ff333333" android:gravity="center" android:id="@id/tv_user_name" android:layout_width="60.0dp" android:layout_height="wrap_content" android:layout_marginTop="10.0dp" android:text="Name" android:maxLines="1" app:layout_constraintEnd_toEndOf="@id/iv_user_tou_xiang" app:layout_constraintStart_toStartOf="@id/iv_user_tou_xiang" app:layout_constraintTop_toBottomOf="@id/iv_user_tou_xiang" />
-</androidx.constraintlayout.widget.ConstraintLayout>

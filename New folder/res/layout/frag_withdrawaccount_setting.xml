@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content" app:shape_radiusInTopLeft="16.0dp" app:shape_radiusInTopRight="16.0dp" app:shape_solidColor="@color/white"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/toolBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12.0dp" />
-    <androidx.viewpager2.widget.ViewPager2 android:id="@id/vp" android:layout_width="match_parent" android:layout_height="wrap_content" />
-</com.hjq.shape.layout.ShapeLinearLayout>

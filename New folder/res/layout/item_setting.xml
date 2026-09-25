@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:paddingTop="14.0dp" android:paddingBottom="14.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="15.0dp" android:paddingEnd="15.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <TextView android:textSize="16.0sp" android:textColor="#ff333333" android:layout_gravity="start|center" android:id="@id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Rate us" android:layout_marginEnd="50.0dp" />
-    <ImageView android:layout_gravity="end|center" android:layout_width="wrap_content" android:layout_height="16.0dp" android:src="@drawable/ic_array_item" android:adjustViewBounds="true" />
-    <com.hjq.shape.view.ShapeView android:layout_gravity="end|center" android:id="@id/vTip" android:visibility="gone" android:layout_width="8.0dp" android:layout_height="8.0dp" android:layout_marginEnd="20.0dp" app:shape_radius="20.0dp" app:shape_solidGradientEndColor="#ff6dc9" app:shape_solidGradientOrientation="topLeftToBottomRight" app:shape_solidGradientStartColor="#ff6060" />
-</FrameLayout>

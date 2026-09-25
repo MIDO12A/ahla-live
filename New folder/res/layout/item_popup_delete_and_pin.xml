@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:orientation="vertical" android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:layout_gravity="end" android:layout_width="98.0dp" android:layout_height="104.0dp" android:src="@mipmap/pin_or_delete_bg" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="14.0dp" android:textColor="@color/first_text" android:gravity="center" android:id="@id/tvPin" android:padding="10.0dp" android:layout_width="0.0dp" android:layout_height="wrap_content" android:layout_marginTop="12.0dp" android:text="@string/pin" android:layout_weight="1.0" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="14.0dp" android:textColor="@color/first_text" android:gravity="center" android:id="@id/tvDelete" android:padding="10.0dp" android:layout_width="0.0dp" android:layout_height="wrap_content" android:text="@string/delete" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/tvPin" />
-</androidx.constraintlayout.widget.ConstraintLayout>

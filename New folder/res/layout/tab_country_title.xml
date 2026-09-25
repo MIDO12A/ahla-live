@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:id="@id/bg" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingHorizontal="12.0dp" android:paddingVertical="5.0dp" app:shape_radius="18.0dp" app:shape_solidColor="@color/dark_90"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.makeramen.roundedimageview.RoundedImageView android:id="@id/flagIv" android:layout_width="24.0dp" android:layout_height="16.0dp" android:scaleType="centerCrop" android:adjustViewBounds="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toStartOf="@id/countryNameTv" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:riv_corner_radius="2.0dp" />
-    <TextView android:textSize="12.0dp" android:textColor="@color/sub_text" android:id="@id/countryNameTv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4.0dp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toEndOf="@id/flagIv" app:layout_goneMarginStart="0.0dp" />
-</com.hjq.shape.layout.ShapeConstraintLayout>

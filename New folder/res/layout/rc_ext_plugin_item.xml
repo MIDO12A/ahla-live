@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_centerInParent="true">
-        <ImageView android:layout_gravity="center_horizontal" android:id="@id/rc_ext_plugin_icon" android:layout_width="wrap_content" android:layout_height="0.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintDimensionRatio="1:1" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:layout_constraintVertical_bias="0.3" />
-        <TextView android:textSize="12.0sp" android:textColor="#73707d" android:ellipsize="end" android:gravity="center" android:id="@id/rc_ext_plugin_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/rc_margin_size_8" android:maxWidth="75.0dp" android:maxLines="1" android:singleLine="true" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/rc_ext_plugin_icon" style="@style/TextStyle.Alignment" />
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</RelativeLayout>

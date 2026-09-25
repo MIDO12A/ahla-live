@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:orientation="vertical" android:paddingTop="12.0dp" android:layout_width="match_parent" android:layout_height="360.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/rv" android:layout_width="match_parent" android:layout_height="wrap_content" app:layout_constrainedHeight="true" app:layout_constraintBottom_toTopOf="@id/nextBtn" app:layout_constraintTop_toTopOf="parent" />
-    <com.hjq.shape.view.ShapeButton android:textSize="16.0dp" android:textStyle="bold" android:gravity="center" android:id="@id/nextBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18.0dp" android:layout_marginBottom="10.0dp" android:text="@string/next" android:layout_marginHorizontal="40.0dp" android:paddingVertical="16.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintTop_toBottomOf="@id/rv" app:shape_radius="74.0dp" app:shape_solidGradientEndColor="@color/gradient_end_new" app:shape_solidGradientStartColor="@color/gradient_start_new" app:shape_textColor="@color/white" />
-</androidx.constraintlayout.widget.ConstraintLayout>

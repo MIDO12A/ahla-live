@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="99.0dp" android:width="99.0dp" android:viewportWidth="99.0" android:viewportHeight="99.0"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt">
-    <path android:fillColor="@drawable/$voice_btn_normal__0" android:pathData="M49.5,49.5m-45,0a45,45 0,1 1,90 0a45,45 0,1 1,-90 0" />
-    <path android:fillColor="#00000000" android:pathData="M49.5,49.5m-49,0a49,49 0,1 1,98 0a49,49 0,1 1,-98 0" android:strokeColor="#50edff" android:strokeWidth="1.0" android:strokeLineCap="round" />
-    <path android:fillColor="#333" android:pathData="M49.132,29.85a6.95,6.95 0,0 0,-6.973 6.925L42.159,48.95a6.973,6.973 0,0 0,13.947 0L56.106,36.775a6.95,6.95 0,0 0,-6.973 -6.925ZM37.221,47.217a1.446,1.446 0,0 0,-1.452 1.443,1.248 1.248,0 0,0 0.031,0.289h-0.031a13.3,13.3 0,0 0,11.622 13.148v3.588L45.064,65.685a1.732,1.732 0,1 0,0 3.465h8.135a1.732,1.732 0,1 0,0 -3.465h-2.324v-3.588A13.291,13.291 0,0 0,62.464 49.529a1.536,1.536 0,0 0,0.031 -0.29c0,-0.035 -0.009,-0.066 -0.009,-0.1 0,-0.066 0.009,-0.127 0.009,-0.193L62.464,48.946a1.457,1.457 0,0 0,-2.851 0h-0.031a10.46,10.46 0,0 1,-20.92 0h-0.031a1.532,1.532 0,0 0,0.031 -0.289,1.439 1.439,0 0,0 -1.447,-1.443ZM37.221,47.217" />
-</vector>

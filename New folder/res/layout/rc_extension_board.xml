@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <RelativeLayout android:id="@id/rc_ext_attached_info_container" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" />
-    <View android:background="@color/rc_divider_color" android:visibility="gone" android:layout_width="match_parent" android:layout_height="@dimen/rc_divider_height" />
-    <RelativeLayout android:id="@id/rc_ext_input_container" android:layout_width="match_parent" android:layout_height="wrap_content" />
-    <RelativeLayout android:id="@id/rc_ext_board_container" android:visibility="gone" android:layout_width="match_parent" android:layout_height="@dimen/rc_extension_board_height" />
-</LinearLayout>

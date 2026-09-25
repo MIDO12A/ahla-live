@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -14,7 +15,10 @@ import '../../services/firebase_service.dart';
 ///
 /// Response shapes match the original RPC output so screens are unchanged.
 class CpService {
-  static final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static FirebaseFirestore get _db => FirebaseFirestore.instanceFor(
+        app: Firebase.app(),
+        databaseId: 'default',
+      );
 
   static String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 

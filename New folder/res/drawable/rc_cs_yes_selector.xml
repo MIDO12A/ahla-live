@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<selector
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_selected="true" android:drawable="@drawable/rc_cs_yes_btn_hover" />
-    <item android:drawable="@drawable/rc_cs_yes_btn" />
-</selector>

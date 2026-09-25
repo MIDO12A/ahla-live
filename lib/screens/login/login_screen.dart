@@ -78,19 +78,19 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<GoogleSignInAccount?> _freshGoogleAuth(GoogleSignIn signIn) async {
-    // Sign out of Firebase Auth first to avoid stale-credential conflicts
-    await FirebaseAuth.instance.signOut();
-    // Fully revoke + disconnect to clear all cached tokens
+  static bool _isGoogleInitialized = false;
+
+  Future<void> _ensureGoogleInitialized() async {
+    if (_isGoogleInitialized) return;
     try {
-      await signIn.disconnect();
-    } catch (_) {}
-    try {
-      await signIn.signOut();
-    } catch (_) {}
-    // Small delay to let cached tokens clear on the device
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    return signIn.authenticate();
+      await GoogleSignIn.instance.initialize(
+        serverClientId:
+            '183199730954-6sud0ar4r7h3d76dtgdgnd34b7bqb5t6.apps.googleusercontent.com',
+      );
+      _isGoogleInitialized = true;
+    } catch (e) {
+      developer.log('GoogleSignIn.initialize: $e');
+    }
   }
 
   Future<void> _signInWithGoogle() async {
@@ -100,14 +100,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() => _isLoading = true);
     try {
+      await _ensureGoogleInitialized();
       final signIn = GoogleSignIn.instance;
-      await signIn.initialize();
-
-      // Ensure a clean slate: sign out of Firebase + disconnect Google
-      await FirebaseAuth.instance.signOut();
-      try {
-        await signIn.disconnect();
-      } catch (_) {}
 
       final account = await signIn.authenticate();
       final idToken = account.authentication.idToken;
@@ -116,36 +110,26 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final credential = GoogleAuthProvider.credential(idToken: idToken);
-      User? user;
+      final res = await FirebaseAuth.instance.signInWithCredential(credential);
+      final user = res.user;
 
-      try {
-        final res = await FirebaseAuth.instance.signInWithCredential(credential);
-        user = res.user;
-      } on FirebaseAuthException catch (e) {
-        // If credential is stale/invalid, retry with a completely fresh token
-        if (e.code == 'invalid-credential' || e.code == 'id-token-expired') {
-          developer.log('_signInWithGoogle: stale token, retrying with full reset...');
-          final freshAccount = await _freshGoogleAuth(signIn);
-          final freshIdToken = freshAccount?.authentication.idToken;
-          if (freshIdToken == null) {
-            throw Exception('Google sign-in returned no idToken on retry');
-          }
-          final freshCredential = GoogleAuthProvider.credential(idToken: freshIdToken);
-          final freshRes = await FirebaseAuth.instance.signInWithCredential(freshCredential);
-          user = freshRes.user;
-        } else {
-          rethrow;
-        }
+      if (user == null) {
+        throw Exception('لم يتم استرجاع بيانات المستخدم');
       }
-
-      if (user == null) return;
       await _handleSignIn(user);
     } on GoogleSignInException catch (e) {
-      developer.log('_signInWithGoogle: google error ${e.code} = ${e.details}');
-      if (e.code == GoogleSignInExceptionCode.canceled) return;
+      developer.log('_signInWithGoogle: google error ${e.code} = ${e.description}');
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        developer.log('_signInWithGoogle: user canceled');
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر تسجيل الدخول بجوجل: ${e.description ?? e.code.name}')),
+          SnackBar(
+            content: Text(
+              'تعذر تسجيل الدخول بجوجل: ${e.description ?? e.code.name}',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -153,7 +137,9 @@ class _LoginScreenState extends State<LoginScreen> {
       debugPrint('Error signing in with Google: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر تسجيل الدخول بجوجل، تأكد من إعداد Firebase: $e')),
+          SnackBar(
+            content: Text('تعذر تسجيل الدخول: $e'),
+          ),
         );
       }
     } finally {

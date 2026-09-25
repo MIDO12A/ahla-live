@@ -41,7 +41,10 @@ class FirebaseService {
   late final FirebaseApp _app;
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
-  FirebaseFirestore get _db => FirebaseFirestore.instance;
+  FirebaseFirestore get _db => FirebaseFirestore.instanceFor(
+        app: Firebase.app(),
+        databaseId: 'default',
+      );
 
   void init() {}
 

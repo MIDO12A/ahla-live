@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="90.0dp" android:width="90.0dp" android:autoMirrored="true" android:viewportWidth="90.0" android:viewportHeight="90.0"
-  xmlns:aapt="http://schemas.android.com/aapt" xmlns:android="http://schemas.android.com/apk/res/android">
-    <path android:fillColor="@drawable/$ic_min_room__0" android:pathData="M45,45m-45,0a45,45 0,1 1,90 0a45,45 0,1 1,-90 0" />
-    <path android:fillColor="#fff" android:pathData="M42.725,61a1.4,1.4 0,0 1,-1.4 -1.4L41.325,50.863L31.772,60.4a1.4,1.4 0,0 1,-1.939 0,1.4 1.4,0 0,1 -0.036,-1.975l9.408,-9.4L30.4,49.025a1.4,1.4 0,1 1,0 -2.79L42.725,46.235a1.4,1.4 0,0 1,1.4 1.4L44.125,59.6A1.4,1.4 0,0 1,42.725 61ZM47.271,43.766a1.4,1.4 0,0 1,-1.4 -1.4L45.871,30.4a1.4,1.4 0,0 1,2.8 0v8.735l9.554,-9.54a1.4,1.4 0,0 1,1.939 0A1.4,1.4 0,0 1,60.2 31.572l-9.408,9.4L59.6,40.972a1.4,1.4 0,1 1,0 2.79L47.271,43.762Z" />
-</vector>

@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:background="@color/dark_95" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.viewpager2.widget.ViewPager2 android:id="@id/vp_fragment" android:layout_width="match_parent" android:layout_height="0.0dp" app:layout_constraintBottom_toTopOf="@id/tabLayoutGradient1" app:layout_constraintTop_toTopOf="parent" />
-    <com.approom.chatapp.common.view.MatrixImageView android:id="@id/tabLayoutGradient1" android:layout_width="match_parent" android:layout_height="0.0dp" android:src="@mipmap/ic_home_tablayout_texture1" app:layout_constrainedHeight="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="@id/tabLayout" app:scale_type="matrix_top" app:shape_solidGradientEndColor="#13836b" app:shape_solidGradientOrientation="topToBottom" app:shape_solidGradientStartColor="#5bdfba" />
-    <com.approom.chatapp.view.GlobalTabLayout android:id="@id/tabLayout" android:layout_width="match_parent" android:layout_height="wrap_content" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:styleCode="home" />
-</androidx.constraintlayout.widget.ConstraintLayout>

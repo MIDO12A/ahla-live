@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:id="@id/rc_menu_bar" android:layout_width="match_parent" android:layout_height="@dimen/rc_ext_input_panel_height"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <ImageView android:id="@id/rc_switch_button" android:layout_width="53.0dp" android:layout_height="wrap_content" android:src="@drawable/rc_ext_public_service_input_mode" android:scaleType="center" />
-    <View android:id="@id/rc_switch_divider" android:background="@color/rc_divider_color" android:layout_width="1.0px" android:layout_height="48.0dp" />
-    <RelativeLayout android:id="@id/rc_menu_container" android:layout_width="match_parent" android:layout_height="match_parent" />
-</LinearLayout>

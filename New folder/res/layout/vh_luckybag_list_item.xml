@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_gravity="center" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/luckybagIv" android:layout_width="65.0dp" android:layout_height="65.0dp" android:src="@mipmap/ic_luckybag" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <com.hjq.shape.view.ShapeTextView android:textSize="8.0dp" android:id="@id/countDownTv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingHorizontal="4.0dp" app:layout_constraintBottom_toBottomOf="@id/luckybagIv" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:shape_radius="5.0dp" app:shape_solidColor="@color/black_trans_70" app:shape_strokeColor="@color/white" app:shape_textColor="@color/white" />
-    <ImageView android:id="@id/scopeIv" android:layout_width="20.0dp" android:layout_height="20.0dp" app:layout_constraintEnd_toEndOf="@id/luckybagIv" app:layout_constraintTop_toTopOf="@id/luckybagIv" />
-    <com.approom.chatapp.common.view.DotView android:id="@id/numDot" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintEnd_toEndOf="@id/luckybagIv" app:layout_constraintTop_toTopOf="@id/luckybagIv" />
-    <TextView android:textSize="12.0dp" android:textColor="@color/white" android:id="@id/nameTv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4.0dp" android:text="@string/lucky_bag" app:layout_constraintEnd_toEndOf="@id/luckybagIv" app:layout_constraintStart_toStartOf="@id/luckybagIv" app:layout_constraintTop_toBottomOf="@id/luckybagIv" />
-</androidx.constraintlayout.widget.ConstraintLayout>

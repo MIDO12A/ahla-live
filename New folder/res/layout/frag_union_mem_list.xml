@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout android:id="@id/swipeRefresh" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_constrainedHeight="true" app:layout_constraintBottom_toTopOf="@id/addBtn" app:layout_constraintTop_toTopOf="parent">
-        <androidx.recyclerview.widget.RecyclerView android:id="@id/rv" android:layout_width="match_parent" android:layout_height="match_parent" />
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-    <com.hjq.shape.view.ShapeButton android:textSize="16.0dp" android:textStyle="bold" android:textColor="@color/white" android:gravity="center" android:id="@id/addBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/add" android:layout_marginHorizontal="25.0dp" android:paddingVertical="16.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintTop_toBottomOf="@id/swipeRefresh" app:shape_radius="74.0dp" app:shape_solidGradientEndColor="@color/gradient_end" app:shape_solidGradientStartColor="@color/gradient_start" />
-</androidx.constraintlayout.widget.ConstraintLayout>

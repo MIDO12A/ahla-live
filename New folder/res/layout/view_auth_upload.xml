@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="start|center" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="11.0dp" android:paddingVertical="20.0dp" app:shape_radius="14.0dp" app:shape_solidColor="#fff"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.view.anchor.AuthLaberView android:textSize="16.0sp" android:textColor="#ff333333" android:id="@id/tvLaber" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/auth_info_upload_pic" android:paddingHorizontal="4.0dp" />
-    <TextView android:textSize="14.0sp" android:textColor="#ffb8b8b8" android:id="@id/tvTip" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="10.0dp" android:text="@string/tip_photo_only_use_auth" />
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/recyclerView" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20.0dp" />
-</com.hjq.shape.layout.ShapeLinearLayout>

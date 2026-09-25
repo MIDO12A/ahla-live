@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="48.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <TextView android:textSize="17.0sp" android:textColor="#000000" android:id="@id/rc_dialog_popup_item_name" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="19.0dp" style="@style/TextStyle.Alignment" />
-</LinearLayout>

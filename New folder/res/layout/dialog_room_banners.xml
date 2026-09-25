@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:layout_width="match_parent" android:layout_height="match_parent" app:shape_radiusInTopLeft="14.0dp" app:shape_radiusInTopRight="14.0dp" app:shape_solidColor="@color/hilla_dark_new"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.google.android.material.tabs.TabLayout android:id="@id/tabLayout" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14.0dp" android:layout_marginBottom="10.0dp" app:layout_constraintBottom_toTopOf="@id/vp" app:layout_constraintTop_toTopOf="parent" app:tabIndicator="@drawable/indicator_room_banner" app:tabIndicatorColor="@color/hilla_light" app:tabIndicatorFullWidth="false" app:tabIndicatorGravity="center" app:tabIndicatorHeight="48.0dp" app:tabMinWidth="0.0dp" app:tabMode="scrollable" app:tabPaddingEnd="4.0dp" app:tabPaddingStart="4.0dp" app:tabRippleColor="@color/trans" />
-    <androidx.viewpager2.widget.ViewPager2 android:id="@id/vp" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_constrainedHeight="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintTop_toBottomOf="@id/tabLayout" />
-</com.hjq.shape.layout.ShapeConstraintLayout>

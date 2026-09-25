@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:paddingTop="8.0dp" android:paddingBottom="11.0dp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingHorizontal="8.0dp" app:shape_radius="8.0dp" app:shape_solidColor="#1a33fac6" app:shape_strokeColor="@color/hilla_high_light" app:shape_strokeSize="1.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/icon" android:layout_width="65.0dp" android:layout_height="65.0dp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="12.0dp" android:textColor="@color/white" android:ellipsize="end" android:gravity="center" android:id="@id/name" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4.0dp" android:maxWidth="65.0dp" android:maxLines="1" app:layout_constrainedWidth="true" app:layout_constraintEnd_toEndOf="@id/icon" app:layout_constraintStart_toStartOf="@id/icon" app:layout_constraintTop_toBottomOf="@id/icon" />
-</com.hjq.shape.layout.ShapeConstraintLayout>

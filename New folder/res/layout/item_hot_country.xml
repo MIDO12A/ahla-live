@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="30.0dp" android:layout_marginHorizontal="11.0dp" android:layout_marginVertical="5.0dp" app:shape_radius="4.0dp" app:shape_solidColor="@color/white"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.makeramen.roundedimageview.RoundedImageView android:id="@id/imgCountry" android:layout_width="24.0dp" android:layout_height="18.0dp" android:src="@drawable/flag_ae" android:layout_marginStart="10.0dp" app:riv_corner_radius="2.0dp" />
-    <TextView android:textSize="16.0sp" android:textColor="#ff555555" android:id="@id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="USA" android:singleLine="true" android:layout_marginStart="5.0dp" android:layout_marginEnd="5.0dp" />
-</com.hjq.shape.layout.ShapeLinearLayout>

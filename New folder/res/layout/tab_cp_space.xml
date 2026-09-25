@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/icon" android:layout_width="88.0dp" android:layout_height="88.0dp" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/bg" android:layout_width="82.0dp" android:layout_height="38.0dp" android:layout_marginBottom="-13.0dp" android:src="@mipmap/ic_cp_space_tab_unselected_bg" app:layout_constraintBottom_toBottomOf="@id/icon" app:layout_constraintEnd_toEndOf="@id/icon" app:layout_constraintStart_toStartOf="@id/icon" />
-    <com.approom.chatapp.view.text.StrokeTextView android:textSize="11.0dp" android:textColor="@color/white" android:gravity="center" android:id="@id/tabText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxWidth="60.0dp" android:maxLines="2" app:layout_constraintBottom_toBottomOf="@id/bg" app:layout_constraintEnd_toEndOf="@id/bg" app:layout_constraintStart_toStartOf="@id/bg" app:layout_constraintTop_toTopOf="@id/bg" />
-</androidx.constraintlayout.widget.ConstraintLayout>

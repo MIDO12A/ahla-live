@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:paddingTop="40.0dp" android:paddingBottom="60.0dp" android:layout_width="match_parent" android:layout_height="match_parent" android:paddingHorizontal="30.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <TextView android:textSize="16.0sp" android:textColor="#ff555555" android:id="@id/tvTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/union_desc" />
-    <FrameLayout android:layout_gravity="center_horizontal" android:id="@id/flHeader" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="104.0dp">
-        <com.makeramen.roundedimageview.RoundedImageView android:id="@id/imgHeader" android:layout_width="110.0dp" android:layout_height="110.0dp" android:src="@drawable/union_def_img" android:scaleType="centerCrop" app:riv_oval="true" />
-        <ImageView android:layout_gravity="end|bottom" android:layout_width="30.0dp" android:layout_height="30.0dp" android:src="@drawable/ic_user_image_camera" />
-    </FrameLayout>
-</FrameLayout>

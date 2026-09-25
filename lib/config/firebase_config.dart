@@ -7,13 +7,13 @@ import 'package:firebase_core/firebase_core.dart';
 /// with the Web config from Firebase Console:
 ///   Project settings -> Your apps -> Web app -> SDK setup and configuration
 class FirebaseConfig {
-  static const String projectId = 'zeroappzero-e1b4a';
-  static const String apiKey = 'AIzaSyBV61UNM2iTTTZcBEALxvWxvi17EFD9XOU';
-  static const String appId = '1:95008435096:android:70ef1c429c3d04683099ed';
-  static const String messagingSenderId = '95008435096';
-  static const String databaseURL = 'https://zeroappzero-e1b4a-default-rtdb.firebaseio.com';
-  static const String storageBucket = 'zeroappzero-e1b4a.firebasestorage.app';
-  static const String authDomain = 'zeroappzero-e1b4a.firebaseapp.com';
+  static const String projectId = 'ahla-live';
+  static const String apiKey = 'AIzaSyBeRauEkyFcsB7ryTYTx28aOO2szSBZjCg';
+  static const String appId = '1:183199730954:android:cbf937664eb5f2fd383ef3';
+  static const String messagingSenderId = '183199730954';
+  static const String databaseURL = 'https://ahla-live-default-rtdb.firebaseio.com';
+  static const String storageBucket = 'ahla-live.firebasestorage.app';
+  static const String authDomain = 'ahla-live.firebaseapp.com';
 
   static const FirebaseOptions options = FirebaseOptions(
     apiKey: apiKey,

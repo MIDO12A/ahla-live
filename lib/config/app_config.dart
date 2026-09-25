@@ -1,7 +1,7 @@
 class AppConfig {
-  static const String appName = 'Zero';
+  static const String appName = 'Ahla Live';
   static const String databaseUrl =
-      'https://zero-f5b4b-default-rtdb.asia-southeast1.firebasedatabase.app/';
+      'https://ahla-live-default-rtdb.firebaseio.com/';
   static const int zegoAppId = 2088500186;
   // Zego AppSign is a build-time secret — never hardcode it. Inject via:
   //   flutter build apk --dart-define=ZEGO_APP_SIGN=<appsign>

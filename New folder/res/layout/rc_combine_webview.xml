@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <ProgressBar android:layout_gravity="center" android:id="@id/rc_web_progress" android:visibility="gone" android:layout_width="54.0dp" android:layout_height="54.0dp" android:layout_marginTop="160.0dp" android:indeterminateDrawable="@drawable/rc_web_loading_style" />
-    <ImageView android:layout_gravity="center" android:id="@id/rc_web_download_failed" android:visibility="gone" android:layout_width="80.0dp" android:layout_height="80.0dp" android:layout_marginTop="160.0dp" android:src="@drawable/rc_web_load_fail" />
-    <TextView android:textSize="30.0px" android:textColor="#ff666666" android:gravity="center" android:id="@id/rc_web_download_text" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/rc_combine_webview_loading" style="@style/TextStyle.Alignment" />
-    <io.rong.common.RongWebView android:id="@id/rc_webview" android:layout_width="match_parent" android:layout_height="match_parent" />
-</LinearLayout>

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:background="@color/white" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/toolBar" android:layout_width="match_parent" android:layout_height="wrap_content" app:bar_icImg="@drawable/ic_back" app:bar_titleColor="#333333" app:layout_constraintTop_toTopOf="parent" />
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/recycleView" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="25.0dp" android:layout_marginHorizontal="11.0dp" />
-</LinearLayout>

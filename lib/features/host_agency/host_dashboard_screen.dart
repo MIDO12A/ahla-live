@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 // lib/features/host_agency/host_dashboard_screen.dart
 // ─────────────────────────────────────────────────────────────────────────────
 // Glassmorphic 2035 Host Dashboard
@@ -127,7 +128,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     _rtV2Diamonds?.dispose();
 
     // ⚡ 1. استماع لحظي مباشر في Firestore لعضوية المضيف وألماسه عند استلام أي هدية
-    _fsMemberSub = FirebaseFirestore.instance
+    _fsMemberSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
         .collection('host_agency_members')
         .where('user_id', isEqualTo: uid)
         .snapshots()
@@ -146,7 +147,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     }, onError: (e) => debugPrint('[HostDashboard] fsMemberSub error: $e'));
 
     // ⚡ 2. استماع لحظي لسجل هدايا المضيف في agency_diamond_ledger
-    _fsLedgerSub = FirebaseFirestore.instance
+    _fsLedgerSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
         .collection('agency_diamond_ledger')
         .where('user_id', isEqualTo: uid)
         .snapshots()
@@ -310,7 +311,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
       int liveHours = 0;
       int validDays = 0;
       try {
-        final memSnap = await FirebaseFirestore.instance
+        final memSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
             .collection('host_agency_members')
             .where('user_id', isEqualTo: uid)
             .limit(1)

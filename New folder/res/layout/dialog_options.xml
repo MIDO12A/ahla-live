@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.hjq.shape.layout.ShapeLinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content" app:shape_radius="14.0dp" app:shape_solidColor="@color/white">
-        <androidx.recyclerview.widget.RecyclerView android:id="@id/recyclerView" android:layout_width="match_parent" android:layout_height="wrap_content" />
-    </com.hjq.shape.layout.ShapeLinearLayout>
-    <com.hjq.shape.view.ShapeTextView android:textSize="18.0sp" android:textColor="#ff8b8b8b" android:gravity="center" android:id="@id/tvCancel" android:layout_width="match_parent" android:layout_height="50.0dp" android:layout_marginTop="10.0dp" android:text="@string/cancel" app:shape_radius="14.0dp" app:shape_solidColor="@color/white" />
-</LinearLayout>

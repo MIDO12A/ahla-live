@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:id="@id/parentRoot" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="10.0dp" android:paddingVertical="10.0dp" app:shape_solidColor="@color/white"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:layout_gravity="start|center" android:id="@id/img" android:layout_width="26.0dp" android:layout_height="26.0dp" android:src="@drawable/ic_logout" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <com.approom.chatapp.common.view.DotView android:id="@id/dot" android:layout_width="wrap_content" android:layout_height="wrap_content" app:dotType="bareDot" app:layout_constraintEnd_toEndOf="@id/img" app:layout_constraintTop_toTopOf="@id/img" app:needRim="true" />
-    <TextView android:textSize="15.0dp" android:textColor="@color/first_text" android:layout_gravity="start|center" android:id="@id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12.0dp" app:layout_constraintBottom_toBottomOf="@id/img" app:layout_constraintStart_toEndOf="@id/img" app:layout_constraintTop_toTopOf="@id/img" />
-    <ImageView android:id="@id/arrow" android:layout_width="16.0dp" android:layout_height="16.0dp" android:src="@mipmap/ic_wallet_arrow_right" android:tint="@color/sub_text" app:layout_constraintBottom_toBottomOf="@id/tvName" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="@id/tvName" />
-</com.hjq.shape.layout.ShapeConstraintLayout>

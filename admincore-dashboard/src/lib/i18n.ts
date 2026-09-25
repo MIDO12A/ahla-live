@@ -4,7 +4,7 @@ export type Lang = 'ar' | 'en';
 
 const translations: Record<Lang, Record<string, string>> = {
   ar: {
-    'app.name': 'Zero Admin',
+    'app.name': 'Ahla Live Admin',
     'app.tagline': 'لوحة التحكم',
     'nav.dashboard': 'الإحصائيات',
     'nav.rechargeEvent': '⚡ حدث الشحن الأسطوري',
@@ -86,7 +86,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'cloudinary.apiSecret': 'المفتاح السري',
     'cloudinary.save': 'حفظ إعدادات Cloudinary',
     'login.title': 'تسجيل الدخول',
-    'login.subtitle': 'لوحة تحكم إدارة تطبيق Zero',
+    'login.subtitle': 'لوحة تحكم إدارة تطبيق Ahla Live',
     'login.email': 'البريد الإلكتروني',
     'login.password': 'كلمة المرور',
     'login.submit': 'تسجيل الدخول',
@@ -202,7 +202,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'agency.noData': 'لا توجد بيانات',
   },
   en: {
-    'app.name': 'Zero Admin',
+    'app.name': 'Ahla Live Admin',
     'app.tagline': 'Control Panel',
     'nav.dashboard': 'Dashboard',
     'nav.users': 'Users',
@@ -283,7 +283,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'cloudinary.apiSecret': 'API Secret',
     'cloudinary.save': 'Save Cloudinary Config',
     'login.title': 'Login',
-    'login.subtitle': 'Zero App Admin Dashboard',
+    'login.subtitle': 'Ahla Live App Admin Dashboard',
     'login.email': 'Email',
     'login.password': 'Password',
     'login.submit': 'Sign In',

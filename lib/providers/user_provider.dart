@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
@@ -130,7 +131,7 @@ class UserProvider extends ChangeNotifier {
     try {
       // نقرأ بأدنى شروط (user_id فقط) ثم نفلتر المنتهي محلياً — تجنباً لمؤشر
       // مركب (composite index) لم يُنشأ بعد على user_backpack.
-      final qs = await FirebaseFirestore.instance.collection('user_backpack')
+      final qs = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('user_backpack')
           .where('user_id', isEqualTo: uid)
           .get();
 
@@ -154,7 +155,7 @@ class UserProvider extends ChangeNotifier {
         }
         
         if (frameExpired) {
-          await FirebaseFirestore.instance.collection('users').doc(uid).update({
+          await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).update({
             'active_frame': FieldValue.delete(),
           });
           _currentUser = _currentUser?.copyWith(activeFrame: null);

@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center" android:orientation="vertical" android:layout_width="90.0dp" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <FrameLayout android:layout_width="50.0dp" android:layout_height="wrap_content">
-        <ImageView android:layout_gravity="center_horizontal" android:id="@id/imgIcon" android:layout_width="46.0dp" android:layout_height="46.0dp" android:layout_marginTop="15.0dp" android:src="@mipmap/order_song" android:scaleType="centerCrop" />
-        <com.hjq.shape.view.ShapeTextView android:textSize="12.0sp" android:textColor="#ffffffff" android:gravity="center" android:layout_gravity="end|top" android:id="@id/tvUnRead" android:visibility="gone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="7.0dp" android:minWidth="20.0dp" android:minHeight="20.0dp" android:paddingHorizontal="4.0dp" android:paddingVertical="1.0dp" app:shape_radius="10.0dp" app:shape_solidGradientEndColor="#ff6dc9" app:shape_solidGradientStartColor="#ff6060" />
-    </FrameLayout>
-    <TextView android:textSize="12.0dp" android:textColor="@color/white_80" android:ellipsize="end" android:id="@id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5.0dp" android:text="Dice" android:singleLine="true" />
-</LinearLayout>

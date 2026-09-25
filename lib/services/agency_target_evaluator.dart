@@ -1,8 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class AgencyTargetEvaluator {
-  static final _db = FirebaseFirestore.instance;
+  static FirebaseFirestore get _db => FirebaseFirestore.instanceFor(
+        app: Firebase.app(),
+        databaseId: 'default',
+      );
 
   static Future<void> evaluateHostTargets(String hostUserId) async {
     try {

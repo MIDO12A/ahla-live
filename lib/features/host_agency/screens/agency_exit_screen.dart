@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -67,7 +68,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
 
       // أ) البحث بالـ agencyId المحدد
       if (aid != null && aid.isNotEmpty) {
-        final agDoc = await FirebaseFirestore.instance.collection('host_agencies').doc(aid).get();
+        final agDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('host_agencies').doc(aid).get();
         if (agDoc.exists) {
           final data = agDoc.data() ?? {};
           if (data['owner_id'] == uid) {
@@ -81,7 +82,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
 
       // ب) البحث في host_agencies حيث owner_id == uid
       if (!isOwner) {
-        final ownerAgSnap = await FirebaseFirestore.instance
+        final ownerAgSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
             .collection('host_agencies')
             .where('owner_id', isEqualTo: uid)
             .limit(1)
@@ -99,7 +100,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
 
       // ج) فحص host_agency_members حيث role == 'owner'
       if (!isOwner) {
-        final memSnap = await FirebaseFirestore.instance
+        final memSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
             .collection('host_agency_members')
             .where('user_id', isEqualTo: uid)
             .where('role', isEqualTo: 'owner')
@@ -113,7 +114,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
 
       // د) فحص users/{uid}.is_host_agent
       if (!isOwner) {
-        final uDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        final uDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
         if (uDoc.data()?['is_host_agent'] == true) {
           isOwner = true;
           aid ??= uDoc.data()?['agency_id']?.toString();
@@ -129,11 +130,11 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
           aid = memberInfo?.agencyId;
         }
         if (aid == null || aid.isEmpty) {
-          final uDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+          final uDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
           aid = uDoc.data()?['agency_id']?.toString() ?? uDoc.data()?['host_agency_id']?.toString();
         }
         if (aname.isEmpty && aid != null && aid.isNotEmpty) {
-          final agDoc = await FirebaseFirestore.instance.collection('host_agencies').doc(aid).get();
+          final agDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('host_agencies').doc(aid).get();
           if (agDoc.exists) {
             aname = agDoc.data()?['name']?.toString() ?? 'الوكالة';
           }

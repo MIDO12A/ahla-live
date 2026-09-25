@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -162,7 +163,7 @@ class UpdateService {
     bool throwOnError = false,
   }) async {
     try {
-      final snap = await FirebaseFirestore.instance
+      final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
           .doc(_docPath)
           .get(const GetOptions(source: Source.server))
           .timeout(const Duration(seconds: 8));

@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 // lib/features/host_agency/screens/agency_invite_by_id_screen.dart
 // ─────────────────────────────────────────────────────────────────────────────
 // شاشة دعوة عضو عبر Kayan ID
@@ -66,28 +67,28 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
         final intId = int.tryParse(id);
         
         // Try string custom_id
-        var query = await FirebaseFirestore.instance.collection('users').where('custom_id', isEqualTo: id).limit(1).get();
+        var query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('custom_id', isEqualTo: id).limit(1).get();
         
         // Try integer custom_id if string fails
         if (query.docs.isEmpty && intId != null) {
-          query = await FirebaseFirestore.instance.collection('users').where('custom_id', isEqualTo: intId).limit(1).get();
+          query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('custom_id', isEqualTo: intId).limit(1).get();
         }
         
         if (query.docs.isNotEmpty) {
           uidToSearch = query.docs.first.id;
         } else {
           // Try string customId
-          query = await FirebaseFirestore.instance.collection('users').where('customId', isEqualTo: id).limit(1).get();
+          query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('customId', isEqualTo: id).limit(1).get();
           // Try int customId
           if (query.docs.isEmpty && intId != null) {
-            query = await FirebaseFirestore.instance.collection('users').where('customId', isEqualTo: intId).limit(1).get();
+            query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('customId', isEqualTo: intId).limit(1).get();
           }
           
           if (query.docs.isNotEmpty) {
             uidToSearch = query.docs.first.id;
           } else {
             // Also try direct document ID
-            final doc = await FirebaseFirestore.instance.collection('users').doc(id).get();
+            final doc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(id).get();
             if (doc.exists) {
               uidToSearch = id;
             }

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/rc_margin_size_127"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/rc_conversation_list_empty" />
-    <TextView android:textSize="@dimen/rc_font_text_third_size" android:textColor="@color/rc_secondary_color" android:id="@id/rc_empty_tv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rc_conversation_list_empty_prompt" style="@style/TextStyle.Alignment" />
-</LinearLayout>

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="6.0dp" android:paddingEnd="6.0dp" app:shape_radius="30.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/imgSex" android:layout_width="12.0dp" android:layout_height="12.0dp" android:layout_marginTop="1.0dp" />
-    <TextView android:textSize="11.0sp" android:textColor="@color/white" android:id="@id/tvAge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="3.0dp" />
-</com.hjq.shape.layout.ShapeLinearLayout>

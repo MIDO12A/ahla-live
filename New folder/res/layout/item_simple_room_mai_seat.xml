@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:layout_gravity="center_horizontal" android:layout_width="match_parent" android:layout_height="48.0dp" android:layout_marginBottom="16.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.hjq.shape.layout.ShapeConstraintLayout android:textSize="14.0dp" android:textColor="@color/white" android:layout_gravity="center_horizontal" android:id="@id/groupBig" android:layout_width="48.0dp" android:layout_height="48.0dp" android:maxWidth="130.0dp" app:shape_radius="500.0dp" app:shape_strokeColor="@color/white_30" app:shape_strokeSelectedColor="@color/hilla_high_light" app:shape_strokeSize="1.0dp">
-        <com.hjq.shape.view.ShapeTextView android:textSize="14.0dp" android:textColor="@color/white" android:id="@id/numStr" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:shape_textColor="@color/white" />
-        <ImageView android:id="@id/userHeader" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-        <ImageView android:id="@id/lock" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    </com.hjq.shape.layout.ShapeConstraintLayout>
-</FrameLayout>

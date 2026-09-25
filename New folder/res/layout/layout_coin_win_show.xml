@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="center" android:padding="5.0dp" android:layout_width="wrap_content" android:layout_height="wrap_content" app:shape_radius="20.0dp" app:shape_solidGradientEndColor="#e755f5" app:shape_solidGradientStartColor="#a485fe"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.makeramen.roundedimageview.RoundedImageView android:id="@id/riv_avatar" android:layout_width="30.0dp" android:layout_height="30.0dp" android:src="@drawable/default_header" android:scaleType="centerCrop" app:riv_oval="true" />
-    <TextView android:textSize="14.0sp" android:textColor="#ffffffff" android:id="@id/tv_coin_data" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginHorizontal="5.0dp" />
-</com.hjq.shape.layout.ShapeLinearLayout>

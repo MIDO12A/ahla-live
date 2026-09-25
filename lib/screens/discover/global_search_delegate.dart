@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:zero/screens/user_profile/user_profile_screen.dart';
@@ -114,7 +115,7 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
     setState(() => _isLoading = true);
 
     try {
-      final db = FirebaseFirestore.instance;
+      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
       List<Map<String, dynamic>> usersFound = [];
       List<Map<String, dynamic>> roomsFound = [];
 

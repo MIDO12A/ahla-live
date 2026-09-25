@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="center_horizontal" android:orientation="vertical" android:id="@id/tvLabel" android:paddingTop="20.0dp" android:paddingBottom="20.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="4.0dp" app:shape_radius="14.0dp" app:shape_solidColor="@color/white" app:shape_solidSelectedColor="#fff9df" app:shape_strokeColor="@color/white" app:shape_strokeSelectedColor="#fec00b" app:shape_strokeSize="1.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:layout_width="25.0dp" android:layout_height="25.0dp" android:layout_marginBottom="5.0dp" android:src="@mipmap/mini_coins" />
-    <TextView android:textSize="18.0sp" android:textColor="#ff333333" android:id="@id/tvCoins" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="10.0dp" android:text="60" android:singleLine="true" />
-    <TextView android:textSize="14.0sp" android:textColor="#ffb8b8b8" android:id="@id/tvMoney" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="$6.00" />
-</com.hjq.shape.layout.ShapeLinearLayout>

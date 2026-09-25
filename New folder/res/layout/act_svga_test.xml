@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent">
-        <com.opensource.svgaplayer.SVGAImageView android:id="@id/svga1" android:layout_width="50.0dp" android:layout_height="50.0dp" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-        <com.opensource.svgaplayer.SVGAImageView android:id="@id/svgaIv2" android:layout_width="50.0dp" android:layout_height="50.0dp" android:layout_marginTop="20.0dp" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    </LinearLayout>
-</androidx.constraintlayout.widget.ConstraintLayout>

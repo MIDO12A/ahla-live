@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -45,7 +46,7 @@ class _AgencyNotificationHandlerState extends State<AgencyNotificationHandler> {
     if (uid == null) return;
 
     _sub?.cancel();
-    final col = FirebaseFirestore.instance.collection('notifications');
+    final col = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('notifications');
     _sub = col.where('uid', isEqualTo: uid).snapshots().listen((snap) {
       for (final change in snap.docChanges) {
         if (change.type == DocumentChangeType.added) {

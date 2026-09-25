@@ -19,7 +19,7 @@
 -keep class **.EncryptedImageProvider { *; }
 
 # Keep serialization models
--keep class com.zero.app.zero.** { *; }
+-keep class com.ahlalive.app.** { *; }
 
 # General Flutter engine
 -dontwarn io.flutter.embedding.**

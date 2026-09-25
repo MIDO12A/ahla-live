@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:orientation="vertical" android:paddingBottom="50.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" app:shape_radiusInTopLeft="14.0dp" app:shape_radiusInTopRight="14.0dp" app:shape_solidColor="@color/white"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <FrameLayout android:paddingTop="15.0dp" android:paddingBottom="10.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="10.0dp">
-        <TextView android:textSize="18.0sp" android:textColor="#ff333333" android:layout_gravity="center" android:id="@id/tvTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/mic_mode" />
-        <ImageView android:layout_gravity="end|center" android:id="@id/imgClose" android:layout_width="30.0dp" android:layout_height="30.0dp" android:src="@drawable/ic_cancel" android:paddingHorizontal="8.0dp" android:paddingVertical="8.0dp" app:tint="#545454" />
-    </FrameLayout>
-    <TextView android:textSize="16.0sp" android:textColor="#ff333333" android:id="@id/tvTip" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5.0dp" android:layout_marginBottom="15.0dp" android:minHeight="300.0dp" android:layout_marginHorizontal="15.0dp" />
-</com.hjq.shape.layout.ShapeLinearLayout>

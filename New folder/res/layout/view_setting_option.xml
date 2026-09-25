@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:paddingTop="15.0dp" android:paddingBottom="15.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="15.0dp" android:paddingEnd="15.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <TextView android:textSize="16.0sp" android:textColor="#ff333333" android:layout_gravity="start|center" android:id="@id/tvLaber" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/privacy_polocy" android:layout_marginEnd="50.0dp" />
-    <TextView android:textSize="14.0sp" android:textColor="#555" android:layout_gravity="end|center" android:id="@id/tvValue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="saaaa" android:drawablePadding="5.0dp" android:drawableEnd="@drawable/item_row" />
-</FrameLayout>

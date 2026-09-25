@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:background="@color/white" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/toolBar" android:layout_width="match_parent" android:layout_height="wrap_content" app:bar_icImg="@drawable/ic_back" app:bar_titleColor="#333333" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="14.0sp" android:textColor="#ff8b8b8b" android:id="@id/tvTotal" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="28.0dp" android:layout_marginBottom="3.0dp" android:text="@string/music_picker_total_x" android:layout_marginHorizontal="15.0dp" />
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/recycleView" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginHorizontal="15.0dp" />
-</LinearLayout>

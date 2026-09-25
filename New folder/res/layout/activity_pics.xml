@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:background="#000" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.viewpager2.widget.ViewPager2 android:id="@id/viewPager" android:layout_width="match_parent" android:layout_height="match_parent" />
-    <TextView android:textSize="16.0sp" android:textColor="@color/white" android:layout_gravity="center|bottom" android:id="@id/tvPage" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="70.0dp" android:text="111" />
-    <com.hjq.shape.layout.ShapeFrameLayout android:layout_width="match_parent" android:layout_height="wrap_content" app:shape_solidGradientEndColor="#00000000" app:shape_solidGradientOrientation="topToBottom" app:shape_solidGradientStartColor="#24000000">
-        <com.approom.chatapp.common.view.TitleToolBar android:id="@id/toobar" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="35.0dp" />
-    </com.hjq.shape.layout.ShapeFrameLayout>
-</FrameLayout>

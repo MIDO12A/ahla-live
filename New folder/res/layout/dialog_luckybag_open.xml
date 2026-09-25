@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_gravity="center" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <include android:id="@id/dialogReadyToOpen" android:visibility="visible" android:layout_width="match_parent" android:layout_height="wrap_content" layout="@layout/dialog_luckybag_ready_to_open" />
-    <include android:id="@id/dialogOpened" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" layout="@layout/dialog_luckybag_opened" />
-</androidx.constraintlayout.widget.ConstraintLayout>

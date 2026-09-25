@@ -1,3 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.view.ShapeButton android:enabled="false" android:textSize="14.0dp" android:textColor="@color/white" android:gravity="center" android:id="@id/secondClassTabBtn" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingHorizontal="10.0dp" app:shape_radius="16.0dp" app:shape_solidDisabledColor="@color/white" app:shape_solidGradientEndColor="@color/gradient_end" app:shape_solidGradientStartColor="@color/gradient_start" app:shape_textDisabledColor="@color/dark_60"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" />

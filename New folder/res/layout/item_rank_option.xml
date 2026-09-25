@@ -1,3 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.view.ShapeTextView android:textSize="14.0sp" android:textColor="#6a6a6a" android:gravity="center" android:id="@id/tvDate" android:layout_width="match_parent" android:layout_height="38.0dp" android:layout_marginBottom="5.0dp" android:text="2024/09/01-2024/09/02,GMT+8" app:shape_radius="6.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" />

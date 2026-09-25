@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_horizontal" android:orientation="vertical" android:background="@color/white" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/toolBar" android:layout_width="match_parent" android:layout_height="wrap_content" app:bar_icImg="@drawable/ic_back" app:bar_titleColor="#333333" app:layout_constraintTop_toTopOf="parent" />
-    <com.hjq.shape.layout.ShapeFrameLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20.0dp" android:minHeight="155.0dp" android:layout_marginHorizontal="15.0dp" app:shape_radius="10.0dp" app:shape_solidColor="#f2f2f2">
-        <EditText android:textSize="14.0sp" android:textColor="#333" android:textColorHint="@color/first_text" android:id="@id/etSigh" android:background="@color/trans" android:padding="12.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="50.0dp" android:maxLength="60" />
-        <TextView android:textSize="12.0sp" android:textColor="@color/gray98" android:layout_gravity="end|bottom" android:id="@id/textCounter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="8.0dp" android:text="0/60" />
-    </com.hjq.shape.layout.ShapeFrameLayout>
-</LinearLayout>

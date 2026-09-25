@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../services/level_service.dart';
@@ -16,7 +17,10 @@ class SigninService {
   static final SigninService _instance = SigninService._();
   factory SigninService() => _instance;
 
-  static final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static FirebaseFirestore get _db => FirebaseFirestore.instanceFor(
+        app: Firebase.app(),
+        databaseId: 'default',
+      );
 
   static const int _daysPerWeek = 7;
 

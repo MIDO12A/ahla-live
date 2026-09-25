@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:padding="3.0dp" android:layout_width="36.0dp" android:layout_height="36.0dp" app:shape_radius="6.0dp" app:shape_solidColor="@color/trans" app:shape_solidSelectedColor="#2f2f35"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/tabIv" android:layout_width="match_parent" android:layout_height="match_parent" />
-</com.hjq.shape.layout.ShapeConstraintLayout>

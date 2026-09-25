@@ -1,58 +1,50 @@
 {
   "project_info": {
-    "project_number": "95008435096",
-    "firebase_url": "https://zeroappzero-e1b4a-default-rtdb.firebaseio.com",
-    "project_id": "zeroappzero-e1b4a",
-    "storage_bucket": "zeroappzero-e1b4a.firebasestorage.app"
+    "project_number": "183199730954",
+    "firebase_url": "https://ahla-live-default-rtdb.firebaseio.com",
+    "project_id": "ahla-live",
+    "storage_bucket": "ahla-live.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:95008435096:android:70ef1c429c3d04683099ed",
+        "mobilesdk_app_id": "1:183199730954:android:cbf937664eb5f2fd383ef3",
         "android_client_info": {
-          "package_name": "com.zero.app.zero"
+          "package_name": "com.ahlalive.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "95008435096-7bd95kr1jk1mb14b88hc41s6nva0rqon.apps.googleusercontent.com",
+          "client_id": "183199730954-eqt0c2mhn6g0bfi0ksnbsjo6rbpbdku9.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.zero.app.zero",
-            "certificate_hash": "ac0033a4d04f57012482168a4c347d22ce6523b7"
-          }
-        },
-        {
-          "client_id": "95008435096-844ub1kpqpdo35nk2negk2dbkkoq0d6n.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.zero.app.zero",
+            "package_name": "com.ahlalive.app",
             "certificate_hash": "a88c7fa9b6572e85f0dc6b9ea0397c58efc673ed"
           }
         },
         {
-          "client_id": "95008435096-u3blse0c5ftbrl7ucp4pgjtottd6koph.apps.googleusercontent.com",
+          "client_id": "183199730954-lde9o7dg2sjd44tap8gn84q673r3kltq.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.zero.app.zero",
-            "certificate_hash": "e87fb8950495de030ef9a35a3a011ac90bc6664e"
+            "package_name": "com.ahlalive.app",
+            "certificate_hash": "ac0033a4d04f57012482168a4c347d22ce6523b7"
           }
         },
         {
-          "client_id": "95008435096-u3l8hcm3833j0vf29jntk2450duir63e.apps.googleusercontent.com",
+          "client_id": "183199730954-6sud0ar4r7h3d76dtgdgnd34b7bqb5t6.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyBV61UNM2iTTTZcBEALxvWxvi17EFD9XOU"
+          "current_key": "AIzaSyBeRauEkyFcsB7ryTYTx28aOO2szSBZjCg"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "95008435096-u3l8hcm3833j0vf29jntk2450duir63e.apps.googleusercontent.com",
+              "client_id": "183199730954-6sud0ar4r7h3d76dtgdgnd34b7bqb5t6.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.approom.chatapp.common.view.EqFrameLayout android:layout_width="105.0dp" android:layout_height="wrap_content" android:layout_margin="7.5dp" app:shape_radius="8.0dp" app:shape_solidColor="#f9f9f9" app:shape_solidSelectedColor="#e0f6f4" app:shape_strokeColor="#f9f9f9" app:shape_strokeSelectedColor="#00d9c5" app:shape_strokeSize="1.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/img" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_margin="10.0dp" android:src="@drawable/game_close_icon" />
-    <TextView android:textSize="16.0sp" android:textColor="#ffffffff" android:layout_gravity="center|bottom" android:id="@id/tvClose" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="13.0dp" android:text="@string/close" />
-    <ImageView android:layout_gravity="end|bottom" android:id="@id/imgSelect" android:layout_width="wrap_content" android:layout_height="wrap_content" android:src="@drawable/ic_selected_room" />
-</com.approom.chatapp.common.view.EqFrameLayout>

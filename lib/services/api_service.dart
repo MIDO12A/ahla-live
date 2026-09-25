@@ -7,7 +7,7 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._();
 
-  String _baseUrl = 'https://zero-app-wheat.vercel.app/api/v1';
+  String _baseUrl = 'https://ahla-live-api.vercel.app/api/v1';
 
   void setBaseUrl(String url) {
     _baseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;

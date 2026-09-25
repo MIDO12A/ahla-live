@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:layout_width="150.0dp" android:layout_height="322.0dp" app:shape_radius="8.0dp" app:shape_solidColor="@color/black_trans_60"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.view.vap.VapView android:id="@id/vapView" android:layout_width="134.0dp" android:layout_height="290.0dp" android:layout_marginBottom="8.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" />
-    <com.opensource.svgaplayer.SVGAImageView android:id="@id/svgaIv" android:layout_width="134.0dp" android:layout_height="290.0dp" android:layout_marginBottom="8.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" />
-    <ImageView android:id="@id/cancel" android:padding="3.0dp" android:layout_width="20.0dp" android:layout_height="20.0dp" android:layout_marginTop="6.0dp" android:src="@drawable/ic_cancel" android:tint="@color/white" android:layout_marginStart="8.0dp" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/volume" android:layout_width="20.0dp" android:layout_height="20.0dp" android:layout_marginTop="6.0dp" android:src="@mipmap/ic_car_effect_volum_on" android:tint="@color/white" android:layout_marginEnd="8.0dp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="parent" />
-</com.hjq.shape.layout.ShapeConstraintLayout>

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:id="@id/rc_dialog_bottom_container" android:background="@drawable/rc_bottom_dialog_bg" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <View android:background="@color/rc_item_space_color" android:layout_width="match_parent" android:layout_height="@dimen/rc_dialog_bottom_item_to_cancel_spacing" />
-    <TextView android:textSize="@dimen/rc_dialog_bottom_text_size" android:textColor="@color/rc_dialog_bottom_text_color" android:gravity="center" android:id="@id/rc_dialog_bottom_item_cancel" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_margin="@dimen/rc_dialog_bottom_text_item_margin" android:text="@string/rc_cancel" style="@style/TextStyle.Alignment" />
-</LinearLayout>

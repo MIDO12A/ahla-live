@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 // Compatibility shim: allows code originally written against
 // `Supabase.instance.client` to keep compiling on top of Firebase
 // (Firestore + FirebaseAuth) while the migration to Firebase proceeds.
@@ -25,7 +26,7 @@ class Supabase {
 
 /// Client exposing a subset of the Supabase API backed by Firestore + FirebaseAuth.
 class SupabaseClient {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
   final AuthClient auth = AuthClient();
 
   SupabaseQueryBuilder from(String table) => SupabaseQueryBuilder(_db, table);
@@ -1915,10 +1916,10 @@ class StorageBucket {
     return upload(path, data, fileOptions: fileOptions);
   }
 
-  String getPublicUrl(String path) {
+    String getPublicUrl(String path) {
     final url = _uploadedUrls[path];
     if (url != null && url.isNotEmpty) return url;
-    return 'https://res.cloudinary.com/dl30muiuc/image/upload/$path';
+    return 'https://res.cloudinary.com/r5kohqhd/image/upload/$path';
   }
 }
 
@@ -1962,7 +1963,7 @@ class RealtimeChannel {
     final table = _table;
     final callback = _callback;
     if (table == null || callback == null) return this;
-    final db = FirebaseFirestore.instance;
+    final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
     Query<Map<String, dynamic>> q = db.collection(table);
     if (_column != null && _value != null) {
       q = _negated

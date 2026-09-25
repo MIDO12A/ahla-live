@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center" android:orientation="vertical" android:layout_width="90.0dp" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <ImageView android:id="@id/imgIcon" android:layout_width="46.0dp" android:layout_height="46.0dp" android:layout_marginTop="15.0dp" android:src="@mipmap/game_shaizi" android:scaleType="centerCrop" android:layout_marginHorizontal="25.0dp" />
-    <TextView android:textSize="12.0dp" android:textColor="@color/white_80" android:ellipsize="end" android:id="@id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5.0dp" android:text="Dice" android:singleLine="true" />
-</LinearLayout>

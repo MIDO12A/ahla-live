@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_horizontal" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <TextView android:textSize="18.0sp" android:textColor="#333333" android:gravity="center" android:id="@id/tvText" android:layout_width="match_parent" android:layout_height="50.0dp" android:text="@string/cancel" />
-    <View android:id="@id/vLine" android:background="#f3f3f3" android:layout_width="match_parent" android:layout_height="1.0dp" />
-</LinearLayout>

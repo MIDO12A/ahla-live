@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_horizontal" android:orientation="vertical" android:background="@color/white" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/toolBar" android:layout_width="match_parent" android:layout_height="wrap_content" app:bar_icImg="@drawable/ic_back" app:bar_titleColor="#333333" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="18.0sp" android:textColor="#ff333333" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="25.0dp" android:text="@string/uses_of_crystals" android:layout_marginHorizontal="15.0dp" />
-    <TextView android:textSize="16.0sp" android:textColor="#ff8b8b8b" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="15.0dp" android:text="@string/uses_of_crystals_desc" android:layout_marginHorizontal="15.0dp" />
-    <TextView android:textSize="18.0sp" android:textColor="#ff333333" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="50.0dp" android:text="@string/ways_get_crystals" android:layout_marginHorizontal="15.0dp" />
-    <TextView android:textSize="16.0sp" android:textColor="#ff8b8b8b" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="15.0dp" android:text="@string/ways_get_crystals_desc" android:layout_marginHorizontal="15.0dp" />
-</LinearLayout>

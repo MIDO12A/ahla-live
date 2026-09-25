@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:orientation="vertical" android:background="@color/trans" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/toobar" android:layout_width="match_parent" android:layout_height="wrap_content" app:layout_constraintTop_toTopOf="parent" app:layout_constraintVertical_bias="0.0" app:layout_constraintVertical_chainStyle="spread_inside" />
-    <FrameLayout android:id="@id/webviewContainer" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_constrainedHeight="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintTop_toBottomOf="@id/toobar" app:layout_constraintVertical_bias="1.0">
-        <com.approom.chatapp.common.view.BaseWebView android:id="@id/webView" android:background="@color/trans" android:layout_width="match_parent" android:layout_height="match_parent" />
-        <include android:id="@id/loading" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="50.0dp" layout="@layout/loading" />
-    </FrameLayout>
-</androidx.constraintlayout.widget.ConstraintLayout>

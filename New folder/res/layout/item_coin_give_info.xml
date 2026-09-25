@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/bubbleIv" android:layout_width="wrap_content" android:layout_height="wrap_content" />
-    <com.hjq.shape.view.ShapeTextView android:textSize="14.0dp" android:textColor="@color/white" android:orientation="horizontal" android:id="@id/luckyGiftWinTv" android:padding="10.0dp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textDirection="locale" android:textAlignment="viewStart" android:layout_marginStart="15.0dp" android:layout_marginEnd="80.0dp" app:shape_radius="@dimen/room_bubble_radius" app:shape_solidColor="@color/room_bubble" />
-</FrameLayout>

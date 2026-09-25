@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:layout_gravity="center" android:orientation="horizontal" android:background="@drawable/rc_corner_style" android:paddingTop="4.0dp" android:paddingBottom="4.0dp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="2.0dp" android:paddingEnd="2.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <TextView android:textSize="14.0sp" android:textColor="@color/rc_text_color_primary_inverse" android:gravity="center" android:autoLink="phone" android:id="@id/rc_msg" android:paddingTop="4.0dp" android:paddingBottom="4.0dp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="4.0dp" android:paddingEnd="4.0dp" style="@style/TextStyle.Alignment" />
-    <TextView android:textSize="14.0sp" android:textColor="@color/rc_blue" android:gravity="center" android:id="@id/rc_edit" android:paddingTop="4.0dp" android:paddingBottom="4.0dp" android:visibility="gone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rc_you_recalled_edit" android:layout_centerVertical="true" android:paddingStart="4.0dp" android:paddingEnd="2.0dp" android:layout_toEndOf="@id/rc_msg" style="@style/TextStyle.Alignment" />
-</LinearLayout>

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import '../services/supabase_service.dart';
 
@@ -50,7 +51,10 @@ class LevelService extends ChangeNotifier {
   factory LevelService() => _instance;
   LevelService._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'default',
+  );
   final SupabaseService _supabaseService = SupabaseService();
   final List<StreamSubscription> _subs = [];
   bool _initialized = false;

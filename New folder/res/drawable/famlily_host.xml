@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="14.0dp" android:width="14.0dp" android:viewportWidth="14.0" android:viewportHeight="14.0"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt">
-    <path android:fillColor="@drawable/$famlily_host__0" android:pathData="M7,7m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
-    <path android:fillColor="#fff" android:pathData="M5.15,7.093a0.34,0.34 0,0 1,0.5 0.036,1.793 1.793,0 0,0 1.333,0.614A1.792,1.792 0,0 0,8.317 7.13a0.35,0.35 0,0 1,0.5 -0.036,3.613 3.613,0 0,1 1.173,2.2 0.65,0.65 0,0 1,-0.124 0.5A0.522,0.522 0,0 1,9.437 10L4.564,10a0.52,0.52 0,0 1,-0.432 -0.206,0.646 0.646,0 0,1 -0.123,-0.5A3.639,3.639 0,0 1,5.15 7.093ZM7,4A1.5,1.5 0,1 1,5.5 5.5,1.5 1.5,0 0,1 7,4Z" />
-</vector>

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.relationship.RelationshipInviteDetailView android:id="@id/detailView" android:layout_width="match_parent" android:layout_height="600.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/closeBtn" android:layout_width="32.0dp" android:layout_height="32.0dp" android:layout_marginTop="4.0dp" android:src="@mipmap/ic_close_round" app:layout_constraintEnd_toEndOf="@id/detailView" app:layout_constraintTop_toTopOf="@id/detailView" />
-</androidx.constraintlayout.widget.ConstraintLayout>

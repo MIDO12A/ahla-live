@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/bg" android:layout_width="72.0dp" android:layout_height="88.0dp" android:src="@mipmap/ic_first_recharge_item_bg" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/icon" android:layout_width="54.0dp" android:layout_height="54.0dp" android:layout_marginBottom="2.0dp" app:layout_constraintBottom_toTopOf="@id/title" app:layout_constraintEnd_toEndOf="@id/bg" app:layout_constraintStart_toStartOf="@id/bg" app:layout_constraintTop_toTopOf="@id/bg" app:layout_constraintVertical_bias="1.0" app:layout_constraintVertical_chainStyle="packed" />
-    <com.approom.chatapp.common.view.ScrollForeverTextView android:textSize="10.0dp" android:textColor="@color/white" android:id="@id/title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="7.0dp" android:layout_marginHorizontal="4.0dp" app:layout_constrainedWidth="true" app:layout_constraintBottom_toBottomOf="@id/bg" app:layout_constraintEnd_toEndOf="@id/bg" app:layout_constraintStart_toStartOf="@id/bg" app:layout_constraintTop_toBottomOf="@id/icon" />
-</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="15.0dp" android:paddingVertical="6.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:layout_gravity="start|center" android:id="@id/imgIcon" android:layout_width="38.0dp" android:layout_height="20.0dp" android:src="#079" android:scaleType="centerCrop" />
-    <ImageView android:layout_gravity="end|center" android:id="@id/imgSelect" android:padding="7.0dp" android:visibility="gone" android:layout_width="34.0dp" android:layout_height="34.0dp" android:src="@drawable/bg_select_item" />
-    <TextView android:textSize="18.0sp" android:textColor="#ff333333" android:layout_gravity="start|center" android:id="@id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Currency name" android:layout_marginStart="48.0dp" android:layout_marginEnd="42.0dp" />
-</FrameLayout>

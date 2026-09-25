@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="14.0dp" android:width="13.998993dp" android:autoMirrored="true" android:viewportWidth="13.999" android:viewportHeight="14.0"
-  xmlns:aapt="http://schemas.android.com/aapt" xmlns:android="http://schemas.android.com/apk/res/android">
-    <path android:fillColor="@drawable/$ic_live_time__0" android:pathData="M13.45,4.284a7,7 0,1 0,0.549 2.716A7,7 0,0 0,13.45 4.284ZM9.363,9.346a0.5,0.5 0,0 1,-0.7 0L6.668,7.352a0.5,0.5 0,0 1,-0.146 -0.352L6.522,3.013a0.5,0.5 0,0 1,1 0v3.781L9.363,8.641a0.5,0.5 0,0 1,0 0.7Z" />
-</vector>

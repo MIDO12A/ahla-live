@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +29,7 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
       }
 
       // Delete the user document (and profile visits/sub-docs via security rules cascade)
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(user.uid).delete();
 
       await FirebaseAuth.instance.currentUser?.delete();
       if (mounted) _navigateToLogin();

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 class ErrorReportingService {
@@ -7,7 +8,10 @@ class ErrorReportingService {
   factory ErrorReportingService() => _instance;
   ErrorReportingService._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'default',
+  );
 
   void init() {
     // 1. Intercept Flutter UI layout / rendering errors

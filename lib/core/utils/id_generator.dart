@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -50,7 +51,7 @@ class UserIdGenerator {
   Future<bool> _checkIdUniqueness(String customId) async {
     try {
       // التحقق من Firestore
-      final firestoreCheck = await FirebaseFirestore.instance
+      final firestoreCheck = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
           .collection('users')
           .where('custom_id', isEqualTo: customId)
           .limit(1)

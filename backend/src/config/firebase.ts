@@ -21,11 +21,11 @@ function initApp(): App {
   // Local dev: relies on GOOGLE_APPLICATION_CREDENTIALS or gcloud ADC.
   // نحدد projectId صراحة حتى يشتغل auth.verifyIdToken (التحقق عبر المفاتيح
   // العامة) حتى لو لم يُضبط service account في البيئة كاملة.
-  return initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'zeroappzero-e1b4a' });
+  return initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'ahla-live' });
 }
 
 const app = initApp();
 
-export const db = getFirestore(app);
+export const db = getFirestore(app, 'default');
 export const auth = getAuth(app);
 export const firebaseWebApiKey = process.env.FIREBASE_WEB_API_KEY || '';

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:background="#21212e" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.viewpager2.widget.ViewPager2 android:id="@id/pager" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/tabLayout" />
-    <ImageView android:id="@id/bg" android:layout_width="match_parent" android:layout_height="0.0dp" android:layout_marginTop="-10.0dp" android:src="@mipmap/ic_vip5_bg" app:layout_constraintDimensionRatio="375:680" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/tabLayout" />
-    <com.approom.chatapp.common.view.TitleToolBar android:id="@id/titleBar" android:background="@color/deep_blue" android:layout_width="match_parent" android:layout_height="wrap_content" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <com.approom.chatapp.view.GlobalTabLayout android:id="@id/tabLayout" android:background="@color/deep_blue" android:layout_width="match_parent" android:layout_height="wrap_content" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/titleBar" app:styleCode="vip" app:tabMode="fixed" />
-</androidx.constraintlayout.widget.ConstraintLayout>

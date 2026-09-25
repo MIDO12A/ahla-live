@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<merge android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <ImageView android:id="@id/rc_refresh_progress" android:layout_width="30.0dp" android:layout_height="30.0dp" android:src="@drawable/rc_refresh" android:layout_centerInParent="true" />
-</merge>

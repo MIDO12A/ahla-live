@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/rv" android:clipToPadding="false" android:layout_width="match_parent" android:layout_height="match_parent" />
-    <ImageView android:id="@id/ivArrowStart" android:visibility="gone" android:layout_width="32.0dp" android:layout_height="32.0dp" android:src="@mipmap/ic_rs_arrow_left" android:layout_marginStart="10.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/ivArrowEnd" android:visibility="gone" android:layout_width="32.0dp" android:layout_height="32.0dp" android:src="@mipmap/ic_rs_arrow_right" android:layout_marginEnd="10.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="14.0dp" android:textColor="@color/white_80" android:id="@id/tvIndicator" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10.0dp" android:layout_marginStart="24.0dp" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/t1bg" android:layout_width="84.0dp" android:layout_height="84.0dp" android:src="@mipmap/ic_treasurebox_prize_bg" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/awardIv" android:layout_width="56.0dp" android:layout_height="56.0dp" app:layout_constraintBottom_toBottomOf="@id/t1bg" app:layout_constraintEnd_toEndOf="@id/t1bg" app:layout_constraintStart_toStartOf="@id/t1bg" />
-    <TextView android:textSize="12.0dp" android:textColor="#ffcc00" android:id="@id/awardNameTv" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintEnd_toStartOf="@id/t1UnitIv" app:layout_constraintHorizontal_chainStyle="packed" app:layout_constraintStart_toStartOf="@id/t1bg" app:layout_constraintTop_toBottomOf="@id/t1bg" />
-    <ImageView android:id="@id/t1UnitIv" android:visibility="gone" android:layout_width="16.0dp" android:layout_height="16.0dp" android:layout_marginStart="2.0dp" app:layout_constraintBottom_toBottomOf="@id/awardNameTv" app:layout_constraintEnd_toEndOf="@id/t1bg" app:layout_constraintStart_toEndOf="@id/awardNameTv" app:layout_constraintTop_toTopOf="@id/awardNameTv" />
-</androidx.constraintlayout.widget.ConstraintLayout>

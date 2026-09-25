@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.hjq.shape.layout.ShapeLinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content" app:shape_radius="14.0dp" app:shape_solidColor="#ffffff">
-        <TextView android:textSize="18.0sp" android:textColor="#ff333333" android:gravity="center" android:id="@id/tv_off_mic" android:paddingTop="20.0dp" android:paddingBottom="15.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/off_mic" />
-    </com.hjq.shape.layout.ShapeLinearLayout>
-    <com.hjq.shape.view.ShapeButton android:textSize="18.0sp" android:textColor="#ff8b8b8b" android:gravity="center" android:id="@id/sb_cancel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10.0dp" android:layout_marginBottom="32.0dp" android:text="@string/cancel" android:paddingVertical="15.0dp" app:shape_radius="14.0dp" app:shape_solidColor="#ffffff" />
-</LinearLayout>

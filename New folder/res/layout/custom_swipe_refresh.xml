@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center" android:orientation="vertical" android:id="@id/refreshHeader" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <ImageView android:id="@id/ivGif" android:layout_width="48.0dp" android:layout_height="48.0dp" android:scaleType="fitCenter" />
-    <TextView android:textSize="11.0dp" android:textColor="@color/sub_text" android:id="@id/tvState" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4.0dp" android:text="@string/loading_" />
-</LinearLayout>

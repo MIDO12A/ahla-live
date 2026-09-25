@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="32.0dp" android:width="32.0dp" android:viewportWidth="32.0" android:viewportHeight="32.0"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt">
-    <path android:fillColor="@drawable/$ic_my_room__0" android:pathData="M31.995,26.638L31.995,12.697A5.232,5.232 0,0 0,29.72 8.275L19.009,0.904a5.47,5.47 0,0 0,-6.023 0L2.274,8.275a5,5 0,0 0,-2.274 4.29L-0,26.638a5.375,5.375 0,0 0,5.356 5.362L26.775,32A5.176,5.176 0,0 0,31.995 26.638Z" />
-    <path android:fillColor="@drawable/$ic_my_room__1" android:pathData="M10.499,19.001L10.499,19.001A1.5,1.5 0,0 1,11.999 20.501L11.999,24.501A1.5,1.5 0,0 1,10.499 26.001L10.499,26.001A1.5,1.5 0,0 1,8.999 24.501L8.999,20.501A1.5,1.5 0,0 1,10.499 19.001z" />
-    <path android:fillColor="@drawable/$ic_my_room__2" android:pathData="M21.499,18.001L21.499,18.001A1.5,1.5 0,0 1,22.999 19.501L22.999,24.501A1.5,1.5 0,0 1,21.499 26.001L21.499,26.001A1.5,1.5 0,0 1,19.999 24.501L19.999,19.501A1.5,1.5 0,0 1,21.499 18.001z" />
-    <path android:fillColor="@drawable/$ic_my_room__3" android:pathData="M15.999,12.001L15.999,12.001A1.5,1.5 0,0 1,17.499 13.501L17.499,24.501A1.5,1.5 0,0 1,15.999 26.001L15.999,26.001A1.5,1.5 0,0 1,14.499 24.501L14.499,13.501A1.5,1.5 0,0 1,15.999 12.001z" />
-</vector>

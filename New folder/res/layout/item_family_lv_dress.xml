@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:gravity="center_horizontal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="4.0dp" android:paddingHorizontal="15.0dp" android:paddingVertical="20.0dp" app:shape_radius="14.0dp" app:shape_solidColor="#2d2824"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.EqRoundImage android:layout_gravity="center_horizontal" android:id="@id/img" android:layout_width="match_parent" android:layout_height="wrap_content" android:src="@drawable/default_header" />
-</com.hjq.shape.layout.ShapeConstraintLayout>

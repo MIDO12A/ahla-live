@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeFrameLayout android:layout_width="match_parent" android:layout_height="65.0dp" android:layout_marginBottom="15.0dp" android:layout_marginHorizontal="15.0dp" android:paddingHorizontal="15.0dp" app:shape_radius="8.0dp" app:shape_solidColor="#ffffff"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:layout_gravity="start|center" android:id="@id/img" android:layout_width="25.0dp" android:layout_height="25.0dp" android:src="@drawable/ic_logout" />
-    <TextView android:textSize="16.0sp" android:textColor="#ff333333" android:layout_gravity="start|center" android:id="@id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Rate us" android:layout_marginStart="35.0dp" android:layout_marginEnd="20.0dp" />
-    <TextView android:textSize="14.0sp" android:textColor="#ff8b8b8b" android:layout_gravity="end|center" android:id="@id/tvValue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="+82  178****0980" android:layout_marginEnd="20.0dp" />
-    <ImageView android:layout_gravity="end|center" android:layout_width="wrap_content" android:layout_height="16.0dp" android:src="@drawable/ic_array_item" android:adjustViewBounds="true" />
-</com.hjq.shape.layout.ShapeFrameLayout>

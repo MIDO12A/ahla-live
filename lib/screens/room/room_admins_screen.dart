@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -30,7 +31,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
   }
 
   void _listenToModerators() {
-    _roomSub = FirebaseFirestore.instance
+    _roomSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
         .collection('rooms')
         .doc(widget.roomId)
         .snapshots()
@@ -70,7 +71,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
 
   Future<void> _removeAdmin(String uid, String name) async {
     try {
-      await FirebaseFirestore.instance.collection('rooms').doc(widget.roomId).update({
+      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
         'moderators': FieldValue.arrayRemove([uid]),
       });
       if (mounted) {
@@ -152,7 +153,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                       });
                       try {
                         // Search by custom_id or uid
-                        final userSnap = await FirebaseFirestore.instance
+                        final userSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                             .collection('users')
                             .where('custom_id', isEqualTo: input)
                             .limit(1)
@@ -164,7 +165,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                           targetName = userSnap.docs.first.data()['name']?.toString() ?? 'User';
                         } else {
                           // Try doc id
-                          final doc = await FirebaseFirestore.instance.collection('users').doc(input).get();
+                          final doc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(input).get();
                           if (doc.exists) {
                             targetUid = doc.id;
                             targetName = doc.data()?['name']?.toString() ?? 'User';
@@ -187,7 +188,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                           return;
                         }
 
-                        await FirebaseFirestore.instance.collection('rooms').doc(widget.roomId).update({
+                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
                           'moderators': FieldValue.arrayUnion([targetUid]),
                         });
 

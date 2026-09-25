@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="40.0dp" android:paddingVertical="8.0dp" app:layout_constraintTop_toTopOf="parent">
-        <com.hjq.shape.view.ShapeTextView android:enabled="true" android:textSize="16.0dp" android:gravity="center" android:layout_gravity="start|center" android:id="@id/name" android:layout_width="90.0dp" android:layout_height="40.0dp" android:text="@string/payoneer" app:shape_radius="20.0dp" app:shape_solidDisabledColor="@color/dark_98" app:shape_solidGradientEndColor="@color/gradient_end_new" app:shape_solidGradientStartColor="@color/gradient_start_new" app:shape_textColor="@color/white" app:shape_textDisabledColor="@color/dark_10" />
-        <com.makeramen.roundedimageview.RoundedImageView android:layout_gravity="end|center" android:id="@id/tick" android:layout_width="20.0dp" android:layout_height="20.0dp" app:riv_corner_radius="200.0dp" />
-    </FrameLayout>
-</androidx.constraintlayout.widget.ConstraintLayout>

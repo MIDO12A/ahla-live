@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <FrameLayout android:background="@mipmap/bg_invite_privcy" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="30.0dp">
-        <TextView android:textSize="18.0sp" android:textColor="#ffffffff" android:layout_gravity="center_horizontal" android:id="@id/tvTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10.0dp" android:text="@string/invitation_reward_rules" />
-        <TextView android:textSize="16.0sp" android:textColor="#ff333333" android:id="@id/tvContent" android:paddingBottom="25.0dp" android:scrollbars="none" android:layout_width="wrap_content" android:layout_height="380.0dp" android:layout_marginTop="60.0dp" android:text="@string/inivit_dialog_pricey" android:fadeScrollbars="false" android:layout_marginHorizontal="25.0dp" />
-    </FrameLayout>
-    <ImageView android:layout_gravity="center_horizontal" android:id="@id/imgClose" android:layout_width="30.0dp" android:layout_height="30.0dp" android:layout_marginTop="15.0dp" android:src="@mipmap/dialog_give_coin_clost" />
-</LinearLayout>

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/rv_avatar_data" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="12.0sp" android:textColor="#ffffffff" android:gravity="center" android:id="@id/tv_room_size" android:background="@drawable/bg_000000_yuan" android:layout_width="26.0dp" android:layout_height="26.0dp" android:textAlignment="center" app:layout_constraintBottom_toBottomOf="@id/rv_avatar_data" app:layout_constraintEnd_toEndOf="@id/rv_avatar_data" app:layout_constraintTop_toTopOf="@id/rv_avatar_data" />
-</androidx.constraintlayout.widget.ConstraintLayout>

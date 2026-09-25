@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="center" android:orientation="vertical" android:layout_width="120.0dp" android:layout_height="120.0dp" android:minHeight="120.0dp" app:shape_radius="14.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <include android:id="@id/loading" android:layout_width="wrap_content" android:layout_height="wrap_content" layout="@layout/loading" />
-</com.hjq.shape.layout.ShapeLinearLayout>

@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_horizontal" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/emptyIcon" android:layout_width="95.0dp" android:layout_height="80.0dp" android:layout_marginTop="90.0dp" android:src="@mipmap/ic_empty_normal" />
-    <TextView android:textSize="14.0sp" android:textColor="@color/gray98" android:id="@id/emptyTv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5.0dp" android:text="@string/no_data" />
-    <com.hjq.shape.view.ShapeTextView android:textSize="14.0sp" android:textColor="@color/white" android:gravity="center" android:id="@id/tvStore" android:layout_width="145.0dp" android:layout_height="35.0dp" android:layout_marginTop="25.0dp" android:text="@string/store" android:textAlignment="center" app:shape_radius="25.0dp" app:shape_solidGradientEndColor="#3aff92" app:shape_solidGradientStartColor="#00deff" />
-</LinearLayout>

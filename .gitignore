@@ -84,3 +84,7 @@ admincore-dashboard/scripts/serviceAccount.json
 # Stakpak session files
 .stakpak/session*
 .kilo/
+
+# Build outputs & logs
+*.apk
+logcat_stream.log

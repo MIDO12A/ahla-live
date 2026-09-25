@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:paddingTop="4.0dp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="4.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/atIcon" android:layout_width="12.0dp" android:layout_height="12.0dp" android:src="@mipmap/ic_at_blue" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/userHeaderIv" android:layout_width="16.0dp" android:layout_height="16.0dp" android:layout_marginStart="2.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toEndOf="@id/atIcon" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="12.0dp" android:textColor="#4379a9" android:ellipsize="end" android:id="@id/userNameTv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxWidth="120.0dp" android:maxLines="1" android:layout_marginStart="2.0dp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toEndOf="@id/userHeaderIv" app:layout_constraintTop_toTopOf="parent" />
-</androidx.constraintlayout.widget.ConstraintLayout>

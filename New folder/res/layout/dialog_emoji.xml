@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeFrameLayout android:gravity="center_horizontal" android:layout_width="match_parent" android:layout_height="wrap_content" app:shape_radiusInTopLeft="14.0dp" app:shape_radiusInTopRight="14.0dp" app:shape_solidColor="#cc000000"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.recyclerview.widget.RecyclerView android:id="@id/recyclerView" android:layout_width="match_parent" android:layout_height="wrap_content" />
-</com.hjq.shape.layout.ShapeFrameLayout>

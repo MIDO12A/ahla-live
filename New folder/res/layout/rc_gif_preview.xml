@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:id="@id/rc_main" android:background="@android:color/white" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/rc_gif_preview" android:layout_width="match_parent" android:layout_height="wrap_content" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textColor="@android:color/white" android:layout_gravity="center" android:id="@id/rc_gif_txt" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/rc_load_image_failed" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/rc_gif_preview" style="@style/TextStyle.Alignment" />
-    <TextView android:textColor="#fff" android:gravity="center" android:id="@id/rc_count_down" android:background="@drawable/rc_image_msg_count_down" android:visibility="gone" android:layout_width="32.0dp" android:layout_height="32.0dp" android:layout_marginLeft="20.0dp" android:layout_marginTop="20.0dp" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-</androidx.constraintlayout.widget.ConstraintLayout>

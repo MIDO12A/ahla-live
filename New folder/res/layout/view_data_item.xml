@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="start|center" android:orientation="vertical" android:padding="10.0dp" android:layout_width="match_parent" android:layout_height="wrap_content" app:shape_radius="14.0dp" app:shape_solidColor="#fff" app:shape_solidSelectedColor="#f9f9f9" app:shape_strokeColor="#e5e5e5" app:shape_strokeSize="1.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <TextView android:textSize="14.0sp" android:textColor="#ff555555" android:id="@id/tvLaber" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/live_time1" android:singleLine="true" />
-    <TextView android:textSize="16.0sp" android:textColor="#ff333333" android:id="@id/tvValue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5.0dp" android:text="56Min" />
-</com.hjq.shape.layout.ShapeLinearLayout>

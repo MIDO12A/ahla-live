@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="center_vertical" android:orientation="vertical" android:id="@id/llRoot" android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:layout_gravity="end" android:id="@id/iv_dismiss" android:paddingTop="10.0dp" android:layout_width="25.0dp" android:layout_height="30.0dp" android:src="@drawable/ic_dialog_cancle" android:alpha="0.5" android:paddingStart="10.0dp" />
-    <com.makeramen.roundedimageview.RoundedImageView android:layout_gravity="center" android:id="@id/riv_room_avatar" android:layout_width="64.0dp" android:layout_height="64.0dp" android:scaleType="centerCrop" app:riv_border_color="#00d9c5" app:riv_border_width="2.0dp" app:riv_oval="true" />
-</com.hjq.shape.layout.ShapeLinearLayout>

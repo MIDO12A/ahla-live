@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="24.0dp" android:width="24.0dp" android:viewportWidth="24.0" android:viewportHeight="24.0"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt">
-    <path android:fillColor="#e0f6f4" android:pathData="M12,12m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
-    <path android:fillColor="@drawable/$union_task_host__0" android:pathData="M11.371,18.57a0.464,0.464 0,0 1,-0.329 -0.137,0.463 0.463,0 0,1 0,-0.656l2.341,-2.341a0.464,0.464 0,0 1,0.657 0l1.606,1.606 1.886,-1.886a0.464,0.464 0,0 1,0.657 0,0.465 0.465,0 0,1 0,0.657l-2.214,2.214a0.465,0.465 0,0 1,-0.329 0.136,0.465 0.465,0 0,1 -0.328,-0.136l-1.607,-1.606 -2.012,2.012A0.463,0.463 0,0 1,11.371 18.57Z" />
-    <path android:fillColor="#8c8c8c" android:pathData="M11.738,13.073h0.013A3.824,3.824 0,1 0,7.875 9.253,3.8 3.8,0 0,0 9.575,12.426 6.1,6.1 0,0 0,6.875 14.443,5.946 5.946,0 0,0 5.675,18.049a0.523,0.523 0,0 0,0.518 0.52,0.53 0.53,0 0,0 0.52,-0.511A4.979,4.979 0,0 1,11.668 13.075a0.24,0.24 0,0 0,0.07 0ZM11.696,6.48A2.775,2.775 0,1 1,8.921 9.255,2.779 2.779,0 0,1 11.696,6.48ZM11.696,6.48" />
-</vector>

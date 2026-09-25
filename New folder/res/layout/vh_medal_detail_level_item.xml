@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.opensource.svgaplayer.SVGAImageView android:id="@id/medalIcon" android:layout_width="48.0dp" android:layout_height="48.0dp" android:layout_marginHorizontal="16.0dp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <TextView android:textSize="14.0dp" android:textStyle="bold" android:textColor="@color/white" android:id="@id/scoreTv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8.0dp" android:drawablePadding="4.0dp" android:drawableStart="@mipmap/ic_medal_ranking_num_sign" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/medalIcon" />
-</androidx.constraintlayout.widget.ConstraintLayout>

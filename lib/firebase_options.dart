@@ -47,30 +47,31 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCGASmIR9P8ylA3Oia2HSMNa4K80d0xHMk',
-    appId: '1:95008435096:web:aaf5b8c78a397b133099ed',
-    messagingSenderId: '95008435096',
-    projectId: 'zeroappzero-e1b4a',
-    authDomain: 'zeroappzero-e1b4a.firebaseapp.com',
-    databaseURL: 'https://zeroappzero-e1b4a-default-rtdb.firebaseio.com',
-    storageBucket: 'zeroappzero-e1b4a.appspot.com',
-    measurementId: 'G-JG150HLC1N',
+    apiKey: 'AIzaSyDP0bNjlUFU38F5HLWqJARdtrUWyc7R3gg',
+    appId: '1:183199730954:web:a169a64cda908c51383ef3',
+    messagingSenderId: '183199730954',
+    projectId: 'ahla-live',
+    authDomain: 'ahla-live.firebaseapp.com',
+    databaseURL: 'https://ahla-live-default-rtdb.firebaseio.com',
+    storageBucket: 'ahla-live.firebasestorage.app',
+    measurementId: 'G-ZYK2BGX5X3',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCGASmIR9P8ylA3Oia2HSMNa4K80d0xHMk',
-    appId: '1:95008435096:android:YOUR_ANDROID_APP_ID', // سيتم استبداله لاحقاً
-    messagingSenderId: '95008435096',
-    projectId: 'zeroappzero-e1b4a',
-    storageBucket: 'zeroappzero-e1b4a.appspot.com',
+    apiKey: 'AIzaSyBeRauEkyFcsB7ryTYTx28aOO2szSBZjCg',
+    appId: '1:183199730954:android:cbf937664eb5f2fd383ef3',
+    messagingSenderId: '183199730954',
+    projectId: 'ahla-live',
+    databaseURL: 'https://ahla-live-default-rtdb.firebaseio.com',
+    storageBucket: 'ahla-live.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCGASmIR9P8ylA3Oia2HSMNa4K80d0xHMk',
-    appId: '1:95008435096:ios:YOUR_IOS_APP_ID', // سيتم استبداله لاحقاً
-    messagingSenderId: '95008435096',
-    projectId: 'zeroappzero-e1b4a',
-    storageBucket: 'zeroappzero-e1b4a.appspot.com',
-    iosBundleId: 'com.example.zero', // سيتم استبداله لاحقاً
+    apiKey: 'AIzaSyBeRauEkyFcsB7ryTYTx28aOO2szSBZjCg',
+    appId: '1:183199730954:ios:YOUR_IOS_APP_ID',
+    messagingSenderId: '183199730954',
+    projectId: 'ahla-live',
+    storageBucket: 'ahla-live.firebasestorage.app',
+    iosBundleId: 'com.ahlalive.app',
   );
 }

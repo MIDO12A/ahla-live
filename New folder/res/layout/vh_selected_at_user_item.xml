@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/headerIv" android:layout_width="28.0dp" android:layout_height="28.0dp" android:layout_marginStart="4.0dp" />
-    <com.hjq.shape.view.ShapeTextView android:textSize="14.0dp" android:textStyle="bold" android:gravity="center" android:id="@id/plusTv" android:visibility="gone" android:layout_width="28.0dp" android:layout_height="28.0dp" app:shape_radius="14.0dp" app:shape_solidGradientEndColor="@color/gradient_end_new" app:shape_solidGradientStartColor="@color/gradient_start_new" app:shape_textColor="@color/white" />
-</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/user_provider.dart';
@@ -10,7 +11,10 @@ class TaskService {
   factory TaskService() => _instance;
   TaskService._internal();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'default',
+  );
 
   String _getTodayKey() {
     final now = DateTime.now();

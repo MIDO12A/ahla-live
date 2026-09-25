@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout android:layout_gravity="center" android:layout_width="60.0dp" android:layout_height="36.0dp"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <View android:layout_gravity="start" android:background="#ababad" android:layout_width="1.0px" android:layout_height="36.0dp" />
-    <ImageView android:layout_gravity="center" android:id="@id/rc_emoticon_tab_iv" android:layout_width="22.0dp" android:layout_height="22.0dp" android:scaleType="fitXY" />
-</FrameLayout>

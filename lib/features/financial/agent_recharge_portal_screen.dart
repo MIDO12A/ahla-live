@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -81,7 +82,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
     // Fallback: Check user provider and Firestore directly
     if (user?.isRechargeAgent == true || uid != null) {
       try {
-        final uDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        final uDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
         final data = uDoc.data() ?? {};
         final isAgent = user?.isRechargeAgent == true ||
             data['is_recharge_agent'] == true ||

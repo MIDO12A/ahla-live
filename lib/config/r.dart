@@ -264,7 +264,7 @@ class R {
   static const String commonCloseIc = '$_m/common_close_ic.webp';
   static const String commonGoldIc2 = '$_m/common_gold_ic_2.webp';
   static const String commonBack2 = '$_m/common_back_2.webp';
-  static const String splashImgLogo = '$_m/splash_img_logo.webp';
+  static const String splashImgLogo = '$_m/splash_img_logo.png';
 
   // Mine / Profile icons
   static const String mineFacebookIc = '$_m/mine_facebook_ic.webp';

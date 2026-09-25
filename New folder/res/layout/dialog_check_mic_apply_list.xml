@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeConstraintLayout android:layout_width="match_parent" android:layout_height="wrap_content" app:shape_radiusInTopLeft="14.0dp" app:shape_radiusInTopRight="14.0dp" app:shape_solidColor="@color/hilla_dark_new"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <TextView android:textSize="16.0dp" android:textColor="@color/white" android:id="@id/title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16.0dp" android:text="@string/apply_for_mic" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <ImageView android:id="@id/closeBtn" android:layout_width="wrap_content" android:layout_height="wrap_content" android:src="@drawable/ic_dismiss_white" android:layout_marginEnd="15.0dp" app:layout_constraintBottom_toBottomOf="@id/title" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="@id/title" />
-    <com.approom.chatapp.common.view.SmartHeaderRefreshLayout android:id="@id/swipeRefresh" android:padding="12.0dp" android:layout_width="match_parent" android:layout_height="260.0dp" android:layout_marginTop="16.0dp" app:layout_constrainedHeight="true" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintTop_toBottomOf="@id/title">
-        <androidx.recyclerview.widget.RecyclerView android:id="@id/rv" android:layout_width="match_parent" android:layout_height="match_parent" />
-    </com.approom.chatapp.common.view.SmartHeaderRefreshLayout>
-</com.hjq.shape.layout.ShapeConstraintLayout>

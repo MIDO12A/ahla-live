@@ -1,6 +1,16 @@
 const fs = require('fs');
 const path = require('path');
-const admin = require('../backend/node_modules/firebase-admin');
+let admin;
+try {
+  admin = require('firebase-admin');
+} catch (e) {
+  try {
+    admin = require(path.resolve(__dirname, '../backend/node_modules/firebase-admin'));
+  } catch (e2) {
+    console.error('firebase-admin module not found. Please run "npm install firebase-admin"');
+    process.exit(1);
+  }
+}
 
 // Parse CLI args: node restore_firestore.js [serviceAccountKey.json] [backupDir]
 const args = process.argv.slice(2);
@@ -139,6 +149,7 @@ async function main() {
   console.log(`Total Docs Restored:${totalRestoredDocs}`);
   console.log(`Time Elapsed:       ${duration}s`);
   console.log('=========================================\n');
+  process.exit(0);
 }
 
 main().catch(err => {

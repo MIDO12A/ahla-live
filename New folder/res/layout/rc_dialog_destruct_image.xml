@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:background="#ffffff" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android">
-    <TextView android:textSize="13.0sp" android:textColor="#333333" android:gravity="center" android:id="@id/tv_sight" android:layout_width="match_parent" android:layout_height="40.0dp" android:text="@string/rc_dialog_item_sight" style="@style/TextStyle.Alignment" />
-    <View android:id="@id/view_horizontal" android:background="#e0e0e0" android:layout_width="match_parent" android:layout_height="1.0px" />
-    <TextView android:textSize="13.0sp" android:textColor="#333333" android:gravity="center" android:id="@id/tv_album" android:layout_width="match_parent" android:layout_height="40.0dp" android:text="@string/rc_dialog_item_select_from_album" style="@style/TextStyle.Alignment" />
-    <View android:background="#f7f9fa" android:layout_width="match_parent" android:layout_height="8.0dp" />
-    <TextView android:textSize="13.0sp" android:textColor="#333333" android:gravity="center" android:id="@id/tv_cancel" android:layout_width="match_parent" android:layout_height="40.0dp" android:text="@string/rc_cancel" style="@style/TextStyle.Alignment" />
-</LinearLayout>

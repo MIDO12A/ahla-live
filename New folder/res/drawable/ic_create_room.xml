@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector android:height="32.0dp" android:width="32.0dp" android:autoMirrored="true" android:viewportWidth="32.0" android:viewportHeight="32.0"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt">
-    <group>
-        <clip-path android:pathData="M0,0h32v32h-32z" />
-        <path android:fillColor="@drawable/$ic_create_room__0" android:pathData="M31.995,26.638L31.995,12.697A5.232,5.232 0,0 0,29.72 8.275L19.009,0.904a5.47,5.47 0,0 0,-6.023 0L2.274,8.275a5,5 0,0 0,-2.274 4.29L-0,26.638a5.375,5.375 0,0 0,5.356 5.362L26.775,32A5.176,5.176 0,0 0,31.995 26.638Z" />
-        <path android:fillColor="@drawable/$ic_create_room__1" android:pathData="M15.667,26.948a1,1 0,0 1,-1 -1L14.667,20.281L9,20.281a1,1 0,0 1,-1 -1L8,18.614a1,1 0,0 1,1 -1L14.666,17.614L14.666,11.948a1,1 0,0 1,1 -1h0.666a1,1 0,0 1,1 1L17.332,17.614L23,17.614a1,1 0,0 1,1 1v0.667a1,1 0,0 1,-1 1L17.334,20.281L17.334,25.948a1,1 0,0 1,-1 1Z" />
-    </group>
-</vector>

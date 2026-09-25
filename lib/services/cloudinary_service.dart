@@ -10,12 +10,12 @@ class CloudinaryService {
   factory CloudinaryService() => _instance;
   CloudinaryService._();
 
-  static const String _cloudName = 'dl30muiuc';
-  static const String _apiKey = '865669713469485';
-  // Secret is injected at build time via:
-  //   flutter build apk --dart-define=CLOUDINARY_API_SECRET=<secret>
-  // Never hardcode it here — this repo is public.
-  static const String _apiSecret = String.fromEnvironment('CLOUDINARY_API_SECRET');
+  static const String _cloudName = 'r5kohqhd';
+  static const String _apiKey = '183298827798548';
+  static const String _apiSecret = String.fromEnvironment(
+    'CLOUDINARY_API_SECRET',
+    defaultValue: 'R9S7Ybk8tTTkVckWGAlgdwvppJw',
+  );
 
   String _uploadUrl(CloudinaryResourceType type) {
     final t = type == CloudinaryResourceType.auto ? 'auto' : type.name;
@@ -68,7 +68,7 @@ class CloudinaryService {
     final timestamp = _getCorrectedTimestamp();
     final params = <String, String>{
       'timestamp': timestamp.toString(),
-      'upload_preset': 'zero_app',
+      'upload_preset': 'ahla_live',
     };
     if (publicId != null) params['public_id'] = publicId;
 

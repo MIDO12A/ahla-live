@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -3070,7 +3071,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   final isMod = _moderators.contains(targetUid);
                   try {
                     if (isMod) {
-                      await FirebaseFirestore.instance.collection('rooms').doc(widget.roomId).update({
+                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
                         'moderators': FieldValue.arrayRemove([targetUid]),
                       });
                       setState(() => _moderators.remove(targetUid));
@@ -3078,7 +3079,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         SnackBar(content: Text('تم إلغاء إشراف ${_selectedUser?.name}')),
                       );
                     } else {
-                      await FirebaseFirestore.instance.collection('rooms').doc(widget.roomId).update({
+                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
                         'moderators': FieldValue.arrayUnion([targetUid]),
                       });
                       setState(() => _moderators.add(targetUid));
@@ -3568,7 +3569,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       roomId: widget.roomId,
       onGameSelect: (gameKey, gameName) {
         if (_isOwner) {
-          FirebaseFirestore.instance.collection('rooms').doc(widget.roomId).update({
+          FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
             'game_desc': gameName,
           }).catchError((_) {});
         }
@@ -5436,7 +5437,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final uid = _currentUserId!;
     final roomId = widget.roomId;
     // Fire-and-forget: لا نريد انتظار النتيجة
-    FirebaseFirestore.instance
+    FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
         .collection('room_members')
         .doc('${roomId}_$uid')
         .update({'last_ping': FieldValue.serverTimestamp()})
@@ -5450,7 +5451,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final cutoff = Timestamp.fromDate(
         DateTime.now().subtract(const Duration(minutes: 5)),
       );
-      final snap = await FirebaseFirestore.instance
+      final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
           .collection('room_members')
           .where('room_id', isEqualTo: widget.roomId)
           .get();

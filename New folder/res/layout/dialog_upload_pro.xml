@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.hjq.shape.layout.ShapeLinearLayout android:gravity="center" android:orientation="vertical" android:layout_width="120.0dp" android:layout_height="120.0dp" android:minHeight="120.0dp" app:shape_radius="14.0dp" app:shape_solidColor="#88000000"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.approom.chatapp.common.view.CircleProgressBar android:id="@id/progress" android:layout_width="50.0dp" android:layout_height="50.0dp" app:progress_color="#00d9c5" app:stroke_width="3.0dp" app:textColor="#00d9c5" app:textSize="14.0sp" />
-</com.hjq.shape.layout.ShapeLinearLayout>

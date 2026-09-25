@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:restart_app/restart_app.dart' show Restart;
@@ -15,12 +16,15 @@ class DynamicConfigService extends ChangeNotifier {
   factory DynamicConfigService() => _instance;
   DynamicConfigService._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'default',
+  );
   final FirebaseAuth _auth = FirebaseAuth.instance;
   StreamSubscription? _authSub;
   
   // App Configurations
-  String _appName = 'Zero';
+  String _appName = 'Ahla Live';
   String _logoUrl = '';
   String _splashUrl = '';
   bool _splashEnabled = false;

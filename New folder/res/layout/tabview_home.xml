@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout android:gravity="center" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/tabImg" android:layout_width="44.0dp" android:layout_height="44.0dp" android:layout_marginTop="2.0dp" android:layout_marginBottom="3.0dp" android:layout_marginHorizontal="3.0dp" app:layout_constraintBottom_toTopOf="@id/tabText" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
-    <com.opensource.svgaplayer.SVGAImageView android:id="@id/tabSvga" android:layout_width="44.0dp" android:layout_height="44.0dp" android:layout_margin="3.0dp" app:layout_constraintBottom_toBottomOf="@id/tabImg" app:layout_constraintEnd_toEndOf="@id/tabImg" app:layout_constraintStart_toStartOf="@id/tabImg" app:layout_constraintTop_toTopOf="@id/tabImg" />
-    <com.approom.chatapp.common.view.DotView android:id="@id/dotView" android:visibility="visible" android:layout_width="wrap_content" android:layout_height="wrap_content" app:layout_constraintEnd_toEndOf="@id/tabSvga" app:layout_constraintTop_toTopOf="@id/tabSvga" app:needRim="true" />
-    <TextView android:textSize="12.0dp" android:textColor="@color/color_0D4F47" android:id="@id/tabText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingHorizontal="2.0dp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@id/tabImg" />
-</androidx.constraintlayout.widget.ConstraintLayout>
