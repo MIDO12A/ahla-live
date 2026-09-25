@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/supabase_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../providers/user_provider.dart';
@@ -214,14 +215,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
 
       String photoUrl = currentUser.photoUrl;
+      if (photoUrl.isEmpty) {
+        final authPhoto = FirebaseAuth.instance.currentUser?.photoURL;
+        if (authPhoto != null && authPhoto.isNotEmpty) {
+          photoUrl = authPhoto;
+        }
+      }
 
       // Upload image if selected
       if (_selectedImage != null) {
         final cid = currentUser.customId.isNotEmpty ? currentUser.customId : currentUser.uid.replaceAll('-', '').substring(0, 7);
-        photoUrl = await CloudinaryService().uploadImage(
-          _selectedImage!,
-          publicId: 'user_' + cid,
-        );
+        try {
+          final uploaded = await CloudinaryService().uploadImage(
+            _selectedImage!,
+            publicId: 'user_' + cid,
+          );
+          if (uploaded.isNotEmpty) {
+            photoUrl = uploaded;
+          }
+        } catch (e) {
+          debugPrint('Error uploading profile image: $e');
+        }
       }
 
       int computedAge = currentUser.age;
@@ -237,13 +251,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (p.startsWith('http://') || p.startsWith('https://')) {
           finalAlbum.add(p);
         } else {
-          final cid = currentUser.customId.isNotEmpty ? currentUser.customId : currentUser.uid.replaceAll('-', '').substring(0, 7);
-          final uploaded = await CloudinaryService().uploadImage(
-            File(p),
-            publicId: 'album_${cid}_${i}_${DateTime.now().millisecondsSinceEpoch}',
-          );
-          if (uploaded.isNotEmpty) {
-            finalAlbum.add(uploaded);
+          try {
+            final cid = currentUser.customId.isNotEmpty ? currentUser.customId : currentUser.uid.replaceAll('-', '').substring(0, 7);
+            final uploaded = await CloudinaryService().uploadImage(
+              File(p),
+              publicId: 'album_${cid}_${i}_${DateTime.now().millisecondsSinceEpoch}',
+            );
+            if (uploaded.isNotEmpty) {
+              finalAlbum.add(uploaded);
+            }
+          } catch (e) {
+            debugPrint('Failed to upload album image $i: $e');
           }
         }
       }
@@ -262,6 +280,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
       await SupabaseService().saveUser(updatedUser);
+      await SupabaseService().updateUser(currentUser.uid, {
+        'name': name,
+        'photo_url': photoUrl,
+        'photoUrl': photoUrl,
+        'avatar': photoUrl,
+        'avatar_url': photoUrl,
+        'gender': _selectedGender,
+        'signature': _signatureController.text.trim(),
+        'country': _selectedCountry,
+        'age': computedAge,
+        'album': finalAlbum,
+        'albums': finalAlbum,
+      });
 
       if (mounted) {
         await userProvider.loadUser(currentUser.uid);
@@ -284,6 +315,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context).currentUser;
+    final currentAvatar = (user?.photoUrl != null && user!.photoUrl.isNotEmpty)
+        ? user.photoUrl
+        : (FirebaseAuth.instance.currentUser?.photoURL ?? '');
     final countryObj = _arabCountries.firstWhere(
       (c) => c['code'] == _selectedCountry,
       orElse: () => _arabCountries.first,
@@ -324,7 +358,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   children: [
                     const SizedBox(height: 12),
                     // cl_avatar (layout_mineinfo_edit.xml)
-                    _buildAvatarSection(user?.photoUrl ?? ''),
+                    _buildAvatarSection(currentAvatar),
                     const SizedBox(height: 24),
                     // Nickname label & container
                     _buildSectionTitle('الاسم المستعار'),

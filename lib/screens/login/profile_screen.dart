@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../../models/user_model.dart';
@@ -134,7 +135,10 @@ class ProfileScreen extends StatelessWidget {
 
   /// لوحة المستخدم العلوية المركزية cl_info المطابقة تماماً لـ fragment_mine.xml
   Widget _buildUserInfoPanel(BuildContext context, UserModel? user) {
-    final photoUrl = (user?.photoUrl != null && user!.photoUrl.isNotEmpty) ? user.photoUrl : null;
+    final authPhoto = FirebaseAuth.instance.currentUser?.photoURL;
+    final photoUrl = (user?.photoUrl != null && user!.photoUrl.isNotEmpty)
+        ? user.photoUrl
+        : ((authPhoto != null && authPhoto.isNotEmpty) ? authPhoto : null);
     final userId = (user?.customId != null && user!.customId.isNotEmpty)
         ? user.customId
         : ((1000000 + (user?.uid.hashCode.abs() ?? 0) % 9000000).toString());

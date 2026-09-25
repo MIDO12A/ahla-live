@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
@@ -120,6 +121,21 @@ class UserProvider extends ChangeNotifier {
       }
       await _supabaseService.updateUser(uid, {'custom_id': customId});
       _currentUser = await _supabaseService.getUser(uid);
+    }
+    if (_currentUser != null && _currentUser!.photoUrl.isEmpty) {
+      final authUser = FirebaseAuth.instance.currentUser;
+      if (authUser != null && authUser.uid == uid && authUser.photoURL != null && authUser.photoURL!.isNotEmpty) {
+        final authPhoto = authUser.photoURL!;
+        _currentUser = _currentUser!.copyWith(photoUrl: authPhoto);
+        try {
+          await _supabaseService.updateUser(uid, {
+            'photo_url': authPhoto,
+            'photoUrl': authPhoto,
+            'avatar': authPhoto,
+            'avatar_url': authPhoto,
+          });
+        } catch (_) {}
+      }
     }
     _isLoading = false;
     notifyListeners();

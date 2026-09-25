@@ -278,6 +278,47 @@ class UserModel {
     return numericOnly.length >= 6 && numericOnly.length <= 10;
   }
 
+  // FIX: Robust photo URL extraction supporting various schema field names
+  static String _extractPhotoUrl(Map map) {
+    final possibleKeys = [
+      'photo_url',
+      'photoUrl',
+      'photoURL',
+      'avatar',
+      'avatar_url',
+      'avatarUrl',
+      'profile_image',
+      'picture',
+      'imageUrl',
+      'image_url',
+    ];
+    for (final key in possibleKeys) {
+      final val = map[key];
+      if (val != null) {
+        final s = val.toString().trim();
+        if (s.isNotEmpty && s != 'null') {
+          return s;
+        }
+      }
+    }
+    return '';
+  }
+
+  // FIX: Robust album extraction supporting album, albums, photos
+  static List<String> _extractAlbum(Map map) {
+    final possibleKeys = ['album', 'albums', 'photos'];
+    for (final key in possibleKeys) {
+      final list = map[key];
+      if (list is List && list.isNotEmpty) {
+        return list
+            .map((e) => e?.toString() ?? '')
+            .where((e) => e.isNotEmpty && e != 'null')
+            .toList();
+      }
+    }
+    return const [];
+  }
+
   factory UserModel.fromMap(Map map) {
     // FIX: Robust ID extraction with multiple fallback fields
     // Try multiple possible field names for custom ID to ensure compatibility
@@ -288,7 +329,8 @@ class UserModel {
       customId: extractedCustomId,
       name: map['name']?.toString() ?? '',
       email: map['email']?.toString() ?? '',
-      photoUrl: map['photo_url']?.toString() ?? '',
+      photoUrl: _extractPhotoUrl(map),
+      album: _extractAlbum(map),
       coins: (map['coins'] ?? 0).toInt(),
       diamonds: (map['diamonds'] ?? 0).toInt(),
       gender: map['gender']?.toString() ?? 'male',
@@ -347,6 +389,9 @@ class UserModel {
         'name': name,
         'email': email,
         'photo_url': photoUrl,
+        'photoUrl': photoUrl,
+        'avatar': photoUrl,
+        'avatar_url': photoUrl,
         'coins': coins,
         'diamonds': diamonds,
         'gender': gender,
@@ -359,7 +404,8 @@ class UserModel {
         'active_necklace': activeNecklace,
         'active_mic_wave': activeMicWave,
         'profile_bg_url': profileBgUrl,
-      'album': album,
+        'album': album,
+        'albums': album,
         'owned_items': ownedItems,
         'owned_badges': ownedBadges,
         'hosted_room_id': hostedRoomId,

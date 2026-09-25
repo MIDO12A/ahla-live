@@ -106,7 +106,10 @@ class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
     try {
       final response = await http.get(
         Uri.parse(url),
-        headers: {'User-Agent': 'ZeroApp/1.0'},
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        },
       );
       if (response.statusCode != 200) {
         throw HttpException('Failed to load $url: ${response.statusCode}');
@@ -161,16 +164,16 @@ class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
     }
     try {
       final bytes = await key._fetchBytes();
-      if (bytes.isEmpty) {
-        final transparentBuffer = await ui.ImmutableBuffer.fromUint8List(_transparent1x1Png);
-        return await decode(transparentBuffer);
+      if (bytes.isNotEmpty) {
+        final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+        return await decode(buffer);
       }
-      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-      return await decode(buffer);
-    } catch (_) {
-      final transparentBuffer = await ui.ImmutableBuffer.fromUint8List(_transparent1x1Png);
-      return await decode(transparentBuffer);
+    } catch (e) {
+      debugPrint('EncryptedImageProvider error loading ${key.url}: $e');
+      rethrow;
     }
+    final transparentBuffer = await ui.ImmutableBuffer.fromUint8List(_transparent1x1Png);
+    return await decode(transparentBuffer);
   }
 
   @override

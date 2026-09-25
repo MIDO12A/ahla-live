@@ -65,37 +65,78 @@ class CloudinaryService {
     CloudinaryResourceType type = CloudinaryResourceType.auto,
     int retriesLeft = 0,
   }) async {
-    final timestamp = _getCorrectedTimestamp();
-    final params = <String, String>{
-      'timestamp': timestamp.toString(),
-      'upload_preset': 'ahla_live',
-    };
-    if (publicId != null) params['public_id'] = publicId;
-
-    if (_apiSecret.isNotEmpty) {
-      params['api_key'] = _apiKey;
-      params['signature'] = _generateSignature(params);
-    }
-
     final url = _uploadUrl(type);
-    final request = http.MultipartRequest('POST', Uri.parse(url));
-    request.fields.addAll(params);
-    request.files.add(await http.MultipartFile.fromPath('file', file.path));
 
-    final streamed = await request.send();
-    final response = await http.Response.fromStream(streamed);
+    // 1. Try Unsigned Upload first (fastest, preset ahla_live is configured as unsigned)
+    try {
+      final request = http.MultipartRequest('POST', Uri.parse(url));
+      request.fields['upload_preset'] = 'ahla_live';
+      if (publicId != null && publicId.isNotEmpty) {
+        request.fields['public_id'] = publicId;
+      }
+      request.files.add(await http.MultipartFile.fromPath('file', file.path));
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data['secure_url'] as String;
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final secureUrl = data['secure_url'] as String?;
+        if (secureUrl != null && secureUrl.isNotEmpty) {
+          return secureUrl;
+        }
+      } else {
+        print('Cloudinary unsigned upload response: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Cloudinary unsigned upload error: $e');
     }
 
-    if (retriesLeft > 0 && response.body.contains('Stale request')) {
-      await _syncTime();
-      return _doUpload(file, publicId: publicId, type: type, retriesLeft: retriesLeft - 1);
-    }
+    // 2. Fallback to Signed Upload with correct Cloudinary signature (without api_key in signature string)
+    try {
+      final timestamp = _getCorrectedTimestamp();
+      final paramsToSign = <String, String>{
+        'timestamp': timestamp.toString(),
+      };
+      if (publicId != null && publicId.isNotEmpty) {
+        paramsToSign['public_id'] = publicId;
+      }
 
-    throw Exception('Cloudinary upload failed: ${response.statusCode} ${response.body}');
+      final signature = _generateSignature(paramsToSign);
+
+      final request = http.MultipartRequest('POST', Uri.parse(url));
+      request.fields['api_key'] = _apiKey;
+      request.fields['timestamp'] = timestamp.toString();
+      request.fields['signature'] = signature;
+      if (publicId != null && publicId.isNotEmpty) {
+        request.fields['public_id'] = publicId;
+      }
+      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final secureUrl = data['secure_url'] as String?;
+        if (secureUrl != null && secureUrl.isNotEmpty) {
+          return secureUrl;
+        }
+      }
+
+      if (retriesLeft > 0 && response.body.contains('Stale request')) {
+        await _syncTime();
+        return _doUpload(file, publicId: publicId, type: type, retriesLeft: retriesLeft - 1);
+      }
+
+      throw Exception('Cloudinary upload failed: ${response.statusCode} ${response.body}');
+    } catch (e) {
+      if (retriesLeft > 0) {
+        await _syncTime();
+        return _doUpload(file, publicId: publicId, type: type, retriesLeft: retriesLeft - 1);
+      }
+      rethrow;
+    }
   }
 
   Future<String> uploadImage(File file, {String? publicId}) {

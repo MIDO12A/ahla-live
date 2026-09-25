@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -960,13 +961,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final List<String> photos = [];
     if (user.album.isNotEmpty) {
       photos.addAll(user.album);
-    } else {
-      if (user.profileBgUrl != null && user.profileBgUrl!.isNotEmpty) {
-        photos.add(user.profileBgUrl!);
-      }
-      if (user.photoUrl.isNotEmpty && !photos.contains(user.photoUrl)) {
-        photos.add(user.photoUrl);
-      }
+    }
+    if (user.profileBgUrl != null && user.profileBgUrl!.isNotEmpty && !photos.contains(user.profileBgUrl)) {
+      photos.add(user.profileBgUrl!);
+    }
+    final isMe = user.uid == FirebaseAuth.instance.currentUser?.uid;
+    final effectivePhoto = user.photoUrl.isNotEmpty
+        ? user.photoUrl
+        : (isMe ? (FirebaseAuth.instance.currentUser?.photoURL ?? '') : '');
+    if (effectivePhoto.isNotEmpty && !photos.contains(effectivePhoto)) {
+      photos.add(effectivePhoto);
     }
     if (photos.isEmpty) {
       photos.add('');
