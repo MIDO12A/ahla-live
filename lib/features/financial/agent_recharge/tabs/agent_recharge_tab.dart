@@ -896,10 +896,10 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
         return;
       }
     } else {
-      // وضع السحب: التحقق من رصيد المستخدم
-      final userCoins = (user['coins'] as num?)?.toInt() ?? 0;
-      if (amount > userCoins) {
-        _showSnack('رصيد المستخدم غير كافٍ للسحب (رصيده الحالي: $userCoins كوين)');
+      // وضع سحب الألماس (الراتب): التحقق من رصيد ألماس المستخدم
+      final userDiamonds = (user['diamonds'] as num?)?.toInt() ?? 0;
+      if (amount > userDiamonds) {
+        _showSnack('رصيد ألماس المستخدم غير كافٍ للسحب (رصيده المتاح: $userDiamonds ماسة)');
         return;
       }
     }
@@ -1011,63 +1011,27 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     }
 
     try {
-      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-      final agentRef = db.collection('users').doc(agentUid);
-      final targetRef = db.collection('users').doc(targetUid);
-
-      final success = await db.runTransaction<bool>((txn) async {
-        final agentSnap = await txn.get(agentRef);
-        final targetSnap = await txn.get(targetRef);
-        if (!agentSnap.exists || !targetSnap.exists) return false;
-
-        final targetCoins = (targetSnap.data()?['coins'] as num?)?.toInt() ?? 0;
-        if (targetCoins < amount) return false;
-
-        final agentCoins = (agentSnap.data()?['coins'] as num?)?.toInt() ?? 0;
-
-        txn.update(targetRef, {'coins': targetCoins - amount});
-        txn.update(agentRef, {'coins': agentCoins + amount});
-
-        final txRef = db.collection('agent_recharge_transactions').doc();
-        txn.set(txRef, {
-          'agent_id': agentUid,
-          'type': 'withdraw',
-          'recipient_uid': targetUid,
-          'recipient_display_name': user['display_name'] ?? 'مستخدم',
-          'recipient_avatar_url': user['avatar_url'] ?? '',
-          'recipient_kayan_id': user['kayan_id'] ?? '',
-          'gold_amount': amount,
-          'status': 'completed',
-          'created_at': DateTime.now().toIso8601String(),
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-
-        return true;
-      });
+      final res = await FirebaseService().createAgentDiamondWithdrawalRequest(
+        agentUid: agentUid,
+        targetUid: targetUid,
+        diamondsAmount: amount,
+      );
 
       if (!mounted) return;
       setState(() => _busy = false);
 
-      if (success) {
-        FirebaseService().sendNotification(
-          uid: targetUid,
-          type: 'withdraw',
-          title: 'سحب كوينز 🪙',
-          body: 'قام وكيل الشحن بسحب $amount كوين من رصيدك.',
-          data: {'amount': amount, 'agent_id': agentUid},
-        );
-
-        _showSnack('✅ تم سحب $amount كوين من المستخدم بنجاح');
+      if (res['success'] == true) {
+        _showSnack('✅ تم إرسال طلب سحب $amount ماسة للمستخدم، ولن يتم الخصم إلا بعد موافقته');
         _clearSelected();
         widget.onSuccess();
       } else {
-        _showSnack('فشلت العملية: رصيد المستخدم غير كافٍ');
+        _showSnack(res['message']?.toString() ?? 'فشلت العملية');
       }
     } catch (e) {
       debugPrint('[withdraw] error: $e');
       if (mounted) {
         setState(() => _busy = false);
-        _showSnack('حدث خطأ أثناء السحب: $e');
+        _showSnack('حدث خطأ أثناء إرسال طلب السحب: $e');
       }
     }
   }
@@ -1190,7 +1154,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                 ),
                 child: Center(
                   child: Text(
-                    '🔴 سحب كوينز من المستخدم',
+                    '💎 سحب ألماس الراتب',
                     style: GoogleFonts.tajawal(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
@@ -1358,7 +1322,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_isWithdrawMode ? 'المستخدم المطلوب سحب الكوينز منه' : 'المستخدم المطلوب شحن رصيده',
+                    Text(_isWithdrawMode ? 'المستخدم المطلوب سحب الألماس منه' : 'المستخدم المطلوب شحن رصيده',
                         style: GoogleFonts.tajawal(
                             fontSize: 11,
                             color: primaryColor,
@@ -1578,13 +1542,13 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
               fontSize: 18, fontWeight: FontWeight.w800),
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
-            hintText: _isWithdrawMode ? 'أدخل عدد الكوينز المراد سحبها' : 'أدخل عدد الكوينز المراد شحنها',
+            hintText: _isWithdrawMode ? 'أدخل عدد الألماس المراد سحبه كراتب' : 'أدخل عدد الكوينز المراد شحنها',
             hintStyle:
                 GoogleFonts.tajawal(fontSize: 15, color: Colors.black38),
-            prefixIcon: const Padding(
-                padding: EdgeInsets.all(14),
-                child: Text('🪙', style: TextStyle(fontSize: 22))),
-            suffixText: 'كوين',
+            prefixIcon: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(_isWithdrawMode ? '💎' : '🪙', style: const TextStyle(fontSize: 22))),
+            suffixText: _isWithdrawMode ? 'ماسة' : 'كوين',
             suffixStyle: GoogleFonts.tajawal(
                 fontSize: 13,
                 color: Colors.black45,
@@ -1635,7 +1599,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2.5))
                 : Text(
-                    _isWithdrawMode ? 'سحب الكوينز الآن 📤' : 'شحن الكوينز الآن 🚀',
+                    _isWithdrawMode ? 'إرسال طلب سحب الألماس 💎' : 'شحن الكوينز الآن 🚀',
                     style: GoogleFonts.tajawal(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,

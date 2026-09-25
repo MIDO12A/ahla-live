@@ -343,6 +343,107 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
                         ),
 
+                      // Agent Diamond Withdrawal Request Actions (Accept / Reject)
+                      if (action == 'agent_withdrawal_request' || notif.type == 'agent_withdrawal_request')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Row(
+                            children: [
+                              _actionButton(
+                                label: isAr ? 'موافقة على السحب ✅' : 'Approve ✅',
+                                color: const Color(0xFF10B981),
+                                onTap: () async {
+                                  final currentUid = Provider.of<UserProvider>(
+                                          context,
+                                          listen: false)
+                                      .currentUser
+                                      ?.uid;
+                                  final requestId = notif.data?['request_id']?.toString() ?? '';
+                                  final amount = notif.data?['diamonds_amount'] ?? 0;
+
+                                  if (currentUid != null && requestId.isNotEmpty) {
+                                    final res = await _firebaseService.respondToAgentWithdrawalRequest(
+                                      requestId: requestId,
+                                      userUid: currentUid,
+                                      approved: true,
+                                    );
+
+                                    if (!mounted) return;
+
+                                    if (res['success'] == true) {
+                                      await Provider.of<UserProvider>(context, listen: false).loadUser(currentUid);
+                                      if (notif.id.isNotEmpty) {
+                                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                            .collection('notifications')
+                                            .doc(notif.id)
+                                            .delete();
+                                      }
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(isAr
+                                                ? '✅ تمت الموافقة وسحب $amount ماسة بنجاح.'
+                                                : '✅ Approved! $amount diamonds withdrawn successfully.'),
+                                            backgroundColor: const Color(0xFF10B981),
+                                          ),
+                                        );
+                                      }
+                                    } else {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(res['message']?.toString() ?? 'فشلت العملية'),
+                                            backgroundColor: const Color(0xFFEF4444),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              _actionButton(
+                                label: isAr ? 'رفض السحب ❌' : 'Reject ❌',
+                                color: const Color(0xFFEF4444),
+                                onTap: () async {
+                                  final currentUid = Provider.of<UserProvider>(
+                                          context,
+                                          listen: false)
+                                      .currentUser
+                                      ?.uid;
+                                  final requestId = notif.data?['request_id']?.toString() ?? '';
+
+                                  if (currentUid != null && requestId.isNotEmpty) {
+                                    await _firebaseService.respondToAgentWithdrawalRequest(
+                                      requestId: requestId,
+                                      userUid: currentUid,
+                                      approved: false,
+                                    );
+                                  }
+
+                                  if (notif.id.isNotEmpty) {
+                                    await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                        .collection('notifications')
+                                        .doc(notif.id)
+                                        .delete();
+                                  }
+
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(isAr
+                                            ? 'تم رفض طلب سحب الألماس ولم يتم خصم أي رصيد.'
+                                            : 'Withdrawal request rejected. No diamonds deducted.'),
+                                        backgroundColor: const Color(0xFFEF4444),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
                       // Agency Invitation Actions (Accept/Reject)
                       if (action == 'agency_invite')
                         Padding(

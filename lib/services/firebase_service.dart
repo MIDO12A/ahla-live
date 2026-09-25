@@ -3506,6 +3506,223 @@ class FirebaseService {
       return false;
     }
   }
+
+  /// إنشاء طلب سحب ألماس الراتب من مستخدم بواسطة وكيل شحن
+  Future<Map<String, dynamic>> createAgentDiamondWithdrawalRequest({
+    required String agentUid,
+    required String targetUid,
+    required int diamondsAmount,
+  }) async {
+    try {
+      if (diamondsAmount <= 0) {
+        return {'success': false, 'message': 'يرجى إدخال كمية ألماس صحيحة أكبر من 0'};
+      }
+
+      final agentDoc = await _db.collection('users').doc(agentUid).get();
+      final targetDoc = await _db.collection('users').doc(targetUid).get();
+
+      if (!agentDoc.exists || !targetDoc.exists) {
+        return {'success': false, 'message': 'بيانات الوكيل أو المستخدم غير موجودة'};
+      }
+
+      final targetData = targetDoc.data() ?? {};
+      final targetDiamonds = _asInt(targetData['diamonds'] ?? 0);
+      if (targetDiamonds < diamondsAmount) {
+        return {
+          'success': false,
+          'message': 'رصيد المستخدم غير كافٍ. الألماس المتاح لديه: $targetDiamonds ماسة'
+        };
+      }
+
+      final agentData = agentDoc.data() ?? {};
+      final agentName = agentData['name'] ?? agentData['display_name'] ?? 'وكيل الشحن';
+      final targetName = targetData['name'] ?? targetData['display_name'] ?? 'المستخدم';
+
+      final reqRef = _db.collection('agent_withdrawal_requests').doc();
+      final now = DateTime.now().toUtc();
+
+      await reqRef.set({
+        'request_id': reqRef.id,
+        'agent_id': agentUid,
+        'agent_name': agentName,
+        'target_uid': targetUid,
+        'target_name': targetName,
+        'target_custom_id': targetData['custom_id']?.toString() ?? '',
+        'diamonds_amount': diamondsAmount,
+        'status': 'pending',
+        'created_at': now.toIso8601String(),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // إرسال إشعار فوري للمستخدم للموافقة أو الرفض
+      await sendNotification(
+        uid: targetUid,
+        type: 'agent_withdrawal_request',
+        title: 'طلب سحب راتب 💎',
+        body: 'يطلب وكيل الشحن ($agentName) سحب $diamondsAmount ماسة من رصيد ألماسك كراتب. هل توافق على السحب؟',
+        data: {
+          'action': 'agent_withdrawal_request',
+          'request_id': reqRef.id,
+          'agent_id': agentUid,
+          'agent_name': agentName,
+          'diamonds_amount': diamondsAmount,
+        },
+      );
+
+      return {'success': true, 'request_id': reqRef.id};
+    } catch (e) {
+      debugPrint('createAgentDiamondWithdrawalRequest error: $e');
+      return {'success': false, 'message': 'حدث خطأ أثناء إرسال طلب السحب: $e'};
+    }
+  }
+
+  /// معالجة رد المستخدم (الموافقة أو الرفض) على طلب سحب الألماس
+  Future<Map<String, dynamic>> respondToAgentWithdrawalRequest({
+    required String requestId,
+    required String userUid,
+    required bool approved,
+  }) async {
+    try {
+      final reqRef = _db.collection('agent_withdrawal_requests').doc(requestId);
+      final reqSnap = await reqRef.get();
+      if (!reqSnap.exists) {
+        return {'success': false, 'message': 'طلب السحب غير موجود أو تم حذفه'};
+      }
+
+      final reqData = reqSnap.data() ?? {};
+      if (reqData['target_uid'] != userUid) {
+        return {'success': false, 'message': 'غير مصرح لك باتخاذ إجراء على هذا الطلب'};
+      }
+
+      final currentStatus = reqData['status']?.toString() ?? 'pending';
+      if (currentStatus != 'pending') {
+        return {
+          'success': false,
+          'message': currentStatus == 'approved'
+              ? 'تمت الموافقة على هذا الطلب مسبقاً'
+              : 'تم رفض هذا الطلب مسبقاً'
+        };
+      }
+
+      final agentId = reqData['agent_id']?.toString() ?? '';
+      final diamondsAmount = _asInt(reqData['diamonds_amount'] ?? 0);
+      final targetName = reqData['target_name']?.toString() ?? 'المستخدم';
+
+      if (!approved) {
+        // رفض الطلب: لا يتم خصم أي ماسة
+        await reqRef.update({
+          'status': 'rejected',
+          'rejected_at': DateTime.now().toUtc().toIso8601String(),
+        });
+
+        // إشعار الوكيل بالرفض
+        if (agentId.isNotEmpty) {
+          await sendNotification(
+            uid: agentId,
+            type: 'agent_withdrawal_rejected',
+            title: 'تم رفض طلب السحب ❌',
+            body: 'قام المستخدم $targetName برفض طلب سحب $diamondsAmount ماسة.',
+            data: {
+              'request_id': requestId,
+              'target_uid': userUid,
+              'diamonds_amount': diamondsAmount,
+            },
+          );
+        }
+
+        return {'success': true, 'action': 'rejected'};
+      }
+
+      // موافقة المستخدم: تنفيذ السحب داخل Transaction موثوقة
+      final userRef = _db.collection('users').doc(userUid);
+      final agentRef = _db.collection('users').doc(agentId);
+
+      final txnResult = await _db.runTransaction<Map<String, dynamic>>((txn) async {
+        final uSnap = await txn.get(userRef);
+        final aSnap = await txn.get(agentRef);
+        final rSnap = await txn.get(reqRef);
+
+        if (!uSnap.exists || !aSnap.exists || !rSnap.exists) {
+          return {'success': false, 'message': 'تعذر استرجاع بيانات الحسابات'};
+        }
+
+        if (rSnap.data()?['status'] != 'pending') {
+          return {'success': false, 'message': 'تم تغيير حالة هذا الطلب مسبقاً'};
+        }
+
+        final uDiamonds = _asInt(uSnap.data()?['diamonds'] ?? 0);
+        if (uDiamonds < diamondsAmount) {
+          return {
+            'success': false,
+            'message': 'رصيد الألماس لديك غير كافٍ لإتمام السحب (المتاح: $uDiamonds ماسة)'
+          };
+        }
+
+        // خصم الألماس من المستخدم
+        txn.update(userRef, {
+          'diamonds': uDiamonds - diamondsAmount,
+          'total_diamonds_withdrawn': FieldValue.increment(diamondsAmount),
+        });
+
+        // إضافة الألماس لحساب ومحفظة الوكيل
+        txn.update(agentRef, {
+          'diamonds': FieldValue.increment(diamondsAmount),
+        });
+
+        final agentWalletRef = _db.collection('agent_usd_wallets').doc(agentId);
+        txn.set(agentWalletRef, {
+          'user_id': agentId,
+          'diamond_balance': FieldValue.increment(diamondsAmount),
+          'total_received': FieldValue.increment(diamondsAmount),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        }, SetOptions(merge: true));
+
+        // تسجيل العملية في سجل المعاملات المالية للوكيل
+        final txRef = _db.collection('agent_recharge_transactions').doc();
+        txn.set(txRef, {
+          'agent_id': agentId,
+          'type': 'withdraw_diamonds',
+          'recipient_uid': userUid,
+          'recipient_display_name': targetName,
+          'recipient_avatar_url': uSnap.data()?['avatar'] ?? uSnap.data()?['avatar_url'] ?? '',
+          'recipient_kayan_id': uSnap.data()?['custom_id']?.toString() ?? '',
+          'diamonds_amount': diamondsAmount,
+          'status': 'completed',
+          'request_id': requestId,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        // تحديث حالة الطلب
+        txn.update(reqRef, {
+          'status': 'approved',
+          'approved_at': DateTime.now().toUtc().toIso8601String(),
+        });
+
+        return {'success': true, 'action': 'approved'};
+      });
+
+      if (txnResult['success'] == true && agentId.isNotEmpty) {
+        // إشعار الوكيل بنجاح العملية وموافقة المستخدم
+        await sendNotification(
+          uid: agentId,
+          type: 'agent_withdrawal_approved',
+          title: 'تمت الموافقة على سحب الألماس ✅',
+          body: 'وافق المستخدم $targetName على طلب سحب $diamondsAmount ماسة، وتم تحويلها لمحفظتك بنجاح.',
+          data: {
+            'request_id': requestId,
+            'target_uid': userUid,
+            'diamonds_amount': diamondsAmount,
+          },
+        );
+      }
+
+      return txnResult;
+    } catch (e) {
+      debugPrint('respondToAgentWithdrawalRequest error: $e');
+      return {'success': false, 'message': 'حدث خطأ أثناء معالجة الطلب: $e'};
+    }
+  }
 }
 
 

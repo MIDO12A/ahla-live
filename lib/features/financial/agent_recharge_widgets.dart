@@ -267,13 +267,13 @@ class AgentRechargeConfirmDialog extends StatelessWidget {
           decoration: BoxDecoration(
             color: primaryColor.withValues(alpha: 0.1),
             shape: BoxShape.circle),
-          child: Center(child: Text(isWithdraw ? '📤' : '🪙', style: const TextStyle(fontSize: 30)))),
+          child: Center(child: Text(isWithdraw ? '💎' : '🪙', style: const TextStyle(fontSize: 30)))),
         const SizedBox(height: 14),
-        Text(isWithdraw ? 'تأكيد السحب من المستخدم' : 'تأكيد شحن كوينز',
+        Text(isWithdraw ? 'طلب سحب ألماس الراتب' : 'تأكيد شحن كوينز',
           style: GoogleFonts.tajawal(fontSize: 18, fontWeight: FontWeight.w900,
             color: const Color(0xFF1a1a2e))),
         const SizedBox(height: 4),
-        Text(isWithdraw ? 'سيتم خصم الكوينز من رصيد المستخدم وإضافتها لرصيدك' : 'هل أنت متأكد من إرسال الكوينز للمستخدم؟',
+        Text(isWithdraw ? 'سيتم إرسال طلب سحب إلى المستخدم، ولن يتم خصم الألماس إلا بعد موافقته' : 'هل أنت متأكد من إرسال الكوينز للمستخدم؟',
           textAlign: TextAlign.center,
           style: GoogleFonts.tajawal(fontSize: 13, color: Colors.black54)),
         const SizedBox(height: 20),
@@ -301,7 +301,7 @@ class AgentRechargeConfirmDialog extends StatelessWidget {
             gradient: LinearGradient(
               colors: [primaryColor, secColor]),
             borderRadius: BorderRadius.circular(40)),
-          child: Text('🪙  $amount كوين ${isWithdraw ? "(سحب)" : "(شحن)"}',
+          child: Text(isWithdraw ? '💎  $amount ماسة (طلب سحب)' : '🪙  $amount كوين (شحن)',
             style: GoogleFonts.tajawal(
               fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white))),
         const SizedBox(height: 24),
@@ -329,7 +329,7 @@ class AgentRechargeConfirmDialog extends StatelessWidget {
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              child: Text(isWithdraw ? 'تأكيد السحب ✅' : 'تأكيد الشحن ✅',
+              child: Text(isWithdraw ? 'إرسال طلب السحب 📤' : 'تأكيد الشحن ✅',
                 style: GoogleFonts.tajawal(
                   fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white))))),
         ]),
