@@ -41,15 +41,15 @@ class UpdateService {
 
   static const _docPath = 'app_config/app_update';
   static const _buildInfoUrl =
-      'https://github.com/MIDO12A/zoro-app/releases/latest/download/build_info.json';
+      'https://github.com/MIDO12A/ahla-live/releases/latest/download/build_info.json';
   static const _apkUrlArm64 =
-      'https://github.com/MIDO12A/zoro-app/releases/latest/download/zero-app.apk';
+      'https://github.com/MIDO12A/ahla-live/releases/latest/download/zero-app.apk';
   static const _apkUrlArm32 =
-      'https://github.com/MIDO12A/zoro-app/releases/latest/download/zero-app-arm32.apk';
+      'https://github.com/MIDO12A/ahla-live/releases/latest/download/zero-app-arm32.apk';
   static const _apkUrlX8664 =
-      'https://github.com/MIDO12A/zoro-app/releases/latest/download/zero-app-x86_64.apk';
+      'https://github.com/MIDO12A/ahla-live/releases/latest/download/zero-app-x86_64.apk';
   static const _githubApiLatestUrl =
-      'https://api.github.com/repos/MIDO12A/zoro-app/releases/latest';
+      'https://api.github.com/repos/MIDO12A/ahla-live/releases/latest';
 
   /// Picks the APK asset matching the device ABI (CI publishes split APKs).
   Future<String> apkUrlForDevice() async {
@@ -277,9 +277,9 @@ class UpdateService {
       // Candidate URLs in priority order
       final urls = <String>{
         initialUrl,
-        'https://github.com/MIDO12A/zoro-app/releases/latest/download/zero-app.apk',
-        'https://github.com/MIDO12A/zoro-app/releases/latest/download/app-arm64-v8a-release.apk',
-        'https://github.com/MIDO12A/zoro-app/releases/download/latest/zero-app.apk',
+        'https://github.com/MIDO12A/ahla-live/releases/latest/download/zero-app.apk',
+        'https://github.com/MIDO12A/ahla-live/releases/latest/download/app-arm64-v8a-release.apk',
+        'https://github.com/MIDO12A/ahla-live/releases/download/latest/zero-app.apk',
       }.toList();
 
       bool success = false;
