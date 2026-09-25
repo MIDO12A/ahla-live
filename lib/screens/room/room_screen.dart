@@ -2815,8 +2815,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 roomId: widget.roomId,
                 hostAvatar: (_currentRoom?.roomPhotoUrl != null && _currentRoom!.roomPhotoUrl.isNotEmpty)
                     ? _currentRoom!.roomPhotoUrl
-                    : (_seats.isNotEmpty && _seats[0].user?.avatar != null && _seats[0].user!.avatar.isNotEmpty
-                        ? _seats[0].user!.avatar
+                    : ((_seats.isNotEmpty && (_seats[0].user?.avatar?.isNotEmpty ?? false))
+                        ? _seats[0].user!.avatar!
                         : (_currentRoom?.hostPhotoUrl.isNotEmpty == true ? _currentRoom!.hostPhotoUrl : R.avaBoy)),
                 isLocked: widget.roomPassword.isNotEmpty,
                 hotValue: widget.hotValue,

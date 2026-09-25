@@ -310,6 +310,9 @@ class _UserProfileState extends State<UserProfile> {
 
   Widget _buildCompactSheet() {
     final config = DynamicConfigService();
+    final currentUser = Provider.of<UserProvider>(context, listen: false).currentUser;
+    final isMe = widget.isCurrentUser || (currentUser != null && (widget.user['uid'] == currentUser.uid || widget.user['id'] == currentUser.uid));
+
     final avatar = widget.user['avatar']?.toString() ?? widget.user['photo_url']?.toString() ?? widget.user['photoUrl']?.toString() ?? R.avaBoy;
     final name = widget.user['name']?.toString() ?? 'User';
     final gender = widget.user['gender']?.toString() ?? 'male';
@@ -334,8 +337,6 @@ class _UserProfileState extends State<UserProfile> {
     final textColor = config.miniprofileTextColor;
     final subTextColor = config.miniprofileSubTextColor;
     final btnColor = config.miniprofileButtonColor;
-    final currentUser = Provider.of<UserProvider>(context, listen: false).currentUser;
-    final isMe = widget.isCurrentUser || (currentUser != null && (widget.user['uid'] == currentUser.uid || widget.user['id'] == currentUser.uid));
 
     final rawUserCover = (isMe && currentUser?.activeCover != null && currentUser!.activeCover!.isNotEmpty)
         ? currentUser.activeCover!
