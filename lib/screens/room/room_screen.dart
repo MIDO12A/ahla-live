@@ -692,6 +692,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               LuckyGiftService().enqueueLuckyGift(context, localData);
             }
 
+            final flyIcon = gift.defaultImage ?? gift.iconAsset;
+            if (flyIcon.isNotEmpty) {
+              _triggerGiftFlight(
+                iconUrl: flyIcon,
+                receiverId: receiverId,
+              );
+            }
+
             await fb.sendLuckyGift(
               roomId: roomId,
               giftId: gift.id,
@@ -714,6 +722,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             );
           } else {
             final cover = gift.defaultImage ?? gift.iconAsset;
+            if (cover.isNotEmpty) {
+              _triggerGiftFlight(
+                iconUrl: cover,
+                receiverId: receiverId,
+              );
+            }
             await fb.sendGift(
               roomId: roomId,
               giftId: gift.id,
@@ -1170,6 +1184,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               if (m.senderUid != _currentUserId) {
                 final data = LuckyGiftBroadcastData.fromJson(m.giftPayload!);
                 LuckyGiftService().enqueueLuckyGift(context, data);
+
+                final payload = m.giftPayload!;
+                final flyIcon = (payload['gift_cover_url']?.toString().isNotEmpty == true)
+                    ? payload['gift_cover_url'].toString()
+                    : ((payload['gift_icon_url']?.toString().isNotEmpty == true)
+                        ? payload['gift_icon_url'].toString()
+                        : ((payload['gift_icon']?.toString().isNotEmpty == true)
+                            ? payload['gift_icon'].toString()
+                            : (payload['default_image']?.toString() ?? '')));
+                final receiverId = payload['receiver_id']?.toString() ?? payload['receiverId']?.toString();
+                if (flyIcon.isNotEmpty && receiverId != null && receiverId.isNotEmpty) {
+                  _triggerGiftFlight(
+                    iconUrl: flyIcon,
+                    receiverId: receiverId,
+                  );
+                }
               }
             } catch (_) {}
           } else if (m.type == 'lucky_bag' && m.luckyBagPayload != null) {
@@ -1472,8 +1502,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         for (final entry in entrances) {
           final uid = entry['uid']?.toString();
           final entranceItemId = entry['entranceItem']?.toString() ?? '';
+          final entryTs = entry['timestamp']?.toString() ?? '';
           if (uid != null && entranceItemId.isNotEmpty) {
-            _seenEntranceIds.add('${uid}_$entranceItemId');
+            _seenEntranceIds.add('${uid}_${entranceItemId}_$entryTs');
           }
         }
         _entranceStreamInitial = false;
@@ -1487,7 +1518,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final entryTs = entry['timestamp']?.toString() ?? '';
         final entryMs = DateTime.tryParse(entryTs)?.millisecondsSinceEpoch ?? 0;
         if (entryMs < joinedMs) continue;
-        final entranceKey = '${uid}_$entranceItemId';
+        final entranceKey = '${uid}_${entranceItemId}_$entryTs';
         if (_seenEntranceIds.contains(entranceKey)) continue;
         _seenEntranceIds.add(entranceKey);
         final storeItem = _storeItemsIndex[entranceItemId];
@@ -1632,6 +1663,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     final userName = data['name']?.toString() ?? '';
     final userPhoto = data['photoUrl']?.toString() ?? '';
+    if (userName.isNotEmpty) {
+      _showMemberEnterBanner(userName, userPhoto);
+    }
     setState(() {
       _entranceItemAnimAsset = url;
       _showEntranceItemAnim = true;
@@ -1656,6 +1690,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final userPhoto = (enteringUser != null && enteringUser.photoUrl.isNotEmpty)
         ? enteringUser.photoUrl
         : (data['photoUrl']?.toString() ?? '');
+    if (userName.isNotEmpty) {
+      _showMemberEnterBanner(userName, userPhoto);
+    }
 
     final Map<String, String> textReplacement = {
       if (nameKey != null && nameKey.isNotEmpty && userName.isNotEmpty) nameKey: userName,
@@ -1975,24 +2012,34 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 70,
+      imageQuality: 75,
     );
     if (image == null) return;
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final user = userProvider.currentUser;
       if (user == null) return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('جاري رفع وإرسال الصورة...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
       final imageUrl = await CloudinaryService().uploadImage(
         File(image.path),
         publicId: 'room_${widget.roomId}_${DateTime.now().millisecondsSinceEpoch}',
       );
-      await _firebaseService.sendImageMessage(
-        widget.roomId, imageUrl, user.uid, user.name, user.photoUrl,
-      );
+      if (imageUrl.isNotEmpty) {
+        await _firebaseService.sendImageMessage(
+          widget.roomId, imageUrl, user.uid, user.name, user.photoUrl,
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('فشل إرسال الصورة: $e')),
         );
       }
     }
@@ -2390,7 +2437,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => VolumePanel(initialVolume: 20, onVolumeChanged: (_) {}),
+      builder: (_) => VolumePanel(
+        initialVolume: 100,
+        onVolumeChanged: (vol) => _roomAudio.setRoomVolume(vol.round()),
+      ),
     );
   }
 
@@ -2763,7 +2813,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                RoomHeader(
                 roomName: widget.roomName,
                 roomId: widget.roomId,
-                hostAvatar: _currentRoom?.roomPhotoUrl ?? _seats[0].user?.avatar,
+                hostAvatar: (_currentRoom?.roomPhotoUrl != null && _currentRoom!.roomPhotoUrl.isNotEmpty)
+                    ? _currentRoom!.roomPhotoUrl
+                    : (_seats.isNotEmpty && _seats[0].user?.avatar != null && _seats[0].user!.avatar.isNotEmpty
+                        ? _seats[0].user!.avatar
+                        : (_currentRoom?.hostPhotoUrl.isNotEmpty == true ? _currentRoom!.hostPhotoUrl : R.avaBoy)),
                 isLocked: widget.roomPassword.isNotEmpty,
                 hotValue: widget.hotValue,
                 gameDesc: widget.gameDesc,
@@ -4048,25 +4102,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   ],
                 ),
                 const SizedBox(height: 9),
-                if (m.type == 'image' && m.imageUrl != null)
-                  GestureDetector(
-                    onTap: () => _showImagePreview(m.imageUrl!),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image(
-                        image: R.cachedImage(m.imageUrl!),
-                        width: 180,
-                        height: 180,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                if (m.type == 'image' || (m.imageUrl != null && m.imageUrl!.isNotEmpty))
+                  () {
+                    final imgUrl = (m.imageUrl != null && m.imageUrl!.isNotEmpty)
+                        ? m.imageUrl!
+                        : m.text;
+                    return GestureDetector(
+                      onTap: () => _showImagePreview(imgUrl),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: R.loadImage(
+                          imgUrl,
                           width: 180,
                           height: 180,
-                          color: const Color(0x33000000),
-                          child: const Icon(Icons.broken_image, color: Colors.white54),
+                          fit: BoxFit.cover,
                         ),
                       ),
-                    ),
-                  )
+                    );
+                  }()
                 else
                   _buildChatBubble(
                     text: m.text,

@@ -1049,8 +1049,10 @@ class DynamicConfigService extends ChangeNotifier {
     }
   }
 
-  void _setupAppAssetsStream() {
-    _appAssetsSub = _db.collection('app_assets').snapshots().listen((snap) {
+  void _setupAppAssetsStream() async {
+    try {
+      // Load once with cache support to save thousands of Firestore reads
+      final snap = await _db.collection('app_assets').get(const GetOptions(source: Source.serverAndCache));
       final assets = <String, AppAssetModel>{};
       for (final doc in snap.docs) {
         final row = doc.data();
@@ -1058,41 +1060,34 @@ class DynamicConfigService extends ChangeNotifier {
           final asset = AppAssetModel.fromJson(row);
           if (asset.key.isNotEmpty) {
             assets[asset.key] = asset;
-            final old = _appAssets[asset.key];
-            if (old != null && old.remoteUrl != null) {
-              final oldUrl = old.remoteUrl!;
-              final newUrl = asset.remoteUrl ?? '';
-              if (oldUrl != newUrl && newUrl.isNotEmpty) {
-                imageCache.evict(CachedNetworkImageProvider(oldUrl));
-                DefaultCacheManager().removeFile(oldUrl);
-                debugPrint('DynamicConfigService: evicted cache for ${asset.key}');
-              }
-            }
           }
         }
       }
       _appAssets = assets;
       _assetVersion++;
+    } catch (error) {
+      debugPrint('DynamicConfigService: app_assets load error: $error');
+      try {
+        final cachedSnap = await _db.collection('app_assets').get(const GetOptions(source: Source.cache));
+        final assets = <String, AppAssetModel>{};
+        for (final doc in cachedSnap.docs) {
+          final row = doc.data();
+          if (row['is_active'] != false) {
+            final asset = AppAssetModel.fromJson(row);
+            if (asset.key.isNotEmpty) {
+              assets[asset.key] = asset;
+            }
+          }
+        }
+        _appAssets = assets;
+        _assetVersion++;
+      } catch (_) {}
+    } finally {
       if (_initAssetsCompleter != null && !_initAssetsCompleter!.isCompleted) {
         _initAssetsCompleter!.complete();
       }
       notifyListeners();
-    }, onError: (error) {
-      debugPrint('DynamicConfigService: app_assets stream error: $error');
-      if (_initAssetsCompleter != null && !_initAssetsCompleter!.isCompleted) {
-        _initAssetsCompleter!.complete();
-      }
-      final errorStr = error.toString();
-      if (errorStr.contains('permission-denied') || errorStr.contains('Unauthenticated')) {
-        debugPrint('DynamicConfigService: permissions error detected, stopping retry. Waiting for sign-in...');
-        return;
-      }
-      Future.delayed(const Duration(seconds: 5), () {
-        debugPrint('DynamicConfigService: reconnecting app_assets stream...');
-        _appAssetsSub?.cancel();
-        _setupAppAssetsStream();
-      });
-    });
+    }
   }
 
   void _setupConfigStream() {

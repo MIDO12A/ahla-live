@@ -287,41 +287,54 @@ class _SplashScreenState extends State<SplashScreen> {
       );
     }
 
-    // Phase 1: عرض لوجو التطبيق واسمه باللون الأسود/الغامق على خلفية نظيفة
-    final logoImgUrl = config.logoUrl;
-
+    // Phase 1: عرض لوجو التطبيق الرسمي واسمه بوضوح
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Dynamic Logo
-                if (logoImgUrl.isNotEmpty)
-                  Image(
-                    image: R.cachedImage(logoImgUrl),
-                    width: 130,
-                    height: 130,
-                    fit: BoxFit.contain,
-                  )
-                else
-                  R.image(
-                    'assets/mipmap-xxhdpi/ic_launcher.webp',
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Official Ahla Live App Logo
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: Image.asset(
+                  'assets/images/app_logo.png',
+                  width: 120,
+                  height: 120,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Image.asset(
+                    'assets/icon/app_icon.png',
                     width: 120,
                     height: 120,
-                  ),
-                const SizedBox(height: 20),
-                Text(
-                  config.appName,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: config.splashNameColor,
+                    fit: BoxFit.contain,
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(height: 24),
+            Text(
+              config.appName.isNotEmpty ? config.appName : 'Ahla Live',
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+                color: config.splashNameColor,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

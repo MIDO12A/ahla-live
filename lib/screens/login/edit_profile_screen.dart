@@ -289,6 +289,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'gender': _selectedGender,
         'signature': _signatureController.text.trim(),
         'country': _selectedCountry,
+        'country_code': _selectedCountry,
         'age': computedAge,
         'album': finalAlbum,
         'albums': finalAlbum,

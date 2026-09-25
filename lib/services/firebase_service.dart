@@ -46,7 +46,16 @@ class FirebaseService {
         databaseId: 'default',
       );
 
-  void init() {}
+  void init() {
+    try {
+      _db.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: 104857600, // 100 MB cache limit
+      );
+    } catch (e) {
+      debugPrint('Firestore settings: $e');
+    }
+  }
 
   Future<void> initializeApp() async {
     if (Firebase.apps.isNotEmpty) {
@@ -1218,10 +1227,31 @@ class FirebaseService {
   }
 
   Future<UserModel?> getUser(String uid) async {
-    final doc = await _db.collection('users').doc(uid).get();
-    if (!doc.exists) return null;
-    final m = doc.data() ?? {};
-    return UserModel.fromMap({...m, 'uid': uid});
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      if (!doc.exists) return null;
+      final m = doc.data() ?? {};
+      return UserModel.fromMap({...m, 'uid': uid});
+    } on FirebaseException catch (e) {
+      debugPrint('getUser FirebaseException ($uid): $e');
+      if (e.code == 'resource-exhausted' || e.code == 'unavailable') {
+        try {
+          final cachedDoc = await _db.collection('users').doc(uid).get(const GetOptions(source: Source.cache));
+          if (cachedDoc.exists) {
+            return UserModel.fromMap({...cachedDoc.data() ?? {}, 'uid': uid});
+          }
+        } catch (_) {}
+      }
+      rethrow;
+    } catch (e) {
+      try {
+        final cachedDoc = await _db.collection('users').doc(uid).get(const GetOptions(source: Source.cache));
+        if (cachedDoc.exists) {
+          return UserModel.fromMap({...cachedDoc.data() ?? {}, 'uid': uid});
+        }
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   Stream<UserModel?> userStream(String uid) {
@@ -1648,18 +1678,24 @@ class FirebaseService {
   Future<void> sendImageMessage(String roomId, String imageUrl, String senderUid,
       String senderName, String senderPhotoUrl) async {
     final msgId = const Uuid().v4();
+    final now = DateTime.now().millisecondsSinceEpoch;
     final msg = MessageModel(
       msgId: msgId,
+      roomId: roomId,
       senderUid: senderUid,
       senderName: senderName,
       senderPhotoUrl: senderPhotoUrl,
-      text: '',
+      text: imageUrl,
       imageUrl: imageUrl,
       type: 'image',
-      timestamp: DateTime.now().millisecondsSinceEpoch,
+      timestamp: now,
     );
     final map = msg.toMap();
     map['room_id'] = roomId;
+    map['image_url'] = imageUrl;
+    map['imageUrl'] = imageUrl;
+    map['timestamp'] = now;
+    map['created_at'] = DateTime.fromMillisecondsSinceEpoch(now).toIso8601String();
     await _db.collection('room_messages').doc(msgId).set(map);
   }
 

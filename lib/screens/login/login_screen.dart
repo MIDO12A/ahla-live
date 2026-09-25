@@ -51,8 +51,17 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       debugPrint('Error signing in: $e');
       if (context.mounted) {
+        final errStr = e.toString();
+        String userMsg = 'تعذر تسجيل الدخول: $e';
+        if (errStr.contains('resource-exhausted')) {
+          userMsg = 'تجاوز مؤقت لحصة فايربيس (Resource Exhausted). يرجى التحقق من اتصالك أو إعادة المحاولة لاحقاً.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error signing in: $e')),
+          SnackBar(
+            content: Text(userMsg),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }

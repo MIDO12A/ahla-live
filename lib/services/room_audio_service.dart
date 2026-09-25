@@ -24,6 +24,12 @@ class RoomAudioService {
   bool get isInitialized => _initialized;
   bool get isMicEnabled => _micEnabled;
   bool get isPublishing => _isPublishing;
+  bool _isRoomDeafened = false;
+  int _roomVolume = 100;
+
+  bool get isRoomDeafened => _isRoomDeafened;
+  int get roomVolume => _roomVolume;
+  final ValueNotifier<bool> roomDeafenedNotifier = ValueNotifier<bool>(false);
 
   final ValueNotifier<Set<String>> speakingUsersNotifier = ValueNotifier<Set<String>>({});
 
@@ -37,6 +43,29 @@ class RoomAudioService {
     return sign.isNotEmpty ? sign : AppConfig.zegoAppSign;
   }
 
+  Future<void> setRoomVolume(int volume) async {
+    _roomVolume = volume.clamp(0, 100);
+    if (!_initialized || effectiveAppSign.isEmpty) return;
+    try {
+      await ZegoExpressEngine.instance.setAllPlayStreamVolume(_roomVolume);
+      debugPrint('[RoomAudioService] Set room playback volume: $_roomVolume');
+    } catch (e) {
+      debugPrint('[RoomAudioService] setRoomVolume failed: $e');
+    }
+  }
+
+  Future<void> toggleRoomDeafen([bool? deafen]) async {
+    _isRoomDeafened = deafen ?? !_isRoomDeafened;
+    roomDeafenedNotifier.value = _isRoomDeafened;
+    if (!_initialized || effectiveAppSign.isEmpty) return;
+    try {
+      await ZegoExpressEngine.instance.muteAllPlayStreamAudio(_isRoomDeafened);
+      debugPrint('[RoomAudioService] Room deafen toggled to: $_isRoomDeafened');
+    } catch (e) {
+      debugPrint('[RoomAudioService] toggleRoomDeafen failed: $e');
+    }
+  }
+
   void _onRoomStreamUpdate(String roomID, ZegoUpdateType updateType,
       List<ZegoStream> streamList, Map<String, dynamic> extendedData) {
     if (!_initialized || effectiveAppSign.isEmpty) return;
@@ -47,6 +76,9 @@ class RoomAudioService {
           engine.startPlayingStream(stream.streamID).catchError((e) {
             debugPrint('[ZegoAudio] startPlayingStream error: $e');
           });
+          if (_isRoomDeafened) {
+            engine.mutePlayStreamAudio(stream.streamID, true).catchError((_) {});
+          }
           debugPrint('[ZegoAudio] Started playing stream: ${stream.streamID}');
         } else {
           engine.stopPlayingStream(stream.streamID).catchError((e) {
@@ -203,6 +235,8 @@ class RoomAudioService {
     }
     _currentRoomId = null;
     _isPublishing = false;
+    _isRoomDeafened = false;
+    roomDeafenedNotifier.value = false;
     speakingUsersNotifier.value = {};
   }
 

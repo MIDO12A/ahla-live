@@ -30,31 +30,67 @@ class UserIdWidget extends StatelessWidget {
     this.onCopied,
   });
 
+  static String resolveCountryCode(String? raw) {
+    if (raw == null || raw.isEmpty) return 'eg';
+    final s = raw.trim();
+    if (s == 'مصر' || s == 'Egypt') return 'eg';
+    if (s == 'السعودية' || s == 'Saudi Arabia') return 'sa';
+    if (s == 'الإمارات' || s == 'UAE') return 'ae';
+    if (s == 'الكويت' || s == 'Kuwait') return 'kw';
+    if (s == 'قطر' || s == 'Qatar') return 'qa';
+    if (s == 'البحرين' || s == 'Bahrain') return 'bh';
+    if (s == 'عمان' || s == 'Oman') return 'om';
+    if (s == 'العراق' || s == 'Iraq') return 'iq';
+    if (s == 'سوريا' || s == 'Syria') return 'sy';
+    if (s == 'لبنان' || s == 'Lebanon') return 'lb';
+    if (s == 'الأردن' || s == 'Jordan') return 'jo';
+    if (s == 'فلسطين' || s == 'Palestine') return 'ps';
+    if (s == 'اليمن' || s == 'Yemen') return 'ye';
+    if (s == 'الجزائر' || s == 'Algeria') return 'dz';
+    if (s == 'المغرب' || s == 'Morocco') return 'ma';
+    if (s == 'تونس' || s == 'Tunisia') return 'tn';
+    if (s == 'ليبيا' || s == 'Libya') return 'ly';
+    if (s == 'السودان' || s == 'Sudan') return 'sd';
+    if (s.length == 2 && RegExp(r'^[a-zA-Z]{2}$').hasMatch(s)) {
+      return s.toLowerCase();
+    }
+    return 'eg';
+  }
+
+  static String countryCodeToEmoji(String code) {
+    if (code.length == 2) {
+      final upper = code.toUpperCase();
+      return String.fromCharCode(0x1F1E6 + upper.codeUnitAt(0) - 65) +
+             String.fromCharCode(0x1F1E6 + upper.codeUnitAt(1) - 65);
+    }
+    return '🇪🇬';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (idText.isEmpty) return const SizedBox.shrink();
 
     // التحقق التلقائي إذا كان المعرف مميزاً (مثلاً: أقل من 7 خانات، أو محدد كـ isBeauty)
     final bool effectiveBeauty = isBeauty || (idText.length <= 6 && int.tryParse(idText) != null);
+    final String cleanCountry = resolveCountryCode(countryCode);
+    final String flagEmoji = countryCodeToEmoji(cleanCountry);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // رمز علم الدولة (إذا وجد كما في UserIdView iv_country)
-        if (countryCode != null && countryCode!.isNotEmpty) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: Image.network(
-              'https://flagcdn.com/w40/${countryCode!.toLowerCase()}.png',
-              width: 18,
-              height: 12,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const Text('🌐', style: TextStyle(fontSize: 10)),
-            ),
+        // رمز علم الدولة مع بديل إيموجي فوري
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: Image.network(
+            'https://flagcdn.com/w40/$cleanCountry.png',
+            width: 18,
+            height: 12,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Text(flagEmoji, style: const TextStyle(fontSize: 12)),
           ),
-          const SizedBox(width: 4),
-        ],
+        ),
+        const SizedBox(width: 5),
 
         // كبسولة المعرف (cl_id المطابقة للتطبيق الأصلي)
         GestureDetector(

@@ -313,7 +313,12 @@ class _UserProfileState extends State<UserProfile> {
     final avatar = widget.user['avatar']?.toString() ?? widget.user['photo_url']?.toString() ?? widget.user['photoUrl']?.toString() ?? R.avaBoy;
     final name = widget.user['name']?.toString() ?? 'User';
     final gender = widget.user['gender']?.toString() ?? 'male';
-    final country = _extraUserData['country_code']?.toString() ?? _extraUserData['country']?.toString() ?? widget.user['country']?.toString() ?? 'EG';
+    final country = _extraUserData['country_code']?.toString() ??
+        _extraUserData['country']?.toString() ??
+        widget.user['country_code']?.toString() ??
+        widget.user['country']?.toString() ??
+        (isMe ? currentUser?.country : null) ??
+        'EG';
     final activeFrame = _extraUserData['active_frame']?.toString() ?? widget.user['active_frame']?.toString() ?? '';
     final isHost = widget.user['is_host'] == true || widget.user['role'] == 'host' || widget.user['role'] == 'owner' || widget.isModerator;
 

@@ -208,10 +208,11 @@ class RoomHeader extends StatelessWidget {
   }
 
   Widget _buildRoomAvatar() {
+    final avatar = (hostAvatar != null && hostAvatar!.isNotEmpty) ? hostAvatar! : R.avaBoy;
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: R.loadImage(
-        hostAvatar ?? R.avaBoy,
+        avatar,
         width: 40,
         height: 40,
         fit: BoxFit.cover,

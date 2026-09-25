@@ -384,6 +384,13 @@ class R {
     if (detectAssetType(url) == AssetType.svga) {
       return MemoryImage(_transparentPng);
     }
+    if (url.startsWith('/') || url.startsWith('file://')) {
+      final filePath = url.startsWith('file://') ? url.replaceFirst('file://', '') : url;
+      return FileImage(File(filePath));
+    }
+    if (url.startsWith('assets/')) {
+      return AssetImage(url);
+    }
     return EncryptedImageProvider(url);
   }
 
@@ -429,9 +436,10 @@ class R {
         errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white38),
       );
     }
-    if (path.startsWith('file://')) {
+    if (path.startsWith('/') || path.startsWith('file://')) {
+      final filePath = path.startsWith('file://') ? path.replaceFirst('file://', '') : path;
       return Image.file(
-        File(path.replaceFirst('file://', '')),
+        File(filePath),
         width: width,
         height: height,
         fit: fit,
