@@ -15,6 +15,7 @@ import 'services/firebase_service.dart';
 import 'services/media_cache_service.dart'; // ✅ للـ warmup المبكر
 import 'services/room_state_service.dart';
 import 'services/supabase_auth_service.dart';
+import 'services/supabase_service.dart';
 import 'providers/user_provider.dart';
 import 'providers/locale_provider.dart';
 import 'screens/splash/splash_screen.dart';
