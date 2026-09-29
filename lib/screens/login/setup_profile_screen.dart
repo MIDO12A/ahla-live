@@ -7,6 +7,7 @@ import '../../config/r.dart';
 import '../../services/supabase_service.dart';
 import '../../services/api_service.dart';
 import '../../services/cloudinary_service.dart';
+import '../../services/supabase_auth_service.dart';
 import '../../providers/user_provider.dart';
 import '../../models/user_model.dart';
 import '../main_screen/main_screen.dart';
@@ -96,6 +97,20 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
       );
 
       await SupabaseService().saveUser(user);
+
+      // Sync user profile directly to Supabase public.users
+      try {
+        await SupabaseAuthService().syncUserToSupabase(
+          uid: widget.uid,
+          customId: customId,
+          name: _nameController.text.trim(),
+          email: widget.email,
+          photoUrl: photoUrl,
+          gender: _selectedGender,
+          coins: 10000,
+          phone: widget.phone,
+        );
+      } catch (_) {}
 
       if (mounted) {
         await Provider.of<UserProvider>(context, listen: false)

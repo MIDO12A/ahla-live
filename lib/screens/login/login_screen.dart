@@ -9,6 +9,7 @@ import '../../config/r.dart';
 import '../main_screen/main_screen.dart';
 import 'setup_profile_screen.dart';
 import 'widgets/phone_login_sheet.dart';
+import '../../services/supabase_auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,6 +23,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleSignIn(User user) async {
     try {
+      // Sync user and phone directly into Supabase
+      try {
+        await SupabaseAuthService().syncUserToSupabase(
+          uid: user.uid,
+          email: user.email ?? '',
+          name: user.displayName ?? '',
+          photoUrl: user.photoURL ?? '',
+          phone: user.phoneNumber ?? '',
+        );
+      } catch (_) {}
+
       final existingUser = await SupabaseService().getUser(user.uid);
 
       if (context.mounted) {
@@ -69,7 +81,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-
   static bool _isGoogleInitialized = false;
 
   Future<void> _ensureGoogleInitialized() async {
@@ -101,6 +112,14 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Google sign-in returned no idToken');
       }
 
+      // 1. Authenticate with Supabase Auth directly using Google ID Token
+      try {
+        await SupabaseAuthService().signInWithGoogleIdToken(idToken: idToken);
+      } catch (e) {
+        developer.log('[SupabaseAuth] Google error: $e');
+      }
+
+      // 2. Also authenticate with Firebase to keep legacy realtime sync active
       final credential = GoogleAuthProvider.credential(idToken: idToken);
       final res = await FirebaseAuth.instance.signInWithCredential(credential);
       final user = res.user;
