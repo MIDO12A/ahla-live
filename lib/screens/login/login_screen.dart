@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import '../../services/supabase_service.dart';
 import '../../providers/user_provider.dart';
+import '../../models/user_model.dart';
 import '../../config/r.dart';
 import '../main_screen/main_screen.dart';
 import 'setup_profile_screen.dart';
