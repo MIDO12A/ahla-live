@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/supabase_config.dart';
+import '../models/user_model.dart';
 
 class SupabaseAuthService {
   static final SupabaseAuthService _instance = SupabaseAuthService._internal();
@@ -89,6 +90,51 @@ class SupabaseAuthService {
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
       debugPrint('[SupabaseAuth] Sync user error: $e');
+      return false;
+    }
+  }
+
+  /// Fetch user directly from Supabase database `public.users`
+  Future<UserModel?> getUserFromSupabase(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid&select=*');
+      final response = await http.get(url, headers: _headers);
+      debugPrint('[SupabaseAuth] getUser status: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List;
+        if (list.isNotEmpty) {
+          final data = Map<String, dynamic>.from(list.first);
+          return UserModel.fromMap(data);
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[SupabaseAuth] getUserFromSupabase error: $e');
+      return null;
+    }
+  }
+
+  /// Save full user model directly to Supabase database `public.users`
+  Future<bool> saveUserToSupabase(UserModel user) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/users');
+      final headers = {
+        ..._headers,
+        'Prefer': 'resolution=merge-duplicates',
+      };
+      final data = user.toMap();
+      data['uid'] = user.uid;
+      data['updated_at'] = DateTime.now().toUtc().toIso8601String();
+
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode(data),
+      );
+      debugPrint('[SupabaseAuth] saveUser status: ${response.statusCode}');
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      debugPrint('[SupabaseAuth] saveUserToSupabase error: $e');
       return false;
     }
   }

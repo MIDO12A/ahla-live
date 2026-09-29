@@ -21,6 +21,7 @@ import '../models/gift_banner_config_model.dart';
 import 'level_service.dart';
 import 'cloudinary_service.dart';
 import 'agency_target_evaluator.dart';
+import 'supabase_auth_service.dart';
 
 /// Firebase (Firestore) implementation of the app's data layer.
 ///
@@ -1221,12 +1222,35 @@ class FirebaseService {
   // ═══════════════════════════════════════════════════════
 
   Future<void> saveUser(UserModel user) async {
-    final data = user.toMap();
-    data['uid'] = user.uid;
-    await _db.collection('users').doc(user.uid).set(_stripNulls(data), SetOptions(merge: true));
+    // 1. Save directly to Supabase public.users
+    try {
+      await SupabaseAuthService().saveUserToSupabase(user);
+    } catch (e) {
+      debugPrint('saveUser Supabase error: $e');
+    }
+
+    // 2. Try Firestore silently without crashing if permission-denied
+    try {
+      final data = user.toMap();
+      data['uid'] = user.uid;
+      await _db.collection('users').doc(user.uid).set(_stripNulls(data), SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('saveUser Firestore error (ignored): $e');
+    }
   }
 
   Future<UserModel?> getUser(String uid) async {
+    // 1. Try Supabase first
+    try {
+      final supabaseUser = await SupabaseAuthService().getUserFromSupabase(uid);
+      if (supabaseUser != null) {
+        return supabaseUser;
+      }
+    } catch (e) {
+      debugPrint('getUser Supabase error: $e');
+    }
+
+    // 2. Fall back to Firestore with permission-denied protection
     try {
       final doc = await _db.collection('users').doc(uid).get();
       if (!doc.exists) return null;
@@ -1242,15 +1266,10 @@ class FirebaseService {
           }
         } catch (_) {}
       }
-      rethrow;
+      return null;
     } catch (e) {
-      try {
-        final cachedDoc = await _db.collection('users').doc(uid).get(const GetOptions(source: Source.cache));
-        if (cachedDoc.exists) {
-          return UserModel.fromMap({...cachedDoc.data() ?? {}, 'uid': uid});
-        }
-      } catch (_) {}
-      rethrow;
+      debugPrint('getUser general error ($uid): $e');
+      return null;
     }
   }
 
@@ -1263,7 +1282,27 @@ class FirebaseService {
   }
 
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
-    await _db.collection('users').doc(uid).update(_stripNulls(data));
+    // 1. Sync update to Supabase
+    try {
+      await SupabaseAuthService().syncUserToSupabase(
+        uid: uid,
+        customId: data['custom_id']?.toString(),
+        name: data['name']?.toString(),
+        email: data['email']?.toString(),
+        photoUrl: data['photo_url']?.toString() ?? data['photoUrl']?.toString(),
+        phone: data['phone']?.toString(),
+        gender: data['gender']?.toString(),
+        coins: (data['coins'] as num?)?.toInt(),
+        country: data['country']?.toString(),
+      );
+    } catch (_) {}
+
+    // 2. Try Firestore silently without crashing if permission-denied
+    try {
+      await _db.collection('users').doc(uid).update(_stripNulls(data));
+    } catch (e) {
+      debugPrint('updateUser Firestore error (ignored): $e');
+    }
   }
 
   Future<List<UserModel>> getAllUsers() async {
