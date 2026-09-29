@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../services/supabase_service.dart';
+import '../../services/supabase_auth_service.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/update_service.dart';
 import '../../providers/user_provider.dart';
@@ -46,10 +47,10 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
 
     // Check if user is logged in and check ban status
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
+    final uid = SupabaseAuthService().currentUid ?? FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
       try {
-        final userData = await SupabaseService().getUser(user.uid);
+        final userData = await SupabaseService().getUser(uid);
         if (userData != null && userData.banned) {
           setState(() {
             _isBanned = true;
@@ -63,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen> {
       // Load user data into provider
       if (mounted) {
         try {
-          await Provider.of<UserProvider>(context, listen: false).loadUser(user.uid);
+          await Provider.of<UserProvider>(context, listen: false).loadUser(uid);
         } catch (e) {
           debugPrint('Error loading user data: $e');
         }

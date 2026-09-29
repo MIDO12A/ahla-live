@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/supabase_auth_service.dart';
 import '../../config/r.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_strings.dart';
@@ -264,7 +265,10 @@ class AccountManagementScreen extends StatelessWidget {
           ),
         );
         if (confirmed == true) {
-          await FirebaseAuth.instance.signOut();
+          await SupabaseAuthService().signOut();
+          try {
+            await FirebaseAuth.instance.signOut();
+          } catch (_) {}
           if (context.mounted) {
             Navigator.pushAndRemoveUntil(
               context,

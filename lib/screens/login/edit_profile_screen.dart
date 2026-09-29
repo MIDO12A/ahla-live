@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../providers/user_provider.dart';
@@ -216,7 +217,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       String photoUrl = currentUser.photoUrl;
       if (photoUrl.isEmpty) {
-        final authPhoto = FirebaseAuth.instance.currentUser?.photoURL;
+        final authPhoto = SupabaseAuthService().currentUser?.photoUrl ??
+            FirebaseAuth.instance.currentUser?.photoURL;
         if (authPhoto != null && authPhoto.isNotEmpty) {
           photoUrl = authPhoto;
         }
@@ -318,7 +320,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final user = Provider.of<UserProvider>(context).currentUser;
     final currentAvatar = (user?.photoUrl != null && user!.photoUrl.isNotEmpty)
         ? user.photoUrl
-        : (FirebaseAuth.instance.currentUser?.photoURL ?? '');
+        : (SupabaseAuthService().currentUser?.photoUrl ??
+            FirebaseAuth.instance.currentUser?.photoURL ??
+            '');
     final countryObj = _arabCountries.firstWhere(
       (c) => c['code'] == _selectedCountry,
       orElse: () => _arabCountries.first,

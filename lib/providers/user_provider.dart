@@ -9,6 +9,7 @@ import '../models/store_item_model.dart';
 import '../models/gifted_item_model.dart';
 import '../services/api_service.dart';
 import '../services/supabase_service.dart';
+import '../services/supabase_auth_service.dart';
 import '../core/utils/id_generator.dart';
 
 class UserProvider extends ChangeNotifier {
@@ -123,9 +124,11 @@ class UserProvider extends ChangeNotifier {
       _currentUser = await _supabaseService.getUser(uid);
     }
     if (_currentUser != null && _currentUser!.photoUrl.isEmpty) {
-      final authUser = FirebaseAuth.instance.currentUser;
-      if (authUser != null && authUser.uid == uid && authUser.photoURL != null && authUser.photoURL!.isNotEmpty) {
-        final authPhoto = authUser.photoURL!;
+      final supaUser = SupabaseAuthService().currentUser;
+      final authPhoto = (supaUser != null && supaUser.uid == uid && supaUser.photoUrl != null && supaUser.photoUrl!.isNotEmpty)
+          ? supaUser.photoUrl
+          : FirebaseAuth.instance.currentUser?.photoURL;
+      if (authPhoto != null && authPhoto.isNotEmpty) {
         _currentUser = _currentUser!.copyWith(photoUrl: authPhoto);
         try {
           await _supabaseService.updateUser(uid, {

@@ -1,5 +1,4 @@
 import 'dart:developer' as developer;
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
@@ -21,15 +20,24 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
-  Future<void> _handleSignIn(User user) async {
+  Future<void> _handleSignIn(AppAuthUser user) async {
     try {
-      // Sync user and phone directly into Supabase
+      // 1. Save local persistent session
+      await SupabaseAuthService().saveSession(
+        uid: user.uid,
+        email: user.email,
+        name: user.displayName,
+        photoUrl: user.photoUrl,
+        phone: user.phoneNumber,
+      );
+
+      // 2. Sync user and phone directly into Supabase database
       try {
         await SupabaseAuthService().syncUserToSupabase(
           uid: user.uid,
           email: user.email ?? '',
           name: user.displayName ?? '',
-          photoUrl: user.photoURL ?? '',
+          photoUrl: user.photoUrl ?? '',
           phone: user.phoneNumber ?? '',
         );
       } catch (_) {}
@@ -44,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
               builder: (_) => SetupProfileScreen(
                 uid: user.uid,
                 email: user.email ?? '',
-                photoUrl: user.photoURL ?? '',
+                photoUrl: user.photoUrl ?? '',
                 phone: user.phoneNumber ?? '',
               ),
             ),
@@ -65,14 +73,9 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       debugPrint('Error signing in: $e');
       if (context.mounted) {
-        final errStr = e.toString();
-        String userMsg = 'تعذر تسجيل الدخول: $e';
-        if (errStr.contains('resource-exhausted')) {
-          userMsg = 'تجاوز مؤقت لحصة فايربيس (Resource Exhausted). يرجى التحقق من اتصالك أو إعادة المحاولة لاحقاً.';
-        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(userMsg),
+            content: Text('تعذر تسجيل الدخول: $e'),
             backgroundColor: Colors.redAccent,
             duration: const Duration(seconds: 5),
           ),
@@ -112,22 +115,19 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Google sign-in returned no idToken');
       }
 
-      // 1. Authenticate with Supabase Auth directly using Google ID Token
-      try {
-        await SupabaseAuthService().signInWithGoogleIdToken(idToken: idToken);
-      } catch (e) {
-        developer.log('[SupabaseAuth] Google error: $e');
-      }
+      // Authenticate with Supabase Auth directly using Google ID Token
+      final authData = await SupabaseAuthService().signInWithGoogleIdToken(idToken: idToken);
+      final uid = (authData?['user']?['id'] as String?) ??
+          'google_${account.id}';
 
-      // 2. Also authenticate with Firebase to keep legacy realtime sync active
-      final credential = GoogleAuthProvider.credential(idToken: idToken);
-      final res = await FirebaseAuth.instance.signInWithCredential(credential);
-      final user = res.user;
+      final authUser = AppAuthUser(
+        uid: uid,
+        email: account.email,
+        displayName: account.displayName,
+        photoUrl: account.photoUrl,
+      );
 
-      if (user == null) {
-        throw Exception('لم يتم استرجاع بيانات المستخدم');
-      }
-      await _handleSignIn(user);
+      await _handleSignIn(authUser);
     } on GoogleSignInException catch (e) {
       developer.log('_signInWithGoogle: google error ${e.code} = ${e.description}');
       if (e.code == GoogleSignInExceptionCode.canceled) {

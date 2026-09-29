@@ -14,6 +14,7 @@ import 'services/level_service.dart';
 import 'services/firebase_service.dart';
 import 'services/media_cache_service.dart'; // ✅ للـ warmup المبكر
 import 'services/room_state_service.dart';
+import 'services/supabase_auth_service.dart';
 import 'providers/user_provider.dart';
 import 'providers/locale_provider.dart';
 import 'screens/splash/splash_screen.dart';
@@ -43,10 +44,13 @@ void main() async {
       debugPrint('Firebase.initializeApp: $e');
     }
   }
-  FirebaseAuth.instance.authStateChanges().listen((data) {
-    developer.log('AUTH STATE CHANGE: ${data?.uid ?? 'none'}');
-  });
+  try {
+    FirebaseAuth.instance.authStateChanges().listen((data) {
+      developer.log('AUTH STATE CHANGE: ${data?.uid ?? 'none'}');
+    });
+  } catch (_) {}
 
+  await SupabaseAuthService().init();
   FirebaseService().init();
   LevelService().init();
   await DynamicConfigService().init();
@@ -148,61 +152,75 @@ class _AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<_AuthGate> {
-  User? _user;
+  String? _uid;
 
   @override
   void initState() {
     super.initState();
-    _user = FirebaseAuth.instance.currentUser;
-    if (_user != null) _loadExistingUser();
-    FirebaseAuth.instance.authStateChanges().listen((u) {
+    _uid = SupabaseAuthService().currentUid ?? FirebaseAuth.instance.currentUser?.uid;
+    if (_uid != null) _loadExistingUser();
+
+    SupabaseAuthService().authStateChanges.listen((uid) {
       if (!mounted) return;
-      if (u != null) {
-        _handleNewSignIn(u);
+      if (uid != null) {
+        _handleNewSignIn(uid);
       } else {
-        setState(() => _user = null);
+        setState(() => _uid = null);
       }
     });
+
+    try {
+      FirebaseAuth.instance.authStateChanges().listen((u) {
+        if (!mounted) return;
+        if (u != null && _uid == null) {
+          _handleNewSignIn(u.uid);
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadExistingUser() async {
-    final u = _user;
-    if (u == null) return;
-    final userData = await FirebaseService().getUser(u.uid);
+    final uid = _uid;
+    if (uid == null) return;
+    final userData = await SupabaseService().getUser(uid);
     if (userData == null && mounted) {
+      final supaAuthUser = SupabaseAuthService().currentUser;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (_) => SetupProfileScreen(
-            uid: u.uid,
-            email: u.email ?? '',
-            photoUrl: u.photoURL ?? '',
+            uid: uid,
+            email: supaAuthUser?.email ?? FirebaseAuth.instance.currentUser?.email ?? '',
+            photoUrl: supaAuthUser?.photoUrl ?? FirebaseAuth.instance.currentUser?.photoURL ?? '',
+            phone: supaAuthUser?.phoneNumber ?? '',
           ),
         ),
         (route) => false,
       );
     } else if (mounted) {
-      await Provider.of<UserProvider>(context, listen: false).loadUser(u.uid);
+      await Provider.of<UserProvider>(context, listen: false).loadUser(uid);
     }
   }
 
-  Future<void> _handleNewSignIn(User u) async {
-    setState(() => _user = u);
-    final userData = await FirebaseService().getUser(u.uid);
+  Future<void> _handleNewSignIn(String uid) async {
+    setState(() => _uid = uid);
+    final userData = await SupabaseService().getUser(uid);
     if (userData == null && mounted) {
+      final supaAuthUser = SupabaseAuthService().currentUser;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (_) => SetupProfileScreen(
-            uid: u.uid,
-            email: u.email ?? '',
-            photoUrl: u.photoURL ?? '',
+            uid: uid,
+            email: supaAuthUser?.email ?? FirebaseAuth.instance.currentUser?.email ?? '',
+            photoUrl: supaAuthUser?.photoUrl ?? FirebaseAuth.instance.currentUser?.photoURL ?? '',
+            phone: supaAuthUser?.phoneNumber ?? '',
           ),
         ),
         (route) => false,
       );
     } else if (mounted) {
-      await Provider.of<UserProvider>(context, listen: false).loadUser(u.uid);
+      await Provider.of<UserProvider>(context, listen: false).loadUser(uid);
     }
   }
 
@@ -241,7 +259,7 @@ class _AuthGateState extends State<_AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    final body = _user == null ? const LoginScreen() : const MainScreen();
+    final body = _uid == null ? const LoginScreen() : const MainScreen();
     return ListenableBuilder(
       listenable: MinimizedRoomService(),
       builder: (context, _) {

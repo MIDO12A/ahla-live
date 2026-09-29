@@ -1,15 +1,14 @@
-import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../config/app_colors.dart';
+import '../../../services/supabase_auth_service.dart';
 
 class PhoneLoginSheet extends StatefulWidget {
-  final Function(User user) onSignedIn;
+  final Function(AppAuthUser authUser) onSignedIn;
 
   const PhoneLoginSheet({super.key, required this.onSignedIn});
 
-  static Future<void> show(BuildContext context, {required Function(User user) onSignedIn}) {
+  static Future<void> show(BuildContext context, {required Function(AppAuthUser authUser) onSignedIn}) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -28,13 +27,8 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
 
   String _countryCode = '+20'; // Default Egypt
   bool _codeSent = false;
-  String? _verificationId;
-  int? _resendToken;
   bool _isLoading = false;
   String? _errorMessage;
-
-  int _resendCountdown = 60;
-  Timer? _countdownTimer;
 
   final List<Map<String, String>> _countries = [
     {'name': 'مصر', 'code': '+20', 'flag': '🇪🇬'},
@@ -61,23 +55,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
   void dispose() {
     _phoneController.dispose();
     _otpController.dispose();
-    _countdownTimer?.cancel();
     super.dispose();
-  }
-
-  void _startTimer() {
-    _countdownTimer?.cancel();
-    _resendCountdown = 60;
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      setState(() {
-        if (_resendCountdown > 0) {
-          _resendCountdown--;
-        } else {
-          timer.cancel();
-        }
-      });
-    });
   }
 
   String get _fullPhoneNumber {
@@ -88,7 +66,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
     return '$_countryCode$phone';
   }
 
-  Future<void> _sendCode() async {
+  void _goToPinStep() {
     final phone = _phoneController.text.trim();
     if (phone.isEmpty || phone.length < 6) {
       setState(() {
@@ -98,75 +76,16 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
     }
 
     setState(() {
-      _isLoading = true;
       _errorMessage = null;
+      _codeSent = true;
     });
-
-    final fullNumber = _fullPhoneNumber;
-
-    try {
-      await FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: fullNumber,
-        timeout: const Duration(seconds: 60),
-        forceResendingToken: _resendToken,
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          if (!mounted) return;
-          try {
-            final res = await FirebaseAuth.instance.signInWithCredential(credential);
-            if (res.user != null) {
-              Navigator.pop(context);
-              widget.onSignedIn(res.user!);
-            }
-          } catch (e) {
-            if (mounted) setState(() => _errorMessage = 'فشل تسجيل الدخول: $e');
-          }
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          if (!mounted) return;
-          String msg = 'فشل التحقق من رقم الهاتف';
-          if (e.code == 'invalid-phone-number') {
-            msg = 'رقم الهاتف غير صالح';
-          } else if (e.code == 'too-many-requests') {
-            msg = 'تم إرسال طلبات كثيرة جداً، يرجى المحاولة لاحقاً';
-          } else if (e.message != null && e.message!.isNotEmpty) {
-            msg = e.message!;
-          }
-          setState(() {
-            _isLoading = false;
-            _errorMessage = msg;
-          });
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          if (!mounted) return;
-          setState(() {
-            _isLoading = false;
-            _codeSent = true;
-            _verificationId = verificationId;
-            _resendToken = resendToken;
-          });
-          _startTimer();
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {
-          if (mounted) {
-            _verificationId = verificationId;
-          }
-        },
-      );
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'حدث خطأ: $e';
-        });
-      }
-    }
   }
 
   Future<void> _verifyOtp() async {
-    final smsCode = _otpController.text.trim();
-    if (smsCode.length < 6 || _verificationId == null) {
+    final pin = _otpController.text.trim();
+    if (pin.length < 4) {
       setState(() {
-        _errorMessage = 'يرجى إدخال رمز التحقق المكون من 6 أرقام';
+        _errorMessage = 'يرجى إدخال رمز المرور (PIN) المكون من 4 إلى 6 أرقام';
       });
       return;
     }
@@ -177,38 +96,20 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
     });
 
     try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: _verificationId!,
-        smsCode: smsCode,
+      final authUser = await SupabaseAuthService().signInOrRegisterWithPhone(
+        phone: _fullPhoneNumber,
+        pin: pin,
       );
 
-      final res = await FirebaseAuth.instance.signInWithCredential(credential);
-      if (res.user != null) {
-        if (mounted) {
-          Navigator.pop(context);
-          widget.onSignedIn(res.user!);
-        }
-      } else {
-        throw Exception('تعذر استرجاع بيانات المستخدم');
-      }
-    } on FirebaseAuthException catch (e) {
-      String msg = 'رمز التحقق غير صحيح';
-      if (e.code == 'invalid-verification-code') {
-        msg = 'رمز التحقق الذي أدخلته غير صحيح';
-      } else if (e.code == 'session-expired') {
-        msg = 'انتهت صلاحية رمز التحقق، يرجى طلب رمز جديد';
-      }
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = msg;
-        });
+        Navigator.pop(context);
+        widget.onSignedIn(authUser);
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'حدث خطأ أثناء التأكيد: $e';
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
         });
       }
     }
@@ -255,7 +156,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
 
           // Title
           Text(
-            _codeSent ? 'أدخل رمز التحقق' : 'تسجيل الدخول برقم الهاتف',
+            _codeSent ? 'رمز الدخول السري (PIN)' : 'تسجيل الدخول برقم الهاتف',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 20,
@@ -267,8 +168,8 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
 
           Text(
             _codeSent
-                ? 'تم إرسال رمز التحقق (OTP) المكون من 6 أرقام إلى $_fullPhoneNumber'
-                : 'أدخل رقم هاتفك لتلقي رمز التحقق عبر رسالة SMS',
+                ? 'أدخل رمز المرور السري الخاص بحسابك (4 إلى 6 أرقام) للدخول فوراً'
+                : 'أدخل رقم هاتفك للمتابعة وتسجيل الدخول عبر Supabase',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 13,
@@ -361,9 +262,9 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
             ),
             const SizedBox(height: 24),
 
-            // Send Code Button
+            // Continue Button
             ElevatedButton(
-              onPressed: _isLoading ? null : _sendCode,
+              onPressed: _isLoading ? null : _goToPinStep,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF9800),
                 foregroundColor: Colors.white,
@@ -378,12 +279,12 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                     )
                   : const Text(
-                      'إرسال رمز التحقق',
+                      'متابعة',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
             ),
           ] else ...[
-            // OTP Input field
+            // PIN Input field
             Container(
               height: 56,
               decoration: BoxDecoration(
@@ -396,17 +297,18 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
                 maxLength: 6,
+                obscureText: true,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
-                  letterSpacing: 14,
+                  letterSpacing: 10,
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: const InputDecoration(
                   counterText: '',
-                  hintText: '------',
-                  hintStyle: TextStyle(color: Colors.white38, fontSize: 24, letterSpacing: 14),
+                  hintText: '••••••',
+                  hintStyle: TextStyle(color: Colors.white38, fontSize: 24, letterSpacing: 10),
                   border: InputBorder.none,
                 ),
               ),
@@ -436,30 +338,17 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
             ),
             const SizedBox(height: 14),
 
-            // Resend or Change Number
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: _isLoading ? null : () => setState(() {
-                    _codeSent = false;
-                    _otpController.clear();
-                    _errorMessage = null;
-                  }),
-                  child: const Text('تغيير رقم الهاتف', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                ),
-                TextButton(
-                  onPressed: (_resendCountdown == 0 && !_isLoading) ? _sendCode : null,
-                  child: Text(
-                    _resendCountdown > 0 ? 'إعادة الإرسال بعد (${_resendCountdown}s)' : 'إعادة إرسال الرمز',
-                    style: TextStyle(
-                      color: _resendCountdown > 0 ? Colors.white38 : AppColors.goldLight,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+            // Change Number
+            Center(
+              child: TextButton.icon(
+                onPressed: _isLoading ? null : () => setState(() {
+                  _codeSent = false;
+                  _otpController.clear();
+                  _errorMessage = null;
+                }),
+                icon: const Icon(Icons.arrow_back, color: Colors.white70, size: 16),
+                label: const Text('تغيير رقم الهاتف', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              ),
             ),
           ],
         ],
