@@ -37,6 +37,7 @@ class UserModel {
   final int rechargeExp;
   final int gemsLevel;
   final int gemsExp;
+  final String? phone;
   final bool banned;
   final String banReason;
   final List<String> ownedLevelFrames;
@@ -54,6 +55,7 @@ class UserModel {
     this.customId = '',
     this.name = '',
     this.email = '',
+    this.phone,
     this.photoUrl = '',
     this.coins = 0,
     this.diamonds = 0,
@@ -105,6 +107,7 @@ class UserModel {
     String? customId,
     String? name,
     String? email,
+    String? phone,
     String? photoUrl,
     int? coins,
     int? diamonds,
@@ -201,6 +204,7 @@ class UserModel {
       rechargeAgencyName: rechargeAgencyName ?? this.rechargeAgencyName,
       rechargeAgencyLogo: rechargeAgencyLogo ?? this.rechargeAgencyLogo,
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
+      phone: phone ?? this.phone,
     );
   }
 
@@ -380,6 +384,7 @@ class UserModel {
       rechargeAgencyName: map['recharge_agency_name']?.toString(),
       rechargeAgencyLogo: map['recharge_agency_logo']?.toString(),
       whatsappNumber: map['whatsapp_number']?.toString() ?? map['phone']?.toString(),
+      phone: map['phone']?.toString() ?? map['phone_number']?.toString() ?? map['phoneNumber']?.toString(),
     );
   }
 
@@ -388,6 +393,7 @@ class UserModel {
         'custom_id': customId,
         'name': name,
         'email': email,
+        'phone': phone,
         'photo_url': photoUrl,
         'photoUrl': photoUrl,
         'avatar': photoUrl,
