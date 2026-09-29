@@ -112,6 +112,16 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
         );
       } catch (_) {}
 
+      try {
+        await SupabaseAuthService().saveSession(
+          uid: widget.uid,
+          email: widget.email,
+          name: _nameController.text.trim(),
+          photoUrl: photoUrl,
+          phone: widget.phone,
+        );
+      } catch (_) {}
+
       if (mounted) {
         await Provider.of<UserProvider>(context, listen: false)
             .loadUser(widget.uid);

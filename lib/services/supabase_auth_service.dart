@@ -14,6 +14,7 @@ class AppAuthUser {
   final String? displayName;
   final String? photoUrl;
   final String? phoneNumber;
+  final bool isNewUser;
 
   const AppAuthUser({
     required this.uid,
@@ -21,6 +22,7 @@ class AppAuthUser {
     this.displayName,
     this.photoUrl,
     this.phoneNumber,
+    this.isNewUser = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -29,6 +31,7 @@ class AppAuthUser {
         'displayName': displayName,
         'photoUrl': photoUrl,
         'phoneNumber': phoneNumber,
+        'isNewUser': isNewUser,
       };
 
   factory AppAuthUser.fromMap(Map<String, dynamic> map) => AppAuthUser(
@@ -37,6 +40,7 @@ class AppAuthUser {
         displayName: map['displayName'] as String?,
         photoUrl: map['photoUrl'] as String?,
         phoneNumber: map['phoneNumber'] as String?,
+        isNewUser: map['isNewUser'] as bool? ?? false,
       );
 }
 
@@ -173,6 +177,7 @@ class SupabaseAuthService {
           displayName: userData['name'] as String?,
           photoUrl: userData['photo_url'] as String?,
           email: userData['email'] as String?,
+          isNewUser: false,
         );
 
         await saveSession(
@@ -190,40 +195,17 @@ class SupabaseAuthService {
     // 2. New user registration
     final rng = Random();
     final newUid = 'p_${DateTime.now().millisecondsSinceEpoch}_${(1000 + rng.nextInt(9000))}';
-    final createUrl = Uri.parse('$_baseUrl/rest/v1/users');
-    final headers = {
-      ..._headers,
-      'Prefer': 'resolution=merge-duplicates',
-    };
-
-    final newUserData = {
-      'uid': newUid,
-      'phone': cleanPhone,
-      'name': 'مستخدم ${cleanPhone.length >= 4 ? cleanPhone.substring(cleanPhone.length - 4) : ""}',
-      'last_ip': 'pin:$pinHash',
-      'coins': 10000,
-      'created_at': DateTime.now().toUtc().toIso8601String(),
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    };
-
-    final res = await http.post(
-      createUrl,
-      headers: headers,
-      body: jsonEncode(newUserData),
-    );
-
-    debugPrint('[SupabaseAuth] New phone user created status: ${res.statusCode}');
 
     final authUser = AppAuthUser(
       uid: newUid,
       phoneNumber: cleanPhone,
-      displayName: newUserData['name'] as String?,
+      displayName: '',
+      isNewUser: true,
     );
 
     await saveSession(
       uid: newUid,
       phone: cleanPhone,
-      name: newUserData['name'] as String?,
     );
 
     return authUser;
@@ -321,6 +303,48 @@ class SupabaseAuthService {
       return null;
     } catch (e) {
       debugPrint('[SupabaseAuth] getUserFromSupabase error: $e');
+      return null;
+    }
+  }
+
+  /// Find user by email directly from Supabase database `public.users`
+  Future<UserModel?> getUserByEmail(String email) async {
+    try {
+      final cleanEmail = email.trim().toLowerCase();
+      if (cleanEmail.isEmpty) return null;
+      final url = Uri.parse('$_baseUrl/rest/v1/users?email=eq.$cleanEmail&select=*');
+      final response = await http.get(url, headers: _headers);
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List;
+        if (list.isNotEmpty) {
+          final data = Map<String, dynamic>.from(list.first);
+          return UserModel.fromMap(data);
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[SupabaseAuth] getUserByEmail error: $e');
+      return null;
+    }
+  }
+
+  /// Find user by phone directly from Supabase database `public.users`
+  Future<UserModel?> getUserByPhone(String phone) async {
+    try {
+      final cleanPhone = phone.replaceAll(RegExp(r'\s+'), '');
+      if (cleanPhone.isEmpty) return null;
+      final url = Uri.parse('$_baseUrl/rest/v1/users?phone=eq.$cleanPhone&select=*');
+      final response = await http.get(url, headers: _headers);
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List;
+        if (list.isNotEmpty) {
+          final data = Map<String, dynamic>.from(list.first);
+          return UserModel.fromMap(data);
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[SupabaseAuth] getUserByPhone error: $e');
       return null;
     }
   }

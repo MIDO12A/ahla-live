@@ -31,21 +31,9 @@ class _LoginScreenState extends State<LoginScreen> {
         phone: user.phoneNumber,
       );
 
-      // 2. Sync user and phone directly into Supabase database
-      try {
-        await SupabaseAuthService().syncUserToSupabase(
-          uid: user.uid,
-          email: user.email ?? '',
-          name: user.displayName ?? '',
-          photoUrl: user.photoUrl ?? '',
-          phone: user.phoneNumber ?? '',
-        );
-      } catch (_) {}
-
-      final existingUser = await SupabaseService().getUser(user.uid);
-
-      if (context.mounted) {
-        if (existingUser == null) {
+      if (user.isNewUser) {
+        // NEW USER: Go to SetupProfileScreen so the user can enter their name, picture, gender and get a custom ID
+        if (context.mounted) {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
@@ -58,7 +46,19 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             (route) => false,
           );
-        } else {
+        }
+      } else {
+        // EXISTING USER: Load user data and go to MainScreen
+        try {
+          if (user.photoUrl != null && user.photoUrl!.isNotEmpty) {
+            await SupabaseAuthService().syncUserToSupabase(
+              uid: user.uid,
+              photoUrl: user.photoUrl,
+            );
+          }
+        } catch (_) {}
+
+        if (context.mounted) {
           await Provider.of<UserProvider>(context, listen: false)
               .loadUser(user.uid);
           if (context.mounted) {
@@ -115,16 +115,33 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Google sign-in returned no idToken');
       }
 
-      // Authenticate with Supabase Auth directly using Google ID Token
-      final authData = await SupabaseAuthService().signInWithGoogleIdToken(idToken: idToken);
-      final uid = (authData?['user']?['id'] as String?) ??
-          'google_${account.id}';
+      // 1. Check if user already exists in Supabase by email
+      UserModel? existingUser;
+      if (account.email.isNotEmpty) {
+        existingUser = await SupabaseAuthService().getUserByEmail(account.email);
+      }
+
+      String uid;
+      bool isNewUser = false;
+      if (existingUser != null) {
+        // Existing user found in Supabase! Use their established UID and data
+        uid = existingUser.uid;
+        isNewUser = false;
+        developer.log('[GoogleAuth] Existing user: ${existingUser.name}, uid: $uid, customId: ${existingUser.customId}');
+      } else {
+        // Brand new user! Authenticate with Supabase Auth
+        final authData = await SupabaseAuthService().signInWithGoogleIdToken(idToken: idToken);
+        uid = (authData?['user']?['id'] as String?) ?? 'google_${account.id}';
+        isNewUser = true;
+        developer.log('[GoogleAuth] New user with uid: $uid');
+      }
 
       final authUser = AppAuthUser(
         uid: uid,
         email: account.email,
-        displayName: account.displayName,
-        photoUrl: account.photoUrl,
+        displayName: existingUser?.name ?? account.displayName,
+        photoUrl: (existingUser?.photoUrl.isNotEmpty == true) ? existingUser!.photoUrl : account.photoUrl,
+        isNewUser: isNewUser,
       );
 
       await _handleSignIn(authUser);
