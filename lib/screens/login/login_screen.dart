@@ -8,6 +8,7 @@ import '../../providers/user_provider.dart';
 import '../../config/r.dart';
 import '../main_screen/main_screen.dart';
 import 'setup_profile_screen.dart';
+import 'widgets/phone_login_sheet.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 uid: user.uid,
                 email: user.email ?? '',
                 photoUrl: user.photoURL ?? '',
+                phone: user.phoneNumber ?? '',
               ),
             ),
             (route) => false,
@@ -67,25 +69,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _signInAnonymously() async {
-    if (_isLoading) return;
-    setState(() => _isLoading = true);
-    try {
-      final res = await FirebaseAuth.instance.signInAnonymously();
-      final user = res.user;
-      if (user == null) return;
-      await _handleSignIn(user);
-    } catch (e) {
-      debugPrint('Error signing in anonymously: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error signing in: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
 
   static bool _isGoogleInitialized = false;
 
@@ -191,6 +174,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFCC80),
                         borderRadius: BorderRadius.circular(25),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
+                        ],
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -210,11 +196,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               width: 24,
                               height: 24,
                             ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 10),
                           const Text(
-                            'تسجيل الدخول',
+                            'تسجيل الدخول بحساب Google',
                             style: TextStyle(
                               fontSize: 15,
+                              fontWeight: FontWeight.bold,
                               color: Color(0xFF894916),
                             ),
                           ),
@@ -222,87 +209,55 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  // Facebook and Phone login buttons (optional)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _signInAnonymously,
-                          child: Container(
-                            height: 50,
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF3B5998),
-                                  Color(0xFF192F6A),
-                                ],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              ),
-                              borderRadius: BorderRadius.circular(25),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                R.image(
-                                  'assets/mipmap-xxhdpi/login_fb_ic.webp',
-                                  width: 24,
-                                  height: 24,
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'Facebook',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
+                  const SizedBox(height: 14),
+
+                  // Phone Login Button
+                  GestureDetector(
+                    onTap: _isLoading
+                        ? null
+                        : () {
+                            PhoneLoginSheet.show(
+                              context,
+                              onSignedIn: (user) => _handleSignIn(user),
+                            );
+                          },
+                    child: Container(
+                      height: 50,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFFFF5722),
+                            Color(0xFFFF9800),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          R.image(
+                            'assets/mipmap-xxhdpi/login_phone_ic.webp',
+                            width: 24,
+                            height: 24,
+                          ),
+                          const SizedBox(width: 10),
+                          const Text(
+                            'تسجيل الدخول برقم الهاتف',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
-                        ),
+                        ],
                       ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _signInAnonymously,
-                          child: Container(
-                            height: 50,
-                            margin: const EdgeInsets.only(left: 8),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFFFF5722),
-                                  Color(0xFFFF9800),
-                                ],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              ),
-                              borderRadius: BorderRadius.circular(25),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                R.image(
-                                  'assets/mipmap-xxhdpi/login_phone_ic.webp',
-                                  width: 24,
-                                  height: 24,
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'الهاتف',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 34),
                   // Privacy text

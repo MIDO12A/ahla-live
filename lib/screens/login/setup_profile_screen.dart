@@ -15,12 +15,14 @@ class SetupProfileScreen extends StatefulWidget {
   final String uid;
   final String email;
   final String photoUrl;
+  final String phone;
 
   const SetupProfileScreen({
     super.key,
     required this.uid,
     required this.email,
     required this.photoUrl,
+    this.phone = '',
   });
 
   @override
@@ -89,6 +91,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
         photoUrl: photoUrl,
         gender: _selectedGender,
         coins: 10000,
+        phone: widget.phone,
         ownedItems: [],
       );
 
