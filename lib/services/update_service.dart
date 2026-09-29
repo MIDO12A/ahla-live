@@ -43,11 +43,11 @@ class UpdateService {
   static const _buildInfoUrl =
       'https://github.com/MIDO12A/ahla-live/releases/latest/download/build_info.json';
   static const _apkUrlArm64 =
-      'https://github.com/MIDO12A/ahla-live/releases/latest/download/zero-app.apk';
+      'https://github.com/MIDO12A/ahla-live/releases/latest/download/ahla-live.apk';
   static const _apkUrlArm32 =
-      'https://github.com/MIDO12A/ahla-live/releases/latest/download/zero-app-arm32.apk';
+      'https://github.com/MIDO12A/ahla-live/releases/latest/download/ahla-live-arm32.apk';
   static const _apkUrlX8664 =
-      'https://github.com/MIDO12A/ahla-live/releases/latest/download/zero-app-x86_64.apk';
+      'https://github.com/MIDO12A/ahla-live/releases/latest/download/ahla-live-x86_64.apk';
   static const _githubApiLatestUrl =
       'https://api.github.com/repos/MIDO12A/ahla-live/releases/latest';
 

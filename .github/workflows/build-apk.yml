@@ -63,10 +63,13 @@ jobs:
 
       - name: Rename APKs
         run: |
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk zero-app.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk zero-app-arm32.apk
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk zero-app-x86_64.apk
-          ls -lh zero-app*.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ahla-live.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk ahla-live-arm32.apk
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk ahla-live-x86_64.apk
+          cp ahla-live.apk zero-app.apk
+          cp ahla-live-arm32.apk zero-app-arm32.apk
+          cp ahla-live-x86_64.apk zero-app-x86_64.apk
+          ls -lh *.apk
 
       - name: Create build info
         env:
@@ -80,8 +83,11 @@ jobs:
       - name: Upload APKs to Workflow Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zero-app-v${{ steps.ver.outputs.ver }}-b${{ github.run_number }}
+          name: ahla-live-v${{ steps.ver.outputs.ver }}-b${{ github.run_number }}
           path: |
+            ahla-live.apk
+            ahla-live-arm32.apk
+            ahla-live-x86_64.apk
             zero-app.apk
             zero-app-arm32.apk
             zero-app-x86_64.apk
@@ -99,6 +105,9 @@ jobs:
           overwrite: true
           prerelease: false
           files: |
+            ahla-live.apk
+            ahla-live-arm32.apk
+            ahla-live-x86_64.apk
             zero-app.apk
             zero-app-arm32.apk
             zero-app-x86_64.apk
