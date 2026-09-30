@@ -1404,23 +1404,26 @@ function RechargeAgenciesTab() {
   const load = async () => {
     setLoading(true);
     try {
-      const [u1, u2, raSnap] = await Promise.all([
-        supabase.from('users').select('*').eq('is_recharge_agent', true),
-        supabase.from('users').select('*').eq('isRechargeAgent', true),
-        supabase.from('recharge_agents').select('*'),
-      ]);
+      const { data: u1 } = await supabase.from('users').select('*').eq('is_recharge_agent', true);
+      let raData: any[] = [];
+      try {
+        const { data: raSnap } = await supabase.from('recharge_agents').select('*');
+        if (raSnap) raData = raSnap;
+      } catch (_) {}
+
       const map = new Map<string, any>();
-      (u1.data || []).forEach((u: any) => map.set(u.id || u.uid, u));
-      (u2.data || []).forEach((u: any) => map.set(u.id || u.uid, { ...(map.get(u.id || u.uid) || {}), ...u }));
-      (raSnap.data || []).forEach((r: any) => {
+      (u1 || []).forEach((u: any) => map.set(u.id || u.uid, u));
+      raData.forEach((r: any) => {
         const key = r.id || r.uid || r.owner_id;
         const prev = map.get(key) || {};
         map.set(key, { ...prev, ...r, id: key, uid: key, is_recharge_agent: true });
       });
       setAgents(Array.from(map.values()));
 
-      const { data: wData } = await supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false });
-      setWithdrawals(wData || []);
+      try {
+        const { data: wData } = await supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false });
+        setWithdrawals(wData || []);
+      } catch (_) {}
     } catch (_) {}
     setLoading(false);
   };
@@ -1504,13 +1507,21 @@ function RechargeAgenciesTab() {
 
     const currentCoins = Number(u.coins || 0);
     const newCoins = currentCoins + amount;
-    await supabase.from('users').update({ 
+    const targetId = u.uid || u.id;
+
+    const { error: err1 } = await supabase.from('users').update({ 
       coins: newCoins,
-    }).eq('uid', u.id || u.uid);
+    }).eq('uid', targetId);
+
+    if (err1) {
+      await supabase.from('users').update({ 
+        coins: newCoins,
+      }).eq('id', targetId);
+    }
 
     const adminName = getCurrentAdminName();
     await sendSystemNotification({
-      userId: u.id,
+      userId: targetId,
       title: '🪙 شحن رصيد عملات لحسابك',
       body: `مبروك! قام المشرف [${adminName}] بشحن ${amount.toLocaleString()} عملة ذهبية لحسابك بنجاح. رصيدك الحالي الآن: ${newCoins.toLocaleString()} عملة.`,
       type: 'system',
@@ -1518,7 +1529,7 @@ function RechargeAgenciesTab() {
       extraData: { amount, new_balance: newCoins, admin_name: adminName },
     });
 
-    alert(`تم شحن ${amount.toLocaleString()} عملة للمستخدم (${u.name || u.id}) بنجاح! الرصيد الجديد: ${newCoins.toLocaleString()}`);
+    alert(`تم شحن ${amount.toLocaleString()} عملة للمستخدم (${u.name || targetId}) بنجاح! الرصيد الجديد: ${newCoins.toLocaleString()}`);
     setShowRechargeModal(false);
     setRechargeUserUid('');
     setRechargeCoinsAmount('');
