@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CheckSquare,
   Sparkles,
@@ -15,8 +15,7 @@ import {
   ArrowRight,
   TrendingUp,
 } from 'lucide-react';
-import { firestoreDb } from '../lib/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import ImageUpload from '../components/ImageUpload';
 import { uploadGiftIcon } from '../lib/storage';
 
@@ -73,35 +72,46 @@ export default function TasksManager() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 1. جلب قائمة المهام
-      const tasksSnap = await getDocs(collection(firestoreDb, 'tasks_config'));
-      const tasksList: TaskAdminItem[] = [];
-      tasksSnap.forEach(d => {
-        tasksList.push({ id: d.id, ...d.data() } as TaskAdminItem);
-      });
-      setTasks(tasksList);
+      // 1. جلب قائمة المهام من Supabase app_config
+      const { data: cfgRow } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'tasks_config')
+        .maybeSingle();
+
+      if (cfgRow?.value) {
+        const val = typeof cfgRow.value === 'string' ? JSON.parse(cfgRow.value) : cfgRow.value;
+        if (Array.isArray(val)) {
+          setTasks(val);
+        } else if (typeof val === 'object') {
+          setTasks(Object.values(val));
+        }
+      }
 
       // 2. جلب عناصر المتجر لاختيار المكافآت
-      const storeSnap = await getDocs(collection(firestoreDb, 'store_items'));
-      const itemsList: StoreItemOption[] = [];
-      storeSnap.forEach(d => {
-        const data = d.data();
-        itemsList.push({
-          id: d.id,
-          name: data.name || data.name_ar || d.id,
-          icon: data.icon_url || data.iconAsset || '',
-          type: data.type || 'item',
-        });
-      });
-      setStoreItems(itemsList);
+      const { data: storeRows } = await supabase.from('store_items').select('*');
+      if (storeRows) {
+        setStoreItems(
+          storeRows.map((d: any) => ({
+            id: d.id || d.item_id,
+            name: d.name || d.name_ar || d.id,
+            icon: d.icon_url || d.iconAsset || '',
+            type: d.type || 'item',
+          }))
+        );
+      }
 
       // 3. جلب بانر الفعالية
-      const bannerSnap = await getDocs(collection(firestoreDb, 'settings'));
-      bannerSnap.forEach(d => {
-        if (d.id === 'tasks_event_config') {
-          setBannerUrl(d.data().banner_url || '');
-        }
-      });
+      const { data: bannerRow } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'tasks_event_config')
+        .maybeSingle();
+
+      if (bannerRow?.value) {
+        const val = typeof bannerRow.value === 'string' ? JSON.parse(bannerRow.value) : bannerRow.value;
+        setBannerUrl(val?.banner_url || '');
+      }
     } catch (e) {
       console.error(e);
     }
@@ -114,10 +124,13 @@ export default function TasksManager() {
 
   const handleSaveBanner = async () => {
     try {
-      await setDoc(doc(firestoreDb, 'settings', 'tasks_event_config'), {
-        banner_url: bannerUrl,
-        updated_at: new Date().toISOString(),
-      });
+      await supabase.from('app_config').upsert({
+        key: 'tasks_event_config',
+        value: {
+          banner_url: bannerUrl,
+          updated_at: new Date().toISOString(),
+        },
+      }, { onConflict: 'key' });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (e) {
@@ -132,11 +145,14 @@ export default function TasksManager() {
     }
 
     try {
-      const taskDocRef = doc(firestoreDb, 'tasks_config', form.id);
-      await setDoc(taskDocRef, form, { merge: true });
+      const updated = [...tasks.filter(t => t.id !== form.id), form];
+      await supabase.from('app_config').upsert({
+        key: 'tasks_config',
+        value: updated,
+      }, { onConflict: 'key' });
+      setTasks(updated);
       setShowAddModal(false);
       setEditingTask(null);
-      loadData();
     } catch (e) {
       alert('فشل حفظ المهمة');
     }
@@ -145,8 +161,12 @@ export default function TasksManager() {
   const handleDeleteTask = async (id: string) => {
     if (confirm('هل أنت متأكد من حذف هذه المهمة؟')) {
       try {
-        await deleteDoc(doc(firestoreDb, 'tasks_config', id));
-        loadData();
+        const updated = tasks.filter(t => t.id !== id);
+        await supabase.from('app_config').upsert({
+          key: 'tasks_config',
+          value: updated,
+        }, { onConflict: 'key' });
+        setTasks(updated);
       } catch (e) {
         alert('فشل الحذف');
       }

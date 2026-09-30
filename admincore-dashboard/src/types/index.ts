@@ -243,6 +243,23 @@ export interface AppConfig {
 
   // Icon overrides (Icons.xxx name → URL)
   iconOverrides?: Record<string, string>;
+
+  // Allow dynamic/extended properties
+  [key: string]: any;
+}
+
+export interface ReportModel {
+  id: string;
+  reporterUid: string;
+  reporterName?: string;
+  reportedUid: string;
+  reportedName?: string;
+  reason: string;
+  details?: string;
+  status: 'pending' | 'resolved' | 'banned' | 'dismissed';
+  createdAt?: string;
+  created_at?: string;
+  [key: string]: any;
 }
 
 export interface AppAsset {

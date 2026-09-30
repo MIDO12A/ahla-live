@@ -19,8 +19,7 @@ import {
 } from '../lib/db';
 import { uploadStoreItem } from '../lib/storage';
 import { supabase } from '../lib/supabase';
-import { firebaseAuth, firestoreDb } from '../lib/firebase';
-import { doc, setDoc, increment } from 'firebase/firestore';
+import { getCurrentAdminName } from '../lib/auth';
 import { I18nContext } from '../lib/i18n';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
@@ -208,7 +207,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const handleSubmit = async () => {
     if (!name.trim() || !ownerId.trim()) return;
     const finalOwnerId = resolvedOwnerUser?.id || ownerId.trim();
-    const adminName = firebaseAuth.currentUser?.displayName || firebaseAuth.currentUser?.email || 'إدارة التطبيق';
+    const adminName = getCurrentAdminName();
 
     if (!editId && sendInviteMode) {
       await sendAgencyInvitation({
@@ -639,7 +638,7 @@ function AgencyRequestsTab() {
   const handleApprove = async (app: AgencyApplicationModel) => {
     if (!confirm(`هل أنت متأكد من قبول طلب فتح ${app.agency_type === 'host' ? 'وكالة المضيفين' : 'وكالة الشحن'} (${app.agency_name})؟ سيتم تفعيل الوكالة فوراً.`)) return;
     setActionLoading(true);
-    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
+    const adminName = getCurrentAdminName();
     const res = await approveAgencyApplication(app, adminName);
     alert(res.message);
     setActionLoading(false);
@@ -649,7 +648,7 @@ function AgencyRequestsTab() {
   const handleReject = async () => {
     if (!rejectModalApp) return;
     setActionLoading(true);
-    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
+    const adminName = getCurrentAdminName();
     const res = await rejectAgencyApplication(rejectModalApp.id, rejectModalApp.user_id, rejectionReason, adminName);
     alert(res.message);
     setRejectModalApp(null);
@@ -1439,7 +1438,7 @@ function RechargeAgenciesTab() {
       return;
     }
     const userId = u.uid || u.id;
-    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
+    const adminName = getCurrentAdminName();
 
     await updateRechargeAgency(userId, {
       recharge_agency_name: agencyName.trim() || 'وكالة الشحن المعتمدة',
@@ -1468,7 +1467,7 @@ function RechargeAgenciesTab() {
 
   const handleSaveEditAgent = async () => {
     if (!editAgent) return;
-    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
+    const adminName = getCurrentAdminName();
     await updateRechargeAgency(editAgent.id, {
       recharge_agency_name: editName.trim() || 'وكالة الشحن المعتمدة',
       recharge_agency_logo: editLogo.trim() || undefined,
@@ -1507,33 +1506,9 @@ function RechargeAgenciesTab() {
     const newCoins = currentCoins + amount;
     await supabase.from('users').update({ 
       coins: newCoins,
-      recharged_coins: Number(u.recharged_coins || 0) + amount,
-      total_recharge: Number(u.total_recharge || 0) + amount,
-    }).eq('id', u.id);
+    }).eq('uid', u.id || u.uid);
 
-    // مزامنة فورية مع Firestore لكي يظهر الشحن فوراً داخل حدث الشحن ويستلم المستخدم المكافأة
-    try {
-      const now = new Date();
-      const eventId = `recharge_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const userRef = doc(firestoreDb, 'users', u.id);
-      await setDoc(userRef, {
-        coins: increment(amount),
-        recharged_coins: increment(amount),
-        total_recharge: increment(amount),
-      }, { merge: true });
-
-      const progressRef = doc(firestoreDb, 'recharge_event_progress', `${eventId}_${u.id}`);
-      await setDoc(progressRef, {
-        event_id: eventId,
-        user_id: u.id,
-        total_recharged_coins: increment(amount),
-        updated_at: now.toISOString(),
-      }, { merge: true });
-    } catch (err) {
-      console.warn('Firestore agency recharge sync:', err);
-    }
-
-    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
+    const adminName = getCurrentAdminName();
     await sendSystemNotification({
       userId: u.id,
       title: '🪙 شحن رصيد عملات لحسابك',

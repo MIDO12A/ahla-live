@@ -667,7 +667,7 @@ function RankingSection({ config, updateField }: { config: AppConfig; updateFiel
           placeholder="Key أو رابط"
           className="w-full bg-[#161618] border border-white/10 rounded-lg py-2 px-3 text-xs text-white font-mono" />
         <RankAssetUpload assetKey={`${subTab}_bgAssetKey`} label="ارفع صورة خلفية"
-          accept="image/*,.svga,.mp4,.gif" config={config} updateField={updateField} assets={assets} />
+          accept="image/*,.svga,.mp4,.gif" config={config} updateField={updateField} />
       </div>
 
       {/* Per-category frame uploads */}

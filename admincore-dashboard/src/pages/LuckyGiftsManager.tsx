@@ -21,8 +21,6 @@ import {
   Globe,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { firestoreDb } from '../lib/firebase';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import ImageUpload from '../components/ImageUpload';
 import { uploadGiftIcon, uploadGiftAnimation } from '../lib/storage';
 
@@ -192,30 +190,33 @@ export default function LuckyGiftsManager() {
 
   const loadSettings = async () => {
     try {
-      const docRef = doc(firestoreDb, 'app_config', 'lucky_box_config');
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
+      const { data, error } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'lucky_box_config')
+        .maybeSingle();
+
+      if (!error && data?.value) {
+        const cfg = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
         setVisuals(prev => ({
           ...prev,
-          coverUrl: data.coverUrl ?? prev.coverUrl,
-          backBgUrl: data.backBgUrl ?? prev.backBgUrl,
-          themeStyle: data.themeStyle ?? prev.themeStyle,
-          flipDurationMs: data.flipDurationMs ?? prev.flipDurationMs,
-          cooldownMs: data.cooldownMs ?? prev.cooldownMs,
-          comboTimeoutMs: data.comboTimeoutMs ?? prev.comboTimeoutMs,
-          settlementCountdownMs: data.settlementCountdownMs ?? prev.settlementCountdownMs,
-          maxCardsPerRound: data.maxCardsPerRound ?? prev.maxCardsPerRound,
-          globalBroadcastMinMultiplier: data.globalBroadcastMinMultiplier ?? prev.globalBroadcastMinMultiplier,
-          enableBurstMode: data.enableBurstMode ?? prev.enableBurstMode,
+          coverUrl: cfg.coverUrl ?? prev.coverUrl,
+          backBgUrl: cfg.backBgUrl ?? prev.backBgUrl,
+          themeStyle: cfg.themeStyle ?? prev.themeStyle,
+          flipDurationMs: cfg.flipDurationMs ?? prev.flipDurationMs,
+          cooldownMs: cfg.cooldownMs ?? prev.cooldownMs,
+          comboTimeoutMs: cfg.comboTimeoutMs ?? prev.comboTimeoutMs,
+          settlementCountdownMs: cfg.settlementCountdownMs ?? prev.settlementCountdownMs,
+          maxCardsPerRound: cfg.maxCardsPerRound ?? prev.maxCardsPerRound,
+          globalBroadcastMinMultiplier: cfg.globalBroadcastMinMultiplier ?? prev.globalBroadcastMinMultiplier,
+          enableBurstMode: cfg.enableBurstMode ?? prev.enableBurstMode,
         }));
-        if (data.oddsTiers) setOddsTiers(data.oddsTiers);
-        if (data.giftsList) setGiftsList(data.giftsList);
-        if (data.svgaLibrary) setSvgaLibrary(data.svgaLibrary);
-        return;
+        if (cfg.oddsTiers) setOddsTiers(cfg.oddsTiers);
+        if (cfg.giftsList) setGiftsList(cfg.giftsList);
+        if (cfg.svgaLibrary) setSvgaLibrary(cfg.svgaLibrary);
       }
     } catch (e) {
-      console.log('Firebase load fallback:', e);
+      console.log('Supabase load fallback:', e);
     }
   };
 
@@ -238,14 +239,18 @@ export default function LuckyGiftsManager() {
     setLoading(true);
     setSavedSuccess(false);
     try {
-      const docRef = doc(firestoreDb, 'app_config', 'lucky_box_config');
-      await setDoc(docRef, {
-        ...visuals,
-        oddsTiers,
-        giftsList,
-        svgaLibrary,
-        updated_at: new Date().toISOString(),
-      }, { merge: true });
+      const { error } = await supabase.from('app_config').upsert({
+        key: 'lucky_box_config',
+        value: {
+          ...visuals,
+          oddsTiers,
+          giftsList,
+          svgaLibrary,
+          updated_at: new Date().toISOString(),
+        },
+      }, { onConflict: 'key' });
+
+      if (error) throw error;
 
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
@@ -282,7 +287,7 @@ export default function LuckyGiftsManager() {
           {savedSuccess && (
             <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg">
               <CheckCircle className="w-4 h-4" />
-              تم حفظ التعديلات بنجاح في Firebase!
+              تم حفظ التعديلات بنجاح في Supabase!
             </div>
           )}
           <button

@@ -2,7 +2,7 @@ import { useEffect, useState, useContext } from 'react';
 import { I18nContext } from '../lib/i18n';
 import { getAppConfig, updateAppConfig } from '../lib/db';
 import { uploadAppAsset } from '../lib/storage';
-import { Save, RotateCcw, Upload, Check, Image, Type, Layers } from 'lucide-react';
+import { Save, RotateCcw, Upload, Check, Image, Type, Layers, SlidersHorizontal } from 'lucide-react';
 import { to6Hex } from '../lib/colors';
 
 interface ScreenVisuals {
@@ -865,7 +865,8 @@ export default function ScreenCustomizationPage() {
       for (const screen of screenTabs) {
         clean[screen] = {};
         for (const [key, val] of Object.entries(visuals[screen])) {
-          if (val && val.trim()) clean[screen][key] = val.trim();
+          const strVal = String(val ?? '');
+          if (strVal.trim()) clean[screen][key] = strVal.trim();
         }
       }
       await updateAppConfig({ screenVisuals: clean } as any);
@@ -957,7 +958,8 @@ export default function ScreenCustomizationPage() {
       {/* Inputs Form */}
       <div className="bg-[#141417] rounded-2xl border border-white/5 p-4 sm:p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.entries(visuals[activeTab as keyof ScreenVisuals] || {}).map(([field, value]) => {
+          {Object.entries(visuals[activeTab as keyof ScreenVisuals] || {}).map(([field, rawVal]) => {
+            const value = String(rawVal ?? '');
             const label = fieldLabels[field]?.[lang === 'ar' ? 'ar' : 'en'] || field;
             const isImg = imageFields.includes(field);
             const isColor = isColorField(field);

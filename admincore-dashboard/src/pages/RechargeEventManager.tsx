@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getAppConfig, updateAppConfig } from '../lib/db';
+import { supabase } from '../lib/supabase';
 import { uploadAppAsset } from '../lib/storage';
-import { firestoreDb } from '../lib/firebase';
-import { doc, setDoc, getDocs, collection, query, where, orderBy, limit, increment } from 'firebase/firestore';
 import { 
   Save, Upload, Eye, Plus, Trash2, Edit2, Palette, CheckCircle2, 
   Sparkles, Image as ImageIcon, Smartphone, Layers, Crown, Coins,
@@ -256,54 +255,25 @@ export default function RechargeEventManager() {
   const loadLeaderboard = async () => {
     setLoadingRank(true);
     try {
-      const now = new Date();
-      const eventId = `recharge_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
-      
-      let snap;
-      try {
-        const q = query(
-          collection(firestoreDb, 'recharge_event_progress'),
-          where('event_id', '==', eventId)
-        );
-        snap = await getDocs(q);
-      } catch (err) {
-        console.warn('Fallback loading all progress documents:', err);
-        snap = await getDocs(collection(firestoreDb, 'recharge_event_progress'));
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('*')
+        .order('recharge_level', { ascending: false })
+        .limit(50);
+
+      if (usersData) {
+        const entries: LeaderboardEntry[] = usersData.map((ud: any) => ({
+          userId: ud.uid || ud.id,
+          name: ud.name || 'مستخدم',
+          photoUrl: ud.photo_url || '',
+          customId: ud.custom_id || '',
+          totalRechargedCoins: Number(ud.coins || 0),
+          claimedTiers: [],
+          claimedCounts: {},
+          updatedAt: ud.updated_at,
+        }));
+        setLeaderboard(entries);
       }
-
-      const entries: LeaderboardEntry[] = [];
-      for (const docSnap of snap.docs) {
-        const d = docSnap.data();
-        if (d.event_id && d.event_id !== eventId) continue;
-        const uid = d.user_id || docSnap.id.replace(`${eventId}_`, '');
-        let name = 'مستخدم';
-        let photoUrl = '';
-        let customId = '';
-        try {
-          const userDoc = await getDocs(query(collection(firestoreDb, 'users'), where('uid', '==', uid), limit(1)));
-          if (userDoc && !userDoc.empty) {
-            const ud = userDoc.docs[0].data();
-            name = ud.name || ud.displayName || 'مستخدم';
-            photoUrl = ud.photo_url || ud.photoUrl || '';
-            customId = ud.custom_id || ud.customId || '';
-          }
-        } catch (_) {}
-
-        entries.push({
-          userId: uid,
-          name,
-          photoUrl,
-          customId,
-          totalRechargedCoins: Number(d.total_recharged_coins || 0),
-          claimedTiers: Array.isArray(d.claimed_tiers) ? d.claimed_tiers : [],
-          claimedCounts: d.claimed_counts || {},
-          updatedAt: d.updated_at,
-        });
-      }
-
-      // Sort client-side so Firestore never requires a composite index
-      entries.sort((a, b) => b.totalRechargedCoins - a.totalRechargedCoins);
-      setLeaderboard(entries.slice(0, 50));
     } catch (err) {
       console.warn('loadLeaderboard error:', err);
     } finally {
@@ -318,27 +288,13 @@ export default function RechargeEventManager() {
 
     setProcessingRecharge(true);
     try {
-      const now = new Date();
-      const eventId = `recharge_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const { data: userRow } = await supabase.from('users').select('coins').eq('uid', quickRechargeUid).maybeSingle();
+      const currentCoins = Number(userRow?.coins || 0);
+      await supabase.from('users').update({
+        coins: currentCoins + amount,
+      }).eq('uid', quickRechargeUid);
 
-      // 1. تحديث في Firestore users
-      const userRef = doc(firestoreDb, 'users', quickRechargeUid);
-      await setDoc(userRef, {
-        coins: increment(amount),
-        recharged_coins: increment(amount),
-        total_recharge: increment(amount),
-      }, { merge: true });
-
-      // 2. تحديث في recharge_event_progress
-      const progressRef = doc(firestoreDb, 'recharge_event_progress', `${eventId}_${quickRechargeUid}`);
-      await setDoc(progressRef, {
-        event_id: eventId,
-        user_id: quickRechargeUid,
-        total_recharged_coins: increment(amount),
-        updated_at: now.toISOString(),
-      }, { merge: true });
-
-      showNotification(`🎉 تم شحن ${amount.toLocaleString()} كوينز للمستخدم وتحديث تقدم الحدث فوراً!`);
+      showNotification(`🎉 تم شحن ${amount.toLocaleString()} كوينز للمستخدم وتحديث رصيده بنجاح!`);
       setShowQuickRechargeModal(false);
       setQuickRechargeUid('');
       loadLeaderboard();
@@ -367,16 +323,7 @@ export default function RechargeEventManager() {
         }
       };
 
-      // 1. تحديث Supabase
       await updateAppConfig(configPayload as any);
-
-      // 2. تحديث Firestore المباشر لمزامنة التطبيق فوراً
-      try {
-        await setDoc(doc(firestoreDb, 'app_config', 'general'), configPayload, { merge: true });
-      } catch (err) {
-        console.warn('Firestore sync warning:', err);
-      }
-
       showNotification('✅ تم حفظ إعدادات وحدث الشحن ومزامنتها مع التطبيق فوراً بنجاح!');
     } catch (e) {
       showNotification('❌ فشل الحفظ، يرجى المحاولة لاحقاً');
@@ -1914,7 +1861,7 @@ export default function RechargeEventManager() {
                         const highestTier = [...tiers]
                           .reverse()
                           .find((t) => u.totalRechargedCoins >= t.requiredCoins);
-                        const totalClaims = Object.values(u.claimedCounts || {}).reduce((a, b) => a + b, 0) || u.claimedTiers.length;
+                        const totalClaims = (Object.values(u.claimedCounts || {}) as any[]).reduce((a: number, b: any) => a + Number(b || 0), 0) || u.claimedTiers.length;
 
                         return (
                           <tr key={u.userId} className="hover:bg-white/[0.02] transition">

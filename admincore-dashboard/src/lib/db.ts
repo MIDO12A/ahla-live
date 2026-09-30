@@ -1,6 +1,4 @@
 import { supabase, getAdminSupabase } from './supabase'
-import { firestoreDb } from './firebase'
-import { doc, getDoc, getDocs, collection, query, where, setDoc, increment } from 'firebase/firestore'
 import type {
   UserModel, RoomModel, GiftModel, SentGiftModel,
   StoreItemModel, UnionModel, BugReport, AppConfig,
@@ -2736,3 +2734,4 @@ export async function unpublishAppUpdate(): Promise<string | null> {
     return e instanceof Error ? e.message : String(e)
   }
 }
+
