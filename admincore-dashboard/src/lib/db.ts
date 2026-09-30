@@ -475,12 +475,7 @@ export async function deleteRoom(id: string) {
 // ---- Unions ----
 
 export async function getUnions(): Promise<UnionModel[]> {
-  try {
-    const { data } = await supabase.from('unions').select('*').order('created_at', { ascending: false })
-    return mapList<UnionModel>(data ?? [])
-  } catch {
-    return []
-  }
+  return [];
 }
 
 export function subscribeUnions(cb: (unions: UnionModel[]) => void) {
@@ -760,35 +755,7 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
       }
     } catch {}
 
-    // 2. Sync from unions collection (legacy / older agencies)
-    try {
-      const { data: unionsData } = await supabase.from('unions').select('*');
-      for (const u of unionsData ?? []) {
-        const uId = u.id || u.union_id;
-        const uName = u.name || u.union_name;
-        const uOwner = u.owner_id || u.creator_id || u.uid;
-        if (uName && !existingNames.has(uName) && (!uId || !existingIds.has(uId))) {
-          const newAg = {
-            id: uId || `agency_${Date.now()}`,
-            name: uName,
-            owner_id: uOwner || '',
-            description: u.description || u.notice || 'وكالة معتمدة',
-            country: u.country || null,
-            photo_url: u.photo_url || u.avatar || null,
-            tier: u.tier || 'bronze',
-            commission_rate: ((u.commission_rate ?? 10) > 1 ? (u.commission_rate ?? 10) / 100 : (u.commission_rate ?? 0.1)),
-            is_active: u.is_active !== false,
-            member_count: u.member_count ?? 1,
-            total_diamonds_monthly: u.total_diamonds_monthly ?? 0,
-            created_at: u.created_at || new Date().toISOString(),
-          };
-          agencies.push(newAg);
-          existingNames.add(uName);
-          existingIds.add(newAg.id);
-          supabase.from('host_agencies').insert(newAg).catch(() => {});
-        }
-      }
-    } catch {}
+    // 2. Legacy unions sync skipped (unions table is deprecated)
 
     // 3. Sync from users where is_host_agent == true or agency_id is set
     try {
@@ -1448,18 +1415,10 @@ export async function sendSystemNotification(data: {
   try {
     const client = getAdminSupabase() || supabase;
     const payload = {
-      user_id: data.userId,
-      uid: data.userId,
-      title: data.title,
-      body: data.body,
-      type: data.type || 'system',
+      title: data.title || 'إشعار من الإدارة',
+      body: data.body || '',
+      target: data.userId || 'all',
       sent_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      is_read: false,
-      data: {
-        action: data.action || 'system_notice',
-        ...(data.extraData || {}),
-      },
     };
     await client.from('notifications').insert(payload);
     return true;
@@ -1648,24 +1607,6 @@ export async function updateRechargeAgency(userId: string, data: {
       await client.from('users').update(userUpdate).eq('id', resolvedUid);
     }
 
-    // Best-effort write to recharge_agents table
-    try {
-      await client.from('recharge_agents').upsert({
-        id: resolvedUid,
-        uid: resolvedUid,
-        name: agencyName,
-        owner_id: resolvedUid,
-        owner_name: u?.name || 'وكيل شحن',
-        custom_id: u?.custom_id || '',
-        whatsapp_number: data.whatsapp_number || '',
-        logo: data.recharge_agency_logo || '',
-        commission_rate: data.recharge_commission_rate ?? 5,
-        is_active: true,
-        created_at: nowIso,
-        updated_at: nowIso,
-      });
-    } catch (_) {}
-
     // Send official opening notification
     await sendSystemNotification({
       userId: resolvedUid,
@@ -1705,13 +1646,6 @@ export async function revokeRechargeAgency(userId: string): Promise<boolean> {
     if (err1) {
       await client.from('users').update(userUpdate).eq('id', resolvedUid);
     }
-
-    try {
-      await client.from('recharge_agents').update({
-        is_active: false,
-        updated_at: new Date().toISOString(),
-      }).eq('id', resolvedUid);
-    } catch (_) {}
 
     await sendSystemNotification({
       userId: resolvedUid,

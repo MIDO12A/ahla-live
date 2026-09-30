@@ -1405,20 +1405,7 @@ function RechargeAgenciesTab() {
     setLoading(true);
     try {
       const { data: u1 } = await supabase.from('users').select('*').eq('is_recharge_agent', true);
-      let raData: any[] = [];
-      try {
-        const { data: raSnap } = await supabase.from('recharge_agents').select('*');
-        if (raSnap) raData = raSnap;
-      } catch (_) {}
-
-      const map = new Map<string, any>();
-      (u1 || []).forEach((u: any) => map.set(u.id || u.uid, u));
-      raData.forEach((r: any) => {
-        const key = r.id || r.uid || r.owner_id;
-        const prev = map.get(key) || {};
-        map.set(key, { ...prev, ...r, id: key, uid: key, is_recharge_agent: true });
-      });
-      setAgents(Array.from(map.values()));
+      setAgents(u1 || []);
 
       try {
         const { data: wData } = await supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false });
