@@ -459,4 +459,72 @@ class SupabaseDataService {
     }
     return null;
   }
+
+  Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    try {
+      final q = query.trim();
+      if (q.isEmpty) return [];
+      final encoded = Uri.encodeComponent(q);
+      final url = Uri.parse('$_baseUrl/rest/v1/users?or=(custom_id.ilike.*$encoded*,name.ilike.*$encoded*,email.ilike.*$encoded*)&select=*&limit=20');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] searchUsers error: $e');
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> searchRooms(String query) async {
+    try {
+      final q = query.trim();
+      if (q.isEmpty) return [];
+      final encoded = Uri.encodeComponent(q);
+      final url = Uri.parse('$_baseUrl/rest/v1/rooms?or=(room_id.ilike.*$encoded*,name.ilike.*$encoded*,host_name.ilike.*$encoded*)&select=*&limit=20');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] searchRooms error: $e');
+    }
+    return [];
+  }
+
+  Future<UserModel?> findUserByIdOrCustomId(String id) async {
+    try {
+      final cleanId = id.trim();
+      if (cleanId.isEmpty) return null;
+      final encoded = Uri.encodeComponent(cleanId);
+      final url = Uri.parse('$_baseUrl/rest/v1/users?or=(custom_id.eq.$encoded,uid.eq.$encoded)&select=*&limit=1');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        if (list.isNotEmpty) {
+          return UserModel.fromMap(Map<String, dynamic>.from(list.first as Map));
+        }
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] findUserByIdOrCustomId error: $e');
+    }
+    return null;
+  }
+
+  Future<List<UserModel>> getAllUsers({int limit = 50}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/users?select=*&limit=$limit');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => UserModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getAllUsers error: $e');
+    }
+    return [];
+  }
 }
+

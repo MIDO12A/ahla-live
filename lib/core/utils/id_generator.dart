@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/supabase_data_service.dart';
 
 /// خدمة توليد أرقام تعريف المستخدمين (User ID Generator)
 /// توليد أرقام فريدة آمنة ومتسقة (6-10 أرقام)
@@ -47,27 +48,39 @@ class UserIdGenerator {
     return (min + _random.nextInt(max - min + 1)).toString();
   }
 
-  /// التحقق من تفرد الرقم في Firestore
+  /// التحقق من تفرد الرقم في Supabase و Firestore
   Future<bool> _checkIdUniqueness(String customId) async {
     try {
-      // التحقق من Firestore
-      final firestoreCheck = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-          .collection('users')
-          .where('custom_id', isEqualTo: customId)
-          .limit(1)
-          .get();
-      
-      if (firestoreCheck.docs.isNotEmpty) {
-        return false; // الرقم موجود بالفعل
+      // 1. التحقق من Supabase
+      try {
+        final existing = await SupabaseDataService().findUserByIdOrCustomId(customId);
+        if (existing != null) {
+          return false; // الرقم موجود بالفعل في Supabase
+        }
+      } catch (e) {
+        debugPrint('UserIdGenerator: Supabase check error: $e');
       }
+
+      // 2. التحقق من Firestore
+      try {
+        final firestoreCheck = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+            .collection('users')
+            .where('custom_id', isEqualTo: customId)
+            .limit(1)
+            .get();
+        
+        if (firestoreCheck.docs.isNotEmpty) {
+          return false; // الرقم موجود بالفعل
+        }
+      } catch (_) {}
 
       return true; // الرقم فريد
     } catch (e) {
       debugPrint('UserIdGenerator: Uniqueness check failed: $e');
-      // في حالة الخطأ، افترض أن الرقم فريد (fallback)
       return true;
     }
   }
+
 
   /// توليد رقم تعريف مؤقت للاستخدام المحلي
   /// TODO: استخدام للأغراض المؤقتة فقط

@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/user_provider.dart';
+import '../../../services/supabase_data_service.dart';
 import '../models/task_model.dart';
 import '../widgets/task_reward_dialog.dart';
 
@@ -131,8 +132,24 @@ class TaskService {
         userUpdates['exp'] = FieldValue.increment(task.expReward);
       }
       if (userUpdates.isNotEmpty) {
-        await _db.collection('users').doc(userId).update(userUpdates);
+        try {
+          await _db.collection('users').doc(userId).update(userUpdates);
+        } catch (_) {}
       }
+
+      // Sync Supabase coins
+      if (task.coinsReward > 0) {
+        try {
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          final currentCoins = userProvider.currentUser?.coins ?? 0;
+          final newCoins = currentCoins + task.coinsReward;
+          await SupabaseDataService().updateUser(userId, {'coins': newCoins});
+          await userProvider.loadUser(userId);
+        } catch (e) {
+          debugPrint('claimTaskReward Supabase update error: $e');
+        }
+      }
+
 
       // 3. إيداع عنصر المتجر في حقيبة المستخدم إذا وجد
       if (task.storeItemId != null && task.storeItemId!.isNotEmpty) {

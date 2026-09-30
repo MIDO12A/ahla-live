@@ -1545,9 +1545,21 @@ class FirebaseService {
   }
 
   Future<List<UserModel>> getAllUsers() async {
-    final snap = await _db.collection('users').get();
-    return snap.docs.map((e) => UserModel.fromMap(_data(e))).toList();
+    try {
+      final supaUsers = await SupabaseDataService().getAllUsers();
+      if (supaUsers.isNotEmpty) return supaUsers;
+    } catch (e) {
+      debugPrint('getAllUsers Supabase error: $e');
+    }
+
+    try {
+      final snap = await _db.collection('users').get();
+      return snap.docs.map((e) => UserModel.fromMap(_data(e))).toList();
+    } catch (_) {
+      return [];
+    }
   }
+
 
   Stream<List<UserModel>> allUsersStream() {
     return _db

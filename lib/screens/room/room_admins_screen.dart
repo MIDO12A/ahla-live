@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../config/r.dart';
 import '../../config/app_colors.dart';
 import '../../services/supabase_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../models/user_model.dart';
 
 // layout_room_admins_blacks.xml
@@ -30,37 +31,54 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
     _listenToModerators();
   }
 
-  void _listenToModerators() {
-    _roomSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-        .collection('rooms')
-        .doc(widget.roomId)
-        .snapshots()
-        .listen((snap) async {
-      if (!mounted) return;
-      if (!snap.exists) {
-        setState(() => _isLoading = false);
-        return;
+  void _listenToModerators() async {
+    // 1. Initial fetch from Supabase
+    try {
+      final room = await SupabaseDataService().getRoom(widget.roomId);
+      if (room != null && mounted) {
+        setState(() {
+          _moderatorUids = room.moderators;
+          _isLoading = false;
+        });
+        _loadProfiles(room.moderators);
       }
-      final data = snap.data() ?? {};
-      final mods = (data['moderators'] as List?)?.map((e) => e.toString()).toList() ?? [];
-      
-      setState(() {
-        _moderatorUids = mods;
-        _isLoading = false;
-      });
+    } catch (_) {}
 
-      // Load profile info for newly found admins
-      for (final uid in mods) {
-        if (!_adminProfiles.containsKey(uid)) {
-          final u = await _firebaseService.getUser(uid);
-          if (u != null && mounted) {
-            setState(() {
-              _adminProfiles[uid] = u;
-            });
-          }
+    // 2. Stream from Firestore
+    try {
+      _roomSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+          .collection('rooms')
+          .doc(widget.roomId)
+          .snapshots()
+          .listen((snap) async {
+        if (!mounted) return;
+        if (!snap.exists) {
+          setState(() => _isLoading = false);
+          return;
+        }
+        final data = snap.data() ?? {};
+        final mods = (data['moderators'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        
+        setState(() {
+          _moderatorUids = mods;
+          _isLoading = false;
+        });
+        _loadProfiles(mods);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadProfiles(List<String> uids) async {
+    for (final uid in uids) {
+      if (!_adminProfiles.containsKey(uid)) {
+        final u = await _firebaseService.getUser(uid);
+        if (u != null && mounted) {
+          setState(() {
+            _adminProfiles[uid] = u;
+          });
         }
       }
-    });
+    }
   }
 
   @override
@@ -71,9 +89,19 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
 
   Future<void> _removeAdmin(String uid, String name) async {
     try {
-      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
-        'moderators': FieldValue.arrayRemove([uid]),
-      });
+      final updated = List<String>.from(_moderatorUids)..remove(uid);
+      setState(() => _moderatorUids = updated);
+
+      // Sync Supabase
+      await SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated});
+
+      // Sync Firestore
+      try {
+        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
+          'moderators': FieldValue.arrayRemove([uid]),
+        });
+      } catch (_) {}
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('تم إزالة $name من المشرفين')),
@@ -152,24 +180,37 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                         errorText = null;
                       });
                       try {
-                        // Search by custom_id or uid
-                        final userSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                            .collection('users')
-                            .where('custom_id', isEqualTo: input)
-                            .limit(1)
-                            .get();
+                        // Search by custom_id or uid via Supabase first
                         String? targetUid;
                         String? targetName;
-                        if (userSnap.docs.isNotEmpty) {
-                          targetUid = userSnap.docs.first.id;
-                          targetName = userSnap.docs.first.data()['name']?.toString() ?? 'User';
-                        } else {
-                          // Try doc id
-                          final doc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(input).get();
-                          if (doc.exists) {
-                            targetUid = doc.id;
-                            targetName = doc.data()?['name']?.toString() ?? 'User';
+
+                        try {
+                          final supaUser = await SupabaseDataService().findUserByIdOrCustomId(input);
+                          if (supaUser != null) {
+                            targetUid = supaUser.uid;
+                            targetName = supaUser.name;
                           }
+                        } catch (_) {}
+
+                        if (targetUid == null) {
+                          // Try Firestore fallback
+                          try {
+                            final userSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                .collection('users')
+                                .where('custom_id', isEqualTo: input)
+                                .limit(1)
+                                .get();
+                            if (userSnap.docs.isNotEmpty) {
+                              targetUid = userSnap.docs.first.id;
+                              targetName = userSnap.docs.first.data()['name']?.toString() ?? 'User';
+                            } else {
+                              final doc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(input).get();
+                              if (doc.exists) {
+                                targetUid = doc.id;
+                                targetName = doc.data()?['name']?.toString() ?? 'User';
+                              }
+                            }
+                          } catch (_) {}
                         }
 
                         if (targetUid == null) {
@@ -188,11 +229,21 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                           return;
                         }
 
-                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
-                          'moderators': FieldValue.arrayUnion([targetUid]),
-                        });
+                        final updated = List<String>.from(_moderatorUids)..add(targetUid);
+                        setState(() => _moderatorUids = updated);
+
+                        // Sync Supabase
+                        await SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated});
+
+                        // Sync Firestore
+                        try {
+                          await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
+                            'moderators': FieldValue.arrayUnion([targetUid]),
+                          });
+                        } catch (_) {}
 
                         Navigator.pop(ctx);
+
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('تم تعيين $targetName مشرفاً في الغرفة 👑')),

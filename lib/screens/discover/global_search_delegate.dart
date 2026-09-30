@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:zero/screens/user_profile/user_profile_screen.dart';
 import 'package:zero/screens/room/room_screen.dart';
+import '../../services/supabase_data_service.dart';
 
 class GlobalSearchDelegate extends SearchDelegate<String?> {
   @override
@@ -115,60 +116,81 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
     setState(() => _isLoading = true);
 
     try {
-      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
       List<Map<String, dynamic>> usersFound = [];
       List<Map<String, dynamic>> roomsFound = [];
 
-      final isNumeric = int.tryParse(q) != null;
-
-      // 1. Exact match by ID (if numeric)
-      if (isNumeric) {
-        final uidSnap = await db.collection('users').where('custom_id', isEqualTo: q).limit(5).get();
-        for (var doc in uidSnap.docs) {
-          final d = doc.data();
-          d['docId'] = doc.id;
-          usersFound.add(d);
+      // 1. Search Supabase (primary database)
+      try {
+        final supaUsers = await SupabaseDataService().searchUsers(q);
+        for (var u in supaUsers) {
+          final m = Map<String, dynamic>.from(u);
+          m['docId'] = m['uid'] ?? m['id'];
+          usersFound.add(m);
         }
 
-        final ridSnap = await db.collection('rooms').where('room_id', isEqualTo: q).limit(5).get();
-        for (var doc in ridSnap.docs) {
-          final d = doc.data();
-          d['docId'] = doc.id;
-          roomsFound.add(d);
+        final supaRooms = await SupabaseDataService().searchRooms(q);
+        for (var r in supaRooms) {
+          final m = Map<String, dynamic>.from(r);
+          m['docId'] = m['room_id'];
+          roomsFound.add(m);
         }
+      } catch (e) {
+        debugPrint('[GlobalSearchDelegate] Supabase search error: $e');
       }
 
-      // 2. Prefix match by name (Users)
-      final uNameSnap = await db.collection('users')
-          .orderBy('name')
-          .startAt([q])
-          .endAt(['$q\uf8ff'])
-          .limit(10)
-          .get();
-      
-      for (var doc in uNameSnap.docs) {
-        if (!usersFound.any((u) => u['docId'] == doc.id)) {
-          final d = doc.data();
-          d['docId'] = doc.id;
-          usersFound.add(d);
-        }
-      }
+      // 2. Fallback to Firestore
+      try {
+        final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        final isNumeric = int.tryParse(q) != null;
 
-      // 3. Prefix match by title (Rooms)
-      final rNameSnap = await db.collection('rooms')
-          .orderBy('title')
-          .startAt([q])
-          .endAt(['$q\uf8ff'])
-          .limit(10)
-          .get();
-      
-      for (var doc in rNameSnap.docs) {
-        if (!roomsFound.any((r) => r['docId'] == doc.id)) {
-          final d = doc.data();
-          d['docId'] = doc.id;
-          roomsFound.add(d);
+        if (isNumeric) {
+          final uidSnap = await db.collection('users').where('custom_id', isEqualTo: q).limit(5).get();
+          for (var doc in uidSnap.docs) {
+            final d = doc.data();
+            d['docId'] = doc.id;
+            if (!usersFound.any((u) => u['docId'] == doc.id || u['custom_id'] == d['custom_id'])) {
+              usersFound.add(d);
+            }
+          }
+
+          final ridSnap = await db.collection('rooms').where('room_id', isEqualTo: q).limit(5).get();
+          for (var doc in ridSnap.docs) {
+            final d = doc.data();
+            d['docId'] = doc.id;
+            if (!roomsFound.any((r) => r['docId'] == doc.id || r['room_id'] == d['room_id'])) {
+              roomsFound.add(d);
+            }
+          }
         }
-      }
+
+        final uNameSnap = await db.collection('users')
+            .orderBy('name')
+            .startAt([q])
+            .endAt(['$q\uf8ff'])
+            .limit(10)
+            .get();
+        for (var doc in uNameSnap.docs) {
+          if (!usersFound.any((u) => u['docId'] == doc.id)) {
+            final d = doc.data();
+            d['docId'] = doc.id;
+            usersFound.add(d);
+          }
+        }
+
+        final rNameSnap = await db.collection('rooms')
+            .orderBy('title')
+            .startAt([q])
+            .endAt(['$q\uf8ff'])
+            .limit(10)
+            .get();
+        for (var doc in rNameSnap.docs) {
+          if (!roomsFound.any((r) => r['docId'] == doc.id)) {
+            final d = doc.data();
+            d['docId'] = doc.id;
+            roomsFound.add(d);
+          }
+        }
+      } catch (_) {}
 
       if (mounted) {
         setState(() {
@@ -186,19 +208,19 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
   }
 
   void _enterRoom(Map<String, dynamic> r) {
-    final roomId = r['docId'] as String;
-    if (!RoomScreen.pushGuard(roomId)) return;
+    final roomId = (r['room_id'] ?? r['docId'] ?? '').toString();
+    if (roomId.isEmpty || !RoomScreen.pushGuard(roomId)) return;
     
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => RoomScreen(
           roomId: roomId,
-          roomName: r['title'] ?? 'Room',
+          roomName: r['name'] ?? r['title'] ?? 'Room',
           hostName: r['host_name'] ?? 'Host',
           roomPassword: r['password'] ?? '',
-          hotValue: r['hot']?.toString() ?? '0',
-          gameDesc: r['game_desc'] ?? '',
+          hotValue: (r['hot_value'] ?? r['hot'] ?? '0').toString(),
+          gameDesc: r['description'] ?? r['game_desc'] ?? '',
         ),
       ),
     );
@@ -267,19 +289,26 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
               child: Text('الغرف', style: TextStyle(color: Color(0xFFD3A350), fontSize: 16, fontWeight: FontWeight.bold)),
             ),
             ..._rooms.map((r) {
+              final photoUrl = (r['room_photo_url'] ?? r['image'] ?? '').toString();
               return ListTile(
                 contentPadding: const EdgeInsets.symmetric(vertical: 4),
                 leading: Container(
                   width: 50, height: 50,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    image: DecorationImage(
-                      image: NetworkImage(r['image'] ?? ''),
-                      fit: BoxFit.cover,
-                    ),
+                    color: Colors.white10,
+                    image: photoUrl.isNotEmpty
+                        ? DecorationImage(
+                            image: NetworkImage(photoUrl),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
+                  child: photoUrl.isEmpty
+                      ? const Icon(Icons.meeting_room, color: Colors.white54)
+                      : null,
                 ),
-                title: Text(r['title'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                title: Text(r['name'] ?? r['title'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 subtitle: Text('ID: ${r['room_id'] ?? ''}', style: const TextStyle(color: Colors.white54)),
                 onTap: () => _enterRoom(r),
               );
@@ -288,5 +317,6 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
         ],
       ),
     );
+
   }
 }

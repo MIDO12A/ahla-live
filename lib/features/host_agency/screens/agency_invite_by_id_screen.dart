@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/agency_chat_repository.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
+import '../../../services/supabase_data_service.dart';
 
 class AgencyInviteByIdScreen extends StatefulWidget {
   const AgencyInviteByIdScreen({
@@ -61,40 +62,46 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
     });
 
     try {
-      // 1. Resolve custom numeric ID to Firebase UID if possible
+      // 1. Resolve custom numeric ID to UID via Supabase first
       String uidToSearch = id;
       try {
-        final intId = int.tryParse(id);
-        
-        // Try string custom_id
-        var query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('custom_id', isEqualTo: id).limit(1).get();
-        
-        // Try integer custom_id if string fails
-        if (query.docs.isEmpty && intId != null) {
-          query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('custom_id', isEqualTo: intId).limit(1).get();
-        }
-        
-        if (query.docs.isNotEmpty) {
-          uidToSearch = query.docs.first.id;
+        final supaUser = await SupabaseDataService().findUserByIdOrCustomId(id);
+        if (supaUser != null && supaUser.uid.isNotEmpty) {
+          uidToSearch = supaUser.uid;
         } else {
-          // Try string customId
-          query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('customId', isEqualTo: id).limit(1).get();
-          // Try int customId
+          final intId = int.tryParse(id);
+          
+          // Try string custom_id in Firestore fallback
+          var query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('custom_id', isEqualTo: id).limit(1).get();
+          
+          // Try integer custom_id if string fails
           if (query.docs.isEmpty && intId != null) {
-            query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('customId', isEqualTo: intId).limit(1).get();
+            query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('custom_id', isEqualTo: intId).limit(1).get();
           }
           
           if (query.docs.isNotEmpty) {
             uidToSearch = query.docs.first.id;
           } else {
-            // Also try direct document ID
-            final doc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(id).get();
-            if (doc.exists) {
-              uidToSearch = id;
+            // Try string customId
+            query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('customId', isEqualTo: id).limit(1).get();
+            // Try int customId
+            if (query.docs.isEmpty && intId != null) {
+              query = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').where('customId', isEqualTo: intId).limit(1).get();
+            }
+            
+            if (query.docs.isNotEmpty) {
+              uidToSearch = query.docs.first.id;
+            } else {
+              // Also try direct document ID
+              final doc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(id).get();
+              if (doc.exists) {
+                uidToSearch = id;
+              }
             }
           }
         }
       } catch (_) {}
+
 
       // 2. Call Supabase RPC with the resolved UID
       final resp = await AgencyChatRepository.inviteByKayanId(
