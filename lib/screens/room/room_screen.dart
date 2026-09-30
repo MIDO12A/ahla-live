@@ -21,6 +21,7 @@ import '../../models/gift_model.dart' as gm;
 import '../../models/gift_banner_config_model.dart';
 import '../../models/store_item_model.dart';
 import '../../services/supabase_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../services/media_prefetch_service.dart';
 import '../../services/media_cache_service.dart';
 import '../../services/dynamic_config_service.dart';
@@ -1359,19 +1360,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     });
 
     // Periodic refresh as fallback in case Realtime misses updates
-    _seatsRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+    _seatsRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
       if (!mounted) return;
       try {
-        final list = await Supabase.instance.client
-            .from('room_seats')
-            .select()
-            .eq('room_id', widget.roomId);
-        final seatMap = <int, Map<String, dynamic>>{};
-        for (final e in list) {
-          seatMap[(e['seat_index'] as int?) ?? 0] = Map<String, dynamic>.from(e);
+        final seatMap = await SupabaseDataService().getSeats(widget.roomId);
+        if (seatMap.isNotEmpty && mounted) {
+          _processSeatMap(seatMap);
         }
-        if (!mounted) return;
-        _processSeatMap(seatMap);
       } catch (_) {}
     });
 
