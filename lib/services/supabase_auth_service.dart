@@ -252,6 +252,9 @@ class SupabaseAuthService {
     String? gender,
     int? coins,
     String? country,
+    List<String>? album,
+    String? signature,
+    int? age,
   }) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/users');
@@ -270,6 +273,9 @@ class SupabaseAuthService {
         if (gender != null) 'gender': gender,
         if (coins != null) 'coins': coins,
         if (country != null) 'country': country,
+        if (album != null) 'album': album,
+        if (signature != null) 'signature': signature,
+        if (age != null) 'age': age,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       };
 
@@ -357,7 +363,7 @@ class SupabaseAuthService {
         ..._headers,
         'Prefer': 'resolution=merge-duplicates',
       };
-      final data = user.toMap();
+      final data = user.toSupabaseMap();
       data['uid'] = user.uid;
       data['updated_at'] = DateTime.now().toUtc().toIso8601String();
 

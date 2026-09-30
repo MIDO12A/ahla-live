@@ -230,7 +230,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         try {
           final uploaded = await CloudinaryService().uploadImage(
             _selectedImage!,
-            publicId: 'user_' + cid,
+            publicId: 'user_${cid}_${DateTime.now().millisecondsSinceEpoch}',
           );
           if (uploaded.isNotEmpty) {
             photoUrl = uploaded;
@@ -285,17 +285,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       await SupabaseService().updateUser(currentUser.uid, {
         'name': name,
         'photo_url': photoUrl,
-        'photoUrl': photoUrl,
-        'avatar': photoUrl,
-        'avatar_url': photoUrl,
         'gender': _selectedGender,
         'signature': _signatureController.text.trim(),
         'country': _selectedCountry,
         'country_code': _selectedCountry,
         'age': computedAge,
         'album': finalAlbum,
-        'albums': finalAlbum,
       });
+
+      await SupabaseAuthService().saveSession(
+        uid: currentUser.uid,
+        photoUrl: photoUrl,
+        name: name,
+      );
 
       if (mounted) {
         await userProvider.loadUser(currentUser.uid);

@@ -67,12 +67,6 @@ class _MallScreenState extends State<MallScreen> {
       'pre_ic': 'assets/mipmap-xxhdpi/ic_id_card_prop.png',
     },
     {
-      'key': 'badge',
-      'name': 'الشارات',
-      'nor_ic': 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
-      'pre_ic': 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
-    },
-    {
       'key': 'special',
       'name': 'المؤثرات',
       'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
@@ -110,7 +104,7 @@ class _MallScreenState extends State<MallScreen> {
       }
       for (final rc in remoteCats) {
         final key = rc['key']?.toString() ?? rc['id']?.toString() ?? '';
-        if (key.isEmpty) continue;
+        if (key.isEmpty || key == 'badge') continue;
         final name = rc['name']?.toString() ?? key;
         final icon = rc['icon_asset']?.toString() ?? '';
         final selIcon = rc['selected_icon_asset']?.toString() ?? icon;

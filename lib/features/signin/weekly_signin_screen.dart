@@ -149,6 +149,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
       if (!mounted) return;
       if (result['success'] == true) {
         await _loadData();
+        await userProvider.loadUser(uid);
         if (mounted) {
           _showRewardSuccessDialog(result);
         }

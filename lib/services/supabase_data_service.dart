@@ -365,13 +365,70 @@ class SupabaseDataService {
 
   Future<bool> updateUser(String uid, Map<String, dynamic> updates) async {
     try {
+      const allowedColumns = {
+        'uid', 'custom_id', 'name', 'email', 'photo_url', 'coins', 'diamonds',
+        'gender', 'signature', 'country', 'country_code', 'age', 'charm',
+        'active_frame', 'active_headwear', 'active_bubble', 'active_entrance',
+        'active_car', 'active_cover', 'active_necklace', 'active_mic_wave',
+        'profile_bg_url', 'owned_items', 'owned_badges', 'owned_necklaces',
+        'owned_level_frames', 'owned_level_badges', 'owned_vip_items', 'album',
+        'hosted_room_id', 'followed_rooms', 'total_gifts_sent', 'total_gifts_received',
+        'level', 'experience', 'followers', 'following', 'visitors',
+        'wealth_level', 'wealth_exp', 'recharge_level', 'recharge_exp',
+        'gems_level', 'gems_exp', 'is_recharge_agent', 'recharge_agency_name',
+        'recharge_agency_logo', 'whatsapp_number', 'phone', 'banned', 'ban_reason',
+        'last_ip', 'updated_at'
+      };
+
+      const keyMap = {
+        'customId': 'custom_id',
+        'photoUrl': 'photo_url',
+        'avatar': 'photo_url',
+        'avatar_url': 'photo_url',
+        'hostedRoomId': 'hosted_room_id',
+        'activeFrame': 'active_frame',
+        'activeHeadwear': 'active_headwear',
+        'activeBubble': 'active_bubble',
+        'activeEntrance': 'active_entrance',
+        'activeCar': 'active_car',
+        'activeCover': 'active_cover',
+        'activeNecklace': 'active_necklace',
+        'activeMicWave': 'active_mic_wave',
+        'profileBgUrl': 'profile_bg_url',
+        'ownedItems': 'owned_items',
+        'ownedBadges': 'owned_badges',
+        'ownedNecklaces': 'owned_necklaces',
+        'ownedLevelFrames': 'owned_level_frames',
+        'ownedLevelBadges': 'owned_level_badges',
+        'ownedVipItems': 'owned_vip_items',
+        'albums': 'album',
+        'countryCode': 'country_code',
+        'wealthLevel': 'wealth_level',
+        'wealthExp': 'wealth_exp',
+        'rechargeLevel': 'recharge_level',
+        'rechargeExp': 'recharge_exp',
+        'gemsLevel': 'gems_level',
+        'gemsExp': 'gems_exp',
+        'isRechargeAgent': 'is_recharge_agent',
+        'rechargeAgencyName': 'recharge_agency_name',
+        'rechargeAgencyLogo': 'recharge_agency_logo',
+        'whatsappNumber': 'whatsapp_number',
+        'followedRooms': 'followed_rooms',
+        'totalGiftsSent': 'total_gifts_sent',
+        'totalGiftsReceived': 'total_gifts_received',
+      };
+
       final clean = <String, dynamic>{};
       updates.forEach((k, v) {
         if (v != null) {
-          clean[k] = v;
+          final mappedKey = keyMap[k] ?? k;
+          if (allowedColumns.contains(mappedKey)) {
+            clean[mappedKey] = v;
+          }
         }
       });
       if (clean.isEmpty) return true;
+      clean['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
       final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid');
       final res = await http.patch(

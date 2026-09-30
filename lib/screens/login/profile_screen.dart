@@ -29,6 +29,7 @@ import '../../services/dynamic_config_service.dart';
 import '../../services/level_service.dart';
 import '../../features/tasks/screens/daily_tasks_screen.dart';
 import '../../features/signin/weekly_signin_screen.dart';
+import '../badges/badges_screen.dart';
 
 /// شاشة "أنا" (الملف الشخصي) المطابقة تماماً لملف fragment_mine.xml
 /// وكود MineFragment.java من المشروع الأصلي (F:\Medal\New folder\nu):
@@ -249,22 +250,11 @@ class ProfileScreen extends StatelessWidget {
                                   ),
                           ),
 
-                          // الإطار الخارجي: إطار SVGA النشط أو mine_avatar_ic.webp
+                          // الإطار الخارجي: إطار SVGA النشط
                           if (hasFrame)
                             Positioned.fill(
                               child: IgnorePointer(
                                 child: _buildFrameWidget(user.activeFrame!),
-                              ),
-                            )
-                          else
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                child: R.loadAsset(
-                                  'assets/mipmap-xxhdpi/mine_avatar_ic.webp',
-                                  width: 122,
-                                  height: 122,
-                                  fit: BoxFit.contain,
-                                ),
                               ),
                             ),
                         ],
@@ -871,6 +861,18 @@ class ProfileScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const BackpackScreen()),
+                );
+              },
+            ),
+
+            // 5. الشارات والميداليات (Badges and Medals)
+            _buildFunctionItem(
+              icon: 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
+              title: 'الشارات والميداليات',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BadgesScreen()),
                 );
               },
             ),

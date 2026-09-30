@@ -112,6 +112,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Map<String, Map<String, dynamic>> _badgesMap = {};
   Map<String, Map<String, dynamic>> _necklacesMap = {};
 
+  final PageController _bannerController = PageController();
+  Timer? _bannerTimer;
+
   // Stats
   int _followingCount = 0;
   int _fansCount = 0;
@@ -130,6 +133,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _bannerTimer?.cancel();
+    _bannerController.dispose();
+    super.dispose();
+  }
+
+  void _ensureBannerTimer(int count) {
+    if (count <= 1) {
+      _bannerTimer?.cancel();
+      _bannerTimer = null;
+      return;
+    }
+    if (_bannerTimer != null && _bannerTimer!.isActive) return;
+    _bannerTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || !_bannerController.hasClients) return;
+      int next = _currentBannerIndex + 1;
+      if (next >= count) next = 0;
+      _bannerController.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   Future<void> _loadData() async {
@@ -986,6 +1015,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (photos.isEmpty) {
       photos.add('assets/images/default_header.png');
     }
+    _ensureBannerTimer(photos.length);
 
     final hasVip = user.ownedVipItems.isNotEmpty ||
         (_resolvedNecklacePath != null && _resolvedNecklacePath!.isNotEmpty) ||
@@ -1007,6 +1037,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               children: [
                 // Banner PageView
                 PageView.builder(
+                  controller: _bannerController,
                   itemCount: photos.length,
                   onPageChanged: (index) => setState(() => _currentBannerIndex = index),
                   itemBuilder: (context, index) {
@@ -1634,25 +1665,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
           ),
 
-          // Outer frame: active SVGA frame or default mine_avatar_ic.webp
+          // Outer frame: active SVGA frame
           if (hasFrame)
             Positioned.fill(
               child: IgnorePointer(
                 child: SvgaFrame(
                   svgaPath: frame,
                   size: 122,
-                ),
-              ),
-            )
-          else
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Image.asset(
-                  'assets/mipmap-xxhdpi/mine_avatar_ic.webp',
-                  width: 122,
-                  height: 122,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                 ),
               ),
             ),
