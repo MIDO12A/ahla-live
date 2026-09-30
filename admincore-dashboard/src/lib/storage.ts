@@ -104,39 +104,35 @@ async function uploadToCloudinaryUnsigned(
   onProgress?: (pct: number) => void,
 ): Promise<string> {
   const cfg = getCloudinaryConfig();
-  const publicId = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+  const dotIndex = file.name.lastIndexOf('.');
+  const nameWithoutExt = dotIndex > 0 ? file.name.substring(0, dotIndex) : file.name;
+  const cleanName = nameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const publicId = `${folder}/${Date.now()}_${cleanName}`;
 
   const form = new FormData();
   form.append('file', file);
   form.append('upload_preset', UPLOAD_PRESET);
   form.append('public_id', publicId);
+  form.append('folder', folder);
 
   const resourceType = resourceTypeFor(file);
   const url = cloudinaryUploadUrl(cfg.cloudName, resourceType);
 
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', url);
-    xhr.upload.onprogress = e => {
-      if (onProgress && e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    };
-    xhr.onload = () => {
-      try {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const data = JSON.parse(xhr.responseText);
-          resolve(data.secure_url || data.url);
-        } else {
-          reject(new Error(`Cloudinary upload failed: ${xhr.status} ${xhr.responseText}`));
-        }
-      } catch (e) {
-        reject(e);
-      }
-    };
-    xhr.onerror = () => reject(new Error('Cloudinary upload network error'));
-    xhr.send(form);
-  });
+  try {
+    return await xhrPostForm(url, form, onProgress);
+  } catch (err) {
+    // Retry without custom public_id on auto endpoint
+    try {
+      const fallbackForm = new FormData();
+      fallbackForm.append('file', file);
+      fallbackForm.append('upload_preset', UPLOAD_PRESET);
+      fallbackForm.append('folder', folder);
+      const autoUrl = cloudinaryUploadUrl(cfg.cloudName, 'auto');
+      return await xhrPostForm(autoUrl, fallbackForm, onProgress);
+    } catch {
+      throw err;
+    }
+  }
 }
 
 // ---- Signed upload fallback ----

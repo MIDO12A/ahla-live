@@ -2068,19 +2068,36 @@ export async function getAppAssets(options?: {
     let query = supabase.from('app_assets').select('*', { count: 'exact' });
 
     if (options?.type) query = query.eq('type', options.type);
-    if (options?.category) query = query.eq('category', options.category);
-    if (options?.isActive !== undefined) query = query.eq('is_active', options.isActive);
     if (options?.search) {
-      query = query.or(`key.ilike.%${options.search}%,name.ilike.%${options.search}%,local_path.ilike.%${options.search}%`);
+      query = query.ilike('key', `%${options.search}%`);
     }
 
-    query = query.order('sort_order', { ascending: true }).order('key', { ascending: true });
+    query = query.order('key', { ascending: true });
 
     if (options?.limit) query = query.range(options.offset || 0, (options.offset || 0) + options.limit - 1);
 
     const { data, count, error } = await query;
     if (error) throw error;
-    return { data: mapList<AppAssetRecord>(data ?? []), total: count ?? 0 };
+    const list: AppAssetRecord[] = (data ?? []).map((row: any) => ({
+      id: row.key,
+      key: row.key,
+      name: row.key,
+      type: row.type || 'image',
+      category: '',
+      subcategory: '',
+      localPath: '',
+      remoteUrl: row.url || '',
+      defaultValue: '',
+      mimeType: '',
+      fileSize: 0,
+      width: null,
+      height: null,
+      sortOrder: 0,
+      isActive: true,
+      createdAt: row.updated_at || new Date().toISOString(),
+      updatedAt: row.updated_at || new Date().toISOString(),
+    }));
+    return { data: list, total: count ?? 0 };
   } catch (e) {
     console.warn('getAppAssets failed:', e);
     return { data: [], total: 0 };
@@ -2090,7 +2107,26 @@ export async function getAppAssets(options?: {
 export async function getAppAssetByKey(key: string): Promise<AppAssetRecord | null> {
   try {
     const { data } = await supabase.from('app_assets').select('*').eq('key', key).maybeSingle();
-    return mapSingle<AppAssetRecord>(data);
+    if (!data) return null;
+    return {
+      id: data.key,
+      key: data.key,
+      name: data.key,
+      type: data.type || 'image',
+      category: '',
+      subcategory: '',
+      localPath: '',
+      remoteUrl: data.url || '',
+      defaultValue: '',
+      mimeType: '',
+      fileSize: 0,
+      width: null,
+      height: null,
+      sortOrder: 0,
+      isActive: true,
+      createdAt: data.updated_at || new Date().toISOString(),
+      updatedAt: data.updated_at || new Date().toISOString(),
+    };
   } catch {
     return null;
   }
@@ -2100,12 +2136,16 @@ function getAppAssetsClient() {
   return getAdminSupabase() || supabase;
 }
 
-export async function updateAppAsset(id: string, data: Partial<AppAssetRecord>) {
+export async function updateAppAsset(idOrKey: string, data: Partial<AppAssetRecord>) {
   try {
     const client = getAppAssetsClient();
-    const payload = toSnakeCase(data as Record<string, unknown>);
-    payload.updated_at = new Date().toISOString();
-    await client.from('app_assets').update(payload).eq('id', id);
+    const payload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (data.remoteUrl !== undefined) payload.url = data.remoteUrl;
+    if ((data as any).url !== undefined) payload.url = (data as any).url;
+    if (data.type !== undefined) payload.type = data.type;
+    await client.from('app_assets').update(payload).eq('key', idOrKey);
   } catch (e) {
     console.warn('updateAppAsset failed:', e);
     throw e;
@@ -2115,7 +2155,12 @@ export async function updateAppAsset(id: string, data: Partial<AppAssetRecord>) 
 export async function upsertAppAsset(data: AppAssetRecord) {
   try {
     const client = getAppAssetsClient();
-    const payload = toSnakeCase(data as unknown as Record<string, unknown>);
+    const payload = {
+      key: data.key,
+      url: data.remoteUrl || (data as any).url || '',
+      type: data.type || 'image',
+      updated_at: new Date().toISOString(),
+    };
     await client.from('app_assets').upsert(payload, { onConflict: 'key' });
   } catch (e) {
     console.warn('upsertAppAsset failed:', e);
@@ -2123,10 +2168,10 @@ export async function upsertAppAsset(data: AppAssetRecord) {
   }
 }
 
-export async function deleteAppAsset(id: string) {
+export async function deleteAppAsset(idOrKey: string) {
   try {
     const client = getAppAssetsClient();
-    await client.from('app_assets').delete().eq('id', id);
+    await client.from('app_assets').delete().eq('key', idOrKey);
   } catch (e) {
     console.warn('deleteAppAsset failed:', e);
     throw e;
