@@ -2075,7 +2075,7 @@ class FirebaseService {
         return bt.compareTo(at);
       });
       return convs;
-    });
+    }).handleError((_) => <Map<String, dynamic>>[]);
   }
 
   Stream<List<MessageModel>> privateMessagesStream(String conversationId) {
@@ -2087,7 +2087,7 @@ class FirebaseService {
       final msgs = snap.docs.map((e) => MessageModel.fromMap(_data(e))).toList();
       msgs.sort((a, b) => a.timestamp.compareTo(b.timestamp));
       return msgs;
-    });
+    }).handleError((_) => <MessageModel>[]);
   }
 
   Future<void> markConversationRead(String uid, String conversationId) async {
@@ -2318,7 +2318,9 @@ class FirebaseService {
           .toList();
       return await _batchFetchUsers(uids);
     } catch (e) {
-      debugPrint('getFollowing error: $e');
+      if (e is! FirebaseException || (e.code != 'permission-denied' && e.code != 'unavailable')) {
+        debugPrint('getFollowing error: $e');
+      }
       return [];
     }
   }
@@ -2332,7 +2334,9 @@ class FirebaseService {
           .toList();
       return await _batchFetchUsers(uids);
     } catch (e) {
-      debugPrint('getFans error: $e');
+      if (e is! FirebaseException || (e.code != 'permission-denied' && e.code != 'unavailable')) {
+        debugPrint('getFans error: $e');
+      }
       return [];
     }
   }
@@ -2674,7 +2678,7 @@ class FirebaseService {
       final list = snap.docs.map((e) => NotificationModel.fromMap(_data(e))).toList();
       list.sort((a, b) => b.sentAt.compareTo(a.sentAt));
       return list;
-    });
+    }).handleError((_) => <NotificationModel>[]);
   }
 
   Future<void> sendNotification({
@@ -2818,7 +2822,9 @@ class FirebaseService {
       final doc = await _db.collection('room_blocks').doc('${roomId}_$uid').get();
       return doc.exists;
     } catch (e) {
-      debugPrint('isUserBlockedFromRoom error: $e');
+      if (e is! FirebaseException || (e.code != 'permission-denied' && e.code != 'unavailable')) {
+        debugPrint('isUserBlockedFromRoom error: $e');
+      }
       return false;
     }
   }
@@ -2828,7 +2834,8 @@ class FirebaseService {
         .collection('room_blocks')
         .where('room_id', isEqualTo: roomId)
         .snapshots()
-        .map((snap) => snap.docs.map((e) => Map<String, dynamic>.from(e.data())).toList());
+        .map((snap) => snap.docs.map((e) => Map<String, dynamic>.from(e.data())).toList())
+        .handleError((_) => <Map<String, dynamic>>[]);
   }
 
   Stream<bool> userRoomBanStream(String roomId, String uid) {
@@ -2836,7 +2843,8 @@ class FirebaseService {
         .collection('room_blocks')
         .doc('${roomId}_$uid')
         .snapshots()
-        .map((snap) => snap.exists);
+        .map((snap) => snap.exists)
+        .handleError((_) => false);
   }
 
   Future<void> kickUserFromRoom(String roomId, String kickerUid, String targetUid, {
@@ -2916,7 +2924,9 @@ class FirebaseService {
           .where((id) => id.isNotEmpty)
           .toList();
     } catch (e) {
-      debugPrint('getBlockedUids error: $e');
+      if (e is! FirebaseException || (e.code != 'permission-denied' && e.code != 'unavailable')) {
+        debugPrint('getBlockedUids error: $e');
+      }
       return [];
     }
   }

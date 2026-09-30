@@ -5519,7 +5519,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         debugPrint('Cleaned $cleanedCount zombie user(s) from room ${widget.roomId}');
       }
     } catch (e) {
-      debugPrint('_cleanupZombieUsers error (non-fatal): $e');
+      if (e is! FirebaseException || (e.code != 'permission-denied' && e.code != 'unavailable')) {
+        debugPrint('_cleanupZombieUsers error (non-fatal): $e');
+      }
     }
   }
 

@@ -138,10 +138,11 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
         debugPrint('[GlobalSearchDelegate] Supabase search error: $e');
       }
 
-      // 2. Fallback to Firestore
-      try {
-        final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final isNumeric = int.tryParse(q) != null;
+      // 2. Fallback to Firestore only if nothing found in Supabase
+      if (usersFound.isEmpty && roomsFound.isEmpty) {
+        try {
+          final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+          final isNumeric = int.tryParse(q) != null;
 
         if (isNumeric) {
           final uidSnap = await db.collection('users').where('custom_id', isEqualTo: q).limit(5).get();
@@ -189,8 +190,8 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
             d['docId'] = doc.id;
             roomsFound.add(d);
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
 
       if (mounted) {
         setState(() {
@@ -242,7 +243,7 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
       );
     }
 
-    return Container(
+    return Material(
       color: const Color(0xFF03030A),
       child: ListView(
         padding: const EdgeInsets.all(16),
@@ -256,28 +257,31 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
               final photoUrl = u['photo_url']?.toString() ?? u['photoUrl']?.toString() ?? u['avatar']?.toString() ?? '';
               final uid = u['uid']?.toString() ?? u['id']?.toString() ?? u['docId']?.toString() ?? '';
               
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                leading: Container(
-                  width: 50,
-                  height: 50,
-                  decoration: const BoxDecoration(shape: BoxShape.circle),
-                  clipBehavior: Clip.hardEdge,
-                  child: photoUrl.isNotEmpty
-                      ? Image.network(
-                          photoUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white54, size: 30),
-                        )
-                      : const Icon(Icons.person, color: Colors.white54, size: 30),
+              return Material(
+                color: Colors.transparent,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                  leading: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: const BoxDecoration(shape: BoxShape.circle),
+                    clipBehavior: Clip.hardEdge,
+                    child: photoUrl.isNotEmpty
+                        ? Image.network(
+                            photoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white54, size: 30),
+                          )
+                        : const Icon(Icons.person, color: Colors.white54, size: 30),
+                  ),
+                  title: Text(u['name'] ?? u['username'] ?? 'مستخدم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: Text('ID: ${u['custom_id'] ?? u['customId'] ?? ''}', style: const TextStyle(color: Colors.white54)),
+                  onTap: () {
+                    if (uid.isNotEmpty) {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => UserProfileScreen(targetUid: uid)));
+                    }
+                  },
                 ),
-                title: Text(u['name'] ?? u['username'] ?? 'مستخدم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: Text('ID: ${u['custom_id'] ?? u['customId'] ?? ''}', style: const TextStyle(color: Colors.white54)),
-                onTap: () {
-                  if (uid.isNotEmpty) {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => UserProfileScreen(targetUid: uid)));
-                  }
-                },
               );
             }),
             const SizedBox(height: 16),
@@ -290,27 +294,30 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
             ),
             ..._rooms.map((r) {
               final photoUrl = (r['room_photo_url'] ?? r['image'] ?? '').toString();
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                leading: Container(
-                  width: 50, height: 50,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.white10,
-                    image: photoUrl.isNotEmpty
-                        ? DecorationImage(
-                            image: NetworkImage(photoUrl),
-                            fit: BoxFit.cover,
-                          )
+              return Material(
+                color: Colors.transparent,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                  leading: Container(
+                    width: 50, height: 50,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white10,
+                      image: photoUrl.isNotEmpty
+                          ? DecorationImage(
+                              image: NetworkImage(photoUrl),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: photoUrl.isEmpty
+                        ? const Icon(Icons.meeting_room, color: Colors.white54)
                         : null,
                   ),
-                  child: photoUrl.isEmpty
-                      ? const Icon(Icons.meeting_room, color: Colors.white54)
-                      : null,
+                  title: Text(r['name'] ?? r['title'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: Text('ID: ${r['room_id'] ?? ''}', style: const TextStyle(color: Colors.white54)),
+                  onTap: () => _enterRoom(r),
                 ),
-                title: Text(r['name'] ?? r['title'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: Text('ID: ${r['room_id'] ?? ''}', style: const TextStyle(color: Colors.white54)),
-                onTap: () => _enterRoom(r),
               );
             }),
           ]
