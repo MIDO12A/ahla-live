@@ -198,10 +198,10 @@ class UpdateService {
         currentBuild: currentBuild,
       );
     } catch (e) {
-      debugPrint('Update check failed: $e');
       if (throwOnError) rethrow;
       return null;
     }
+
   }
 
   /// Strictly determines if an update should be offered.
