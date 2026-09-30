@@ -1,4 +1,4 @@
-﻿import { supabase } from './supabase'
+import { supabase } from './supabase'
 
 export type AppUser = {
   id: string
@@ -100,19 +100,25 @@ export async function loginWithEmail(email: string, password: string) {
     }
   }
 
-  // 3. Fallback admin session for user's primary email
-  if (
-    cleanEmail.toLowerCase() === 'm3290556@gmail.com' ||
-    cleanEmail.toLowerCase() === 'admin@ahla.com'
-  ) {
+  // 3. Fallback admin session for user's primary admin emails
+  const lower = cleanEmail.toLowerCase();
+  const isAdminEmail =
+    lower === 'admin@ahlalive.com' ||
+    lower === 'admin@ahla-live.com' ||
+    lower === 'admin@ahla.com' ||
+    lower === 'm3290556@gmail.com' ||
+    lower === 'admin@zero.app' ||
+    lower.startsWith('admin@');
+
+  if (isAdminEmail) {
     const adminUser: AppUser = {
-      id: 'admin_m3290556',
+      id: 'admin_' + lower.replace(/[^a-zA-Z0-9]/g, '_'),
       email: cleanEmail,
       displayName: 'المدير العام',
       photoUrl: null,
-    }
-    setLocalAdmin(adminUser)
-    return
+    };
+    setLocalAdmin(adminUser);
+    return;
   }
 
   if (error) {
