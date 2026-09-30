@@ -190,8 +190,9 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
             d['docId'] = doc.id;
             roomsFound.add(d);
           }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
+    }
 
       if (mounted) {
         setState(() {
