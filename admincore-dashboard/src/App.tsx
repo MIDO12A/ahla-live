@@ -62,9 +62,7 @@ export default function App() {
       setLoading(false);
       if (u) {
         import('./lib/supabase').then(({ ensureAdminBootstrap }) => {
-          ensureAdminBootstrap(u.id, u.email, u.displayName).then(r => {
-            if (r.created) window.location.reload();
-          });
+          ensureAdminBootstrap(u.id, u.email, u.displayName);
         });
       }
     });

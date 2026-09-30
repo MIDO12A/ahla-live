@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // Real Supabase client for the admin dashboard.
 // Connects directly to the user's Supabase project.
 // ============================================================
@@ -160,9 +160,9 @@ export async function ensureAdminBootstrap(
         updated_at: new Date().toISOString(),
       },
     })
-    return { created: true }
+    return { created: false }
   } catch {
-    return { created: true }
+    return { created: false }
   }
 }
 

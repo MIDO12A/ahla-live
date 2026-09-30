@@ -21,7 +21,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (_req, res) => {
+app.get('/', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'Ahla Live API Backend',
+    version: '1.0.0',
+    health: '/health',
+    docs: '/docs',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get(['/health', '/api/v1/health'], (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
