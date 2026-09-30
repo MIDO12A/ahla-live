@@ -169,7 +169,7 @@ class UserProvider extends ChangeNotifier {
       final now = DateTime.now();
       final expired = qs.docs.where((d) {
         final data = d.data();
-        final expStr = data['expires_at']?.toString()?.trim();
+        final expStr = data['expires_at']?.toString().trim();
         if (expStr == null || expStr.isEmpty || expStr == 'null') return false; // دائم لا ينتهي
         final expDate = DateTime.tryParse(expStr);
         if (expDate == null) return false;
@@ -194,6 +194,10 @@ class UserProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
+      if (e is FirebaseException && (e.code == 'permission-denied' || e.code == 'unavailable')) {
+        // Silently skip if user_backpack access is restricted on Firebase
+        return;
+      }
       debugPrint('Error checking expired backpack items: $e');
     }
   }

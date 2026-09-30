@@ -2,7 +2,6 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
-import '../../services/supabase_service.dart';
 import '../../providers/user_provider.dart';
 import '../../models/user_model.dart';
 import '../../config/r.dart';
@@ -34,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (user.isNewUser) {
         // NEW USER: Go to SetupProfileScreen so the user can enter their name, picture, gender and get a custom ID
-        if (context.mounted) {
+        if (mounted) {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
@@ -59,10 +58,10 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         } catch (_) {}
 
-        if (context.mounted) {
+        if (mounted) {
           await Provider.of<UserProvider>(context, listen: false)
               .loadUser(user.uid);
-          if (context.mounted) {
+          if (mounted) {
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (_) => const MainScreen()),
@@ -73,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       debugPrint('Error signing in: $e');
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('تعذر تسجيل الدخول: $e'),
@@ -164,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       developer.log('_signInWithGoogle: error = $e');
       debugPrint('Error signing in with Google: $e');
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('تعذر تسجيل الدخول: $e'),

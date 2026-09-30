@@ -248,7 +248,9 @@ class FirebaseService {
       rooms.sort((a, b) => b.totalGifts.compareTo(a.totalGifts));
       return rooms;
     } catch (e) {
-      debugPrint('getAllRooms Firestore error: $e');
+      if (e is! FirebaseException || (e.code != 'permission-denied' && e.code != 'unavailable')) {
+        debugPrint('getAllRooms Firestore error: $e');
+      }
       return [];
     }
   }
@@ -1804,7 +1806,7 @@ class FirebaseService {
           .toList();
       banners.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
       return banners;
-    });
+    }).handleError((_) => <BannerConfig>[]);
   }
 
   Future<void> addStoreItem(StoreItemModel item) async {
@@ -1935,12 +1937,17 @@ class FirebaseService {
         .collection('gifted_items')
         .where('uid', isEqualTo: uid)
         .snapshots()
-        .map((snap) => snap.docs.map((e) => GiftedItemModel.fromMap(_data(e), e.id)).toList());
+        .map((snap) => snap.docs.map((e) => GiftedItemModel.fromMap(_data(e), e.id)).toList())
+        .handleError((_) => <GiftedItemModel>[]);
   }
 
   Future<List<GiftedItemModel>> getGiftedItems(String uid) async {
-    final snap = await _db.collection('gifted_items').where('uid', isEqualTo: uid).get();
-    return snap.docs.map((e) => GiftedItemModel.fromMap(_data(e), e.id)).toList();
+    try {
+      final snap = await _db.collection('gifted_items').where('uid', isEqualTo: uid).get();
+      return snap.docs.map((e) => GiftedItemModel.fromMap(_data(e), e.id)).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<GiftedItemModel>> getGiftedItemsByCategory(String uid, String category) async {

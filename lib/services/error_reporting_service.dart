@@ -55,6 +55,10 @@ class ErrorReportingService {
       });
     } catch (e) {
       // Prevent infinite loop if logging itself fails
+      if (e is FirebaseException && (e.code == 'permission-denied' || e.code == 'unavailable')) {
+        // Silently skip if Firebase rules restrict writes
+        return;
+      }
       debugPrint('Failed to log error to Firebase: $e');
     }
   }

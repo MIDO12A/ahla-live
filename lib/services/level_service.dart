@@ -73,6 +73,9 @@ class LevelService extends ChangeNotifier {
         notifyListeners();
         return configs;
       }).listen((_) {}, onError: (e) {
+        if (e is FirebaseException && (e.code == 'permission-denied' || e.code == 'unavailable')) {
+          return;
+        }
         debugPrint('LevelService: level_config stream error for $type: $e');
       });
       _subs.add(sub);
