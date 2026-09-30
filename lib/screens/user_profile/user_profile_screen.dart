@@ -5,7 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../services/supabase_auth_service.dart';
 import '../../config/r.dart';
 import '../../core/supabase_compat.dart';
 import '../../core/widgets/cached_image.dart';
@@ -135,7 +136,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final currentUser = userProvider.currentUser;
-      final uid = widget.targetUid ?? currentUser?.uid;
+      final supaUid = SupabaseAuthService().currentUid;
+      final currentUid = currentUser?.uid ?? supaUid ?? FirebaseAuth.instance.currentUser?.uid;
+      final uid = widget.targetUid ?? currentUid;
 
       if (uid == null) {
         if (mounted) setState(() => _loading = false);
@@ -143,7 +146,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
 
       UserModel? targetUser;
-      if (widget.targetUid != null && widget.targetUid != currentUser?.uid) {
+      if (widget.targetUid != null && widget.targetUid != currentUid) {
         targetUser = await _supabase.getUser(uid);
         if (currentUser != null) {
           final following = await _supabase.isFollowing(currentUser.uid, uid);
@@ -157,6 +160,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         }
       } else {
         targetUser = currentUser ?? await _supabase.getUser(uid);
+        if (targetUser != null && targetUser.photoUrl.isEmpty) {
+          final supaPhoto = SupabaseAuthService().currentUser?.photoUrl;
+          if (supaPhoto != null && supaPhoto.isNotEmpty) {
+            targetUser = targetUser.copyWith(photoUrl: supaPhoto);
+          }
+        }
       }
 
       if (targetUser != null) {
@@ -965,15 +974,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (user.profileBgUrl != null && user.profileBgUrl!.isNotEmpty && !photos.contains(user.profileBgUrl)) {
       photos.add(user.profileBgUrl!);
     }
-    final isMe = user.uid == FirebaseAuth.instance.currentUser?.uid;
+    final supaUid = SupabaseAuthService().currentUid;
+    final isMe = user.uid == supaUid || user.uid == FirebaseAuth.instance.currentUser?.uid;
+    final supaPhoto = SupabaseAuthService().currentUser?.photoUrl;
     final effectivePhoto = user.photoUrl.isNotEmpty
         ? user.photoUrl
-        : (isMe ? (FirebaseAuth.instance.currentUser?.photoURL ?? '') : '');
+        : (isMe ? (supaPhoto?.isNotEmpty == true ? supaPhoto! : (FirebaseAuth.instance.currentUser?.photoURL ?? '')) : '');
     if (effectivePhoto.isNotEmpty && !photos.contains(effectivePhoto)) {
       photos.add(effectivePhoto);
     }
     if (photos.isEmpty) {
-      photos.add('');
+      photos.add('assets/images/default_header.png');
     }
 
     final hasVip = user.ownedVipItems.isNotEmpty ||
@@ -1000,16 +1011,33 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   onPageChanged: (index) => setState(() => _currentBannerIndex = index),
                   itemBuilder: (context, index) {
                     final photo = photos[index];
-                    return CachedImg(
-                      photo,
-                      fit: BoxFit.cover,
-                      width: screenWidth,
-                      height: screenWidth,
-                      placeholder: (_, __) => Container(color: const Color(0xFF16151A)),
-                      error: (_, __, ___) => Container(
-                        color: const Color(0xFF16151A),
-                        child: const Icon(Icons.person, size: 80, color: Colors.white24),
-                      ),
+                    if (photo.startsWith('http://') || photo.startsWith('https://')) {
+                      return CachedNetworkImage(
+                        imageUrl: photo,
+                        fit: BoxFit.cover,
+                        width: screenWidth,
+                        height: screenWidth,
+                        placeholder: (_, __) => Container(color: const Color(0xFF16151A)),
+                        errorWidget: (_, __, ___) => Container(
+                          color: const Color(0xFF16151A),
+                          child: const Icon(Icons.person, size: 80, color: Colors.white24),
+                        ),
+                      );
+                    } else if (photo.isNotEmpty) {
+                      return Image.asset(
+                        photo,
+                        fit: BoxFit.cover,
+                        width: screenWidth,
+                        height: screenWidth,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: const Color(0xFF16151A),
+                          child: const Icon(Icons.person, size: 80, color: Colors.white24),
+                        ),
+                      );
+                    }
+                    return Container(
+                      color: const Color(0xFF16151A),
+                      child: const Icon(Icons.person, size: 80, color: Colors.white24),
                     );
                   },
                 ),
@@ -1530,6 +1558,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget _buildAvatarView(UserModel user) {
     final frame = _resolvedFramePath ?? user.activeFrame;
     final hasFrame = frame != null && frame.isNotEmpty;
+    final supaUid = SupabaseAuthService().currentUid;
+    final isMe = user.uid == supaUid || user.uid == FirebaseAuth.instance.currentUser?.uid;
+    final supaPhoto = SupabaseAuthService().currentUser?.photoUrl;
+    final effectivePhoto = user.photoUrl.isNotEmpty
+        ? user.photoUrl
+        : (isMe ? (supaPhoto?.isNotEmpty == true ? supaPhoto! : (FirebaseAuth.instance.currentUser?.photoURL ?? '')) : '');
+    final isMale = user.gender != 'female';
+
     return SizedBox(
       width: 122,
       height: 122,
@@ -1543,28 +1579,58 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 4),
-              color: Colors.white,
+              color: const Color(0xFF2A2830),
             ),
             clipBehavior: Clip.antiAlias,
-            child: user.photoUrl.isNotEmpty
-                ? CachedImg(
-                    user.photoUrl,
-                    width: 92,
-                    height: 92,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(color: Colors.white12),
-                    error: (_, __, ___) => Image.asset(
-                      'assets/images/default_header.png',
-                      width: 92,
-                      height: 92,
-                      fit: BoxFit.cover,
-                    ),
-                  )
+            child: effectivePhoto.isNotEmpty
+                ? (effectivePhoto.startsWith('http://') || effectivePhoto.startsWith('https://'))
+                    ? CachedNetworkImage(
+                        imageUrl: effectivePhoto,
+                        width: 92,
+                        height: 92,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Image.asset(
+                          isMale ? R.avaBoy : R.avaGirl,
+                          width: 92,
+                          height: 92,
+                          fit: BoxFit.cover,
+                        ),
+                        errorWidget: (_, __, ___) => Image.asset(
+                          'assets/images/default_header.png',
+                          width: 92,
+                          height: 92,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Image.asset(
+                            isMale ? R.avaBoy : R.avaGirl,
+                            width: 92,
+                            height: 92,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      )
+                    : Image.asset(
+                        effectivePhoto,
+                        width: 92,
+                        height: 92,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Image.asset(
+                          isMale ? R.avaBoy : R.avaGirl,
+                          fit: BoxFit.cover,
+                          width: 92,
+                          height: 92,
+                        ),
+                      )
                 : Image.asset(
                     'assets/images/default_header.png',
                     width: 92,
                     height: 92,
                     fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Image.asset(
+                      isMale ? R.avaBoy : R.avaGirl,
+                      fit: BoxFit.cover,
+                      width: 92,
+                      height: 92,
+                    ),
                   ),
           ),
 

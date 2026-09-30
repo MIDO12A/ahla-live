@@ -2,7 +2,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../models/store_item_model.dart';
@@ -106,6 +105,19 @@ class UserProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     _currentUser = await _supabaseService.getUser(uid);
+    if (_currentUser == null) {
+      final supaUser = SupabaseAuthService().currentUser;
+      if (supaUser != null && supaUser.uid == uid) {
+        _currentUser = UserModel(
+          uid: uid,
+          customId: '',
+          name: supaUser.displayName ?? '',
+          email: supaUser.email ?? '',
+          photoUrl: supaUser.photoUrl ?? '',
+          gender: 'male',
+        );
+      }
+    }
     if (_currentUser != null && _currentUser!.customId.isEmpty) {
       // FIX: Use secure ID generator with uniqueness check
       String customId;

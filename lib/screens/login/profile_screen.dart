@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,7 +18,6 @@ import '../wallet/wallet_main_screen.dart';
 import '../mall/mall_screen.dart';
 import '../user_profile/user_profile_screen.dart';
 import '../level/level_screen.dart';
-import '../badges/badges_screen.dart';
 import '../backpack/backpack_screen.dart';
 import 'edit_profile_screen.dart';
 import '../setting/feedback_screen.dart';
@@ -200,7 +200,7 @@ class ProfileScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 4),
-                              color: Colors.white,
+                              color: const Color(0xFF2A2830),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.08),
@@ -210,24 +210,40 @@ class ProfileScreen extends StatelessWidget {
                               ],
                             ),
                             clipBehavior: Clip.antiAlias,
-                            child: photoUrl != null
-                                ? Image(
-                                    image: R.cachedImage(photoUrl),
+                            child: (photoUrl != null && photoUrl.isNotEmpty)
+                                ? CachedNetworkImage(
+                                    imageUrl: photoUrl,
+                                    width: 92,
+                                    height: 92,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Image.asset(
+                                    placeholder: (_, __) => Image.asset(
+                                      isMale ? R.avaBoy : R.avaGirl,
+                                      width: 92,
+                                      height: 92,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    errorWidget: (_, __, ___) => Image.asset(
                                       'assets/images/default_header.png',
+                                      width: 92,
+                                      height: 92,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Image.asset(
                                         isMale ? R.avaBoy : R.avaGirl,
+                                        width: 92,
+                                        height: 92,
                                         fit: BoxFit.cover,
                                       ),
                                     ),
                                   )
                                 : Image.asset(
                                     'assets/images/default_header.png',
+                                    width: 92,
+                                    height: 92,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => Image.asset(
                                       isMale ? R.avaBoy : R.avaGirl,
+                                      width: 92,
+                                      height: 92,
                                       fit: BoxFit.cover,
                                     ),
                                   ),

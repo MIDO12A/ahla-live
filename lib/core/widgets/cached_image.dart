@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import '../cache/encrypted_image_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../config/r.dart';
 import '../../screens/room/widgets/svga_player.dart';
 
@@ -12,7 +12,7 @@ ImageProvider cachedNetworkImageProvider(String url) {
     if (detectAssetType(url) == AssetType.svga) {
       return MemoryImage(Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]));
     }
-    return EncryptedImageProvider(url);
+    return CachedNetworkImageProvider(url);
   }
   if (url.startsWith('/') || url.startsWith('file://')) {
     final filePath = url.startsWith('file://') ? url.replaceFirst('file://', '') : url;
@@ -53,20 +53,14 @@ class CachedNetImage extends StatelessWidget {
       if (detectAssetType(url) == AssetType.svga) {
         return SvgaPlayer(assetPath: url, width: width ?? 100, height: height ?? 100, fit: fit);
       }
-      return Image(
-        image: EncryptedImageProvider(url),
+      return CachedNetworkImage(
+        imageUrl: url,
         width: width,
         height: height,
         fit: fit,
         color: color,
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded) return child;
-          if (frame == null && placeholder != null) {
-            return placeholder!(context, url);
-          }
-          return child;
-        },
-        errorBuilder: error,
+        placeholder: placeholder != null ? (ctx, u) => placeholder!(ctx, u) : null,
+        errorWidget: error != null ? (ctx, u, err) => error!(ctx, err, null) : null,
       );
     }
     if (url.startsWith('/') || url.startsWith('file://')) {
@@ -86,7 +80,17 @@ class CachedNetImage extends StatelessWidget {
     if (detectAssetType(url) == AssetType.svga) {
       return SvgaPlayer(assetPath: url, width: width ?? 100, height: height ?? 100, fit: fit);
     }
-    return Image.asset(url, width: width, height: height, fit: fit, color: color);
+    return Image.asset(
+      url,
+      width: width,
+      height: height,
+      fit: fit,
+      color: color,
+      errorBuilder: (context, err, stack) {
+        if (error != null) return error!(context, err, stack);
+        return const SizedBox();
+      },
+    );
   }
 }
 
@@ -121,22 +125,13 @@ class CachedImg extends StatelessWidget {
       if (detectAssetType(url) == AssetType.svga) {
         return SvgaPlayer(assetPath: url, width: width ?? 100, height: height ?? 100, fit: fit);
       }
-      return Image(
-        image: EncryptedImageProvider(url),
+      return CachedNetworkImage(
+        imageUrl: url,
         width: width,
         height: height,
         fit: fit,
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded) return child;
-          if (frame == null && placeholder != null) {
-            return placeholder!(context, url);
-          }
-          return child;
-        },
-        errorBuilder: (context, error, stackTrace) {
-          if (this.error != null) return this.error!(context, url, error);
-          return const SizedBox();
-        },
+        placeholder: placeholder != null ? (ctx, u) => placeholder!(ctx, u) : null,
+        errorWidget: error != null ? (ctx, u, err) => error!(ctx, u, err) : null,
       );
     }
     if (url.startsWith('/') || url.startsWith('file://')) {
@@ -155,6 +150,15 @@ class CachedImg extends StatelessWidget {
     if (detectAssetType(url) == AssetType.svga) {
       return SvgaPlayer(assetPath: url, width: width ?? 100, height: height ?? 100, fit: fit);
     }
-    return Image.asset(url, width: width, height: height, fit: fit);
+    return Image.asset(
+      url,
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: (context, err, stack) {
+        if (error != null) return error!(context, url, err);
+        return const SizedBox();
+      },
+    );
   }
 }

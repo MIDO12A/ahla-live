@@ -1440,11 +1440,13 @@ class FirebaseService {
   Stream<UserModel?> userStream(String uid) {
     final controller = StreamController<UserModel?>.broadcast();
     Timer? pollTimer;
+    UserModel? latestUser;
 
     void fetchSupabase() async {
       try {
         final u = await SupabaseAuthService().getUserFromSupabase(uid);
         if (u != null && !controller.isClosed) {
+          latestUser = u;
           controller.add(u);
         }
       } catch (_) {}
@@ -1458,7 +1460,18 @@ class FirebaseService {
       firestoreSub = _db.collection('users').doc(uid).snapshots().listen((snap) {
         if (!controller.isClosed && snap.exists) {
           final m = snap.data() ?? {};
-          controller.add(UserModel.fromMap({...m, 'uid': uid}));
+          var fireUser = UserModel.fromMap({...m, 'uid': uid});
+          if (latestUser != null) {
+            fireUser = fireUser.copyWith(
+              photoUrl: fireUser.photoUrl.isNotEmpty ? fireUser.photoUrl : latestUser!.photoUrl,
+              name: fireUser.name.isNotEmpty ? fireUser.name : latestUser!.name,
+              customId: fireUser.customId.isNotEmpty ? fireUser.customId : latestUser!.customId,
+              email: fireUser.email.isNotEmpty ? fireUser.email : latestUser!.email,
+              gender: fireUser.gender.isNotEmpty ? fireUser.gender : latestUser!.gender,
+            );
+          }
+          latestUser = fireUser;
+          controller.add(fireUser);
         }
       }, onError: (_) {});
     } catch (_) {}
