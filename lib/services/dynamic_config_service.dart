@@ -1066,43 +1066,35 @@ class DynamicConfigService extends ChangeNotifier {
       debugPrint('DynamicConfigService: supabase app_assets error: $e');
     }
 
-    // 2. Fetch from Firestore app_assets and merge
-    try {
-      final snap = await _db.collection('app_assets').get(const GetOptions(source: Source.serverAndCache));
+    // 2. Real-time Firestore stream on app_assets for instant zero-delay updates
+    _appAssetsSub?.cancel();
+    _appAssetsSub = _db.collection('app_assets').snapshots().listen((snap) {
       for (final doc in snap.docs) {
         final row = doc.data();
         if (row['is_active'] != false) {
           final asset = AppAssetModel.fromJson(row);
           if (asset.key.isNotEmpty) {
-            _appAssets.putIfAbsent(asset.key, () => asset);
+            _appAssets[asset.key] = asset;
+            if (asset.localPath != null && asset.localPath!.isNotEmpty) {
+              _appAssets[asset.localPath!] = asset;
+            }
           }
         }
       }
       _assetVersion++;
-    } catch (error) {
-      debugPrint('DynamicConfigService: app_assets load error: $error');
-      try {
-        final cachedSnap = await _db.collection('app_assets').get(const GetOptions(source: Source.cache));
-        for (final doc in cachedSnap.docs) {
-          final row = doc.data();
-          if (row['is_active'] != false) {
-            final asset = AppAssetModel.fromJson(row);
-            if (asset.key.isNotEmpty) {
-              _appAssets.putIfAbsent(asset.key, () => asset);
-            }
-          }
-        }
-        _assetVersion++;
-      } catch (_) {}
-    } finally {
       if (_initAssetsCompleter != null && !_initAssetsCompleter!.isCompleted) {
         _initAssetsCompleter!.complete();
       }
       notifyListeners();
-    }
+    }, onError: (error) {
+      debugPrint('DynamicConfigService: app_assets stream error: $error');
+      if (_initAssetsCompleter != null && !_initAssetsCompleter!.isCompleted) {
+        _initAssetsCompleter!.complete();
+      }
+    });
 
     // 3. Periodic refresh from Supabase for any newly uploaded dashboard assets
-    Timer.periodic(const Duration(seconds: 45), (_) async {
+    Timer.periodic(const Duration(seconds: 15), (_) async {
       try {
         final freshAssets = await SupabaseDataService().getAppAssets();
         if (freshAssets.isNotEmpty) {

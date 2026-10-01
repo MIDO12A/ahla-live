@@ -506,7 +506,8 @@ class R {
 
     final overrideUrl = DynamicConfigService().getAssetOverride(assetPath);
     if (overrideUrl != null && overrideUrl.isNotEmpty) {
-      if (detectAssetType(overrideUrl) == AssetType.svga) {
+      final ovType = detectAssetType(overrideUrl);
+      if (ovType == AssetType.svga) {
         return SvgaPlayer(
           assetPath: overrideUrl,
           width: width,
@@ -514,6 +515,14 @@ class R {
           fit: fit,
           loops: loops,
           onFinished: onSvgaFinished,
+        );
+      }
+      if (ovType == AssetType.vap || ovType == AssetType.mp4) {
+        return VapPlayer(
+          assetPath: overrideUrl,
+          width: width,
+          height: height,
+          fit: fit,
         );
       }
       return CachedNetImage(
@@ -540,6 +549,14 @@ class R {
         fit: fit,
         loops: loops,
         onFinished: onSvgaFinished,
+      );
+    }
+    if (localType == AssetType.vap || localType == AssetType.mp4) {
+      return VapPlayer(
+        assetPath: assetPath,
+        width: width,
+        height: height,
+        fit: fit,
       );
     }
     return Image.asset(
@@ -588,6 +605,14 @@ class R {
         fit: fit,
       );
     }
+    if (type == AssetType.vap || type == AssetType.mp4) {
+      return VapPlayer(
+        assetPath: assetPath,
+        width: width,
+        height: height,
+        fit: fit,
+      );
+    }
 
     if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
       return CachedNetImage(
@@ -601,8 +626,17 @@ class R {
 
     final overrideUrl = DynamicConfigService().getAssetOverride(assetPath);
     if (overrideUrl != null && overrideUrl.isNotEmpty) {
-      if (detectAssetType(overrideUrl) == AssetType.svga) {
+      final ovType = detectAssetType(overrideUrl);
+      if (ovType == AssetType.svga) {
         return SvgaPlayer(
+          assetPath: overrideUrl,
+          width: width,
+          height: height,
+          fit: fit,
+        );
+      }
+      if (ovType == AssetType.vap || ovType == AssetType.mp4) {
+        return VapPlayer(
           assetPath: overrideUrl,
           width: width,
           height: height,

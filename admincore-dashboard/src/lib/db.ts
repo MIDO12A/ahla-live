@@ -1,6 +1,6 @@
 import { supabase, getAdminSupabase } from './supabase'
 import { firestoreDb } from './firebase'
-import { doc, setDoc, deleteDoc } from 'firebase/firestore'
+import { doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
 import type {
   UserModel, RoomModel, GiftModel, SentGiftModel,
   StoreItemModel, UnionModel, BugReport, AppConfig,
@@ -391,8 +391,16 @@ export async function deleteUser(uid: string) {
 
 export async function getGifts(): Promise<GiftModel[]> {
   try {
-    const { data } = await supabase.from('gifts').select('*').order('sort_order')
-    return mapList<GiftModel>(data ?? [])
+    const { data, error } = await supabase.from('gifts').select('*')
+    if (!error && data && data.length > 0) {
+      return mapList<GiftModel>(data)
+    }
+  } catch (e) {
+    console.warn('getGifts supabase error, trying firestore fallback:', e)
+  }
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'gifts'))
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any
   } catch {
     return []
   }
@@ -406,22 +414,35 @@ export function subscribeGifts(cb: (gifts: GiftModel[]) => void) {
 }
 
 export async function updateGift(id: string, data: Partial<GiftModel>) {
+  // 1. Dual-write to Firestore
+  try {
+    await setDoc(doc(firestoreDb, 'gifts', id), { id, ...data }, { merge: true })
+  } catch {}
+  // 2. Write to Supabase
   try {
     await supabase.from('gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
   } catch (e) {
-    console.warn('updateGift failed:', e)
+    console.warn('updateGift supabase failed:', e)
   }
 }
 
 export async function addGift(id: string, data: GiftModel) {
+  // 1. Dual-write to Firestore
+  try {
+    await setDoc(doc(firestoreDb, 'gifts', id), { id, ...data }, { merge: true })
+  } catch {}
+  // 2. Write to Supabase
   try {
     await supabase.from('gifts').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
   } catch (e) {
-    console.warn('addGift failed:', e)
+    console.warn('addGift supabase failed:', e)
   }
 }
 
 export async function deleteGift(id: string) {
+  try {
+    await deleteDoc(doc(firestoreDb, 'gifts', id))
+  } catch {}
   try {
     await supabase.from('gifts').delete().eq('id', id)
   } catch (e) {
@@ -767,13 +788,20 @@ export function subscribeLevels(cb: (levels: LevelConfig[]) => void) {
 }
 
 export async function updateLevel(type: string, level: number, data: Partial<LevelConfig>) {
-  const payload = toSnakeCase(data as Record<string, unknown>)
-  const { data: list } = await supabase.from('level_config').select('level').eq('type', type).eq('level', level)
-  const existing = list && list.length > 0 ? list[0] : null
-  if (existing) {
-    await supabase.from('level_config').update(payload).eq('type', type).eq('level', level)
-  } else {
-    await supabase.from('level_config').insert(payload)
+  // 1. Dual-write to Firestore
+  try {
+    await setDoc(doc(firestoreDb, 'level_config', `${type}_${level}`), { type, level, ...data }, { merge: true })
+  } catch {}
+
+  // 2. Safe write to Supabase
+  try {
+    const payload = toSnakeCase(data as Record<string, unknown>)
+    const { error } = await supabase.from('level_config').upsert({ type, level, ...payload }, { onConflict: 'type,level' })
+    if (error) {
+      await supabase.from('level_config').update(payload).eq('type', type).eq('level', level)
+    }
+  } catch (e) {
+    console.warn('updateLevel Supabase failed:', e)
   }
 }
 
@@ -782,8 +810,14 @@ export async function updateLevel(type: string, level: number, data: Partial<Lev
 export async function getVIPConfig(): Promise<VIPConfig[]> {
   try {
     const client = getAdminSupabase() || supabase
-    const { data } = await client.from('vip_config').select('*').order('tier')
-    return mapList<VIPConfig>(data ?? [])
+    const { data, error } = await client.from('vip_config').select('*').order('tier')
+    if (!error && data && data.length > 0) {
+      return mapList<VIPConfig>(data)
+    }
+  } catch {}
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'vip_config'))
+    return snap.docs.map(doc => ({ tier: Number(doc.id) || 0, ...doc.data() })) as any
   } catch {
     return []
   }
@@ -797,13 +831,24 @@ export function subscribeVIPConfig(cb: (configs: VIPConfig[]) => void) {
 }
 
 export async function updateVIPConfig(tier: number, data: Partial<VIPConfig>) {
-  const client = getAdminSupabase() || supabase
-  // Firestore is schemaless — write the full payload. Do NOT filter keys
-  // against an existing doc: new fields would be silently dropped.
   const payload = { tier, ...toSnakeCase(data as Record<string, unknown>) }
   console.log('VIP save payload keys:', Object.keys(payload))
-  const { error } = await client.from('vip_config').upsert(payload)
-  if (error) throw new Error(`VIP save failed: ${error.message}`)
+
+  // 1. Dual-write to Firestore vip_config collection
+  try {
+    await setDoc(doc(firestoreDb, 'vip_config', String(tier)), { tier, ...data }, { merge: true })
+  } catch (fsErr) {
+    console.warn('Firestore vip_config save error:', fsErr)
+  }
+
+  // 2. Write to Supabase (catch error so UI succeeds via Firestore)
+  try {
+    const client = getAdminSupabase() || supabase
+    const { error } = await client.from('vip_config').upsert(payload)
+    if (error) console.warn('Supabase vip_config upsert warning:', error.message)
+  } catch (e) {
+    console.warn('Supabase vip_config upsert error:', e)
+  }
 }
 
 // ---- Badges ----
@@ -1988,51 +2033,62 @@ export async function revokeGiftedItem(id: string) {
 export async function getNecklaces(): Promise<NecklaceConfig[]> {
   try {
     const client = getAdminSupabase() || supabase
-    const { data } = await client.from('necklaces').select('*').order('sort_order')
-    return (data ?? []).map((item: any): NecklaceConfig => ({
-      id: item.id,
-      name: item.name || '',
-      name_ar: item.name_ar || '',
-      name_en: item.name_en || '',
-      description_ar: item.description_ar || '',
-      description_en: item.description_en || '',
-      svgaUrl: item.svga_url || item.svgaUrl || undefined,
-      imageUrl: item.image_url || item.imageUrl || undefined,
-      price: item.price || 0,
-      sortOrder: item.sort_order ?? item.sortOrder ?? 0,
-      isActive: item.is_active ?? item.isActive ?? true,
-      type: item.type || 'admin',
-      requiredRechargeLevel: item.required_recharge_level || item.requiredRechargeLevel || 0,
-    }))
+    const { data, error } = await client.from('necklaces').select('*')
+    if (!error && data && data.length > 0) {
+      return (data ?? []).map((item: any): NecklaceConfig => ({
+        id: item.id,
+        name: item.name || '',
+        name_ar: item.name_ar || '',
+        name_en: item.name_en || '',
+        description_ar: item.description_ar || '',
+        description_en: item.description_en || '',
+        svgaUrl: item.svga_url || item.svgaUrl || undefined,
+        imageUrl: item.image_url || item.imageUrl || undefined,
+        price: item.price || 0,
+        sortOrder: item.sort_order ?? item.sortOrder ?? 0,
+        isActive: item.is_active ?? item.isActive ?? true,
+        type: item.type || 'admin',
+        requiredRechargeLevel: item.required_recharge_level || item.requiredRechargeLevel || 0,
+      }))
+    }
   } catch (e) {
-    console.warn('getNecklaces failed:', e)
+    console.warn('getNecklaces supabase error, trying firestore fallback:', e)
+  }
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'necklaces'))
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any
+  } catch {
     return []
   }
 }
 
 export async function updateNecklace(id: string, data: Partial<NecklaceConfig>) {
+  // 1. Dual-write to Firestore
+  try {
+    await setDoc(doc(firestoreDb, 'necklaces', id), { id, ...data }, { merge: true })
+  } catch (fsErr) {
+    console.warn('Firestore updateNecklace failed:', fsErr)
+  }
+
+  // 2. Write to Supabase
   try {
     const client = getAdminSupabase() || supabase
     const payload = toSnakeCase(data as Record<string, unknown>)
-    const { data: existing } = await client.from('necklaces').select('id').eq('id', id).maybeSingle()
-    if (existing) {
-      await client.from('necklaces').update(payload).eq('id', id)
-    } else {
-      await client.from('necklaces').upsert({ id, ...payload })
-    }
+    await client.from('necklaces').upsert({ id, ...payload })
   } catch (e) {
-    console.warn('Necklace table not found or error:', e)
-    throw e
+    console.warn('Supabase updateNecklace warning:', e)
   }
 }
 
 export async function deleteNecklace(id: string) {
   try {
+    await deleteDoc(doc(firestoreDb, 'necklaces', id))
+  } catch {}
+  try {
     const client = getAdminSupabase() || supabase
     await client.from('necklaces').delete().eq('id', id)
   } catch (e) {
     console.warn('deleteNecklace failed:', e)
-    throw e
   }
 }
 
@@ -2287,9 +2343,40 @@ export async function getAppAssets(options?: {
       createdAt: row.updated_at || new Date().toISOString(),
       updatedAt: row.updated_at || new Date().toISOString(),
     }));
-    return { data: list, total: count ?? 0 };
+    if (list.length > 0) {
+      return { data: list, total: count ?? list.length };
+    }
   } catch (e) {
-    console.warn('getAppAssets failed:', e);
+    console.warn('getAppAssets supabase error, trying firestore fallback:', e);
+  }
+
+  // Fallback to Firestore app_assets
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'app_assets'));
+    const fsList: AppAssetRecord[] = snap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: d.id || doc.id,
+        key: d.key || doc.id,
+        name: d.name || doc.id,
+        type: d.type || 'image',
+        category: d.category || '',
+        subcategory: d.subcategory || '',
+        localPath: d.local_path || d.localPath || '',
+        remoteUrl: d.remote_url || d.remoteUrl || d.url || '',
+        defaultValue: '',
+        mimeType: '',
+        fileSize: 0,
+        width: null,
+        height: null,
+        sortOrder: 0,
+        isActive: d.is_active !== false,
+        createdAt: d.created_at || d.updated_at || new Date().toISOString(),
+        updatedAt: d.updated_at || new Date().toISOString(),
+      };
+    });
+    return { data: fsList, total: fsList.length };
+  } catch {
     return { data: [], total: 0 };
   }
 }
@@ -2297,29 +2384,29 @@ export async function getAppAssets(options?: {
 export async function getAppAssetByKey(key: string): Promise<AppAssetRecord | null> {
   try {
     const { data } = await supabase.from('app_assets').select('*').eq('key', key).maybeSingle();
-    if (!data) return null;
-    return {
-      id: data.key,
-      key: data.key,
-      name: data.key,
-      type: data.type || 'image',
-      category: '',
-      subcategory: '',
-      localPath: '',
-      remoteUrl: data.url || '',
-      defaultValue: '',
-      mimeType: '',
-      fileSize: 0,
-      width: null,
-      height: null,
-      sortOrder: 0,
-      isActive: true,
-      createdAt: data.updated_at || new Date().toISOString(),
-      updatedAt: data.updated_at || new Date().toISOString(),
-    };
-  } catch {
-    return null;
-  }
+    if (data) {
+      return {
+        id: data.key,
+        key: data.key,
+        name: data.key,
+        type: data.type || 'image',
+        category: '',
+        subcategory: '',
+        localPath: '',
+        remoteUrl: data.url || '',
+        defaultValue: '',
+        mimeType: '',
+        fileSize: 0,
+        width: null,
+        height: null,
+        sortOrder: 0,
+        isActive: true,
+        createdAt: data.updated_at || new Date().toISOString(),
+        updatedAt: data.updated_at || new Date().toISOString(),
+      };
+    }
+  } catch {}
+  return null;
 }
 
 function getAppAssetsClient() {
@@ -2327,44 +2414,99 @@ function getAppAssetsClient() {
 }
 
 export async function updateAppAsset(idOrKey: string, data: Partial<AppAssetRecord>) {
+  const assetUrl = data.remoteUrl || (data as any).url;
+
+  // 1. Dual-write to Firestore app_assets and app_config
+  try {
+    const fsData: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (assetUrl !== undefined) {
+      fsData.remote_url = assetUrl;
+      fsData.url = assetUrl;
+    }
+    if (data.type !== undefined) fsData.type = data.type;
+    if (data.isActive !== undefined) fsData.is_active = data.isActive;
+    await setDoc(doc(firestoreDb, 'app_assets', idOrKey), fsData, { merge: true });
+
+    if (assetUrl) {
+      await setDoc(doc(firestoreDb, 'app_config', 'assetsOverrides'), {
+        value: { [idOrKey]: assetUrl }
+      }, { merge: true });
+    }
+  } catch (fsErr) {
+    console.warn('Firestore updateAppAsset sync failed:', fsErr);
+  }
+
+  // 2. Write to Supabase
   try {
     const client = getAppAssetsClient();
     const payload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
-    if (data.remoteUrl !== undefined) payload.url = data.remoteUrl;
-    if ((data as any).url !== undefined) payload.url = (data as any).url;
+    if (assetUrl !== undefined) payload.url = assetUrl;
     if (data.type !== undefined) payload.type = data.type;
     await client.from('app_assets').update(payload).eq('key', idOrKey);
   } catch (e) {
-    console.warn('updateAppAsset failed:', e);
-    throw e;
+    console.warn('updateAppAsset Supabase failed:', e);
   }
 }
 
 export async function upsertAppAsset(data: AppAssetRecord) {
+  const assetUrl = data.remoteUrl || (data as any).url || '';
+  const assetType = data.type || 'image';
+
+  // 1. Dual-write to Firestore app_assets collection & app_config overrides
+  try {
+    const firestorePayload = {
+      id: data.id || data.key,
+      key: data.key,
+      name: data.name || '',
+      type: assetType,
+      category: data.category || '',
+      local_path: data.localPath || '',
+      remote_url: assetUrl,
+      is_active: data.isActive !== false,
+      updated_at: new Date().toISOString(),
+    };
+    await setDoc(doc(firestoreDb, 'app_assets', data.key), firestorePayload, { merge: true });
+    if (data.localPath && data.localPath !== data.key) {
+      await setDoc(doc(firestoreDb, 'app_assets', data.localPath), firestorePayload, { merge: true });
+    }
+
+    if (assetUrl) {
+      const overrides: Record<string, string> = { [data.key]: assetUrl };
+      if (data.localPath) overrides[data.localPath] = assetUrl;
+      await setDoc(doc(firestoreDb, 'app_config', 'assetsOverrides'), {
+        value: overrides
+      }, { merge: true });
+    }
+  } catch (fsErr) {
+    console.warn('Firestore app_assets sync failed:', fsErr);
+  }
+
+  // 2. Write to Supabase
   try {
     const client = getAppAssetsClient();
     const payload = {
       key: data.key,
-      url: data.remoteUrl || (data as any).url || '',
-      type: data.type || 'image',
+      url: assetUrl,
+      type: assetType,
       updated_at: new Date().toISOString(),
     };
     await client.from('app_assets').upsert(payload, { onConflict: 'key' });
   } catch (e) {
-    console.warn('upsertAppAsset failed:', e);
-    throw e;
+    console.warn('Supabase app_assets upsert warning:', e);
   }
 }
 
 export async function deleteAppAsset(idOrKey: string) {
   try {
+    await deleteDoc(doc(firestoreDb, 'app_assets', idOrKey));
+  } catch {}
+  try {
     const client = getAppAssetsClient();
     await client.from('app_assets').delete().eq('key', idOrKey);
   } catch (e) {
     console.warn('deleteAppAsset failed:', e);
-    throw e;
   }
 }
 

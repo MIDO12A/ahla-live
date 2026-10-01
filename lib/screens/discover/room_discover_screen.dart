@@ -12,6 +12,8 @@ import '../../providers/user_provider.dart';
 import 'create_room_screen.dart';
 import '../../screens/room/room_screen.dart' show navigateToRoom;
 import '../../screens/room/widgets/svga_player.dart';
+import '../../screens/room/widgets/vap_player.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../screens/rank/rank_screen.dart';
 import 'package:zero/screens/user_profile/user_profile_screen.dart';
 import '../../utils/app_action_navigator.dart';
@@ -717,19 +719,70 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
               ),
             ),
           ),
-          // Top-rank SVGA border overlay (slightly larger than card)
+          // Top-rank border overlay (supports SVGA, VAP, MP4, PNG, WEBP dynamically in real-time)
           if (rankIndex >= 0)
             Positioned(
               left: -4, top: -4, right: -4, bottom: -4,
-              child: IgnorePointer(
-                child: SvgaPlayer(
-                  assetPath: _rankBorderPath(rankIndex)!,
-                  fit: BoxFit.fill,
-                ),
-              ),
+              child: RoomRankBorderWidget(rankIndex: rankIndex),
             ),
         ],
       ),
+    );
+  }
+}
+
+class RoomRankBorderWidget extends StatelessWidget {
+  final int rankIndex;
+  const RoomRankBorderWidget({super.key, required this.rankIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    if (rankIndex < 0 || rankIndex > 2) return const SizedBox.shrink();
+    return ListenableBuilder(
+      listenable: DynamicConfigService.instance,
+      builder: (context, _) {
+        final localPath = rankIndex == 0
+            ? R.roomRankBorder1
+            : (rankIndex == 1 ? R.roomRankBorder2 : R.roomRankBorder3);
+        final overrideUrl = DynamicConfigService.instance.getAssetOverride(localPath);
+        final path = (overrideUrl != null && overrideUrl.isNotEmpty) ? overrideUrl : localPath;
+        final type = detectAssetType(path);
+
+        Widget child;
+        if (type == AssetType.svga) {
+          child = SvgaPlayer(
+            assetPath: path,
+            fit: BoxFit.fill,
+            loops: true,
+          );
+        } else if (type == AssetType.vap || type == AssetType.mp4) {
+          child = VapPlayer(
+            assetPath: path,
+            fit: BoxFit.fill,
+          );
+        } else {
+          // PNG, WEBP, GIF, JPG or any image format
+          if (path.startsWith('http://') || path.startsWith('https://')) {
+            child = CachedNetworkImage(
+              imageUrl: path,
+              fit: BoxFit.fill,
+              errorWidget: (_, __, ___) => SvgaPlayer(
+                assetPath: localPath,
+                fit: BoxFit.fill,
+                loops: true,
+              ),
+            );
+          } else {
+            child = Image.asset(
+              path,
+              fit: BoxFit.fill,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            );
+          }
+        }
+
+        return IgnorePointer(child: child);
+      },
     );
   }
 }
