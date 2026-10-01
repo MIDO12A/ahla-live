@@ -6,8 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/cloudinary_service.dart';
+import '../../services/firebase_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../providers/user_provider.dart';
 import '../../core/ui/in_app_toast.dart';
+import '../../widgets/user_id_widget.dart';
+import '../country/country_picker_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -128,72 +132,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  void _showCountryPicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 16),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'اختر الدولة / المنطقة',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF16151A),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: _arabCountries.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
-                  itemBuilder: (context, index) {
-                    final country = _arabCountries[index];
-                    final isSelected = country['code'] == _selectedCountry;
-                    return ListTile(
-                      leading: Text(country['flag']!, style: const TextStyle(fontSize: 26)),
-                      title: Text(
-                        country['name']!,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isSelected ? const Color(0xFFFF7E40) : const Color(0xFF16151A),
-                        ),
-                      ),
-                      trailing: isSelected
-                          ? const Icon(Icons.check_circle_rounded, color: Color(0xFFFF7E40), size: 20)
-                          : null,
-                      onTap: () {
-                        setState(() {
-                          _selectedCountry = country['code']!;
-                        });
-                        Navigator.pop(ctx);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  Future<void> _showCountryPicker() async {
+    final picked = await Navigator.push<Country>(
+      context,
+      MaterialPageRoute(builder: (_) => const CountryPickerScreen()),
     );
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedCountry = picked.code;
+      });
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -281,6 +229,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         age: computedAge,
       );
 
+      // 1. Local provider immediate update
+      await userProvider.updateUser(updatedUser);
+
+      // 2. Firebase & Supabase dual write
+      await FirebaseService().updateUser(currentUser.uid, {
+        'name': name,
+        'photo_url': photoUrl,
+        'photoUrl': photoUrl,
+        'gender': _selectedGender,
+        'signature': _signatureController.text.trim(),
+        'country': _selectedCountry,
+        'country_code': _selectedCountry.toLowerCase(),
+        'age': computedAge,
+        'album': finalAlbum,
+      });
+
       await SupabaseService().saveUser(updatedUser);
       await SupabaseService().updateUser(currentUser.uid, {
         'name': name,
@@ -288,7 +252,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'gender': _selectedGender,
         'signature': _signatureController.text.trim(),
         'country': _selectedCountry,
-        'country_code': _selectedCountry,
+        'country_code': _selectedCountry.toLowerCase(),
+        'age': computedAge,
+        'album': finalAlbum,
+      });
+
+      await SupabaseDataService().updateUser(currentUser.uid, {
+        'name': name,
+        'photo_url': photoUrl,
+        'gender': _selectedGender,
+        'signature': _signatureController.text.trim(),
+        'country': _selectedCountry,
+        'country_code': _selectedCountry.toLowerCase(),
         'age': computedAge,
         'album': finalAlbum,
       });
@@ -700,6 +675,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildCountrySelector(Map<String, String> countryObj) {
+    final cleanCode = UserIdWidget.resolveCountryCode(_selectedCountry);
+    final flagEmoji = UserIdWidget.countryCodeToEmoji(cleanCode);
+    final displayName = countryObj['name'] ?? _selectedCountry;
+
     return GestureDetector(
       onTap: _showCountryPicker,
       child: Container(
@@ -711,17 +690,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            Text(
-              countryObj['flag'] ?? '🌍',
-              style: const TextStyle(fontSize: 22),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: Image.network(
+                'https://flagcdn.com/w40/$cleanCode.png',
+                width: 24,
+                height: 16,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Text(flagEmoji, style: const TextStyle(fontSize: 20)),
+              ),
             ),
             const SizedBox(width: 10),
             Text(
-              countryObj['name'] ?? 'مصر',
+              displayName,
               style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 color: Color(0xFF16151A),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '($_selectedCountry)',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.normal,
+                color: Color(0xFF9BA1B6),
               ),
             ),
             const Spacer(),

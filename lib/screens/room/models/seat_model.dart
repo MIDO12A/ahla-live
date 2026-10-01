@@ -22,6 +22,7 @@ class UserModel {
   final bool isBlacked;
   final String? activeMicWave;
   final String gender;
+  final String country;
   final int totalGiftsReceived;
 
   const UserModel({
@@ -35,6 +36,7 @@ class UserModel {
     this.customId,
     this.activeMicWave,
     this.gender = 'male',
+    this.country = 'EG',
     this.level = 1,
     this.following = '0',
     this.fans = '0',
@@ -55,6 +57,7 @@ class UserModel {
     String? customId,
     String? activeMicWave,
     String? gender,
+    String? country,
     int? level,
     String? following,
     String? fans,
@@ -74,6 +77,7 @@ class UserModel {
       customId: customId ?? this.customId,
       activeMicWave: activeMicWave ?? this.activeMicWave,
       gender: gender ?? this.gender,
+      country: country ?? this.country,
       level: level ?? this.level,
       following: following ?? this.following,
       fans: fans ?? this.fans,
@@ -94,6 +98,8 @@ class UserModel {
     'custom_id': customId,
     'active_mic_wave': activeMicWave,
     'gender': gender,
+    'country': country,
+    'country_code': country.toLowerCase(),
     'level': level,
     'following': following,
     'fans': fans,
@@ -114,6 +120,7 @@ class UserModel {
     customId: map['custom_id'] as String? ?? map['customId'] as String?,
     activeMicWave: map['active_mic_wave'] as String?,
     gender: map['gender'] as String? ?? 'male',
+    country: map['country'] as String? ?? map['country_code'] as String? ?? 'EG',
     level: map['level'] as int? ?? 1,
     following: map['following'] as String? ?? '0',
     fans: map['fans'] as String? ?? '0',

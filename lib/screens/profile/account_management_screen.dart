@@ -11,6 +11,9 @@ import '../setting/bind_phone_screen.dart';
 import '../setting/about_screen.dart';
 import '../login/login_screen.dart';
 import 'delete_account_step1_screen.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
+import '../../widgets/user_id_widget.dart';
 
 class AccountManagementScreen extends StatelessWidget {
   const AccountManagementScreen({super.key});
@@ -114,14 +117,43 @@ class AccountManagementScreen extends StatelessWidget {
                             },
                           ),
                           // Country
-                          _buildSimpleItem(
-                            title: "Country",
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const CountryPickerScreen(),
+                          Builder(
+                            builder: (context) {
+                              final user = Provider.of<UserProvider>(context).currentUser;
+                              final countryCode = user?.country.isNotEmpty == true ? user!.country : 'EG';
+                              final cleanCode = UserIdWidget.resolveCountryCode(countryCode);
+                              final flagEmoji = UserIdWidget.countryCodeToEmoji(cleanCode);
+
+                              return _buildSimpleItem(
+                                title: "الدولة / المنطقة",
+                                trailingWidget: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(3),
+                                      child: Image.network(
+                                        'https://flagcdn.com/w40/$cleanCode.png',
+                                        width: 22,
+                                        height: 15,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Text(flagEmoji, style: const TextStyle(fontSize: 16)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      countryCode.toUpperCase(),
+                                      style: const TextStyle(fontSize: 13, color: Color(0xFF888888), fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
                                 ),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const CountryPickerScreen(),
+                                    ),
+                                  );
+                                },
                               );
                             },
                           ),
@@ -307,6 +339,7 @@ class AccountManagementScreen extends StatelessWidget {
   Widget _buildSimpleItem({
     required String title,
     required VoidCallback onTap,
+    Widget? trailingWidget,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -328,6 +361,10 @@ class AccountManagementScreen extends StatelessWidget {
                 ),
               ),
             ),
+            if (trailingWidget != null) ...[
+              trailingWidget,
+              const SizedBox(width: 8),
+            ],
             R.image(
               R.nextBlackIc,
               width: AppDimensions.dp24,

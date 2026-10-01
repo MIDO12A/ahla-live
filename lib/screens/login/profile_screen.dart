@@ -30,6 +30,7 @@ import '../../services/level_service.dart';
 import '../../features/tasks/screens/daily_tasks_screen.dart';
 import '../../features/signin/weekly_signin_screen.dart';
 import '../badges/badges_screen.dart';
+import '../../widgets/user_id_widget.dart';
 
 /// شاشة "أنا" (الملف الشخصي) المطابقة تماماً لملف fragment_mine.xml
 /// وكود MineFragment.java من المشروع الأصلي (F:\Medal\New folder\nu):
@@ -291,6 +292,22 @@ class ProfileScreen extends StatelessWidget {
                       height: 16,
                       fit: BoxFit.contain,
                     ),
+                    if (user != null && user.country.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: Image.network(
+                          'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(user.country)}.png',
+                          width: 20,
+                          height: 14,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Text(
+                            UserIdWidget.countryCodeToEmoji(UserIdWidget.resolveCountryCode(user.country)),
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
 

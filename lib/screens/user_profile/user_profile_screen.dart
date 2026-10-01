@@ -1278,17 +1278,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   ),
                                   const SizedBox(width: 8),
 
-                                  // Country flag / badge
+                                  // Country flag
                                   if (user.country.isNotEmpty)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(2),
-                                        color: Colors.white12,
-                                      ),
-                                      child: Text(
-                                        user.country.toUpperCase(),
-                                        style: const TextStyle(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w600),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(3),
+                                      child: Image.network(
+                                        'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(user.country)}.png',
+                                        width: 20,
+                                        height: 14,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Text(
+                                          UserIdWidget.countryCodeToEmoji(UserIdWidget.resolveCountryCode(user.country)),
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
                                       ),
                                     ),
                                 ],

@@ -460,6 +460,29 @@ class _UserProfileState extends State<UserProfile> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (country.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: Image.network(
+                          'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(country)}.png',
+                          width: 18,
+                          height: 12,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Text(
+                            UserIdWidget.countryCodeToEmoji(UserIdWidget.resolveCountryCode(country)),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.all(2),

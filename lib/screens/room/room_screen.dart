@@ -1617,6 +1617,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final isMuted = data['is_muted'] == true;
         final activeMicWave = data['active_mic_wave']?.toString() ?? cachedUser?.activeMicWave;
         final gender = data['gender']?.toString() ?? cachedUser?.gender ?? 'male';
+        final country = data['country']?.toString() ?? data['country_code']?.toString() ?? cachedUser?.country ?? 'EG';
         _seats[idx] = SeatModel(
           index: idx,
           state: SeatState.occupied,
@@ -1627,6 +1628,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             customId: cachedUser?.customId ?? data['custom_id']?.toString(),
             activeMicWave: activeMicWave,
             gender: gender,
+            country: country,
             giftCount: giftTotal,
             totalGiftsReceived: giftTotal,
             charm: giftTotal.toString(),
@@ -2139,6 +2141,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           customId: currentUser?.customId,
           activeMicWave: currentUser?.activeMicWave,
           gender: currentUser?.gender ?? 'male',
+          country: currentUser?.country ?? 'EG',
         ),
       );
       if (previousIdx != null) {
@@ -2155,6 +2158,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         activeCar: currentUser?.activeCar,
         activeMicWave: currentUser?.activeMicWave,
         gender: currentUser?.gender ?? 'male',
+        country: currentUser?.country ?? 'EG',
       ));
       _takingSeat = false;
     }
@@ -2403,12 +2407,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _openChatUserProfile(String uid, String name, String photoUrl) {
-    String? foundCustomId = UserProfile.customIdCache[uid];
-    if (foundCustomId == null || foundCustomId.isEmpty) {
-      for (final s in _seats) {
-        if (s.user?.id == uid && s.user?.customId != null && s.user!.customId!.isNotEmpty) {
-          foundCustomId = s.user!.customId;
-          break;
+    String? foundCountry;
+    for (final s in _seats) {
+      if (s.user?.id == uid) {
+        if (foundCustomId == null || foundCustomId.isEmpty) {
+          if (s.user?.customId != null && s.user!.customId!.isNotEmpty) {
+            foundCustomId = s.user!.customId;
+          }
+        }
+        if (s.user?.country != null && s.user!.country.isNotEmpty) {
+          foundCountry = s.user!.country;
         }
       }
     }
@@ -2419,6 +2427,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         name: name,
         avatar: photoUrl.isNotEmpty ? photoUrl : null,
         customId: foundCustomId,
+        country: foundCountry ?? 'EG',
       );
       _showProfile = true;
     });
@@ -5044,6 +5053,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               avatar: currentUser.photoUrl,
               level: currentUser.level,
               customId: currentUser.customId,
+              country: currentUser.country,
             ),
             'isOnMic': false,
             'isMuted': false,

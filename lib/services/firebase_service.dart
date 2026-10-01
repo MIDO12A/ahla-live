@@ -438,6 +438,8 @@ class FirebaseService {
       'active_car': user.activeCar,
       'active_mic_wave': user.activeMicWave,
       'gender': user.gender,
+      'country': user.country,
+      'country_code': user.country.toLowerCase(),
       'is_muted': false,
       'taken_at': _now(),
     };
