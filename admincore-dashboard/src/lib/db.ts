@@ -1,4 +1,6 @@
 import { supabase, getAdminSupabase } from './supabase'
+import { firestoreDb } from './firebase'
+import { doc, setDoc, deleteDoc } from 'firebase/firestore'
 import type {
   UserModel, RoomModel, GiftModel, SentGiftModel,
   StoreItemModel, UnionModel, BugReport, AppConfig,
@@ -231,21 +233,33 @@ export async function checkCustomIdAvailable(
   }
 
   // 2. Check if already for sale in store
-  let storeQuery = client
-    .from('store_items')
-    .select('item_id, name, custom_id')
-    .eq('category', 'special_id')
-    .eq('custom_id', cleanId)
-    .eq('is_available', true);
-  if (excludeItemId) {
-    storeQuery = storeQuery.neq('item_id', excludeItemId);
-  }
-  const { data: storeMatch } = await storeQuery.maybeSingle();
-  if (storeMatch) {
-    return {
-      available: false,
-      reason: `هذا الآيدي (${cleanId}) معروض بالفعل للبيع في المتجر كسلعة "${storeMatch.name}"!`,
-    };
+  try {
+    let storeQuery = client
+      .from('store_items')
+      .select('*')
+      .eq('category', 'special_id');
+    if (excludeItemId) {
+      storeQuery = storeQuery.neq('item_id', excludeItemId);
+    }
+    const { data: storeItems, error: storeErr } = await storeQuery;
+    if (!storeErr && storeItems) {
+      const match = storeItems.find((it: any) => {
+        const idVal = String(it.custom_id || it.customId || '').trim();
+        if (idVal && idVal === cleanId) return true;
+        if (it.name_key && typeof it.name_key === 'string' && it.name_key === `custom_id:${cleanId}`) return true;
+        const nameVal = String(it.name || '').trim();
+        if (nameVal === cleanId || nameVal === `آيدي مميز ${cleanId}`) return true;
+        return false;
+      });
+      if (match) {
+        return {
+          available: false,
+          reason: `هذا الآيدي (${cleanId}) معروض بالفعل للبيع في المتجر!`,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Store check error (ignored):', err);
   }
 
   return { available: true };
@@ -419,18 +433,45 @@ export async function deleteGift(id: string) {
 
 export async function getStoreItems(): Promise<StoreItemModel[]> {
   try {
-    const { data } = await supabase.from('store_items').select('*').order('item_id')
-    return mapList<StoreItemModel>(data ?? [])
+    const { data } = await supabase.from('store_items').select('*').order('item_id');
+    const items = mapList<StoreItemModel>(data ?? []);
+    return items.map((it: any) => {
+      let customId = it.customId || it.custom_id;
+      let colorEffect = it.colorEffect || it.color_effect;
+      if (!customId && it.nameKey && typeof it.nameKey === 'string' && it.nameKey.startsWith('custom_id:')) {
+        customId = it.nameKey.replace('custom_id:', '');
+      }
+      if (!customId && it.name_key && typeof it.name_key === 'string' && it.name_key.startsWith('custom_id:')) {
+        customId = it.name_key.replace('custom_id:', '');
+      }
+      if (!colorEffect && it.photoKey && typeof it.photoKey === 'string' && it.photoKey.startsWith('color_effect:')) {
+        colorEffect = it.photoKey.replace('color_effect:', '');
+      }
+      if (!colorEffect && it.photo_key && typeof it.photo_key === 'string' && it.photo_key.startsWith('color_effect:')) {
+        colorEffect = it.photo_key.replace('color_effect:', '');
+      }
+      if (it.category === 'special_id' && !customId && it.name) {
+        const num = it.name.replace(/\D/g, '');
+        if (num) customId = num;
+      }
+      return {
+        ...it,
+        customId: customId || undefined,
+        colorEffect: colorEffect || 'golden',
+        isAvailable: it.isAvailable ?? it.is_available ?? true,
+        isSold: it.isSold ?? it.is_sold ?? false,
+      };
+    });
   } catch {
-    return []
+    return [];
   }
 }
 
 export function subscribeStoreItems(cb: (items: StoreItemModel[]) => void) {
   const sub = supabase.channel('store_items').on('postgres_changes', { event: '*', schema: 'public', table: 'store_items' }, () => {
-    getStoreItems().then(cb)
-  }).subscribe()
-  return () => { try { supabase.removeChannel(sub) } catch {} }
+    getStoreItems().then(cb);
+  }).subscribe();
+  return () => { try { supabase.removeChannel(sub); } catch {} };
 }
 
 export async function updateStoreItem(id: string, data: Partial<StoreItemModel>) {
@@ -445,8 +486,44 @@ export async function updateStoreItem(id: string, data: Partial<StoreItemModel>)
         }
       }
     }
-    const { error } = await client.from('store_items').update(toSnakeCase(data as Record<string, unknown>)).eq('item_id', id);
-    if (error) throw error;
+
+    // Try standard upsert with all snake_case fields
+    const fullPayload = toSnakeCase(data as Record<string, unknown>);
+    const { error } = await client.from('store_items').update(fullPayload).eq('item_id', id);
+
+    if (error) {
+      console.warn('Supabase updateStoreItem full payload failed, falling back to base schema:', error);
+      // Fallback if custom_id column is missing in PostgreSQL
+      const basePayload: Record<string, unknown> = {
+        name: data.name,
+        category: data.category,
+        icon_asset: data.iconAsset,
+        price: data.price,
+        svga_asset: data.svgaAsset,
+        is_premium: data.isPremium,
+        default_image: data.defaultImage,
+      };
+      if (data.customId) {
+        basePayload.name_key = `custom_id:${data.customId.trim()}`;
+      }
+      if (data.colorEffect) {
+        basePayload.photo_key = `color_effect:${data.colorEffect}`;
+      }
+      const cleanedBase = Object.fromEntries(Object.entries(basePayload).filter(([_, v]) => v !== undefined));
+      const res = await client.from('store_items').update(cleanedBase).eq('item_id', id);
+      if (res.error) throw res.error;
+    }
+
+    // Also sync to Firestore store_items collection
+    try {
+      await setDoc(doc(firestoreDb, 'store_items', id), {
+        itemId: id,
+        ...data,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (fe) {
+      console.warn('Firestore store_items sync failed (non-critical):', fe);
+    }
   } catch (e) {
     console.error('updateStoreItem failed:', e);
     throw e;
@@ -466,8 +543,40 @@ export async function addStoreItem(id: string, data: StoreItemModel) {
         throw new Error(check.reason);
       }
     }
-    const { error } = await client.from('store_items').upsert({ item_id: id, ...toSnakeCase(data as unknown as Record<string, unknown>) });
-    if (error) throw error;
+
+    // Try standard upsert with all snake_case fields
+    const fullPayload = { item_id: id, ...toSnakeCase(data as unknown as Record<string, unknown>) };
+    const { error } = await client.from('store_items').upsert(fullPayload);
+
+    if (error) {
+      console.warn('Supabase addStoreItem full payload failed, falling back to base schema:', error);
+      // Fallback if custom_id column is missing in PostgreSQL table
+      const fallbackPayload: Record<string, unknown> = {
+        item_id: id,
+        name: data.name || (data.customId ? `آيدي مميز ${data.customId}` : 'عنصر متجر'),
+        category: data.category,
+        icon_asset: data.iconAsset || '',
+        price: Number(data.price) || 0,
+        svga_asset: data.svgaAsset || null,
+        is_premium: !!data.isPremium,
+        name_key: data.customId ? `custom_id:${data.customId.trim()}` : (data.nameKey || null),
+        photo_key: data.colorEffect ? `color_effect:${data.colorEffect}` : (data.photoKey || null),
+        default_image: data.defaultImage || null,
+      };
+      const res = await client.from('store_items').upsert(fallbackPayload);
+      if (res.error) throw res.error;
+    }
+
+    // Also sync to Firestore store_items collection for real-time Flutter app support
+    try {
+      await setDoc(doc(firestoreDb, 'store_items', id), {
+        itemId: id,
+        ...data,
+        createdAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (fe) {
+      console.warn('Firestore store_items sync failed (non-critical):', fe);
+    }
   } catch (e) {
     console.error('addStoreItem failed:', e);
     throw e;
@@ -476,9 +585,12 @@ export async function addStoreItem(id: string, data: StoreItemModel) {
 
 export async function deleteStoreItem(id: string) {
   try {
-    await supabase.from('store_items').delete().eq('item_id', id)
+    await supabase.from('store_items').delete().eq('item_id', id);
+    try {
+      await deleteDoc(doc(firestoreDb, 'store_items', id));
+    } catch {}
   } catch (e) {
-    console.warn('deleteStoreItem failed:', e)
+    console.warn('deleteStoreItem failed:', e);
   }
 }
 
