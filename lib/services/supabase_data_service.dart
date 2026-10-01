@@ -904,6 +904,8 @@ class SupabaseDataService {
         }).toList();
       }
     } catch (e) {
+      debugPrint('[SupabaseDataService] getRoomRanking error: $e');
+    }
     return [];
   }
 
