@@ -29,13 +29,13 @@ class StoreItemModel {
 
   factory StoreItemModel.fromMap(Map<String, dynamic> map) {
     return StoreItemModel(
-      itemId: map['item_id']?.toString() ?? map['itemId']?.toString() ?? '',
+      itemId: map['item_id']?.toString() ?? map['itemId']?.toString() ?? map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
       category: map['category']?.toString() ?? '',
-      iconAsset: map['icon_asset']?.toString() ?? map['iconAsset']?.toString() ?? '',
+      iconAsset: map['icon_asset']?.toString() ?? map['iconAsset']?.toString() ?? map['icon_url']?.toString() ?? map['iconUrl']?.toString() ?? '',
       price: (map['price'] ?? 0).toInt(),
-      svgaAsset: map['svga_asset']?.toString() ?? map['svgaAsset']?.toString(),
-      videoAsset: map['video_asset']?.toString() ?? map['videoAsset']?.toString(),
+      svgaAsset: map['svga_asset']?.toString() ?? map['svgaAsset']?.toString() ?? map['animation_asset']?.toString() ?? map['animation_url']?.toString() ?? map['svga_url']?.toString(),
+      videoAsset: map['video_asset']?.toString() ?? map['videoAsset']?.toString() ?? map['video_url']?.toString() ?? map['mp4_url']?.toString(),
       isPremium: (map['is_premium'] ?? map['isPremium']) as bool? ?? false,
       nameKey: map['name_key']?.toString() ?? map['nameKey']?.toString() ?? map['name_keys']?.toString(),
       photoKey: map['photo_key']?.toString() ?? map['photoKey']?.toString() ?? map['photo_keys']?.toString(),

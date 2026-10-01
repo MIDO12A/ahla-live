@@ -35,14 +35,14 @@ class AppAssetModel {
 
   factory AppAssetModel.fromJson(Map<String, dynamic> json) {
     return AppAssetModel(
-      id: json['id'] as String? ?? '',
+      id: json['id'] as String? ?? json['key'] as String? ?? '',
       key: json['key'] as String? ?? '',
       name: json['name'] as String? ?? '',
       type: json['type'] as String? ?? 'image',
       category: json['category'] as String? ?? 'other',
       subcategory: json['subcategory'] as String? ?? '',
       localPath: json['local_path'] as String? ?? '',
-      remoteUrl: json['remote_url'] as String?,
+      remoteUrl: (json['remote_url'] ?? json['url']) as String?,
       defaultValue: json['default_value'] as String?,
       mimeType: json['mime_type'] as String?,
       fileSize: (json['file_size'] as num?)?.toInt() ?? 0,

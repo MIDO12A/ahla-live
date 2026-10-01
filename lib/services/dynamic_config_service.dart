@@ -9,6 +9,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../models/app_asset_model.dart';
 import '../config/app_config.dart';
+import 'supabase_data_service.dart';
 
 class DynamicConfigService extends ChangeNotifier {
   static final DynamicConfigService _instance = DynamicConfigService._();
@@ -1027,22 +1028,25 @@ class DynamicConfigService extends ChangeNotifier {
     _initAssetsCompleter = Completer<void>();
     _setupAppAssetsStream();
 
-    // Only block startup on first data when there is a real session. When
-    // signed out, Firestore streams won't emit (permission denied) and we do
-    // NOT want to stall the app at the login screen for the full timeout.
+    // Load Supabase config and assets unconditionally.
+    // If not signed in to Firebase, complete completers quickly so app startup is never blocked.
     if (!hasValidSession) {
-      _initCompleter?.complete();
-      _initAssetsCompleter?.complete();
-      debugPrint('DynamicConfigService: no session, continuing immediately with defaults');
-      return;
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (_initCompleter != null && !_initCompleter!.isCompleted) {
+          _initCompleter!.complete();
+        }
+        if (_initAssetsCompleter != null && !_initAssetsCompleter!.isCompleted) {
+          _initAssetsCompleter!.complete();
+        }
+      });
     }
 
-    // Wait for both config and assets first data, or timeout after 10s.
+    // Wait for both config and assets first data, or timeout after 5s.
     // Never throw here: a timeout (offline / signed-out) must not block startup.
     try {
       await Future.any([
-        _initCompleter!.future.timeout(const Duration(seconds: 10)),
-        _initAssetsCompleter!.future.timeout(const Duration(seconds: 10)),
+        _initCompleter!.future.timeout(const Duration(seconds: 5)),
+        _initAssetsCompleter!.future.timeout(const Duration(seconds: 5)),
       ]);
     } catch (e) {
       debugPrint('DynamicConfigService: init timed out, continuing with defaults: $e');
@@ -1050,36 +1054,44 @@ class DynamicConfigService extends ChangeNotifier {
   }
 
   void _setupAppAssetsStream() async {
+    // 1. Fetch from Supabase app_assets first (primary source for dashboard Cloudinary uploads)
     try {
-      // Load once with cache support to save thousands of Firestore reads
+      final sbAssets = await SupabaseDataService().getAppAssets();
+      if (sbAssets.isNotEmpty) {
+        _appAssets.addAll(sbAssets);
+        _assetVersion++;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('DynamicConfigService: supabase app_assets error: $e');
+    }
+
+    // 2. Fetch from Firestore app_assets and merge
+    try {
       final snap = await _db.collection('app_assets').get(const GetOptions(source: Source.serverAndCache));
-      final assets = <String, AppAssetModel>{};
       for (final doc in snap.docs) {
         final row = doc.data();
         if (row['is_active'] != false) {
           final asset = AppAssetModel.fromJson(row);
           if (asset.key.isNotEmpty) {
-            assets[asset.key] = asset;
+            _appAssets.putIfAbsent(asset.key, () => asset);
           }
         }
       }
-      _appAssets = assets;
       _assetVersion++;
     } catch (error) {
       debugPrint('DynamicConfigService: app_assets load error: $error');
       try {
         final cachedSnap = await _db.collection('app_assets').get(const GetOptions(source: Source.cache));
-        final assets = <String, AppAssetModel>{};
         for (final doc in cachedSnap.docs) {
           final row = doc.data();
           if (row['is_active'] != false) {
             final asset = AppAssetModel.fromJson(row);
             if (asset.key.isNotEmpty) {
-              assets[asset.key] = asset;
+              _appAssets.putIfAbsent(asset.key, () => asset);
             }
           }
         }
-        _appAssets = assets;
         _assetVersion++;
       } catch (_) {}
     } finally {
@@ -1088,185 +1100,277 @@ class DynamicConfigService extends ChangeNotifier {
       }
       notifyListeners();
     }
+
+    // 3. Periodic refresh from Supabase for any newly uploaded dashboard assets
+    Timer.periodic(const Duration(seconds: 45), (_) async {
+      try {
+        final freshAssets = await SupabaseDataService().getAppAssets();
+        if (freshAssets.isNotEmpty) {
+          _appAssets.addAll(freshAssets);
+          _assetVersion++;
+          notifyListeners();
+        }
+      } catch (_) {}
+    });
+  }
+
+  void _applyConfig(Map<String, dynamic> config) {
+    for (final entry in config.entries) {
+      final k = entry.key;
+      final v = entry.value;
+      if (v is String) {
+        final parsed = _tryParseJson(v);
+        _rawConfig[k] = parsed ?? v;
+      } else {
+        _rawConfig[k] = v;
+      }
+    }
+
+    _appName = _rawConfig['appName'] as String? ?? _appName;
+    _logoUrl = _rawConfig['logoUrl'] as String? ?? _logoUrl;
+    _splashEnabled = _rawConfig['splash_enabled'] == true ||
+        _rawConfig['splash_enabled'] == 'true' ||
+        _rawConfig['splashEnabled'] == true ||
+        _rawConfig['splashEnabled'] == 'true';
+    _splashImageUrl = _rawConfig['splash_image_url'] as String? ??
+        _rawConfig['splashImageUrl'] as String? ??
+        _rawConfig['splashGifUrl'] as String? ??
+        '';
+    _splashSvgaUrl = _rawConfig['splash_svga_url'] as String? ??
+        _rawConfig['splashSvgaUrl'] as String? ??
+        '';
+    _splashDurationSeconds =
+        (_rawConfig['splash_duration_seconds'] as num?)?.toInt() ??
+            (_rawConfig['splashDurationSeconds'] as num?)?.toInt() ??
+            3;
+    _splashActionType = _rawConfig['splash_action_type'] as String? ??
+        _rawConfig['splashActionType'] as String? ??
+        '';
+    _splashActionValue = _rawConfig['splash_action_value'] as String? ??
+        _rawConfig['splashActionValue'] as String? ??
+        '';
+    _splashUrl = _splashImageUrl.isNotEmpty
+        ? _splashImageUrl
+        : (_rawConfig['splashGifUrl'] as String? ?? _splashUrl);
+    _splashNameColor =
+        _parseColor(_rawConfig['splashNameColor'], _splashNameColor);
+
+    _primaryBg = _parseColor(_rawConfig['primaryBg'], _primaryBg);
+    _textPrimary = _parseColor(_rawConfig['textPrimary'], _textPrimary);
+    _textSecondary = _parseColor(_rawConfig['textSecondary'], _textSecondary);
+    _goldColor = _parseColor(_rawConfig['goldColor'], _goldColor);
+    _buttonColor = _parseColor(_rawConfig['buttonColor'], _buttonColor);
+    _buttonTextColor =
+        _parseColor(_rawConfig['buttonTextColor'], _buttonTextColor);
+    _headerColor = _parseColor(_rawConfig['headerColor'], _headerColor);
+    _tabBarColor = _parseColor(_rawConfig['tabBarColor'], _tabBarColor);
+
+    _bottomNavBgImage =
+        _rawConfig['bottomNavBgImage'] as String? ?? _bottomNavBgImage;
+    _bottomNavGradientStart = _parseColor(
+        _rawConfig['bottomNavGradientStart'], _bottomNavGradientStart);
+    _bottomNavGradientEnd =
+        _parseColor(_rawConfig['bottomNavGradientEnd'], _bottomNavGradientEnd);
+    _bottomNavActiveTextColor = _parseColor(
+        _rawConfig['bottomNavActiveTextColor'], _bottomNavActiveTextColor);
+    _bottomNavInactiveTextColor = _parseColor(
+        _rawConfig['bottomNavInactiveTextColor'], _bottomNavInactiveTextColor);
+
+    _giftPanelBgImage = _rawConfig['giftPanelBgImage'] as String? ??
+        _rawConfig['gift_panel_bg_image'] as String? ??
+        _giftPanelBgImage;
+    _giftPanelHeaderBgImage = _rawConfig['giftPanelHeaderBgImage'] as String? ??
+        _rawConfig['gift_panel_header_bg_image'] as String? ??
+        _giftPanelHeaderBgImage;
+    _giftPanelBgColor = _parseColor(
+        _rawConfig['giftPanelBgColor'] ?? _rawConfig['gift_panel_bg_color'],
+        _giftPanelBgColor);
+    _giftPanelTabColor = _parseColor(
+        _rawConfig['giftPanelTabColor'] ?? _rawConfig['gift_panel_tab_color'],
+        _giftPanelTabColor);
+
+    _fontFamily = _rawConfig['fontFamily'] as String? ?? _fontFamily;
+    _borderRadius =
+        (_rawConfig['borderRadius'] as num?)?.toInt() ?? _borderRadius;
+
+    _vipCardBgColor =
+        _parseColor(_rawConfig['vipCardBgColor'], _vipCardBgColor);
+    _vipCardBorderColor =
+        _parseColor(_rawConfig['vipCardBorderColor'], _vipCardBorderColor);
+
+    _vipCardBgImgUrl =
+        _rawConfig['vipCardBgImgUrl'] as String? ?? _vipCardBgImgUrl;
+    _vipPurchaseBarImgUrl =
+        _rawConfig['vipPurchaseBarImgUrl'] as String? ?? _vipPurchaseBarImgUrl;
+    _vipCoinImgUrl = _rawConfig['vipCoinImgUrl'] as String? ?? _vipCoinImgUrl;
+    _vipBuyBtnImgUrl =
+        _rawConfig['vipBuyBtnImgUrl'] as String? ?? _vipBuyBtnImgUrl;
+
+    _discoverTitle =
+        _rawConfig['discoverTitle'] as String? ?? _discoverTitle;
+    _messageTitle = _rawConfig['messageTitle'] as String? ?? _messageTitle;
+    _profileTitle = _rawConfig['profileTitle'] as String? ?? _profileTitle;
+    final titles = _rawConfig['screenTitles'];
+    if (titles is Map) {
+      _screenTitles =
+          titles.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+
+    _cpWebUrl = _rawConfig['cpWebUrl'] as String? ?? _cpWebUrl;
+    _audioCompany =
+        _rawConfig['audioProvider'] as String? ?? _audioCompany;
+
+    final overrides = _rawConfig['assetsOverrides'];
+    if (overrides is Map) {
+      _assetsOverride =
+          overrides.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+
+    final sizes = _rawConfig['assetSizes'];
+    if (sizes is Map) {
+      _assetSizes = sizes.map((k, v) {
+        final entry =
+            v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
+        return MapEntry(k.toString(), entry);
+      });
+    }
+
+    final msg = _rawConfig['lastSystemMessage'];
+    if (msg is Map) {
+      _lastSystemMessage = msg.cast<String, dynamic>();
+    }
+
+    _coinsPerRechargeXp =
+        (_rawConfig['coinsPerRechargeXp'] ?? 10).toInt();
+    _diamondToCoinRate = (_rawConfig['diamondToCoinRate'] ?? 2).toInt();
+    _roomBgPrice = (_rawConfig['roomBgPrice'] ?? 100).toInt();
+
+    final rc = _rawConfig['rankConfig'];
+    if (rc is Map) {
+      _rankBg = rc['bg']?.toString() ?? _rankBg;
+      _rankGoldColor = rc['goldColor']?.toString() ?? _rankGoldColor;
+      _rankSilverColor = rc['silverColor']?.toString() ?? _rankSilverColor;
+      _rankBronzeColor = rc['bronzeColor']?.toString() ?? _rankBronzeColor;
+      _rankPointsColor = rc['pointsColor']?.toString() ?? _rankPointsColor;
+      _rankTrophyIcon = rc['trophyIcon']?.toString() ?? _rankTrophyIcon;
+      _rankEmptyText = rc['emptyText']?.toString() ?? _rankEmptyText;
+      _rankTextColor = rc['textColor']?.toString() ?? _rankTextColor;
+      _rankSubTextColor = rc['subTextColor']?.toString() ?? _rankSubTextColor;
+
+      for (final cat in ['wealth', 'charm', 'room']) {
+        final catCfg = <String, String>{};
+        final bgKey = '${cat}_bg';
+        if (rc[bgKey] != null) catCfg['bg'] = rc[bgKey].toString();
+        for (final field in [
+          'goldColor',
+          'silverColor',
+          'bronzeColor',
+          'pointsColor',
+          'textColor',
+          'subTextColor'
+        ]) {
+          final key = '${cat}_$field';
+          if (rc[key] != null) catCfg[field] = rc[key].toString();
+        }
+        if (catCfg.isNotEmpty) _rankCategoryConfigs[cat] = catCfg;
+      }
+    }
+
+    final rgs = _rawConfig['roomGradients'];
+    if (rgs is Map) {
+      _roomGradients = rgs.map((k, v) {
+        final colors = <Color>[];
+        if (v is List) {
+          for (final c in v) {
+            colors.add(_parseColor(c.toString(), Colors.transparent));
+          }
+        }
+        return MapEntry(k.toString(), colors);
+      });
+    }
+
+    final rbi = _rawConfig['roomBgImages'];
+    if (rbi is Map) {
+      _roomBgImages =
+          rbi.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+
+    final gi = _rawConfig['globalImages'];
+    if (gi is Map) {
+      _globalImages =
+          gi.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+
+    final cc = _rawConfig['chatColors'];
+    if (cc is Map) {
+      _chatBubbleSelf = _parseColor(cc['bubbleSelf'], _chatBubbleSelf);
+      _chatBubbleOther = _parseColor(cc['bubbleOther'], _chatBubbleOther);
+      _chatBubbleSelfBorder =
+          _parseColor(cc['bubbleSelfBorder'], _chatBubbleSelfBorder);
+      _chatBubbleOtherBorder =
+          _parseColor(cc['bubbleOtherBorder'], _chatBubbleOtherBorder);
+      _chatBubbleSelfText =
+          _parseColor(cc['bubbleSelfText'], _chatBubbleSelfText);
+      _chatBubbleOtherText =
+          _parseColor(cc['bubbleOtherText'], _chatBubbleOtherText);
+    }
+
+    final sv = _rawConfig['screenVisuals'];
+    if (sv is Map) {
+      _screenVisuals = sv.map((k, v) => MapEntry(k.toString(), v));
+    }
+
+    final io = _rawConfig['iconOverrides'];
+    if (io is Map) {
+      _iconOverrides =
+          io.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+
+    final restartFlag = _rawConfig['restartApp'];
+    if (restartFlag == true || restartFlag == 'true') {
+      debugPrint('DynamicConfigService: restartApp flag detected, restarting...');
+      _db.collection('app_config').doc('restartApp').set({'value': false}, SetOptions(merge: true));
+      Restart.restartApp();
+    }
+
+    _assetVersion++;
+    if (_initCompleter != null && !_initCompleter!.isCompleted) {
+      _initCompleter!.complete();
+    }
+    notifyListeners();
   }
 
   void _setupConfigStream() {
+    // 1. Fetch from Supabase app_config first
+    SupabaseDataService().getAppConfig().then((cfg) {
+      if (cfg.isNotEmpty) {
+        _applyConfig(cfg);
+      }
+    }).catchError((e) {
+      debugPrint('DynamicConfigService: supabase getAppConfig error: $e');
+    });
+
+    // 2. Periodic poll Supabase app_config every 45s
+    Timer.periodic(const Duration(seconds: 45), (_) {
+      SupabaseDataService().getAppConfig().then((cfg) {
+        if (cfg.isNotEmpty) {
+          _applyConfig(cfg);
+        }
+      }).catchError((_) {});
+    });
+
+    // 3. Listen to Firestore app_config
     _configSub = _db.collection('app_config').snapshots().listen((snap) {
       final config = <String, dynamic>{};
       for (final doc in snap.docs) {
         final data = doc.data();
         final k = doc.id;
         final v = data['value'];
-        if (v is String) {
-          final parsed = _tryParseJson(v);
-          config[k] = parsed ?? v;
-        } else {
-          config[k] = v;
-        }
+        config[k] = v;
       }
-
-      _rawConfig.clear();
-      _rawConfig.addAll(config);
-
-      _appName = config['appName'] as String? ?? _appName;
-      _logoUrl = config['logoUrl'] as String? ?? _logoUrl;
-      _splashEnabled = config['splash_enabled'] == true || config['splash_enabled'] == 'true' || config['splashEnabled'] == true || config['splashEnabled'] == 'true';
-      _splashImageUrl = config['splash_image_url'] as String? ?? config['splashImageUrl'] as String? ?? config['splashGifUrl'] as String? ?? '';
-      _splashSvgaUrl = config['splash_svga_url'] as String? ?? config['splashSvgaUrl'] as String? ?? '';
-      _splashDurationSeconds = (config['splash_duration_seconds'] as num?)?.toInt() ?? (config['splashDurationSeconds'] as num?)?.toInt() ?? 3;
-      _splashActionType = config['splash_action_type'] as String? ?? config['splashActionType'] as String? ?? '';
-      _splashActionValue = config['splash_action_value'] as String? ?? config['splashActionValue'] as String? ?? '';
-      _splashUrl = _splashImageUrl.isNotEmpty ? _splashImageUrl : (config['splashGifUrl'] as String? ?? _splashUrl);
-      _splashNameColor = _parseColor(config['splashNameColor'], _splashNameColor);
-
-      _primaryBg = _parseColor(config['primaryBg'], _primaryBg);
-      _textPrimary = _parseColor(config['textPrimary'], _textPrimary);
-      _textSecondary = _parseColor(config['textSecondary'], _textSecondary);
-      _goldColor = _parseColor(config['goldColor'], _goldColor);
-      _buttonColor = _parseColor(config['buttonColor'], _buttonColor);
-      _buttonTextColor = _parseColor(config['buttonTextColor'], _buttonTextColor);
-      _headerColor = _parseColor(config['headerColor'], _headerColor);
-      _tabBarColor = _parseColor(config['tabBarColor'], _tabBarColor);
-
-      _bottomNavBgImage = config['bottomNavBgImage'] as String? ?? _bottomNavBgImage;
-      _bottomNavGradientStart = _parseColor(config['bottomNavGradientStart'], _bottomNavGradientStart);
-      _bottomNavGradientEnd = _parseColor(config['bottomNavGradientEnd'], _bottomNavGradientEnd);
-      _bottomNavActiveTextColor = _parseColor(config['bottomNavActiveTextColor'], _bottomNavActiveTextColor);
-      _bottomNavInactiveTextColor = _parseColor(config['bottomNavInactiveTextColor'], _bottomNavInactiveTextColor);
-
-      _giftPanelBgImage = config['giftPanelBgImage'] as String? ?? config['gift_panel_bg_image'] as String? ?? _giftPanelBgImage;
-      _giftPanelHeaderBgImage = config['giftPanelHeaderBgImage'] as String? ?? config['gift_panel_header_bg_image'] as String? ?? _giftPanelHeaderBgImage;
-      _giftPanelBgColor = _parseColor(config['giftPanelBgColor'] ?? config['gift_panel_bg_color'], _giftPanelBgColor);
-      _giftPanelTabColor = _parseColor(config['giftPanelTabColor'] ?? config['gift_panel_tab_color'], _giftPanelTabColor);
-
-      _fontFamily = config['fontFamily'] as String? ?? _fontFamily;
-      _borderRadius = (config['borderRadius'] as num?)?.toInt() ?? _borderRadius;
-
-      _vipCardBgColor = _parseColor(config['vipCardBgColor'], _vipCardBgColor);
-      _vipCardBorderColor = _parseColor(config['vipCardBorderColor'], _vipCardBorderColor);
-
-      _vipCardBgImgUrl = config['vipCardBgImgUrl'] as String? ?? _vipCardBgImgUrl;
-      _vipPurchaseBarImgUrl = config['vipPurchaseBarImgUrl'] as String? ?? _vipPurchaseBarImgUrl;
-      _vipCoinImgUrl = config['vipCoinImgUrl'] as String? ?? _vipCoinImgUrl;
-      _vipBuyBtnImgUrl = config['vipBuyBtnImgUrl'] as String? ?? _vipBuyBtnImgUrl;
-
-      _discoverTitle = config['discoverTitle'] as String? ?? _discoverTitle;
-      _messageTitle = config['messageTitle'] as String? ?? _messageTitle;
-      _profileTitle = config['profileTitle'] as String? ?? _profileTitle;
-      final titles = config['screenTitles'];
-      if (titles is Map) {
-        _screenTitles = titles.map((k, v) => MapEntry(k.toString(), v.toString()));
-      }
-
-      _cpWebUrl = config['cpWebUrl'] as String? ?? _cpWebUrl;
-      _audioCompany = config['audioProvider'] as String? ?? _audioCompany;
-
-      final overrides = config['assetsOverrides'];
-      if (overrides is Map) {
-        _assetsOverride = overrides.map((k, v) => MapEntry(k.toString(), v.toString()));
-      }
-
-      final sizes = config['assetSizes'];
-      if (sizes is Map) {
-        _assetSizes = sizes.map((k, v) {
-          final entry = v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
-          return MapEntry(k.toString(), entry);
-        });
-      }
-
-      final msg = config['lastSystemMessage'];
-      if (msg is Map) {
-        _lastSystemMessage = msg.cast<String, dynamic>();
-      }
-
-      _coinsPerRechargeXp = (config['coinsPerRechargeXp'] ?? 10).toInt();
-      _diamondToCoinRate = (config['diamondToCoinRate'] ?? 2).toInt();
-      _roomBgPrice = (config['roomBgPrice'] ?? 100).toInt();
-
-      final rc = config['rankConfig'];
-      if (rc is Map) {
-        _rankBg = rc['bg']?.toString() ?? _rankBg;
-        _rankGoldColor = rc['goldColor']?.toString() ?? _rankGoldColor;
-        _rankSilverColor = rc['silverColor']?.toString() ?? _rankSilverColor;
-        _rankBronzeColor = rc['bronzeColor']?.toString() ?? _rankBronzeColor;
-        _rankPointsColor = rc['pointsColor']?.toString() ?? _rankPointsColor;
-        _rankTrophyIcon = rc['trophyIcon']?.toString() ?? _rankTrophyIcon;
-        _rankEmptyText = rc['emptyText']?.toString() ?? _rankEmptyText;
-        _rankTextColor = rc['textColor']?.toString() ?? _rankTextColor;
-        _rankSubTextColor = rc['subTextColor']?.toString() ?? _rankSubTextColor;
-
-        for (final cat in ['wealth', 'charm', 'room']) {
-          final catCfg = <String, String>{};
-          final bgKey = '${cat}_bg';
-          if (rc[bgKey] != null) catCfg['bg'] = rc[bgKey].toString();
-          for (final field in ['goldColor', 'silverColor', 'bronzeColor', 'pointsColor', 'textColor', 'subTextColor']) {
-            final key = '${cat}_$field';
-            if (rc[key] != null) catCfg[field] = rc[key].toString();
-          }
-          if (catCfg.isNotEmpty) _rankCategoryConfigs[cat] = catCfg;
-        }
-      }
-
-      final rgs = config['roomGradients'];
-      if (rgs is Map) {
-        _roomGradients = rgs.map((k, v) {
-          final colors = <Color>[];
-          if (v is List) {
-            for (final c in v) {
-              colors.add(_parseColor(c.toString(), Colors.transparent));
-            }
-          }
-          return MapEntry(k.toString(), colors);
-        });
-      }
-
-      final rbi = config['roomBgImages'];
-      if (rbi is Map) {
-        _roomBgImages = rbi.map((k, v) => MapEntry(k.toString(), v.toString()));
-      }
-
-      final gi = config['globalImages'];
-      if (gi is Map) {
-        _globalImages = gi.map((k, v) => MapEntry(k.toString(), v.toString()));
-      }
-
-      final cc = config['chatColors'];
-      if (cc is Map) {
-        _chatBubbleSelf = _parseColor(cc['bubbleSelf'], _chatBubbleSelf);
-        _chatBubbleOther = _parseColor(cc['bubbleOther'], _chatBubbleOther);
-        _chatBubbleSelfBorder = _parseColor(cc['bubbleSelfBorder'], _chatBubbleSelfBorder);
-        _chatBubbleOtherBorder = _parseColor(cc['bubbleOtherBorder'], _chatBubbleOtherBorder);
-        _chatBubbleSelfText = _parseColor(cc['bubbleSelfText'], _chatBubbleSelfText);
-        _chatBubbleOtherText = _parseColor(cc['bubbleOtherText'], _chatBubbleOtherText);
-      }
-
-      final sv = config['screenVisuals'];
-      if (sv is Map) {
-        _screenVisuals = sv.map((k, v) => MapEntry(k.toString(), v));
-      }
-
-      final io = config['iconOverrides'];
-      if (io is Map) {
-        _iconOverrides = io.map((k, v) => MapEntry(k.toString(), v.toString()));
-      }
-
-      final restartFlag = config['restartApp'];
-      if (restartFlag == true || restartFlag == 'true') {
-        debugPrint('DynamicConfigService: restartApp flag detected, restarting...');
-        _db.collection('app_config').doc('restartApp').set({'value': false}, SetOptions(merge: true));
-        Restart.restartApp();
-      }
-
-      _assetVersion++;
-      if (_initCompleter != null && !_initCompleter!.isCompleted) {
-        _initCompleter!.complete();
-      }
-      notifyListeners();
+      _applyConfig(config);
     }, onError: (error) {
       debugPrint('DynamicConfigService: error loading config: $error');
-      final errorStr = error.toString();
-      if (errorStr.contains('JWT expired') || errorStr.contains('PGRST303') || errorStr.contains('Unauthorized')) {
-      }
       if (_initCompleter != null && !_initCompleter!.isCompleted) {
         _initCompleter!.complete();
       }

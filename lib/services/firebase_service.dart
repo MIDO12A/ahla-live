@@ -1643,56 +1643,144 @@ class FirebaseService {
   // ═══════════════════════════════════════════════════════
 
   Stream<List<gm.GiftModel>> giftsStream() {
-    return _db.collection('gifts').snapshots().map((snap) {
-      final gifts = snap.docs.map((e) => gm.GiftModel.fromMap(_data(e))).toList();
-      gifts.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      return gifts;
+    final controller = StreamController<List<gm.GiftModel>>.broadcast();
+    List<gm.GiftModel> sbGifts = [];
+    List<gm.GiftModel> fsGifts = [];
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      final map = <String, gm.GiftModel>{};
+      for (final g in sbGifts) {
+        map[g.id] = g;
+      }
+      for (final g in fsGifts) {
+        map.putIfAbsent(g.id, () => g);
+      }
+      final list = map.values.toList();
+      list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      controller.add(list);
+    }
+
+    SupabaseDataService().getGifts().then((list) {
+      sbGifts = list;
+      emitMerged();
+    }).catchError((_) {});
+
+    final timer = Timer.periodic(const Duration(seconds: 45), (_) {
+      SupabaseDataService().getGifts().then((list) {
+        sbGifts = list;
+        emitMerged();
+      }).catchError((_) {});
     });
+
+    final sub = _db.collection('gifts').snapshots().listen((snap) {
+      fsGifts = snap.docs.map((e) => gm.GiftModel.fromMap(_data(e))).toList();
+      emitMerged();
+    }, onError: (_) {});
+
+    controller.onCancel = () {
+      timer.cancel();
+      sub.cancel();
+    };
+
+    return controller.stream;
   }
 
   Future<Map<String, gm.GiftModel>> getGiftsCatalog() async {
+    final Map<String, gm.GiftModel> map = {};
+    try {
+      final sbGifts = await SupabaseDataService().getGifts();
+      for (final g in sbGifts) {
+        map[g.id] = g;
+      }
+    } catch (e) {
+      debugPrint('getGiftsCatalog supabase error: $e');
+    }
     try {
       final snap = await _db.collection('gifts').get();
-      return {for (final e in snap.docs) e.id: gm.GiftModel.fromMap(_data(e))};
+      for (final e in snap.docs) {
+        final g = gm.GiftModel.fromMap(_data(e));
+        map.putIfAbsent(e.id, () => g);
+      }
     } catch (e) {
-      debugPrint('getGiftsCatalog error: $e');
-      return {};
+      debugPrint('getGiftsCatalog firestore error: $e');
     }
+    return map;
   }
 
   Future<List<gm.GiftModel>> getCpGiftsFromCatalog() async {
-    try {
-      final snap = await _db
-          .collection('gifts')
-          .where('is_cp_gift', isEqualTo: true)
-          .get();
-      final list = snap.docs.map((e) => gm.GiftModel.fromMap(_data(e))).toList();
-      list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      return list;
-    } catch (e) {
-      debugPrint('getCpGiftsFromCatalog error: $e');
-      return [];
-    }
+    final catalog = await getGiftsCatalog();
+    final list = catalog.values.where((g) => g.isCpGift).toList();
+    list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return list;
   }
 
   Stream<List<GiftCategory>> giftCategoriesStream() {
-    return _db.collection('gift_categories').snapshots().map((snap) {
-      final cats = snap.docs.map((e) => GiftCategory.fromMap(_data(e))).toList();
-      cats.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      return cats;
+    final controller = StreamController<List<GiftCategory>>.broadcast();
+    List<GiftCategory> sbCats = [];
+    List<GiftCategory> fsCats = [];
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      final map = <String, GiftCategory>{};
+      for (final c in sbCats) {
+        map[c.id] = c;
+      }
+      for (final c in fsCats) {
+        map.putIfAbsent(c.id, () => c);
+      }
+      final list = map.values.toList();
+      list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      controller.add(list);
+    }
+
+    SupabaseDataService().getGiftCategories().then((list) {
+      sbCats = list;
+      emitMerged();
+    }).catchError((_) {});
+
+    final timer = Timer.periodic(const Duration(seconds: 45), (_) {
+      SupabaseDataService().getGiftCategories().then((list) {
+        sbCats = list;
+        emitMerged();
+      }).catchError((_) {});
     });
+
+    final sub = _db.collection('gift_categories').snapshots().listen((snap) {
+      fsCats = snap.docs.map((e) => GiftCategory.fromMap(_data(e))).toList();
+      emitMerged();
+    }, onError: (_) {});
+
+    controller.onCancel = () {
+      timer.cancel();
+      sub.cancel();
+    };
+
+    return controller.stream;
   }
 
   Future<List<GiftCategory>> getGiftCategories() async {
+    final Map<String, GiftCategory> map = {};
+    try {
+      final sbCats = await SupabaseDataService().getGiftCategories();
+      for (final c in sbCats) {
+        map[c.id] = c;
+      }
+    } catch (e) {
+      debugPrint('getGiftCategories supabase error: $e');
+    }
     try {
       final snap = await _db.collection('gift_categories').get();
-      final list = snap.docs.map((e) => GiftCategory.fromMap(_data(e))).toList();
-      list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      return list;
+      for (final e in snap.docs) {
+        final c = GiftCategory.fromMap(_data(e));
+        map.putIfAbsent(c.id, () => c);
+      }
     } catch (e) {
-      debugPrint('getGiftCategories error: $e');
-      return [];
+      debugPrint('getGiftCategories firestore error: $e');
     }
+    final list = map.values.toList();
+    list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return list;
   }
 
   Future<void> saveGiftCategory(GiftCategory category) async {
@@ -1712,20 +1800,67 @@ class FirebaseService {
   }
 
   Stream<List<GiftBannerConfig>> giftBannerConfigsStream() {
-    return _db
-        .collection('gift_banner_configs')
-        .snapshots()
-        .map((snap) => snap.docs.map((e) => GiftBannerConfig.fromMap(_data(e))).toList());
+    final controller = StreamController<List<GiftBannerConfig>>.broadcast();
+    List<GiftBannerConfig> sbConfigs = [];
+    List<GiftBannerConfig> fsConfigs = [];
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      final map = <String, GiftBannerConfig>{};
+      for (final c in sbConfigs) {
+        map[c.id] = c;
+      }
+      for (final c in fsConfigs) {
+        map.putIfAbsent(c.id, () => c);
+      }
+      controller.add(map.values.toList());
+    }
+
+    SupabaseDataService().getGiftBannerConfigs().then((list) {
+      sbConfigs = list;
+      emitMerged();
+    }).catchError((_) {});
+
+    final timer = Timer.periodic(const Duration(seconds: 45), (_) {
+      SupabaseDataService().getGiftBannerConfigs().then((list) {
+        sbConfigs = list;
+        emitMerged();
+      }).catchError((_) {});
+    });
+
+    final sub = _db.collection('gift_banner_configs').snapshots().listen((snap) {
+      fsConfigs = snap.docs.map((e) => GiftBannerConfig.fromMap(_data(e))).toList();
+      emitMerged();
+    }, onError: (_) {});
+
+    controller.onCancel = () {
+      timer.cancel();
+      sub.cancel();
+    };
+
+    return controller.stream;
   }
 
   Future<List<GiftBannerConfig>> getGiftBannerConfigs() async {
+    final Map<String, GiftBannerConfig> map = {};
+    try {
+      final sbConfigs = await SupabaseDataService().getGiftBannerConfigs();
+      for (final c in sbConfigs) {
+        map[c.id] = c;
+      }
+    } catch (e) {
+      debugPrint('getGiftBannerConfigs supabase error: $e');
+    }
     try {
       final snap = await _db.collection('gift_banner_configs').get();
-      return snap.docs.map((e) => GiftBannerConfig.fromMap(_data(e))).toList();
+      for (final e in snap.docs) {
+        final c = GiftBannerConfig.fromMap(_data(e));
+        map.putIfAbsent(c.id, () => c);
+      }
     } catch (e) {
-      debugPrint('getGiftBannerConfigs error: $e');
-      return [];
+      debugPrint('getGiftBannerConfigs firestore error: $e');
     }
+    return map.values.toList();
   }
 
   Future<void> saveGiftBannerConfig(GiftBannerConfig config) async {
@@ -1756,13 +1891,27 @@ class FirebaseService {
   // ═══════════════════════════════════════════════════════
 
   Future<List<RankingFrameConfig>> getRankingFrames() async {
+    final Map<String, RankingFrameConfig> map = {};
+    try {
+      final sbFrames = await SupabaseDataService().getRankingFrames();
+      for (final f in sbFrames) {
+        final k = f.id.isNotEmpty ? f.id : '${f.category}_${f.rank}';
+        map[k] = f;
+      }
+    } catch (e) {
+      debugPrint('getRankingFrames supabase error: $e');
+    }
     try {
       final snap = await _db.collection('ranking_frames').get();
-      return snap.docs.map((e) => RankingFrameConfig.fromMap(_data(e))).toList();
+      for (final e in snap.docs) {
+        final f = RankingFrameConfig.fromMap(_data(e));
+        final k = f.id.isNotEmpty ? f.id : '${f.category}_${f.rank}';
+        map.putIfAbsent(k, () => f);
+      }
     } catch (e) {
-      debugPrint('getRankingFrames error: $e');
-      return [];
+      debugPrint('getRankingFrames firestore error: $e');
     }
+    return map.values.toList();
   }
 
   Future<void> saveRankingFrame(RankingFrameConfig config) async {
@@ -1782,16 +1931,69 @@ class FirebaseService {
   Map<String, StoreItemModel> _storeItems = {};
 
   Stream<List<StoreItemModel>> storeItemsStream() {
-    return _db.collection('store_items').snapshots().map((snap) {
-      final items = snap.docs.map((e) => StoreItemModel.fromMap(_data(e))).toList();
-      _storeItems = {for (final item in items) item.itemId: item};
-      return items;
+    final controller = StreamController<List<StoreItemModel>>.broadcast();
+    List<StoreItemModel> sbItems = [];
+    List<StoreItemModel> fsItems = [];
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      final map = <String, StoreItemModel>{};
+      for (final item in sbItems) {
+        map[item.itemId] = item;
+      }
+      for (final item in fsItems) {
+        map.putIfAbsent(item.itemId, () => item);
+      }
+      final list = map.values.toList();
+      _storeItems = {for (final item in list) item.itemId: item};
+      controller.add(list);
+    }
+
+    SupabaseDataService().getStoreItems().then((list) {
+      sbItems = list;
+      emitMerged();
+    }).catchError((_) {});
+
+    final timer = Timer.periodic(const Duration(seconds: 45), (_) {
+      SupabaseDataService().getStoreItems().then((list) {
+        sbItems = list;
+        emitMerged();
+      }).catchError((_) {});
     });
+
+    final sub = _db.collection('store_items').snapshots().listen((snap) {
+      fsItems = snap.docs.map((e) => StoreItemModel.fromMap(_data(e))).toList();
+      emitMerged();
+    }, onError: (_) {});
+
+    controller.onCancel = () {
+      timer.cancel();
+      sub.cancel();
+    };
+
+    return controller.stream;
   }
 
   Future<List<StoreItemModel>> getStoreItems() async {
-    final snap = await _db.collection('store_items').get();
-    final items = snap.docs.map((e) => StoreItemModel.fromMap(_data(e))).toList();
+    final Map<String, StoreItemModel> map = {};
+    try {
+      final sbItems = await SupabaseDataService().getStoreItems();
+      for (final item in sbItems) {
+        map[item.itemId] = item;
+      }
+    } catch (e) {
+      debugPrint('getStoreItems supabase error: $e');
+    }
+    try {
+      final snap = await _db.collection('store_items').get();
+      for (final e in snap.docs) {
+        final item = StoreItemModel.fromMap(_data(e));
+        map.putIfAbsent(item.itemId, () => item);
+      }
+    } catch (e) {
+      debugPrint('getStoreItems firestore error: $e');
+    }
+    final items = map.values.toList();
     _storeItems = {for (final item in items) item.itemId: item};
     return items;
   }
@@ -1799,14 +2001,52 @@ class FirebaseService {
   StoreItemModel? getStoreItemSync(String itemId) => _storeItems[itemId];
 
   Stream<List<BannerConfig>> bannersStream() {
-    return _db.collection('banners').snapshots().map((snap) {
-      final banners = snap.docs
+    final controller = StreamController<List<BannerConfig>>.broadcast();
+    List<BannerConfig> sbBanners = [];
+    List<BannerConfig> fsBanners = [];
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      final map = <String, BannerConfig>{};
+      for (final b in sbBanners) {
+        if (b.active && b.imageUrl.isNotEmpty) map[b.id] = b;
+      }
+      for (final b in fsBanners) {
+        if (b.active && b.imageUrl.isNotEmpty) {
+          map.putIfAbsent(b.id, () => b);
+        }
+      }
+      final list = map.values.toList();
+      list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      controller.add(list);
+    }
+
+    SupabaseDataService().getBanners().then((list) {
+      sbBanners = list;
+      emitMerged();
+    }).catchError((_) {});
+
+    final timer = Timer.periodic(const Duration(seconds: 45), (_) {
+      SupabaseDataService().getBanners().then((list) {
+        sbBanners = list;
+        emitMerged();
+      }).catchError((_) {});
+    });
+
+    final sub = _db.collection('banners').snapshots().listen((snap) {
+      fsBanners = snap.docs
           .map((e) => BannerConfig.fromMap(_data(e)))
           .where((b) => b.active && b.imageUrl.isNotEmpty)
           .toList();
-      banners.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      return banners;
-    }).handleError((_) => <BannerConfig>[]);
+      emitMerged();
+    }, onError: (_) {});
+
+    controller.onCancel = () {
+      timer.cancel();
+      sub.cancel();
+    };
+
+    return controller.stream;
   }
 
   Future<void> addStoreItem(StoreItemModel item) async {

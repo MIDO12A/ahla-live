@@ -6,6 +6,13 @@ import '../config/supabase_config.dart';
 import '../models/room_model.dart';
 import '../models/message_model.dart';
 import '../models/user_model.dart';
+import '../models/banner_config.dart';
+import '../models/gift_model.dart' as gm;
+import '../models/gift_category_model.dart';
+import '../models/gift_banner_config_model.dart';
+import '../models/ranking_frame_config.dart';
+import '../models/store_item_model.dart';
+import '../models/app_asset_model.dart';
 
 class SupabaseDataService {
   static final SupabaseDataService _instance = SupabaseDataService._internal();
@@ -525,6 +532,153 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] getAllUsers error: $e');
     }
     return [];
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // BANNERS, GIFTS, ASSETS & CONFIG
+  // ═══════════════════════════════════════════════════════
+
+  Future<List<BannerConfig>> getBanners() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/banners?select=*&order=sort_order.asc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => BannerConfig.fromMap(Map<String, dynamic>.from(e as Map)))
+            .where((b) => b.active && b.imageUrl.isNotEmpty)
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getBanners error: $e');
+    }
+    return [];
+  }
+
+  Future<List<gm.GiftModel>> getGifts() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gifts?select=*&order=sort_order.asc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => gm.GiftModel.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getGifts error: $e');
+    }
+    return [];
+  }
+
+  Future<List<GiftCategory>> getGiftCategories() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gift_categories?select=*&order=sort_order.asc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => GiftCategory.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getGiftCategories error: $e');
+    }
+    return [];
+  }
+
+  Future<List<GiftBannerConfig>> getGiftBannerConfigs() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gift_banner_configs?select=*');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => GiftBannerConfig.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getGiftBannerConfigs error: $e');
+    }
+    return [];
+  }
+
+  Future<List<StoreItemModel>> getStoreItems() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/store_items?select=*');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => StoreItemModel.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getStoreItems error: $e');
+    }
+    return [];
+  }
+
+  Future<List<RankingFrameConfig>> getRankingFrames() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/ranking_frames?select=*');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => RankingFrameConfig.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getRankingFrames error: $e');
+    }
+    return [];
+  }
+
+  Future<Map<String, AppAssetModel>> getAppAssets() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/app_assets?select=*');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        final map = <String, AppAssetModel>{};
+        for (final item in list) {
+          final row = Map<String, dynamic>.from(item as Map);
+          if (row['is_active'] != false) {
+            final asset = AppAssetModel.fromJson(row);
+            if (asset.key.isNotEmpty) {
+              map[asset.key] = asset;
+            }
+          }
+        }
+        return map;
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getAppAssets error: $e');
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>> getAppConfig() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/app_config?select=*');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        final map = <String, dynamic>{};
+        for (final item in list) {
+          final row = Map<String, dynamic>.from(item as Map);
+          final k = row['key']?.toString();
+          if (k != null && k.isNotEmpty) {
+            map[k] = row['value'];
+          }
+        }
+        return map;
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getAppConfig error: $e');
+    }
+    return {};
   }
 }
 
