@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import '../services/supabase_service.dart';
+import 'supabase_data_service.dart';
 
 class LevelConfig {
   final int level;
@@ -65,6 +66,27 @@ class LevelService extends ChangeNotifier {
   void init() {
     if (_initialized) return;
     _initialized = true;
+
+    // Fast seed from Supabase in background
+    unawaited(Future(() async {
+      try {
+        final configs = await SupabaseDataService().getLevelConfigs();
+        if (configs.isNotEmpty) {
+          for (final type in ['wealth', 'recharge', 'gems']) {
+            final list = configs
+                .map((e) => LevelConfig.fromMap(e))
+                .where((e) => e.type == type)
+                .toList();
+            list.sort((a, b) => a.level.compareTo(b.level));
+            if (list.isNotEmpty) {
+              _cachedLevels[type] = list;
+            }
+          }
+          notifyListeners();
+        }
+      } catch (_) {}
+    }));
+
     for (final type in ['wealth', 'recharge', 'gems']) {
       final sub = _db.collection('level_config').where('type', isEqualTo: type).snapshots().map((snap) {
         final configs = snap.docs.map((e) => LevelConfig.fromMap(_data(e))).toList();
@@ -91,26 +113,58 @@ class LevelService extends ChangeNotifier {
     super.dispose();
   }
 
-  Stream<List<LevelConfig>> levelsStream(String type) {
-    return _db.collection('level_config').where('type', isEqualTo: type).snapshots().map((snap) {
+  Stream<List<LevelConfig>> levelsStream(String type) async* {
+    if (_cachedLevels[type] != null && _cachedLevels[type]!.isNotEmpty) {
+      yield _cachedLevels[type]!;
+    } else {
+      try {
+        final sbConfigs = await SupabaseDataService().getLevelConfigs(type: type);
+        if (sbConfigs.isNotEmpty) {
+          final configs = sbConfigs.map((e) => LevelConfig.fromMap(e)).toList();
+          configs.sort((a, b) => a.level.compareTo(b.level));
+          _cachedLevels[type] = configs;
+          yield configs;
+        }
+      } catch (_) {}
+    }
+    yield* _db.collection('level_config').where('type', isEqualTo: type).snapshots().map((snap) {
       final configs = snap.docs.map((e) => LevelConfig.fromMap(_data(e))).toList();
       configs.sort((a, b) => a.level.compareTo(b.level));
       _cachedLevels[type] = configs;
       return configs;
-    }).asBroadcastStream();
+    }).handleError((_) => _cachedLevels[type] ?? <LevelConfig>[]);
   }
 
   Future<void> loadAllLevels() async {
     init();
-    final res = await _db.collection('level_config').get();
-    for (final type in ['wealth', 'recharge', 'gems']) {
-      final list = res.docs
-          .map((e) => LevelConfig.fromMap(_data(e)))
-          .where((e) => e.type == type)
-          .toList();
-      list.sort((a, b) => a.level.compareTo(b.level));
-      _cachedLevels[type] = list;
-    }
+    try {
+      final configs = await SupabaseDataService().getLevelConfigs();
+      if (configs.isNotEmpty) {
+        for (final type in ['wealth', 'recharge', 'gems']) {
+          final list = configs
+              .map((e) => LevelConfig.fromMap(e))
+              .where((e) => e.type == type)
+              .toList();
+          list.sort((a, b) => a.level.compareTo(b.level));
+          if (list.isNotEmpty) {
+            _cachedLevels[type] = list;
+          }
+        }
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      final res = await _db.collection('level_config').get();
+      for (final type in ['wealth', 'recharge', 'gems']) {
+        final list = res.docs
+            .map((e) => LevelConfig.fromMap(_data(e)))
+            .where((e) => e.type == type)
+            .toList();
+        list.sort((a, b) => a.level.compareTo(b.level));
+        _cachedLevels[type] = list;
+      }
+    } catch (_) {}
   }
 
   Map<String, dynamic> _data(DocumentSnapshot<Map<String, dynamic>> snap) =>

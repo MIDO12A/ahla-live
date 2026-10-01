@@ -479,10 +479,8 @@ export async function getUnions(): Promise<UnionModel[]> {
 }
 
 export function subscribeUnions(cb: (unions: UnionModel[]) => void) {
-  const sub = supabase.channel('unions').on('postgres_changes', { event: '*', schema: 'public', table: 'unions' }, () => {
-    getUnions().then(cb)
-  }).subscribe()
-  return () => { try { supabase.removeChannel(sub) } catch {} }
+  cb([]);
+  return () => {};
 }
 
 // ---- Sent Gifts ----
@@ -2288,57 +2286,115 @@ export async function deleteGiftBannerConfig(id: string) {
 
 export async function getCpGifts(): Promise<CpGiftModel[]> {
   try {
-    const { data } = await supabase.from('cp_gifts').select('*').order('sort_order')
-    return mapList<CpGiftModel>(data ?? [])
-  } catch { return [] }
+    const { data, error } = await supabase.from('cp_gifts').select('*').order('sort_order')
+    if (!error && data && data.length > 0) {
+      return mapList<CpGiftModel>(data)
+    }
+  } catch {}
+  try {
+    const { data } = await supabase.from('gifts').select('*').or('is_cp_gift.eq.true,category.eq.cp')
+    if (data && data.length > 0) {
+      return mapList<CpGiftModel>(data)
+    }
+  } catch {}
+  return []
 }
 
 export async function addCpGift(id: string, data: CpGiftModel) {
   try {
     await supabase.from('cp_gifts').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
-  } catch (e) { console.warn('addCpGift failed:', e) }
+  } catch {
+    try {
+      await supabase.from('gifts').upsert({
+        id,
+        ...toSnakeCase(data as unknown as Record<string, unknown>),
+        is_cp_gift: true,
+      })
+    } catch (e) {
+      console.warn('addCpGift failed:', e)
+    }
+  }
 }
 
 export async function updateCpGift(id: string, data: Partial<CpGiftModel>) {
   try {
     await supabase.from('cp_gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
-  } catch (e) { console.warn('updateCpGift failed:', e) }
+  } catch {
+    try {
+      await supabase.from('gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
+    } catch (e) {
+      console.warn('updateCpGift failed:', e)
+    }
+  }
 }
 
 export async function deleteCpGift(id: string) {
-  try { await supabase.from('cp_gifts').delete().eq('id', id) }
-  catch (e) { console.warn('deleteCpGift failed:', e) }
+  try { await supabase.from('cp_gifts').delete().eq('id', id) } catch {}
+  try { await supabase.from('gifts').delete().eq('id', id) } catch {}
 }
 
 export async function getCpCars(): Promise<CpCarModel[]> {
   try {
-    const { data } = await supabase.from('cp_cars').select('*').order('sort_order')
-    return mapList<CpCarModel>(data ?? [])
-  } catch { return [] }
+    const { data, error } = await supabase.from('cp_cars').select('*').order('sort_order')
+    if (!error && data && data.length > 0) {
+      return mapList<CpCarModel>(data)
+    }
+  } catch {}
+  try {
+    const { data } = await supabase.from('store_items').select('*').eq('category', 'car')
+    if (data && data.length > 0) {
+      return mapList<CpCarModel>(data)
+    }
+  } catch {}
+  return []
 }
 
 export async function addCpCar(id: string, data: CpCarModel) {
   try {
     await supabase.from('cp_cars').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
-  } catch (e) { console.warn('addCpCar failed:', e) }
+  } catch {
+    try {
+      await supabase.from('store_items').upsert({
+        id,
+        ...toSnakeCase(data as unknown as Record<string, unknown>),
+        category: 'car',
+      })
+    } catch (e) {
+      console.warn('addCpCar failed:', e)
+    }
+  }
 }
 
 export async function updateCpCar(id: string, data: Partial<CpCarModel>) {
   try {
     await supabase.from('cp_cars').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
-  } catch (e) { console.warn('updateCpCar failed:', e) }
+  } catch {
+    try {
+      await supabase.from('store_items').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
+    } catch (e) {
+      console.warn('updateCpCar failed:', e)
+    }
+  }
 }
 
 export async function deleteCpCar(id: string) {
-  try { await supabase.from('cp_cars').delete().eq('id', id) }
-  catch (e) { console.warn('deleteCpCar failed:', e) }
+  try { await supabase.from('cp_cars').delete().eq('id', id) } catch {}
+  try { await supabase.from('store_items').delete().eq('id', id) } catch {}
 }
 
 export async function getCpSettings(): Promise<Record<string, string>> {
   try {
-    const { data } = await supabase.from('cp_settings').select('key, value')
+    const { data, error } = await supabase.from('cp_settings').select('key, value')
+    if (!error && data && data.length > 0) {
+      const map: Record<string, string> = {}
+      for (const row of data) map[row.key] = row.value
+      return map
+    }
+  } catch {}
+  try {
+    const { data } = await supabase.from('app_config').select('key, value').like('key', 'cp_%')
     const map: Record<string, string> = {}
-    for (const row of data ?? []) map[row.key] = row.value
+    for (const row of data ?? []) map[row.key] = typeof row.value === 'string' ? row.value : JSON.stringify(row.value)
     return map
   } catch { return {} }
 }
@@ -2346,33 +2402,67 @@ export async function getCpSettings(): Promise<Record<string, string>> {
 export async function updateCpSetting(key: string, value: string) {
   try {
     await supabase.from('cp_settings').upsert({ key, value, updated_at: new Date().toISOString() })
-  } catch (e) { console.warn('updateCpSetting failed:', e) }
+  } catch {
+    try {
+      await supabase.from('app_config').upsert({ key, value, updated_at: new Date().toISOString() })
+    } catch (e) { console.warn('updateCpSetting failed:', e) }
+  }
 }
 
 // ---- Weekly Sign-In Rewards (7-day daily login) ----
 
 export async function getSigninRewards(): Promise<SigninRewardModel[]> {
   try {
-    const { data } = await supabase.from('signin_rewards').select('*').order('day_number')
-    return mapList<SigninRewardModel>(data ?? [])
-  } catch { return [] }
+    const { data, error } = await supabase.from('signin_rewards').select('*').order('day_number')
+    if (!error && data && data.length > 0) {
+      return mapList<SigninRewardModel>(data)
+    }
+  } catch {}
+  try {
+    const { data } = await supabase.from('app_config').select('value').eq('key', 'signin_rewards').maybeSingle()
+    if (data && data.value && Array.isArray(data.value)) {
+      return data.value as SigninRewardModel[]
+    }
+  } catch {}
+  return []
 }
 
 export async function upsertSigninReward(id: string, data: Partial<SigninRewardModel>) {
   try {
     await supabase.from('signin_rewards').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
-  } catch (e) { console.warn('upsertSigninReward failed:', e) }
+  } catch {
+    try {
+      const current = await getSigninRewards()
+      const idx = current.findIndex(x => x.id === id)
+      if (idx >= 0) current[idx] = { ...current[idx], ...data }
+      else current.push({ id, ...data } as SigninRewardModel)
+      await supabase.from('app_config').upsert({ key: 'signin_rewards', value: current, updated_at: new Date().toISOString() })
+    } catch (e) { console.warn('upsertSigninReward failed:', e) }
+  }
 }
 
 export async function updateSigninReward(id: string, data: Partial<SigninRewardModel>) {
   try {
     await supabase.from('signin_rewards').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
-  } catch (e) { console.warn('updateSigninReward failed:', e) }
+  } catch {
+    try {
+      const current = await getSigninRewards()
+      const idx = current.findIndex(x => x.id === id)
+      if (idx >= 0) {
+        current[idx] = { ...current[idx], ...data }
+        await supabase.from('app_config').upsert({ key: 'signin_rewards', value: current, updated_at: new Date().toISOString() })
+      }
+    } catch (e) { console.warn('updateSigninReward failed:', e) }
+  }
 }
 
 export async function deleteSigninReward(id: string) {
-  try { await supabase.from('signin_rewards').delete().eq('id', id) }
-  catch (e) { console.warn('deleteSigninReward failed:', e) }
+  try { await supabase.from('signin_rewards').delete().eq('id', id) } catch {}
+  try {
+    const current = await getSigninRewards()
+    const filtered = current.filter(x => x.id !== id)
+    await supabase.from('app_config').upsert({ key: 'signin_rewards', value: filtered, updated_at: new Date().toISOString() })
+  } catch {}
 }
 
 // ---- CP Rank Rewards (بمجموعة Firestore cp_rank_rewards مباشرة) ----

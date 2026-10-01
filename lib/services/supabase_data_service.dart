@@ -13,6 +13,7 @@ import '../models/gift_banner_config_model.dart';
 import '../models/ranking_frame_config.dart';
 import '../models/store_item_model.dart';
 import '../models/app_asset_model.dart';
+import '../models/notification_model.dart';
 
 class SupabaseDataService {
   static final SupabaseDataService _instance = SupabaseDataService._internal();
@@ -679,6 +680,232 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] getAppConfig error: $e');
     }
     return {};
+  }
+
+  Future<bool> recordSentGift({
+    required String roomId,
+    required String giftId,
+    required String giftName,
+    String? animationAsset,
+    required String senderId,
+    required String senderName,
+    String? senderPhotoUrl,
+    required String receiverId,
+    required String receiverName,
+    required int value,
+    int count = 1,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts');
+      final res = await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'room_id': roomId,
+          'gift_id': giftId,
+          'gift_name': giftName,
+          'animation_asset': animationAsset,
+          'sender_id': senderId,
+          'sender_name': senderName,
+          'sender_photo_url': senderPhotoUrl,
+          'receiver_id': receiverId,
+          'receiver_name': receiverName,
+          'value': value,
+          'count': count,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] recordSentGift error: $e');
+      return false;
+    }
+  }
+
+  Future<List<NotificationModel>> getNotifications({String? uid}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/notifications?select=*&order=sent_at.desc&limit=50');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          return NotificationModel.fromMap(m);
+        }).where((n) {
+          final target = (n.data?['target'] ?? n.uid).toString();
+          if (uid == null || uid.isEmpty || target == 'all' || target.isEmpty || n.uid == uid || target == uid) {
+            return true;
+          }
+          return false;
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getNotifications error: $e');
+    }
+    return [];
+  }
+
+  Future<bool> sendNotification({
+    required String uid,
+    required String type,
+    String actorUid = '',
+    String title = '',
+    String body = '',
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/notifications');
+      final res = await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'title': title,
+          'body': body,
+          'target': uid,
+          'type': type,
+          'actor_uid': actorUid,
+          'data': data,
+          'is_read': false,
+          'sent_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] sendNotification error: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getBadges() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/badges?select=*');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getBadges error: $e');
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getNecklaces() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/necklaces?select=*&order=sort_order.asc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getNecklaces error: $e');
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getLevelConfigs({String? type}) async {
+    try {
+      final filter = type != null ? '?type=eq.$type&order=level.asc' : '?order=level.asc';
+      final url = Uri.parse('$_baseUrl/rest/v1/level_config$filter');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getLevelConfigs error: $e');
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getVipConfigs() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/vip_config?select=*&order=tier.asc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getVipConfigs error: $e');
+    }
+    return [];
+  }
+
+  Future<bool> submitReport(Map<String, dynamic> data) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/reports');
+      final res = await http.post(url, headers: _headers, body: jsonEncode(data));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] submitReport error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> submitBugReport(Map<String, dynamic> data) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/bug_reports');
+      final res = await http.post(url, headers: _headers, body: jsonEncode(data));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] submitBugReport error: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUserRanking({
+    required String orderByField,
+    int limit = 50,
+  }) async {
+    try {
+      final col = orderByField == 'total_gifts_received' ? 'total_gifts_received' : 'total_gifts_sent';
+      final url = Uri.parse('$_baseUrl/rest/v1/users?select=uid,custom_id,name,photo_url,level,total_gifts_sent,total_gifts_received&order=$col.desc&limit=$limit');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) {
+          final d = Map<String, dynamic>.from(e as Map);
+          return <String, dynamic>{
+            'uid': d['uid']?.toString() ?? '',
+            'id': (d['custom_id'] ?? d['customId'] ?? d['uid'] ?? '').toString(),
+            'name': (d['name'] ?? '').toString(),
+            'photo_url': (d['photo_url'] ?? d['photoUrl'] ?? '').toString(),
+            'level': d['level'] ?? 1,
+            'total_gifts_sent': (d['total_gifts_sent'] as num?)?.toInt() ?? 0,
+            'total_gifts_received': (d['total_gifts_received'] as num?)?.toInt() ?? 0,
+          };
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getUserRanking error: $e');
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getRoomRanking({int limit = 50}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/rooms?select=*&order=total_gifts.desc&limit=$limit');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) {
+          final d = Map<String, dynamic>.from(e as Map);
+          return <String, dynamic>{
+            'room_id': (d['room_id'] ?? '').toString(),
+            'name': (d['name'] ?? '').toString(),
+            'room_photo_url': (d['room_photo_url'] ?? d['bg_image'] ?? '').toString(),
+            'host_name': (d['host_name'] ?? '').toString(),
+            'total_gifts': (d['total_gifts'] as num?)?.toInt() ?? 0,
+            'hot_value': (d['hot_value'] as num?)?.toInt() ?? 0,
+          };
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getRoomRanking error: $e');
+    }
+    return [];
   }
 }
 

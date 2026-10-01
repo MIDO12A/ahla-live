@@ -942,6 +942,25 @@ class FirebaseService {
       } catch (_) {}
     }));
 
+    // Record gift transaction in Supabase
+    unawaited(Future(() async {
+      try {
+        await SupabaseDataService().recordSentGift(
+          roomId: roomId,
+          giftId: giftId,
+          giftName: giftName,
+          animationAsset: animationAsset ?? defaultImage,
+          senderId: senderId,
+          senderName: senderName,
+          senderPhotoUrl: senderPhotoUrl,
+          receiverId: receiverId,
+          receiverName: receiverName,
+          value: value,
+          count: count,
+        );
+      } catch (_) {}
+    }));
+
     return true;
   }
 
@@ -1576,6 +1595,16 @@ class FirebaseService {
     int limit = 50,
   }) async {
     try {
+      final sbRank = await SupabaseDataService().getUserRanking(
+        orderByField: orderByField,
+        limit: limit,
+      );
+      if (sbRank.isNotEmpty) {
+        return sbRank;
+      }
+    } catch (_) {}
+
+    try {
       final snap = await _db
           .collection('users')
           .orderBy(orderByField, descending: true)
@@ -1601,6 +1630,19 @@ class FirebaseService {
 
   /// ترتيب الغرف حسب إجمالي الهدايا.
   Future<List<Map<String, dynamic>>> getRoomRanking({int limit = 50}) async {
+    try {
+      final sbRooms = await SupabaseDataService().getRoomRanking(limit: limit);
+      if (sbRooms.isNotEmpty) {
+        return sbRooms.map((d) => <String, dynamic>{
+          'uid': d['room_id'] ?? '',
+          'name': d['name'] ?? '',
+          'hostName': d['host_name'] ?? '',
+          'photo_url': d['room_photo_url'] ?? '',
+          'points': d['total_gifts'] ?? 0,
+        }).toList();
+      }
+    } catch (_) {}
+
     try {
       final snap = await _db
           .collection('rooms')
@@ -2689,6 +2731,12 @@ class FirebaseService {
 
   Future<List<Map<String, dynamic>>> getBadgesCatalog() async {
     try {
+      final sbBadges = await SupabaseDataService().getBadges();
+      if (sbBadges.isNotEmpty) {
+        return sbBadges;
+      }
+    } catch (_) {}
+    try {
       final snap = await _db.collection('badges').get();
       return snap.docs.map((e) => Map<String, dynamic>.from(e.data())).toList();
     } catch (e) {
@@ -2698,6 +2746,12 @@ class FirebaseService {
   }
 
   Future<List<Map<String, dynamic>>> getNecklacesCatalog() async {
+    try {
+      final sbNecklaces = await SupabaseDataService().getNecklaces();
+      if (sbNecklaces.isNotEmpty) {
+        return sbNecklaces;
+      }
+    } catch (_) {}
     try {
       final snap = await _db.collection('necklaces').get();
       final list = snap.docs.map((e) => Map<String, dynamic>.from(e.data())).toList();
@@ -2914,10 +2968,25 @@ class FirebaseService {
     if (uid != null && uid.isNotEmpty) {
       query = query.where('uid', isEqualTo: uid);
     }
-    return query.snapshots().map((snap) {
-      final list = snap.docs.map((e) => NotificationModel.fromMap(_data(e))).toList();
-      list.sort((a, b) => b.sentAt.compareTo(a.sentAt));
-      return list;
+    return query.snapshots().asyncMap((snap) async {
+      final fsList = snap.docs.map((e) => NotificationModel.fromMap(_data(e))).toList();
+      try {
+        final sbList = await SupabaseDataService().getNotifications(uid: uid);
+        if (sbList.isNotEmpty) {
+          final map = <String, NotificationModel>{};
+          for (final n in sbList) {
+            map[n.id] = n;
+          }
+          for (final n in fsList) {
+            map[n.id] = n;
+          }
+          final combined = map.values.toList();
+          combined.sort((a, b) => b.sentAt.compareTo(a.sentAt));
+          return combined;
+        }
+      } catch (_) {}
+      fsList.sort((a, b) => b.sentAt.compareTo(a.sentAt));
+      return fsList;
     }).handleError((_) => <NotificationModel>[]);
   }
 
@@ -2929,16 +2998,31 @@ class FirebaseService {
     String body = '',
     Map<String, dynamic>? data,
   }) async {
-    await _db.collection('notifications').add({
-      'id': const Uuid().v4(),
-      'uid': uid,
-      'type': type,
-      'actor_uid': actorUid,
-      'title': title,
-      'body': body,
-      'data': data,
-      'created_at': _now(),
-    });
+    final notifId = const Uuid().v4();
+    final nowStr = _now();
+    try {
+      await _db.collection('notifications').doc(notifId).set({
+        'id': notifId,
+        'uid': uid,
+        'type': type,
+        'actor_uid': actorUid,
+        'title': title,
+        'body': body,
+        'data': data,
+        'created_at': nowStr,
+      });
+    } catch (_) {}
+
+    try {
+      await SupabaseDataService().sendNotification(
+        uid: uid,
+        type: type,
+        actorUid: actorUid,
+        title: title,
+        body: body,
+        data: data,
+      );
+    } catch (_) {}
   }
 
   Future<void> markNotificationRead(String id) async {
@@ -2970,7 +3054,20 @@ class FirebaseService {
         'created_at': _now(),
       });
     } catch (e) {
-      debugPrint('reportUser error: $e');
+      debugPrint('reportUser firestore error: $e');
+    }
+
+    try {
+      await SupabaseDataService().submitReport({
+        'reporter_uid': reporterUid,
+        'reported_uid': reportedUid,
+        'reason': reason,
+        'description': description ?? '',
+        'status': 'pending',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('reportUser supabase error: $e');
     }
   }
 

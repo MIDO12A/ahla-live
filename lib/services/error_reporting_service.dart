@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'supabase_data_service.dart';
 
 class ErrorReportingService {
   static final ErrorReportingService _instance = ErrorReportingService._();
@@ -42,13 +43,14 @@ class ErrorReportingService {
     required String stackTrace,
     required String type,
   }) async {
-    try {
-      final String os = kIsWeb ? 'Web' : Platform.operatingSystem;
-      final String version = kIsWeb ? 'Browser' : Platform.operatingSystemVersion;
+    final String os = kIsWeb ? 'Web' : Platform.operatingSystem;
+    final String version = kIsWeb ? 'Browser' : Platform.operatingSystemVersion;
+    final cleanStack = stackTrace.substring(0, stackTrace.length > 1500 ? 1500 : stackTrace.length);
 
+    try {
       await _db.collection('bug_reports').add({
         'error': error,
-        'stack_trace': stackTrace.substring(0, stackTrace.length > 1500 ? 1500 : stackTrace.length),
+        'stack_trace': cleanStack,
         'device_info': '$os ($version)',
         'type': type,
         'created_at': FieldValue.serverTimestamp(),
@@ -61,5 +63,15 @@ class ErrorReportingService {
       }
       debugPrint('Failed to log error to Firebase: $e');
     }
+
+    try {
+      await SupabaseDataService().submitBugReport({
+        'error': error,
+        'stack_trace': cleanStack,
+        'device_info': '$os ($version)',
+        'type': type,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (_) {}
   }
 }
