@@ -2408,6 +2408,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _openChatUserProfile(String uid, String name, String photoUrl) {
     String? foundCountry;
+    String? foundCustomId;
     for (final s in _seats) {
       if (s.user?.id == uid) {
         if (foundCustomId == null || foundCustomId.isEmpty) {
@@ -2796,7 +2797,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   } else if (assetType == AssetType.vap || assetType == AssetType.mp4) {
                     return SizedBox.expand(
                       child: VapPlayer(
-                        assetPath: customBg,
+                        url: customBg,
                         fit: BoxFit.cover,
                         loops: true,
                       ),
