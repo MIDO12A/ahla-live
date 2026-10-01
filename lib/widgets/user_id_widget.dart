@@ -71,6 +71,17 @@ class UserIdWidget extends StatefulWidget {
     return '🇪🇬';
   }
 
+  static bool isSpecialId(String? idText, {bool isBeauty = false, String? colorEffect, String? gifUrl}) {
+    if (isBeauty) return true;
+    if (colorEffect != null && colorEffect.isNotEmpty) return true;
+    if (gifUrl != null && gifUrl.isNotEmpty) return true;
+    if (idText == null || idText.trim().isEmpty) return false;
+    final clean = idText.trim();
+    final numVal = int.tryParse(clean);
+    if (numVal != null && clean.length <= 6) return true;
+    return false;
+  }
+
   @override
   State<UserIdWidget> createState() => _UserIdWidgetState();
 }
@@ -308,5 +319,134 @@ class _SlidingGradientTransform extends GradientTransform {
   @override
   Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
     return Matrix4.translationValues(bounds.width * (slidePercent * 2 - 1), 0.0, 0.0);
+  }
+}
+
+class SpecialTextWidget extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final bool isSpecial;
+  final String? colorEffect;
+  final int maxLines;
+  final TextOverflow overflow;
+
+  const SpecialTextWidget({
+    super.key,
+    required this.text,
+    required this.style,
+    this.isSpecial = true,
+    this.colorEffect,
+    this.maxLines = 1,
+    this.overflow = TextOverflow.ellipsis,
+  });
+
+  @override
+  State<SpecialTextWidget> createState() => _SpecialTextWidgetState();
+}
+
+class _SpecialTextWidgetState extends State<SpecialTextWidget> with SingleTickerProviderStateMixin {
+  AnimationController? _animCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isSpecial) {
+      _animCtrl = AnimationController(
+        vsync: this,
+        duration: const Duration(seconds: 3),
+      )..repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(SpecialTextWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isSpecial && _animCtrl == null) {
+      _animCtrl = AnimationController(
+        vsync: this,
+        duration: const Duration(seconds: 3),
+      )..repeat();
+    } else if (!widget.isSpecial && _animCtrl != null) {
+      _animCtrl?.dispose();
+      _animCtrl = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _animCtrl?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.isSpecial || _animCtrl == null) {
+      return Text(
+        widget.text,
+        style: widget.style,
+        maxLines: widget.maxLines,
+        overflow: widget.overflow,
+      );
+    }
+
+    return AnimatedBuilder(
+      animation: _animCtrl!,
+      builder: (context, child) {
+        final value = _animCtrl!.value;
+        List<Color> colors;
+        if (widget.colorEffect == 'rainbow') {
+          colors = const [
+            Color(0xFFFF0055),
+            Color(0xFFFFAA00),
+            Color(0xFF00FFCC),
+            Color(0xFF0088FF),
+            Color(0xFFFF00CC),
+            Color(0xFFFF0055),
+          ];
+        } else if (widget.colorEffect == 'neon') {
+          colors = const [
+            Color(0xFF00F0FF),
+            Color(0xFF7000FF),
+            Color(0xFFFF007B),
+            Color(0xFF00F0FF),
+          ];
+        } else if (widget.colorEffect == 'fire') {
+          colors = const [
+            Color(0xFFFF3300),
+            Color(0xFFFF9900),
+            Color(0xFFFFDD00),
+            Color(0xFFFF3300),
+          ];
+        } else {
+          // Default: Golden shimmer
+          colors = const [
+            Color(0xFFE5A642),
+            Color(0xFFFFF3A8),
+            Color(0xFFFFD700),
+            Color(0xFFFFC043),
+            Color(0xFFE5A642),
+          ];
+        }
+
+        return ShaderMask(
+          blendMode: BlendMode.srcIn,
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              colors: colors,
+              transform: _SlidingGradientTransform(slidePercent: value),
+            ).createShader(bounds);
+          },
+          child: Text(
+            widget.text,
+            style: widget.style.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+            maxLines: widget.maxLines,
+            overflow: widget.overflow,
+          ),
+        );
+      },
+    );
   }
 }

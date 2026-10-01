@@ -258,18 +258,30 @@ class FirebaseService {
   Stream<List<RoomModel>> allRoomsStream() {
     final controller = StreamController<List<RoomModel>>.broadcast();
     Timer? pollTimer;
+    String lastHash = '';
+
+    bool isDifferent(List<RoomModel> newRooms) {
+      final newHash = newRooms.map((r) => '${r.roomId}_${r.name}_${r.memberCount}_${r.totalGifts}_${r.hotValue}_${r.country}_${r.bgImage}').join('|');
+      if (newHash != lastHash) {
+        lastHash = newHash;
+        return true;
+      }
+      return false;
+    }
 
     void fetchSupabase() async {
       try {
         final list = await SupabaseDataService().getAllRooms();
         if (list.isNotEmpty && !controller.isClosed) {
-          controller.add(list);
+          if (isDifferent(list)) {
+            controller.add(list);
+          }
         }
       } catch (_) {}
     }
 
     fetchSupabase();
-    pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => fetchSupabase());
+    pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => fetchSupabase());
 
     StreamSubscription? firestoreSub;
     try {
@@ -277,7 +289,9 @@ class FirebaseService {
         if (!controller.isClosed) {
           final rooms = snap.docs.map((e) => RoomModel.fromMap(_data(e))).toList();
           rooms.sort((a, b) => b.totalGifts.compareTo(a.totalGifts));
-          controller.add(rooms);
+          if (isDifferent(rooms)) {
+            controller.add(rooms);
+          }
         }
       }, onError: (_) {});
     } catch (_) {}
@@ -2171,6 +2185,10 @@ class FirebaseService {
         if (isSpecialId && specialIdVal.isNotEmpty) {
           await SupabaseDataService().updateUserCustomId(uid, specialIdVal);
           await SupabaseDataService().markStoreItemSold(item.itemId);
+          await SupabaseDataService().updateUser(uid, {'hosted_room_id': specialIdVal});
+          try {
+            await _db.collection('users').doc(uid).update({'hosted_room_id': specialIdVal});
+          } catch (_) {}
         }
       } catch (_) {}
 

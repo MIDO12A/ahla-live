@@ -44,6 +44,8 @@ export interface RoomModel {
   name: string;
   description: string;
   roomPhotoUrl: string;
+  bgImage?: string;
+  country?: string;
   hostUid: string;
   hostName: string;
   hostPhotoUrl: string;

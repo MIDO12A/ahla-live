@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../config/app_colors.dart';
 import '../../../services/dynamic_config_service.dart';
+import '../../../widgets/user_id_widget.dart';
 
 class RoomHeader extends StatelessWidget {
   final String? roomName;
@@ -221,16 +222,20 @@ class RoomHeader extends StatelessWidget {
   }
 
   Widget _buildRoomInfoText(BuildContext context, bool isAr) {
+    final isSpecial = UserIdWidget.isSpecialId(roomId);
+
     return Expanded(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            roomName ?? 'Room',
+          SpecialTextWidget(
+            text: roomName ?? 'Room',
+            isSpecial: isSpecial,
             style: TextStyle(
               fontSize: 13,
-              color: DynamicConfigService.instance.roomHeaderTextColor,
+              color: isSpecial ? const Color(0xFFFFD98B) : DynamicConfigService.instance.roomHeaderTextColor,
+              fontWeight: isSpecial ? FontWeight.bold : FontWeight.w500,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -239,10 +244,42 @@ class RoomHeader extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'ID: ${roomId ?? '------'}',
-                style: const TextStyle(fontSize: 10, color: Color(0xB2FFFFFF)),
-              ),
+              if (isSpecial) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0x26DE880F),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0x80FFD98B), width: 0.5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/mipmap-xxhdpi/common_user_id_ic.webp',
+                        width: 9,
+                        height: 9,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(width: 2),
+                      SpecialTextWidget(
+                        text: 'ID: ${roomId ?? '------'}',
+                        isSpecial: true,
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFFFD98B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                Text(
+                  'ID: ${roomId ?? '------'}',
+                  style: const TextStyle(fontSize: 10, color: Color(0xB2FFFFFF)),
+                ),
+              ],
               if (isLocked) ...[
                 const SizedBox(width: 2),
                 R.image(R.roomLockStateIc, width: 12, height: 12),

@@ -2784,7 +2784,34 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               builder: (ctx) {
                 final customBg = _currentRoom?.bgImage;
                 if (customBg != null && customBg.isNotEmpty) {
-                  return Image.network(customBg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.black));
+                  final assetType = detectAssetType(customBg);
+                  if (assetType == AssetType.svga) {
+                    return SizedBox.expand(
+                      child: SvgaPlayer(
+                        assetPath: customBg,
+                        fit: BoxFit.cover,
+                        loops: true,
+                      ),
+                    );
+                  } else if (assetType == AssetType.vap || assetType == AssetType.mp4) {
+                    return SizedBox.expand(
+                      child: VapPlayer(
+                        assetPath: customBg,
+                        fit: BoxFit.cover,
+                        loops: true,
+                      ),
+                    );
+                  } else {
+                    return SizedBox.expand(
+                      child: Image.network(
+                        customBg,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        errorBuilder: (_, __, ___) => Container(color: Colors.black),
+                      ),
+                    );
+                  }
                 }
 
                 final theme = _currentRoom?.category ?? 'themeFriend';

@@ -269,6 +269,13 @@ export async function uploadRoomPhoto(file: File, roomId: string, onProgress?: (
   return uploadAny(file, FOLDERS.roomPhoto, onProgress);
 }
 
+export async function uploadRoomCover(file: File, roomId: string, onProgress?: (pct: number) => void): Promise<string> {
+  const type = detectAssetType(file.name);
+  const isAnimOrFile = type === 'svga' || type === 'vap' || type === 'mp4';
+  const folder = isAnimOrFile ? FOLDERS.storeFile : FOLDERS.roomPhoto;
+  return uploadAny(file, folder, onProgress);
+}
+
 export async function uploadBanner(file: File, bannerId: string, onProgress?: (pct: number) => void): Promise<string> {
   return uploadAny(file, FOLDERS.banner, onProgress);
 }

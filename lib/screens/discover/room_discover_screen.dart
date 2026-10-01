@@ -16,6 +16,7 @@ import '../../screens/rank/rank_screen.dart';
 import 'package:zero/screens/user_profile/user_profile_screen.dart';
 import '../../utils/app_action_navigator.dart';
 import 'global_search_delegate.dart';
+import '../../widgets/user_id_widget.dart';
 
 class RoomDiscoverScreen extends StatefulWidget {
   const RoomDiscoverScreen({super.key});
@@ -27,6 +28,8 @@ class RoomDiscoverScreen extends StatefulWidget {
 class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     with SingleTickerProviderStateMixin {
   final SupabaseService _firebaseService = SupabaseService();
+  late final Stream<List<RoomModel>> _roomsStream;
+  List<RoomModel>? _cachedRooms;
   late TabController _tabController;
   int _selectedTabIndex = 0;
   String _searchQuery = '';
@@ -35,6 +38,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
   @override
   void initState() {
     super.initState();
+    _roomsStream = _firebaseService.allRoomsStream();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
@@ -52,28 +56,37 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
   Future<void> _goToCreateOrMyRoom() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.currentUser;
+    if (user == null) return;
 
-    if (user?.hostedRoomId != null) {
-      final room = await _firebaseService.getRoom(user!.hostedRoomId!);
+    String? targetRoomId = user.hostedRoomId;
+    if (targetRoomId == null || targetRoomId.isEmpty) {
+      if (user.customId.isNotEmpty) {
+        final existingRoom = await _firebaseService.getRoom(user.customId);
+        if (existingRoom != null) {
+          targetRoomId = user.customId;
+          await _firebaseService.updateUser(user.uid, {'hosted_room_id': targetRoomId});
+        }
+      }
+    }
+
+    if (targetRoomId != null && targetRoomId.isNotEmpty) {
+      final room = await _firebaseService.getRoom(targetRoomId);
       if (room != null) {
         navigateToRoom(
           context,
           roomName: room.name,
           hostName: user.name,
           hostUid: room.hostUid,
-          roomId: user.hostedRoomId!,
+          roomId: targetRoomId,
         );
+        return;
       } else {
         await _firebaseService.updateUser(user.uid, {'hosted_room_id': null});
         await userProvider.loadUser(user.uid);
-        if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreateRoomScreen()),
-          );
-        }
       }
-    } else {
+    }
+
+    if (mounted) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const CreateRoomScreen()),
@@ -335,13 +348,17 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
         const SizedBox(height: 8),
         Expanded(
           child: StreamBuilder<List<RoomModel>>(
-            stream: _firebaseService.allRoomsStream(),
+            stream: _roomsStream,
+            initialData: _cachedRooms,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+                _cachedRooms = snapshot.data;
+              }
+              if (snapshot.connectionState == ConnectionState.waiting && (_cachedRooms == null || _cachedRooms!.isEmpty)) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              List<RoomModel> rooms = snapshot.data ?? [];
+              List<RoomModel> rooms = snapshot.data ?? _cachedRooms ?? [];
 
               if (!isDiscover && user != null) {
                 rooms = rooms
@@ -629,19 +646,31 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                             ),
                           Row(
                             children: [
-                              const SizedBox(
-                                width: 20, height: 12,
-                                child: Center(
-                                  child: Text('🌍', style: TextStyle(fontSize: 10)),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(2),
+                                child: Image.network(
+                                  'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(room.country)}.png',
+                                  width: 18,
+                                  height: 12,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Text(
+                                    UserIdWidget.countryCodeToEmoji(UserIdWidget.resolveCountryCode(room.country)),
+                                    style: const TextStyle(fontSize: 10),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 4),
                               Expanded(
-                                child: Text(
-                                  room.name,
-                                  overflow: TextOverflow.ellipsis,
+                                child: SpecialTextWidget(
+                                  text: room.name,
+                                  isSpecial: UserIdWidget.isSpecialId(room.roomId),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                   maxLines: 1,
-                                  style: const TextStyle(fontSize: 14, color: Colors.white),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               if (room.hotValue > 0) ...[

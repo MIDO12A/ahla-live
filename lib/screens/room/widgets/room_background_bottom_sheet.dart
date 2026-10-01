@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
-import '../../../models/app_asset_model.dart';
 import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/cloudinary_service.dart';
 import '../../../providers/user_provider.dart';
+import 'svga_player.dart';
 
 class RoomBackgroundBottomSheet extends StatefulWidget {
   final String roomId;
@@ -257,9 +257,16 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet> {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                bg.remoteUrl != null
-                                    ? Image.network(bg.remoteUrl!, fit: BoxFit.cover)
-                                    : Container(color: Colors.black26),
+                                Builder(
+                                  builder: (_) {
+                                    final url = bg.remoteUrl ?? '';
+                                    if (url.isEmpty) return Container(color: Colors.black26);
+                                    if (detectAssetType(url) == AssetType.svga) {
+                                      return SvgaPlayer(assetPath: url, fit: BoxFit.cover, loops: true);
+                                    }
+                                    return Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.black26));
+                                  },
+                                ),
                                 if (isSelected)
                                   Container(
                                     color: Colors.black45,
