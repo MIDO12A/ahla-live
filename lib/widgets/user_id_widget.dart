@@ -1,24 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// ويدجت عرض معرف المستخدم (User ID) المطابق تماماً للأصل (UserIdView.kt & layout_common_level.xml)
+/// ويدجت عرض معرف المستخدم (User ID) المطابق تماماً للأصل مع دعم التأثير اللوني والمتحرك
 /// يدعم:
 /// 1. المعرف المميز / الجذاب (Beauty / Lucky ID):
 ///    - خلفية برتقالية كهرمانية مضيئة (#1ADE880F) مع حواف دائرية 11dp
-///    - أيقونة شارة المعرف الأصلية (common_user_id_ic.webp) بحجم 20x20dp
-///    - لون الخط الذهبي/البرتقالي المشع #FFD98B2B بخط بارز
+///    - نص ملون متحرك بانسيابية (Animated Flowing Gradient / Shimmer)
+///    - دعم ملفات ومؤثرات GIF وخلفيات متحركة
+///    - أيقونة شارة المعرف الأصلية (common_user_id_ic.webp)
 ///    - أيقونة النسخ الذهبية (common_id_copy_2_ic.webp)
 /// 2. المعرف العادي (Normal ID):
 ///    - خلفية داكنة نصف شفافة (#4D000000) مع حواف دائرية 11dp
-///    - لون الخط #CCFFFFFF / #9BA1B6
+///    - لون الخط #CCFFFFFF
 ///    - أيقونة النسخ الرمادية (common_id_copy_ic.webp)
-class UserIdWidget extends StatelessWidget {
+class UserIdWidget extends StatefulWidget {
   final String idText;
   final bool isBeauty;
   final bool showCopy;
   final String? countryCode;
   final double fontSize;
   final VoidCallback? onCopied;
+  final String? colorEffect; // e.g. 'golden', 'rainbow', 'neon', 'fire'
+  final String? gifUrl;      // Optional GIF badge/effect url
 
   const UserIdWidget({
     super.key,
@@ -28,6 +31,8 @@ class UserIdWidget extends StatelessWidget {
     this.countryCode,
     this.fontSize = 12.0,
     this.onCopied,
+    this.colorEffect,
+    this.gifUrl,
   });
 
   static String resolveCountryCode(String? raw) {
@@ -61,19 +66,136 @@ class UserIdWidget extends StatelessWidget {
     if (code.length == 2) {
       final upper = code.toUpperCase();
       return String.fromCharCode(0x1F1E6 + upper.codeUnitAt(0) - 65) +
-             String.fromCharCode(0x1F1E6 + upper.codeUnitAt(1) - 65);
+          String.fromCharCode(0x1F1E6 + upper.codeUnitAt(1) - 65);
     }
     return '🇪🇬';
   }
 
   @override
-  Widget build(BuildContext context) {
-    if (idText.isEmpty) return const SizedBox.shrink();
+  State<UserIdWidget> createState() => _UserIdWidgetState();
+}
 
-    // التحقق التلقائي إذا كان المعرف مميزاً (مثلاً: أقل من 7 خانات، أو محدد كـ isBeauty)
-    final bool effectiveBeauty = isBeauty || (idText.length <= 6 && int.tryParse(idText) != null);
-    final String cleanCountry = resolveCountryCode(countryCode);
-    final String flagEmoji = countryCodeToEmoji(cleanCountry);
+class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderStateMixin {
+  AnimationController? _animCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _initAnimationIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(UserIdWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _initAnimationIfNeeded();
+  }
+
+  void _initAnimationIfNeeded() {
+    final bool isSpecial = widget.isBeauty ||
+        (widget.idText.isNotEmpty && widget.idText.length <= 6 && int.tryParse(widget.idText) != null) ||
+        (widget.colorEffect != null && widget.colorEffect!.isNotEmpty) ||
+        (widget.gifUrl != null && widget.gifUrl!.isNotEmpty);
+
+    if (isSpecial && _animCtrl == null) {
+      _animCtrl = AnimationController(
+        vsync: this,
+        duration: const Duration(seconds: 3),
+      )..repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animCtrl?.dispose();
+    super.dispose();
+  }
+
+  Widget _buildAnimatedText(bool effectiveBeauty) {
+    if (!effectiveBeauty || _animCtrl == null) {
+      return Text(
+        widget.idText,
+        style: TextStyle(
+          fontSize: widget.fontSize,
+          fontWeight: effectiveBeauty ? FontWeight.bold : FontWeight.w500,
+          color: effectiveBeauty ? const Color(0xFFFFD98B) : const Color(0xCCFFFFFF),
+          height: 1.1,
+          letterSpacing: 0.3,
+        ),
+      );
+    }
+
+    return AnimatedBuilder(
+      animation: _animCtrl!,
+      builder: (context, child) {
+        final value = _animCtrl!.value;
+        List<Color> colors;
+        if (widget.colorEffect == 'rainbow') {
+          colors = const [
+            Color(0xFFFF0055),
+            Color(0xFFFFAA00),
+            Color(0xFF00FFCC),
+            Color(0xFF0088FF),
+            Color(0xFFFF00CC),
+            Color(0xFFFF0055),
+          ];
+        } else if (widget.colorEffect == 'neon' || widget.colorEffect == 'cyan') {
+          colors = const [
+            Color(0xFF00E5FF),
+            Color(0xFF76FF03),
+            Color(0xFF00E5FF),
+          ];
+        } else if (widget.colorEffect == 'fire') {
+          colors = const [
+            Color(0xFFFF1744),
+            Color(0xFFFF9100),
+            Color(0xFFFFEA00),
+            Color(0xFFFF1744),
+          ];
+        } else {
+          // Default Golden Shimmer
+          colors = const [
+            Color(0xFFFFD700),
+            Color(0xFFFFF8DC),
+            Color(0xFFFFA500),
+            Color(0xFFFFD700),
+          ];
+        }
+
+        return ShaderMask(
+          blendMode: BlendMode.srcIn,
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              colors: colors,
+              transform: _SlidingGradientTransform(slidePercent: value),
+            ).createShader(bounds);
+          },
+          child: Text(
+            widget.idText,
+            style: TextStyle(
+              fontSize: widget.fontSize,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              height: 1.1,
+              letterSpacing: 0.4,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.idText.isEmpty) return const SizedBox.shrink();
+
+    // التحقق التلقائي إذا كان المعرف مميزاً (مثلاً: 6 خانات أو أقل، أو محدد كـ isBeauty)
+    final bool effectiveBeauty = widget.isBeauty ||
+        (widget.idText.length <= 6 && int.tryParse(widget.idText) != null) ||
+        (widget.colorEffect != null && widget.colorEffect!.isNotEmpty) ||
+        (widget.gifUrl != null && widget.gifUrl!.isNotEmpty);
+
+    final String cleanCountry = UserIdWidget.resolveCountryCode(widget.countryCode);
+    final String flagEmoji = UserIdWidget.countryCodeToEmoji(cleanCountry);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -92,12 +214,12 @@ class UserIdWidget extends StatelessWidget {
         ),
         const SizedBox(width: 5),
 
-        // كبسولة المعرف (cl_id المطابقة للتطبيق الأصلي)
+        // كبسولة المعرف
         GestureDetector(
           onTap: () {
-            Clipboard.setData(ClipboardData(text: idText));
-            if (onCopied != null) {
-              onCopied!();
+            Clipboard.setData(ClipboardData(text: widget.idText));
+            if (widget.onCopied != null) {
+              widget.onCopied!();
             } else {
               ScaffoldMessenger.maybeOf(context)?.showSnackBar(
                 const SnackBar(
@@ -113,17 +235,39 @@ class UserIdWidget extends StatelessWidget {
             height: 22,
             padding: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
-              // rank_id_beauty_shape_bg: #1ADE880F / rank_id_shape_bg: #4D000000
               color: effectiveBeauty ? const Color(0x26DE880F) : const Color(0x4D000000),
               borderRadius: BorderRadius.circular(11),
               border: effectiveBeauty ? Border.all(color: const Color(0x80FFD98B), width: 0.8) : null,
+              boxShadow: effectiveBeauty
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFDE880F).withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ]
+                  : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // أيقونة شارة ID الذهبية للأصل: iv_id_label (تظهر في المعرف المميز)
-                if (effectiveBeauty) ...[
+                // أيقونة شارة ID المميزة الأصلية أو GIF مخصص
+                if (widget.gifUrl != null && widget.gifUrl!.isNotEmpty) ...[
+                  Image.network(
+                    widget.gifUrl!,
+                    width: 18,
+                    height: 18,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Image.asset(
+                      'assets/mipmap-xxhdpi/common_user_id_ic.webp',
+                      width: 18,
+                      height: 18,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                ] else if (effectiveBeauty) ...[
                   Image.asset(
                     'assets/mipmap-xxhdpi/common_user_id_ic.webp',
                     width: 18,
@@ -133,20 +277,11 @@ class UserIdWidget extends StatelessWidget {
                   const SizedBox(width: 3),
                 ],
 
-                // رقم المعرف tv_id (لون #FFD98B2B في المميز / #E0E0E0 في العادي)
-                Text(
-                  idText,
-                  style: TextStyle(
-                    fontSize: fontSize,
-                    fontWeight: effectiveBeauty ? FontWeight.bold : FontWeight.w500,
-                    color: effectiveBeauty ? const Color(0xFFFFD98B) : const Color(0xCCFFFFFF),
-                    height: 1.1,
-                    letterSpacing: 0.3,
-                  ),
-                ),
+                // رقم المعرف الملون والمتحرك
+                _buildAnimatedText(effectiveBeauty),
 
-                // أيقونة النسخ iv_copy_ic
-                if (showCopy) ...[
+                // أيقونة النسخ
+                if (widget.showCopy) ...[
                   const SizedBox(width: 4),
                   Image.asset(
                     effectiveBeauty
@@ -163,5 +298,15 @@ class UserIdWidget extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _SlidingGradientTransform extends GradientTransform {
+  final double slidePercent;
+  const _SlidingGradientTransform({required this.slidePercent});
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * (slidePercent * 2 - 1), 0.0, 0.0);
   }
 }

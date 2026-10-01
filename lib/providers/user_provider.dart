@@ -128,8 +128,8 @@ class UserProvider extends ChangeNotifier {
       } catch (_) {
         // FIX: Fallback to local secure generator with uniqueness check
         customId = await UserIdGenerator().generateUniqueId(
-          minDigits: 8,
-          maxDigits: 8,
+          minDigits: 6,
+          maxDigits: 7,
         );
       }
       await _supabaseService.updateUser(uid, {'custom_id': customId});

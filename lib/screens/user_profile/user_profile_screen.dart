@@ -28,6 +28,7 @@ import '../room/widgets/svga_player.dart';
 import '../room/widgets/vap_player.dart';
 import '../../features/cp/cp_service.dart';
 import '../../features/cp/cp_space_screen.dart';
+import '../../widgets/user_id_widget.dart';
 import '../../features/host_agency/screens/agency_profile_screen.dart';
 import '../../features/host_agency/host_agency_screen.dart';
 
@@ -1295,50 +1296,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               const SizedBox(height: 6),
 
                               // ID View with Copy icon
-                              GestureDetector(
-                                onTap: _copyUserId,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black26,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Image.asset(
-                                        'assets/images/profile/common_user_id_ic.webp',
-                                        width: 14,
-                                        height: 14,
-                                        errorBuilder: (_, __, ___) => const Icon(
-                                          Icons.tag,
-                                          size: 12,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        user.customId.isNotEmpty ? user.customId : user.uid.substring(0, 8),
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.white70,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Image.asset(
-                                        'assets/images/profile/common_id_copy_ic.webp',
-                                        width: 14,
-                                        height: 14,
-                                        errorBuilder: (_, __, ___) => const Icon(
-                                          Icons.copy,
-                                          size: 12,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                              UserIdWidget(
+                                idText: user.customId.isNotEmpty ? user.customId : user.uid.substring(0, 8),
+                                countryCode: user.country,
+                                fontSize: 12,
+                                onCopied: _copyUserId,
                               ),
                             ],
                           ),

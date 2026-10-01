@@ -2126,6 +2126,11 @@ class FirebaseService {
 
   Future<bool> purchaseItem(String uid, StoreItemModel item) async {
     final userRef = _db.collection('users').doc(uid);
+    final isSpecialId = item.category == 'special_id';
+    final specialIdVal = (item.customId != null && item.customId!.isNotEmpty)
+        ? item.customId!
+        : item.name.replaceAll(RegExp(r'[^0-9]'), '');
+
     try {
       await _db.runTransaction((txn) async {
         final snap = await txn.get(userRef);
@@ -2135,8 +2140,38 @@ class FirebaseService {
         final owned = List<String>.from(d['owned_items'] ?? []);
         if (coins < item.price) throw Exception('insufficient coins');
         if (!owned.contains(item.itemId)) owned.add(item.itemId);
-        txn.update(userRef, {'coins': coins - item.price, 'owned_items': owned});
+
+        final updateData = <String, dynamic>{
+          'coins': coins - item.price,
+          'owned_items': owned,
+        };
+
+        if (isSpecialId && specialIdVal.isNotEmpty) {
+          updateData['custom_id'] = specialIdVal;
+          updateData['customId'] = specialIdVal;
+        }
+
+        txn.update(userRef, updateData);
       });
+
+      // If special ID, mark as sold in Firestore store_items so it disappears
+      if (isSpecialId) {
+        try {
+          await _db.collection('store_items').doc(item.itemId).update({
+            'is_available': false,
+            'is_sold': true,
+          });
+        } catch (_) {}
+      }
+
+      // Sync to Supabase
+      try {
+        if (isSpecialId && specialIdVal.isNotEmpty) {
+          await SupabaseDataService().updateUserCustomId(uid, specialIdVal);
+          await SupabaseDataService().markStoreItemSold(item.itemId);
+        }
+      } catch (_) {}
+
       return true;
     } catch (e) {
       debugPrint('purchaseItem error: $e');

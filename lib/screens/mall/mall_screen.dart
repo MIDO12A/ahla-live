@@ -7,6 +7,7 @@ import '../../models/store_item_model.dart';
 import '../../providers/user_provider.dart';
 import '../room/widgets/svga_player.dart';
 import '../room/widgets/vap_player.dart';
+import '../../widgets/user_id_widget.dart';
 
 /// شاشة المتجر الرسمية المطابقة لملف mine_activity_mall.xml
 /// وملفات التخطيط الأصلية:
@@ -77,6 +78,12 @@ class _MallScreenState extends State<MallScreen> {
       'name': 'موجات المايك',
       'nor_ic': 'assets/mipmap-xxhdpi/room_mic_on.webp',
       'pre_ic': 'assets/mipmap-xxhdpi/room_mic_on.webp',
+    },
+    {
+      'key': 'special_id',
+      'name': 'الآيديهات المميزة',
+      'nor_ic': 'assets/mipmap-xxhdpi/common_user_id_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/common_user_id_ic.webp',
     },
   ];
 
@@ -268,7 +275,17 @@ class _MallScreenState extends State<MallScreen> {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      if (isAnimated) ...[
+                      if (item.category == 'special_id') ...[
+                        Center(
+                          child: UserIdWidget(
+                            idText: (item.customId != null && item.customId!.isNotEmpty) ? item.customId! : item.name,
+                            isBeauty: true,
+                            colorEffect: item.colorEffect,
+                            gifUrl: item.iconAsset.endsWith('.gif') ? item.iconAsset : null,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ] else if (isAnimated) ...[
                         if (item.isVideo && item.animationUrl != null)
                           VapPlayer(
                             key: ValueKey('dialog_${item.itemId}'),
@@ -290,7 +307,7 @@ class _MallScreenState extends State<MallScreen> {
                       ] else ...[
                         R.loadImage(item.iconAsset, width: 100, height: 100, fit: BoxFit.contain),
                       ],
-                      if (isAnimated)
+                      if (isAnimated && item.category != 'special_id')
                         Positioned(
                           right: 4,
                           bottom: 4,
@@ -317,6 +334,15 @@ class _MallScreenState extends State<MallScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (item.category == 'special_id')
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Text(
+                      'سيتم تعيين هذا الآيدي المميز لحسابك مباشرة فور إتمام الشراء',
+                      style: TextStyle(fontSize: 12, color: Color(0xFFFFD98B)),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 const SizedBox(height: 10),
 
                 // السعر مع أيقونة common_gold_ic_3
@@ -377,10 +403,14 @@ class _MallScreenState extends State<MallScreen> {
                             if (success) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('تم الشراء بنجاح!', textAlign: TextAlign.center),
+                                  content: Text('تم الشراء بنجاح وتم تفعيل الآيدي المميز لحسابك!', textAlign: TextAlign.center),
                                   backgroundColor: Color(0xFF388E3C),
                                 ),
                               );
+                              if (item.category == 'special_id') {
+                                _allItems.removeWhere((x) => x.itemId == item.itemId);
+                              }
+                              _loadData();
                               setState(() {});
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -625,6 +655,29 @@ class _MallScreenState extends State<MallScreen> {
     dynamic user,
   ) {
     final keyStr = '${item.itemId}_${animUrl ?? item.iconAsset}';
+
+    // 0. معاينة الآيدي المميز special_id
+    if (item.category == 'special_id') {
+      final idDisplay = (item.customId != null && item.customId!.isNotEmpty) ? item.customId! : item.name;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          UserIdWidget(
+            idText: idDisplay,
+            isBeauty: true,
+            colorEffect: item.colorEffect,
+            gifUrl: item.iconAsset.endsWith('.gif') ? item.iconAsset : null,
+            fontSize: 20,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'آيدي مميز متاح للشراء الفوري',
+            style: TextStyle(color: Color(0xFFFFD98B), fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+        ],
+      );
+    }
 
     // 1. معاينة إطار الرأس frame
     if (item.category == 'frame') {
@@ -885,7 +938,17 @@ class _MallScreenState extends State<MallScreen> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(12),
-                        child: R.loadImage(item.iconAsset, fit: BoxFit.contain),
+                        child: item.category == 'special_id'
+                            ? Center(
+                                child: UserIdWidget(
+                                  idText: (item.customId != null && item.customId!.isNotEmpty) ? item.customId! : item.name,
+                                  isBeauty: true,
+                                  colorEffect: item.colorEffect,
+                                  gifUrl: item.iconAsset.endsWith('.gif') ? item.iconAsset : null,
+                                  fontSize: 14,
+                                ),
+                              )
+                            : R.loadImage(item.iconAsset, fit: BoxFit.contain),
                       ),
                       // علامة الفيديو iv_video_label
                       if (isAnimated)

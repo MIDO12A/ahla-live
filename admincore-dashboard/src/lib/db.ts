@@ -207,8 +207,63 @@ export async function getUser(uid: string): Promise<UserModel | null> {
   }
 }
 
+export async function checkCustomIdAvailable(
+  customId: string,
+  excludeUid?: string,
+  excludeItemId?: string
+): Promise<{ available: boolean; reason?: string }> {
+  const cleanId = String(customId || '').trim();
+  if (!cleanId) return { available: false, reason: 'يرجى إدخال الآيدي' };
+
+  const client = getAdminSupabase() || supabase;
+
+  // 1. Check if taken by another user
+  let userQuery = client.from('users').select('uid, name, custom_id').eq('custom_id', cleanId);
+  if (excludeUid) {
+    userQuery = userQuery.neq('uid', excludeUid);
+  }
+  const { data: userMatch } = await userQuery.maybeSingle();
+  if (userMatch) {
+    return {
+      available: false,
+      reason: `هذا الآيدي (${cleanId}) مستخدم بالفعل من قبل المستخدم "${userMatch.name || userMatch.uid}"!`,
+    };
+  }
+
+  // 2. Check if already for sale in store
+  let storeQuery = client
+    .from('store_items')
+    .select('item_id, name, custom_id')
+    .eq('category', 'special_id')
+    .eq('custom_id', cleanId)
+    .eq('is_available', true);
+  if (excludeItemId) {
+    storeQuery = storeQuery.neq('item_id', excludeItemId);
+  }
+  const { data: storeMatch } = await storeQuery.maybeSingle();
+  if (storeMatch) {
+    return {
+      available: false,
+      reason: `هذا الآيدي (${cleanId}) معروض بالفعل للبيع في المتجر كسلعة "${storeMatch.name}"!`,
+    };
+  }
+
+  return { available: true };
+}
+
 export async function updateUser(uid: string, data: Partial<UserModel>) {
   const client = getAdminSupabase() || supabase
+
+  // Check custom ID uniqueness if updating customId
+  if (data.customId !== undefined || (data as Record<string, unknown>).custom_id !== undefined) {
+    const rawId = String(data.customId ?? (data as Record<string, unknown>).custom_id ?? '').trim();
+    if (rawId) {
+      const check = await checkCustomIdAvailable(rawId, uid);
+      if (!check.available) {
+        throw new Error(check.reason);
+      }
+    }
+  }
   
   // First try to update
   try {
@@ -380,17 +435,42 @@ export function subscribeStoreItems(cb: (items: StoreItemModel[]) => void) {
 
 export async function updateStoreItem(id: string, data: Partial<StoreItemModel>) {
   try {
-    await supabase.from('store_items').update(toSnakeCase(data as Record<string, unknown>)).eq('item_id', id)
+    const client = getAdminSupabase() || supabase;
+    if (data.category === 'special_id' || data.customId) {
+      const rawId = String(data.customId ?? '').trim();
+      if (rawId) {
+        const check = await checkCustomIdAvailable(rawId, undefined, id);
+        if (!check.available) {
+          throw new Error(check.reason);
+        }
+      }
+    }
+    const { error } = await client.from('store_items').update(toSnakeCase(data as Record<string, unknown>)).eq('item_id', id);
+    if (error) throw error;
   } catch (e) {
-    console.warn('updateStoreItem failed:', e)
+    console.error('updateStoreItem failed:', e);
+    throw e;
   }
 }
 
 export async function addStoreItem(id: string, data: StoreItemModel) {
   try {
-    await supabase.from('store_items').upsert({ item_id: id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
+    const client = getAdminSupabase() || supabase;
+    if (data.category === 'special_id' || data.customId) {
+      const rawId = String(data.customId ?? '').trim();
+      if (!rawId) {
+        throw new Error('يرجى تحديد الآيدي المميز للسلعة!');
+      }
+      const check = await checkCustomIdAvailable(rawId, undefined, id);
+      if (!check.available) {
+        throw new Error(check.reason);
+      }
+    }
+    const { error } = await client.from('store_items').upsert({ item_id: id, ...toSnakeCase(data as unknown as Record<string, unknown>) });
+    if (error) throw error;
   } catch (e) {
-    console.warn('addStoreItem failed:', e)
+    console.error('addStoreItem failed:', e);
+    throw e;
   }
 }
 

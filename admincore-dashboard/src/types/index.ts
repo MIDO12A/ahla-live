@@ -124,6 +124,10 @@ export interface StoreItemModel {
   photoKey?: string;
   defaultImage?: string;
   isHidden?: boolean;
+  customId?: string;
+  colorEffect?: string;
+  isAvailable?: boolean;
+  isSold?: boolean;
 }
 
 export interface UnionModel {

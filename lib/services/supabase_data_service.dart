@@ -612,6 +612,7 @@ class SupabaseDataService {
         final List list = jsonDecode(res.body);
         return list
             .map((e) => StoreItemModel.fromMap(Map<String, dynamic>.from(e as Map)))
+            .where((item) => item.isAvailable && !item.isHidden)
             .toList();
       }
     } catch (e) {
@@ -903,9 +904,42 @@ class SupabaseDataService {
         }).toList();
       }
     } catch (e) {
-      debugPrint('[SupabaseDataService] getRoomRanking error: $e');
-    }
     return [];
+  }
+
+  Future<bool> updateUserCustomId(String uid, String newCustomId) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid');
+      final res = await http.patch(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'custom_id': newCustomId,
+        }),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] updateUserCustomId error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> markStoreItemSold(String itemId) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/store_items?id=eq.$itemId');
+      final res = await http.patch(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'is_available': false,
+          'is_sold': true,
+        }),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] markStoreItemSold error: $e');
+      return false;
+    }
   }
 }
 

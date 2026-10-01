@@ -75,9 +75,14 @@ export default function UsersPage() {
     try {
       await updateUser(editing.uid, { [field]: value });
       setUsers(prev => prev.map(u => u.uid === editing.uid ? updated : u));
+      showMsg('تم الحفظ بنجاح!');
     } catch (e: unknown) {
       const err = e as { message?: string };
-      showMsg('Error: ' + (err?.message || 'Update failed'));
+      const errMsg = err?.message || 'Update failed';
+      alert('⚠️ ' + errMsg);
+      showMsg('⚠️ ' + errMsg);
+      // Reload user data to revert uncommitted change
+      loadUsers();
     }
   };
 
@@ -86,10 +91,13 @@ export default function UsersPage() {
     try {
       await updateUser(editing.uid, editing);
       setUsers(prev => prev.map(u => u.uid === editing.uid ? editing : u));
-      showMsg('Saved!');
+      showMsg('تم الحفظ بنجاح!');
     } catch (e: unknown) {
       const err = e as { message?: string };
-      showMsg('Error: ' + (err?.message || 'Save failed'));
+      const errMsg = err?.message || 'Save failed';
+      alert('⚠️ ' + errMsg);
+      showMsg('⚠️ ' + errMsg);
+      loadUsers();
     }
   };
 
@@ -259,8 +267,24 @@ export default function UsersPage() {
                   <input type="text" value={editing.name || ''} onChange={e => handleUpdate('name', e.target.value)} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Custom ID</label>
-                  <input type="text" value={editing.customId || ''} onChange={e => handleUpdate('customId', e.target.value)} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
+                  <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Custom ID (الآيدي المميز)</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={editing.customId || ''}
+                      onChange={e => setEditing({ ...editing, customId: e.target.value })}
+                      onKeyDown={e => { if (e.key === 'Enter') handleUpdate('customId', editing.customId); }}
+                      placeholder="e.g. 1, 100, 777"
+                      className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleUpdate('customId', editing.customId)}
+                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-[11px] text-white rounded-lg whitespace-nowrap"
+                    >
+                      تحديث
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Email</label>

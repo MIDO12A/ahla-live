@@ -10,6 +10,7 @@ import '../../services/cloudinary_service.dart';
 import '../../services/supabase_auth_service.dart';
 import '../../providers/user_provider.dart';
 import '../../models/user_model.dart';
+import '../../core/utils/id_generator.dart';
 import '../main_screen/main_screen.dart';
 
 class SetupProfileScreen extends StatefulWidget {
@@ -66,14 +67,16 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
     try {
       String photoUrl = widget.photoUrl;
 
-      // Generate unique custom ID (server or local fallback)
+      // Generate unique custom ID (6-7 digits)
       String customId;
       try {
-        final idResult = await ApiService().generateCustomId();
-        customId = idResult['customId'] as String;
+        customId = await UserIdGenerator().generateUniqueId(minDigits: 6, maxDigits: 7);
       } catch (_) {
         final rng = Random();
-        customId = (1000000 + rng.nextInt(9000000)).toString();
+        final is7 = rng.nextBool();
+        customId = is7
+            ? (1000000 + rng.nextInt(9000000)).toString()
+            : (100000 + rng.nextInt(900000)).toString();
       }
 
       if (_selectedImage != null) {

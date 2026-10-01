@@ -12,11 +12,10 @@ class UserIdGenerator {
   factory UserIdGenerator() => _instance;
   UserIdGenerator._internal();
 
-  /// توليد رقم تعريف جديد فريد (6-10 أرقام)
-  /// TODO: استخدام هذه الدالة لضمان عدم تكرار الـ IDs
+  /// توليد رقم تعريف جديد فريد (6-7 أرقام)
   Future<String> generateUniqueId({
     int minDigits = 6,
-    int maxDigits = 10,
+    int maxDigits = 7,
     int maxRetries = 10,
   }) async {
     for (int attempt = 0; attempt < maxRetries; attempt++) {
@@ -34,9 +33,9 @@ class UserIdGenerator {
       await Future.delayed(Duration(milliseconds: 100 * (attempt + 1)));
     }
     
-    // في حالة فشل جميع المحاولات، استخدم الرقم مع timestamp لضمان التفرد
-    final timestamp = DateTime.now().millisecondsSinceEpoch % 1000000;
-    return '${_generateRandomId(minDigits, maxDigits - 3)}$timestamp';
+    // في حالة فشل المحاولات، استخدم رقم عشوائي فريد
+    final ts = (DateTime.now().millisecondsSinceEpoch % 900000) + 100000;
+    return ts.toString();
   }
 
   /// توليد رقم عشوائي (بدون التحقق من التفرد)
@@ -88,16 +87,15 @@ class UserIdGenerator {
     return 'temp_${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  /// التحقق من صحة تنسيق الـ ID
-  /// FIX: التحقق من أن الـ ID يحتوي على أرقام فقط
+  /// التحقق من صحة تنسيق الـ ID (يقبل من خانة واحدة حتى 10 خانات ليدعم الآيديات المميزة مثل 1 أو 100)
   static bool isValidCustomId(String customId) {
-    if (customId.isEmpty) return false;
+    if (customId.trim().isEmpty) return false;
     
     // إزالة أي مسافات أو رموز
     final cleaned = customId.replaceAll(RegExp(r'[^0-9]'), '');
     
-    // التحقق من الطول (6-10 أرقام)
-    if (cleaned.length < 6 || cleaned.length > 10) return false;
+    // التحقق من الطول (1-10 أرقام)
+    if (cleaned.isEmpty || cleaned.length > 10) return false;
     
     // التحقق من أنه أرقام فقط
     return int.tryParse(cleaned) != null;

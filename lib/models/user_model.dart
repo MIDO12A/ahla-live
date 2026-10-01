@@ -273,13 +273,13 @@ class UserModel {
     return '';
   }
 
-  // FIX: Validate that a string is a valid numeric ID (6-10 digits)
+  // FIX: Validate that a string is a valid numeric ID (1-12 digits, supporting special short IDs like 1, 100, 1000)
   static bool _isValidNumericId(String value) {
-    if (value.isEmpty) return false;
+    if (value.trim().isEmpty) return false;
     // Remove any non-numeric characters
     final numericOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
-    // Check if it's 6-10 digits
-    return numericOnly.length >= 6 && numericOnly.length <= 10;
+    // Check if it's 1-12 digits
+    return numericOnly.isNotEmpty && numericOnly.length <= 12;
   }
 
   // FIX: Robust photo URL extraction supporting various schema field names
