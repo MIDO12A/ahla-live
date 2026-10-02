@@ -887,6 +887,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Timer? _bannerHideTimer;
   Timer? _presencePingTimer; // ✅ ping دوري للـ presence — يكتشف الخروج الصامت
   final RoomAudioService _roomAudio = RoomAudioService();
+  bool _takingSeat = false;
+  int? _pendingSeatIndex;
+  Map<int, Map<String, dynamic>>? _lastProcessedSeatMap;
 
   @override
   void initState() {
@@ -1563,27 +1566,52 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     return null;
   }
 
+  bool _areSeatMapsEqual(Map<int, Map<String, dynamic>>? a, Map<int, Map<String, dynamic>>? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key)) return false;
+      final mapA = a[key]!;
+      final mapB = b[key]!;
+      if (mapA['uid'] != mapB['uid'] ||
+          mapA['name'] != mapB['name'] ||
+          mapA['photo_url'] != mapB['photo_url'] ||
+          mapA['is_muted'] != mapB['is_muted'] ||
+          mapA['is_locked'] != mapB['is_locked'] ||
+          mapA['active_frame'] != mapB['active_frame'] ||
+          mapA['active_car'] != mapB['active_car']) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   void _processSeatMap(Map<int, Map<String, dynamic>> seatMap) {
     if (!mounted) return;
-    // Preserve locked state before reset
+    // Skip no-op ticks to eliminate seat shaking / flickering
+    if (_areSeatMapsEqual(_lastProcessedSeatMap, seatMap) && !_takingSeat) {
+      return;
+    }
+    _lastProcessedSeatMap = Map<int, Map<String, dynamic>>.from(seatMap);
+
+    // Preserve locked state
     final lockedIndices = <int>{};
     for (int i = 0; i < _seats.length; i++) {
       if (_seats[i].isLocked) lockedIndices.add(i);
     }
-    // Reset ALL seats to empty first to clear vacated seats
-    for (int i = 0; i < _seats.length; i++) {
-      _seats[i] = SeatModel(index: i);
-    }
-    // Restore locked seats
-    for (final i in lockedIndices) {
-      _seats[i] = SeatModel(index: i, state: SeatState.locked, isLocked: true);
-    }
-    // Apply seatMap data from Firebase
+
+    final newSeats = List<SeatModel>.generate(_seats.length, (i) {
+      final isLocked = lockedIndices.contains(i);
+      return SeatModel(index: i, state: isLocked ? SeatState.locked : SeatState.empty, isLocked: isLocked);
+    });
+
     bool isCurrentUserOnSeatNow = false;
     bool currentUserMuted = false;
+
     for (final entry in seatMap.entries) {
       final idx = entry.key;
-      if (idx < 0 || idx >= _seats.length) continue;
+      if (idx < 0 || idx >= newSeats.length) continue;
       final data = entry.value;
       final uid = data['uid']?.toString();
       if (uid != null) {
@@ -1618,7 +1646,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final activeMicWave = data['active_mic_wave']?.toString() ?? cachedUser?.activeMicWave;
         final gender = data['gender']?.toString() ?? cachedUser?.gender ?? 'male';
         final country = data['country']?.toString() ?? data['country_code']?.toString() ?? cachedUser?.country ?? 'EG';
-        _seats[idx] = SeatModel(
+
+        newSeats[idx] = SeatModel(
           index: idx,
           state: SeatState.occupied,
           user: UserModel(
@@ -1638,15 +1667,28 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           frameAsset: frameAsset,
           carAsset: carAsset,
         );
-      } else {
-        _seats[idx] = SeatModel(index: idx);
       }
     }
+
+    // 🛡️ CRITICAL PROTECTION: While the current user is moving/taking a seat,
+    // preserve their seat optimistically so a background poll doesn't kick them down!
+    if (_takingSeat && _pendingSeatIndex != null && _currentUserId != null) {
+      final pIdx = _pendingSeatIndex!;
+      if (pIdx >= 0 && pIdx < newSeats.length && newSeats[pIdx].user?.id != _currentUserId) {
+        if (pIdx < _seats.length && _seats[pIdx].user?.id == _currentUserId) {
+          newSeats[pIdx] = _seats[pIdx];
+          isCurrentUserOnSeatNow = true;
+        }
+      }
+    }
+
+    _seats = newSeats;
+
     // Only allow publishing when the current user is actually on a seat
     if (isCurrentUserOnSeatNow) {
       _roomAudio.startPublishing();
       _roomAudio.toggleMic(!currentUserMuted);
-    } else if (_roomAudio.isPublishing) {
+    } else if (_roomAudio.isPublishing && !_takingSeat) {
       _roomAudio.stopPublishingIfActive();
       _roomAudio.resetPublishingState();
     }
@@ -1888,13 +1930,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _openGiftPanel() {
-    final hasSeatedUsers = _seats.any((s) => s.isOccupied && s.user != null);
-    if (!hasSeatedUsers) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لا يوجد مستخدم على المقعد لإرسال الهدية')),
-      );
-      return;
-    }
     _closeAllPanels();
     setState(() => _showGift = true);
   }
@@ -2106,13 +2141,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   // ── Seat actions ──────────────────────────────────────────────
 
-  bool _takingSeat = false;
-  void _takeMic(int idx) {
+  Future<void> _takeMic(int idx) async {
     if (_takingSeat) return;
     if (_currentUserId == null) return;
     // If already on this seat, skip
     if (idx < _seats.length && _seats[idx].user?.id == _currentUserId) return;
     _takingSeat = true;
+    _pendingSeatIndex = idx;
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final currentUser = userProvider.currentUser;
     final name = currentUser?.name ?? 'Me';
@@ -2148,7 +2183,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _seats[previousIdx] = SeatModel(index: previousIdx);
       }
     });
-    Future<void> doTake() async {
+
+    try {
+      if (previousIdx != null) {
+        await _firebaseService.leaveSeat(widget.roomId, previousIdx);
+      }
       await _firebaseService.takeSeat(widget.roomId, idx, app.UserModel(
         uid: _currentUserId!,
         customId: currentUser?.customId ?? '',
@@ -2160,17 +2199,29 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         gender: currentUser?.gender ?? 'male',
         country: currentUser?.country ?? 'EG',
       ));
-      _takingSeat = false;
-    }
-    if (previousIdx != null) {
-      _firebaseService.leaveSeat(widget.roomId, previousIdx).then((_) => doTake());
-    } else {
-      doTake();
+    } catch (e) {
+      debugPrint('[takeMic] error: $e');
+    } finally {
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        setState(() {
+          _takingSeat = false;
+          _pendingSeatIndex = null;
+        });
+      } else {
+        _takingSeat = false;
+        _pendingSeatIndex = null;
+      }
     }
   }
 
   void _kickOffMic(int idx) {
     final kickedUid = _seats[idx].user?.id;
+
+    if (kickedUid == _currentUserId) {
+      _takingSeat = false;
+      _pendingSeatIndex = null;
+    }
 
     setState(() {
       _seats[idx].state = SeatState.empty;
@@ -2895,7 +2946,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 msgCount: _msgCount,
                 onChat: () {
                   if (_currentRoom?.isChatLocked == true && !_isOwnerOrModerator) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم قفل الدردشة من قبل الإدارة')));
+                    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isAr ? 'تم قفل الدردشة من قبل الإدارة' : 'Chat is locked by admins')));
                     return;
                   }
                   final willShow = !_showChatInput;
@@ -2999,14 +3051,27 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         selectedCount: _giftCount,
                         coins: Provider.of<UserProvider>(context).currentUser?.coins ?? 0,
                         roomId: widget.roomId,
-                        targetUsers: _seats
-                            .where((s) => s.isOccupied && s.user != null)
-                            .map((s) => {
-                                  'id': s.user!.id ?? '',
-                                  'name': s.user!.name,
-                                  'photoUrl': s.user!.avatar,
-                                })
-                            .toList(),
+                        targetUsers: () {
+                          final list = _seats
+                              .where((s) => s.isOccupied && s.user != null)
+                              .map((s) => {
+                                    'id': s.user!.id ?? '',
+                                    'name': s.user!.name,
+                                    'photoUrl': s.user!.avatar,
+                                  })
+                              .toList();
+                          if (list.isEmpty && _currentRoom != null && _currentRoom!.hostUid.isNotEmpty) {
+                            final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+                            list.add({
+                              'id': _currentRoom!.hostUid,
+                              'name': _currentRoom!.hostName.isNotEmpty
+                                  ? _currentRoom!.hostName
+                                  : (isAr ? 'صاحب الغرفة' : 'Room Owner'),
+                              'photoUrl': _currentRoom!.hostPhotoUrl,
+                            });
+                          }
+                          return list;
+                        }(),
                         receiverId: _selectedSeatIdx != null &&
                                 _seats[_selectedSeatIdx!].isOccupied &&
                                 _seats[_selectedSeatIdx!].user != null

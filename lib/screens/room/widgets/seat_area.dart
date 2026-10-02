@@ -144,6 +144,7 @@ class SeatArea extends StatelessWidget {
       child: Transform.scale(
         scale: 1.2,
         child: _NormalSeat(
+          key: ValueKey('seat_$idx'),
           seat: seats[idx],
           emoji: seatEmojis?[idx],
           isModerator: seats[idx].user != null
@@ -177,6 +178,7 @@ class SeatArea extends StatelessWidget {
                 child: GestureDetector(
                   onTap: () => onSeatTap(0),
                   child: _NormalSeat(
+                    key: ValueKey('seat_${items[0].index}'),
                     seat: items[0],
                     emoji: seatEmojis?[0],
                     isModerator: items[0].user != null ? moderators?.contains(items[0].user!.id) ?? false : false,
@@ -194,6 +196,7 @@ class SeatArea extends StatelessWidget {
                 child: GestureDetector(
                   onTap: () => onSeatTap(1),
                   child: _NormalSeat(
+                    key: ValueKey('seat_${items[1].index}'),
                     seat: items[1],
                     emoji: seatEmojis?[1],
                     isModerator: items[1].user != null ? moderators?.contains(items[1].user!.id) ?? false : false,
@@ -224,6 +227,7 @@ class SeatArea extends StatelessWidget {
                     child: GestureDetector(
                       onTap: () => onSeatTap(i + j),
                       child: _NormalSeat(
+                        key: ValueKey('seat_${rowItems[j].index}'),
                         seat: rowItems[j],
                         emoji: seatEmojis?[i + j],
                         isModerator: rowItems[j].user != null ? moderators?.contains(rowItems[j].user!.id) ?? false : false,
@@ -257,6 +261,7 @@ class SeatArea extends StatelessWidget {
                   child: GestureDetector(
                     onTap: () => onSeatTap(i + j),
                     child: _NormalSeat(
+                      key: ValueKey('seat_${rowItems[j].index}'),
                       seat: rowItems[j],
                       emoji: seatEmojis?[i + j],
                       isModerator: rowItems[j].user != null
@@ -293,6 +298,7 @@ class _NormalSeat extends StatelessWidget {
   final void Function()? onCharmTap;
 
   const _NormalSeat({
+    super.key,
     required this.seat,
     this.emoji,
     this.isModerator = false,
@@ -394,9 +400,7 @@ class _NormalSeat extends StatelessWidget {
                 child: Text(
                   hasUser
                       ? name
-                      : (seatStyle == SeatStyle.circle
-                          ? (isCaptain ? 'Captain' : '${seat.index}')
-                          : (isCaptain ? 'Captain' : '${seat.index + 1}')),
+                      : '${seat.index + 1}',
                   style: const TextStyle(fontSize: 11, color: Colors.white),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -436,12 +440,6 @@ class _NormalSeat extends StatelessWidget {
       ],
     );
 
-    if (isCaptain) {
-      child = Transform.scale(
-        scale: 1.15,
-        child: child,
-      );
-    }
     return child;
       },
     );

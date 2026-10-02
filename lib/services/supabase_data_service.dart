@@ -154,7 +154,7 @@ class SupabaseDataService {
     required UserModel user,
   }) async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/room_seats');
+      final url = Uri.parse('$_baseUrl/rest/v1/room_seats?on_conflict=room_id,seat_index');
       final body = jsonEncode({
         'room_id': roomId,
         'seat_index': seatIndex,

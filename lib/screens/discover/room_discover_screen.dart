@@ -104,6 +104,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
   }
 
   void _openCountryPicker() {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -119,9 +120,9 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
               child: Row(
                 children: [
                   const Spacer(),
-                  const Text(
-                    'اختر الدولة',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  Text(
+                    isAr ? 'اختر الدولة' : 'Select Country',
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                   ),
                   const Spacer(),
                   GestureDetector(
@@ -135,17 +136,25 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
             Expanded(
               child: ListView(
                 children: [
-                  _countryItem('🌍', 'الكل'),
-                  _countryItem('🇸🇦', 'السعودية'),
-                  _countryItem('🇦🇪', 'الإمارات'),
-                  _countryItem('🇪🇬', 'مصر'),
-                  _countryItem('🇰🇼', 'الكويت'),
-                  _countryItem('🇶🇦', 'قطر'),
-                  _countryItem('🇧🇭', 'البحرين'),
-                  _countryItem('🇴🇲', 'عمان'),
-                  _countryItem('🇯🇴', 'الأردن'),
-                  _countryItem('🇱🇧', 'لبنان'),
-                  _countryItem('🇮🇶', 'العراق'),
+                  _countryItem('🌍', isAr ? 'الكل' : 'All'),
+                  _countryItem('🇪🇬', isAr ? 'مصر' : 'Egypt'),
+                  _countryItem('🇸🇦', isAr ? 'السعودية' : 'Saudi Arabia'),
+                  _countryItem('🇦🇪', isAr ? 'الإمارات' : 'UAE'),
+                  _countryItem('🇰🇼', isAr ? 'الكويت' : 'Kuwait'),
+                  _countryItem('🇶🇦', isAr ? 'قطر' : 'Qatar'),
+                  _countryItem('🇧🇭', isAr ? 'البحرين' : 'Bahrain'),
+                  _countryItem('🇴🇲', isAr ? 'عمان' : 'Oman'),
+                  _countryItem('🇯🇴', isAr ? 'الأردن' : 'Jordan'),
+                  _countryItem('🇱🇧', isAr ? 'لبنان' : 'Lebanon'),
+                  _countryItem('🇮🇶', isAr ? 'العراق' : 'Iraq'),
+                  _countryItem('🇲🇦', isAr ? 'المغرب' : 'Morocco'),
+                  _countryItem('🇩🇿', isAr ? 'الجزائر' : 'Algeria'),
+                  _countryItem('🇹🇳', isAr ? 'تونس' : 'Tunisia'),
+                  _countryItem('🇸🇩', isAr ? 'السودان' : 'Sudan'),
+                  _countryItem('🇾🇪', isAr ? 'اليمن' : 'Yemen'),
+                  _countryItem('🇸🇾', isAr ? 'سوريا' : 'Syria'),
+                  _countryItem('🇵🇸', isAr ? 'فلسطين' : 'Palestine'),
+                  _countryItem('🇱🇾', isAr ? 'ليبيا' : 'Libya'),
                 ],
               ),
             ),
@@ -162,7 +171,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
       onTap: () {
         Navigator.pop(context);
         setState(() {
-          if (name == 'الكل' || _selectedCountry == name) {
+          if (name == 'الكل' || name == 'All' || _selectedCountry == name) {
             _selectedCountry = null;
           } else {
             _selectedCountry = name;
@@ -267,21 +276,26 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildCustomTab(
-                          iconPath: R.discoverTabFollowIc,
-                          label: 'Follow',
-                          index: 0,
-                        ),
-                        const SizedBox(width: 24),
-                        _buildCustomTab(
-                          iconPath: R.discoverTabRecentIc,
-                          label: 'Recent',
-                          index: 1,
-                        ),
-                      ],
+                    child: Builder(
+                      builder: (context) {
+                        final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildCustomTab(
+                              iconPath: R.discoverTabFollowIc,
+                              label: isAr ? 'متابعة' : 'Follow',
+                              index: 0,
+                            ),
+                            const SizedBox(width: 24),
+                            _buildCustomTab(
+                              iconPath: R.discoverTabRecentIc,
+                              label: isAr ? 'الأحدث' : 'Recent',
+                              index: 1,
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -375,21 +389,24 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                 }).toList();
               }
 
-              if (_selectedCountry != null && _selectedCountry!.isNotEmpty) {
-                rooms = rooms.where((room) => room.country == _selectedCountry).toList();
+              if (_selectedCountry != null && _selectedCountry!.isNotEmpty && _selectedCountry != 'الكل') {
+                rooms = rooms.where((room) => _roomMatchesCountry(room, _selectedCountry)).toList();
               }
 
               if (rooms.isEmpty) {
-                return const Center(
+                final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+                return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.headset_off, size: 64, color: Colors.black26),
-                      SizedBox(height: 16),
+                      const Icon(Icons.headset_off, size: 64, color: Colors.black26),
+                      const SizedBox(height: 16),
                       Text(
-                        'No rooms yet\nCreate one!',
+                        isAr
+                            ? 'لا توجد غرف حالياً\nابدأ بإنشاء غرفتك الآن!'
+                            : 'No rooms yet\nCreate one!',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16, color: Colors.black45),
+                        style: const TextStyle(fontSize: 16, color: Colors.black45),
                       ),
                     ],
                   ),
@@ -431,13 +448,72 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     );
   }
 
+  bool _roomMatchesCountry(RoomModel room, String? selectedCountry) {
+    if (selectedCountry == null ||
+        selectedCountry.isEmpty ||
+        selectedCountry == 'الكل' ||
+        selectedCountry == 'All') {
+      return true;
+    }
+    final sel = selectedCountry.trim().toLowerCase();
+    final rCountry = room.country.trim().toLowerCase();
+
+    if (rCountry == sel) return true;
+
+    const countryAliases = <String, List<String>>{
+      'eg': ['مصر', 'egypt', 'eg', 'egp', 'جمهورية مصر العربية'],
+      'sa': ['السعودية', 'saudi', 'saudi arabia', 'sa', 'ksa', 'المملكة العربية السعودية'],
+      'ae': ['الإمارات', 'الامارات', 'uae', 'ae', 'united arab emirates', 'الإمارات العربية المتحدة'],
+      'kw': ['الكويت', 'kuwait', 'kw', 'kwt', 'دولة الكويت'],
+      'qa': ['قطر', 'qatar', 'qa', 'qat', 'دولة قطر'],
+      'bh': ['البحرين', 'bahrain', 'bh', 'bhr', 'مملكة البحرين'],
+      'om': ['عمان', 'عُمان', 'oman', 'om', 'omn', 'سلطنة عمان'],
+      'iq': ['العراق', 'iraq', 'iq', 'irq', 'جمهورية العراق'],
+      'jo': ['الأردن', 'الاردن', 'jordan', 'jo', 'jor', 'المملكة الأردنية الهاشمية'],
+      'sy': ['سوريا', 'syria', 'sy', 'syr'],
+      'lb': ['لبنان', 'lebanon', 'lb', 'lbn', 'الجمهورية اللبنانية'],
+      'ye': ['اليمن', 'yemen', 'ye', 'yem'],
+      'ps': ['فلسطين', 'palestine', 'ps', 'pse'],
+      'sd': ['السودان', 'sudan', 'sd', 'sdn'],
+      'ly': ['ليبيا', 'libya', 'ly', 'lby'],
+      'tn': ['تونس', 'tunisia', 'tn', 'tun'],
+      'dz': ['الجزائر', 'algeria', 'dz', 'dza'],
+      'ma': ['المغرب', 'morocco', 'ma', 'mar'],
+      'us': ['امريكا', 'أمريكا', 'us', 'usa', 'united states', 'الولايات المتحدة الأمريكية'],
+      'gb': ['بريطانيا', 'gb', 'uk', 'united kingdom', 'المملكة المتحدة'],
+      'tr': ['تركيا', 'turkey', 'tr', 'tur'],
+    };
+
+    for (final entry in countryAliases.entries) {
+      final code = entry.key;
+      final aliases = entry.value;
+      final matchesSelected = sel == code || aliases.any((a) => a == sel || sel.contains(a));
+      if (matchesSelected) {
+        if (rCountry == code) return true;
+        if (aliases.any((a) => a == rCountry || (rCountry.isNotEmpty && rCountry.contains(a)))) return true;
+      }
+    }
+
+    if (rCountry.isNotEmpty && (rCountry.contains(sel) || sel.contains(rCountry))) {
+      return true;
+    }
+
+    return false;
+  }
+
   Widget _buildCountrySection() {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     final countries = [
-      {'name': 'الكل', 'flag': '🌍'},
-      {'name': 'السعودية', 'flag': '🇸🇦'},
-      {'name': 'الإمارات', 'flag': '🇦🇪'},
-      {'name': 'مصر', 'flag': '🇪🇬'},
-      {'name': 'الكويت', 'flag': '🇰🇼'},
+      {'name': isAr ? 'الكل' : 'All', 'flag': '🌍'},
+      {'name': isAr ? 'مصر' : 'Egypt', 'flag': '🇪🇬'},
+      {'name': isAr ? 'السعودية' : 'Saudi Arabia', 'flag': '🇸🇦'},
+      {'name': isAr ? 'الإمارات' : 'UAE', 'flag': '🇦🇪'},
+      {'name': isAr ? 'الكويت' : 'Kuwait', 'flag': '🇰🇼'},
+      {'name': isAr ? 'العراق' : 'Iraq', 'flag': '🇮🇶'},
+      {'name': isAr ? 'قطر' : 'Qatar', 'flag': '🇶🇦'},
+      {'name': isAr ? 'عمان' : 'Oman', 'flag': '🇴🇲'},
+      {'name': isAr ? 'الأردن' : 'Jordan', 'flag': '🇯🇴'},
+      {'name': isAr ? 'المغرب' : 'Morocco', 'flag': '🇲🇦'},
     ];
 
     return Padding(
@@ -464,9 +540,9 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                           height: 24,
                         ),
                         const SizedBox(width: 2),
-                        const Text(
-                          'المزيد',
-                          style: TextStyle(
+                        Text(
+                          isAr ? 'المزيد' : 'More',
+                          style: const TextStyle(
                             fontSize: 11,
                             color: Color(0xFF59370D),
                           ),
@@ -483,13 +559,15 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                     itemBuilder: (context, index) {
                       final country = countries[index];
                       final countryName = country['name']!;
-                      final isActive = _selectedCountry == countryName;
+                      final isAll = countryName == 'الكل' || countryName == 'All';
+                      final isActive = (isAll && (_selectedCountry == null || _selectedCountry == 'الكل' || _selectedCountry == 'All')) ||
+                          (!isAll && _selectedCountry == countryName);
                       return Padding(
                         padding: const EdgeInsets.only(right: 6),
                         child: GestureDetector(
                           onTap: () {
                             setState(() {
-                              if (countryName == 'الكل' || _selectedCountry == countryName) {
+                              if (isAll || _selectedCountry == countryName) {
                                 _selectedCountry = null;
                               } else {
                                 _selectedCountry = countryName;

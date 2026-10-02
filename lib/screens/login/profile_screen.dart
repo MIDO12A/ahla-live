@@ -31,6 +31,7 @@ import '../../features/tasks/screens/daily_tasks_screen.dart';
 import '../../features/signin/weekly_signin_screen.dart';
 import '../badges/badges_screen.dart';
 import '../../widgets/user_id_widget.dart';
+import '../../core/localization/app_strings.dart';
 
 /// شاشة "أنا" (الملف الشخصي) المطابقة تماماً لملف fragment_mine.xml
 /// وكود MineFragment.java من المشروع الأصلي (F:\Medal\New folder\nu):
@@ -599,7 +600,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            label,
+            context.trAuto(label),
             style: const TextStyle(
               fontSize: 12,
               color: Color(0xFF9BA1B6), // color_9BA1B6
@@ -652,18 +653,18 @@ class ProfileScreen extends StatelessWidget {
                       fit: BoxFit.contain,
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'المحفظة',
-                      style: TextStyle(
+                    Text(
+                      context.tr('المحفظة', 'Wallet'),
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF000000),
                       ),
                     ),
                     const Spacer(),
-                    const Text(
-                      'إعادة شحن العملات الذهبية',
-                      style: TextStyle(
+                    Text(
+                      context.tr('إعادة شحن العملات الذهبية', 'Recharge Gold Coins'),
+                      style: const TextStyle(
                         fontSize: 11,
                         color: Color(0xFF9BA1B6),
                       ),
@@ -997,12 +998,14 @@ class ProfileScreen extends StatelessWidget {
               fit: BoxFit.contain,
             ),
             const SizedBox(width: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF000000),
+            Builder(
+              builder: (ctx) => Text(
+                ctx.trAuto(title),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF000000),
+                ),
               ),
             ),
             const Spacer(),

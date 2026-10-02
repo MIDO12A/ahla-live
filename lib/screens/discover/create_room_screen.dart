@@ -96,6 +96,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
         isLocked: _isLocked,
         password: _pwdController.text.trim(),
         category: _roomTypes[_selectedType],
+        country: user.country.isNotEmpty ? user.country : (user.countryCode.isNotEmpty ? user.countryCode : 'EG'),
       );
 
       // Save hostedRoomId to user in Firebase

@@ -254,17 +254,18 @@ class _GiftPanelState extends State<GiftPanel> {
   }
 
   Widget _buildHeader(DynamicConfigService dc) {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     final users = widget.targetUsers;
     final allTabs = [
-      const GiftCategory(id: 'all', name: 'الكل', sortOrder: -5),
-      const GiftCategory(id: 'normal', name: 'شائع', sortOrder: -4),
+      GiftCategory(id: 'all', name: isAr ? 'الكل' : 'All', sortOrder: -5),
+      GiftCategory(id: 'normal', name: isAr ? 'شائع' : 'Popular', sortOrder: -4),
       if (_gifts.any((g) => g.isVap || g.bigEffect || g.giftType == 2 || g.categoryId == 'luxury' || g.categoryId == 'vip'))
-        const GiftCategory(id: 'luxury', name: '👑 فاخر', sortOrder: -3),
+        GiftCategory(id: 'luxury', name: isAr ? '👑 فاخر' : '👑 Luxury', sortOrder: -3),
       if (_gifts.any((g) => g.isLucky || g.giftType == 3 || g.categoryId == 'lucky'))
-        const GiftCategory(id: 'lucky', name: '🍀 الحظ', sortOrder: -2),
+        GiftCategory(id: 'lucky', name: isAr ? '🍀 الحظ' : '🍀 Lucky', sortOrder: -2),
       if (_gifts.any((g) => g.isCpGift || g.giftType == 5 || g.categoryId == 'cp'))
-        const GiftCategory(id: 'cp', name: '💍 الارتباط', sortOrder: -1),
-      const GiftCategory(id: 'backpack', name: '🎒 الحقيبة', sortOrder: 0),
+        GiftCategory(id: 'cp', name: isAr ? '💍 الارتباط' : '💍 CP', sortOrder: -1),
+      GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 0),
       ..._categories.where((c) {
         final id = c.id.toLowerCase();
         final name = c.name.toLowerCase();
@@ -280,13 +281,15 @@ class _GiftPanelState extends State<GiftPanel> {
         children: [
           Row(
             children: [
-              const Text(
-                'إرسال إلى:',
-                style: TextStyle(fontSize: 10, color: Colors.white70),
+              Text(
+                isAr ? 'إرسال إلى:' : 'Send to:',
+                style: const TextStyle(fontSize: 10, color: Colors.white70),
               ),
               const Spacer(),
               Text(
-                'تم تحديد ${_selectedUserIds.length} من ${users.length}',
+                isAr
+                    ? 'تم تحديد ${_selectedUserIds.length} من ${users.length}'
+                    : 'Selected ${_selectedUserIds.length} of ${users.length}',
                 style: const TextStyle(fontSize: 10, color: Color(0xFFFFD700)),
               ),
             ],
