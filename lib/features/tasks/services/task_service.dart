@@ -26,22 +26,16 @@ class TaskService {
   Future<List<TaskModel>> fetchTasks(String userId) async {
     final today = _getTodayKey();
     
-    // 1. جلب التقدم اليومي للمستخدم
+    // 1. جلب التقدم اليومي للمستخدم من Supabase
     Map<String, dynamic> userDailyData = {};
     try {
-      final doc = await _db.collection('users').doc(userId).collection('tasks_progress').doc(today).get();
-      if (doc.exists && doc.data() != null) {
-        userDailyData = doc.data()!;
-      }
+      userDailyData = await SupabaseDataService().getUserTasksProgress(userId, today);
     } catch (_) {}
 
-    // 2. جلب التقدم لمهام النمو الدائمة
+    // 2. جلب التقدم لمهام النمو الدائمة من Supabase
     Map<String, dynamic> userGrowthData = {};
     try {
-      final doc = await _db.collection('users').doc(userId).collection('growth_tasks').doc('progress').get();
-      if (doc.exists && doc.data() != null) {
-        userGrowthData = doc.data()!;
-      }
+      userGrowthData = await SupabaseDataService().getGrowthTasksProgress(userId);
     } catch (_) {}
 
     // 3. جلب قائمة المهام من قاعدة البيانات مع وجود قائمة افتراضية كاملة
@@ -89,19 +83,13 @@ class TaskService {
     final today = _getTodayKey();
 
     try {
-      if (isGrowth) {
-        final ref = _db.collection('users').doc(userId).collection('growth_tasks').doc('progress');
-        await ref.set({
-          '${taskId}_progress': FieldValue.increment(amount),
-          'updated_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      } else {
-        final ref = _db.collection('users').doc(userId).collection('tasks_progress').doc(today);
-        await ref.set({
-          '${taskId}_progress': FieldValue.increment(amount),
-          'updated_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
+      await SupabaseDataService().recordTaskAction(
+        userId,
+        taskId,
+        amount: amount,
+        isGrowth: isGrowth,
+        dateKey: today,
+      );
     } catch (_) {}
   }
 
@@ -112,54 +100,41 @@ class TaskService {
     final isGrowth = task.group != 'daily';
 
     try {
-      // 1. تحديث حالة الاستلام
-      if (isGrowth) {
-        await _db.collection('users').doc(userId).collection('growth_tasks').doc('progress').set({
-          '${task.id}_claimed': true,
-        }, SetOptions(merge: true));
-      } else {
-        await _db.collection('users').doc(userId).collection('tasks_progress').doc(today).set({
-          '${task.id}_claimed': true,
-        }, SetOptions(merge: true));
-      }
+      // 1. تحديث حالة الاستلام في Supabase
+      await SupabaseDataService().claimTask(
+        userId,
+        task.id,
+        isGrowth: isGrowth,
+        dateKey: today,
+      );
 
-      // 2. إيداع العملات ونقاط EXP في حساب المستخدم
-      final userUpdates = <String, dynamic>{};
+      // 2. إيداع العملات ونقاط EXP في حساب المستخدم في Supabase
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final currentCoins = userProvider.currentUser?.coins ?? 0;
+      final currentExp = userProvider.currentUser?.exp ?? 0;
+      final supaUpdates = <String, dynamic>{};
       if (task.coinsReward > 0) {
-        userUpdates['coins'] = FieldValue.increment(task.coinsReward);
+        supaUpdates['coins'] = currentCoins + task.coinsReward;
       }
       if (task.expReward > 0) {
-        userUpdates['exp'] = FieldValue.increment(task.expReward);
+        supaUpdates['exp'] = currentExp + task.expReward;
       }
-      if (userUpdates.isNotEmpty) {
-        try {
-          await _db.collection('users').doc(userId).update(userUpdates);
-        } catch (_) {}
+      if (supaUpdates.isNotEmpty) {
+        await SupabaseDataService().updateUser(userId, supaUpdates);
+        await userProvider.loadUser(userId);
       }
-
-      // Sync Supabase coins
-      if (task.coinsReward > 0) {
-        try {
-          final userProvider = Provider.of<UserProvider>(context, listen: false);
-          final currentCoins = userProvider.currentUser?.coins ?? 0;
-          final newCoins = currentCoins + task.coinsReward;
-          await SupabaseDataService().updateUser(userId, {'coins': newCoins});
-          await userProvider.loadUser(userId);
-        } catch (e) {
-          debugPrint('claimTaskReward Supabase update error: $e');
-        }
-      }
-
 
       // 3. إيداع عنصر المتجر في حقيبة المستخدم إذا وجد
       if (task.storeItemId != null && task.storeItemId!.isNotEmpty) {
-        await _db.collection('users').doc(userId).collection('backpack').doc(task.storeItemId).set({
-          'itemId': task.storeItemId,
-          'itemName': task.storeItemName ?? '',
-          'itemIcon': task.storeItemIcon ?? '',
-          'count': FieldValue.increment(1),
-          'acquiredAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        try {
+          await SupabaseDataService().addInventoryItem(
+            uid: userId,
+            itemId: task.storeItemId!,
+            itemType: 'backpack',
+            name: task.storeItemName ?? '',
+            icon: task.storeItemIcon ?? '',
+          );
+        } catch (_) {}
       }
 
       // 4. تحديث بروفايدر المستخدم

@@ -272,7 +272,7 @@ class FirebaseService {
     void fetchSupabase() async {
       try {
         final list = await SupabaseDataService().getAllRooms();
-        if (list.isNotEmpty && !controller.isClosed) {
+        if (!controller.isClosed) {
           if (isDifferent(list)) {
             controller.add(list);
           }
@@ -281,24 +281,10 @@ class FirebaseService {
     }
 
     fetchSupabase();
-    pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => fetchSupabase());
-
-    StreamSubscription? firestoreSub;
-    try {
-      firestoreSub = _db.collection('rooms').snapshots().listen((snap) {
-        if (!controller.isClosed) {
-          final rooms = snap.docs.map((e) => RoomModel.fromMap(_data(e))).toList();
-          rooms.sort((a, b) => b.totalGifts.compareTo(a.totalGifts));
-          if (isDifferent(rooms)) {
-            controller.add(rooms);
-          }
-        }
-      }, onError: (_) {});
-    } catch (_) {}
+    pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => fetchSupabase());
 
     controller.onCancel = () {
       pollTimer?.cancel();
-      firestoreSub?.cancel();
     };
 
     return controller.stream;
@@ -432,49 +418,46 @@ class FirebaseService {
   // ═══════════════════════════════════════════════════════
 
   Future<bool> takeSeat(String roomId, int seatIndex, UserModel user) async {
-    // 1. Sync to Supabase
-    unawaited(SupabaseDataService().takeSeat(
+    // 1. Sync to Supabase directly and await result
+    final supaResult = await SupabaseDataService().takeSeat(
       roomId: roomId,
       seatIndex: seatIndex,
       user: user,
-    ));
+    );
 
-    // 2. Dual-write to Firestore
-    final ref = _db.collection('room_seats').doc('${roomId}_$seatIndex');
-    final seatData = {
-      'room_id': roomId,
-      'seat_index': seatIndex,
-      'uid': user.uid,
-      'custom_id': user.customId,
-      'name': user.name,
-      'photo_url': user.photoUrl,
-      'active_frame': user.activeFrame,
-      'active_car': user.activeCar,
-      'active_mic_wave': user.activeMicWave,
-      'gender': user.gender,
-      'country': user.country,
-      'country_code': user.country.toLowerCase(),
-      'is_muted': false,
-      'taken_at': _now(),
-    };
+    // 2. Best-effort Firestore write
     try {
+      final ref = _db.collection('room_seats').doc('${roomId}_$seatIndex');
+      final seatData = {
+        'room_id': roomId,
+        'seat_index': seatIndex,
+        'uid': user.uid,
+        'custom_id': user.customId,
+        'name': user.name,
+        'photo_url': user.photoUrl,
+        'active_frame': user.activeFrame,
+        'active_car': user.activeCar,
+        'active_mic_wave': user.activeMicWave,
+        'gender': user.gender,
+        'country': user.country,
+        'country_code': user.country.toLowerCase(),
+        'is_muted': false,
+        'taken_at': _now(),
+      };
       await ref.set(seatData);
-      return true;
-    } catch (e) {
-      debugPrint('takeSeat firestore fallback: $e');
-      return true;
-    }
+    } catch (_) {}
+    return supaResult;
   }
 
   Future<void> leaveSeat(String roomId, int seatIndex) async {
-    unawaited(SupabaseDataService().leaveSeat(roomId, seatIndex));
+    await SupabaseDataService().leaveSeat(roomId, seatIndex);
     try {
       await _db.collection('room_seats').doc('${roomId}_$seatIndex').delete();
     } catch (_) {}
   }
 
   Future<void> leaveSeatForUser(String roomId, String uid) async {
-    unawaited(SupabaseDataService().leaveSeatForUser(roomId, uid));
+    await SupabaseDataService().leaveSeatForUser(roomId, uid);
     try {
       final snap = await _db
           .collection('room_seats')
@@ -484,9 +467,7 @@ class FirebaseService {
       for (final doc in snap.docs) {
         await doc.reference.delete();
       }
-    } catch (e) {
-      debugPrint('leaveSeatForUser error: $e');
-    }
+    } catch (_) {}
   }
 
   Future<void> toggleMute(String roomId, int seatIndex, bool muted) async {
@@ -502,40 +483,41 @@ class FirebaseService {
   Stream<Map<int, Map<String, dynamic>>> seatsStream(String roomId) {
     final controller = StreamController<Map<int, Map<String, dynamic>>>.broadcast();
     Timer? pollTimer;
+    Map<int, Map<String, dynamic>> lastMap = {};
+
+    bool areMapsEqual(Map<int, Map<String, dynamic>> a, Map<int, Map<String, dynamic>> b) {
+      if (a.length != b.length) return false;
+      for (final k in a.keys) {
+        if (!b.containsKey(k)) return false;
+        final vA = a[k]!;
+        final vB = b[k]!;
+        if (vA['uid'] != vB['uid'] ||
+            vA['is_muted'] != vB['is_muted'] ||
+            vA['name'] != vB['name'] ||
+            vA['photo_url'] != vB['photo_url']) {
+          return false;
+        }
+      }
+      return true;
+    }
 
     void fetchSupabase() async {
       try {
         final seats = await SupabaseDataService().getSeats(roomId);
         if (!controller.isClosed) {
-          controller.add(seats);
+          if (!areMapsEqual(lastMap, seats)) {
+            lastMap = Map<int, Map<String, dynamic>>.from(seats);
+            controller.add(seats);
+          }
         }
       } catch (_) {}
     }
 
     fetchSupabase();
-    pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => fetchSupabase());
-
-    StreamSubscription? firestoreSub;
-    try {
-      firestoreSub = _db
-          .collection('room_seats')
-          .where('room_id', isEqualTo: roomId)
-          .snapshots()
-          .listen((snap) {
-        if (!controller.isClosed) {
-          final map = <int, Map<String, dynamic>>{};
-          for (final e in snap.docs) {
-            final d = Map<String, dynamic>.from(e.data());
-            map[(d['seat_index'] as int?) ?? 0] = d;
-          }
-          controller.add(map);
-        }
-      }, onError: (_) {});
-    } catch (_) {}
+    pollTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) => fetchSupabase());
 
     controller.onCancel = () {
       pollTimer?.cancel();
-      firestoreSub?.cancel();
     };
 
     return controller.stream;

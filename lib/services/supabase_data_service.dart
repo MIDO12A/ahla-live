@@ -973,5 +973,130 @@ class SupabaseDataService {
       return false;
     }
   }
+
+  // ═══════════════════════════════════════════════════════
+  // TASKS
+  // ═══════════════════════════════════════════════════════
+
+  Future<Map<String, dynamic>> getUserTasksProgress(String uid, String dateKey) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/user_tasks_progress?uid=eq.$uid&date_key=eq.$dateKey');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        final map = <String, dynamic>{};
+        for (final row in list) {
+          final tId = row['task_id']?.toString() ?? '';
+          if (tId.isNotEmpty) {
+            map['${tId}_progress'] = row['progress'] ?? 0;
+            map['${tId}_claimed'] = row['is_claimed'] == true;
+          }
+        }
+        return map;
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getUserTasksProgress error: $e');
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>> getGrowthTasksProgress(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/growth_tasks_progress?uid=eq.$uid');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        final map = <String, dynamic>{};
+        for (final row in list) {
+          final tId = row['task_id']?.toString() ?? '';
+          if (tId.isNotEmpty) {
+            map['${tId}_progress'] = row['progress'] ?? 0;
+            map['${tId}_claimed'] = row['is_claimed'] == true;
+          }
+        }
+        return map;
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getGrowthTasksProgress error: $e');
+    }
+    return {};
+  }
+
+  Future<void> recordTaskAction(String uid, String taskId, {int amount = 1, bool isGrowth = false, required String dateKey}) async {
+    try {
+      if (isGrowth) {
+        final checkUrl = Uri.parse('$_baseUrl/rest/v1/growth_tasks_progress?uid=eq.$uid&task_id=eq.$taskId');
+        final res = await http.get(checkUrl, headers: _headers);
+        if (res.statusCode == 200) {
+          final List list = jsonDecode(res.body);
+          if (list.isNotEmpty) {
+            final cur = (list.first['progress'] as num?)?.toInt() ?? 0;
+            await http.patch(checkUrl, headers: _headers, body: jsonEncode({
+              'progress': cur + amount,
+              'updated_at': DateTime.now().toIso8601String(),
+            }));
+            return;
+          }
+        }
+        await http.post(
+          Uri.parse('$_baseUrl/rest/v1/growth_tasks_progress'),
+          headers: _headers,
+          body: jsonEncode({
+            'uid': uid,
+            'task_id': taskId,
+            'progress': amount,
+            'is_claimed': false,
+          }),
+        );
+      } else {
+        final checkUrl = Uri.parse('$_baseUrl/rest/v1/user_tasks_progress?uid=eq.$uid&task_id=eq.$taskId&date_key=eq.$dateKey');
+        final res = await http.get(checkUrl, headers: _headers);
+        if (res.statusCode == 200) {
+          final List list = jsonDecode(res.body);
+          if (list.isNotEmpty) {
+            final cur = (list.first['progress'] as num?)?.toInt() ?? 0;
+            await http.patch(checkUrl, headers: _headers, body: jsonEncode({
+              'progress': cur + amount,
+              'updated_at': DateTime.now().toIso8601String(),
+            }));
+            return;
+          }
+        }
+        await http.post(
+          Uri.parse('$_baseUrl/rest/v1/user_tasks_progress'),
+          headers: _headers,
+          body: jsonEncode({
+            'uid': uid,
+            'task_id': taskId,
+            'date_key': dateKey,
+            'progress': amount,
+            'is_claimed': false,
+          }),
+        );
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] recordTaskAction error: $e');
+    }
+  }
+
+  Future<void> claimTask(String uid, String taskId, {bool isGrowth = false, required String dateKey}) async {
+    try {
+      if (isGrowth) {
+        final url = Uri.parse('$_baseUrl/rest/v1/growth_tasks_progress?uid=eq.$uid&task_id=eq.$taskId');
+        await http.patch(url, headers: _headers, body: jsonEncode({
+          'is_claimed': true,
+          'updated_at': DateTime.now().toIso8601String(),
+        }));
+      } else {
+        final url = Uri.parse('$_baseUrl/rest/v1/user_tasks_progress?uid=eq.$uid&task_id=eq.$taskId&date_key=eq.$dateKey');
+        await http.patch(url, headers: _headers, body: jsonEncode({
+          'is_claimed': true,
+          'updated_at': DateTime.now().toIso8601String(),
+        }));
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] claimTask error: $e');
+    }
+  }
 }
 

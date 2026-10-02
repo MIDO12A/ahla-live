@@ -452,11 +452,14 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     if (selectedCountry == null ||
         selectedCountry.isEmpty ||
         selectedCountry == 'الكل' ||
-        selectedCountry == 'All') {
+        selectedCountry.toLowerCase() == 'all') {
       return true;
     }
     final sel = selectedCountry.trim().toLowerCase();
-    final rCountry = room.country.trim().toLowerCase();
+    String rCountry = room.country.trim().toLowerCase();
+    if (rCountry.isEmpty) {
+      rCountry = 'eg';
+    }
 
     if (rCountry == sel) return true;
 
@@ -567,7 +570,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                         child: GestureDetector(
                           onTap: () {
                             setState(() {
-                              if (isAll || _selectedCountry == countryName) {
+                              if (isAll) {
                                 _selectedCountry = null;
                               } else {
                                 _selectedCountry = countryName;

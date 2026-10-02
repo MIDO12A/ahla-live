@@ -109,12 +109,12 @@ class SeatArea extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Seat 0 (Captain) in the center
+            // Seat 0 in the center (same standard size as other seats)
             if (seats.isNotEmpty)
               Positioned(
                 left: centerX - 38,
                 top: centerY - 48,
-                child: _buildCircularSeatItem(0, true),
+                child: _buildCircularSeatItem(0, false),
               ),
             // Seats 1 to 9 arranged in a circle
             for (int i = 1; i <= 9; i++)
@@ -141,20 +141,17 @@ class SeatArea extends StatelessWidget {
   Widget _buildCircularSeatItem(int idx, bool isCaptain) {
     return GestureDetector(
       onTap: () => onSeatTap(idx),
-      child: Transform.scale(
-        scale: 1.2,
-        child: _NormalSeat(
-          key: ValueKey('seat_$idx'),
-          seat: seats[idx],
-          emoji: seatEmojis?[idx],
-          isModerator: seats[idx].user != null
-              ? moderators?.contains(seats[idx].user!.id) ?? false
-              : false,
-          seatStyle: seatStyle,
-          isCaptain: isCaptain,
-          showCharmValues: showCharmValues,
-          onCharmTap: onCharmTap,
-        ),
+      child: _NormalSeat(
+        key: ValueKey('seat_$idx'),
+        seat: seats[idx],
+        emoji: seatEmojis?[idx],
+        isModerator: seats[idx].user != null
+            ? moderators?.contains(seats[idx].user!.id) ?? false
+            : false,
+        seatStyle: seatStyle,
+        isCaptain: false,
+        showCharmValues: showCharmValues,
+        onCharmTap: onCharmTap,
       ),
     );
   }
@@ -183,7 +180,7 @@ class SeatArea extends StatelessWidget {
                     emoji: seatEmojis?[0],
                     isModerator: items[0].user != null ? moderators?.contains(items[0].user!.id) ?? false : false,
                     seatStyle: seatStyle,
-                    isCaptain: true,
+                    isCaptain: false,
                     showCharmValues: showCharmValues,
                     onCharmTap: onCharmTap,
                   ),
@@ -268,7 +265,7 @@ class SeatArea extends StatelessWidget {
                           ? moderators?.contains(rowItems[j].user!.id) ?? false
                           : false,
                       seatStyle: seatStyle,
-                      isCaptain: (i + j == 0),
+                      isCaptain: false,
                       showCharmValues: showCharmValues,
                       onCharmTap: onCharmTap,
                     ),
@@ -399,7 +396,7 @@ class _NormalSeat extends StatelessWidget {
                 width: isModerator ? 48 : 56,
                 child: Text(
                   hasUser
-                      ? name
+                      ? ((name == 'الكابتن' || name == 'الكابت' || name == 'كابتن' || name.trim().isEmpty) ? '${seat.index + 1}' : name)
                       : '${seat.index + 1}',
                   style: const TextStyle(fontSize: 11, color: Colors.white),
                   maxLines: 1,

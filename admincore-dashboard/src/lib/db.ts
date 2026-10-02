@@ -597,7 +597,7 @@ export async function updateStoreItem(id: string, data: Partial<StoreItemModel>)
       });
       await setDoc(doc(firestoreDb, 'store_items', id), fsPayload, { merge: true });
     } catch (fe) {
-      console.warn('Firestore store_items sync failed (non-critical):', fe);
+      console.debug('Firestore store_items sync notice:', fe);
     }
   } catch (e) {
     console.error('updateStoreItem failed:', e);
@@ -651,7 +651,7 @@ export async function addStoreItem(id: string, data: StoreItemModel) {
       });
       await setDoc(doc(firestoreDb, 'store_items', id), fsPayload, { merge: true });
     } catch (fe) {
-      console.warn('Firestore store_items sync failed (non-critical):', fe);
+      console.debug('Firestore store_items sync notice:', fe);
     }
   } catch (e) {
     console.error('addStoreItem failed:', e);
