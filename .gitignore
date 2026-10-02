@@ -29,6 +29,7 @@ serviceAccountKey.json
 *serviceAccountKey*.json
 *SERVICE_ACCOUNT*
 *.key.json
+.firebase/
 
 # Node / npm / pnpm
 node_modules/

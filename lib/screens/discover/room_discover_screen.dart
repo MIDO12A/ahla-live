@@ -757,7 +757,7 @@ class RoomRankBorderWidget extends StatelessWidget {
           );
         } else if (type == AssetType.vap || type == AssetType.mp4) {
           child = VapPlayer(
-            assetPath: path,
+            url: path,
             fit: BoxFit.fill,
           );
         } else {

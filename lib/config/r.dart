@@ -519,7 +519,7 @@ class R {
       }
       if (ovType == AssetType.vap || ovType == AssetType.mp4) {
         return VapPlayer(
-          assetPath: overrideUrl,
+          url: overrideUrl,
           width: width,
           height: height,
           fit: fit,
@@ -553,7 +553,7 @@ class R {
     }
     if (localType == AssetType.vap || localType == AssetType.mp4) {
       return VapPlayer(
-        assetPath: assetPath,
+        url: assetPath,
         width: width,
         height: height,
         fit: fit,
@@ -607,7 +607,7 @@ class R {
     }
     if (type == AssetType.vap || type == AssetType.mp4) {
       return VapPlayer(
-        assetPath: assetPath,
+        url: assetPath,
         width: width,
         height: height,
         fit: fit,
@@ -637,7 +637,7 @@ class R {
       }
       if (ovType == AssetType.vap || ovType == AssetType.mp4) {
         return VapPlayer(
-          assetPath: overrideUrl,
+          url: overrideUrl,
           width: width,
           height: height,
           fit: fit,
