@@ -932,7 +932,7 @@ class SupabaseDataService {
 
   Future<bool> markStoreItemSold(String itemId) async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/store_items?id=eq.$itemId');
+      final url = Uri.parse('$_baseUrl/rest/v1/store_items?item_id=eq.$itemId');
       final res = await http.patch(
         url,
         headers: _headers,
@@ -941,7 +941,18 @@ class SupabaseDataService {
           'is_sold': true,
         }),
       );
-      return res.statusCode >= 200 && res.statusCode < 300;
+      if (res.statusCode >= 200 && res.statusCode < 300) return true;
+
+      final url2 = Uri.parse('$_baseUrl/rest/v1/store_items?id=eq.$itemId');
+      final res2 = await http.patch(
+        url2,
+        headers: _headers,
+        body: jsonEncode({
+          'is_available': false,
+          'is_sold': true,
+        }),
+      );
+      return res2.statusCode >= 200 && res2.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] markStoreItemSold error: $e');
       return false;

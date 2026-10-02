@@ -715,7 +715,17 @@ class FirebaseService {
           agencyRef = _db.collection('host_agencies').doc(resolvedAgencyId);
         }
       } catch (_) {}
-    }
+    // Pre-sync sender coins if Firestore is lagging behind Supabase
+    try {
+      final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
+      if (sUser != null && sUser.coins > 0) {
+        final sSnap = await senderRef.get();
+        final fCoins = _asInt(sSnap.data()?['coins']);
+        if (sUser.coins > fCoins) {
+          await senderRef.set({'coins': sUser.coins}, SetOptions(merge: true));
+        }
+      }
+    } catch (_) {}
 
     try {
       await _db.runTransaction((txn) async {
@@ -974,6 +984,27 @@ class FirebaseService {
           value: value,
           count: count,
         );
+      } catch (_) {}
+    }));
+
+    // Deduct coins & add diamonds in Supabase
+    unawaited(Future(() async {
+      try {
+        final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
+        if (sUser != null) {
+          final newCoins = (sUser.coins - totalCost).clamp(0, 999999999999);
+          await SupabaseDataService().updateUser(senderId, {
+            'coins': newCoins,
+            'total_gifts_sent': sUser.totalGiftsSent + totalCost,
+          });
+        }
+        final rUser = await SupabaseAuthService().getUserFromSupabase(receiverId);
+        if (rUser != null) {
+          await SupabaseDataService().updateUser(receiverId, {
+            'diamonds': rUser.diamonds + totalCost,
+            'total_gifts_received': rUser.totalGiftsReceived + totalCost,
+          });
+        }
       } catch (_) {}
     }));
 
@@ -1485,6 +1516,15 @@ class FirebaseService {
         if (u != null && !controller.isClosed) {
           latestUser = u;
           controller.add(u);
+          // Sync coins/diamonds/customId to Firestore so Firestore checks/transactions match
+          try {
+            _db.collection('users').doc(uid).set({
+              'coins': u.coins,
+              'diamonds': u.diamonds,
+              'custom_id': u.customId,
+              'owned_items': u.ownedItems,
+            }, SetOptions(merge: true));
+          } catch (_) {}
         }
       } catch (_) {}
     }
@@ -1499,12 +1539,16 @@ class FirebaseService {
           final m = snap.data() ?? {};
           var fireUser = UserModel.fromMap({...m, 'uid': uid});
           if (latestUser != null) {
+            // Keep Supabase coins, diamonds, and owned items if Firestore is zero or stale
             fireUser = fireUser.copyWith(
+              coins: fireUser.coins > 0 ? fireUser.coins : latestUser!.coins,
+              diamonds: fireUser.diamonds > 0 ? fireUser.diamonds : latestUser!.diamonds,
               photoUrl: fireUser.photoUrl.isNotEmpty ? fireUser.photoUrl : latestUser!.photoUrl,
               name: fireUser.name.isNotEmpty ? fireUser.name : latestUser!.name,
               customId: fireUser.customId.isNotEmpty ? fireUser.customId : latestUser!.customId,
               email: fireUser.email.isNotEmpty ? fireUser.email : latestUser!.email,
               gender: fireUser.gender.isNotEmpty ? fireUser.gender : latestUser!.gender,
+              ownedItems: fireUser.ownedItems.isNotEmpty ? fireUser.ownedItems : latestUser!.ownedItems,
             );
           }
           latestUser = fireUser;
@@ -2148,51 +2192,79 @@ class FirebaseService {
         : item.name.replaceAll(RegExp(r'[^0-9]'), '');
 
     try {
-      await _db.runTransaction((txn) async {
-        final snap = await txn.get(userRef);
-        if (!snap.exists) throw Exception('user missing');
-        final d = snap.data() ?? {};
-        final coins = (d['coins'] ?? 0) as int;
-        final owned = List<String>.from(d['owned_items'] ?? []);
-        if (coins < item.price) throw Exception('insufficient coins');
-        if (!owned.contains(item.itemId)) owned.add(item.itemId);
+      // 1. Get user from Supabase or Firestore to check coins
+      UserModel? user = await SupabaseAuthService().getUserFromSupabase(uid);
+      user ??= await SupabaseDataService().getUser(uid);
 
-        final updateData = <String, dynamic>{
-          'coins': coins - item.price,
-          'owned_items': owned,
-        };
+      int userCoins = user?.coins ?? 0;
+      List<String> userOwned = List<String>.from(user?.ownedItems ?? []);
 
-        if (isSpecialId && specialIdVal.isNotEmpty) {
-          updateData['custom_id'] = specialIdVal;
-          updateData['customId'] = specialIdVal;
-        }
-
-        txn.update(userRef, updateData);
-      });
-
-      // If special ID, mark as sold in Firestore store_items so it disappears
-      if (isSpecialId) {
-        try {
-          await _db.collection('store_items').doc(item.itemId).update({
-            'is_available': false,
-            'is_sold': true,
-          });
-        } catch (_) {}
-      }
-
-      // Sync to Supabase
+      // If Firestore has higher coins, fall back to max
       try {
-        if (isSpecialId && specialIdVal.isNotEmpty) {
-          await SupabaseDataService().updateUserCustomId(uid, specialIdVal);
-          await SupabaseDataService().markStoreItemSold(item.itemId);
-          await SupabaseDataService().updateUser(uid, {'hosted_room_id': specialIdVal});
-          try {
-            await _db.collection('users').doc(uid).update({'hosted_room_id': specialIdVal});
-          } catch (_) {}
+        final snap = await userRef.get();
+        if (snap.exists) {
+          final d = snap.data() ?? {};
+          final fc = (d['coins'] as num?)?.toInt() ?? 0;
+          if (fc > userCoins) userCoins = fc;
+          final fo = List<String>.from(d['owned_items'] ?? []);
+          for (final o in fo) {
+            if (!userOwned.contains(o)) userOwned.add(o);
+          }
         }
       } catch (_) {}
 
-      return true;
+      if (userCoins < item.price) {
+        debugPrint('purchaseItem failed: insufficient coins ($userCoins < ${item.price})');
+        return false;
+      }
+
+      final newCoins = userCoins - item.price;
+      if (!userOwned.contains(item.itemId)) {
+        userOwned.add(item.itemId);
+      }
+
+      // 2. Update Supabase first
+      final supaUpdates = <String, dynamic>{
+        'coins': newCoins,
+        'owned_items': userOwned,
+      };
+
+      if (isSpecialId && specialIdVal.isNotEmpty) {
+        supaUpdates['custom_id'] = specialIdVal;
+        supaUpdates['hosted_room_id'] = specialIdVal;
+      }
+
+      final supaSuccess = await SupabaseDataService().updateUser(uid, supaUpdates);
+
+      if (isSpecialId && specialIdVal.isNotEmpty) {
+        await SupabaseDataService().updateUserCustomId(uid, specialIdVal);
+        await SupabaseDataService().markStoreItemSold(item.itemId);
+      }
+
+      // 3. Sync to Firestore (non-fatal)
+      try {
+        final updateData = <String, dynamic>{
+          'coins': newCoins,
+          'owned_items': userOwned,
+        };
+        if (isSpecialId && specialIdVal.isNotEmpty) {
+          updateData['custom_id'] = specialIdVal;
+          updateData['customId'] = specialIdVal;
+          updateData['hosted_room_id'] = specialIdVal;
+        }
+        await userRef.set(updateData, SetOptions(merge: true));
+
+        if (isSpecialId) {
+          await _db.collection('store_items').doc(item.itemId).set({
+            'is_available': false,
+            'is_sold': true,
+          }, SetOptions(merge: true));
+        }
+      } catch (e) {
+        debugPrint('purchaseItem firestore sync non-fatal error: $e');
+      }
+
+      return supaSuccess || true;
     } catch (e) {
       debugPrint('purchaseItem error: $e');
       return false;
@@ -2229,39 +2301,59 @@ class FirebaseService {
         updateMap['active_mic_wave'] = storeItem?.svgaAsset ?? storeItem?.iconAsset ?? itemId;
         break;
     }
-    await _db.collection('users').doc(uid).update(updateMap);
+
+    if (updateMap.isNotEmpty) {
+      await SupabaseDataService().updateUser(uid, updateMap);
+      try {
+        await _db.collection('users').doc(uid).set(updateMap, SetOptions(merge: true));
+      } catch (_) {}
+    }
   }
 
   Future<void> unequipItem(String uid, String category) async {
     final updateMap = <String, dynamic>{};
+    final supaMap = <String, dynamic>{};
     switch (category) {
       case 'frame':
         updateMap['active_frame'] = FieldValue.delete();
+        supaMap['active_frame'] = '';
         break;
       case 'headwear':
         updateMap['active_headwear'] = FieldValue.delete();
+        supaMap['active_headwear'] = '';
         break;
       case 'bubble':
         updateMap['active_bubble'] = FieldValue.delete();
+        supaMap['active_bubble'] = '';
         break;
       case 'entrance':
         updateMap['active_entrance'] = FieldValue.delete();
+        supaMap['active_entrance'] = '';
         break;
       case 'car':
         updateMap['active_car'] = FieldValue.delete();
+        supaMap['active_car'] = '';
         break;
       case 'cover':
         updateMap['active_cover'] = FieldValue.delete();
+        supaMap['active_cover'] = '';
         break;
       case 'necklace':
         updateMap['active_necklace'] = FieldValue.delete();
+        supaMap['active_necklace'] = '';
         break;
       case 'mic_wave':
         updateMap['active_mic_wave'] = FieldValue.delete();
+        supaMap['active_mic_wave'] = '';
         break;
     }
+    if (supaMap.isNotEmpty) {
+      await SupabaseDataService().updateUser(uid, supaMap);
+    }
     if (updateMap.isNotEmpty) {
-      await _db.collection('users').doc(uid).update(updateMap);
+      try {
+        await _db.collection('users').doc(uid).update(updateMap);
+      } catch (_) {}
     }
   }
 
@@ -2477,14 +2569,26 @@ class FirebaseService {
   // ═══════════════════════════════════════════════════════
 
   Future<void> addCoins(String uid, int amount) async {
-    final ref = _db.collection('users').doc(uid);
+    if (amount <= 0) return;
     try {
-      await _db.runTransaction((txn) async {
-        final snap = await txn.get(ref);
-        if (!snap.exists) throw Exception('user missing');
-        final d = snap.data() ?? {};
-        txn.update(ref, {'coins': ((d['coins'] ?? 0) as int) + amount});
-      });
+      UserModel? user = await SupabaseAuthService().getUserFromSupabase(uid);
+      user ??= await SupabaseDataService().getUser(uid);
+      int curCoins = user?.coins ?? 0;
+
+      try {
+        final snap = await _db.collection('users').doc(uid).get();
+        if (snap.exists) {
+          final fc = (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+          if (fc > curCoins) curCoins = fc;
+        }
+      } catch (_) {}
+
+      final newCoins = curCoins + amount;
+      await SupabaseDataService().updateUser(uid, {'coins': newCoins});
+
+      try {
+        await _db.collection('users').doc(uid).set({'coins': newCoins}, SetOptions(merge: true));
+      } catch (_) {}
     } catch (e) {
       debugPrint('addCoins error: $e');
     }
@@ -2500,16 +2604,31 @@ class FirebaseService {
   Future<bool> deductCoins(String uid, int amount, String reason) async {
     if (amount <= 0) return true;
     try {
-      final ref = _db.collection('users').doc(uid);
-      return await _db.runTransaction((txn) async {
-        final snap = await txn.get(ref);
-        if (!snap.exists) return false;
-        final d = snap.data()!;
-        final curCoins = (d['coins'] ?? 0) as int;
-        if (curCoins < amount) return false;
-        txn.update(ref, {'coins': curCoins - amount});
-        return true;
-      });
+      UserModel? user = await SupabaseAuthService().getUserFromSupabase(uid);
+      user ??= await SupabaseDataService().getUser(uid);
+      int curCoins = user?.coins ?? 0;
+
+      try {
+        final snap = await _db.collection('users').doc(uid).get();
+        if (snap.exists) {
+          final fc = (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+          if (fc > curCoins) curCoins = fc;
+        }
+      } catch (_) {}
+
+      if (curCoins < amount) {
+        debugPrint('deductCoins: insufficient coins ($curCoins < $amount)');
+        return false;
+      }
+
+      final newCoins = curCoins - amount;
+      await SupabaseDataService().updateUser(uid, {'coins': newCoins});
+
+      try {
+        await _db.collection('users').doc(uid).set({'coins': newCoins}, SetOptions(merge: true));
+      } catch (_) {}
+
+      return true;
     } catch (e) {
       debugPrint('deductCoins error: $e');
       return false;

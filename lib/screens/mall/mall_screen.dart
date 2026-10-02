@@ -401,10 +401,13 @@ class _MallScreenState extends State<MallScreen> {
                           final success = await userProvider.purchaseItem(item);
                           if (mounted) {
                             if (success) {
+                              final successMsg = item.category == 'special_id'
+                                  ? 'تم الشراء بنجاح وتم تفعيل الآيدي المميز لحسابك!'
+                                  : 'تم شراء ${item.name} بنجاح وإضافته إلى حقيبتك!';
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('تم الشراء بنجاح وتم تفعيل الآيدي المميز لحسابك!', textAlign: TextAlign.center),
-                                  backgroundColor: Color(0xFF388E3C),
+                                SnackBar(
+                                  content: Text(successMsg, textAlign: TextAlign.center),
+                                  backgroundColor: const Color(0xFF388E3C),
                                 ),
                               );
                               if (item.category == 'special_id') {
@@ -413,10 +416,14 @@ class _MallScreenState extends State<MallScreen> {
                               _loadData();
                               setState(() {});
                             } else {
+                              final userCoins = userProvider.currentUser?.coins ?? 0;
+                              final errorMsg = userCoins < item.price
+                                  ? 'لا توجد عملات كافية لشراء هذا العنصر!'
+                                  : 'تعذر إتمام عملية الشراء، يرجى المحاولة لاحقاً';
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('لا توجد عملات كافية لشراء هذا العنصر!', textAlign: TextAlign.center),
-                                  backgroundColor: Color(0xFFD32F2F),
+                                SnackBar(
+                                  content: Text(errorMsg, textAlign: TextAlign.center),
+                                  backgroundColor: const Color(0xFFD32F2F),
                                 ),
                               );
                             }
