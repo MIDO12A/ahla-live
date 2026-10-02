@@ -1104,11 +1104,13 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
     const ownerIds = Array.from(new Set(agencies.map((a: any) => a.owner_id).filter(Boolean)));
     const ownersMap: Record<string, any> = {};
     if (ownerIds.length > 0) {
-      const { data: usersData } = await supabase.from('users').select('id, name, custom_id, photo_url, avatar');
+      const { data: usersData } = await supabase.from('users').select('*');
       (usersData ?? []).forEach((u: any) => {
-        if (ownerIds.includes(u.id) || ownerIds.includes(u.custom_id)) {
-          ownersMap[u.id] = u;
-          if (u.custom_id) ownersMap[u.custom_id] = u;
+        const resolvedId = u.id || u.uid;
+        const mapped = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
+        if (ownerIds.includes(resolvedId) || (u.custom_id && ownerIds.includes(u.custom_id))) {
+          ownersMap[resolvedId] = mapped;
+          if (u.custom_id) ownersMap[u.custom_id] = mapped;
         }
       });
     }
@@ -1209,10 +1211,12 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
     const userIds = Array.from(new Set(members.map((m: any) => m.user_id).filter(Boolean)));
     const usersMap: Record<string, any> = {};
     if (userIds.length > 0) {
-      const { data: usersData } = await supabase.from('users').select('id, name, custom_id, photo_url, avatar');
+      const { data: usersData } = await supabase.from('users').select('*');
       (usersData ?? []).forEach((u: any) => {
-        usersMap[u.id] = u;
-        if (u.custom_id) usersMap[u.custom_id] = u;
+        const resolvedId = u.id || u.uid;
+        const mapped = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
+        usersMap[resolvedId] = mapped;
+        if (u.custom_id) usersMap[u.custom_id] = mapped;
       });
     }
 
@@ -1234,14 +1238,14 @@ export async function addAgencyMember(agencyId: string, userQuery: string, role:
     if (!q) return { success: false, message: 'يرجى كتابة UID أو رقم المعرف (ID)' };
 
     // Search in users table
-    const { data: users } = await supabase.from('users').select('id, name, custom_id');
-    const targetUser = (users || []).find((u: any) => u.id === q || u.custom_id === q);
+    const { data: users } = await supabase.from('users').select('*');
+    const targetUser = (users || []).find((u: any) => (u.id || u.uid) === q || u.custom_id === q);
 
     if (!targetUser) {
       return { success: false, message: 'لم يتم العثور على مستخدم بهذا المعرف أو الـ ID' };
     }
 
-    const userId = targetUser.id;
+    const userId = targetUser.uid || targetUser.id;
 
     // Check if already a member in this agency
     const { data: existing } = await supabase.from('host_agency_members')
@@ -1355,9 +1359,13 @@ export async function getAgencyApplications(statusFilter?: string, typeFilter?: 
     // Fetch user details to enrich with real names and avatars
     const userIds = Array.from(new Set(applications.map(a => a.user_id).filter(Boolean)));
     if (userIds.length > 0) {
-      const { data: usersData } = await supabase.from('users').select('id, name, custom_id, photo_url, avatar');
+      const { data: usersData } = await supabase.from('users').select('*');
       const uMap: Record<string, any> = {};
-      (usersData ?? []).forEach((u: any) => { uMap[u.id] = u; });
+      (usersData ?? []).forEach((u: any) => {
+        const resolvedId = u.id || u.uid;
+        uMap[resolvedId] = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
+        if (u.custom_id) uMap[u.custom_id] = uMap[resolvedId];
+      });
       applications.forEach(a => {
         const u = uMap[a.user_id];
         if (u) {
@@ -1808,18 +1816,6 @@ export async function searchUserProfile(queryStr: string): Promise<{
       return mapFoundUserProfile(byUid[0]);
     }
 
-    // 3. Check by id (primary key or uuid)
-    try {
-      const { data: byId } = await client
-        .from('users')
-        .select('*')
-        .eq('id', q)
-        .limit(1);
-
-      if (byId && byId.length > 0) {
-        return mapFoundUserProfile(byId[0]);
-      }
-    } catch (_) {}
 
     // 4. Check by name (ilike search)
     const { data: byName } = await client
