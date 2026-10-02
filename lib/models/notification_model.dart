@@ -26,8 +26,12 @@ class NotificationModel {
   factory NotificationModel.fromMap(Map map) {
     return NotificationModel(
       id: map['id']?.toString() ?? '',
-      uid: map['uid']?.toString() ?? '',
-      type: map['type']?.toString() ?? '',
+      uid: (map['uid'] != null && map['uid'].toString().isNotEmpty)
+          ? map['uid'].toString()
+          : (map['target']?.toString() ?? ''),
+      type: (map['type'] != null && map['type'].toString().isNotEmpty)
+          ? map['type'].toString()
+          : 'system',
       actorUid: map['actor_uid']?.toString() ?? '',
       title: map['title']?.toString() ?? '',
       body: map['body']?.toString() ?? map['message']?.toString() ?? '',

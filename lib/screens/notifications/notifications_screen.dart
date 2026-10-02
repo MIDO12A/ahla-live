@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../services/supabase_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../models/notification_model.dart';
 import '../../providers/user_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -71,14 +72,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   .currentUser
                   ?.uid;
               if (uid != null) {
-                final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                    .collection('notifications')
-                    .where('uid', isEqualTo: uid)
-                    .where('is_read', isEqualTo: false)
-                    .get();
-                for (final doc in snap.docs) {
-                  await doc.reference.update({'is_read': true});
-                }
+                try {
+                  await SupabaseDataService().markAllNotificationsRead(uid);
+                } catch (_) {}
+                try {
+                  final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                      .collection('notifications')
+                      .where('uid', isEqualTo: uid)
+                      .where('is_read', isEqualTo: false)
+                      .get();
+                  for (final doc in snap.docs) {
+                    await doc.reference.update({'is_read': true});
+                  }
+                } catch (_) {}
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

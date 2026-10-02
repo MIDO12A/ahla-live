@@ -781,6 +781,21 @@ class SupabaseDataService {
     }
   }
 
+  Future<bool> markAllNotificationsRead(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/notifications?or=(uid.eq.$uid,target.eq.$uid)');
+      final res = await http.patch(
+        url,
+        headers: _headers,
+        body: jsonEncode({'is_read': true}),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] markAllNotificationsRead error: $e');
+      return false;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getBadges() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/badges?select=*');

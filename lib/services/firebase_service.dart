@@ -3140,30 +3140,61 @@ class FirebaseService {
   // ═══════════════════════════════════════════════════════
 
   Stream<List<NotificationModel>> notificationsStream({String? uid}) {
-    Query<Map<String, dynamic>> query = _db.collection('notifications');
-    if (uid != null && uid.isNotEmpty) {
-      query = query.where('uid', isEqualTo: uid);
+    final controller = StreamController<List<NotificationModel>>.broadcast();
+    List<NotificationModel> sbList = [];
+    List<NotificationModel> fsList = [];
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      final map = <String, NotificationModel>{};
+      for (final n in sbList) {
+        map[n.id] = n;
+      }
+      for (final n in fsList) {
+        map[n.id] = n;
+      }
+      final list = map.values.toList();
+      list.sort((a, b) => b.sentAt.compareTo(a.sentAt));
+      controller.add(list);
     }
-    return query.snapshots().asyncMap((snap) async {
-      final fsList = snap.docs.map((e) => NotificationModel.fromMap(_data(e))).toList();
-      try {
-        final sbList = await SupabaseDataService().getNotifications(uid: uid);
-        if (sbList.isNotEmpty) {
-          final map = <String, NotificationModel>{};
-          for (final n in sbList) {
-            map[n.id] = n;
-          }
-          for (final n in fsList) {
-            map[n.id] = n;
-          }
-          final combined = map.values.toList();
-          combined.sort((a, b) => b.sentAt.compareTo(a.sentAt));
-          return combined;
-        }
-      } catch (_) {}
-      fsList.sort((a, b) => b.sentAt.compareTo(a.sentAt));
-      return fsList;
-    }).handleError((_) => <NotificationModel>[]);
+
+    // 1. Immediately fetch from Supabase
+    SupabaseDataService().getNotifications(uid: uid).then((list) {
+      sbList = list;
+      emitMerged();
+    }).catchError((_) {
+      if (sbList.isEmpty && fsList.isEmpty && !controller.isClosed) {
+        controller.add(<NotificationModel>[]);
+      }
+    });
+
+    // 2. Poll Supabase every 5 seconds
+    final timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      SupabaseDataService().getNotifications(uid: uid).then((list) {
+        sbList = list;
+        emitMerged();
+      }).catchError((_) {});
+    });
+
+    // 3. Listen to Firestore without blocking
+    StreamSubscription? fsSub;
+    try {
+      Query<Map<String, dynamic>> query = _db.collection('notifications');
+      if (uid != null && uid.isNotEmpty) {
+        query = query.where('uid', isEqualTo: uid);
+      }
+      fsSub = query.snapshots().listen((snap) {
+        fsList = snap.docs.map((e) => NotificationModel.fromMap(_data(e))).toList();
+        emitMerged();
+      }, onError: (_) {});
+    } catch (_) {}
+
+    controller.onCancel = () {
+      timer.cancel();
+      fsSub?.cancel();
+    };
+
+    return controller.stream;
   }
 
   Future<void> sendNotification({
