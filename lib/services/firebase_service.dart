@@ -715,6 +715,8 @@ class FirebaseService {
           agencyRef = _db.collection('host_agencies').doc(resolvedAgencyId);
         }
       } catch (_) {}
+    }
+
     // Pre-sync sender coins if Firestore is lagging behind Supabase
     try {
       final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
