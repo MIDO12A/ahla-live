@@ -35,6 +35,21 @@ try {
 }
 export const firestoreDb: Firestore = firestoreInstance
 
+export async function ensureFirebaseAuth(): Promise<FirebaseUser | null> {
+  if (firebaseAuth.currentUser) return firebaseAuth.currentUser;
+  try {
+    const { signInAnonymously } = await import('firebase/auth');
+    const cred = await signInAnonymously(firebaseAuth);
+    return cred.user;
+  } catch (err) {
+    console.debug('Firebase auth initialization:', err);
+    return null;
+  }
+}
+
+// Auto-initialize anonymous auth so Firestore security rules allow read/write
+ensureFirebaseAuth().catch(() => {});
+
 export async function loginWithFirebaseEmail(email: string, password: string) {
   await signInWithEmailAndPassword(firebaseAuth, email, password)
 }

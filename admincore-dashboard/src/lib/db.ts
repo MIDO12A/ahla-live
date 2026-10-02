@@ -1,5 +1,5 @@
 import { supabase, getAdminSupabase } from './supabase'
-import { firestoreDb } from './firebase'
+import { firestoreDb, ensureFirebaseAuth } from './firebase'
 import { doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
 import type {
   UserModel, RoomModel, GiftModel, SentGiftModel,
@@ -430,40 +430,76 @@ export function subscribeGifts(cb: (gifts: GiftModel[]) => void) {
   return () => { try { supabase.removeChannel(sub) } catch {} }
 }
 
+const BASE_GIFT_COLUMNS = new Set([
+  'id', 'name', 'value', 'icon_asset', 'animation_asset',
+  'is_vap', 'is_lucky', 'is_star', 'is_music',
+  'package_count', 'sort_order', 'name_key', 'photo_key',
+  'default_image', 'wealth_xp', 'gems_xp'
+]);
+
 export async function updateGift(id: string, data: Partial<GiftModel>) {
   // 1. Dual-write to Firestore
   try {
-    await setDoc(doc(firestoreDb, 'gifts', id), { id, ...data }, { merge: true })
-  } catch {}
+    await ensureFirebaseAuth();
+    await setDoc(doc(firestoreDb, 'gifts', id), { id, ...data }, { merge: true });
+  } catch (fsErr) {
+    console.debug('Firestore gifts sync notice:', fsErr);
+  }
   // 2. Write to Supabase
   try {
-    await supabase.from('gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
+    const fullPayload = toSnakeCase(data as Record<string, unknown>);
+    const { error } = await supabase.from('gifts').update(fullPayload).eq('id', id);
+    if (error) {
+      const basePayload: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(fullPayload)) {
+        if (BASE_GIFT_COLUMNS.has(k)) {
+          basePayload[k] = v;
+        }
+      }
+      if (Object.keys(basePayload).length > 0) {
+        await supabase.from('gifts').update(basePayload).eq('id', id);
+      }
+    }
   } catch (e) {
-    console.warn('updateGift supabase failed:', e)
+    console.warn('updateGift supabase failed:', e);
   }
 }
 
 export async function addGift(id: string, data: GiftModel) {
   // 1. Dual-write to Firestore
   try {
-    await setDoc(doc(firestoreDb, 'gifts', id), { id, ...data }, { merge: true })
-  } catch {}
+    await ensureFirebaseAuth();
+    await setDoc(doc(firestoreDb, 'gifts', id), { id, ...data }, { merge: true });
+  } catch (fsErr) {
+    console.debug('Firestore gifts sync notice:', fsErr);
+  }
   // 2. Write to Supabase
   try {
-    await supabase.from('gifts').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
+    const fullPayload = { id, ...toSnakeCase(data as unknown as Record<string, unknown>) };
+    const { error } = await supabase.from('gifts').upsert(fullPayload);
+    if (error) {
+      const basePayload: Record<string, unknown> = { id };
+      for (const [k, v] of Object.entries(fullPayload)) {
+        if (BASE_GIFT_COLUMNS.has(k)) {
+          basePayload[k] = v;
+        }
+      }
+      await supabase.from('gifts').upsert(basePayload);
+    }
   } catch (e) {
-    console.warn('addGift supabase failed:', e)
+    console.warn('addGift supabase failed:', e);
   }
 }
 
 export async function deleteGift(id: string) {
   try {
-    await deleteDoc(doc(firestoreDb, 'gifts', id))
+    await ensureFirebaseAuth();
+    await deleteDoc(doc(firestoreDb, 'gifts', id));
   } catch {}
   try {
-    await supabase.from('gifts').delete().eq('id', id)
+    await supabase.from('gifts').delete().eq('id', id);
   } catch (e) {
-    console.warn('deleteGift failed:', e)
+    console.warn('deleteGift failed:', e);
   }
 }
 
@@ -2481,6 +2517,7 @@ export async function updateAppAsset(idOrKey: string, data: Partial<AppAssetReco
 
   // 1. Dual-write to Firestore app_assets and app_config
   try {
+    await ensureFirebaseAuth();
     const fsData: Record<string, any> = { updated_at: new Date().toISOString() };
     if (assetUrl !== undefined) {
       fsData.remote_url = assetUrl;
@@ -2496,7 +2533,7 @@ export async function updateAppAsset(idOrKey: string, data: Partial<AppAssetReco
       }, { merge: true });
     }
   } catch (fsErr) {
-    console.warn('Firestore updateAppAsset sync failed:', fsErr);
+    console.debug('Firestore updateAppAsset sync notice:', fsErr);
   }
 
   // 2. Write to Supabase
@@ -2519,6 +2556,7 @@ export async function upsertAppAsset(data: AppAssetRecord) {
 
   // 1. Dual-write to Firestore app_assets collection & app_config overrides
   try {
+    await ensureFirebaseAuth();
     const firestorePayload = {
       id: data.id || data.key,
       key: data.key,
@@ -2543,7 +2581,7 @@ export async function upsertAppAsset(data: AppAssetRecord) {
       }, { merge: true });
     }
   } catch (fsErr) {
-    console.warn('Firestore app_assets sync failed:', fsErr);
+    console.debug('Firestore app_assets sync notice:', fsErr);
   }
 
   // 2. Write to Supabase
@@ -2689,12 +2727,28 @@ export async function getCpGifts(): Promise<CpGiftModel[]> {
     }
   } catch {}
   try {
-    const { data } = await supabase.from('gifts').select('*').or('is_cp_gift.eq.true,category.eq.cp')
-    if (data && data.length > 0) {
-      return mapList<CpGiftModel>(data)
+    // Select all gifts and filter in-memory to prevent PostgREST 400 error on non-existent column
+    const { data, error } = await supabase.from('gifts').select('*')
+    if (!error && data && data.length > 0) {
+      const filtered = data.filter((g: any) =>
+        g.is_cp_gift === true ||
+        g.isCpGift === true ||
+        g.category === 'cp' ||
+        g.category_id === 'cp' ||
+        g.categoryId === 'cp'
+      );
+      if (filtered.length > 0) {
+        return mapList<CpGiftModel>(filtered);
+      }
     }
   } catch {}
-  return []
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'cp_gifts'));
+    if (!snap.empty) {
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any;
+    }
+  } catch {}
+  return [];
 }
 
 export async function addCpGift(id: string, data: CpGiftModel) {
@@ -2702,25 +2756,33 @@ export async function addCpGift(id: string, data: CpGiftModel) {
     await supabase.from('cp_gifts').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
   } catch {
     try {
-      await supabase.from('gifts').upsert({
+      const basePayload: Record<string, unknown> = {
         id,
-        ...toSnakeCase(data as unknown as Record<string, unknown>),
-        is_cp_gift: true,
-      })
+        name: data.name,
+        value: data.value,
+        icon_asset: data.iconAsset,
+        animation_asset: data.animationAsset,
+      };
+      await supabase.from('gifts').upsert(basePayload);
     } catch (e) {
-      console.warn('addCpGift failed:', e)
+      console.warn('addCpGift failed:', e);
     }
   }
 }
 
 export async function updateCpGift(id: string, data: Partial<CpGiftModel>) {
   try {
-    await supabase.from('cp_gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
+    await supabase.from('cp_gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id);
   } catch {
     try {
-      await supabase.from('gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
+      const basePayload: Record<string, unknown> = {};
+      if (data.name !== undefined) basePayload.name = data.name;
+      if (data.value !== undefined) basePayload.value = data.value;
+      if (data.iconAsset !== undefined) basePayload.icon_asset = data.iconAsset;
+      if (data.animationAsset !== undefined) basePayload.animation_asset = data.animationAsset;
+      await supabase.from('gifts').update(basePayload).eq('id', id);
     } catch (e) {
-      console.warn('updateCpGift failed:', e)
+      console.warn('updateCpGift failed:', e);
     }
   }
 }
