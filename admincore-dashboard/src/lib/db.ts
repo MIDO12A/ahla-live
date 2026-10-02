@@ -209,27 +209,44 @@ export async function getUser(uid: string): Promise<UserModel | null> {
   }
 }
 
+export function cleanFirestoreData<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        result[key] = cleanFirestoreData(value);
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}
+
 export async function checkCustomIdAvailable(
   customId: string,
   excludeUid?: string,
-  excludeItemId?: string
+  excludeItemId?: string,
+  isStoreItem = false
 ): Promise<{ available: boolean; reason?: string }> {
   const cleanId = String(customId || '').trim();
   if (!cleanId) return { available: false, reason: 'يرجى إدخال الآيدي' };
 
   const client = getAdminSupabase() || supabase;
 
-  // 1. Check if taken by another user
-  let userQuery = client.from('users').select('uid, name, custom_id').eq('custom_id', cleanId);
-  if (excludeUid) {
-    userQuery = userQuery.neq('uid', excludeUid);
-  }
-  const { data: userMatch } = await userQuery.maybeSingle();
-  if (userMatch) {
-    return {
-      available: false,
-      reason: `هذا الآيدي (${cleanId}) مستخدم بالفعل من قبل المستخدم "${userMatch.name || userMatch.uid}"!`,
-    };
+  // 1. Check if taken by another user (only when assigning ID to a user directly, NOT when adding to store)
+  if (!isStoreItem) {
+    let userQuery = client.from('users').select('uid, name, custom_id').eq('custom_id', cleanId);
+    if (excludeUid) {
+      userQuery = userQuery.neq('uid', excludeUid);
+    }
+    const { data: userMatch } = await userQuery.maybeSingle();
+    if (userMatch) {
+      return {
+        available: false,
+        reason: `هذا الآيدي (${cleanId}) مستخدم بالفعل من قبل المستخدم "${userMatch.name || userMatch.uid}"!`,
+      };
+    }
   }
 
   // 2. Check if already for sale in store
@@ -501,7 +518,7 @@ export async function updateStoreItem(id: string, data: Partial<StoreItemModel>)
     if (data.category === 'special_id' || data.customId) {
       const rawId = String(data.customId ?? '').trim();
       if (rawId) {
-        const check = await checkCustomIdAvailable(rawId, undefined, id);
+        const check = await checkCustomIdAvailable(rawId, undefined, id, true);
         if (!check.available) {
           throw new Error(check.reason);
         }
@@ -537,11 +554,12 @@ export async function updateStoreItem(id: string, data: Partial<StoreItemModel>)
 
     // Also sync to Firestore store_items collection
     try {
-      await setDoc(doc(firestoreDb, 'store_items', id), {
+      const fsPayload = cleanFirestoreData({
         itemId: id,
         ...data,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      });
+      await setDoc(doc(firestoreDb, 'store_items', id), fsPayload, { merge: true });
     } catch (fe) {
       console.warn('Firestore store_items sync failed (non-critical):', fe);
     }
@@ -559,7 +577,7 @@ export async function addStoreItem(id: string, data: StoreItemModel) {
       if (!rawId) {
         throw new Error('يرجى تحديد الآيدي المميز للسلعة!');
       }
-      const check = await checkCustomIdAvailable(rawId, undefined, id);
+      const check = await checkCustomIdAvailable(rawId, undefined, id, true);
       if (!check.available) {
         throw new Error(check.reason);
       }
@@ -590,11 +608,12 @@ export async function addStoreItem(id: string, data: StoreItemModel) {
 
     // Also sync to Firestore store_items collection for real-time Flutter app support
     try {
-      await setDoc(doc(firestoreDb, 'store_items', id), {
+      const fsPayload = cleanFirestoreData({
         itemId: id,
         ...data,
         createdAt: new Date().toISOString(),
-      }, { merge: true });
+      });
+      await setDoc(doc(firestoreDb, 'store_items', id), fsPayload, { merge: true });
     } catch (fe) {
       console.warn('Firestore store_items sync failed (non-critical):', fe);
     }
@@ -1265,7 +1284,11 @@ export async function getAgencyApplications(statusFilter?: string, typeFilter?: 
     }
 
     // 2. Also check host_verifications for any applications submitted via verification
-    const { data: verifData } = await supabase.from('host_verifications').select('*').order('created_at', { ascending: false });
+    let verifData: any[] | null = null;
+    try {
+      const res = await supabase.from('host_verifications').select('*').order('created_at', { ascending: false });
+      if (res.data) verifData = res.data;
+    } catch {}
     if (verifData && Array.isArray(verifData)) {
       for (const v of verifData) {
         // Skip if already in applications
@@ -1453,132 +1476,154 @@ export async function createAgencyApplication(payload: Partial<AgencyApplication
 
 export async function getHostMilestones(): Promise<HostMilestoneModel[]> {
   try {
-    const { data } = await supabase.from('host_milestones').select('*').order('sort_order')
-    return (data ?? []).map((m: any) => ({
-      id: m.id,
-      title: m.title ?? '',
-      target_diamonds: Number(m.target_diamonds ?? m.targetDiamonds ?? 0),
-      targetDiamonds: Number(m.target_diamonds ?? m.targetDiamonds ?? 0),
-      reward_type: m.reward_type ?? m.rewardType ?? 'salary_usd',
-      rewardType: m.reward_type ?? m.rewardType ?? 'salary_usd',
-      reward_value: Number(m.reward_value ?? m.rewardValue ?? 0),
-      rewardValue: Number(m.reward_value ?? m.rewardValue ?? 0),
-      reward_item_id: m.reward_item_id ?? m.rewardItemId ?? null,
-      rewardItemId: m.reward_item_id ?? m.rewardItemId ?? null,
-      reward_image_url: m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? m.imageUrl ?? null,
-      rewardImageUrl: m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? m.imageUrl ?? null,
-      background_url: m.background_url ?? m.backgroundUrl ?? null,
-      backgroundUrl: m.background_url ?? m.backgroundUrl ?? null,
-      agent_commission_rate: Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1),
-      agentCommissionRate: Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1),
-      period_type: m.period_type ?? m.periodType ?? 'monthly',
-      periodType: m.period_type ?? m.periodType ?? 'monthly',
-      is_active: m.is_active !== false && m.isActive !== false,
-      isActive: m.is_active !== false && m.isActive !== false,
-      sort_order: Number(m.sort_order ?? m.sortOrder ?? 0),
-      sortOrder: Number(m.sort_order ?? m.sortOrder ?? 0),
-    })) as any;
-  } catch { return [] }
+    const { data, error } = await supabase.from('host_milestones').select('*');
+    if (!error && data && data.length > 0) {
+      return (data ?? []).map((m: any) => ({
+        id: m.id,
+        title: m.title ?? '',
+        target_diamonds: Number(m.target_diamonds ?? m.targetDiamonds ?? 0),
+        targetDiamonds: Number(m.target_diamonds ?? m.targetDiamonds ?? 0),
+        reward_type: m.reward_type ?? m.rewardType ?? 'salary_usd',
+        rewardType: m.reward_type ?? m.rewardType ?? 'salary_usd',
+        reward_value: Number(m.reward_value ?? m.rewardValue ?? 0),
+        rewardValue: Number(m.reward_value ?? m.rewardValue ?? 0),
+        reward_item_id: m.reward_item_id ?? m.rewardItemId ?? null,
+        rewardItemId: m.reward_item_id ?? m.rewardItemId ?? null,
+        reward_image_url: m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? m.imageUrl ?? null,
+        rewardImageUrl: m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? m.imageUrl ?? null,
+        background_url: m.background_url ?? m.backgroundUrl ?? null,
+        backgroundUrl: m.background_url ?? m.backgroundUrl ?? null,
+        agent_commission_rate: Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1),
+        agentCommissionRate: Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1),
+        period_type: m.period_type ?? m.periodType ?? 'monthly',
+        periodType: m.period_type ?? m.periodType ?? 'monthly',
+        is_active: m.is_active !== false && m.isActive !== false,
+        isActive: m.is_active !== false && m.isActive !== false,
+        sort_order: Number(m.sort_order ?? m.sortOrder ?? 0),
+        sortOrder: Number(m.sort_order ?? m.sortOrder ?? 0),
+      })) as any;
+    }
+  } catch {}
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'host_milestones'));
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any;
+  } catch {
+    return [];
+  }
 }
 
 export async function updateHostMilestone(id: string, updates: Partial<HostMilestoneModel>): Promise<boolean> {
+  const raw: any = updates;
+  const targetDiamonds = Number(raw.target_diamonds ?? raw.targetDiamonds ?? 0);
+  const rewardValue = Number(raw.reward_value ?? raw.rewardValue ?? 0);
+  const agentCommissionRate = Number(raw.agent_commission_rate ?? raw.agentCommissionRate ?? 0.1);
+  const sortOrder = Number(raw.sort_order ?? raw.sortOrder ?? 0);
+  const rewardType = raw.reward_type ?? raw.rewardType ?? 'salary_usd';
+  const periodType = raw.period_type ?? raw.periodType ?? 'monthly';
+  const isActive = raw.is_active !== false && raw.isActive !== false;
+  const rewardItemId = raw.reward_item_id ?? raw.rewardItemId ?? null;
+  const rewardImageUrl = raw.reward_image_url ?? raw.rewardImageUrl ?? null;
+  const backgroundUrl = raw.background_url ?? raw.backgroundUrl ?? null;
+  const title = raw.title ?? '';
+
+  const normalized = {
+    title,
+    target_diamonds: targetDiamonds,
+    targetDiamonds,
+    reward_type: rewardType,
+    rewardType,
+    reward_value: rewardValue,
+    rewardValue,
+    agent_commission_rate: agentCommissionRate,
+    agentCommissionRate,
+    sort_order: sortOrder,
+    sortOrder,
+    period_type: periodType,
+    periodType,
+    is_active: isActive,
+    isActive,
+    reward_item_id: rewardItemId,
+    rewardItemId,
+    reward_image_url: rewardImageUrl,
+    rewardImageUrl,
+    background_url: backgroundUrl,
+    backgroundUrl,
+    updated_at: new Date().toISOString(),
+  };
+
+  // 1. Dual-write to Firestore
   try {
-    const raw: any = updates;
-    const targetDiamonds = Number(raw.target_diamonds ?? raw.targetDiamonds ?? 0);
-    const rewardValue = Number(raw.reward_value ?? raw.rewardValue ?? 0);
-    const agentCommissionRate = Number(raw.agent_commission_rate ?? raw.agentCommissionRate ?? 0.1);
-    const sortOrder = Number(raw.sort_order ?? raw.sortOrder ?? 0);
-    const rewardType = raw.reward_type ?? raw.rewardType ?? 'salary_usd';
-    const periodType = raw.period_type ?? raw.periodType ?? 'monthly';
-    const isActive = raw.is_active !== false && raw.isActive !== false;
-    const rewardItemId = raw.reward_item_id ?? raw.rewardItemId ?? null;
-    const rewardImageUrl = raw.reward_image_url ?? raw.rewardImageUrl ?? null;
-    const backgroundUrl = raw.background_url ?? raw.backgroundUrl ?? null;
-    const title = raw.title ?? '';
+    await setDoc(doc(firestoreDb, 'host_milestones', id), cleanFirestoreData(normalized), { merge: true });
+  } catch {}
 
-    const normalized = {
-      title,
-      target_diamonds: targetDiamonds,
-      targetDiamonds,
-      reward_type: rewardType,
-      rewardType,
-      reward_value: rewardValue,
-      rewardValue,
-      agent_commission_rate: agentCommissionRate,
-      agentCommissionRate,
-      sort_order: sortOrder,
-      sortOrder,
-      period_type: periodType,
-      periodType,
-      is_active: isActive,
-      isActive,
-      reward_item_id: rewardItemId,
-      rewardItemId,
-      reward_image_url: rewardImageUrl,
-      rewardImageUrl,
-      background_url: backgroundUrl,
-      backgroundUrl,
-      updated_at: new Date().toISOString(),
-    };
-
+  // 2. Write to Supabase
+  try {
     await supabase.from('host_milestones').update(normalized).eq('id', id);
-    return true;
   } catch (e) {
-    console.error('updateHostMilestone error:', e);
-    return false;
+    console.warn('updateHostMilestone Supabase warning:', e);
   }
+  return true;
 }
 
 export async function createHostMilestone(milestone: Omit<HostMilestoneModel, 'id'>): Promise<boolean> {
+  const raw: any = milestone;
+  const targetDiamonds = Number(raw.target_diamonds ?? raw.targetDiamonds ?? 0);
+  const rewardValue = Number(raw.reward_value ?? raw.rewardValue ?? 0);
+  const agentCommissionRate = Number(raw.agent_commission_rate ?? raw.agentCommissionRate ?? 0.1);
+  const sortOrder = Number(raw.sort_order ?? raw.sortOrder ?? 0);
+  const rewardType = raw.reward_type ?? raw.rewardType ?? 'salary_usd';
+  const periodType = raw.period_type ?? raw.periodType ?? 'monthly';
+  const isActive = raw.is_active !== false && raw.isActive !== false;
+  const rewardItemId = raw.reward_item_id ?? raw.rewardItemId ?? null;
+  const rewardImageUrl = raw.reward_image_url ?? raw.rewardImageUrl ?? null;
+  const backgroundUrl = raw.background_url ?? raw.backgroundUrl ?? null;
+  const title = raw.title ?? '';
+  const newId = `hm_${Date.now()}`;
+
+  const normalized = {
+    id: newId,
+    title,
+    target_diamonds: targetDiamonds,
+    targetDiamonds,
+    reward_type: rewardType,
+    rewardType,
+    reward_value: rewardValue,
+    rewardValue,
+    agent_commission_rate: agentCommissionRate,
+    agentCommissionRate,
+    sort_order: sortOrder,
+    sortOrder,
+    period_type: periodType,
+    periodType,
+    is_active: isActive,
+    isActive,
+    reward_item_id: rewardItemId,
+    rewardItemId,
+    reward_image_url: rewardImageUrl,
+    rewardImageUrl,
+    background_url: backgroundUrl,
+    backgroundUrl,
+    created_at: new Date().toISOString(),
+  };
+
+  // 1. Dual-write to Firestore
   try {
-    const raw: any = milestone;
-    const targetDiamonds = Number(raw.target_diamonds ?? raw.targetDiamonds ?? 0);
-    const rewardValue = Number(raw.reward_value ?? raw.rewardValue ?? 0);
-    const agentCommissionRate = Number(raw.agent_commission_rate ?? raw.agentCommissionRate ?? 0.1);
-    const sortOrder = Number(raw.sort_order ?? raw.sortOrder ?? 0);
-    const rewardType = raw.reward_type ?? raw.rewardType ?? 'salary_usd';
-    const periodType = raw.period_type ?? raw.periodType ?? 'monthly';
-    const isActive = raw.is_active !== false && raw.isActive !== false;
-    const rewardItemId = raw.reward_item_id ?? raw.rewardItemId ?? null;
-    const rewardImageUrl = raw.reward_image_url ?? raw.rewardImageUrl ?? null;
-    const backgroundUrl = raw.background_url ?? raw.backgroundUrl ?? null;
-    const title = raw.title ?? '';
+    await setDoc(doc(firestoreDb, 'host_milestones', newId), cleanFirestoreData(normalized), { merge: true });
+  } catch {}
 
-    const normalized = {
-      title,
-      target_diamonds: targetDiamonds,
-      targetDiamonds,
-      reward_type: rewardType,
-      rewardType,
-      reward_value: rewardValue,
-      rewardValue,
-      agent_commission_rate: agentCommissionRate,
-      agentCommissionRate,
-      sort_order: sortOrder,
-      sortOrder,
-      period_type: periodType,
-      periodType,
-      is_active: isActive,
-      isActive,
-      reward_item_id: rewardItemId,
-      rewardItemId,
-      reward_image_url: rewardImageUrl,
-      rewardImageUrl,
-      background_url: backgroundUrl,
-      backgroundUrl,
-      created_at: new Date().toISOString(),
-    };
-
+  // 2. Write to Supabase
+  try {
     await supabase.from('host_milestones').insert(normalized);
-    return true;
   } catch (e) {
-    console.error('createHostMilestone error:', e);
-    return false;
+    console.warn('createHostMilestone Supabase warning:', e);
   }
+  return true;
 }
 
 export async function deleteHostMilestone(id: string): Promise<boolean> {
-  try { await supabase.from('host_milestones').delete().eq('id', id); return true } catch { return false }
+  try { await deleteDoc(doc(firestoreDb, 'host_milestones', id)) } catch {}
+  try { await supabase.from('host_milestones').delete().eq('id', id) } catch {}
+  return true;
 }
 
 // ---- Agency Join Requests ----
@@ -1901,13 +1946,13 @@ export async function revokeRechargeAgency(userId: string): Promise<boolean> {
 
 export async function getAgencyLedger(agencyId?: string, limit = 100): Promise<AgencyLedgerEntryModel[]> {
   try {
-    let query = supabase.from('agency_diamond_ledger').select('*, host_agencies!agency_id(name)').order('created_at', { ascending: false }).limit(limit)
+    let query = supabase.from('agency_diamond_ledger').select('*').order('created_at', { ascending: false }).limit(limit)
     if (agencyId) query = query.eq('agency_id', agencyId)
     const { data } = await query
     return mapList<AgencyLedgerEntryModel>((data ?? []).map((e: any) => ({
       ...e,
       user_name: e.user_id?.slice(0, 8),
-      agency_name: e.host_agencies?.name ?? e.agency_id?.slice(0, 8),
+      agency_name: e.agency_name ?? e.agency_id?.slice(0, 8),
     })))
   } catch { return [] }
 }
@@ -1916,18 +1961,33 @@ export async function getAgencyLedger(agencyId?: string, limit = 100): Promise<A
 
 export async function getWithdrawalRequests(status?: string): Promise<AgencyWithdrawalRequestModel[]> {
   try {
-    let query = supabase.from('agency_withdrawal_requests').select('*, host_agencies!agency_id(name)').order('created_at', { ascending: false })
+    let query = supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false })
     if (status) query = query.eq('status', status)
-    const { data } = await query
-    return mapList<AgencyWithdrawalRequestModel>((data ?? []).map((w: any) => ({
-      ...w,
-      user_name: w.user_id?.slice(0, 8),
-      agency_name: w.host_agencies?.name ?? w.agency_id?.slice(0, 8),
-    })))
-  } catch { return [] }
+    const { data, error } = await query
+    if (!error && data && data.length > 0) {
+      return mapList<AgencyWithdrawalRequestModel>((data ?? []).map((w: any) => ({
+        ...w,
+        user_name: w.user_id?.slice(0, 8),
+        agency_name: w.agency_name ?? w.agency_id?.slice(0, 8),
+      })))
+    }
+  } catch (e) {
+    console.warn('getWithdrawalRequests supabase error, trying firestore fallback:', e)
+  }
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'agency_withdrawal_requests'))
+    const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
+    if (status) return list.filter(w => w.status === status)
+    return list
+  } catch {
+    return []
+  }
 }
 
 export async function approveWithdrawal(id: string): Promise<boolean> {
+  try {
+    await setDoc(doc(firestoreDb, 'agency_withdrawal_requests', id), { status: 'approved', reviewed_at: new Date().toISOString() }, { merge: true })
+  } catch {}
   try {
     await supabase.from('agency_withdrawal_requests').update({ status: 'approved' }).eq('id', id)
     return true
@@ -1935,6 +1995,9 @@ export async function approveWithdrawal(id: string): Promise<boolean> {
 }
 
 export async function rejectWithdrawal(id: string): Promise<boolean> {
+  try {
+    await setDoc(doc(firestoreDb, 'agency_withdrawal_requests', id), { status: 'rejected', reviewed_at: new Date().toISOString() }, { merge: true })
+  } catch {}
   try {
     await supabase.from('agency_withdrawal_requests').update({ status: 'rejected' }).eq('id', id)
     return true

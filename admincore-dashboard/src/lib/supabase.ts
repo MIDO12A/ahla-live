@@ -43,23 +43,45 @@ const authAdmin = {
         .select('*')
         .eq('uid', uid)
         .maybeSingle()
-      if (error) throw error
-      if (!data) return { data: { user: null }, error: null }
-      const user = {
-        id: data.uid || data.id,
-        email: data.email || '',
-        phone: data.phone || '',
-        user_metadata: {
-          name: data.name || '',
-          full_name: data.name || '',
-          avatar_url: data.photo_url || data.avatar_url || '',
-        },
-        created_at: data.created_at || null,
+      if (!error && data) {
+        const user = {
+          id: data.uid || data.id,
+          email: data.email || '',
+          phone: data.phone || '',
+          user_metadata: {
+            name: data.name || '',
+            full_name: data.name || '',
+            avatar_url: data.photo_url || data.avatar_url || '',
+          },
+          created_at: data.created_at || null,
+        }
+        return { data: { user }, error: null }
       }
-      return { data: { user }, error: null }
-    } catch (e) {
-      return { data: { user: null }, error: e }
-    }
+    } catch {}
+
+    // Fallback to Firestore users collection
+    try {
+      const { getDoc, doc } = await import('firebase/firestore')
+      const { firestoreDb } = await import('./firebase')
+      const snap = await getDoc(doc(firestoreDb, 'users', uid))
+      if (snap.exists()) {
+        const d = snap.data()
+        const user = {
+          id: snap.id,
+          email: d.email || '',
+          phone: d.phone || '',
+          user_metadata: {
+            name: d.name || d.displayName || '',
+            full_name: d.name || d.displayName || '',
+            avatar_url: d.photo_url || d.photoUrl || '',
+          },
+          created_at: d.created_at || null,
+        }
+        return { data: { user }, error: null }
+      }
+    } catch {}
+
+    return { data: { user: null }, error: null }
   },
   async updateUserById(uid: string, params: { password?: string }) {
     try {
