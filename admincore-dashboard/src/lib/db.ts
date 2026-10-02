@@ -889,11 +889,11 @@ export async function updateVIPConfig(tier: number, data: Partial<VIPConfig>) {
   const payload = { tier, ...toSnakeCase(data as Record<string, unknown>) }
   console.log('VIP save payload keys:', Object.keys(payload))
 
-  // 1. Dual-write to Firestore vip_config collection
+  // 1. Dual-write to Firestore vip_config collection (non-critical)
   try {
     await setDoc(doc(firestoreDb, 'vip_config', String(tier)), { tier, ...data }, { merge: true })
   } catch (fsErr) {
-    console.warn('Firestore vip_config save error:', fsErr)
+    console.debug('Firestore vip_config save (non-critical):', fsErr)
   }
 
   // 2. Write to Supabase (catch error so UI succeeds via Firestore)
@@ -2158,11 +2158,11 @@ export async function getNecklaces(): Promise<NecklaceConfig[]> {
 }
 
 export async function updateNecklace(id: string, data: Partial<NecklaceConfig>) {
-  // 1. Dual-write to Firestore
+  // 1. Dual-write to Firestore (non-critical)
   try {
     await setDoc(doc(firestoreDb, 'necklaces', id), { id, ...data }, { merge: true })
   } catch (fsErr) {
-    console.warn('Firestore updateNecklace failed:', fsErr)
+    console.debug('Firestore updateNecklace (non-critical):', fsErr)
   }
 
   // 2. Write to Supabase
