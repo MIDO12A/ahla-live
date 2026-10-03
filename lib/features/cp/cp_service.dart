@@ -611,6 +611,19 @@ class CpService {
 
       int finalDurationHours = durationHours;
       try {
+        // Query Supabase gifts table first for configured cp_gift_duration_hours
+        final sbGift = await Supabase.instance.client
+            .from('gifts')
+            .select('cp_gift_duration_hours')
+            .eq('id', giftId)
+            .maybeSingle();
+        if (sbGift != null && sbGift['cp_gift_duration_hours'] != null) {
+          final val = (sbGift['cp_gift_duration_hours'] as num).toInt();
+          if (val > 0) finalDurationHours = val;
+        }
+      } catch (_) {}
+
+      try {
         final gSnap = await _db.collection('cp_gifts').doc(giftId).get();
         Map<String, dynamic>? gData;
         if (gSnap.exists) {
@@ -638,6 +651,27 @@ class CpService {
           }
         }
       } catch (_) {}
+
+      final expireTime = DateTime.now().add(Duration(hours: finalDurationHours)).toIso8601String();
+      try {
+        await _endActiveCouplesFor(senderId);
+        await _endActiveCouplesFor(receiverId);
+        await _db.collection('cp_couples').add(<String, dynamic>{
+          'user1_uid': senderId,
+          'user2_uid': receiverId,
+          'started_at': _now(),
+          'countdown_end': expireTime,
+          'expires_at': expireTime,
+          'duration_hours': finalDurationHours,
+          'total_score': giftValue ?? 0,
+          'week_score': giftValue ?? 0,
+          'month_score': giftValue ?? 0,
+          'created_at': _now(),
+          'updated_at': _now(),
+        });
+      } catch (cpErr) {
+        debugPrint('[CpService] direct link error: $cpErr');
+      }
 
       final reqResult = await sendRequest(
         receiverId,

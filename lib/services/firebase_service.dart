@@ -1236,8 +1236,21 @@ class FirebaseService {
           'created_at': DateTime.now().toIso8601String(),
         });
 
-        // بث الحدث اللحظي للغرفة عبر room_messages
-        txn.set(_db.collection('room_messages').doc(const Uuid().v4()), {
+        // بث الحدث اللحظي للغرفة عبر room_messages في Supabase و Firestore
+        final luckyMsgId = const Uuid().v4();
+        unawaited(SupabaseDataService().sendMessage(MessageModel(
+          msgId: luckyMsgId,
+          roomId: roomId,
+          senderUid: senderId,
+          senderName: senderName,
+          senderPhotoUrl: senderPhotoUrl,
+          type: 'lucky_gift',
+          text: '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)',
+          imageUrl: giftIconUrl,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        )).catchError((_) => false));
+
+        txn.set(_db.collection('room_messages').doc(luckyMsgId), {
           'msg_id': const Uuid().v4(),
           'room_id': roomId,
           'sender_uid': senderId,
@@ -3486,6 +3499,38 @@ class FirebaseService {
     
     String startStr = startDateUtc.toIso8601String();
 
+    // Fetch from Supabase users & sent_gifts for real leaderboard data
+    try {
+      final orderCol = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
+      final sbUsers = await Supabase.instance.client
+          .from('users')
+          .select('*')
+          .order(orderCol, ascending: false)
+          .limit(50);
+      if (sbUsers != null && sbUsers.isNotEmpty) {
+        final hasAnyPoints = sbUsers.some((u) => ((u[orderCol] as num?)?.toInt() ?? 0) > 0);
+        if (hasAnyPoints || timeframe == 'monthly' || timeframe == 'weekly' || timeframe == 'daily') {
+          return sbUsers.map((u) {
+            final pts = isWealth
+                ? ((u['total_gifts_sent'] as num?)?.toInt() ?? 0)
+                : ((u['total_gifts_received'] as num?)?.toInt() ?? (u['charm'] as num?)?.toInt() ?? 0);
+            return {
+              'uid': u['uid'] ?? u['id'],
+              'id': u['uid'] ?? u['id'],
+              'name': u['name'] ?? 'مستخدم',
+              'photoUrl': u['photo_url'] ?? '',
+              'photo_url': u['photo_url'] ?? '',
+              'custom_id': u['custom_id'] ?? '',
+              'points': pts,
+              'score': pts,
+              'level': (u['level'] as num?)?.toInt() ?? 1,
+              'gender': u['gender'] ?? 'male',
+            };
+          }).toList();
+        }
+      }
+    } catch (_) {}
+
     try {
       final snap = await _db.collection('sent_gifts')
           .where('room_id', isEqualTo: roomId)
@@ -3655,6 +3700,38 @@ class FirebaseService {
       } catch (e) {
         snap = await _db.collection('rooms').limit(limit).get();
       }
+      // If Firestore rooms is empty, fetch real rooms from Supabase
+      if (snap.docs.isEmpty) {
+        try {
+          final sbRooms = await Supabase.instance.client
+              .from('rooms')
+              .select('*')
+              .order('total_gifts', ascending: false)
+              .limit(limit);
+          if (sbRooms != null && sbRooms.isNotEmpty) {
+            final list = sbRooms.map((data) {
+              final photo = (data['room_photo_url'] ?? data['photo_url'] ?? data['bg_image'] ?? '').toString();
+              final name = (data['name'] ?? 'Room').toString();
+              final roomId = (data['room_id'] ?? '').toString();
+              final points = (data['total_gifts'] as num?)?.toInt() ?? (data['hot_value'] as num?)?.toInt() ?? 0;
+              return {
+                'id': roomId,
+                'room_doc_id': roomId,
+                'name': name,
+                'photoUrl': photo,
+                'photo_url': photo,
+                'user_id': roomId,
+                'points': points,
+                'score': points,
+                'country': (data['country'] ?? 'EG').toString(),
+              };
+            }).toList();
+            list.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
+            return list;
+          }
+        } catch (_) {}
+      }
+
       final list = snap.docs.map((doc) {
         final data = doc.data();
         final photo = (data['room_photo_url'] ?? data['cover_image'] ?? data['photo_url'] ?? data['image'] ?? data['bg_image'] ?? '').toString();
@@ -3744,7 +3821,46 @@ class FirebaseService {
   /// جلب بيانات وكيل المضيفين والمذيعين التابعين للوكالة (Anchor Agent Data)
   Future<Map<String, dynamic>> getAnchorAgencyData({String? agencyId, required String agentUid}) async {
     try {
-      // 1. البحث عن الوكالة إما بالـ ID أو بالـ Owner UID
+      // 0. البحث المباشر في Supabase host_agencies و host_agency_members (الأسرع والأدق)
+      try {
+        Map<String, dynamic>? sbAg;
+        if (agencyId != null && agencyId.isNotEmpty) {
+          sbAg = await Supabase.instance.client
+              .from('host_agencies')
+              .select('*')
+              .eq('id', agencyId)
+              .maybeSingle();
+        }
+        if (sbAg == null) {
+          sbAg = await Supabase.instance.client
+              .from('host_agencies')
+              .select('*')
+              .eq('owner_uid', agentUid)
+              .maybeSingle();
+        }
+        if (sbAg == null) {
+          final mem = await Supabase.instance.client
+              .from('host_agency_members')
+              .select('agency_id')
+              .eq('host_uid', agentUid)
+              .maybeSingle();
+          if (mem != null && mem['agency_id'] != null) {
+            sbAg = await Supabase.instance.client
+                .from('host_agencies')
+                .select('*')
+                .eq('id', mem['agency_id'].toString())
+                .maybeSingle();
+          }
+        }
+        if (sbAg != null && sbAg['id'] != null) {
+          final aid = sbAg['id'].toString();
+          return await _buildAgencyDataPayload(aid, sbAg, agentUid);
+        }
+      } catch (e) {
+        debugPrint('[getAnchorAgencyData] supabase check error: $e');
+      }
+
+      // 1. البحث عن الوكالة إما بالـ ID أو بالـ Owner UID في Firestore
       if (agencyId != null && agencyId.isNotEmpty) {
         final doc = await _db.collection('host_agencies').doc(agencyId).get();
         if (doc.exists) {

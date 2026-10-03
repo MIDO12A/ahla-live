@@ -79,7 +79,63 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
       debugPrint('[agent_recharge] rpc error: $e');
     }
 
-    // Fallback: Check user provider and Firestore directly
+    // 1. Direct Supabase 'users' table check (fastest and most reliable)
+    if (uid != null) {
+      try {
+        final sbUser = await Supabase.instance.client
+            .from('users')
+            .select('*')
+            .or('uid.eq.$uid,id.eq.$uid')
+            .maybeSingle();
+
+        if (sbUser != null) {
+          final isAgent = sbUser['is_recharge_agent'] == true ||
+              sbUser['is_agent'] == true ||
+              sbUser['role'] == 'recharge_agent' ||
+              sbUser['role'] == 'agent';
+
+          if (isAgent && mounted) {
+            final coins = (sbUser['coins'] as num?)?.toInt() ?? user?.coins ?? 0;
+            final customId = sbUser['custom_id']?.toString() ?? user?.customId ?? uid;
+            final pin = sbUser['agent_pin']?.toString();
+
+            if (user != null && !user.isRechargeAgent) {
+              userProvider.setUser(user.copyWith(isRechargeAgent: true, coins: coins));
+            }
+
+            setState(() {
+              _isAgent = true;
+              _dashboard = AgentDashboardData(
+                enabled: true,
+                pinSet: pin != null && pin.isNotEmpty,
+                dailyLimit: 10000000,
+                agencyGold: coins,
+                agentPublicId: customId,
+                todayTotal: 0,
+                todayCount: 0,
+                todayRemaining: 10000000,
+                weekTotal: 0,
+                weekCount: 0,
+                monthTotal: 0,
+                monthCount: 0,
+                allTotal: 0,
+                allCount: 0,
+                weekChart: const [],
+                recentTxns: const [],
+                quickAmounts: const [1000, 5000, 10000, 50000, 100000],
+                usdBalance: 0.0,
+              );
+              _loading = false;
+            });
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('[agent_recharge] supabase user check error: $e');
+      }
+    }
+
+    // 2. Fallback: Check user provider and Firestore directly
     if (user?.isRechargeAgent == true || uid != null) {
       try {
         final uDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();

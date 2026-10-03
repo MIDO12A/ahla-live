@@ -885,7 +885,8 @@ class _GiftPanelState extends State<GiftPanel> {
 
   void _startComboTimer() {
     _comboTimer?.cancel();
-    _comboMultiplier = (_comboSeconds > 0) ? _comboMultiplier + 1 : 1;
+    final step = widget.selectedCount > 0 ? widget.selectedCount : 1;
+    _comboMultiplier = (_comboSeconds > 0) ? _comboMultiplier + step : step;
     _comboSeconds = 10;
     _comboRemainingMs = 10000;
     setState(() {});

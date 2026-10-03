@@ -112,7 +112,7 @@ class UserModel {
   factory UserModel.fromMap(Map<String, dynamic> map) => UserModel(
     name: map['name'] as String? ?? '',
     avatar: map['avatar'] as String?,
-    charm: map['charm'] as String?,
+    charm: map['charm']?.toString() ?? '0',
     isAdmin: map['isAdmin'] as bool? ?? false,
     isOwner: map['isOwner'] as bool? ?? false,
     frameAsset: map['frameAsset'] as String?,

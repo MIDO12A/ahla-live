@@ -436,7 +436,7 @@ const BASE_GIFT_COLUMNS = new Set([
   'package_count', 'sort_order', 'name_key', 'photo_key',
   'default_image', 'wealth_xp', 'gems_xp',
   'category_id', 'category', 'type', 'is_cp_gift',
-  'cp_gift_duration_hours', 'duration_type', 'duration_value',
+  'cp_gift_duration_hours',
   'lucky_rtp', 'lucky_max_multiplier', 'lucky_burst', 'lucky_display_mode',
   'receiver_name_key', 'receiver_photo_key', 'count_key'
 ]);
@@ -445,6 +445,16 @@ function sanitizeGiftData(data: Partial<GiftModel>): Record<string, unknown> {
   const raw = { ...data };
   const name = String(raw.name || (raw as any).name_ar || (raw as any).nameAr || '').trim();
   const nameAr = String((raw as any).name_ar || (raw as any).nameAr || raw.name || '').trim();
+  let cpDuration = Number(raw.cpGiftDurationHours ?? (raw as any).cp_gift_duration_hours ?? 0) || 0;
+  if (!cpDuration) {
+    const dType = (raw as any).duration_type ?? (raw as any).durationType;
+    const dVal = Number((raw as any).duration_value ?? (raw as any).durationValue ?? 0) || 0;
+    if (dType === 'days' && dVal > 0) {
+      cpDuration = dVal * 24;
+    } else if (dType === 'hours' && dVal > 0) {
+      cpDuration = dVal;
+    }
+  }
   const clean: Record<string, unknown> = {
     ...raw,
     name: name || 'هدية',
@@ -456,7 +466,7 @@ function sanitizeGiftData(data: Partial<GiftModel>): Record<string, unknown> {
     sort_order: Number(raw.sortOrder ?? (raw as any).sort_order ?? 0) || 0,
     wealth_xp: Number(raw.wealthXp ?? (raw as any).wealth_xp ?? 0) || 0,
     gems_xp: Number(raw.gemsXp ?? (raw as any).gems_xp ?? 0) || 0,
-    cp_gift_duration_hours: Number(raw.cpGiftDurationHours ?? (raw as any).cp_gift_duration_hours ?? 0) || 0,
+    cp_gift_duration_hours: cpDuration,
     lucky_rtp: Number(raw.luckyRtp ?? (raw as any).lucky_rtp ?? 85) || 85,
     lucky_max_multiplier: Number(raw.luckyMaxMultiplier ?? (raw as any).lucky_max_multiplier ?? 100) || 100,
     is_vap: Boolean(raw.isVap ?? (raw as any).is_vap ?? false),
@@ -478,20 +488,18 @@ export async function updateGift(id: string, data: Partial<GiftModel>) {
   } catch (fsErr) {
     console.debug('Firestore gifts sync notice:', fsErr);
   }
-  // 2. Write to Supabase
+  // 2. Write to Supabase (only send valid columns)
   try {
     const fullPayload = toSnakeCase(sanitized);
-    const { error } = await supabase.from('gifts').update(fullPayload).eq('id', id);
+    const validPayload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(fullPayload)) {
+      if (BASE_GIFT_COLUMNS.has(k)) {
+        validPayload[k] = v;
+      }
+    }
+    const { error } = await supabase.from('gifts').update(validPayload).eq('id', id);
     if (error) {
-      const basePayload: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(fullPayload)) {
-        if (BASE_GIFT_COLUMNS.has(k)) {
-          basePayload[k] = v;
-        }
-      }
-      if (Object.keys(basePayload).length > 0) {
-        await supabase.from('gifts').update(basePayload).eq('id', id);
-      }
+      console.warn('updateGift supabase error:', error);
     }
   } catch (e) {
     console.warn('updateGift supabase failed:', e);
@@ -507,18 +515,18 @@ export async function addGift(id: string, data: GiftModel) {
   } catch (fsErr) {
     console.debug('Firestore gifts sync notice:', fsErr);
   }
-  // 2. Write to Supabase
+  // 2. Write to Supabase (only send valid columns)
   try {
     const fullPayload = { id, ...toSnakeCase(sanitized) };
-    const { error } = await supabase.from('gifts').upsert(fullPayload);
-    if (error) {
-      const basePayload: Record<string, unknown> = { id };
-      for (const [k, v] of Object.entries(fullPayload)) {
-        if (BASE_GIFT_COLUMNS.has(k)) {
-          basePayload[k] = v;
-        }
+    const validPayload: Record<string, unknown> = { id };
+    for (const [k, v] of Object.entries(fullPayload)) {
+      if (BASE_GIFT_COLUMNS.has(k)) {
+        validPayload[k] = v;
       }
-      await supabase.from('gifts').upsert(basePayload);
+    }
+    const { error } = await supabase.from('gifts').upsert(validPayload);
+    if (error) {
+      console.warn('addGift supabase error:', error);
     }
   } catch (e) {
     console.warn('addGift supabase failed:', e);
@@ -1186,9 +1194,16 @@ export async function createHostAgency(name: string, ownerId: string, commission
       console.warn('createHostAgency supabase host_agencies upsert warning:', sbErr);
     }
 
-    // 2. Add owner to Supabase host_agency_members (column is host_uid)
+    // 2. Add owner to Supabase host_agency_members (column is host_uid, id is UUID)
     try {
+      const memberUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+          });
       await supabase.from('host_agency_members').upsert({
+        id: memberUuid,
         agency_id: agencyId,
         host_uid: resolvedUid,
         role: 'owner',
@@ -1565,8 +1580,10 @@ export async function getAgencyApplications(statusFilter?: string, typeFilter?: 
     // 2. Also check host_verifications for any applications submitted via verification
     let verifData: any[] | null = null;
     try {
-      const res = await supabase.from('host_verifications').select('*').order('created_at', { ascending: false });
-      if (res.data) verifData = res.data;
+      const snap = await getDocs(collection(firestoreDb, 'host_verifications'));
+      if (!snap.empty) {
+        verifData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
     } catch {}
     if (verifData && Array.isArray(verifData)) {
       for (const v of verifData) {
@@ -1692,7 +1709,9 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
     // Update application record
     if (app.id.startsWith('verif_')) {
       const verifDocId = app.id.replace('verif_', '');
-      await supabase.from('host_verifications').update({ status: 'approved' }).eq('uid', app.user_id);
+      try {
+        await setDoc(doc(firestoreDb, 'host_verifications', verifDocId), { status: 'approved', reviewed_at: now }, { merge: true });
+      } catch {}
     } else {
       await supabase.from('agency_applications').update({
         status: 'approved',
@@ -1710,7 +1729,10 @@ export async function rejectAgencyApplication(appId: string, userId: string, rea
   try {
     const now = new Date().toISOString();
     if (appId.startsWith('verif_')) {
-      await supabase.from('host_verifications').update({ status: 'rejected' }).eq('uid', userId);
+      const verifDocId = appId.replace('verif_', '');
+      try {
+        await setDoc(doc(firestoreDb, 'host_verifications', verifDocId), { status: 'rejected', reviewed_at: now, rejection_reason: reason }, { merge: true });
+      } catch {}
     } else {
       await supabase.from('agency_applications').update({
         status: 'rejected',

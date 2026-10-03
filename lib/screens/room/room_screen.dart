@@ -564,7 +564,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   void _startRoomComboTimer(Map<String, dynamic> giftData) {
     _lastGiftComboData = giftData;
     _roomComboTimer?.cancel();
-    _roomComboMultiplier = (_roomComboSeconds > 0) ? _roomComboMultiplier + 1 : 1;
+    final giftCount = (giftData['giftCount'] as num?)?.toInt() ?? 1;
+    _roomComboMultiplier = (_roomComboSeconds > 0) ? _roomComboMultiplier + giftCount : giftCount;
     _roomComboSeconds = 10;
     // ✅ بدلاً من setState كامل — نُعلم ValueNotifier فقط لإعادة رسم زر الكومبو وحده
     _comboNotifier.value = _ComboState(_roomComboSeconds, _roomComboMultiplier, _roomComboFiring);
@@ -585,7 +586,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     // حتى لا يختفي الزر أثناء الضغط المتتالي
     _roomComboTimer?.cancel();
     _roomComboSeconds = 10;
-    _roomComboMultiplier++;
+    final stepCount = (_lastGiftComboData?['giftCount'] as num?)?.toInt() ?? 1;
+    _roomComboMultiplier += stepCount;
     _roomComboFiring = true;
     _comboNotifier.value = _ComboState(_roomComboSeconds, _roomComboMultiplier, true);
 
@@ -942,6 +944,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _currentUserSeatIndex = restoredSeatIndex;
       _takingSeat = true;
       _pendingSeatIndex = restoredSeatIndex;
+      final restoredFrame = _resolveFrameAsset(currentUser.activeFrame);
       initialSeats[restoredSeatIndex] = SeatModel(
         index: restoredSeatIndex,
         user: UserModel(
@@ -951,8 +954,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           customId: currentUser.customId,
           gender: currentUser.gender,
           country: currentUser.country,
-          frameAsset: currentUser.activeFrame,
+          frameAsset: restoredFrame,
         ),
+        hasFrame: restoredFrame != null && restoredFrame.isNotEmpty,
+        frameAsset: restoredFrame,
         state: SeatState.occupied,
       );
     }
@@ -990,6 +995,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _loadRoomData() {
     _joinedAt = DateTime.now();
+    final uProvInit = Provider.of<UserProvider>(context, listen: false).currentUser;
+    if (uProvInit != null) { _cachedUsers[uProvInit.uid] = uProvInit; }
     LuckyGiftService().disposeAllOverlays();
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final currentUser = userProvider.currentUser;
@@ -1059,6 +1066,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _pendingSeatIndex = restoredSeatIndex;
         // Immediately restore seat optimistically
         setState(() {
+          final restoredFrame = _resolveFrameAsset(currentUser.activeFrame);
           _seats[restoredSeatIndex] = SeatModel(
             index: restoredSeatIndex,
             user: UserModel(
@@ -1068,8 +1076,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               customId: currentUser.customId,
               gender: currentUser.gender,
               country: currentUser.country,
-              frameAsset: currentUser.activeFrame,
+              frameAsset: restoredFrame,
             ),
+            hasFrame: restoredFrame != null && restoredFrame.isNotEmpty,
+            frameAsset: restoredFrame,
             state: SeatState.occupied,
           );
         });
@@ -1775,7 +1785,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           });
         }
         final cachedUser = _cachedUsers[uid];
-        final activeFrame = data['active_frame']?.toString() ?? cachedUser?.activeFrame;
+        final activeFrame = data['active_frame']?.toString() ?? cachedUser?.activeFrame ?? (uid == _currentUserId ? currentUser?.activeFrame : null);
         final frameAsset = _resolveFrameAsset(activeFrame);
         final activeCar = data['active_car']?.toString() ?? cachedUser?.activeCar;
         final carStoreItem = activeCar != null && !activeCar.startsWith('http')
@@ -1796,7 +1806,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           state: SeatState.occupied,
           user: UserModel(
             name: data['name']?.toString() ?? '',
-            avatar: data['photo_url']?.toString(),
+            avatar: data['photo_url']?.toString() ?? data['avatar']?.toString() ?? cachedUser?.photoUrl ?? (uid == _currentUserId ? currentUser?.photoUrl : null),
             id: uid,
             customId: cachedUser?.customId ?? data['custom_id']?.toString(),
             activeMicWave: activeMicWave,
@@ -3223,7 +3233,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             ? _seats[_selectedSeatIdx!].user!.name
                             : null,
                         onSend: () {
-                          // إبقاء البانل مفتوحاً للاستمرار في الإرسال والكومبو كما في التطبيق الأصلي
+                          setState(() => _showGift = false);
                         },
                         onSendGift: (asset) {
                           _giftAnimAsset = asset;

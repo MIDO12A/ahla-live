@@ -502,14 +502,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                         await SupabaseDataService().upsertHostAgency({
                                           'id': agId,
                                           'name': agencyName,
-                                          'owner_id': currentUid,
+                                          'owner_uid': currentUid,
+                                          'status': 'active',
                                           'is_active': true,
                                           'member_count': 1,
+                                          'description': 'الوكالة الرسمية للمضيفين',
                                           'created_at': DateTime.now().toUtc().toIso8601String(),
                                         });
                                         await SupabaseDataService().upsertHostAgencyMember({
+                                          'id': const Uuid().v4(),
                                           'agency_id': agId,
-                                          'user_id': currentUid,
+                                          'host_uid': currentUid,
                                           'role': 'owner',
                                           'status': 'active',
                                           'joined_at': DateTime.now().toUtc().toIso8601String(),
@@ -518,6 +521,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           'agency_id': agId,
                                           'is_host_agent': true,
                                         });
+                                        final uProv = Provider.of<UserProvider>(context, listen: false);
+                                        if (uProv.currentUser != null) {
+                                          uProv.setUser(uProv.currentUser!.copyWith(agencyId: agId, isHostAgent: true));
+                                        }
                                       } catch (_) {}
 
                                       try {
@@ -625,7 +632,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ),
 
                       // CP Relationship Request Action
-                      if (action == 'cp_request' || notif.type == 'cp_invite')
+                      if (action == 'cp_request' || action == 'cp_relationship_request' || notif.type == 'cp_invite' || notif.type == 'cp_gift')
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
                           child: Row(
