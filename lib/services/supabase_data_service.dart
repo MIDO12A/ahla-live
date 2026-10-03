@@ -856,6 +856,58 @@ class SupabaseDataService {
     }
   }
 
+  Future<bool> deleteNotification(String notifId) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/notifications?id=eq.$notifId');
+      final res = await http.delete(url, headers: _headers);
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] deleteNotification error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateUserData(String uid, Map<String, dynamic> data) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid');
+      final res = await http.patch(url, headers: _headers, body: jsonEncode(data));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] updateUserData error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> upsertHostAgency(Map<String, dynamic> agencyData) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/host_agencies');
+      final res = await http.post(
+        url,
+        headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
+        body: jsonEncode(agencyData),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] upsertHostAgency error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> upsertHostAgencyMember(Map<String, dynamic> memberData) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/host_agency_members');
+      final res = await http.post(
+        url,
+        headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
+        body: jsonEncode(memberData),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] upsertHostAgencyMember error: $e');
+      return false;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getBadges() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/badges?select=*');

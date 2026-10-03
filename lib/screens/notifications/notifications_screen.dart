@@ -11,7 +11,6 @@ import '../../features/cp/cp_service.dart';
 import '../../features/cp/cp_detail_full_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
 import 'package:uuid/uuid.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/host_agency/screens/agency_join_requests_screen.dart';
 
 /// Replicates [chat_activity_system_notification.xml] and [chat_adapter_activity_item.xml]
@@ -481,10 +480,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   if (currentUid != null) {
                                     if (agencyType == 'recharge') {
                                       try {
-                                        await Supabase.instance.client.from('users').update({
+                                        await SupabaseDataService().updateUserData(currentUid, {
                                           'is_recharge_agent': true,
                                           'recharge_agency_name': agencyName,
-                                        }).eq('uid', currentUid);
+                                        });
                                       } catch (_) {}
                                       try {
                                         await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
@@ -500,7 +499,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       final rawAid = notif.data?['agency_id']?.toString() ?? '';
                                       final agId = rawAid.isNotEmpty ? rawAid : const Uuid().v4();
                                       try {
-                                        await Supabase.instance.client.from('host_agencies').upsert({
+                                        await SupabaseDataService().upsertHostAgency({
                                           'id': agId,
                                           'name': agencyName,
                                           'owner_id': currentUid,
@@ -508,17 +507,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           'member_count': 1,
                                           'created_at': DateTime.now().toUtc().toIso8601String(),
                                         });
-                                        await Supabase.instance.client.from('host_agency_members').upsert({
+                                        await SupabaseDataService().upsertHostAgencyMember({
                                           'agency_id': agId,
                                           'user_id': currentUid,
                                           'role': 'owner',
                                           'status': 'active',
                                           'joined_at': DateTime.now().toUtc().toIso8601String(),
                                         });
-                                        await Supabase.instance.client.from('users').update({
+                                        await SupabaseDataService().updateUserData(currentUid, {
                                           'agency_id': agId,
                                           'is_host_agent': true,
-                                        }).eq('uid', currentUid);
+                                        });
                                       } catch (_) {}
 
                                       try {
@@ -552,7 +551,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     }
 
                                     try {
-                                      await Supabase.instance.client.from('notifications').delete().eq('id', notif.id);
+                                      await SupabaseDataService().deleteNotification(notif.id);
                                     } catch (_) {}
                                     try {
                                       if (notif.id.isNotEmpty) {
@@ -580,7 +579,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 color: const Color(0xFFEF4444),
                                 onTap: () async {
                                   try {
-                                    await Supabase.instance.client.from('notifications').delete().eq('id', notif.id);
+                                    await SupabaseDataService().deleteNotification(notif.id);
                                   } catch (_) {}
                                   if (notif.id.isNotEmpty) {
                                     try {
