@@ -1,3 +1,8 @@
+import '../../../../services/supabase_data_service.dart';
+import '../../../../services/supabase_auth_service.dart';
+import 'package:provider/provider.dart';
+import '../../../../providers/user_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 
@@ -475,15 +480,19 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
     });
 
     try {
-      final res = await Supabase.instance.client
-          .rpc('agent_set_pin', params: {'p_pin': pin});
-      final uid = Supabase.instance.client.auth.currentUser?.id;
+      final uid = SupabaseAuthService().currentUser?.uid ??
+          Provider.of<UserProvider>(context, listen: false).currentUser?.uid ??
+          Supabase.instance.client.auth.currentUser?.id;
       if (uid != null) {
-        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).set(
-          {'agent_pin': pin},
-          SetOptions(merge: true),
-        );
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('agent_pin_$uid', pin);
+        } catch (_) {}
       }
+      try {
+        await Supabase.instance.client
+            .rpc('agent_set_pin', params: {'p_pin': pin, 'uid': uid});
+      } catch (_) {}
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -710,22 +719,19 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
       return;
     }
     try {
-      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-      final intId = int.tryParse(q);
       final List<Map<String, dynamic>> results = [];
       final Set<String> seenUids = {};
 
-      void addDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-        if (!doc.exists || doc.data() == null) return;
-        final uid = doc.id;
-        if (seenUids.contains(uid)) return;
+      void addUser(Map<String, dynamic> d) {
+        final uid = d['uid']?.toString() ?? d['id']?.toString() ?? '';
+        if (uid.isEmpty || seenUids.contains(uid)) return;
         seenUids.add(uid);
-        final d = doc.data()!;
+        final photo = d['avatar'] ?? d['avatar_url'] ?? d['photo_url'] ?? d['photoUrl'] ?? '';
         results.add({
           'id': uid,
           'uid': uid,
           'display_name': d['name'] ?? d['nickname'] ?? d['display_name'] ?? 'مستخدم',
-          'avatar_url': d['avatar'] ?? d['avatar_url'] ?? d['photo_url'] ?? d['photoUrl'] ?? '',
+          'avatar_url': photo,
           'kayan_id': d['custom_id']?.toString() ??
               d['customId']?.toString() ??
               d['display_id']?.toString() ??
@@ -735,105 +741,16 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
         });
       }
 
-      // 1. Check exact custom_id (string)
-      try {
-        final snap1 = await db.collection('users').where('custom_id', isEqualTo: q).limit(5).get();
-        for (final doc in snap1.docs) {
-          addDoc(doc);
-        }
-      } catch (_) {}
-
-      // 2. Check exact custom_id (int)
-      if (intId != null && results.isEmpty) {
-        try {
-          final snap1Int = await db.collection('users').where('custom_id', isEqualTo: intId).limit(5).get();
-          for (final doc in snap1Int.docs) {
-            addDoc(doc);
-          }
-        } catch (_) {}
+      // 1. Direct match by ID / custom_id via Supabase
+      final directUser = await SupabaseDataService().findUserByIdOrCustomId(q);
+      if (directUser != null) {
+        addUser(directUser.toMap());
       }
 
-      // 3. Check customId (camelCase)
-      if (results.isEmpty) {
-        try {
-          final snap2 = await db.collection('users').where('customId', isEqualTo: q).limit(5).get();
-          for (final doc in snap2.docs) {
-            addDoc(doc);
-          }
-        } catch (_) {}
-      }
-      if (intId != null && results.isEmpty) {
-        try {
-          final snap2Int = await db.collection('users').where('customId', isEqualTo: intId).limit(5).get();
-          for (final doc in snap2Int.docs) {
-            addDoc(doc);
-          }
-        } catch (_) {}
-      }
-
-      // 4. Check display_id
-      if (results.isEmpty) {
-        try {
-          final snap3 = await db.collection('users').where('display_id', isEqualTo: q).limit(5).get();
-          for (final doc in snap3.docs) {
-            addDoc(doc);
-          }
-        } catch (_) {}
-      }
-
-      // 5. Direct doc lookup by UID
-      if (results.isEmpty) {
-        try {
-          final doc = await db.collection('users').doc(q).get();
-          if (doc.exists) {
-            addDoc(doc);
-          }
-        } catch (_) {}
-      }
-
-      // 6. Name / Nickname search prefix
-      if (results.isEmpty && q.length >= 2) {
-        try {
-          final nameSnap = await db.collection('users')
-              .where('name', isGreaterThanOrEqualTo: q)
-              .where('name', isLessThanOrEqualTo: '$q\uf8ff')
-              .limit(5)
-              .get();
-          for (final doc in nameSnap.docs) {
-            addDoc(doc);
-          }
-        } catch (_) {}
-
-        if (results.isEmpty) {
-          try {
-            final nickSnap = await db.collection('users')
-                .where('nickname', isGreaterThanOrEqualTo: q)
-                .where('nickname', isLessThanOrEqualTo: '$q\uf8ff')
-                .limit(5)
-                .get();
-            for (final doc in nickSnap.docs) {
-              addDoc(doc);
-            }
-          } catch (_) {}
-        }
-      }
-
-      // 7. General search fallback: scan recent users in memory
-      if (results.isEmpty) {
-        try {
-          final allSnap = await db.collection('users').limit(60).get();
-          final lowerQ = q.toLowerCase();
-          for (final doc in allSnap.docs) {
-            final d = doc.data();
-            final cid = (d['custom_id'] ?? d['customId'] ?? d['display_id'] ?? '').toString().toLowerCase();
-            final uid = doc.id.toLowerCase();
-            final name = (d['name'] ?? d['nickname'] ?? d['display_name'] ?? '').toString().toLowerCase();
-            if (cid.contains(lowerQ) || uid.contains(lowerQ) || name.contains(lowerQ)) {
-              addDoc(doc);
-              if (results.length >= 5) break;
-            }
-          }
-        } catch (_) {}
+      // 2. Search users via Supabase
+      final searchList = await SupabaseDataService().searchUsers(q);
+      for (final u in searchList) {
+        addUser(u);
       }
 
       if (!mounted) return;
@@ -842,7 +759,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
         _searching = false;
       });
     } catch (e) {
-      debugPrint('[recharge_tab] search error: $e');
+      debugPrint('[search] $e');
       if (mounted) setState(() => _searching = false);
     }
   }
@@ -931,7 +848,9 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
   Future<void> _executeRecharge(Map<String, dynamic> user, int amount) async {
     setState(() => _busy = true);
     final targetUid = user['id']?.toString() ?? user['uid']?.toString() ?? '';
-    final agentUid = FirebaseAuth.instance.currentUser?.uid;
+    final agentUid = SupabaseAuthService().currentUser?.uid ??
+        Provider.of<UserProvider>(context, listen: false).currentUser?.uid ??
+        FirebaseAuth.instance.currentUser?.uid;
     if (agentUid == null || targetUid.isEmpty) {
       setState(() => _busy = false);
       _showSnack('خطأ: تعذر التعرف على بيانات الحساب');
@@ -939,58 +858,63 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     }
 
     try {
-      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-      final agentRef = db.collection('users').doc(agentUid);
-      final targetRef = db.collection('users').doc(targetUid);
+      final agentUser = await SupabaseDataService().getUser(agentUid);
+      if (agentUser == null || agentUser.coins < amount) {
+        if (!mounted) return;
+        setState(() => _busy = false);
+        _showSnack('فشلت العملية: رصيد الوكيل غير كافٍ');
+        return;
+      }
 
-      final success = await db.runTransaction<bool>((txn) async {
-        final agentSnap = await txn.get(agentRef);
-        final targetSnap = await txn.get(targetRef);
-        if (!agentSnap.exists || !targetSnap.exists) return false;
+      final targetUser = await SupabaseDataService().getUser(targetUid);
+      if (targetUser == null) {
+        if (!mounted) return;
+        setState(() => _busy = false);
+        _showSnack('خطأ: لم يتم العثور على حساب المستلم');
+        return;
+      }
 
-        final agentCoins = (agentSnap.data()?['coins'] as num?)?.toInt() ?? 0;
-        if (agentCoins < amount) return false;
-
-        final targetCoins = (targetSnap.data()?['coins'] as num?)?.toInt() ?? 0;
-
-        txn.update(agentRef, {'coins': agentCoins - amount});
-        txn.update(targetRef, {'coins': targetCoins + amount});
-
-        final txRef = db.collection('agent_recharge_transactions').doc();
-        txn.set(txRef, {
-          'agent_id': agentUid,
-          'type': 'recharge',
-          'recipient_uid': targetUid,
-          'recipient_display_name': user['display_name'] ?? 'مستخدم',
-          'recipient_avatar_url': user['avatar_url'] ?? '',
-          'recipient_kayan_id': user['kayan_id'] ?? '',
-          'gold_amount': amount,
-          'status': 'completed',
-          'created_at': DateTime.now().toIso8601String(),
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-
-        return true;
+      final agentDeductSuccess = await SupabaseDataService().updateUser(agentUid, {
+        'coins': agentUser.coins - amount,
       });
+
+      if (!agentDeductSuccess) {
+        if (!mounted) return;
+        setState(() => _busy = false);
+        _showSnack('فشلت العملية أثناء تحديث رصيد الوكيل');
+        return;
+      }
+
+      await SupabaseDataService().updateUser(targetUid, {
+        'coins': targetUser.coins + amount,
+      });
+
+      await SupabaseDataService().recordAgentTransaction(
+        agentId: agentUid,
+        targetUid: targetUid,
+        targetCustomId: user['kayan_id']?.toString() ?? targetUser.customId,
+        amountCoins: amount,
+      );
+
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      if (userProvider.currentUser?.uid == agentUid) {
+        userProvider.deductCoinsLocally(amount);
+      }
 
       if (!mounted) return;
       setState(() => _busy = false);
 
-      if (success) {
-        FirebaseService().sendNotification(
-          uid: targetUid,
-          type: 'recharge',
-          title: 'شحن رصيد كوينز 🪙',
-          body: 'تم شحن $amount كوين لحسابك بنجاح من وكيل الشحن.',
-          data: {'amount': amount, 'agent_id': agentUid},
-        );
+      SupabaseDataService().sendNotification(
+        uid: targetUid,
+        type: 'recharge',
+        title: 'شحن رصيد كوينز 🪙',
+        body: 'تم شحن $amount كوين لحسابك بنجاح من وكيل الشحن.',
+        data: {'amount': amount, 'agent_id': agentUid},
+      );
 
-        _showSnack('✅ تم شحن $amount كوين للمستخدم بنجاح');
-        _clearSelected();
-        widget.onSuccess();
-      } else {
-        _showSnack('فشلت العملية: رصيد الوكيل غير كافٍ');
-      }
+      _showSnack('✅ تم شحن $amount كوين للمستخدم بنجاح');
+      _clearSelected();
+      widget.onSuccess();
     } catch (e) {
       debugPrint('[recharge] error: $e');
       if (mounted) {
@@ -1003,7 +927,9 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
   Future<void> _executeWithdraw(Map<String, dynamic> user, int amount) async {
     setState(() => _busy = true);
     final targetUid = user['id']?.toString() ?? user['uid']?.toString() ?? '';
-    final agentUid = FirebaseAuth.instance.currentUser?.uid;
+    final agentUid = SupabaseAuthService().currentUser?.uid ??
+        Provider.of<UserProvider>(context, listen: false).currentUser?.uid ??
+        FirebaseAuth.instance.currentUser?.uid;
     if (agentUid == null || targetUid.isEmpty) {
       setState(() => _busy = false);
       _showSnack('خطأ: تعذر التعرف على بيانات الحساب');

@@ -16,6 +16,8 @@ import '../models/ranking_frame_config.dart';
 import '../models/store_item_model.dart';
 import '../models/app_asset_model.dart';
 import '../models/notification_model.dart';
+import '../models/gifted_item_model.dart';
+import 'package:uuid/uuid.dart';
 
 class SupabaseDataService {
   static final SupabaseDataService _instance = SupabaseDataService._internal();
@@ -1581,6 +1583,127 @@ class SupabaseDataService {
         }),
       );
     } catch (_) {}
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // GIFTED ITEMS & BACKPACK (SUPABASE)
+  // ═══════════════════════════════════════════════════════
+
+  Future<List<GiftedItemModel>> getGiftedItems(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gifted_items?uid=eq.$uid&order=sent_at.desc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => GiftedItemModel.fromMap(Map<String, dynamic>.from(e as Map), e['id'].toString())).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getGiftedItems error: $e');
+    }
+    return [];
+  }
+
+  Future<List<GiftedItemModel>> getGiftedItemsByCategory(String uid, String category) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gifted_items?uid=eq.$uid&item_category=eq.$category&order=sent_at.desc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => GiftedItemModel.fromMap(Map<String, dynamic>.from(e as Map), e['id'].toString())).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getGiftedItemsByCategory error: $e');
+    }
+    return [];
+  }
+
+  Future<bool> removeGiftedItem(String id) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gifted_items?id=eq.$id');
+      final res = await http.delete(url, headers: _headers);
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] removeGiftedItem error: $e');
+      return false;
+    }
+  }
+
+  Stream<List<GiftedItemModel>> userGiftedItemsStream(String uid) async* {
+    yield await getGiftedItems(uid);
+    while (true) {
+      await Future.delayed(const Duration(seconds: 15));
+      yield await getGiftedItems(uid);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUserBackpack(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/user_backpack?user_id=eq.$uid');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> deleteUserBackpackItem(String id) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/user_backpack?id=eq.$id');
+      final res = await http.delete(url, headers: _headers);
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // AGENT RECHARGE TRANSACTIONS (SUPABASE)
+  // ═══════════════════════════════════════════════════════
+
+  Future<bool> recordAgentTransaction({
+    required String agentId,
+    required String targetUid,
+    String? targetCustomId,
+    required int amountCoins,
+    double amountUsd = 0.0,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/agent_recharge_transactions');
+      final res = await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'id': 'tx_${DateTime.now().millisecondsSinceEpoch}_${const Uuid().v4().substring(0, 6)}',
+          'agent_id': agentId,
+          'target_uid': targetUid,
+          'target_custom_id': targetCustomId,
+          'amount_coins': amountCoins,
+          'amount_usd': amountUsd,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+      debugPrint('[SupabaseDataService] recordAgentTransaction status: ${res.statusCode}');
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] recordAgentTransaction error: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAgentTransactions(String agentId, {int limit = 100}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/agent_recharge_transactions?agent_id=eq.$agentId&order=created_at.desc&limit=$limit');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getAgentTransactions error: $e');
+    }
+    return [];
   }
 }
 

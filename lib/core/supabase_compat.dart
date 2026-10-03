@@ -1,3 +1,9 @@
+import '../services/supabase_data_service.dart';
+import '../services/supabase_auth_service.dart';
+import '../config/supabase_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 // Compatibility shim: allows code originally written against
 // `Supabase.instance.client` to keep compiling on top of Firebase
@@ -1744,21 +1750,25 @@ class SupabaseClient {
 
   Future<Map<String, dynamic>> _rpcAgentGetDashboard(Map<String, dynamic>? p) async {
     final uid = p?['uid']?.toString() ??
+        SupabaseAuthService().currentUser?.uid ??
         FirebaseAuth.instance.currentUser?.uid ??
         auth.currentUser?.id;
     if (uid == null) return {'ok': false, 'error': 'unauthorized'};
-    final uDoc = await _db.collection('users').doc(uid).get();
-    final data = uDoc.data() ?? {};
-    final isAgent = data['is_recharge_agent'] == true ||
-        data['isRechargeAgent'] == true ||
-        data['is_agent'] == true ||
-        data['role'] == 'agent' ||
-        data['role'] == 'recharge_agent';
+
+    final sbUser = await SupabaseDataService().getUser(uid);
+    if (sbUser == null) return {'ok': false, 'error': 'user_not_found'};
+
+    final isAgent = sbUser.isRechargeAgent;
     if (!isAgent) return {'ok': false, 'error': 'not_an_agent'};
 
-    final coins = (data['coins'] as num?)?.toInt() ?? 0;
-    final pin = data['agent_pin']?.toString();
-    final customId = data['custom_id']?.toString() ?? data['customId']?.toString() ?? uid;
+    final coins = sbUser.coins;
+    final customId = sbUser.customId.isNotEmpty ? sbUser.customId : uid;
+
+    String? pin;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      pin = prefs.getString('agent_pin_$uid');
+    } catch (_) {}
 
     int todayTotal = 0;
     int todayCount = 0;
@@ -1771,19 +1781,14 @@ class SupabaseClient {
     List<Map<String, dynamic>> recentTxns = [];
 
     try {
-      final snap = await _db.collection('agent_recharge_transactions')
-          .where('agent_id', isEqualTo: uid)
-          .limit(100)
-          .get();
+      final txns = await SupabaseDataService().getAgentTransactions(uid, limit: 100);
       final now = DateTime.now();
       final todayStart = DateTime(now.year, now.month, now.day);
       final weekStart = todayStart.subtract(Duration(days: now.weekday % 7));
       final monthStart = DateTime(now.year, now.month, 1);
 
-      for (final doc in snap.docs) {
-        final d = Map<String, dynamic>.from(doc.data());
-        d['id'] = doc.id;
-        final amt = (d['gold_amount'] as num?)?.toInt() ?? 0;
+      for (final d in txns) {
+        final amt = (d['amount_coins'] as num?)?.toInt() ?? (d['gold_amount'] as num?)?.toInt() ?? 0;
         final dDate = d['created_at'] != null ? DateTime.tryParse(d['created_at'].toString()) : null;
         allTotal += amt;
         allCount++;
@@ -1803,7 +1808,6 @@ class SupabaseClient {
         }
         recentTxns.add(d);
       }
-      recentTxns.sort((a, b) => (b['created_at'] ?? '').toString().compareTo((a['created_at'] ?? '').toString()));
     } catch (_) {}
 
     const dailyLimit = 10000000;
@@ -1828,21 +1832,32 @@ class SupabaseClient {
   }
 
   Future<Map<String, dynamic>> _rpcAgentSetPin(Map<String, dynamic>? p) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = p?['uid']?.toString() ??
+        SupabaseAuthService().currentUser?.uid ??
+        FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return {'ok': false};
     final pin = p?['p_pin']?.toString() ?? '';
-    await _db.collection('users').doc(uid).set({'agent_pin': pin}, SetOptions(merge: true));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('agent_pin_$uid', pin);
+    } catch (_) {}
     return {'ok': true};
   }
 
   Future<Map<String, dynamic>> _rpcAgentVerifyPin(Map<String, dynamic>? p) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = p?['uid']?.toString() ??
+        SupabaseAuthService().currentUser?.uid ??
+        FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return {'ok': false};
     final pin = p?['p_pin']?.toString() ?? '';
-    final uDoc = await _db.collection('users').doc(uid).get();
-    final savedPin = uDoc.data()?['agent_pin']?.toString();
-    final valid = (savedPin == null || savedPin.isEmpty) || (savedPin == pin);
-    return {'ok': valid, 'valid': valid};
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedPin = prefs.getString('agent_pin_$uid');
+      final valid = (savedPin == null || savedPin.isEmpty) || (savedPin == pin);
+      return {'ok': valid, 'valid': valid};
+    } catch (_) {
+      return {'ok': true, 'valid': true};
+    }
   }
 
   Future<Map<String, dynamic>> _rpcAgentGetUsdWallet(Map<String, dynamic>? p) async {
@@ -1856,9 +1871,11 @@ class SupabaseClient {
   }
 
   Future<Map<String, dynamic>> _rpcAgentGetDiamondWallet(Map<String, dynamic>? p) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final uDoc = uid != null ? await _db.collection('users').doc(uid).get() : null;
-    final diamonds = (uDoc?.data()?['diamonds'] as num?)?.toInt() ?? 0;
+    final uid = p?['uid']?.toString() ??
+        SupabaseAuthService().currentUser?.uid ??
+        FirebaseAuth.instance.currentUser?.uid;
+    final user = uid != null ? await SupabaseDataService().getUser(uid) : null;
+    final diamonds = user?.diamonds ?? 0;
     return {
       'ok': true,
       'diamond_balance': diamonds,
@@ -1867,22 +1884,14 @@ class SupabaseClient {
   }
 
   Future<List<Map<String, dynamic>>> _rpcAgentRechargeHistory(Map<String, dynamic>? p) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = p?['uid']?.toString() ??
+        SupabaseAuthService().currentUser?.uid ??
+        FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return <Map<String, dynamic>>[];
     try {
-      final snap = await _db.collection('agent_recharge_transactions')
-          .where('agent_id', isEqualTo: uid)
-          .limit((p?['p_limit'] as num?)?.toInt() ?? 100)
-          .get();
-      final list = snap.docs.map((d) {
-        final data = Map<String, dynamic>.from(d.data());
-        data['id'] = d.id;
-        return data;
-      }).toList();
-      list.sort((a, b) => (b['created_at'] ?? '').toString().compareTo((a['created_at'] ?? '').toString()));
-      return list;
-    } catch (e) {
-      debugPrint('[_rpcAgentRechargeHistory] $e');
+      final limit = (p?['p_limit'] as num?)?.toInt() ?? 100;
+      return await SupabaseDataService().getAgentTransactions(uid, limit: limit);
+    } catch (_) {
       return <Map<String, dynamic>>[];
     }
   }
@@ -2054,11 +2063,20 @@ class AuthClient {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   UserCompat? get currentUser {
+    final supa = SupabaseAuthService().currentUser;
+    if (supa != null && supa.uid.isNotEmpty) {
+      return UserCompat.fromSupa(supa);
+    }
     final u = _auth.currentUser;
     return u == null ? null : UserCompat(u);
   }
 
   Session? get currentSession {
+    final supa = SupabaseAuthService().currentUser;
+    if (supa != null && supa.uid.isNotEmpty) {
+      final uc = UserCompat.fromSupa(supa);
+      return Session(uc, uc.id);
+    }
     final u = _auth.currentUser;
     if (u == null) return null;
     return Session(UserCompat(u), u.uid);
@@ -2069,7 +2087,10 @@ class AuthClient {
     return AuthResponse(cred.user == null ? null : UserCompat(cred.user!));
   }
 
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() async {
+    await SupabaseAuthService().signOut();
+    await _auth.signOut();
+  }
 }
 
 class Session {
@@ -2079,13 +2100,22 @@ class Session {
 }
 
 class UserCompat {
-  final User _user;
-  UserCompat(this._user);
+  final String id;
+  final String? email;
+  final String? phone;
+  final Map<String, dynamic>? userMetadata;
 
-  String get id => _user.uid;
-  String? get email => _user.email;
-  String? get phone => _user.phoneNumber;
-  Map<String, dynamic>? get userMetadata => <String, dynamic>{};
+  UserCompat(User user)
+      : id = user.uid,
+        email = user.email,
+        phone = user.phoneNumber,
+        userMetadata = const <String, dynamic>{};
+
+  UserCompat.fromSupa(AppAuthUser supa)
+      : id = supa.uid,
+        email = supa.email,
+        phone = supa.phoneNumber,
+        userMetadata = const <String, dynamic>{};
 }
 
 class AuthResponse {
@@ -2265,66 +2295,160 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
   }
 
   Future<List<Map<String, dynamic>>> _execute() async {
+    final baseUrl = SupabaseConfig.projectUrl;
+    final headers = {
+      'apikey': SupabaseConfig.anonKey,
+      'Authorization': 'Bearer ' + SupabaseConfig.anonKey,
+      'Content-Type': 'application/json',
+    };
+
     switch (_op) {
       case _QOp.select:
-        QuerySnapshot<Map<String, dynamic>> snap;
+        final queryParams = <String>['select=*'];
+        for (final item in _wheres) {
+          final col = item.$1;
+          final op = item.$2;
+          final val = item.$3;
+          switch (op) {
+            case 'neq':
+              queryParams.add('$col=neq.$val');
+              break;
+            case 'gt':
+              queryParams.add('$col=gt.$val');
+              break;
+            case 'gte':
+              queryParams.add('$col=gte.$val');
+              break;
+            case 'lt':
+              queryParams.add('$col=lt.$val');
+              break;
+            case 'lte':
+              queryParams.add('$col=lte.$val');
+              break;
+            case 'in':
+              final valStr = (val is List) ? val.join(',') : val.toString();
+              queryParams.add('$col=in.($valStr)');
+              break;
+            case 'eq':
+            default:
+              queryParams.add('$col=eq.$val');
+          }
+        }
+        if (_orderCol != null) {
+          queryParams.add('order=$_orderCol.' + (_orderAsc ? 'asc' : 'desc'));
+        }
+        if (_limit != null) {
+          queryParams.add('limit=$_limit');
+        }
+        final urlStr = baseUrl + '/rest/v1/' + _table + '?' + queryParams.join('&');
         try {
-          snap = await _buildQuery().get();
+          final res = await http.get(Uri.parse(urlStr), headers: headers);
+          if (res.statusCode == 200) {
+            final List list = jsonDecode(res.body);
+            var rows = list.map((e) {
+              final data = Map<String, dynamic>.from(e as Map);
+              if (data.containsKey('uid') && !data.containsKey('id')) {
+                data['id'] = data['uid'];
+              }
+              return data;
+            }).toList();
+            for (final group in _orGroups) {
+              rows = rows
+                  .where((row) => group.any((c) => _matchesOrClause(row, c)))
+                  .toList();
+            }
+            if (_rangeStart != null) {
+              final end = _rangeEnd ?? rows.length - 1;
+              rows = rows
+                  .skip(_rangeStart!)
+                  .take(end - _rangeStart! + 1)
+                  .toList();
+            }
+            return rows;
+          }
         } catch (e) {
-          try {
-            snap = await _db.collection(_table).limit(_limit ?? 50).get();
-          } catch (_) {
-            rethrow;
-          }
+          debugPrint('[SupabaseCompat] select error on ' + _table + ': $e');
         }
-        var rows = snap.docs.map((d) {
-          final data = Map<String, dynamic>.from(d.data());
-          data.putIfAbsent('id', () => d.id);
-          data.putIfAbsent('uid', () => d.id);
-          return data;
-        }).toList();
-        for (final group in _orGroups) {
-          rows = rows
-              .where((row) => group.any((c) => _matchesOrClause(row, c)))
-              .toList();
-        }
-        if (_rangeStart != null) {
-          final end = _rangeEnd ?? rows.length - 1;
-          rows = rows
-              .skip(_rangeStart!)
-              .take(end - _rangeStart! + 1)
-              .toList();
-        }
-        return rows;
+        return [];
+
       case _QOp.insert:
-        await _db.collection(_table).add(_payload!);
-        return <Map<String, dynamic>>[_payload!];
-      case _QOp.update:
-        final snap = await _buildQuery().get();
-        for (final doc in snap.docs) {
-          await doc.reference.set(_payload!, SetOptions(merge: true));
-        }
-        return <Map<String, dynamic>>[];
-      case _QOp.delete:
-        final snap = await _buildQuery().get();
-        for (final doc in snap.docs) {
-          await doc.reference.delete();
-        }
-        return <Map<String, dynamic>>[];
-      case _QOp.upsert:
-        if (_payload != null) {
-          final docId = _payload!['id']?.toString() ??
-              _payload!['uid']?.toString() ??
-              _payload!['user_id']?.toString() ??
-              _payload!['agency_id']?.toString();
-          if (docId != null && docId.isNotEmpty) {
-            await _db.collection(_table).doc(docId).set(_payload!, SetOptions(merge: true));
-          } else {
-            await _db.collection(_table).add(_payload!);
+        if (_payload == null) return [];
+        try {
+          final url = Uri.parse(baseUrl + '/rest/v1/' + _table);
+          final res = await http.post(
+            url,
+            headers: {
+              ...headers,
+              'Prefer': 'return=representation',
+            },
+            body: jsonEncode(_payload),
+          );
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            final decoded = jsonDecode(res.body);
+            if (decoded is List) {
+              return List<Map<String, dynamic>>.from(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
+            }
+            return [_payload!];
           }
-          return <Map<String, dynamic>>[_payload!];
+        } catch (e) {
+          debugPrint('[SupabaseCompat] insert error on ' + _table + ': $e');
         }
-        return <Map<String, dynamic>>[];
+        return [_payload!];
+
+      case _QOp.upsert:
+        if (_payload == null) return [];
+        try {
+          final url = Uri.parse(baseUrl + '/rest/v1/' + _table);
+          final res = await http.post(
+            url,
+            headers: {
+              ...headers,
+              'Prefer': 'resolution=merge-duplicates,return=representation',
+            },
+            body: jsonEncode(_payload),
+          );
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            final decoded = jsonDecode(res.body);
+            if (decoded is List) {
+              return List<Map<String, dynamic>>.from(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
+            }
+            return [_payload!];
+          }
+        } catch (e) {
+          debugPrint('[SupabaseCompat] upsert error on ' + _table + ': $e');
+        }
+        return [_payload!];
+
+      case _QOp.update:
+        if (_payload == null) return [];
+        final queryParams = <String>[];
+        for (final item in _wheres) {
+          if (item.$2 == 'eq') queryParams.add(item.$1 + '=eq.' + item.$3.toString());
+        }
+        try {
+          final url = Uri.parse(baseUrl + '/rest/v1/' + _table + '?' + queryParams.join('&'));
+          await http.patch(
+            url,
+            headers: headers,
+            body: jsonEncode(_payload),
+          );
+        } catch (e) {
+          debugPrint('[SupabaseCompat] update error on ' + _table + ': $e');
+        }
+        return [];
+
+      case _QOp.delete:
+        final queryParams = <String>[];
+        for (final item in _wheres) {
+          if (item.$2 == 'eq') queryParams.add(item.$1 + '=eq.' + item.$3.toString());
+        }
+        try {
+          final url = Uri.parse(baseUrl + '/rest/v1/' + _table + '?' + queryParams.join('&'));
+          await http.delete(url, headers: headers);
+        } catch (e) {
+          debugPrint('[SupabaseCompat] delete error on ' + _table + ': $e');
+        }
+        return [];
     }
   }
 

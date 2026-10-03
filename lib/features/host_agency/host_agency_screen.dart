@@ -11,6 +11,8 @@ import 'package:flutter/services.dart';
 import '../../core/supabase_compat.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../services/supabase_auth_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../core/ui/in_app_toast.dart';
 import 'screens/agency_profile_screen.dart';
 import 'screens/anchor_agent_screen.dart';
@@ -44,7 +46,9 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
   // ── detect role ─────────────────────────────────────────────────────────────
   Future<void> _detect() async {
     final user = Provider.of<UserProvider>(context, listen: false).currentUser;
-    final uid = AuthService.currentSession?.user.id ?? user?.uid;
+    final uid = SupabaseAuthService().currentUser?.uid ??
+        AuthService.currentSession?.user.id ??
+        user?.uid;
     final customId = user?.customId;
     if (uid == null) {
       if (mounted) setState(() => _loading = false);

@@ -1,10 +1,11 @@
+import '../../services/supabase_auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/supabase_data_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/supabase_compat.dart';
 
 import '../../core/auth/auth_service.dart';
@@ -59,7 +60,9 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
   Future<void> _loadDashboard() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.currentUser;
-    final uid = AuthService.currentSession?.user.id ?? user?.uid;
+    final uid = SupabaseAuthService().currentUser?.uid ??
+        AuthService.currentSession?.user.id ??
+        user?.uid;
 
     try {
       final res = await Supabase.instance.client.rpc(
@@ -91,7 +94,11 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
           if (isAgent && mounted) {
             final coins = sbUser.coins;
             final customId = sbUser.customId.isNotEmpty ? sbUser.customId : uid;
-            final pin = null;
+            String? pin;
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              pin = prefs.getString('agent_pin_$uid');
+            } catch (_) {}
 
             if (user != null && !user.isRechargeAgent) {
               userProvider.setUser(sbUser);
@@ -129,52 +136,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
       }
     }
 
-    // 2. Fallback: Check user provider and Firestore directly
-    if (user?.isRechargeAgent == true || uid != null) {
-      try {
-        final uDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
-        final data = uDoc.data() ?? {};
-        final isAgent = user?.isRechargeAgent == true ||
-            data['is_recharge_agent'] == true ||
-            data['isRechargeAgent'] == true ||
-            data['is_agent'] == true ||
-            data['role'] == 'agent';
-
-        if (isAgent && mounted) {
-          final coins = (data['coins'] as num?)?.toInt() ?? user?.coins ?? 0;
-          final customId = data['custom_id']?.toString() ?? user?.customId ?? uid;
-          final pin = data['agent_pin']?.toString();
-
-          setState(() {
-            _isAgent = true;
-            _dashboard = AgentDashboardData(
-              enabled: true,
-              pinSet: pin != null && pin.isNotEmpty,
-              dailyLimit: 10000000,
-              agencyGold: coins,
-              agentPublicId: customId,
-              todayTotal: 0,
-              todayCount: 0,
-              todayRemaining: 10000000,
-              weekTotal: 0,
-              weekCount: 0,
-              monthTotal: 0,
-              monthCount: 0,
-              allTotal: 0,
-              allCount: 0,
-              weekChart: const [],
-              recentTxns: const [],
-              quickAmounts: const [1000, 5000, 10000, 50000, 100000],
-              usdBalance: 0.0,
-            );
-            _loading = false;
-          });
-          return;
-        }
-      } catch (e) {
-        debugPrint('[agent_recharge] fallback error: $e');
-      }
-    }
+    // Pure Supabase mode - fallback handled via SupabaseDataService
 
     if (mounted) {
       setState(() {

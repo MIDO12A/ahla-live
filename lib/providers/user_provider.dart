@@ -1,7 +1,7 @@
+import '../services/supabase_data_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../models/store_item_model.dart';
@@ -165,16 +165,10 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> _checkExpiredBackpackItems(String uid) async {
     try {
-      // نقرأ بأدنى شروط (user_id فقط) ثم نفلتر المنتهي محلياً — تجنباً لمؤشر
-      // مركب (composite index) لم يُنشأ بعد على user_backpack.
-      final qs = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('user_backpack')
-          .where('user_id', isEqualTo: uid)
-          .get();
-
+      final items = await SupabaseDataService().getUserBackpack(uid);
       final now = DateTime.now();
-      final expired = qs.docs.where((d) {
-        final data = d.data();
-        final expStr = data['expires_at']?.toString().trim();
+      final expired = items.where((d) {
+        final expStr = d['expires_at']?.toString().trim();
         if (expStr == null || expStr.isEmpty || expStr == 'null') return false; // دائم لا ينتهي
         final expDate = DateTime.tryParse(expStr);
         if (expDate == null) return false;
@@ -184,25 +178,23 @@ class UserProvider extends ChangeNotifier {
       if (expired.isNotEmpty) {
         bool frameExpired = false;
         for (var d in expired) {
-          if (d['item_type'] == 'frame' && d['item_id'] == _currentUser?.activeFrame) {
+          final cat = d['category']?.toString() ?? d['item_type']?.toString();
+          if (cat == 'frame' && d['item_id'] == _currentUser?.activeFrame) {
             frameExpired = true;
           }
-          await d.reference.delete();
+          final docId = d['id']?.toString();
+          if (docId != null && docId.isNotEmpty) {
+            await SupabaseDataService().deleteUserBackpackItem(docId);
+          }
         }
         
         if (frameExpired) {
-          await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).update({
-            'active_frame': FieldValue.delete(),
-          });
-          _currentUser = _currentUser?.copyWith(activeFrame: null);
+          await SupabaseDataService().updateUser(uid, {'active_frame': ''});
+          _currentUser = _currentUser?.copyWith(activeFrame: '');
           notifyListeners();
         }
       }
     } catch (e) {
-      if (e is FirebaseException && (e.code == 'permission-denied' || e.code == 'unavailable')) {
-        // Silently skip if user_backpack access is restricted on Firebase
-        return;
-      }
       debugPrint('Error checking expired backpack items: $e');
     }
   }

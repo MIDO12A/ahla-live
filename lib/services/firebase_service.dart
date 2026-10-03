@@ -2370,39 +2370,22 @@ class FirebaseService {
   // ═══════════════════════════════════════════════════════
 
   Stream<List<GiftedItemModel>> userGiftedItemsStream(String uid) {
-    return _db
-        .collection('gifted_items')
-        .where('uid', isEqualTo: uid)
-        .snapshots()
-        .map((snap) => snap.docs.map((e) => GiftedItemModel.fromMap(_data(e), e.id)).toList())
-        .handleError((_) => <GiftedItemModel>[]);
+    return SupabaseDataService().userGiftedItemsStream(uid);
   }
 
   Future<List<GiftedItemModel>> getGiftedItems(String uid) async {
-    try {
-      final snap = await _db.collection('gifted_items').where('uid', isEqualTo: uid).get();
-      return snap.docs.map((e) => GiftedItemModel.fromMap(_data(e), e.id)).toList();
-    } catch (_) {
-      return [];
-    }
+    return SupabaseDataService().getGiftedItems(uid);
   }
 
   Future<List<GiftedItemModel>> getGiftedItemsByCategory(String uid, String category) async {
-    try {
-      final snap = await _db
-          .collection('gifted_items')
-          .where('uid', isEqualTo: uid)
-          .where('item_category', isEqualTo: category)
-          .get();
-      return snap.docs.map((e) => GiftedItemModel.fromMap(_data(e), e.id)).toList();
-    } catch (e) {
-      debugPrint('getGiftedItemsByCategory error: $e');
-      return [];
-    }
+    return SupabaseDataService().getGiftedItemsByCategory(uid, category);
   }
 
   Future<void> removeGiftedItem(String id) async {
-    await _db.collection('gifted_items').doc(id).delete();
+    await SupabaseDataService().removeGiftedItem(id);
+    try {
+      await _db.collection('gifted_items').doc(id).delete();
+    } catch (_) {}
   }
 
   // ═══════════════════════════════════════════════════════

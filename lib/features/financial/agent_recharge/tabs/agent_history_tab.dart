@@ -86,11 +86,10 @@ class _AgentHistoryTabState extends State<AgentHistoryTab> {
         itemCount: _rows.length,
         itemBuilder: (_, i) {
           final r = _rows[i];
-          final name =
-              (r['recipient_display_name'] ?? 'مستخدم').toString();
+          final kid = (r['target_custom_id'] ?? r['recipient_kayan_id'] ?? r['target_uid'])?.toString();
+          final name = (r['recipient_display_name'] ?? (kid != null ? 'معرّف #$kid' : 'مستخدم')).toString();
           final url = r['recipient_avatar_url']?.toString();
-          final gold = (r['gold_amount'] as num?)?.toInt() ?? 0;
-          final kid = r['recipient_kayan_id']?.toString();
+          final gold = ((r['amount_coins'] ?? r['gold_amount']) as num?)?.toInt() ?? 0;
           final ts = r['created_at'];
           final status = r['status']?.toString() ?? 'completed';
           final isWithdraw = r['type'] == 'withdraw';

@@ -1,3 +1,4 @@
+import '../../services/supabase_auth_service.dart';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -21,7 +22,7 @@ class CpService {
         databaseId: 'default',
       );
 
-  static String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+  static String? get _uid => SupabaseAuthService().currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
 
   // ═══════════════════════════════════════════════════════
   // My Data
