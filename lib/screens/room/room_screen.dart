@@ -903,6 +903,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   final RoomAudioService _roomAudio = RoomAudioService();
   bool _takingSeat = false;
   int? _pendingSeatIndex;
+  int? _currentUserSeatIndex;
   Map<int, Map<String, dynamic>>? _lastProcessedSeatMap;
 
   @override
@@ -915,7 +916,47 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         statusBarIconBrightness: Brightness.light,
       ),
     );
-    _seats = _buildInitialSeats();
+    final initialSeats = _buildInitialSeats();
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final currentUser = userProvider.currentUser;
+    final minSvc = MinimizedRoomService();
+
+    final isReturning = widget.isReentry ||
+        widget.wasOnSeat ||
+        widget.initialSeatIndex != null ||
+        minSvc.roomId == widget.roomId ||
+        minSvc.isActiveFor(widget.roomId);
+
+    final restoredSeatIndex = widget.initialSeatIndex ??
+        (minSvc.roomId == widget.roomId ? minSvc.seatIndex : null);
+    final userWasOnSeat = widget.wasOnSeat ||
+        (minSvc.roomId == widget.roomId &&
+            (minSvc.isOnSeat || minSvc.seatIndex != null));
+
+    if (isReturning &&
+        userWasOnSeat &&
+        restoredSeatIndex != null &&
+        restoredSeatIndex >= 0 &&
+        restoredSeatIndex < initialSeats.length &&
+        currentUser != null) {
+      _currentUserSeatIndex = restoredSeatIndex;
+      _takingSeat = true;
+      _pendingSeatIndex = restoredSeatIndex;
+      initialSeats[restoredSeatIndex] = SeatModel(
+        index: restoredSeatIndex,
+        user: UserModel(
+          name: currentUser.name,
+          avatar: currentUser.photoUrl,
+          id: currentUser.uid,
+          customId: currentUser.customId,
+          gender: currentUser.gender,
+          country: currentUser.country,
+          frameAsset: currentUser.activeFrame,
+        ),
+        state: SeatState.occupied,
+      );
+    }
+    _seats = initialSeats;
     // ✅ تأجيل العمليات الثقيلة (Firestore، Audio، Zombie cleanup) إلى ما بعد
     //    أول إطار مكتمل — يمنع "Skipped N frames!" عند فتح الغرفة.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -961,10 +1002,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     final isReturningFromMinimized = widget.isReentry ||
         widget.wasOnSeat ||
+        widget.initialSeatIndex != null ||
+        minSvc.roomId == widget.roomId ||
         minSvc.isActiveFor(widget.roomId);
 
-    final restoredSeatIndex = widget.initialSeatIndex ?? (minSvc.isActiveFor(widget.roomId) ? minSvc.seatIndex : null);
-    final userWasOnSeat = widget.wasOnSeat || (minSvc.isActiveFor(widget.roomId) && minSvc.isOnSeat);
+    final restoredSeatIndex = widget.initialSeatIndex ??
+        (minSvc.roomId == widget.roomId ? minSvc.seatIndex : null);
+    final userWasOnSeat = widget.wasOnSeat ||
+        (minSvc.roomId == widget.roomId &&
+            (minSvc.isOnSeat || minSvc.seatIndex != null));
 
     if (minSvc.isActiveFor(widget.roomId)) {
       minSvc.deactivate();
@@ -1008,21 +1054,32 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           await _firebaseService.leaveSeatForUser(widget.roomId, currentUser.uid);
         });
       } else if (userWasOnSeat && restoredSeatIndex != null && restoredSeatIndex >= 0 && restoredSeatIndex < _seats.length) {
+        _currentUserSeatIndex = restoredSeatIndex;
+        _takingSeat = true;
+        _pendingSeatIndex = restoredSeatIndex;
         // Immediately restore seat optimistically
-        _seats[restoredSeatIndex] = SeatModel(
-          index: restoredSeatIndex,
-          user: UserModel(
-            name: currentUser.name,
-            avatar: currentUser.photoUrl,
-            id: currentUser.uid,
-            customId: currentUser.customId,
-            gender: currentUser.gender,
-            country: currentUser.country,
-            frameAsset: currentUser.activeFrame,
-          ),
-          state: SeatState.occupied,
-        );
-        _firebaseService.takeSeat(widget.roomId, restoredSeatIndex, currentUser);
+        setState(() {
+          _seats[restoredSeatIndex] = SeatModel(
+            index: restoredSeatIndex,
+            user: UserModel(
+              name: currentUser.name,
+              avatar: currentUser.photoUrl,
+              id: currentUser.uid,
+              customId: currentUser.customId,
+              gender: currentUser.gender,
+              country: currentUser.country,
+              frameAsset: currentUser.activeFrame,
+            ),
+            state: SeatState.occupied,
+          );
+        });
+        _firebaseService.takeSeat(widget.roomId, restoredSeatIndex, currentUser).then((_) {
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) setState(() => _takingSeat = false);
+          });
+        });
+        _roomAudio.startPublishing();
+        _roomAudio.toggleMic(!widget.wasMicMuted);
       }
       // Register in Firebase so others see this user
       _firebaseService.joinRoom(widget.roomId, currentUser);
@@ -1086,7 +1143,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             ..clear()
             ..addAll(room.moderators);
           if (room.seatCount != _seats.length) {
-            _seats = List.generate(room.seatCount, (i) => SeatModel(index: i));
+            final oldSeats = _seats;
+            _seats = List.generate(
+              room.seatCount,
+              (i) => i < oldSeats.length ? oldSeats[i] : SeatModel(index: i),
+            );
           }
           _roomSeatStyle = room.seatStyle;
         });
@@ -1700,6 +1761,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         if (uid == _currentUserId) {
           isCurrentUserOnSeatNow = true;
           currentUserMuted = data['is_muted'] == true;
+          _currentUserSeatIndex = idx;
         }
         // Fetch full user data for frame asset resolution
         if (!_cachedUsers.containsKey(uid)) {
@@ -1752,10 +1814,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     }
 
-    // 🛡️ CRITICAL PROTECTION: While the current user is moving/taking a seat,
+    // 🛡️ CRITICAL PROTECTION: While the current user is moving/taking a seat or on a seat,
     // preserve their seat optimistically so a background poll doesn't kick them down!
-    if (_takingSeat && _pendingSeatIndex != null && _currentUserId != null) {
-      final pIdx = _pendingSeatIndex!;
+    final protectedSeat = _pendingSeatIndex ?? _currentUserSeatIndex;
+    if (protectedSeat != null && _currentUserId != null) {
+      final pIdx = protectedSeat;
       if (pIdx >= 0 && pIdx < newSeats.length && newSeats[pIdx].user?.id != _currentUserId) {
         if (pIdx < _seats.length && _seats[pIdx].user?.id == _currentUserId) {
           newSeats[pIdx] = _seats[pIdx];
@@ -1770,7 +1833,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (isCurrentUserOnSeatNow) {
       _roomAudio.startPublishing();
       _roomAudio.toggleMic(!currentUserMuted);
-    } else if (_roomAudio.isPublishing && !_takingSeat) {
+    } else if (_roomAudio.isPublishing && !_takingSeat && _currentUserSeatIndex == null) {
       _roomAudio.stopPublishingIfActive();
       _roomAudio.resetPublishingState();
     }
@@ -2230,6 +2293,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (idx < _seats.length && _seats[idx].user?.id == _currentUserId) return;
     _takingSeat = true;
     _pendingSeatIndex = idx;
+    _currentUserSeatIndex = idx;
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final currentUser = userProvider.currentUser;
     final name = currentUser?.name ?? 'Me';
@@ -2300,9 +2364,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   void _kickOffMic(int idx) {
     final kickedUid = _seats[idx].user?.id;
 
-    if (kickedUid == _currentUserId) {
+    if (kickedUid == _currentUserId || idx == _currentUserSeatIndex) {
       _takingSeat = false;
       _pendingSeatIndex = null;
+      _currentUserSeatIndex = null;
     }
 
     setState(() {
@@ -5595,15 +5660,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     setState(() => _showExit = false);
     _isMinimized = true;
 
-    int? seatIndex;
-    bool isOnSeat = false;
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final myUid = _currentUserId ?? userProvider.currentUser?.uid;
+    final myCustomId = userProvider.currentUser?.customId;
+
+    int? seatIndex = _currentUserSeatIndex;
+    bool isOnSeat = _currentUserSeatIndex != null;
+
     for (int i = 0; i < _seats.length; i++) {
-      if (_seats[i].user?.id == _currentUserId) {
+      final u = _seats[i].user;
+      if (u != null && (u.id == myUid || (myCustomId != null && u.customId == myCustomId))) {
         seatIndex = i;
         isOnSeat = true;
         break;
       }
     }
+
+    _currentUserSeatIndex = seatIndex;
 
     MinimizedRoomService().activate(
       roomId: widget.roomId,
@@ -5612,8 +5685,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       roomPassword: widget.roomPassword.isNotEmpty ? widget.roomPassword : null,
       hotValue: widget.hotValue,
       gameDesc: widget.gameDesc,
-      roomPhoto: _currentRoom?.roomPhotoUrl ?? _seats[0].user?.avatar,
-      userId: _currentUserId,
+      roomPhoto: _currentRoom?.roomPhotoUrl ?? (_seats.isNotEmpty ? _seats[0].user?.avatar : null),
+      userId: myUid,
       seatIndex: seatIndex,
       isOnSeat: isOnSeat,
       isMicMuted: !_isMicOn,
