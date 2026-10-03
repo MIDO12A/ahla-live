@@ -1325,5 +1325,38 @@ class SupabaseDataService {
     } catch (_) {}
     return [];
   }
+
+  Future<void> addInventoryItem({
+    required String uid,
+    required String itemId,
+    String? itemType,
+    String? name,
+    String? icon,
+  }) async {
+    if (uid.isEmpty || itemId.isEmpty) return;
+    try {
+      final user = await getUser(uid);
+      if (user != null) {
+        final List<String> currentOwned = List<String>.from(user.ownedItems);
+        if (!currentOwned.contains(itemId)) {
+          currentOwned.add(itemId);
+          await updateUser(uid, {'owned_items': currentOwned});
+        }
+      }
+      final url = Uri.parse('$_baseUrl/rest/v1/user_inventory');
+      await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'user_id': uid,
+          'item_id': itemId,
+          'item_type': itemType ?? 'backpack',
+          'name': name ?? '',
+          'icon': icon ?? '',
+          'created_at': DateTime.now().toIso8601String(),
+        }),
+      );
+    } catch (_) {}
+  }
 }
 

@@ -50,6 +50,8 @@ class UserModel {
   final String? whatsappNumber;
   final List<String> album;
 
+  int get exp => experience;
+
   UserModel({
     required this.uid,
     this.customId = '',
@@ -354,7 +356,7 @@ class UserModel {
       totalGiftsSent: (map['total_gifts_sent'] ?? 0).toInt(),
       totalGiftsReceived: (map['total_gifts_received'] ?? 0).toInt(),
       level: (map['level'] ?? 1).toInt(),
-      experience: (map['experience'] ?? 0).toInt(),
+      experience: (map['experience'] ?? map['exp'] ?? 0).toInt(),
       followers: (map['followers'] ?? 0).toInt(),
       following: (map['following'] ?? 0).toInt(),
       visitors: (map['visitors'] ?? 0).toInt(),

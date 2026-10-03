@@ -111,12 +111,13 @@ class TaskService {
       // 2. إيداع العملات ونقاط EXP في حساب المستخدم في Supabase
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final currentCoins = userProvider.currentUser?.coins ?? 0;
-      final currentExp = userProvider.currentUser?.exp ?? 0;
+      final currentExp = userProvider.currentUser?.experience ?? 0;
       final supaUpdates = <String, dynamic>{};
       if (task.coinsReward > 0) {
         supaUpdates['coins'] = currentCoins + task.coinsReward;
       }
       if (task.expReward > 0) {
+        supaUpdates['experience'] = currentExp + task.expReward;
         supaUpdates['exp'] = currentExp + task.expReward;
       }
       if (supaUpdates.isNotEmpty) {
