@@ -201,55 +201,82 @@ class GiftModel {
         'lucky_display_mode': luckyDisplayMode,
       };
 
+  static int _asInt(dynamic v, [int fallback = 0]) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? (double.tryParse(v)?.toInt() ?? fallback);
+    return fallback;
+  }
+
+  static bool _asBool(dynamic v, [bool fallback = false]) {
+    if (v == null) return fallback;
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    if (v is String) {
+      final s = v.trim().toLowerCase();
+      if (s == 'true' || s == '1' || s == 'yes') return true;
+      if (s == 'false' || s == '0' || s == 'no') return false;
+    }
+    return fallback;
+  }
+
   factory GiftModel.fromMap(Map<String, dynamic> map) {
     final dType = map['duration_type']?.toString() ??
-        (map['duration_hours'] != null || map['cp_gift_duration_hours'] != null && (map['cp_gift_duration_hours'] as num) < 24
+        (map['duration_hours'] != null || map['cp_gift_duration_hours'] != null && _asInt(map['cp_gift_duration_hours']) < 24
             ? 'hours'
             : 'days');
-    final dVal = (map['duration_value'] as num?)?.toInt() ??
-        (map['duration_days'] as num?)?.toInt() ??
-        (map['durationDays'] as num?)?.toInt() ??
-        (map['duration_hours'] as num?)?.toInt() ??
-        (map['cp_gift_duration_hours'] as num?)?.toInt() ??
-        0;
+    final dVal = _asInt(
+      map['duration_value'] ??
+          map['duration_days'] ??
+          map['durationDays'] ??
+          map['duration_hours'] ??
+          map['cp_gift_duration_hours'],
+      0,
+    );
 
-    final rawType = (map['type'] as num?)?.toInt() ?? 0;
+    final rawType = _asInt(map['type'], 0);
     final catId = map['category_id']?.toString() ?? map['categoryId']?.toString() ?? map['category']?.toString();
-    final isLuckyVal = rawType == 3 || (map['is_lucky'] == true) || (map['isLucky'] == true) || catId == 'lucky';
-    final isCpVal = rawType == 5 || (map['is_cp_gift'] == true) || (map['isCpGift'] == true) || catId == 'cp';
-    final isVipVal = rawType == 2 || (map['is_vap'] == true) || (map['isVap'] == true) || (map['big_effect'] == 1) || (map['bigEffect'] == true) || catId == 'vip' || catId == 'luxury';
+    final isLuckyVal = rawType == 3 || _asBool(map['is_lucky']) || _asBool(map['isLucky']) || catId == 'lucky';
+    final isCpVal = rawType == 5 || _asBool(map['is_cp_gift']) || _asBool(map['isCpGift']) || catId == 'cp';
+    final isVipVal = rawType == 2 || _asBool(map['is_vap']) || _asBool(map['isVap']) || _asInt(map['big_effect']) == 1 || _asBool(map['bigEffect']) || catId == 'vip' || catId == 'luxury';
+
+    final rawName = map['name']?.toString() ?? '';
+    final rawNameAr = map['name_ar']?.toString() ?? map['nameAr']?.toString() ?? map['englist_name']?.toString() ?? '';
+    final finalName = rawName.trim().isNotEmpty ? rawName.trim() : (rawNameAr.trim().isNotEmpty ? rawNameAr.trim() : 'هدية');
 
     return GiftModel(
       id: map['id']?.toString() ?? map['gift_id']?.toString() ?? '',
-      name: map['name']?.toString() ?? '',
-      nameAr: map['name_ar']?.toString() ?? map['nameAr']?.toString() ?? map['englist_name']?.toString() ?? '',
-      value: (map['value'] ?? map['price'] ?? 0).toInt(),
+      name: finalName,
+      nameAr: rawNameAr.trim().isNotEmpty ? rawNameAr.trim() : finalName,
+      value: _asInt(map['value'] ?? map['price'], 0),
       iconAsset: map['icon_asset']?.toString() ?? map['iconAsset']?.toString() ?? map['icon_url']?.toString() ?? map['thumb']?.toString() ?? map['photo']?.toString() ?? '',
       animationAsset: map['animation_asset']?.toString() ?? map['animationAsset']?.toString() ?? map['svga_url']?.toString() ?? map['effect']?.toString() ?? map['mp4_url']?.toString(),
       type: rawType > 0 ? rawType : (isCpVal ? 5 : isLuckyVal ? 3 : isVipVal ? 2 : 1),
-      isVap: isVipVal || ((map['is_vap'] ?? map['isVap'] ?? false) as bool),
+      isVap: isVipVal || _asBool(map['is_vap'] ?? map['isVap']),
       isLucky: isLuckyVal,
-      isStar: (map['is_star'] ?? map['isStar'] ?? false) as bool,
-      isMusic: (map['is_music'] ?? map['isMusic'] ?? false) as bool || (map['isMusic'] == 1),
-      bigEffect: (map['big_effect'] == 1) || (map['bigEffect'] == true),
-      packageCount: (map['package_count'] ?? map['packageCount'] ?? map['gift_number'] ?? map['number'] ?? 0).toInt(),
-      sortOrder: (map['sort_order'] ?? map['sortOrder'] ?? map['sort'] ?? 0).toInt(),
+      isStar: _asBool(map['is_star'] ?? map['isStar']),
+      isMusic: _asBool(map['is_music'] ?? map['isMusic']) || _asInt(map['isMusic']) == 1,
+      bigEffect: _asInt(map['big_effect']) == 1 || _asBool(map['bigEffect']),
+      packageCount: _asInt(map['package_count'] ?? map['packageCount'] ?? map['gift_number'] ?? map['number'], 0),
+      sortOrder: _asInt(map['sort_order'] ?? map['sortOrder'] ?? map['sort'], 0),
       nameKey: map['name_key']?.toString() ?? map['nameKey']?.toString() ?? map['name_keys']?.toString(),
       photoKey: map['photo_key']?.toString() ?? map['photoKey']?.toString() ?? map['photo_keys']?.toString(),
       receiverNameKey: map['receiver_name_key']?.toString() ?? map['receiverNameKey']?.toString(),
       receiverPhotoKey: map['receiver_photo_key']?.toString() ?? map['receiverPhotoKey']?.toString(),
       countKey: map['count_key']?.toString() ?? map['countKey']?.toString(),
       defaultImage: map['default_image']?.toString() ?? map['defaultImage']?.toString(),
-      wealthXp: (map['wealth_xp'] ?? map['wealthXp'] ?? 0).toInt(),
-      gemsXp: (map['gems_xp'] ?? map['gemsXp'] ?? map['diamond'] != null ? int.tryParse(map['diamond'].toString()) ?? 0 : 0).toInt(),
+      wealthXp: _asInt(map['wealth_xp'] ?? map['wealthXp'], 0),
+      gemsXp: _asInt(map['gems_xp'] ?? map['gemsXp'] ?? map['diamond'], 0),
       categoryId: catId,
       isCpGift: isCpVal,
-      cpGiftDurationHours: (map['cp_gift_duration_hours'] ?? map['cpGiftDurationHours'] ?? (dType == 'days' ? dVal * 24 : dVal)).toInt(),
+      cpGiftDurationHours: _asInt(map['cp_gift_duration_hours'] ?? map['cpGiftDurationHours'], dType == 'days' ? dVal * 24 : dVal),
       durationType: dType,
       durationValue: dVal,
-      luckyRtp: (map['lucky_rtp'] ?? map['luckyRtp'] ?? map['rtp'] ?? 85).toInt(),
-      luckyMaxMultiplier: (map['lucky_max_multiplier'] ?? map['luckyMaxMultiplier'] ?? map['max_multiplier'] ?? 100).toInt(),
-      luckyBurst: (map['lucky_burst'] ?? map['luckyBurst'] ?? true) as bool,
+      luckyRtp: _asInt(map['lucky_rtp'] ?? map['luckyRtp'] ?? map['rtp'], 85),
+      luckyMaxMultiplier: _asInt(map['lucky_max_multiplier'] ?? map['luckyMaxMultiplier'] ?? map['max_multiplier'], 100),
+      luckyBurst: _asBool(map['lucky_burst'] ?? map['luckyBurst'], true),
       luckyDisplayMode: map['lucky_display_mode']?.toString() ?? map['luckyDisplayMode']?.toString() ?? 'cards',
     );
   }

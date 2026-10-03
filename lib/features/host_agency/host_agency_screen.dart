@@ -43,46 +43,132 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
 
   // ── detect role ─────────────────────────────────────────────────────────────
   Future<void> _detect() async {
-    final uid = AuthService.currentSession?.user.id ??
-        Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+    final uid = AuthService.currentSession?.user.id ?? user?.uid;
+    final customId = user?.customId;
     if (uid == null) {
       if (mounted) setState(() => _loading = false);
       return;
     }
     try {
-      // 1. Check host_agency_members for active membership
-      var row = await Supabase.instance.client
-          .from('host_agency_members')
-          .select('role, agency_id')
-          .eq('user_id', uid)
-          .eq('status', 'active')
-          .maybeSingle();
+      Map<String, dynamic>? row;
 
-      // 2. If not found, check if user is direct owner in host_agencies
-      if (row == null) {
-        final ag = await Supabase.instance.client
-            .from('host_agencies')
-            .select('id, name')
-            .eq('owner_id', uid)
+      // 1. Check Supabase host_agency_members (column is host_uid)
+      try {
+        final m = await Supabase.instance.client
+            .from('host_agency_members')
+            .select('role, agency_id')
+            .eq('host_uid', uid)
+            .eq('status', 'active')
             .maybeSingle();
-        if (ag != null) {
-          row = {
-            'role': 'owner',
-            'agency_id': ag['id'],
-          };
+        if (m != null && m['agency_id'] != null) {
+          row = {'role': m['role'] ?? 'host', 'agency_id': m['agency_id'].toString()};
         }
+      } catch (_) {}
+
+      // 2. Check Supabase host_agencies (column is owner_uid)
+      if (row == null) {
+        try {
+          final ag = await Supabase.instance.client
+              .from('host_agencies')
+              .select('id, name')
+              .eq('owner_uid', uid)
+              .maybeSingle();
+          if (ag != null && ag['id'] != null) {
+            row = {'role': 'owner', 'agency_id': ag['id'].toString()};
+          }
+        } catch (_) {}
       }
 
-      // 3. If not found, check users/{uid}.agency_id
+      // 3. Check Supabase users table
       if (row == null) {
-        final userDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
-        final agencyId = userDoc.data()?['agency_id'] as String?;
-        if (agencyId != null && agencyId.isNotEmpty) {
-          row = {
-            'role': 'host',
-            'agency_id': agencyId,
-          };
-        }
+        try {
+          final u = await Supabase.instance.client
+              .from('users')
+              .select('agency_id, is_host_agent')
+              .eq('uid', uid)
+              .maybeSingle();
+          if (u != null && u['agency_id'] != null && u['agency_id'].toString().isNotEmpty) {
+            row = {
+              'role': u['is_host_agent'] == true ? 'owner' : 'host',
+              'agency_id': u['agency_id'].toString(),
+            };
+          }
+        } catch (_) {}
+      }
+
+      // 4. Check Firestore host_agencies (owner_id or owner_uid)
+      if (row == null) {
+        try {
+          final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+              .collection('host_agencies')
+              .where('owner_id', isEqualTo: uid)
+              .limit(1)
+              .get();
+          if (snap.docs.isNotEmpty) {
+            row = {'role': 'owner', 'agency_id': snap.docs.first.id};
+          } else {
+            final snap2 = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                .collection('host_agencies')
+                .where('owner_uid', isEqualTo: uid)
+                .limit(1)
+                .get();
+            if (snap2.docs.isNotEmpty) {
+              row = {'role': 'owner', 'agency_id': snap2.docs.first.id};
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 5. Check Firestore host_agency_members (user_id or host_uid)
+      if (row == null) {
+        try {
+          final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+              .collection('host_agency_members')
+              .where('user_id', isEqualTo: uid)
+              .limit(1)
+              .get();
+          if (snap.docs.isNotEmpty) {
+            final data = snap.docs.first.data();
+            final aid = data['agency_id']?.toString();
+            if (aid != null && aid.isNotEmpty) {
+              row = {'role': data['role']?.toString() ?? 'host', 'agency_id': aid};
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 6. Check Firestore users doc
+      if (row == null) {
+        try {
+          final userDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+              .collection('users')
+              .doc(uid)
+              .get();
+          final data = userDoc.data() ?? {};
+          final agencyId = data['agency_id']?.toString() ?? data['host_agency_id']?.toString();
+          if (agencyId != null && agencyId.isNotEmpty) {
+            final isHostAgent = data['is_host_agent'] == true || data['agency_role'] == 'owner';
+            row = {
+              'role': isHostAgent ? 'owner' : (data['agency_role']?.toString() ?? 'host'),
+              'agency_id': agencyId,
+            };
+          }
+        } catch (_) {}
+      }
+
+      // 7. Fallback: Check if customId was used as owner/member key
+      if (row == null && customId != null && customId.isNotEmpty && customId != uid) {
+        try {
+          final agCid = await Supabase.instance.client
+              .from('host_agencies')
+              .select('id, name')
+              .eq('owner_uid', customId)
+              .maybeSingle();
+          if (agCid != null && agCid['id'] != null) {
+            row = {'role': 'owner', 'agency_id': agCid['id'].toString()};
+          }
+        } catch (_) {}
       }
 
       if (!mounted) return;

@@ -57,12 +57,26 @@ abstract final class AgencyRepository {
     }
 
     // Fallback: query host_agencies directly
-    final row = await _sb
-        .from('host_agencies')
-        .select('id, agency_public_id, name, description, photo_url, country, tier, total_diamonds_monthly, total_diamonds_cumulative, member_count, is_hall_of_fame, status')
-        .eq('id', agencyId)
-        .maybeSingle();
+    Map<String, dynamic>? row;
+    try {
+      final res = await _sb
+          .from('host_agencies')
+          .select('*')
+          .eq('id', agencyId)
+          .maybeSingle();
+      if (res != null) {
+        row = Map<String, dynamic>.from(res as Map);
+      }
+    } catch (_) {}
     if (row == null) return null;
+
+    // Normalize field names
+    final photoUrl = row['logo_url'] ?? row['photo_url'] ?? '';
+    final code = row['agency_code'] ?? row['agency_public_id'] ?? row['id'];
+    row['photo_url'] = photoUrl;
+    row['agency_public_id'] = code;
+    row['tier'] = row['tier'] ?? row['data']?['tier'] ?? 'bronze';
+    row['country'] = row['country'] ?? row['data']?['country'] ?? '';
 
     // Check if current user is a member or has pending request
     final uid = _sb.auth.currentUser?.id;
@@ -70,12 +84,28 @@ abstract final class AgencyRepository {
     bool canJoin = false;
     bool hasPendingRequest = false;
     if (uid != null) {
-      final memberRow = await _sb
-          .from('host_agency_members')
-          .select('status')
-          .eq('agency_id', agencyId)
-          .eq('user_id', uid)
-          .maybeSingle();
+      Map<String, dynamic>? memberRow;
+      try {
+        final m = await _sb
+            .from('host_agency_members')
+            .select('status')
+            .eq('agency_id', agencyId)
+            .eq('host_uid', uid)
+            .maybeSingle();
+        if (m != null) memberRow = Map<String, dynamic>.from(m as Map);
+      } catch (_) {}
+      if (memberRow == null) {
+        try {
+          final m2 = await _sb
+              .from('host_agency_members')
+              .select('status')
+              .eq('agency_id', agencyId)
+              .eq('user_id', uid)
+              .maybeSingle();
+          if (m2 != null) memberRow = Map<String, dynamic>.from(m2 as Map);
+        } catch (_) {}
+      }
+
       if (memberRow != null) {
         final status = memberRow['status'] as String? ?? '';
         if (status == 'active') {
@@ -93,7 +123,7 @@ abstract final class AgencyRepository {
     }
 
     return AgencyCard.fromMap({
-      ...Map<String, dynamic>.from(row as Map),
+      ...row,
       'is_member': isMember,
       'can_join': canJoin,
       'has_pending_request': hasPendingRequest,
@@ -135,15 +165,26 @@ abstract final class AgencyRepository {
       // Fallback: insert directly into host_agency_members
       final uid = _sb.auth.currentUser?.id;
       if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
-      await _sb.from('host_agency_members').insert({
-        'agency_id': agencyId,
-        'user_id': uid,
-        'role': 'host',
-        'status': 'pending',
-      });
       try {
-        final agRow = await _sb.from('host_agencies').select('owner_id, name').eq('id', agencyId).maybeSingle();
-        final ownerId = agRow?['owner_id']?.toString() ?? '';
+        await _sb.from('host_agency_members').insert({
+          'agency_id': agencyId,
+          'host_uid': uid,
+          'role': 'host',
+          'status': 'pending',
+        });
+      } catch (_) {
+        try {
+          await _sb.from('host_agency_members').insert({
+            'agency_id': agencyId,
+            'user_id': uid,
+            'role': 'host',
+            'status': 'pending',
+          });
+        } catch (_) {}
+      }
+      try {
+        final agRow = await _sb.from('host_agencies').select('owner_uid, name').eq('id', agencyId).maybeSingle();
+        final ownerId = agRow?['owner_uid']?.toString() ?? agRow?['owner_id']?.toString() ?? '';
         final agName = agRow?['name']?.toString() ?? 'وكالتك';
         if (ownerId.isNotEmpty && ownerId != uid) {
           final uRow = await _sb.from('users').select('name, custom_id').eq('id', uid).maybeSingle();

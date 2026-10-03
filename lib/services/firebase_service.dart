@@ -1590,6 +1590,16 @@ class FirebaseService {
               email: fireUser.email.isNotEmpty ? fireUser.email : latestUser!.email,
               gender: fireUser.gender.isNotEmpty ? fireUser.gender : latestUser!.gender,
               ownedItems: fireUser.ownedItems.isNotEmpty ? fireUser.ownedItems : latestUser!.ownedItems,
+              isRechargeAgent: fireUser.isRechargeAgent || latestUser!.isRechargeAgent,
+              rechargeAgencyName: fireUser.rechargeAgencyName?.isNotEmpty == true
+                  ? fireUser.rechargeAgencyName
+                  : latestUser!.rechargeAgencyName,
+              rechargeAgencyLogo: fireUser.rechargeAgencyLogo?.isNotEmpty == true
+                  ? fireUser.rechargeAgencyLogo
+                  : latestUser!.rechargeAgencyLogo,
+              whatsappNumber: fireUser.whatsappNumber?.isNotEmpty == true
+                  ? fireUser.whatsappNumber
+                  : latestUser!.whatsappNumber,
             );
           }
           latestUser = fireUser;
