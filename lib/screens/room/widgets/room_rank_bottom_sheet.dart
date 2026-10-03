@@ -269,10 +269,10 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
     required String baseAsset,
     bool isCenter = false,
   }) {
-    final photoUrl = item?['user_photo_url']?.toString() ?? '';
-    final name = item?['user_name']?.toString() ?? (item != null ? 'User' : 'شاغر');
-    final customId = item?['custom_id']?.toString() ?? item?['user_id']?.toString() ?? '';
-    final value = item?['total_value'] ?? 0;
+    final photoUrl = (item?['user_photo_url'] ?? item?['photo_url'] ?? item?['photoUrl'] ?? '').toString();
+    final name = (item?['user_name'] ?? item?['name'] ?? (item != null ? 'User' : 'شاغر')).toString();
+    final customId = (item?['custom_id'] ?? item?['user_id'] ?? item?['uid'] ?? item?['id'] ?? '').toString();
+    final value = item?['total_value'] ?? item?['points'] ?? item?['score'] ?? 0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -399,10 +399,10 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
 
   // Authentic List Item (rank_adapter_item.xml)
   Widget _buildRestItem(Map<String, dynamic> item, int rank) {
-    final photoUrl = item['user_photo_url']?.toString() ?? '';
-    final name = item['user_name']?.toString() ?? 'User';
-    final customId = item['custom_id']?.toString() ?? item['user_id']?.toString() ?? '';
-    final value = item['total_value'] ?? 0;
+    final photoUrl = (item['user_photo_url'] ?? item['photo_url'] ?? item['photoUrl'] ?? '').toString();
+    final name = (item['user_name'] ?? item['name'] ?? 'User').toString();
+    final customId = (item['custom_id'] ?? item['user_id'] ?? item['uid'] ?? item['id'] ?? '').toString();
+    final value = item['total_value'] ?? item['points'] ?? item['score'] ?? 0;
     final level = item['level'] ?? 1;
 
     return Container(

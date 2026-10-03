@@ -351,18 +351,10 @@ class FirebaseService {
     // 1. Try Supabase by host_uid
     try {
       final r = await SupabaseDataService().getRoomByHostUid(hostUid);
-      if (r != null) return r;
+      if (r != null && r.hostUid == hostUid) return r;
     } catch (_) {}
 
-    // 2. Try Supabase by customId if provided
-    if (customId != null && customId.isNotEmpty && customId != 'null') {
-      try {
-        final r = await SupabaseDataService().getRoom(customId);
-        if (r != null) return r;
-      } catch (_) {}
-    }
-
-    // 3. Try Firestore by host_uid
+    // 2. Try Firestore by host_uid
     try {
       final snap = await _db
           .collection('rooms')
@@ -370,19 +362,10 @@ class FirebaseService {
           .limit(1)
           .get();
       if (snap.docs.isNotEmpty) {
-        return RoomModel.fromMap(_data(snap.docs.first));
+        final r = RoomModel.fromMap(_data(snap.docs.first));
+        if (r.hostUid == hostUid) return r;
       }
     } catch (_) {}
-
-    // 4. Try Firestore by customId
-    if (customId != null && customId.isNotEmpty && customId != 'null') {
-      try {
-        final doc = await _db.collection('rooms').doc(customId).get();
-        if (doc.exists) {
-          return RoomModel.fromMap(_data(doc));
-        }
-      } catch (_) {}
-    }
 
     return null;
   }
@@ -832,6 +815,34 @@ class FirebaseService {
           'created_at': DateTime.now().toIso8601String(),
         });
 
+        // إرسال رسالة الهدية إلى Supabase فوراً لتشغيل مؤثرات وأنيميشن الهدايا لدى جميع المستخدمين
+        final giftPayloadData = {
+          'gift_id': giftId,
+          'gift_name': giftName,
+          'receiver_name': receiverName,
+          'receiver_id': receiverId,
+          'count': count,
+          'gift_icon': defaultImage ?? animationAsset ?? '',
+          'coin_value': value,
+          'animation_asset': animationAsset,
+          'default_image': defaultImage,
+          'sender_name': senderName,
+          'sender_photo_url': senderPhotoUrl,
+        };
+
+        unawaited(SupabaseDataService().sendMessage(MessageModel(
+          msgId: const Uuid().v4(),
+          roomId: roomId,
+          senderUid: senderId,
+          senderName: senderName,
+          senderPhotoUrl: senderPhotoUrl,
+          type: 'gift',
+          text: '$senderName 🎁 $giftName x$count → $receiverName',
+          imageUrl: defaultImage ?? animationAsset ?? '',
+          giftPayload: giftPayloadData,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        )).catchError((_) => false));
+
         final sd = senderSnap.data() ?? {};
         final sentTotal = _asInt(sd['total_gifts_sent']);
         txn.update(senderRef, {
@@ -922,8 +933,42 @@ class FirebaseService {
         }
       });
     } catch (e) {
-      debugPrint('sendGift: transaction failed (insufficient coins?): $e');
-      return false;
+      debugPrint('sendGift: Firestore transaction failed: $e');
+      try {
+        final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
+        if (sUser == null || sUser.coins < totalCost) {
+          debugPrint('sendGift: insufficient coins in Supabase as well');
+          return false;
+        }
+        // Send Supabase room message even if Firestore failed
+        final giftPayloadData = {
+          'gift_id': giftId,
+          'gift_name': giftName,
+          'receiver_name': receiverName,
+          'receiver_id': receiverId,
+          'count': count,
+          'gift_icon': defaultImage ?? animationAsset ?? '',
+          'coin_value': value,
+          'animation_asset': animationAsset,
+          'default_image': defaultImage,
+          'sender_name': senderName,
+          'sender_photo_url': senderPhotoUrl,
+        };
+        unawaited(SupabaseDataService().sendMessage(MessageModel(
+          msgId: const Uuid().v4(),
+          roomId: roomId,
+          senderUid: senderId,
+          senderName: senderName,
+          senderPhotoUrl: senderPhotoUrl,
+          type: 'gift',
+          text: '$senderName 🎁 $giftName x$count → $receiverName',
+          imageUrl: defaultImage ?? animationAsset ?? '',
+          giftPayload: giftPayloadData,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        )).catchError((_) => false));
+      } catch (_) {
+        return false;
+      }
     }
 
     // Host target evaluation and ledger update (only for non-self send)
@@ -1229,6 +1274,55 @@ class FirebaseService {
           'created_at': DateTime.now().toIso8601String(),
         });
 
+        // تحضير حمولة هدية الحظ للغرفة ولجميع الحاضرين
+        final luckyGiftPayload = {
+          'gift_icon': giftIconUrl,
+          'image_url': giftIconUrl,
+          'gift_name': giftNameAr,
+          'count': count,
+          'won_coins': totalWonCoins,
+          'multiplier': maxMultiplier,
+          'receiver_name': receiverName,
+          'roomId': roomId,
+          'sender': {
+            'id': senderId,
+            'nickname': senderName,
+            'avatar': senderPhotoUrl,
+          },
+          'receiver': {
+            'id': receiverId,
+            'nickname': receiverName,
+          },
+          'gift': {
+            'id': giftId,
+            'giftName': giftName,
+            'giftNameAr': giftNameAr,
+            'coinPrice': value,
+            'giftIconUrl': giftIconUrl,
+            'giftCoverUrl': giftCoverUrl,
+            'giftBgUrl': giftBgUrl,
+            'svgaAnimUrl': svgaAnimUrl,
+          },
+          'combo': {
+            'comboId': comboId ?? id,
+            'comboCount': comboCount,
+            'times': count,
+          },
+          'results': {
+            'multipliers': multipliers,
+            'cards': List.generate(multipliers.length, (i) => {
+              'index': i,
+              'multiplier': multipliers[i],
+              'wonCoins': value * multipliers[i],
+              'giftName': giftNameAr,
+              'giftIcon': giftIconUrl,
+            }),
+            'totalWonCoins': totalWonCoins,
+            'maxMultiplier': maxMultiplier,
+            'isBigWin': isBigWin,
+          },
+        };
+
         // بث الحدث اللحظي للغرفة عبر room_messages في Supabase و Firestore
         final luckyMsgId = const Uuid().v4();
         unawaited(SupabaseDataService().sendMessage(MessageModel(
@@ -1240,8 +1334,23 @@ class FirebaseService {
           type: 'lucky_gift',
           text: '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)',
           imageUrl: giftIconUrl,
+          giftPayload: luckyGiftPayload,
           timestamp: DateTime.now().millisecondsSinceEpoch,
         )).catchError((_) => false));
+
+        unawaited(SupabaseDataService().recordSentGift(
+          roomId: roomId,
+          giftId: giftId,
+          giftName: giftNameAr,
+          animationAsset: svgaAnimUrl ?? giftIconUrl,
+          senderId: senderId,
+          senderName: senderName,
+          senderPhotoUrl: senderPhotoUrl,
+          receiverId: receiverId,
+          receiverName: receiverName,
+          value: value,
+          count: count,
+        ).catchError((_) => false));
 
         txn.set(_db.collection('room_messages').doc(luckyMsgId), {
           'msg_id': const Uuid().v4(),
@@ -1252,53 +1361,7 @@ class FirebaseService {
           'type': 'lucky_gift',
           'image_url': giftIconUrl,
           'text': '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)',
-          'gift_payload': {
-            'gift_icon': giftIconUrl,
-            'image_url': giftIconUrl,
-            'gift_name': giftNameAr,
-            'count': count,
-            'won_coins': totalWonCoins,
-            'multiplier': maxMultiplier,
-            'receiver_name': receiverName,
-            'roomId': roomId,
-            'sender': {
-              'id': senderId,
-              'nickname': senderName,
-              'avatar': senderPhotoUrl,
-            },
-            'receiver': {
-              'id': receiverId,
-              'nickname': receiverName,
-            },
-            'gift': {
-              'id': giftId,
-              'giftName': giftName,
-              'giftNameAr': giftNameAr,
-              'coinPrice': value,
-              'giftIconUrl': giftIconUrl,
-              'giftCoverUrl': giftCoverUrl,
-              'giftBgUrl': giftBgUrl,
-              'svgaAnimUrl': svgaAnimUrl,
-            },
-            'combo': {
-              'comboId': comboId ?? id,
-              'comboCount': comboCount,
-              'times': count,
-            },
-            'results': {
-              'multipliers': multipliers,
-              'cards': List.generate(multipliers.length, (i) => {
-                'index': i,
-                'multiplier': multipliers[i],
-                'wonCoins': value * multipliers[i],
-                'giftName': giftNameAr,
-                'giftIcon': giftIconUrl,
-              }),
-              'totalWonCoins': totalWonCoins,
-              'maxMultiplier': maxMultiplier,
-              'isBigWin': isBigWin,
-            },
-          },
+          'gift_payload': luckyGiftPayload,
           'created_at': DateTime.now().toIso8601String(),
         });
 
@@ -1440,6 +1503,27 @@ class FirebaseService {
         }));
       }
 
+      // Deduct coins & add diamonds in Supabase
+      unawaited(Future(() async {
+        try {
+          final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
+          if (sUser != null) {
+            final newCoins = (sUser.coins - totalCost + totalWonCoins).clamp(0, 999999999999);
+            await SupabaseDataService().updateUser(senderId, {
+              'coins': newCoins,
+              'total_gifts_sent': sUser.totalGiftsSent + totalCost,
+            });
+          }
+          final rUser = await SupabaseAuthService().getUserFromSupabase(receiverId);
+          if (rUser != null) {
+            await SupabaseDataService().updateUser(receiverId, {
+              'diamonds': rUser.diamonds + totalCost,
+              'total_gifts_received': rUser.totalGiftsReceived + totalCost,
+            });
+          }
+        } catch (_) {}
+      }));
+
       return {
         'success': true,
         'wonCoins': totalWonCoins,
@@ -1448,8 +1532,115 @@ class FirebaseService {
         'isBigWin': isBigWin,
       };
     } catch (e) {
-      debugPrint('sendLuckyGift error: $e');
-      return null;
+      debugPrint('sendLuckyGift Firestore error, attempting Supabase fallback: $e');
+      try {
+        final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
+        final currentCoins = sUser?.coins ?? 0;
+        if (currentCoins < totalCost) {
+          return null;
+        }
+
+        final luckyMsgId = const Uuid().v4();
+        final luckyGiftPayload = {
+          'gift_icon': giftIconUrl,
+          'image_url': giftIconUrl,
+          'gift_name': giftNameAr,
+          'count': count,
+          'won_coins': totalWonCoins,
+          'multiplier': maxMultiplier,
+          'receiver_name': receiverName,
+          'roomId': roomId,
+          'sender': {
+            'id': senderId,
+            'nickname': senderName,
+            'avatar': senderPhotoUrl,
+          },
+          'receiver': {
+            'id': receiverId,
+            'nickname': receiverName,
+          },
+          'gift': {
+            'id': giftId,
+            'giftName': giftName,
+            'giftNameAr': giftNameAr,
+            'coinPrice': value,
+            'giftIconUrl': giftIconUrl,
+            'giftCoverUrl': giftCoverUrl,
+            'giftBgUrl': giftBgUrl,
+            'svgaAnimUrl': svgaAnimUrl,
+          },
+          'combo': {
+            'comboId': comboId ?? id,
+            'comboCount': comboCount,
+            'times': count,
+          },
+          'results': {
+            'multipliers': multipliers,
+            'cards': List.generate(multipliers.length, (i) => {
+              'index': i,
+              'multiplier': multipliers[i],
+              'wonCoins': value * multipliers[i],
+              'giftName': giftNameAr,
+              'giftIcon': giftIconUrl,
+            }),
+            'totalWonCoins': totalWonCoins,
+            'maxMultiplier': maxMultiplier,
+            'isBigWin': isBigWin,
+          },
+        };
+
+        await SupabaseDataService().sendMessage(MessageModel(
+          msgId: luckyMsgId,
+          roomId: roomId,
+          senderUid: senderId,
+          senderName: senderName,
+          senderPhotoUrl: senderPhotoUrl,
+          type: 'lucky_gift',
+          text: '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)',
+          imageUrl: giftIconUrl,
+          giftPayload: luckyGiftPayload,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        ));
+
+        await SupabaseDataService().recordSentGift(
+          roomId: roomId,
+          giftId: giftId,
+          giftName: giftNameAr,
+          animationAsset: svgaAnimUrl ?? giftIconUrl,
+          senderId: senderId,
+          senderName: senderName,
+          senderPhotoUrl: senderPhotoUrl,
+          receiverId: receiverId,
+          receiverName: receiverName,
+          value: value,
+          count: count,
+        );
+
+        final newCoins = (currentCoins - totalCost + totalWonCoins).clamp(0, 999999999999);
+        await SupabaseDataService().updateUser(senderId, {
+          'coins': newCoins,
+          'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
+        });
+
+        final rUser = await SupabaseAuthService().getUserFromSupabase(receiverId);
+        if (rUser != null) {
+          await SupabaseDataService().updateUser(receiverId, {
+            'diamonds': rUser.diamonds + totalCost,
+            'total_gifts_received': rUser.totalGiftsReceived + totalCost,
+          });
+        }
+
+        return {
+          'success': true,
+          'wonCoins': totalWonCoins,
+          'multipliers': multipliers,
+          'maxMultiplier': maxMultiplier,
+          'isBigWin': isBigWin,
+        };
+      } catch (fallbackErr) {
+        debugPrint('sendLuckyGift fallback error: $fallbackErr');
+        return null;
+      }
     }
   }
 
@@ -1464,12 +1655,27 @@ class FirebaseService {
         .map((snap) => snap.docs.first.data());
   }
 
-  Stream<List<gm.SentGiftModel>> sentGiftsStream(String roomId) {
-    return _db
-        .collection('sent_gifts')
-        .where('room_id', isEqualTo: roomId)
-        .snapshots()
-        .map((snap) => snap.docs.map((e) => gm.SentGiftModel.fromMap(_data(e))).toList());
+  Stream<List<gm.SentGiftModel>> sentGiftsStream(String roomId) async* {
+    while (true) {
+      try {
+        final gifts = await SupabaseDataService().getSentGifts(roomId);
+        if (gifts.isNotEmpty) {
+          yield gifts;
+        } else {
+          try {
+            final snap = await _db
+                .collection('sent_gifts')
+                .where('room_id', isEqualTo: roomId)
+                .get();
+            final list = snap.docs.map((e) => gm.SentGiftModel.fromMap(_data(e))).toList();
+            yield list;
+          } catch (_) {
+            yield [];
+          }
+        }
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 1500));
+    }
   }
 
   Stream<List<gm.SentGiftModel>> userReceivedGiftsStream(String uid) {
@@ -2954,28 +3160,25 @@ class FirebaseService {
     } catch (_) {}
   }
 
-  Stream<List<Map<String, dynamic>>> entrancesStream(String roomId) {
-    return _db
-        .collection('room_messages')
-        .where('room_id', isEqualTo: roomId)
-        .snapshots()
-        .map((snap) {
-      final list = snap.docs.map((e) => Map<String, dynamic>.from(e.data())).toList();
-      list.sort((a, b) {
-        final at = a['created_at']?.toString() ?? '';
-        final bt = b['created_at']?.toString() ?? '';
-        return bt.compareTo(at);
-      });
-      return list.where((e) => e['type'] == 'entrance').map((e) {
-        return {
-          'uid': e['sender_uid'],
-          'name': e['sender_name'],
-          'photoUrl': e['sender_photo_url'],
-          'entranceItem': e['image_url']?.toString() ?? '',
-          'timestamp': e['created_at'],
-        };
-      }).toList();
-    });
+  Stream<List<Map<String, dynamic>>> entrancesStream(String roomId) async* {
+    while (true) {
+      try {
+        final messages = await SupabaseDataService().getRoomMessages(roomId, limit: 30);
+        final entranceMessages = messages.where((m) => m.type == 'entrance').toList();
+        final list = entranceMessages.map((m) {
+          final tsStr = DateTime.fromMillisecondsSinceEpoch(m.timestamp).toIso8601String();
+          return {
+            'uid': m.senderUid,
+            'name': m.senderName,
+            'photoUrl': m.senderPhotoUrl,
+            'entranceItem': m.imageUrl ?? '',
+            'timestamp': tsStr,
+          };
+        }).toList();
+        yield list;
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 1500));
+    }
   }
 
   // ═══════════════════════════════════════════════════════
@@ -3475,7 +3678,53 @@ class FirebaseService {
     
     String startStr = startDateUtc.toIso8601String();
 
-    // Fetch from Supabase users & sent_gifts for real leaderboard data
+    // 1. Fetch from Supabase sent_gifts for real room-specific leaderboard data
+    try {
+      final gifts = await SupabaseDataService().getSentGifts(roomId, limit: 100);
+      if (gifts.isNotEmpty) {
+        final Map<String, int> roomTotals = {};
+        final Map<String, Map<String, dynamic>> userDetails = {};
+        for (final g in gifts) {
+          final userId = isWealth ? g.senderId : g.receiverId;
+          final name = isWealth ? g.senderName : g.receiverName;
+          final photo = isWealth ? (g.senderPhotoUrl ?? '') : '';
+          if (userId.isEmpty) continue;
+          final val = g.totalValue.toInt();
+          roomTotals[userId] = (roomTotals[userId] ?? 0) + val;
+          if (!userDetails.containsKey(userId)) {
+            userDetails[userId] = {
+              'name': name,
+              'photo': photo,
+            };
+          }
+        }
+        if (roomTotals.isNotEmpty) {
+          final sorted = roomTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+          final top = sorted.take(10).toList();
+          return top.map((e) {
+            final info = userDetails[e.key] ?? {};
+            return {
+              'uid': e.key,
+              'user_id': e.key,
+              'id': e.key,
+              'name': info['name'] ?? 'مستخدم',
+              'user_name': info['name'] ?? 'مستخدم',
+              'photoUrl': info['photo'] ?? '',
+              'photo_url': info['photo'] ?? '',
+              'user_photo_url': info['photo'] ?? '',
+              'custom_id': e.key,
+              'points': e.value,
+              'score': e.value,
+              'total_value': e.value,
+              'level': 1,
+              'gender': 'male',
+            };
+          }).toList();
+        }
+      }
+    } catch (_) {}
+
+    // 2. Fetch from Supabase users for real leaderboard data
     try {
       final orderCol = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
       final sbUsers = await SupabaseDataService().getUserRanking(
@@ -3491,13 +3740,17 @@ class FirebaseService {
                 : ((u['total_gifts_received'] as num?)?.toInt() ?? (u['charm'] as num?)?.toInt() ?? 0);
             return {
               'uid': u['uid'] ?? u['id'],
+              'user_id': u['uid'] ?? u['id'],
               'id': u['uid'] ?? u['id'],
               'name': u['name'] ?? 'مستخدم',
+              'user_name': u['name'] ?? 'مستخدم',
               'photoUrl': u['photo_url'] ?? '',
               'photo_url': u['photo_url'] ?? '',
-              'custom_id': u['custom_id'] ?? '',
+              'user_photo_url': u['photo_url'] ?? '',
+              'custom_id': u['custom_id'] ?? u['display_id'] ?? '',
               'points': pts,
               'score': pts,
+              'total_value': pts,
               'level': (u['level'] as num?)?.toInt() ?? 1,
               'gender': u['gender'] ?? 'male',
             };
@@ -3654,9 +3907,16 @@ class FirebaseService {
         'user_id': displayNumericId,
         'custom_id': displayNumericId,
         'uid': entry.key,
-        'user_name': ud['name'] ?? 'Unknown',
+        'id': entry.key,
+        'name': ud['name'] ?? 'مستخدم',
+        'user_name': ud['name'] ?? 'مستخدم',
+        'photoUrl': (ud['photo_url'] ?? ud['photoUrl'] ?? '').toString(),
+        'photo_url': (ud['photo_url'] ?? ud['photoUrl'] ?? '').toString(),
         'user_photo_url': (ud['photo_url'] ?? ud['photoUrl'] ?? '').toString(),
         'total_value': entry.value,
+        'points': entry.value,
+        'score': entry.value,
+        'level': (ud['level'] as num?)?.toInt() ?? 1,
       });
     }
     return results;

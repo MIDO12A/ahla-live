@@ -10,6 +10,7 @@ import '../../models/banner_config.dart';
 import '../../models/room_model.dart';
 import '../../providers/user_provider.dart';
 import 'create_room_screen.dart';
+import '../../services/room_state_service.dart';
 import '../../screens/room/room_screen.dart' show navigateToRoom;
 import '../../screens/room/widgets/svga_player.dart';
 import '../../screens/room/widgets/vap_player.dart';
@@ -60,23 +61,33 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     final user = userProvider.currentUser;
     if (user == null) return;
 
-    RoomModel? room;
-    // 1. Check hostedRoomId if valid
-    final targetRoomId = user.hostedRoomId;
-    if (targetRoomId != null && targetRoomId.isNotEmpty && targetRoomId != 'null') {
-      room = await _firebaseService.getRoom(targetRoomId);
+    // Exit any active/minimized room the user is currently in
+    final minSvc = MinimizedRoomService();
+    if (minSvc.isActive) {
+      await minSvc.exitRoom(user.uid);
     }
 
-    // 2. If not found, lookup by host uid and customId
+    RoomModel? room;
+    // 1. Check hostedRoomId if valid AND strictly owned by this user
+    final targetRoomId = user.hostedRoomId;
+    if (targetRoomId != null && targetRoomId.isNotEmpty && targetRoomId != 'null') {
+      final candidate = await _firebaseService.getRoom(targetRoomId);
+      if (candidate != null && candidate.hostUid == user.uid) {
+        room = candidate;
+      }
+    }
+
+    // 2. If not found or not owned, lookup strictly by host uid
     if (room == null) {
-      room = await _firebaseService.getRoomByHost(user.uid, customId: user.customId);
-      if (room != null) {
+      final candidate = await _firebaseService.getRoomByHost(user.uid);
+      if (candidate != null && candidate.hostUid == user.uid) {
+        room = candidate;
         await _firebaseService.updateUser(user.uid, {'hosted_room_id': room.roomId});
         await userProvider.loadUser(user.uid);
       }
     }
 
-    // 3. If room found, directly enter it!
+    // 3. If own room found, directly enter it!
     if (room != null && mounted) {
       navigateToRoom(
         context,

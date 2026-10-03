@@ -120,7 +120,8 @@ class SupabaseDataService {
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
-          return RoomModel.fromMap(list.first as Map<String, dynamic>);
+          final m = Map<String, dynamic>.from(list.first as Map);
+          return RoomModel.fromMap(m);
         }
       }
     } catch (e) {
@@ -136,7 +137,8 @@ class SupabaseDataService {
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
-          return RoomModel.fromMap(list.first as Map<String, dynamic>);
+          final m = Map<String, dynamic>.from(list.first as Map);
+          return RoomModel.fromMap(m);
         }
       }
     } catch (e) {
@@ -374,6 +376,7 @@ class SupabaseDataService {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_messages');
       final body = jsonEncode({
+        if (message.msgId.isNotEmpty) 'msg_id': message.msgId,
         'room_id': message.roomId,
         'sender_uid': message.senderUid,
         'sender_name': message.senderName,
@@ -382,6 +385,7 @@ class SupabaseDataService {
         'type': message.type,
         'image_url': message.imageUrl ?? '',
         'active_bubble': message.activeBubble,
+        'gift_payload': message.giftPayload ?? {},
         'created_at': DateTime.fromMillisecondsSinceEpoch(message.timestamp).toUtc().toIso8601String(),
       });
 
@@ -889,6 +893,33 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] recordSentGift error: $e');
       return false;
     }
+  }
+
+  Future<List<gm.SentGiftModel>> getSentGifts(String roomId, {int limit = 50}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?room_id=eq.$roomId&select=*&order=created_at.desc&limit=$limit');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          m['id'] = m['id']?.toString() ?? '';
+          m['gift_id'] = m['gift_id']?.toString() ?? '';
+          m['sender_id'] = m['sender_id']?.toString() ?? '';
+          m['sender_name'] = m['sender_name']?.toString() ?? '';
+          m['receiver_id'] = m['receiver_id']?.toString() ?? '';
+          m['receiver_name'] = m['receiver_name']?.toString() ?? '';
+          m['room_id'] = m['room_id']?.toString() ?? roomId;
+          m['value'] = (m['value'] as num?)?.toInt() ?? 0;
+          m['count'] = (m['count'] as num?)?.toInt() ?? 1;
+          m['created_at'] = m['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String();
+          return gm.SentGiftModel.fromMap(m);
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getSentGifts error: $e');
+    }
+    return [];
   }
 
   Future<List<NotificationModel>> getNotifications({String? uid}) async {

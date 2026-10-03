@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/supabase_service.dart';
 import '../../providers/user_provider.dart';
+import '../../services/room_state_service.dart';
 import '../../screens/room/room_screen.dart' show navigateToRoom;
 
 class CreateRoomScreen extends StatefulWidget {
@@ -60,8 +61,12 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
     final user = userProvider.currentUser;
     if (user == null) return;
 
-    final existingRoom = await _firebaseService.getRoomByHost(user.uid, customId: user.customId);
-    if (existingRoom != null && mounted) {
+    final existingRoom = await _firebaseService.getRoomByHost(user.uid);
+    if (existingRoom != null && existingRoom.hostUid == user.uid && mounted) {
+      final minSvc = MinimizedRoomService();
+      if (minSvc.isActive) {
+        await minSvc.exitRoom(user.uid);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('لديك غرفة مفعلة بالفعل، جاري نقلك إليها...'),
@@ -119,9 +124,15 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
         return;
       }
 
+      // Exit any active/minimized room the user was visiting
+      final minSvc = MinimizedRoomService();
+      if (minSvc.isActive) {
+        await minSvc.exitRoom(user.uid);
+      }
+
       // Pre-check: if user already has an active room, go to it instead of recreating
-      final existing = await _firebaseService.getRoomByHost(user.uid, customId: user.customId);
-      if (existing != null) {
+      final existing = await _firebaseService.getRoomByHost(user.uid);
+      if (existing != null && existing.hostUid == user.uid) {
         await _firebaseService.updateUser(user.uid, {'hosted_room_id': existing.roomId});
         await userProvider.loadUser(user.uid);
         if (mounted) {
@@ -165,6 +176,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
           context,
           roomName: _roomNameController.text.trim(),
           hostName: user.name,
+          hostUid: user.uid,
           roomId: roomId,
           roomPassword: _pwdController.text.trim(),
           replace: true,
