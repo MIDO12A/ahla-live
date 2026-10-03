@@ -347,6 +347,46 @@ class FirebaseService {
     }
   }
 
+  Future<RoomModel?> getRoomByHost(String hostUid, {String? customId}) async {
+    // 1. Try Supabase by host_uid
+    try {
+      final r = await SupabaseDataService().getRoomByHostUid(hostUid);
+      if (r != null) return r;
+    } catch (_) {}
+
+    // 2. Try Supabase by customId if provided
+    if (customId != null && customId.isNotEmpty && customId != 'null') {
+      try {
+        final r = await SupabaseDataService().getRoom(customId);
+        if (r != null) return r;
+      } catch (_) {}
+    }
+
+    // 3. Try Firestore by host_uid
+    try {
+      final snap = await _db
+          .collection('rooms')
+          .where('host_uid', isEqualTo: hostUid)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) {
+        return RoomModel.fromMap(_data(snap.docs.first));
+      }
+    } catch (_) {}
+
+    // 4. Try Firestore by customId
+    if (customId != null && customId.isNotEmpty && customId != 'null') {
+      try {
+        final doc = await _db.collection('rooms').doc(customId).get();
+        if (doc.exists) {
+          return RoomModel.fromMap(_data(doc));
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
   Future<void> updateRoom(String roomId, Map<String, dynamic> updates) async {
     unawaited(SupabaseDataService().updateRoom(roomId, updates));
     try {

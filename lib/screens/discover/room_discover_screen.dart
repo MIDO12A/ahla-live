@@ -60,34 +60,35 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     final user = userProvider.currentUser;
     if (user == null) return;
 
-    String? targetRoomId = user.hostedRoomId;
-    if (targetRoomId == null || targetRoomId.isEmpty) {
-      if (user.customId.isNotEmpty) {
-        final existingRoom = await _firebaseService.getRoom(user.customId);
-        if (existingRoom != null) {
-          targetRoomId = user.customId;
-          await _firebaseService.updateUser(user.uid, {'hosted_room_id': targetRoomId});
-        }
-      }
+    RoomModel? room;
+    // 1. Check hostedRoomId if valid
+    final targetRoomId = user.hostedRoomId;
+    if (targetRoomId != null && targetRoomId.isNotEmpty && targetRoomId != 'null') {
+      room = await _firebaseService.getRoom(targetRoomId);
     }
 
-    if (targetRoomId != null && targetRoomId.isNotEmpty) {
-      final room = await _firebaseService.getRoom(targetRoomId);
+    // 2. If not found, lookup by host uid and customId
+    if (room == null) {
+      room = await _firebaseService.getRoomByHost(user.uid, customId: user.customId);
       if (room != null) {
-        navigateToRoom(
-          context,
-          roomName: room.name,
-          hostName: user.name,
-          hostUid: room.hostUid,
-          roomId: targetRoomId,
-        );
-        return;
-      } else {
-        await _firebaseService.updateUser(user.uid, {'hosted_room_id': null});
+        await _firebaseService.updateUser(user.uid, {'hosted_room_id': room.roomId});
         await userProvider.loadUser(user.uid);
       }
     }
 
+    // 3. If room found, directly enter it!
+    if (room != null && mounted) {
+      navigateToRoom(
+        context,
+        roomName: room.name,
+        hostName: user.name,
+        hostUid: room.hostUid,
+        roomId: room.roomId,
+      );
+      return;
+    }
+
+    // 4. Otherwise, open create room screen
     if (mounted) {
       Navigator.push(
         context,

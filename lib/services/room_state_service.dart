@@ -1,8 +1,11 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../services/room_audio_service.dart';
 
-/// Global service to track minimized room state
+/// Global service to track minimized room state and keep audio/seat presence active
 class MinimizedRoomService extends ChangeNotifier {
   static final MinimizedRoomService _instance = MinimizedRoomService._();
   factory MinimizedRoomService() => _instance;
@@ -16,7 +19,11 @@ class MinimizedRoomService extends ChangeNotifier {
   String? _hotValue;
   String? _gameDesc;
   String? _roomPhoto;
-  RoomAudioService? _audioService;
+  String? _userId;
+  int? _seatIndex;
+  bool _isOnSeat = false;
+  bool _isMicMuted = false;
+  Timer? _presencePingTimer;
 
   bool get isActive => _isActive;
   String? get roomId => _roomId;
@@ -26,6 +33,12 @@ class MinimizedRoomService extends ChangeNotifier {
   String? get hotValue => _hotValue;
   String? get gameDesc => _gameDesc;
   String? get roomPhoto => _roomPhoto;
+  String? get userId => _userId;
+  int? get seatIndex => _seatIndex;
+  bool get isOnSeat => _isOnSeat;
+  bool get isMicMuted => _isMicMuted;
+
+  bool isActiveFor(String id) => _isActive && _roomId == id;
 
   void activate({
     required String roomId,
@@ -35,6 +48,10 @@ class MinimizedRoomService extends ChangeNotifier {
     String? hotValue,
     String? gameDesc,
     String? roomPhoto,
+    String? userId,
+    int? seatIndex,
+    bool isOnSeat = false,
+    bool isMicMuted = false,
     RoomAudioService? audioService,
   }) {
     _isActive = true;
@@ -45,11 +62,56 @@ class MinimizedRoomService extends ChangeNotifier {
     _hotValue = hotValue;
     _gameDesc = gameDesc;
     _roomPhoto = roomPhoto;
-    _audioService = audioService;
+    _userId = userId;
+    _seatIndex = seatIndex;
+    _isOnSeat = isOnSeat;
+    _isMicMuted = isMicMuted;
+
+    // Start background presence ping so zombie cleaner never removes minimized user
+    _startPresencePing();
+    notifyListeners();
+  }
+
+  void _startPresencePing() {
+    _presencePingTimer?.cancel();
+    _sendPing();
+    _presencePingTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+      _sendPing();
+    });
+  }
+
+  void _sendPing() {
+    final rid = _roomId;
+    final uid = _userId;
+    if (rid == null || uid == null || !_isActive) return;
+    try {
+      FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+          .collection('room_members')
+          .doc('${rid}_$uid')
+          .set({
+        'last_ping': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  Future<void> toggleMic() async {
+    if (!_isOnSeat) return;
+    final newMuted = !_isMicMuted;
+    _isMicMuted = newMuted;
+    await RoomAudioService().toggleMic(!newMuted);
+    final rid = _roomId;
+    final sIdx = _seatIndex;
+    if (rid != null && sIdx != null) {
+      try {
+        await SupabaseService().toggleMute(rid, sIdx, newMuted);
+      } catch (_) {}
+    }
     notifyListeners();
   }
 
   void deactivate() {
+    _presencePingTimer?.cancel();
+    _presencePingTimer = null;
     _isActive = false;
     _roomId = null;
     _roomName = null;
@@ -58,16 +120,27 @@ class MinimizedRoomService extends ChangeNotifier {
     _hotValue = null;
     _gameDesc = null;
     _roomPhoto = null;
-    _audioService?.dispose();
-    _audioService = null;
+    _userId = null;
+    _seatIndex = null;
+    _isOnSeat = false;
+    _isMicMuted = false;
     notifyListeners();
   }
 
-  /// Clean up room from Firebase
-  void exitRoom(String userId) {
-    if (_roomId != null) {
-      SupabaseService().leaveRoom(_roomId!, userId);
-    }
+  /// Clean up room completely from Firestore, Supabase, and Zego audio
+  Future<void> exitRoom(String userId) async {
+    final oldRoomId = _roomId;
     deactivate();
+    if (oldRoomId != null) {
+      try {
+        await SupabaseService().leaveSeatForUser(oldRoomId, userId);
+      } catch (_) {}
+      try {
+        await SupabaseService().leaveRoom(oldRoomId, userId);
+      } catch (_) {}
+      try {
+        await RoomAudioService().leaveChannel();
+      } catch (_) {}
+    }
   }
 }

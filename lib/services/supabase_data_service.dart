@@ -96,6 +96,22 @@ class SupabaseDataService {
     return null;
   }
 
+  Future<RoomModel?> getRoomByHostUid(String hostUid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/rooms?host_uid=eq.$hostUid&select=*&limit=1');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        if (list.isNotEmpty) {
+          return RoomModel.fromMap(list.first as Map<String, dynamic>);
+        }
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getRoomByHostUid error: $e');
+    }
+    return null;
+  }
+
   Future<List<RoomModel>> getAllRooms() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?select=*&order=total_gifts.desc');

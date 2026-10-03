@@ -188,6 +188,11 @@ class RoomAudioService {
       debugPrint('[RoomAudioService] Cannot join: not initialized');
       return;
     }
+    // If already in this channel with this uid, keep the live connection without interrupting audio!
+    if (_currentRoomId == channelName && _currentUid == uid) {
+      debugPrint('[RoomAudioService] Already connected to room $channelName, keeping live audio');
+      return;
+    }
     try {
       await leaveChannel();
       _currentRoomId = channelName;

@@ -101,8 +101,8 @@ Future<void> navigateToRoom(
       isReentry = true;
       svc.deactivate();
     } else {
-      // Different room – exit the old one
-      if (uid != null) svc.exitRoom(uid);
+      // Different room – cleanly exit the old minimized room and release seat/audio
+      if (uid != null) await svc.exitRoom(uid);
     }
   }
 
@@ -959,7 +959,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       });
       // Clear any stale seats for this user before registering (await to avoid race)
       // Only on fresh joins – on minimized-room re-entry the current seat must survive.
-      if (!widget.isReentry) {
+      final isReturningFromMinimized = widget.isReentry || MinimizedRoomService().isActiveFor(widget.roomId);
+      if (!isReturningFromMinimized) {
         Future(() async {
           await _firebaseService.leaveSeatForUser(widget.roomId, currentUser.uid);
         });
@@ -969,7 +970,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       // ✅ تنظيف المستخدمين الصامتين (Zombie) عند الانضمام
       // أي مستخدم آخر لم يرسل ping منذ أكثر من 5 دقائق يُعتبر خارجاً
       _cleanupZombieUsers();
-      if (!widget.isReentry) {
+      if (!isReturningFromMinimized) {
         try {
           // Log entrance effect for other users to see
           _firebaseService.logEntrance(
@@ -2826,17 +2827,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             Navigator.of(context).pop();
             return;
           }
-          bool isOnSeat = false;
-          for (int i = 0; i < _seats.length; i++) {
-            if (_seats[i].user?.id == _currentUserId) {
-              isOnSeat = true;
-              break;
-            }
-          }
-          if (isOnSeat) {
-            _minimizeRoom();
+          if (_showExit) {
+            setState(() => _showExit = false);
           } else {
-            _showExit ? setState(() => _showExit = false) : _exitRoom();
+            setState(() => _showExit = true);
           }
         }
       },
@@ -5541,6 +5535,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   void _minimizeRoom() {
     setState(() => _showExit = false);
     _isMinimized = true;
+
+    int? seatIndex;
+    bool isOnSeat = false;
+    for (int i = 0; i < _seats.length; i++) {
+      if (_seats[i].user?.id == _currentUserId) {
+        seatIndex = i;
+        isOnSeat = true;
+        break;
+      }
+    }
+
     MinimizedRoomService().activate(
       roomId: widget.roomId,
       roomName: widget.roomName,
@@ -5549,6 +5554,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       hotValue: widget.hotValue,
       gameDesc: widget.gameDesc,
       roomPhoto: _currentRoom?.roomPhotoUrl ?? _seats[0].user?.avatar,
+      userId: _currentUserId,
+      seatIndex: seatIndex,
+      isOnSeat: isOnSeat,
+      isMicMuted: _isMicMuted,
+      audioService: _roomAudio,
     );
     Navigator.of(context).pop();
   }

@@ -50,6 +50,40 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkExistingRoom());
+  }
+
+  Future<void> _checkExistingRoom() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final user = userProvider.currentUser;
+    if (user == null) return;
+
+    final existingRoom = await _firebaseService.getRoomByHost(user.uid, customId: user.customId);
+    if (existingRoom != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لديك غرفة مفعلة بالفعل، جاري نقلك إليها...'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+      await _firebaseService.updateUser(user.uid, {'hosted_room_id': existingRoom.roomId});
+      await userProvider.loadUser(user.uid);
+      if (mounted) {
+        navigateToRoom(
+          context,
+          roomName: existingRoom.name,
+          hostName: user.name,
+          hostUid: existingRoom.hostUid,
+          roomId: existingRoom.roomId,
+          replace: true,
+        );
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _introduceController.dispose();
     _roomNameController.dispose();
@@ -80,6 +114,24 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('User not found')),
+          );
+        }
+        return;
+      }
+
+      // Pre-check: if user already has an active room, go to it instead of recreating
+      final existing = await _firebaseService.getRoomByHost(user.uid, customId: user.customId);
+      if (existing != null) {
+        await _firebaseService.updateUser(user.uid, {'hosted_room_id': existing.roomId});
+        await userProvider.loadUser(user.uid);
+        if (mounted) {
+          navigateToRoom(
+            context,
+            roomName: existing.name,
+            hostName: user.name,
+            hostUid: existing.hostUid,
+            roomId: existing.roomId,
+            replace: true,
           );
         }
         return;
