@@ -5557,7 +5557,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       userId: _currentUserId,
       seatIndex: seatIndex,
       isOnSeat: isOnSeat,
-      isMicMuted: _isMicMuted,
+      isMicMuted: !_isMicOn,
       audioService: _roomAudio,
     );
     Navigator.of(context).pop();
