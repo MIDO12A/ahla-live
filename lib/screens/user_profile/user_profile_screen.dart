@@ -203,7 +203,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         final badgesFuture = _supabase.getBadgesCatalog().catchError((_) => <Map<String, dynamic>>[]);
         final necklacesFuture = _supabase.getNecklacesCatalog().catchError((_) => <Map<String, dynamic>>[]);
         final giftsCatalogFuture = _supabase.getGiftsCatalog().catchError((_) => <String, gm.GiftModel>{});
-        final receivedGiftsFuture = _supabase.getReceivedGifts(uid).catchError((_) => <Map<String, dynamic>>[]);
+        final receivedGiftsFuture = _supabase.getReceivedGifts(uid).catchError((_) => <gm.SentGiftModel>[]);
         final followingFuture = _supabase.getFollowing(uid).catchError((_) => <UserModel>[]);
         final fansFuture = _supabase.getFans(uid).catchError((_) => <UserModel>[]);
         final visitorsFuture = _supabase.getVisitors(uid).catchError((_) => <UserModel>[]);
@@ -240,7 +240,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         final bList = results[1] as List<Map<String, dynamic>>;
         final nList = results[2] as List<Map<String, dynamic>>;
         final giftCatalog = results[3] as Map<String, gm.GiftModel>;
-        final gifts = results[4] as List<Map<String, dynamic>>;
+        final gifts = results[4] as List<gm.SentGiftModel>;
         final fList = results[5] as List<UserModel>;
         final fansList = results[6] as List<UserModel>;
         final vList = results[7] as List<UserModel>;

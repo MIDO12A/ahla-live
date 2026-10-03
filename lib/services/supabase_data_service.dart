@@ -1560,31 +1560,6 @@ class SupabaseDataService {
       final cleanUids = uids.where((id) => id.isNotEmpty).toSet().toList();
       if (cleanUids.isEmpty) return [];
 
-      // Try Supabase SDK client first
-      try {
-        final res = await Supabase.instance.client
-            .from('users')
-            .select('uid, id, name, photo_url, avatar, gender, level, country_idx, custom_id')
-            .filter('uid', 'in', cleanUids);
-        if (res.isNotEmpty) {
-          return (res as List).map((e) {
-            final m = Map<String, dynamic>.from(e as Map);
-            final photo = m['photo_url']?.toString() ?? m['avatar']?.toString() ?? '';
-            final resolvedUid = m['uid']?.toString() ?? m['id']?.toString() ?? '';
-            return {
-              'uid': resolvedUid,
-              'id': resolvedUid,
-              'name': m['name'] ?? 'User',
-              'photo_url': photo,
-              'avatar': photo,
-              'gender': m['gender'] ?? 'male',
-              'level': (m['level'] as num?)?.toInt() ?? 1,
-              'country_idx': (m['country_idx'] as num?)?.toInt() ?? 0,
-              'custom_id': m['custom_id'] ?? '',
-            };
-          }).toList();
-        }
-      } catch (_) {}
 
       // Fallback: PostgREST REST API
       final filter = cleanUids.join(',');

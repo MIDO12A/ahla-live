@@ -113,7 +113,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         try {
           final usersData = await _sb.from('users')
               .select('id, uid, name, photo_url, avatar, custom_id, level')
-              .filter('id', 'in', allUserIds.toList());
+              .inFilter('id', allUserIds.toList());
           for (final u in usersData) {
             final uId = u['id']?.toString() ?? u['uid']?.toString() ?? '';
             final photo = u['photo_url']?.toString() ?? u['avatar']?.toString();

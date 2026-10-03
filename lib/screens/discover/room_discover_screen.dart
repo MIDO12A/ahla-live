@@ -257,8 +257,8 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildDiscoverContent(true, user),
-                  _buildDiscoverContent(false, user),
+                  _buildDiscoverContent(isFollowTab: true, user: user),
+                  _buildDiscoverContent(isFollowTab: false, user: user),
                 ],
               ),
             ),
@@ -369,10 +369,10 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     );
   }
 
-  Widget _buildDiscoverContent(bool isDiscover, dynamic user) {
+  Widget _buildDiscoverContent({required bool isFollowTab, dynamic user}) {
     return Column(
       children: [
-        if (isDiscover) ...[
+        if (!isFollowTab) ...[
           _buildCountrySection(),
         ],
         const SizedBox(height: 8),
@@ -390,9 +390,10 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
 
               List<RoomModel> rooms = snapshot.data ?? _cachedRooms ?? [];
 
-              if (!isDiscover && user != null) {
+              if (isFollowTab) {
+                final List<String> followedList = (user?.followedRooms as List<String>?) ?? [];
                 rooms = rooms
-                    .where((room) => user.followedRooms.contains(room.roomId))
+                    .where((room) => followedList.contains(room.roomId))
                     .toList();
               }
 
@@ -403,7 +404,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                 }).toList();
               }
 
-              if (_selectedCountry != null && _selectedCountry!.isNotEmpty && _selectedCountry != 'الكل') {
+              if (!isFollowTab && _selectedCountry != null && _selectedCountry!.isNotEmpty && _selectedCountry != 'الكل') {
                 rooms = rooms.where((room) => _roomMatchesCountry(room, _selectedCountry)).toList();
               }
 
@@ -416,9 +417,9 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                       const Icon(Icons.headset_off, size: 64, color: Colors.black26),
                       const SizedBox(height: 16),
                       Text(
-                        isAr
-                            ? 'لا توجد غرف حالياً\nابدأ بإنشاء غرفتك الآن!'
-                            : 'No rooms yet\nCreate one!',
+                        isFollowTab
+                            ? (isAr ? 'لم تتابع أي غرفة بعد\nاستكشف الغرف وتابع غرفك المفضلة!' : 'No followed rooms yet\nDiscover and follow rooms!')
+                            : (isAr ? 'لا توجد غرف حالياً\nابدأ بإنشاء غرفتك الآن!' : 'No rooms yet\nCreate one!'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(fontSize: 16, color: Colors.black45),
                       ),
@@ -794,13 +795,14 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                       top: 6, left: 6,
                       child: GestureDetector(
                         onTap: () async {
-                          if (isFollowing) {
-                            await _firebaseService.unfollowRoom(user.uid, room.roomId);
-                          } else {
-                            await _firebaseService.followRoom(user.uid, room.roomId);
+                          final willFollow = !isFollowing;
+                          if (context.mounted) {
+                            Provider.of<UserProvider>(context, listen: false).toggleFollowedRoom(room.roomId, willFollow);
                           }
-                          if (mounted) {
-                            Provider.of<UserProvider>(context, listen: false).loadUser(user.uid);
+                          if (willFollow) {
+                            await _firebaseService.followRoom(user.uid, room.roomId);
+                          } else {
+                            await _firebaseService.unfollowRoom(user.uid, room.roomId);
                           }
                         },
                         child: Icon(

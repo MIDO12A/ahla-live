@@ -221,7 +221,13 @@ class RoomAudioService {
       await engine.startPublishingStream(streamId);
       await engine.enableCamera(false);
       _isPublishing = true;
-      debugPrint('[RoomAudioService] Started publishing stream: $streamId');
+      if (!_micEnabled) {
+        try {
+          await engine.muteMicrophone(true);
+          await engine.mutePublishStreamAudio(true);
+        } catch (_) {}
+      }
+      debugPrint('[RoomAudioService] Started publishing stream: $streamId (micEnabled=$_micEnabled)');
     } catch (e) {
       debugPrint('[RoomAudioService] startPublishing failed: $e');
     }
@@ -246,18 +252,20 @@ class RoomAudioService {
   }
 
   Future<bool> toggleMic(bool on) async {
-    if (!_initialized || !_isPublishing || effectiveAppSign.isEmpty) {
-      _micEnabled = on;
+    _micEnabled = on;
+    if (!_initialized || effectiveAppSign.isEmpty) {
       return true;
     }
     try {
       final engine = ZegoExpressEngine.instance;
-      await engine.mutePublishStreamAudio(!on);
-      _micEnabled = on;
+      await engine.muteMicrophone(!on);
+      if (_isPublishing) {
+        await engine.mutePublishStreamAudio(!on);
+      }
+      debugPrint('[RoomAudioService] toggleMic on=$on (hardware + stream muted=${!on})');
       return true;
     } catch (e) {
       debugPrint('[RoomAudioService] toggleMic failed: $e');
-      _micEnabled = on;
       return false;
     }
   }

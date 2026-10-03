@@ -3,6 +3,7 @@ import '../../../core/supabase_compat.dart';
 import '../../../core/utils/server_time_service.dart';
 import 'agency_models.dart';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyRepository v2 — كل عمليات Supabase للوكالات

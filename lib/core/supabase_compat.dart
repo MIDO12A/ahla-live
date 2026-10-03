@@ -2178,6 +2178,14 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
     return this;
   }
 
+  SupabaseQueryBuilder filter(String column, String operator, dynamic value) {
+    if (operator == 'in' && value is List) {
+      return inFilter(column, value);
+    }
+    _wheres.add((column, operator, value));
+    return this;
+  }
+
   /// Supabase `or("a.ilike.%x%,b.ilike.%x%")` -> in-memory OR filtering.
   SupabaseQueryBuilder or(String filter) {
     final clauses = <(String, String, dynamic)>[];

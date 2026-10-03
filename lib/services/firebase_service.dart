@@ -178,26 +178,28 @@ class FirebaseService {
   }
 
   Future<void> followRoom(String uid, String roomId) async {
-    final doc = await _db.collection('users').doc(uid).get();
-    if (!doc.exists) return;
-    final d = doc.data() ?? {};
-    final followed = List<String>.from(d['followed_rooms'] ?? []);
-    if (!followed.contains(roomId)) {
-      followed.add(roomId);
-      await _db.collection('users').doc(uid).update({'followed_rooms': followed});
+    try {
+      await _db.collection('users').doc(uid).set({
+        'followed_rooms': FieldValue.arrayUnion([roomId]),
+      }, SetOptions(merge: true));
+      final doc = await _db.collection('users').doc(uid).get();
+      final followed = List<String>.from(doc.data()?['followed_rooms'] ?? []);
       unawaited(SupabaseDataService().updateUser(uid, {'followed_rooms': followed}));
+    } catch (e) {
+      debugPrint('followRoom error: $e');
     }
   }
 
   Future<void> unfollowRoom(String uid, String roomId) async {
-    final doc = await _db.collection('users').doc(uid).get();
-    if (!doc.exists) return;
-    final d = doc.data() ?? {};
-    final followed = List<String>.from(d['followed_rooms'] ?? []);
-    if (followed.contains(roomId)) {
-      followed.remove(roomId);
-      await _db.collection('users').doc(uid).update({'followed_rooms': followed});
+    try {
+      await _db.collection('users').doc(uid).set({
+        'followed_rooms': FieldValue.arrayRemove([roomId]),
+      }, SetOptions(merge: true));
+      final doc = await _db.collection('users').doc(uid).get();
+      final followed = List<String>.from(doc.data()?['followed_rooms'] ?? []);
       unawaited(SupabaseDataService().updateUser(uid, {'followed_rooms': followed}));
+    } catch (e) {
+      debugPrint('unfollowRoom error: $e');
     }
   }
 

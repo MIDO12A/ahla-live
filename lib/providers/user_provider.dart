@@ -205,6 +205,18 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleFollowedRoom(String roomId, bool follow) {
+    if (_currentUser == null) return;
+    final list = List<String>.from(_currentUser!.followedRooms);
+    if (follow && !list.contains(roomId)) {
+      list.add(roomId);
+    } else if (!follow && list.contains(roomId)) {
+      list.remove(roomId);
+    }
+    _currentUser = _currentUser!.copyWith(followedRooms: list);
+    notifyListeners();
+  }
+
   void deductCoinsLocally(int amount) {
     if (_currentUser == null) return;
     final newCoins = (_currentUser!.coins - amount).clamp(0, 999999999);

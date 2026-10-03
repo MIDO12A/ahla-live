@@ -1803,10 +1803,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final data = entry.value;
       final uid = data['uid']?.toString();
       if (uid != null) {
+        final isMuted = data['is_muted'] == true;
         if (uid == _currentUserId) {
           isCurrentUserOnSeatNow = true;
-          currentUserMuted = data['is_muted'] == true;
+          currentUserMuted = isMuted;
           _currentUserSeatIndex = idx;
+          if (_isMicOn == isMuted) {
+            _isMicOn = !isMuted;
+          }
+        } else {
+          _roomAudio.muteRemoteAudio(uid, widget.roomId, isMuted);
         }
         // Fetch full user data for frame asset resolution
         if (!_cachedUsers.containsKey(uid)) {
@@ -1831,7 +1837,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             : carStoreItem?.svgaAsset;
 
         final giftTotal = _giftReceiverTotals[uid] ?? 0;
-        final isMuted = data['is_muted'] == true;
         final activeMicWave = data['active_mic_wave']?.toString() ?? cachedUser?.activeMicWave;
         final gender = data['gender']?.toString() ?? cachedUser?.gender ?? 'male';
         final country = data['country']?.toString() ?? data['country_code']?.toString() ?? cachedUser?.country ?? 'EG';
@@ -2453,6 +2458,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _seats[idx].state = muted ? SeatState.muted : SeatState.occupied;
       }
     });
+    final targetUser = _seats[idx].user;
+    final targetUid = targetUser?.id;
+    if (targetUid != null && targetUid.isNotEmpty) {
+      if (targetUid == _currentUserId) {
+        _isMicOn = !muted;
+        _roomAudio.toggleMic(!muted);
+      } else {
+        _roomAudio.muteRemoteAudio(targetUid, widget.roomId, muted);
+      }
+    }
     _firebaseService.toggleMute(widget.roomId, idx, muted);
   }
 
@@ -5923,12 +5938,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.currentUser;
     if (user == null) return;
-    if (_isFollowed) {
-      _firebaseService.unfollowRoom(user.uid, widget.roomId);
-    } else {
+    final willFollow = !_isFollowed;
+    if (willFollow) {
       _firebaseService.followRoom(user.uid, widget.roomId);
+    } else {
+      _firebaseService.unfollowRoom(user.uid, widget.roomId);
     }
-    setState(() => _isFollowed = !_isFollowed);
+    userProvider.toggleFollowedRoom(widget.roomId, willFollow);
+    setState(() => _isFollowed = willFollow);
   }
 
   Widget _memberAvatar(String? avatar, double size) {
