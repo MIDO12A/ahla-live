@@ -757,6 +757,32 @@ class SupabaseClient {
       'joined_at': DateTime.now().toUtc().toIso8601String(),
     }, SetOptions(merge: true));
 
+    // 3. Notify agency owner directly
+    try {
+      final agencySnap = await _db.collection('host_agencies').doc(agencyId).get();
+      final agencyData = agencySnap.data() ?? {};
+      final ownerId = agencyData['owner_id']?.toString() ?? '';
+      final agencyName = agencyData['name']?.toString() ?? 'وكالتك';
+
+      if (ownerId.isNotEmpty && ownerId != uid) {
+        await FirebaseService().sendNotification(
+          uid: ownerId,
+          type: 'agency_host_request',
+          actorUid: uid,
+          title: 'طلب انضمام مضيف جديد إلى وكالتك 📝',
+          body: 'قدم المضيف [$userName] (معرف: $customId) طلباً للانضمام إلى وكالتك [$agencyName].',
+          data: {
+            'action': 'host_join_request',
+            'agency_id': agencyId,
+            'applicant_uid': uid,
+            'applicant_name': userName,
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('[agency_request_join] error notifying owner: $e');
+    }
+
     return {'status': 'ok'};
   }
 

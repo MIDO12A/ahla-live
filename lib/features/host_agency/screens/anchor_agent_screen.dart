@@ -7,7 +7,6 @@ import '../../../../config/r.dart';
 import '../../../../providers/user_provider.dart';
 import '../../../../services/supabase_service.dart';
 import '../data/anchor_agent_model.dart';
-import 'agent_transfer_screen.dart';
 import 'agency_exit_screen.dart';
 import 'agency_item_detail_screen.dart';
 import '../../../../services/dynamic_config_service.dart';
@@ -320,19 +319,6 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       ),
                       tooltip: isAr ? 'قوانين الوكالة' : 'Rules',
                       onPressed: () => _showRulesDialog(isAr),
-                    ),
-                    // Transfer icon
-                    IconButton(
-                      icon: const Icon(Icons.swap_horiz, color: Color(0xFFFFD700), size: 26),
-                      tooltip: isAr ? 'تحويل الرصيد' : 'Transfer',
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AgentTransferScreen(agentInfo: _agentInfo),
-                          ),
-                        );
-                      },
                     ),
                     // Exit / Delete Agency icon
                     IconButton(
@@ -785,16 +771,6 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   onSelected: (action) => _handleMemberAction(anchor, action, isAr),
                   itemBuilder: (ctx) => [
                     PopupMenuItem(
-                      value: 'transfer',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.swap_horiz, color: Color(0xFFFFD700), size: 18),
-                          const SizedBox(width: 8),
-                          Text(isAr ? 'تحويل كوينز' : 'Transfer Coins', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
                       value: 'role',
                       child: Row(
                         children: [
@@ -830,14 +806,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
   void _handleMemberAction(AnchorAgentUserInfoDataModel anchor, String action, bool isAr) async {
     final agencyId = _agentInfo?.agencyId ?? widget.agencyId ?? '';
-    if (action == 'transfer') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AgentTransferScreen(agentInfo: _agentInfo),
-        ),
-      );
-    } else if (action == 'role') {
+    if (action == 'role') {
       final newRole = anchor.role == 'supervisor' ? 'host' : 'supervisor';
       final label = newRole == 'supervisor' ? (isAr ? 'ترقية إلى مشرف' : 'Promote to Admin') : (isAr ? 'تنزيل إلى مضيف' : 'Demote to Host');
       final ok = await showDialog<bool>(

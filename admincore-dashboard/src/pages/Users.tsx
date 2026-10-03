@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { UserModel } from '../types';
-import { getUsers, deleteUser, updateUser, updateUserPassword, getAuthUsers, getAuthUser, syncAllAuthUsersToDB } from '../lib/db';
+import { getUsers, deleteUser, updateUser, updateUserPassword, getAuthUsers, getAuthUser, syncAllAuthUsersToDB, sendSystemNotification } from '../lib/db';
 import { uploadUserPhoto } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
@@ -20,6 +20,7 @@ export default function UsersPage() {
   const [banReason, setBanReason] = useState('');
   const [activeTab, setActiveTab] = useState<'info' | 'levels' | 'currency' | 'network'>('info');
   const [msg, setMsg] = useState('');
+  const [rechargeInput, setRechargeInput] = useState('1');
 
   const loadUsers = async () => {
     setLoading(true);
@@ -38,6 +39,29 @@ export default function UsersPage() {
   }, []);
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(''), 3000); };
+
+  const handleRechargeUserCoins = async (amount: number) => {
+    if (!editing || amount <= 0) return;
+    try {
+      const currentCoins = Number(editing.coins || 0);
+      const newCoins = currentCoins + amount;
+      await updateUser(editing.uid, { coins: newCoins });
+      const updated = { ...editing, coins: newCoins };
+      setEditing(updated);
+      setUsers(prev => prev.map(u => u.uid === editing.uid ? updated : u));
+      await sendSystemNotification({
+        userId: editing.uid,
+        title: '🪙 شحن رصيد عملات لحسابك',
+        body: `مبروك! تم شحن ${amount.toLocaleString()} عملة ذهبية لحسابك بنجاح من قبل الإدارة. رصيدك الحالي الآن: ${newCoins.toLocaleString()} عملة.`,
+        type: 'system',
+        action: 'coins_recharged',
+        extraData: { amount, new_balance: newCoins },
+      });
+      showMsg(`✅ تم شحن ${amount.toLocaleString()} كوينز للمستخدم وإرسال إشعار فوري له بنجاح!`);
+    } catch (e: any) {
+      showMsg('⚠️ فشل الشحن: ' + (e?.message || e));
+    }
+  };
 
   const handleSyncUsers = async () => {
     if (!confirm('This will create user records in database for all auth users who don\'t have them yet. Continue?')) return;
@@ -361,27 +385,64 @@ export default function UsersPage() {
 
             {/* Tab: Currency */}
             {activeTab === 'currency' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-[10px] uppercase text-amber-400 font-bold mb-1 flex items-center gap-1"><Coins className="w-3 h-3" /> Coins</label>
-                  <div className="flex gap-1 mb-1">
-                    <button onClick={() => handleUpdate('coins', editing.coins + 100)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+100</button>
-                    <button onClick={() => handleUpdate('coins', editing.coins + 1000)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+1K</button>
-                    <button onClick={() => handleUpdate('coins', editing.coins + 10000)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+10K</button>
-                    <button onClick={() => handleUpdate('coins', editing.coins + 100000)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+100K</button>
-                    <button onClick={() => handleUpdate('coins', editing.coins + 1000000)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+1M</button>
+              <div className="space-y-6">
+                {/* Recharge Box */}
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                      <Coins className="w-4 h-4" /> شحن رصيد كوينز للمستخدم مع إرسال إشعار فوري (1 عملة = 1 عملة)
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      الرصيد الحالي: <strong className="text-amber-300 font-mono">{(editing.coins ?? 0).toLocaleString()}</strong> 🪙
+                    </span>
                   </div>
-                  <input type="number" value={String(editing.coins ?? 0)} onChange={e => handleUpdate('coins', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[1, 10, 100, 1000, 10000, 50000, 100000].map(val => (
+                      <button
+                        key={val}
+                        onClick={() => handleRechargeUserCoins(val)}
+                        className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        +{val >= 1000 ? `${val / 1000}K` : val}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="number"
+                      min="1"
+                      value={rechargeInput}
+                      onChange={e => setRechargeInput(e.target.value)}
+                      placeholder="كمية الشحن المخصصة (مثال: 1)"
+                      className="w-48 bg-[#161618] border border-amber-500/30 rounded-lg py-1.5 px-3 text-xs text-white font-mono"
+                    />
+                    <button
+                      onClick={() => {
+                        const amt = parseInt(rechargeInput) || 0;
+                        if (amt > 0) handleRechargeUserCoins(amt);
+                      }}
+                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-md transition-colors"
+                    >
+                      تأكيد الشحن فوراً 🪙
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] uppercase text-cyan-400 font-bold mb-1 flex items-center gap-1"><Gem className="w-3 h-3" /> Diamonds</label>
-                  <div className="flex gap-1 mb-1">
-                    <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10</button>
-                    <button onClick={() => handleUpdate('diamonds', editing.diamonds + 100)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+100</button>
-                    <button onClick={() => handleUpdate('diamonds', editing.diamonds + 1000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+1K</button>
-                    <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10K</button>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] uppercase text-amber-400 font-bold mb-1 flex items-center gap-1"><Coins className="w-3 h-3" /> تعديل الرصيد الإجمالي يدوياً (Coins)</label>
+                    <input type="number" value={String(editing.coins ?? 0)} onChange={e => handleUpdate('coins', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
                   </div>
-                  <input type="number" value={String(editing.diamonds ?? 0)} onChange={e => handleUpdate('diamonds', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
+                  <div>
+                    <label className="block text-[10px] uppercase text-cyan-400 font-bold mb-1 flex items-center gap-1"><Gem className="w-3 h-3" /> تعديل الألماس (Diamonds)</label>
+                    <div className="flex gap-1 mb-1">
+                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10</button>
+                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 100)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+100</button>
+                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 1000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+1K</button>
+                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10K</button>
+                    </div>
+                    <input type="number" value={String(editing.diamonds ?? 0)} onChange={e => handleUpdate('diamonds', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
+                  </div>
                 </div>
               </div>
             )}

@@ -183,7 +183,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const [tier, setTier] = useState('bronze');
   const [photoUrl, setPhotoUrl] = useState('');
   const [isActive, setIsActive] = useState(true);
-  const [sendInviteMode, setSendInviteMode] = useState(false);
+  const [sendInviteMode, setSendInviteMode] = useState(true);
   const [resolvedOwnerUser, setResolvedOwnerUser] = useState<any>(null);
 
   const load = () => { setLoading(true); getHostAgencies().then(d => { setAgencies(d); setLoading(false); }); };
@@ -192,7 +192,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const resetForm = () => {
     setEditId(null); setName(''); setOwnerId(''); setCommissionRate('10');
     setSpecialty('mixed'); setTier('bronze'); setDescription(''); setCountry(''); setPhotoUrl('');
-    setIsActive(true); setSendInviteMode(false); setResolvedOwnerUser(null);
+    setIsActive(true); setSendInviteMode(true); setResolvedOwnerUser(null);
   };
 
   const openEdit = (a: HostAgencyModel) => {
@@ -1435,6 +1435,7 @@ function RechargeAgenciesTab() {
       recharge_agency_logo: agencyLogo.trim() || undefined,
       whatsapp_number: whatsappPhone.trim() || undefined,
       coins: parseInt(initialCoins) || 0,
+      coinsMode: 'set',
       recharge_commission_rate: parseFloat(rechargeCommissionRate) || 5,
       adminName,
     });
@@ -1463,6 +1464,7 @@ function RechargeAgenciesTab() {
       recharge_agency_logo: editLogo.trim() || undefined,
       whatsapp_number: editWhatsapp.trim() || undefined,
       coins: parseInt(editCoins) || 0,
+      coinsMode: 'set',
       recharge_commission_rate: parseFloat(editCommissionRate) || 5,
       adminName,
     });

@@ -146,20 +146,20 @@ class _GiftPanelState extends State<GiftPanel> {
       return _gifts;
     }
     final sel = _selectedCategoryId!.toLowerCase();
-    if (sel == 'lucky' || sel.contains('حظ')) {
-      return _gifts.where((g) => g.isLucky || g.giftType == 3 || g.categoryId == 'lucky' || (g.categoryId?.toLowerCase().contains('حظ') ?? false)).toList();
-    }
-    if (sel == 'luxury' || sel == 'vip' || sel.contains('فاخر')) {
-      return _gifts.where((g) => g.isVap || g.bigEffect || g.giftType == 2 || g.categoryId == 'vip' || g.categoryId == 'luxury' || (g.categoryId?.toLowerCase().contains('فاخر') ?? false)).toList();
-    }
-    if (sel == 'cp' || sel.contains('ارتباط')) {
-      return _gifts.where((g) => g.isCpGift || g.giftType == 5 || g.categoryId == 'cp' || (g.categoryId?.toLowerCase().contains('ارتباط') ?? false)).toList();
-    }
-    if (sel == 'normal' || sel == 'popular' || sel.contains('شائع') || sel.contains('عادي')) {
-      return _gifts.where((g) => (g.giftType == 1 && !g.isLucky && !g.isCpGift) || g.categoryId == 'normal' || g.categoryId == 'popular' || (g.categoryId?.toLowerCase().contains('شائع') ?? false) || (g.categoryId?.toLowerCase().contains('عادي') ?? false)).toList();
-    }
     if (sel == 'backpack' || sel.contains('حقيبة')) {
       return _gifts.where((g) => g.packageCount > 0 || g.giftType == 4 || g.categoryId == 'backpack' || (g.categoryId?.toLowerCase().contains('حقيبة') ?? false)).toList();
+    }
+    if (sel == 'lucky') {
+      return _gifts.where((g) => g.isLucky || g.giftType == 3 || g.categoryId == 'lucky' || (g.categoryId?.toLowerCase().contains('حظ') ?? false)).toList();
+    }
+    if (sel == 'luxury' || sel == 'vip') {
+      return _gifts.where((g) => g.isVap || g.bigEffect || g.giftType == 2 || g.categoryId == 'vip' || g.categoryId == 'luxury' || (g.categoryId?.toLowerCase().contains('فاخر') ?? false)).toList();
+    }
+    if (sel == 'cp') {
+      return _gifts.where((g) => g.isCpGift || g.giftType == 5 || g.categoryId == 'cp' || (g.categoryId?.toLowerCase().contains('ارتباط') ?? false)).toList();
+    }
+    if (sel == 'normal' || sel == 'popular') {
+      return _gifts.where((g) => (g.giftType == 1 && !g.isLucky && !g.isCpGift) || g.categoryId == 'normal' || g.categoryId == 'popular' || (g.categoryId?.toLowerCase().contains('شائع') ?? false) || (g.categoryId?.toLowerCase().contains('عادي') ?? false)).toList();
     }
     return _gifts.where((g) => g.categoryId == _selectedCategoryId || (g.categoryId != null && g.categoryId!.toLowerCase() == sel)).toList();
   }
@@ -274,23 +274,27 @@ class _GiftPanelState extends State<GiftPanel> {
   Widget _buildHeader(DynamicConfigService dc) {
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     final users = widget.targetUsers;
-    final allTabs = [
-      GiftCategory(id: 'all', name: isAr ? 'الكل' : 'All', sortOrder: -5),
-      GiftCategory(id: 'normal', name: isAr ? 'شائع' : 'Popular', sortOrder: -4),
-      if (_gifts.any((g) => g.isVap || g.bigEffect || g.giftType == 2 || g.categoryId == 'luxury' || g.categoryId == 'vip'))
-        GiftCategory(id: 'luxury', name: isAr ? '👑 فاخر' : '👑 Luxury', sortOrder: -3),
-      if (_gifts.any((g) => g.isLucky || g.giftType == 3 || g.categoryId == 'lucky'))
-        GiftCategory(id: 'lucky', name: isAr ? '🍀 الحظ' : '🍀 Lucky', sortOrder: -2),
-      if (_gifts.any((g) => g.isCpGift || g.giftType == 5 || g.categoryId == 'cp'))
-        GiftCategory(id: 'cp', name: isAr ? '💍 الارتباط' : '💍 CP', sortOrder: -1),
-      GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 0),
-      ..._categories.where((c) {
-        final id = c.id.toLowerCase();
-        final name = c.name.toLowerCase();
-        return !['all', 'normal', 'luxury', 'vip', 'lucky', 'cp', 'backpack'].contains(id) &&
-               !name.contains('شائع') && !name.contains('فاخر') && !name.contains('حظ') && !name.contains('ارتباط') && !name.contains('حقيبة');
-      }),
-    ];
+    final List<GiftCategory> allTabs = [];
+    allTabs.add(GiftCategory(id: 'all', name: isAr ? 'الكل' : 'All', sortOrder: -999));
+
+    if (_categories.isNotEmpty) {
+      final sorted = List<GiftCategory>.from(_categories)..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      for (final c in sorted) {
+        if (c.id.toLowerCase() == 'all') continue;
+        allTabs.add(c);
+      }
+      if (!allTabs.any((t) => t.id.toLowerCase() == 'backpack' || t.name.toLowerCase().contains('حقيبة'))) {
+        allTabs.add(GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 999));
+      }
+    } else {
+      allTabs.addAll([
+        GiftCategory(id: 'normal', name: isAr ? 'شائع' : 'Popular', sortOrder: 1),
+        GiftCategory(id: 'luxury', name: isAr ? '👑 فاخر' : '👑 Luxury', sortOrder: 2),
+        GiftCategory(id: 'lucky', name: isAr ? '🍀 الحظ' : '🍀 Lucky', sortOrder: 3),
+        GiftCategory(id: 'cp', name: isAr ? '💍 الارتباط' : '💍 CP', sortOrder: 4),
+        GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 5),
+      ]);
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),

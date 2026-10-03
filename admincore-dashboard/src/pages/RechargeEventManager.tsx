@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getAppConfig, updateAppConfig } from '../lib/db';
+import { getAppConfig, updateAppConfig, sendSystemNotification } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { uploadAppAsset } from '../lib/storage';
 import { 
@@ -290,11 +290,21 @@ export default function RechargeEventManager() {
     try {
       const { data: userRow } = await supabase.from('users').select('coins').eq('uid', quickRechargeUid).maybeSingle();
       const currentCoins = Number(userRow?.coins || 0);
+      const newCoins = currentCoins + amount;
       await supabase.from('users').update({
-        coins: currentCoins + amount,
+        coins: newCoins,
       }).eq('uid', quickRechargeUid);
 
-      showNotification(`🎉 تم شحن ${amount.toLocaleString()} كوينز للمستخدم وتحديث رصيده بنجاح!`);
+      await sendSystemNotification({
+        userId: quickRechargeUid,
+        title: '🪙 شحن رصيد عملات لحسابك',
+        body: `مبروك! تم شحن ${amount.toLocaleString()} عملة ذهبية لحسابك بنجاح. رصيدك الحالي: ${newCoins.toLocaleString()} عملة.`,
+        type: 'system',
+        action: 'coins_recharged',
+        extraData: { amount, new_balance: newCoins },
+      });
+
+      showNotification(`🎉 تم شحن ${amount.toLocaleString()} كوينز للمستخدم وإرسال إشعار فوري له بنجاح!`);
       setShowQuickRechargeModal(false);
       setQuickRechargeUid('');
       loadLeaderboard();

@@ -2835,33 +2835,67 @@ class FirebaseService {
         ? carItem
         : ((entranceItem != null && entranceItem.isNotEmpty) ? entranceItem : '');
     final text = (carItem != null && carItem.isNotEmpty)
-        ? '$name entered with car'
-        : '$name entered the room';
+        ? 'انضم $name إلى الغرفة بسيارة'
+        : 'انضم $name إلى الغرفة';
 
-    await _db.collection('room_messages').doc(const Uuid().v4()).set({
-      'msg_id': const Uuid().v4(),
-      'room_id': roomId,
-      'sender_uid': uid,
-      'sender_name': name,
-      'sender_photo_url': photoUrl,
-      'text': text,
-      'type': 'entrance',
-      'image_url': primaryAsset,
-      'created_at': now,
-    });
+    final msg = MessageModel(
+      msgId: const Uuid().v4(),
+      roomId: roomId,
+      senderUid: uid,
+      senderName: name,
+      senderPhotoUrl: photoUrl,
+      text: text,
+      type: 'entrance',
+      imageUrl: primaryAsset,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    unawaited(SupabaseDataService().sendMessage(msg));
+
+    try {
+      await _db.collection('room_messages').doc(msg.msgId).set({
+        'msg_id': msg.msgId,
+        'room_id': roomId,
+        'sender_uid': uid,
+        'sender_name': name,
+        'sender_photo_url': photoUrl,
+        'text': text,
+        'type': 'entrance',
+        'image_url': primaryAsset,
+        'created_at': now,
+      });
+    } catch (_) {}
   }
 
   Future<void> logExit(String roomId, String name) async {
-    await _db.collection('room_messages').doc(const Uuid().v4()).set({
-      'msg_id': const Uuid().v4(),
-      'room_id': roomId,
-      'sender_uid': '',
-      'sender_name': name,
-      'sender_photo_url': '',
-      'text': '$name left the room',
-      'type': 'entrance',
-      'created_at': _now(),
-    });
+    final now = _now();
+    final text = '$name غادر الغرفة';
+    final msg = MessageModel(
+      msgId: const Uuid().v4(),
+      roomId: roomId,
+      senderUid: '',
+      senderName: name,
+      senderPhotoUrl: '',
+      text: text,
+      type: 'entrance',
+      imageUrl: '',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    unawaited(SupabaseDataService().sendMessage(msg));
+
+    try {
+      await _db.collection('room_messages').doc(msg.msgId).set({
+        'msg_id': msg.msgId,
+        'room_id': roomId,
+        'sender_uid': '',
+        'sender_name': name,
+        'sender_photo_url': '',
+        'text': text,
+        'type': 'entrance',
+        'created_at': now,
+      });
+    } catch (_) {}
   }
 
   Stream<List<Map<String, dynamic>>> entrancesStream(String roomId) {

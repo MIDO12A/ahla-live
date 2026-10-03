@@ -1220,8 +1220,30 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             } catch (_) {}
           } else if (m.type == 'entrance') {
             final isExit = m.text.contains('left') || m.text.contains('غادر');
-            if (!isExit && m.senderUid != _currentUserId) {
-              _showMemberEnterBanner(m.senderName, m.senderPhotoUrl);
+            if (!isExit) {
+              if (m.senderUid != _currentUserId) {
+                _showMemberEnterBanner(m.senderName, m.senderPhotoUrl);
+              }
+              final imgUrl = m.imageUrl ?? '';
+              if (imgUrl.isNotEmpty) {
+                final entranceKey = '${m.senderUid}_${imgUrl}_${m.timestamp}';
+                if (!_seenEntranceIds.contains(entranceKey)) {
+                  _seenEntranceIds.add(entranceKey);
+                  final storeItem = _storeItemsIndex[imgUrl];
+                  final entryData = {
+                    'uid': m.senderUid,
+                    'name': m.senderName,
+                    'photoUrl': m.senderPhotoUrl,
+                    'entranceItem': imgUrl,
+                    'timestamp': m.timestamp,
+                  };
+                  if (storeItem != null) {
+                    _playEntranceEffect(entryData, storeItem, m.senderUid);
+                  } else {
+                    _playEntranceEffectRaw(entryData, imgUrl);
+                  }
+                }
+              }
             }
           } else if (m.type == 'room_kick' && m.giftPayload != null) {
             final kickedUid = m.giftPayload!['kickedUid']?.toString();

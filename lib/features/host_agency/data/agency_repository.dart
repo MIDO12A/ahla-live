@@ -141,6 +141,30 @@ abstract final class AgencyRepository {
         'role': 'host',
         'status': 'pending',
       });
+      try {
+        final agRow = await _sb.from('host_agencies').select('owner_id, name').eq('id', agencyId).maybeSingle();
+        final ownerId = agRow?['owner_id']?.toString() ?? '';
+        final agName = agRow?['name']?.toString() ?? 'وكالتك';
+        if (ownerId.isNotEmpty && ownerId != uid) {
+          final uRow = await _sb.from('users').select('name, custom_id').eq('id', uid).maybeSingle();
+          final uName = uRow?['name']?.toString() ?? 'مستخدم';
+          final cId = uRow?['custom_id']?.toString() ?? '';
+          await _sb.from('notifications').insert({
+            'uid': ownerId,
+            'target': ownerId,
+            'type': 'agency_host_request',
+            'actor_uid': uid,
+            'title': 'طلب انضمام مضيف جديد إلى وكالتك 📝',
+            'body': 'قدم المضيف [$uName] (معرف: $cId) طلباً للانضمام إلى وكالتك [$agName].',
+            'data': {
+              'action': 'host_join_request',
+              'agency_id': agencyId,
+              'applicant_uid': uid,
+              'applicant_name': uName,
+            },
+          });
+        }
+      } catch (_) {}
     }
   }
 

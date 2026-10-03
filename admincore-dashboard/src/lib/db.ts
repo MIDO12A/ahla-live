@@ -434,7 +434,11 @@ const BASE_GIFT_COLUMNS = new Set([
   'id', 'name', 'value', 'icon_asset', 'animation_asset',
   'is_vap', 'is_lucky', 'is_star', 'is_music',
   'package_count', 'sort_order', 'name_key', 'photo_key',
-  'default_image', 'wealth_xp', 'gems_xp'
+  'default_image', 'wealth_xp', 'gems_xp',
+  'category_id', 'category', 'type', 'is_cp_gift',
+  'cp_gift_duration_hours', 'duration_type', 'duration_value',
+  'lucky_rtp', 'lucky_max_multiplier', 'lucky_burst', 'lucky_display_mode',
+  'receiver_name_key', 'receiver_photo_key', 'count_key'
 ]);
 
 export async function updateGift(id: string, data: Partial<GiftModel>) {
@@ -1738,10 +1742,16 @@ export async function sendSystemNotification(data: {
 }): Promise<boolean> {
   try {
     const client = getAdminSupabase() || supabase;
-    const payload = {
+    const payload: Record<string, unknown> = {
       title: data.title || 'إشعار من الإدارة',
       body: data.body || '',
       target: data.userId || 'all',
+      uid: data.userId && data.userId !== 'all' ? data.userId : null,
+      type: data.type || (data.action ? data.action : 'system'),
+      data: {
+        ...(data.extraData || {}),
+        action: data.action || data.type || 'system',
+      },
       sent_at: new Date().toISOString(),
     };
     await client.from('notifications').insert(payload);
@@ -1882,6 +1892,7 @@ export async function updateRechargeAgency(userId: string, data: {
   recharge_agency_logo?: string;
   whatsapp_number?: string;
   coins?: number;
+  coinsMode?: 'set' | 'add';
   recharge_commission_rate?: number;
   adminName?: string;
 }): Promise<boolean> {
@@ -1908,9 +1919,13 @@ export async function updateRechargeAgency(userId: string, data: {
       updated_at: nowIso,
     };
 
-    if (data.coins && data.coins > 0) {
-      const currentCoins = u ? u.coins : 0;
-      userUpdate.coins = currentCoins + data.coins;
+    if (data.coins !== undefined && data.coins >= 0) {
+      if (data.coinsMode === 'add') {
+        const currentCoins = u ? u.coins : 0;
+        userUpdate.coins = currentCoins + data.coins;
+      } else {
+        userUpdate.coins = data.coins;
+      }
     }
 
     // Write to users in Supabase
