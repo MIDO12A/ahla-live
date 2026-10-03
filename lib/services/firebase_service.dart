@@ -446,11 +446,26 @@ class FirebaseService {
   }
 
   Stream<List<UserModel>> roomMembersStream(String roomId) {
-    return _db
-        .collection('room_members')
-        .where('room_id', isEqualTo: roomId)
-        .snapshots()
-        .map((snap) => snap.docs.map((e) => UserModel.fromMap(_data(e))).toList());
+    final controller = StreamController<List<UserModel>>.broadcast();
+    Timer? pollTimer;
+
+    void fetchSupabase() async {
+      try {
+        final members = await SupabaseDataService().getRoomMembers(roomId);
+        if (!controller.isClosed) {
+          controller.add(members);
+        }
+      } catch (_) {}
+    }
+
+    fetchSupabase();
+    pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => fetchSupabase());
+
+    controller.onCancel = () {
+      pollTimer?.cancel();
+    };
+
+    return controller.stream;
   }
 
   // ═══════════════════════════════════════════════════════
@@ -524,6 +539,7 @@ class FirebaseService {
     final controller = StreamController<Map<int, Map<String, dynamic>>>.broadcast();
     Timer? pollTimer;
     Map<int, Map<String, dynamic>> lastMap = {};
+    bool hasEmitted = false;
 
     bool areMapsEqual(Map<int, Map<String, dynamic>> a, Map<int, Map<String, dynamic>> b) {
       if (a.length != b.length) return false;
@@ -533,8 +549,11 @@ class FirebaseService {
         final vB = b[k]!;
         if (vA['uid'] != vB['uid'] ||
             vA['is_muted'] != vB['is_muted'] ||
+            vA['is_locked'] != vB['is_locked'] ||
             vA['name'] != vB['name'] ||
-            vA['photo_url'] != vB['photo_url']) {
+            vA['photo_url'] != vB['photo_url'] ||
+            vA['active_frame'] != vB['active_frame'] ||
+            vA['active_car'] != vB['active_car']) {
           return false;
         }
       }
@@ -543,26 +562,10 @@ class FirebaseService {
 
     void fetchSupabase() async {
       try {
-        var seats = await SupabaseDataService().getSeats(roomId);
-        if (seats.isEmpty) {
-          try {
-            final snap = await _db
-                .collection('room_seats')
-                .where('room_id', isEqualTo: roomId)
-                .get();
-            final fsMap = <int, Map<String, dynamic>>{};
-            for (final doc in snap.docs) {
-              final d = _data(doc);
-              final idx = (d['seat_index'] as num?)?.toInt() ?? 0;
-              fsMap[idx] = d;
-            }
-            if (fsMap.isNotEmpty) {
-              seats = fsMap;
-            }
-          } catch (_) {}
-        }
+        final seats = await SupabaseDataService().getSeats(roomId);
         if (!controller.isClosed) {
-          if (!areMapsEqual(lastMap, seats)) {
+          if (!hasEmitted || !areMapsEqual(lastMap, seats)) {
+            hasEmitted = true;
             lastMap = Map<int, Map<String, dynamic>>.from(seats);
             controller.add(seats);
           }
@@ -607,45 +610,35 @@ class FirebaseService {
   Stream<List<MessageModel>> messagesStream(String roomId, {String? since}) {
     final controller = StreamController<List<MessageModel>>.broadcast();
     Timer? pollTimer;
+    final Map<String, MessageModel> msgMap = {};
 
     void fetchSupabase() async {
       try {
         final sinceMs = since != null ? DateTime.tryParse(since)?.millisecondsSinceEpoch : null;
         final list = await SupabaseDataService().getRoomMessages(roomId, limit: 60, sinceMs: sinceMs);
-        if (list.isNotEmpty && !controller.isClosed) {
-          controller.add(list);
+        if (!controller.isClosed) {
+          bool hasNew = false;
+          for (final m in list) {
+            final key = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}';
+            if (!msgMap.containsKey(key)) {
+              msgMap[key] = m;
+              hasNew = true;
+            }
+          }
+          if (hasNew || msgMap.isNotEmpty) {
+            final sorted = msgMap.values.toList()
+              ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+            controller.add(sorted);
+          }
         }
       } catch (_) {}
     }
 
     fetchSupabase();
-    pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => fetchSupabase());
-
-    StreamSubscription? firestoreSub;
-    try {
-      firestoreSub = _db
-          .collection('room_messages')
-          .where('room_id', isEqualTo: roomId)
-          .snapshots()
-          .listen((snap) {
-        if (!controller.isClosed) {
-          var msgs = snap.docs.map((e) => MessageModel.fromMap(_data(e))).toList();
-          if (since != null) {
-            final sinceMs = DateTime.tryParse(since)?.millisecondsSinceEpoch ?? 0;
-            msgs = msgs.where((m) => m.timestamp >= sinceMs).toList();
-          }
-          msgs.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-          if (msgs.length > 60) {
-            msgs = msgs.sublist(msgs.length - 60);
-          }
-          controller.add(msgs);
-        }
-      }, onError: (_) {});
-    } catch (_) {}
+    pollTimer = Timer.periodic(const Duration(milliseconds: 1000), (_) => fetchSupabase());
 
     controller.onCancel = () {
       pollTimer?.cancel();
-      firestoreSub?.cancel();
     };
 
     return controller.stream;

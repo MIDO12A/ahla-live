@@ -208,14 +208,10 @@ class SupabaseDataService {
         'room_id': roomId,
         'seat_index': seatIndex,
         'uid': user.uid,
-        'custom_id': user.customId,
         'name': user.name,
         'photo_url': user.photoUrl,
         'active_frame': user.activeFrame,
         'active_car': user.activeCar,
-        'gender': user.gender,
-        'country': user.country,
-        'country_code': user.country.toLowerCase(),
         'is_muted': false,
         'is_locked': false,
         'taken_at': DateTime.now().toUtc().toIso8601String(),
@@ -359,7 +355,10 @@ class SupabaseDataService {
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
-        return list.map((e) => UserModel.fromMap(e as Map<String, dynamic>)).toList();
+        return list.map((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          return UserModel.fromMap(m);
+        }).toList();
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getRoomMembers error: $e');
@@ -410,7 +409,7 @@ class SupabaseDataService {
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final messages = list.map((e) {
-          final m = e as Map<String, dynamic>;
+          final m = Map<String, dynamic>.from(e as Map);
           final createdIso = m['created_at']?.toString() ?? '';
           final ts = DateTime.tryParse(createdIso)?.millisecondsSinceEpoch ?? 0;
           return MessageModel(

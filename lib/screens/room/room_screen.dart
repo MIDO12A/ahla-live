@@ -887,6 +887,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   final Map<String?, int> _giftReceiverTotals = {};
   StreamSubscription? _giftSub;
   StreamSubscription? _seatsSub;
+  StreamSubscription? _membersSub;
+  List<app.UserModel> _roomMembers = [];
   StreamSubscription? _roomSub;
   StreamSubscription? _giftCacheSub;
   StreamSubscription? _bannerConfigSub;
@@ -1223,8 +1225,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
       if (mounted) {
         final clearedAt = _currentRoom?.chatClearedAt ?? 0;
-        final filterTime = max(joinedMs - 5000, clearedAt);
-        final currentSessionMsgs = msgs.where((m) => m.timestamp >= filterTime).toList();
+        final currentSessionMsgs = clearedAt > 0
+            ? msgs.where((m) => m.timestamp > clearedAt).toList()
+            : msgs;
         _chatMessages
           ..clear()
           ..addAll(currentSessionMsgs);
@@ -1513,6 +1516,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     // Sync seats from Firebase in real time
     _seatsSub = _firebaseService.seatsStream(widget.roomId).listen((seatMap) {
       _processSeatMap(seatMap);
+    });
+
+    // Sync room members in real time
+    _membersSub = _firebaseService.roomMembersStream(widget.roomId).listen((members) {
+      if (mounted) {
+        setState(() {
+          _roomMembers = members;
+          _onlineCount = max(members.length, _seats.where((s) => s.isOccupied).length);
+        });
+      }
     });
 
     // Periodic refresh as fallback in case Realtime misses updates
@@ -2000,6 +2013,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _chatScroll.dispose();
     _giftSub?.cancel();
     _seatsSub?.cancel();
+    _membersSub?.cancel();
     _seatsRefreshTimer?.cancel();
     _presencePingTimer?.cancel();
     _giftAnimWatchdog?.cancel();
@@ -5277,10 +5291,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final currentUserId = _currentUserId ?? '';
         final seatedUserIds = occupiedSeats.map((s) => s.user!.id).toSet();
 
-        // Combine seated users and current user if not seated
+        // Combine seated users and all room members
         final displayUsers = <Map<String, dynamic>>[];
+        final seenUids = <String>{};
+
         for (final seat in occupiedSeats) {
           final u = seat.user!;
+          if (u.id != null) seenUids.add(u.id!);
           displayUsers.add({
             'user': u,
             'isOnMic': true,
@@ -5288,8 +5305,30 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             'seatIndex': seat.index,
           });
         }
+
+        // Add other room members
+        for (final m in _roomMembers) {
+          if (m.uid.isNotEmpty && !seenUids.contains(m.uid)) {
+            seenUids.add(m.uid);
+            displayUsers.add({
+              'user': UserModel(
+                id: m.uid,
+                name: m.name.isNotEmpty ? m.name : 'مستخدم',
+                avatar: m.photoUrl,
+                level: m.level,
+                customId: m.customId,
+                country: m.country,
+                gender: m.gender,
+              ),
+              'isOnMic': false,
+              'isMuted': false,
+              'seatIndex': -1,
+            });
+          }
+        }
+
         final currentUser = Provider.of<UserProvider>(context, listen: false).currentUser;
-        if (currentUser != null && !seatedUserIds.contains(currentUser.uid)) {
+        if (currentUser != null && !seenUids.contains(currentUser.uid)) {
           displayUsers.add({
             'user': UserModel(
               id: currentUser.uid,
@@ -5298,6 +5337,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               level: currentUser.level,
               customId: currentUser.customId,
               country: currentUser.country,
+              gender: currentUser.gender,
             ),
             'isOnMic': false,
             'isMuted': false,
@@ -5359,7 +5399,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           final u = item['user'] as UserModel;
                           final bool isOnMic = item['isOnMic'] as bool;
                           final bool isMuted = item['isMuted'] as bool;
-                          final bool isMale = true; // default
+                          final bool isMale = u.gender != 'female';
 
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 10),
