@@ -1742,6 +1742,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _processSeatMap(Map<int, Map<String, dynamic>> seatMap) {
     if (!mounted) return;
+    final currentUser = Provider.of<UserProvider>(context, listen: false).currentUser;
     // Skip no-op ticks to eliminate seat shaking / flickering
     if (_areSeatMapsEqual(_lastProcessedSeatMap, seatMap) && !_takingSeat) {
       return;

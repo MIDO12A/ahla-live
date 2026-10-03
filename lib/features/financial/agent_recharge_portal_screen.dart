@@ -1,3 +1,4 @@
+import '../../services/supabase_data_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -82,25 +83,18 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
     // 1. Direct Supabase 'users' table check (fastest and most reliable)
     if (uid != null) {
       try {
-        final sbUser = await Supabase.instance.client
-            .from('users')
-            .select('*')
-            .or('uid.eq.$uid,id.eq.$uid')
-            .maybeSingle();
+        final sbUser = await SupabaseDataService().getUser(uid);
 
         if (sbUser != null) {
-          final isAgent = sbUser['is_recharge_agent'] == true ||
-              sbUser['is_agent'] == true ||
-              sbUser['role'] == 'recharge_agent' ||
-              sbUser['role'] == 'agent';
+          final isAgent = sbUser.isRechargeAgent;
 
           if (isAgent && mounted) {
-            final coins = (sbUser['coins'] as num?)?.toInt() ?? user?.coins ?? 0;
-            final customId = sbUser['custom_id']?.toString() ?? user?.customId ?? uid;
-            final pin = sbUser['agent_pin']?.toString();
+            final coins = sbUser.coins;
+            final customId = sbUser.customId.isNotEmpty ? sbUser.customId : uid;
+            final pin = null;
 
             if (user != null && !user.isRechargeAgent) {
-              userProvider.setUser(user.copyWith(isRechargeAgent: true, coins: coins));
+              userProvider.setUser(sbUser);
             }
 
             setState(() {

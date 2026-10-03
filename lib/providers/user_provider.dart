@@ -22,6 +22,11 @@ class UserProvider extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
 
+  void setUser(UserModel user) {
+    _currentUser = user;
+    notifyListeners();
+  }
+
   void startListening(String uid) {
     _userSub?.cancel();
     _userSub = _supabaseService.userStream(uid).listen((user) {

@@ -1143,6 +1143,59 @@ class SupabaseDataService {
     return [];
   }
 
+  Future<int?> getGiftCpDurationHours(String giftId) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gifts?id=eq.$giftId&select=cp_gift_duration_hours');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        if (list.isNotEmpty && list[0]['cp_gift_duration_hours'] != null) {
+          final val = (list[0]['cp_gift_duration_hours'] as num).toInt();
+          if (val > 0) return val;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> getHostAgencyForUser(String uid, {String? agencyId}) async {
+    try {
+      if (agencyId != null && agencyId.isNotEmpty) {
+        final url = Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId&select=*&limit=1');
+        final res = await http.get(url, headers: _headers);
+        if (res.statusCode == 200) {
+          final List list = jsonDecode(res.body);
+          if (list.isNotEmpty) return Map<String, dynamic>.from(list[0] as Map);
+        }
+      }
+
+      final urlOwner = Uri.parse('$_baseUrl/rest/v1/host_agencies?owner_uid=eq.$uid&select=*&limit=1');
+      final resOwner = await http.get(urlOwner, headers: _headers);
+      if (resOwner.statusCode == 200) {
+        final List list = jsonDecode(resOwner.body);
+        if (list.isNotEmpty) return Map<String, dynamic>.from(list[0] as Map);
+      }
+
+      final urlMem = Uri.parse('$_baseUrl/rest/v1/host_agency_members?host_uid=eq.$uid&select=agency_id&limit=1');
+      final resMem = await http.get(urlMem, headers: _headers);
+      if (resMem.statusCode == 200) {
+        final List list = jsonDecode(resMem.body);
+        if (list.isNotEmpty && list[0]['agency_id'] != null) {
+          final aid = list[0]['agency_id'].toString();
+          final urlAg = Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$aid&select=*&limit=1');
+          final resAg = await http.get(urlAg, headers: _headers);
+          if (resAg.statusCode == 200) {
+            final List agList = jsonDecode(resAg.body);
+            if (agList.isNotEmpty) return Map<String, dynamic>.from(agList[0] as Map);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getHostAgencyForUser error: $e');
+    }
+    return null;
+  }
+
   Future<bool> updateUserCustomId(String uid, String newCustomId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid');

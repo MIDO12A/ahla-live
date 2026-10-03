@@ -522,9 +522,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           'is_host_agent': true,
                                         });
                                         final uProv = Provider.of<UserProvider>(context, listen: false);
-                                        if (uProv.currentUser != null) {
-                                          uProv.setUser(uProv.currentUser!.copyWith(agencyId: agId, isHostAgent: true));
-                                        }
+                                        await uProv.loadUser(currentUid);
                                       } catch (_) {}
 
                                       try {

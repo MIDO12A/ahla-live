@@ -3502,11 +3502,10 @@ class FirebaseService {
     // Fetch from Supabase users & sent_gifts for real leaderboard data
     try {
       final orderCol = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
-      final sbUsers = await Supabase.instance.client
-          .from('users')
-          .select('*')
-          .order(orderCol, ascending: false)
-          .limit(50);
+      final sbUsers = await SupabaseDataService().getUserRanking(
+        orderByField: orderCol,
+        limit: 50,
+      );
       if (sbUsers != null && sbUsers.isNotEmpty) {
         final hasAnyPoints = sbUsers.some((u) => ((u[orderCol] as num?)?.toInt() ?? 0) > 0);
         if (hasAnyPoints || timeframe == 'monthly' || timeframe == 'weekly' || timeframe == 'daily') {
@@ -3703,11 +3702,7 @@ class FirebaseService {
       // If Firestore rooms is empty, fetch real rooms from Supabase
       if (snap.docs.isEmpty) {
         try {
-          final sbRooms = await Supabase.instance.client
-              .from('rooms')
-              .select('*')
-              .order('total_gifts', ascending: false)
-              .limit(limit);
+          final sbRooms = await SupabaseDataService().getRoomRanking(limit: limit);
           if (sbRooms != null && sbRooms.isNotEmpty) {
             final list = sbRooms.map((data) {
               final photo = (data['room_photo_url'] ?? data['photo_url'] ?? data['bg_image'] ?? '').toString();
@@ -3823,35 +3818,7 @@ class FirebaseService {
     try {
       // 0. البحث المباشر في Supabase host_agencies و host_agency_members (الأسرع والأدق)
       try {
-        Map<String, dynamic>? sbAg;
-        if (agencyId != null && agencyId.isNotEmpty) {
-          sbAg = await Supabase.instance.client
-              .from('host_agencies')
-              .select('*')
-              .eq('id', agencyId)
-              .maybeSingle();
-        }
-        if (sbAg == null) {
-          sbAg = await Supabase.instance.client
-              .from('host_agencies')
-              .select('*')
-              .eq('owner_uid', agentUid)
-              .maybeSingle();
-        }
-        if (sbAg == null) {
-          final mem = await Supabase.instance.client
-              .from('host_agency_members')
-              .select('agency_id')
-              .eq('host_uid', agentUid)
-              .maybeSingle();
-          if (mem != null && mem['agency_id'] != null) {
-            sbAg = await Supabase.instance.client
-                .from('host_agencies')
-                .select('*')
-                .eq('id', mem['agency_id'].toString())
-                .maybeSingle();
-          }
-        }
+        final sbAg = await SupabaseDataService().getHostAgencyForUser(agentUid, agencyId: agencyId);
         if (sbAg != null && sbAg['id'] != null) {
           final aid = sbAg['id'].toString();
           return await _buildAgencyDataPayload(aid, sbAg, agentUid);

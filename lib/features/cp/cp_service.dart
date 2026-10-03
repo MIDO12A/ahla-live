@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../services/firebase_service.dart';
+import '../../services/supabase_data_service.dart';
 
 /// CP (Relationships) service backed by Firestore.
 ///
@@ -611,15 +612,9 @@ class CpService {
 
       int finalDurationHours = durationHours;
       try {
-        // Query Supabase gifts table first for configured cp_gift_duration_hours
-        final sbGift = await Supabase.instance.client
-            .from('gifts')
-            .select('cp_gift_duration_hours')
-            .eq('id', giftId)
-            .maybeSingle();
-        if (sbGift != null && sbGift['cp_gift_duration_hours'] != null) {
-          final val = (sbGift['cp_gift_duration_hours'] as num).toInt();
-          if (val > 0) finalDurationHours = val;
+        final dur = await SupabaseDataService().getGiftCpDurationHours(giftId);
+        if (dur != null && dur > 0) {
+          finalDurationHours = dur;
         }
       } catch (_) {}
 
