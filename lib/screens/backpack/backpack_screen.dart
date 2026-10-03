@@ -7,6 +7,7 @@ import '../../providers/user_provider.dart';
 import '../../services/supabase_service.dart';
 import '../mall/mall_screen.dart';
 import '../room/widgets/svga_player.dart';
+import '../room/widgets/vap_player.dart';
 
 class BackpackScreen extends StatefulWidget {
   const BackpackScreen({super.key});
@@ -28,34 +29,58 @@ class _BackpackScreenState extends State<BackpackScreen> {
       'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_head_wear_pre_ic.webp',
     },
     {
-      'key': 'car',
-      'name': 'المركبة',
-      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_nor_ic.webp',
-      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_pre_ic.webp',
-    },
-    {
-      'key': 'entrance',
-      'name': 'مؤثرات الدخول', // الاسم الدقيق لمؤثرات الدخول (TYPE_ENTRANCE)
-      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_entrance_nor_ic.webp',
-      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_entrance_pre_ic.webp',
-    },
-    {
       'key': 'bubble',
       'name': 'الفقاعة',
       'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_bubble_nor_ic.webp',
       'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_bubble_pre_ic.webp',
     },
     {
-      'key': 'gifts',
-      'name': 'الهدايا',
-      'nor_ic': 'assets/mipmap-xxhdpi/mine_union_ic.webp',
-      'pre_ic': 'assets/mipmap-xxhdpi/mine_union_ic.webp',
+      'key': 'entrance',
+      'name': 'مؤثرات الدخول',
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_entrance_nor_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_entrance_pre_ic.webp',
+    },
+    {
+      'key': 'car',
+      'name': 'المركبة',
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_nor_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_pre_ic.webp',
+    },
+    {
+      'key': 'cover',
+      'name': 'غلاف الملف',
+      'nor_ic': 'assets/mipmap-xxhdpi/ic_profile_card.png',
+      'pre_ic': 'assets/mipmap-xxhdpi/ic_profile_card.png',
+    },
+    {
+      'key': 'ring',
+      'name': 'الخواتم',
+      'nor_ic': 'assets/mipmap-xxhdpi/ic_id_card_prop.png',
+      'pre_ic': 'assets/mipmap-xxhdpi/ic_id_card_prop.png',
+    },
+    {
+      'key': 'special',
+      'name': 'المؤثرات',
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
     },
     {
       'key': 'mic_wave',
       'name': 'موجات المايك',
       'nor_ic': 'assets/mipmap-xxhdpi/room_mic_on.webp',
       'pre_ic': 'assets/mipmap-xxhdpi/room_mic_on.webp',
+    },
+    {
+      'key': 'special_id',
+      'name': 'الآيديهات المميزة',
+      'nor_ic': 'assets/mipmap-xxhdpi/common_user_id_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/common_user_id_ic.webp',
+    },
+    {
+      'key': 'gifts',
+      'name': 'الهدايا',
+      'nor_ic': 'assets/mipmap-xxhdpi/mine_union_ic.webp',
+      'pre_ic': 'assets/mipmap-xxhdpi/mine_union_ic.webp',
     },
   ];
 
@@ -301,8 +326,15 @@ class _BackpackScreenState extends State<BackpackScreen> {
         final userOwnedIds = user?.ownedItems ?? [];
 
         // 1. العناصر المشتراة من المتجر
+        final catLower = category.toLowerCase();
         final storeItems = allItems
-            .where((item) => item.category == category && userOwnedIds.contains(item.itemId))
+            .where((item) {
+              final iCat = item.category.toLowerCase();
+              final matchesCat = iCat == catLower ||
+                  (catLower == 'entrance' && (iCat == 'entrance_effects' || iCat == 'entrance_effect' || iCat.contains('دخول'))) ||
+                  (catLower == 'car' && (iCat == 'cars' || iCat == 'vehicle' || iCat.contains('مركب') || iCat.contains('سيار')));
+              return matchesCat && userOwnedIds.contains(item.itemId);
+            })
             .toList();
 
         // 2. إطارات المستوى المكتسبة
@@ -320,7 +352,13 @@ class _BackpackScreenState extends State<BackpackScreen> {
 
         // 3. ملحقات VIP المملوكة
         final vipItems = (user?.ownedVipItems ?? [])
-            .where((m) => m['type'] == category)
+            .where((m) {
+              final t = (m['type'] ?? '').toString().toLowerCase();
+              return t == catLower ||
+                  (catLower == 'frame' && t == 'headwear') ||
+                  (catLower == 'car' && t == 'cars') ||
+                  (catLower == 'entrance' && t.contains('entrance'));
+            })
             .map((m) {
               final url = m['url'] ?? '';
               return StoreItemModel(
@@ -648,33 +686,60 @@ class _BackpackScreenState extends State<BackpackScreen> {
   /// معاينة ملء الشاشة للسيارات ومؤثرات الدخول car_svga_play
   Widget _buildFullscreenAnimationOverlay(dynamic user) {
     final item = _previewItem!;
-    final svgaUrl = (item.svgaAsset != null && item.svgaAsset!.isNotEmpty)
-        ? item.svgaAsset!
-        : (item.animationUrl ?? item.iconAsset);
+    final animUrl = (item.videoAsset != null && item.videoAsset!.isNotEmpty)
+        ? item.videoAsset!
+        : ((item.svgaAsset != null && item.svgaAsset!.isNotEmpty)
+            ? item.svgaAsset!
+            : (item.animationUrl ?? item.iconAsset));
+    final isVideo = item.isVideo || animUrl.toLowerCase().endsWith('.mp4') || animUrl.toLowerCase().endsWith('.vap');
     final photoUrl = user?.photoUrl?.isNotEmpty == true ? user.photoUrl : null;
     final userName = user?.nickname ?? user?.name ?? '';
+
+    final imageReplacement = <String, String>{};
+    if (photoUrl != null) {
+      imageReplacement['avatar'] = photoUrl;
+      imageReplacement['user_avatar'] = photoUrl;
+      if (item.photoKey != null && item.photoKey!.isNotEmpty) {
+        imageReplacement[item.photoKey!] = photoUrl;
+      }
+    }
+
+    final textReplacement = <String, String>{};
+    if (userName.isNotEmpty) {
+      textReplacement['name'] = 'مرحباً $userName';
+      textReplacement['nickname'] = userName;
+      if (item.nameKey != null && item.nameKey!.isNotEmpty) {
+        textReplacement[item.nameKey!] = userName;
+      }
+    }
 
     return Positioned.fill(
       child: Container(
         color: Colors.black.withValues(alpha: 0.8),
         child: Stack(
           children: [
-            // تشغيل SVGA مع الاستبدال الديناميكي للصورة والاسم
             Center(
-              child: SvgaPlayer(
-                key: ValueKey('preview_${item.itemId}'),
-                assetPath: svgaUrl,
-                width: double.infinity,
-                height: 380,
-                fit: BoxFit.contain,
-                loops: true,
-                imageReplacement: photoUrl != null
-                    ? {'avatar': photoUrl, 'user_avatar': photoUrl}
-                    : null,
-                textReplacement: userName.isNotEmpty
-                    ? {'name': 'مرحباً $userName', 'nickname': userName}
-                    : null,
-              ),
+              child: isVideo
+                  ? VapPlayer(
+                      key: ValueKey('preview_vap_${item.itemId}'),
+                      url: animUrl,
+                      width: double.infinity,
+                      height: 380,
+                      fit: BoxFit.contain,
+                      loops: true,
+                      defaultImageUrl: item.iconAsset,
+                    )
+                  : SvgaPlayer(
+                      key: ValueKey('preview_${item.itemId}'),
+                      assetPath: animUrl,
+                      width: double.infinity,
+                      height: 380,
+                      fit: BoxFit.contain,
+                      loops: true,
+                      defaultImageUrl: item.iconAsset,
+                      imageReplacement: imageReplacement.isNotEmpty ? imageReplacement : null,
+                      textReplacement: textReplacement.isNotEmpty ? textReplacement : null,
+                    ),
             ),
 
             // زر إغلاق المعاينة العلوية

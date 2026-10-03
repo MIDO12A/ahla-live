@@ -125,7 +125,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: R.image(
+              child: R.loadAsset(
                 R.splashImgLogo,
                 width: 76,
                 height: 76,

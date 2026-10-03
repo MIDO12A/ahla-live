@@ -191,7 +191,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
         alignment: Alignment.center,
         children: [
           // خلفية نافذة المكافأة bg_get_task_coin
-          Image.asset(
+          R.loadAsset(
             R.bgGetTaskCoin,
             fit: BoxFit.fill,
             width: double.infinity,
@@ -222,7 +222,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
+                  R.loadAsset(
                     R.miniCoins,
                     width: 34,
                     height: 34,
@@ -353,7 +353,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
           // الميدالية الذهبية العائمة في الأعلى sign_coin_top (80x80dp)
           Positioned(
             top: 0,
-            child: Image.asset(
+            child: R.loadAsset(
               R.signCoinTop,
               width: 76,
               height: 76,
@@ -375,7 +375,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
             topLeft: Radius.circular(18),
             topRight: Radius.circular(18),
           ),
-          child: Image.asset(
+          child: R.loadAsset(
             R.bgDialogTask,
             width: double.infinity,
             height: 72,
@@ -518,7 +518,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Image.asset(
+                    R.loadAsset(
                       R.miniCoins,
                       width: 24,
                       height: 24,
@@ -611,7 +611,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                 Positioned(
                   right: 0,
                   bottom: 0,
-                  child: Image.asset(
+                  child: R.loadAsset(
                     R.signCoinBgCoin,
                     width: 50,
                     height: 48,
@@ -625,7 +625,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Image.asset(
+                      R.loadAsset(
                         R.dialogCoins,
                         width: 24,
                         height: 24,
@@ -683,7 +683,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
     return Column(
       children: [
         const SizedBox(height: 8),
-        Image.asset(
+        R.loadAsset(
           R.giveCoinIcon,
           width: 80,
           height: 48,

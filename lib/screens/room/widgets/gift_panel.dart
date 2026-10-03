@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../config/r.dart';
@@ -8,6 +7,7 @@ import '../../../models/gift_model.dart' as gm;
 import '../../../models/gift_category_model.dart';
 import '../../../providers/user_provider.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/supabase_data_service.dart';
 import '../../../services/media_prefetch_service.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../../wallet/wallet_main_screen.dart';
@@ -104,6 +104,24 @@ class _GiftPanelState extends State<GiftPanel> {
 
   void _loadGifts() {
     final fb = SupabaseService();
+    // Instant initial load from Supabase directly
+    SupabaseDataService().getGiftCategories().then((cats) {
+      if (mounted && cats.isNotEmpty) {
+        setState(() {
+          _categories = cats;
+          _selectedCategoryId ??= 'all';
+        });
+      }
+    }).catchError((_) {});
+    SupabaseDataService().getGifts().then((gifts) {
+      if (mounted && gifts.isNotEmpty) {
+        MediaPrefetchService().prefetchGifts(gifts);
+        setState(() {
+          _gifts = gifts;
+        });
+      }
+    }).catchError((_) {});
+
     _catSub = fb.giftCategoriesStream().listen((cats) {
       if (mounted) {
         setState(() {
@@ -143,7 +161,7 @@ class _GiftPanelState extends State<GiftPanel> {
     if (sel == 'backpack' || sel.contains('حقيبة')) {
       return _gifts.where((g) => g.packageCount > 0 || g.giftType == 4 || g.categoryId == 'backpack' || (g.categoryId?.toLowerCase().contains('حقيبة') ?? false)).toList();
     }
-    return _gifts.where((g) => g.categoryId == _selectedCategoryId).toList();
+    return _gifts.where((g) => g.categoryId == _selectedCategoryId || (g.categoryId != null && g.categoryId!.toLowerCase() == sel)).toList();
   }
 
   void _toggleSelectAll() {

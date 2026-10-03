@@ -214,7 +214,7 @@ class GiftModel {
         0;
 
     final rawType = (map['type'] as num?)?.toInt() ?? 0;
-    final catId = map['category_id']?.toString() ?? map['categoryId']?.toString();
+    final catId = map['category_id']?.toString() ?? map['categoryId']?.toString() ?? map['category']?.toString();
     final isLuckyVal = rawType == 3 || (map['is_lucky'] == true) || (map['isLucky'] == true) || catId == 'lucky';
     final isCpVal = rawType == 5 || (map['is_cp_gift'] == true) || (map['isCpGift'] == true) || catId == 'cp';
     final isVipVal = rawType == 2 || (map['is_vap'] == true) || (map['isVap'] == true) || (map['big_effect'] == 1) || (map['bigEffect'] == true) || catId == 'vip' || catId == 'luxury';

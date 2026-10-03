@@ -1730,43 +1730,21 @@ class FirebaseService {
 
   Stream<List<gm.GiftModel>> giftsStream() {
     final controller = StreamController<List<gm.GiftModel>>.broadcast();
-    List<gm.GiftModel> sbGifts = [];
-    List<gm.GiftModel> fsGifts = [];
 
-    void emitMerged() {
-      if (controller.isClosed) return;
-      final map = <String, gm.GiftModel>{};
-      for (final g in sbGifts) {
-        map[g.id] = g;
-      }
-      for (final g in fsGifts) {
-        map.putIfAbsent(g.id, () => g);
-      }
-      final list = map.values.toList();
-      list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      controller.add(list);
+    void fetch() async {
+      try {
+        final list = await SupabaseDataService().getGifts();
+        if (!controller.isClosed) {
+          controller.add(list);
+        }
+      } catch (_) {}
     }
 
-    SupabaseDataService().getGifts().then((list) {
-      sbGifts = list;
-      emitMerged();
-    }).catchError((_) {});
-
-    final timer = Timer.periodic(const Duration(seconds: 45), (_) {
-      SupabaseDataService().getGifts().then((list) {
-        sbGifts = list;
-        emitMerged();
-      }).catchError((_) {});
-    });
-
-    final sub = _db.collection('gifts').snapshots().listen((snap) {
-      fsGifts = snap.docs.map((e) => gm.GiftModel.fromMap(_data(e))).toList();
-      emitMerged();
-    }, onError: (_) {});
+    fetch();
+    final timer = Timer.periodic(const Duration(seconds: 3), (_) => fetch());
 
     controller.onCancel = () {
       timer.cancel();
-      sub.cancel();
     };
 
     return controller.stream;
@@ -1782,15 +1760,6 @@ class FirebaseService {
     } catch (e) {
       debugPrint('getGiftsCatalog supabase error: $e');
     }
-    try {
-      final snap = await _db.collection('gifts').get();
-      for (final e in snap.docs) {
-        final g = gm.GiftModel.fromMap(_data(e));
-        map.putIfAbsent(e.id, () => g);
-      }
-    } catch (e) {
-      debugPrint('getGiftsCatalog firestore error: $e');
-    }
     return map;
   }
 
@@ -1803,86 +1772,61 @@ class FirebaseService {
 
   Stream<List<GiftCategory>> giftCategoriesStream() {
     final controller = StreamController<List<GiftCategory>>.broadcast();
-    List<GiftCategory> sbCats = [];
-    List<GiftCategory> fsCats = [];
 
-    void emitMerged() {
-      if (controller.isClosed) return;
-      final map = <String, GiftCategory>{};
-      for (final c in sbCats) {
-        map[c.id] = c;
-      }
-      for (final c in fsCats) {
-        map.putIfAbsent(c.id, () => c);
-      }
-      final list = map.values.toList();
-      list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      controller.add(list);
+    void fetch() async {
+      try {
+        final list = await SupabaseDataService().getGiftCategories();
+        if (!controller.isClosed) {
+          controller.add(list);
+        }
+      } catch (_) {}
     }
 
-    SupabaseDataService().getGiftCategories().then((list) {
-      sbCats = list;
-      emitMerged();
-    }).catchError((_) {});
-
-    final timer = Timer.periodic(const Duration(seconds: 45), (_) {
-      SupabaseDataService().getGiftCategories().then((list) {
-        sbCats = list;
-        emitMerged();
-      }).catchError((_) {});
-    });
-
-    final sub = _db.collection('gift_categories').snapshots().listen((snap) {
-      fsCats = snap.docs.map((e) => GiftCategory.fromMap(_data(e))).toList();
-      emitMerged();
-    }, onError: (_) {});
+    fetch();
+    final timer = Timer.periodic(const Duration(seconds: 3), (_) => fetch());
 
     controller.onCancel = () {
       timer.cancel();
-      sub.cancel();
     };
 
     return controller.stream;
   }
 
   Future<List<GiftCategory>> getGiftCategories() async {
-    final Map<String, GiftCategory> map = {};
     try {
-      final sbCats = await SupabaseDataService().getGiftCategories();
-      for (final c in sbCats) {
-        map[c.id] = c;
-      }
+      return await SupabaseDataService().getGiftCategories();
     } catch (e) {
       debugPrint('getGiftCategories supabase error: $e');
+      return [];
     }
-    try {
-      final snap = await _db.collection('gift_categories').get();
-      for (final e in snap.docs) {
-        final c = GiftCategory.fromMap(_data(e));
-        map.putIfAbsent(c.id, () => c);
-      }
-    } catch (e) {
-      debugPrint('getGiftCategories firestore error: $e');
-    }
-    final list = map.values.toList();
-    list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    return list;
   }
 
   Future<void> saveGiftCategory(GiftCategory category) async {
-    await _db.collection('gift_categories').doc(category.id).set(category.toMap());
+    await SupabaseDataService().saveGiftCategory(category);
+    try {
+      await _db.collection('gift_categories').doc(category.id).set(category.toMap());
+    } catch (_) {}
   }
 
   Future<void> deleteGiftCategory(String id) async {
-    await _db.collection('gift_categories').doc(id).delete();
+    await SupabaseDataService().deleteGiftCategory(id);
+    try {
+      await _db.collection('gift_categories').doc(id).delete();
+    } catch (_) {}
   }
 
   Future<void> saveGift(gm.GiftModel gift) async {
-    await _db.collection('gifts').doc(gift.id).set(gift.toMap());
+    await SupabaseDataService().saveGift(gift);
+    try {
+      await _db.collection('gifts').doc(gift.id).set(gift.toMap());
+    } catch (_) {}
   }
 
   Future<void> deleteGift(String id) async {
-    await _db.collection('gifts').doc(id).delete();
+    await SupabaseDataService().deleteGift(id);
+    try {
+      await _db.collection('gifts').doc(id).delete();
+    } catch (_) {}
   }
 
   Stream<List<GiftBannerConfig>> giftBannerConfigsStream() {
@@ -2625,6 +2569,7 @@ class FirebaseService {
 
   Future<void> followUser(String uid, String targetUid) async {
     if (uid == targetUid) return;
+    await SupabaseDataService().followUser(uid, targetUid);
     try {
       await _db.collection('follows').doc('${uid}_$targetUid').set({
         'follower_uid': uid,
@@ -2633,38 +2578,27 @@ class FirebaseService {
       });
       await _incrementCounter('users', uid, 'following', 1);
       await _incrementCounter('users', targetUid, 'followers', 1);
-      await _db.collection('notifications').add({
-        'id': const Uuid().v4(),
-        'uid': targetUid,
-        'type': 'follow',
-        'actor_uid': uid,
-        'title': 'New Follower',
-        'body': 'started following you',
-        'created_at': _now(),
-      });
-    } catch (e) {
-      debugPrint('followUser error: $e');
-    }
+    } catch (_) {}
   }
 
   Future<void> unfollowUser(String uid, String targetUid) async {
     if (uid == targetUid) return;
+    await SupabaseDataService().unfollowUser(uid, targetUid);
     try {
       await _db.collection('follows').doc('${uid}_$targetUid').delete();
       await _incrementCounter('users', uid, 'following', -1);
       await _incrementCounter('users', targetUid, 'followers', -1);
-    } catch (e) {
-      debugPrint('unfollowUser error: $e');
-    }
+    } catch (_) {}
   }
 
   Future<bool> isFollowing(String uid, String targetUid) async {
     if (uid.isEmpty || targetUid.isEmpty) return false;
+    final supaResult = await SupabaseDataService().isFollowing(uid, targetUid);
+    if (supaResult) return true;
     try {
       final doc = await _db.collection('follows').doc('${uid}_$targetUid').get();
       return doc.exists;
-    } catch (e) {
-      debugPrint('isFollowing error: $e');
+    } catch (_) {
       return false;
     }
   }
@@ -2678,6 +2612,7 @@ class FirebaseService {
     if (visitedUid.isEmpty || visitorUid.isEmpty || visitedUid == visitorUid) {
       return;
     }
+    await SupabaseDataService().logProfileVisit(visitedUid, visitorUid);
     try {
       final now = DateTime.now().toUtc().toIso8601String();
       final visitDocId = '${visitedUid}_$visitorUid';
@@ -2688,41 +2623,13 @@ class FirebaseService {
         'visitor_photo': visitorPhoto ?? '',
         'visited_at': now,
       }, SetOptions(merge: true));
-
-      final countSnap = await _db
-          .collection('profile_visits')
-          .where('visited_uid', isEqualTo: visitedUid)
-          .count()
-          .get();
-      final int count = countSnap.count ?? 0;
-      // V1.2: clients may NOT write to another user's document (users/{uid} is
-      // now restricted to self by Firestore rules). The visitor counter is read
-      // from profile_visits at display time instead.
-      if (!visitedUid.isEmpty) {
-        try {
-          await _db.collection('user_stats').doc(visitedUid).set(
-                {'visitors': count},
-                SetOptions(merge: true),
-              );
-        } catch (_) {}
-      }
-    } catch (e) {
-      debugPrint('recordProfileVisit error: $e');
-    }
+    } catch (_) {}
   }
 
   Future<int> incrementVisitors(String uid) async {
     try {
-      final countSnap = await _db
-          .collection('profile_visits')
-          .where('visited_uid', isEqualTo: uid)
-          .count()
-          .get();
-      final int count = countSnap.count ?? 0;
-      await _db.collection('users').doc(uid).update({'visitors': count});
-      return count;
+      return await SupabaseDataService().getVisitorsCount(uid);
     } catch (e) {
-      debugPrint('incrementVisitors error: $e');
       return 0;
     }
   }
@@ -2751,6 +2658,10 @@ class FirebaseService {
 
   Future<List<Map<String, dynamic>>> getFollowing(String uid) async {
     try {
+      final list = await SupabaseDataService().getFollowingUsers(uid);
+      if (list.isNotEmpty) return list;
+    } catch (_) {}
+    try {
       final snap = await _db.collection('follows').where('follower_uid', isEqualTo: uid).get();
       final uids = snap.docs
           .map((e) => e.data()['following_uid']?.toString() ?? '')
@@ -2758,14 +2669,15 @@ class FirebaseService {
           .toList();
       return await _batchFetchUsers(uids);
     } catch (e) {
-      if (e is! FirebaseException || (e.code != 'permission-denied' && e.code != 'unavailable')) {
-        debugPrint('getFollowing error: $e');
-      }
       return [];
     }
   }
 
   Future<List<Map<String, dynamic>>> getFans(String uid) async {
+    try {
+      final list = await SupabaseDataService().getFollowerUsers(uid);
+      if (list.isNotEmpty) return list;
+    } catch (_) {}
     try {
       final snap = await _db.collection('follows').where('following_uid', isEqualTo: uid).get();
       final uids = snap.docs
@@ -2774,9 +2686,6 @@ class FirebaseService {
           .toList();
       return await _batchFetchUsers(uids);
     } catch (e) {
-      if (e is! FirebaseException || (e.code != 'permission-denied' && e.code != 'unavailable')) {
-        debugPrint('getFans error: $e');
-      }
       return [];
     }
   }
@@ -2809,47 +2718,10 @@ class FirebaseService {
   Future<List<Map<String, dynamic>>> getVisitors(String uid) async {
     if (uid.isEmpty) return [];
     try {
-      final snap = await _db
-          .collection('profile_visits')
-          .where('visited_uid', isEqualTo: uid)
-          .limit(50)
-          .get();
-      final items = snap.docs.map((e) => e.data()).toList();
-      items.sort((a, b) => (b['visited_at'] ?? '').toString().compareTo((a['visited_at'] ?? '').toString()));
-      
-      final uids = items
-          .map((e) => e['visitor_uid']?.toString() ?? '')
-          .where((id) => id.isNotEmpty && id != uid)
-          .toSet()
-          .toList();
-
-      final userMap = <String, Map<String, dynamic>>{};
-      for (final u in await _batchFetchUsers(uids)) {
-        userMap[u['uid'].toString()] = u;
-      }
-      final result = <Map<String, dynamic>>[];
-      for (final item in items) {
-        final visitorUid = item['visitor_uid']?.toString() ?? '';
-        if (visitorUid.isEmpty || visitorUid == uid) continue;
-        final user = userMap[visitorUid];
-        if (user != null) {
-          result.add({...user, 'time': item['visited_at']?.toString() ?? ''});
-        } else {
-          result.add({
-            'uid': visitorUid,
-            'id': visitorUid,
-            'name': item['visitor_name']?.toString() ?? 'User',
-            'photo_url': item['visitor_photo']?.toString() ?? '',
-            'avatar': item['visitor_photo']?.toString() ?? '',
-            'time': item['visited_at']?.toString() ?? '',
-          });
-        }
-      }
-      return result;
-    } catch (e) {
-      debugPrint('getVisitors error: $e');
-      return [];
-    }
+      final list = await SupabaseDataService().getVisitorUsers(uid);
+      if (list.isNotEmpty) return list;
+    } catch (_) {}
+    return [];
   }
 
   Future<Map<String, int>> getVisitorHistoryDays(String uid) async {

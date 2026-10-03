@@ -592,6 +592,50 @@ class SupabaseDataService {
     return [];
   }
 
+  Future<void> saveGiftCategory(GiftCategory cat) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gift_categories');
+      await http.post(
+        url,
+        headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
+        body: jsonEncode(cat.toMap()),
+      );
+    } catch (e) {
+      debugPrint('[SupabaseDataService] saveGiftCategory error: $e');
+    }
+  }
+
+  Future<void> deleteGiftCategory(String id) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gift_categories?id=eq.$id');
+      await http.delete(url, headers: _headers);
+    } catch (e) {
+      debugPrint('[SupabaseDataService] deleteGiftCategory error: $e');
+    }
+  }
+
+  Future<void> saveGift(gm.GiftModel gift) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gifts');
+      await http.post(
+        url,
+        headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
+        body: jsonEncode(gift.toMap()),
+      );
+    } catch (e) {
+      debugPrint('[SupabaseDataService] saveGift error: $e');
+    }
+  }
+
+  Future<void> deleteGift(String id) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/gifts?id=eq.$id');
+      await http.delete(url, headers: _headers);
+    } catch (e) {
+      debugPrint('[SupabaseDataService] deleteGift error: $e');
+    }
+  }
+
   Future<List<GiftBannerConfig>> getGiftBannerConfigs() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gift_banner_configs?select=*');
@@ -1097,6 +1141,189 @@ class SupabaseDataService {
     } catch (e) {
       debugPrint('[SupabaseDataService] claimTask error: $e');
     }
+  }
+
+  Future<void> followUser(String followerUid, String followingUid) async {
+    if (followerUid.isEmpty || followingUid.isEmpty || followerUid == followingUid) return;
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/follows');
+      await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'follower_uid': followerUid,
+          'following_uid': followingUid,
+          'created_at': DateTime.now().toIso8601String(),
+        }),
+      );
+      final followingCount = await getFollowingCount(followerUid);
+      final followersCount = await getFollowersCount(followingUid);
+      await updateUser(followerUid, {'following': followingCount});
+      await updateUser(followingUid, {'followers': followersCount});
+    } catch (e) {
+      debugPrint('[SupabaseDataService] followUser error: $e');
+    }
+  }
+
+  Future<void> unfollowUser(String followerUid, String followingUid) async {
+    if (followerUid.isEmpty || followingUid.isEmpty || followerUid == followingUid) return;
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/follows?follower_uid=eq.$followerUid&following_uid=eq.$followingUid');
+      await http.delete(url, headers: _headers);
+      final followingCount = await getFollowingCount(followerUid);
+      final followersCount = await getFollowersCount(followingUid);
+      await updateUser(followerUid, {'following': followingCount});
+      await updateUser(followingUid, {'followers': followersCount});
+    } catch (e) {
+      debugPrint('[SupabaseDataService] unfollowUser error: $e');
+    }
+  }
+
+  Future<bool> isFollowing(String followerUid, String followingUid) async {
+    if (followerUid.isEmpty || followingUid.isEmpty) return false;
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/follows?follower_uid=eq.$followerUid&following_uid=eq.$followingUid&select=id&limit=1');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.isNotEmpty;
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] isFollowing error: $e');
+    }
+    return false;
+  }
+
+  Future<int> getFollowingCount(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/follows?follower_uid=eq.$uid&limit=0');
+      final res = await http.get(url, headers: {..._headers, 'Prefer': 'count=exact'});
+      final cr = res.headers['content-range'];
+      if (cr != null && cr.contains('/')) {
+        return int.tryParse(cr.split('/').last) ?? 0;
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+  Future<int> getFollowersCount(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/follows?following_uid=eq.$uid&limit=0');
+      final res = await http.get(url, headers: {..._headers, 'Prefer': 'count=exact'});
+      final cr = res.headers['content-range'];
+      if (cr != null && cr.contains('/')) {
+        return int.tryParse(cr.split('/').last) ?? 0;
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+  Future<int> getVisitorsCount(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/profile_visits?visited_uid=eq.$uid&limit=0');
+      final res = await http.get(url, headers: {..._headers, 'Prefer': 'count=exact'});
+      final cr = res.headers['content-range'];
+      if (cr != null && cr.contains('/')) {
+        return int.tryParse(cr.split('/').last) ?? 0;
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+  Future<void> logProfileVisit(String visitedUid, String visitorUid) async {
+    if (visitedUid.isEmpty || visitorUid.isEmpty || visitedUid == visitorUid) return;
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/profile_visits');
+      await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'visited_uid': visitedUid,
+          'visitor_uid': visitorUid,
+          'visited_at': DateTime.now().toIso8601String(),
+        }),
+      );
+      final count = await getVisitorsCount(visitedUid);
+      await updateUser(visitedUid, {'visitors': count});
+    } catch (e) {
+      debugPrint('[SupabaseDataService] logProfileVisit error: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getFollowingUsers(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/follows?follower_uid=eq.$uid&select=following_uid&order=created_at.desc&limit=100');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        final uids = list.map((e) => e['following_uid']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+        if (uids.isEmpty) return [];
+        return await _getUsersByIds(uids);
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getFollowingUsers error: $e');
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getFollowerUsers(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/follows?following_uid=eq.$uid&select=follower_uid&order=created_at.desc&limit=100');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        final uids = list.map((e) => e['follower_uid']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+        if (uids.isEmpty) return [];
+        return await _getUsersByIds(uids);
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getFollowerUsers error: $e');
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getVisitorUsers(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/profile_visits?visited_uid=eq.$uid&select=visitor_uid,visited_at&order=visited_at.desc&limit=50');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        final uids = list.map((e) => e['visitor_uid']?.toString() ?? '').where((id) => id.isNotEmpty && id != uid).toSet().toList();
+        if (uids.isEmpty) return [];
+        return await _getUsersByIds(uids);
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getVisitorUsers error: $e');
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> _getUsersByIds(List<String> uids) async {
+    if (uids.isEmpty) return [];
+    try {
+      final filter = uids.map((id) => '"$id"').join(',');
+      final url = Uri.parse('$_baseUrl/rest/v1/users?uid=in.($filter)&select=uid,name,photo_url,avatar,gender,level,country_idx,custom_id');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          final photo = m['photo_url']?.toString() ?? m['avatar']?.toString() ?? '';
+          return {
+            'uid': m['uid'],
+            'id': m['uid'],
+            'name': m['name'] ?? 'User',
+            'photo_url': photo,
+            'avatar': photo,
+            'gender': m['gender'] ?? 'male',
+            'level': (m['level'] as num?)?.toInt() ?? 1,
+            'country_idx': (m['country_idx'] as num?)?.toInt() ?? 0,
+            'custom_id': m['custom_id'] ?? '',
+          };
+        }).toList();
+      }
+    } catch (_) {}
+    return [];
   }
 }
 

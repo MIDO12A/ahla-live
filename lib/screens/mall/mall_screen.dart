@@ -45,13 +45,13 @@ class _MallScreenState extends State<MallScreen> {
     },
     {
       'key': 'entrance',
-      'name': 'تأثير الدخول',
+      'name': 'مؤثرات الدخول',
       'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_entrance_nor_ic.webp',
       'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_entrance_pre_ic.webp',
     },
     {
       'key': 'car',
-      'name': 'مركبة الدخول',
+      'name': 'المركبة',
       'nor_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_nor_ic.webp',
       'pre_ic': 'assets/mipmap-xxhdpi/mine_mall_type_car_pre_ic.webp',
     },
@@ -174,7 +174,14 @@ class _MallScreenState extends State<MallScreen> {
   }
 
   List<StoreItemModel> _getItemsForCategory(String categoryKey) {
-    return _allItems.where((item) => item.category == categoryKey).toList();
+    final catLower = categoryKey.toLowerCase();
+    return _allItems.where((item) {
+      final iCat = item.category.toLowerCase();
+      if (iCat == catLower) return true;
+      if (catLower == 'entrance' && (iCat == 'entrance_effects' || iCat == 'entrance_effect' || iCat.contains('دخول'))) return true;
+      if (catLower == 'car' && (iCat == 'cars' || iCat == 'vehicle' || iCat.contains('مركب') || iCat.contains('سيار'))) return true;
+      return false;
+    }).toList();
   }
 
   bool _isItemEquipped(StoreItemModel item, dynamic user) {
@@ -650,7 +657,15 @@ class _MallScreenState extends State<MallScreen> {
                   ? const Icon(Icons.person, size: 44, color: Colors.white54)
                   : null,
             )
-          : _buildCategoryPreviewWidget(item, animUrl, isVideo, photoUrl, user),
+          : Builder(
+              builder: (ctx) {
+                try {
+                  return _buildCategoryPreviewWidget(item, animUrl, isVideo, photoUrl, user);
+                } catch (e) {
+                  return R.loadImage(item.iconAsset, width: 140, height: 110, fit: BoxFit.contain);
+                }
+              },
+            ),
     );
   }
 
@@ -789,8 +804,9 @@ class _MallScreenState extends State<MallScreen> {
                 url: animUrl,
                 width: 320,
                 height: 120,
+                defaultImageUrl: item.iconAsset,
               )
-            else if (animUrl != null)
+            else if (animUrl != null && !animUrl.toLowerCase().endsWith('.mp4'))
               SvgaPlayer(
                 key: ValueKey(keyStr),
                 assetPath: animUrl,
@@ -798,6 +814,7 @@ class _MallScreenState extends State<MallScreen> {
                 height: 120,
                 fit: BoxFit.contain,
                 loops: true,
+                defaultImageUrl: item.iconAsset,
                 imageReplacement: (item.photoKey != null && photoUrl != null)
                     ? {item.photoKey!: photoUrl}
                     : null,

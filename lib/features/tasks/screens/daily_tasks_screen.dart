@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../config/r.dart';
 import '../../../providers/user_provider.dart';
 import '../models/task_model.dart';
 import '../services/task_service.dart';
@@ -92,7 +93,6 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
     final user = userProvider.currentUser;
-    final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
       backgroundColor: Colors.white, // @color/white من act_tasks.xml
@@ -103,10 +103,9 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
             top: 0,
             left: 0,
             right: 0,
-            child: Image.asset(
+            child: R.loadAsset(
               'assets/images/bg_room_info_title.png',
               fit: BoxFit.fitWidth,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
           ),
 
@@ -220,22 +219,9 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
     return Stack(
       children: [
         Positioned.fill(
-          child: Image.asset(
+          child: R.loadAsset(
             'assets/images/ic_daily_task_top.png',
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Image.asset(
-              'assets/images/float_task.png',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF00DEFF), Color(0xFF3AFF92)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-              ),
-            ),
           ),
         ),
         Container(
@@ -296,11 +282,10 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
         children: [
           Row(
             children: [
-              Image.asset(
+              R.loadAsset(
                 'assets/images/ic_min_coins.png',
                 width: 22,
                 height: 22,
-                errorBuilder: (_, __, ___) => const Text('🪙', style: TextStyle(fontSize: 18)),
               ),
               const SizedBox(width: 8),
               Column(
@@ -322,11 +307,10 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
           Container(width: 1, height: 26, color: const Color(0xFFE2E7ED)),
           Row(
             children: [
-              Image.asset(
+              R.loadAsset(
                 'assets/images/sunlight_task.png',
                 width: 22,
                 height: 22,
-                errorBuilder: (_, __, ___) => const Text('⭐', style: TextStyle(fontSize: 18)),
               ),
               const SizedBox(width: 8),
               Column(
@@ -411,11 +395,10 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
         alignment: Alignment.center,
         child: Column(
           children: [
-            Image.asset(
+            R.loadAsset(
               'assets/images/ic_mine_task.png',
               width: 50,
               height: 50,
-              errorBuilder: (_, __, ___) => const Icon(Icons.assignment_outlined, size: 40, color: Colors.grey),
             ),
             const SizedBox(height: 10),
             const Text(
@@ -454,20 +437,11 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
           child: Row(
             children: [
               // 1. أيقونة المهمة 42x42dp (img: 42.0dp)
-              Image.asset(
+              R.loadAsset(
                 iconAsset,
                 width: 42,
                 height: 42,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F3F8),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.stars, color: Color(0xFF00DEFF), size: 26),
-                ),
               ),
               const SizedBox(width: 12),
 
@@ -498,11 +472,10 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                     // العملات والمكافأة مع أيقونة ic_min_coins.png
                     Row(
                       children: [
-                        Image.asset(
+                        R.loadAsset(
                           'assets/images/ic_min_coins.png',
                           width: 14,
                           height: 14,
-                          errorBuilder: (_, __, ___) => const Text('🪙', style: TextStyle(fontSize: 10)),
                         ),
                         const SizedBox(width: 4),
                         Text(

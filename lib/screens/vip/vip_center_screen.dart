@@ -8,6 +8,7 @@ import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../../services/api_service.dart';
 import '../../services/firebase_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../services/dynamic_config_service.dart';
 import '../wallet/wallet_main_screen.dart';
 
@@ -58,8 +59,11 @@ class _VipCenterScreenState extends State<VipCenterScreen> {
 
   Future<void> _loadTiers() async {
     try {
-      final res = await _supabase.from('vip_config').select('*').order('tier');
-      final tiers = (res as List).cast<Map<String, dynamic>>();
+      var tiers = await SupabaseDataService().getVipConfigs();
+      if (tiers.isEmpty) {
+        final res = await _supabase.from('vip_config').select('*').order('tier');
+        tiers = (res as List).cast<Map<String, dynamic>>();
+      }
       if (mounted) {
         setState(() {
           _tiers = tiers;
@@ -541,7 +545,53 @@ class _TierContent extends StatelessWidget {
     addAcc(tier['necklace_img_url']?.toString(), tier['necklace_url']?.toString(), tier['necklace_name']?.toString() ?? 'Necklace', 'necklace', cardBg: tier['necklace_card_bg']?.toString(), key: tier['necklace_key']?.toString());
     addAcc(tier['car_img_url']?.toString(), tier['car_url']?.toString(), tier['car_name']?.toString() ?? 'Car', 'car', cardBg: tier['car_card_bg']?.toString(), key: tier['car_key']?.toString());
     addAcc(tier['cover_img_url']?.toString(), tier['cover_url']?.toString(), tier['cover_name']?.toString() ?? 'Cover', 'cover', cardBg: tier['cover_card_bg']?.toString(), key: tier['cover_key']?.toString());
+    addAcc(tier['ring_img_url']?.toString(), tier['ring_url']?.toString(), tier['ring_name']?.toString() ?? 'Ring', 'ring', cardBg: tier['ring_card_bg']?.toString(), key: tier['ring_key']?.toString());
 
+    // 1. Benefits (امتيازات VIP المضافة من اللوحة)
+    final benefits = tier['benefits'];
+    if (benefits is List) {
+      for (final b in benefits) {
+        if (b == null) continue;
+        if (b is String && b.isNotEmpty) {
+          String bName = b;
+          String bImg = '$_vip/ico_vip_marking_vip1.webp';
+          if (b.toLowerCase().contains('badge') || b.contains('شارة')) {
+            bName = 'شارة VIP';
+            bImg = '$_vip/ico_vip_marking_vip1.webp';
+          } else if (b.toLowerCase().contains('room') || b.contains('إطار') || b.contains('border')) {
+            bName = 'إطار الغرفة المميز';
+            bImg = '$_vip/img_kuang_vip_1.webp';
+          } else if (b.toLowerCase().contains('level') || b.contains('مستوى')) {
+            bName = 'تسريع ترقية المستوى';
+            bImg = 'assets/mipmap-xxhdpi/mine_level_ic.webp';
+          } else if (b.toLowerCase().contains('custom_id') || b.contains('آيدي') || b.contains('id')) {
+            bName = 'آيدي VIP خاص';
+            bImg = 'assets/mipmap-xxhdpi/common_user_id_ic.webp';
+          }
+          accessories.add({
+            'img': bImg,
+            'svga': null,
+            'name': bName,
+            'type': 'benefit',
+            'key': b,
+          });
+        } else if (b is Map) {
+          final bm = Map<String, dynamic>.from(b);
+          final img = bm['img']?.toString() ?? bm['icon']?.toString() ?? bm['url']?.toString();
+          final svga = bm['svga']?.toString() ?? bm['svgaUrl']?.toString();
+          final name = bm['name']?.toString() ?? bm['title']?.toString() ?? 'Benefit';
+          accessories.add({
+            'img': img ?? svga ?? '$_vip/ico_vip_marking_vip1.webp',
+            'svga': svga,
+            'name': name,
+            'type': bm['type']?.toString() ?? 'benefit',
+            'key': bm['key']?.toString() ?? '',
+          });
+        }
+      }
+    }
+
+    // 2. Additional Files
     final additional = tier['additional_files'];
     if (additional is List) {
       for (final f in additional) {
@@ -560,6 +610,7 @@ class _TierContent extends StatelessWidget {
       }
     }
 
+    // 3. Custom Items
     final items = tier['items'];
     if (items is List) {
       for (final item in items) {
@@ -574,6 +625,27 @@ class _TierContent extends StatelessWidget {
             'type': 'item',
             'key': m['key']?.toString() ?? '',
           });
+        }
+      }
+    }
+
+    // 4. Custom Accessories list
+    final accList = tier['accessories'];
+    if (accList is List) {
+      for (final acc in accList) {
+        if (acc is Map) {
+          final m = Map<String, dynamic>.from(acc);
+          final img = m['img']?.toString() ?? m['icon']?.toString() ?? m['url']?.toString();
+          final svga = m['svga']?.toString() ?? m['svgaUrl']?.toString();
+          if ((img != null && img.isNotEmpty) || (svga != null && svga.isNotEmpty)) {
+            accessories.add({
+              'img': img ?? svga,
+              'svga': svga,
+              'name': m['name']?.toString() ?? m['title']?.toString() ?? 'Accessory',
+              'type': m['type']?.toString() ?? 'accessory',
+              'key': m['key']?.toString() ?? '',
+            });
+          }
         }
       }
     }
