@@ -39,6 +39,7 @@ export default function GiftsPage() {
     for (const sc of STANDARD_CATEGORIES) {
       if (!existingIds.has(sc.id)) {
         mergedCats.push(sc);
+        addGiftCategory(sc.id, sc).catch(() => {});
       }
     }
     mergedCats.sort((a, b) => a.sortOrder - b.sortOrder);

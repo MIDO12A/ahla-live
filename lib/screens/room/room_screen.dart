@@ -95,11 +95,16 @@ Future<void> navigateToRoom(
   final userProvider = Provider.of<UserProvider>(context, listen: false);
   final uid = userProvider.currentUser?.uid;
   bool isReentry = false;
+  int? restoredSeatIndex;
+  bool wasOnSeat = false;
+  bool wasMicMuted = false;
   if (svc.isActive) {
     if (svc.roomId == roomId) {
       // Same room – don't exit, mark as re-entry
       isReentry = true;
-      svc.deactivate();
+      restoredSeatIndex = svc.seatIndex;
+      wasOnSeat = svc.isOnSeat;
+      wasMicMuted = svc.isMicMuted;
     } else {
       // Different room – cleanly exit the old minimized room and release seat/audio
       if (uid != null) await svc.exitRoom(uid);
@@ -158,6 +163,9 @@ Future<void> navigateToRoom(
       hotValue: hotValue,
       gameDesc: gameDesc,
       isReentry: isReentry,
+      initialSeatIndex: restoredSeatIndex,
+      wasOnSeat: wasOnSeat,
+      wasMicMuted: wasMicMuted,
     ),
   );
   if (replace) {
@@ -211,6 +219,9 @@ class RoomScreen extends StatefulWidget {
   final String hotValue;
   final String gameDesc;
   final bool isReentry;
+  final int? initialSeatIndex;
+  final bool wasOnSeat;
+  final bool wasMicMuted;
 
   const RoomScreen({
     super.key,
@@ -221,6 +232,9 @@ class RoomScreen extends StatefulWidget {
     this.hotValue = '0',
     this.gameDesc = '',
     this.isReentry = false,
+    this.initialSeatIndex,
+    this.wasOnSeat = false,
+    this.wasMicMuted = false,
   });
 
   @override
@@ -938,6 +952,36 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     LuckyGiftService().disposeAllOverlays();
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final currentUser = userProvider.currentUser;
+
+    final minSvc = MinimizedRoomService();
+    // If another room was minimized, cleanly exit the old room!
+    if (minSvc.isActive && minSvc.roomId != widget.roomId && currentUser != null) {
+      minSvc.exitRoom(currentUser.uid);
+    }
+
+    final isReturningFromMinimized = widget.isReentry ||
+        widget.wasOnSeat ||
+        minSvc.isActiveFor(widget.roomId);
+
+    final restoredSeatIndex = widget.initialSeatIndex ?? (minSvc.isActiveFor(widget.roomId) ? minSvc.seatIndex : null);
+    final userWasOnSeat = widget.wasOnSeat || (minSvc.isActiveFor(widget.roomId) && minSvc.isOnSeat);
+
+    if (minSvc.isActiveFor(widget.roomId)) {
+      minSvc.deactivate();
+    }
+
+    if (widget.wasMicMuted) {
+      _isMicOn = false;
+    }
+
+    // Ensure room exists in Supabase rooms table
+    SupabaseDataService().ensureRoomExists(
+      roomId: widget.roomId,
+      name: widget.roomName,
+      hostUid: currentUser?.uid,
+      hostName: widget.hostName,
+    );
+
     if (currentUser != null) {
       _currentUserId = currentUser.uid;
       _currentUserName = currentUser.name;
@@ -959,11 +1003,26 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       });
       // Clear any stale seats for this user before registering (await to avoid race)
       // Only on fresh joins – on minimized-room re-entry the current seat must survive.
-      final isReturningFromMinimized = widget.isReentry || MinimizedRoomService().isActiveFor(widget.roomId);
       if (!isReturningFromMinimized) {
         Future(() async {
           await _firebaseService.leaveSeatForUser(widget.roomId, currentUser.uid);
         });
+      } else if (userWasOnSeat && restoredSeatIndex != null && restoredSeatIndex >= 0 && restoredSeatIndex < _seats.length) {
+        // Immediately restore seat optimistically
+        _seats[restoredSeatIndex] = SeatModel(
+          index: restoredSeatIndex,
+          user: SeatUser(
+            id: currentUser.uid,
+            name: currentUser.name,
+            avatar: currentUser.photoUrl,
+            activeFrame: currentUser.activeFrame,
+            activeCar: currentUser.activeCar,
+            gender: currentUser.gender,
+            country: currentUser.country,
+          ),
+          state: SeatState.occupied,
+        );
+        _firebaseService.takeSeat(widget.roomId, restoredSeatIndex, currentUser);
       }
       // Register in Firebase so others see this user
       _firebaseService.joinRoom(widget.roomId, currentUser);

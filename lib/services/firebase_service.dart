@@ -543,7 +543,24 @@ class FirebaseService {
 
     void fetchSupabase() async {
       try {
-        final seats = await SupabaseDataService().getSeats(roomId);
+        var seats = await SupabaseDataService().getSeats(roomId);
+        if (seats.isEmpty) {
+          try {
+            final snap = await _db
+                .collection('room_seats')
+                .where('room_id', isEqualTo: roomId)
+                .get();
+            final fsMap = <int, Map<String, dynamic>>{};
+            for (final doc in snap.docs) {
+              final d = _data(doc);
+              final idx = (d['seat_index'] as num?)?.toInt() ?? 0;
+              fsMap[idx] = d;
+            }
+            if (fsMap.isNotEmpty) {
+              seats = fsMap;
+            }
+          } catch (_) {}
+        }
         if (!controller.isClosed) {
           if (!areMapsEqual(lastMap, seats)) {
             lastMap = Map<int, Map<String, dynamic>>.from(seats);

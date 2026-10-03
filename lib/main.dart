@@ -271,6 +271,10 @@ class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
     final hotValue = svc.hotValue ?? '0';
     final gameDesc = svc.gameDesc ?? '';
 
+    final seatIndex = svc.seatIndex;
+    final wasOnSeat = svc.isOnSeat;
+    final wasMicMuted = svc.isMicMuted;
+
     if (!RoomScreen.pushGuard(roomId)) return;
 
     final navContext = rootNavigatorKey.currentContext;
@@ -285,10 +289,12 @@ class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
             hotValue: hotValue,
             gameDesc: gameDesc,
             isReentry: true,
+            initialSeatIndex: seatIndex,
+            wasOnSeat: wasOnSeat,
+            wasMicMuted: wasMicMuted,
           ),
         ),
       );
-      svc.deactivate();
     }
   }
 

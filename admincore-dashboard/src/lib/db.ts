@@ -1,6 +1,6 @@
 import { supabase, getAdminSupabase } from './supabase'
 import { firestoreDb, ensureFirebaseAuth } from './firebase'
-import { doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, setDoc, updateDoc, deleteDoc, collection, getDocs, deleteField, query, where } from 'firebase/firestore'
 import type {
   UserModel, RoomModel, GiftModel, SentGiftModel,
   StoreItemModel, UnionModel, BugReport, AppConfig,
@@ -1147,44 +1147,164 @@ export async function createHostAgency(name: string, ownerId: string, commission
       photo_url: extra?.photo_url || null,
       created_at: new Date().toISOString(),
     };
-    const { data } = await supabase.from('host_agencies').insert(payload).select('*').single();
-    if (data) {
-      // Add owner to members table
+
+    // 1. Supabase insert
+    const { data, error: sbErr } = await supabase.from('host_agencies').insert(payload).select('*').single();
+    if (sbErr) {
+      console.warn('createHostAgency supabase insert warning:', sbErr);
+    }
+    const agencyId = (data as any)?.id || `ag_${Date.now()}`;
+
+    // 2. Dual-write to Firestore host_agencies
+    try {
+      await ensureFirebaseAuth();
+      await setDoc(doc(firestoreDb, 'host_agencies', agencyId), {
+        id: agencyId,
+        ...payload,
+      }, { merge: true });
+    } catch (fsErr) {
+      console.warn('createHostAgency firestore notice:', fsErr);
+    }
+
+    // 3. Add owner to host_agency_members (Supabase & Firestore)
+    try {
       await supabase.from('host_agency_members').upsert({
-        agency_id: (data as any).id,
+        agency_id: agencyId,
         user_id: ownerId,
         role: 'owner',
         status: 'active',
         joined_at: new Date().toISOString(),
       });
-      // Set agency_id on user
-      await supabase.from('users').update({ agency_id: (data as any).id, is_host_agent: true }).eq('id', ownerId);
-
-      // Send congratulations notification to owner
-      const adminLabel = extra?.adminName || 'إدارة التطبيق';
-      await sendSystemNotification({
-        userId: ownerId,
-        title: 'مبروك! تم فتح وكالتك بنجاح 🎉',
-        body: `مبروك! تم فتح وكالة [${name}] بنجاح بواسطة المشرف [${adminLabel}]. يمكنك الآن الدخول إلى مركز إدارة الوكالة وإضافة المضيفين.`,
-        type: 'system',
-        action: 'agency_created',
-        extraData: { agency_id: (data as any).id, agency_name: name, admin_name: adminLabel },
-      });
+      await setDoc(doc(firestoreDb, 'host_agency_members', `${agencyId}_${ownerId}`), {
+        agency_id: agencyId,
+        user_id: ownerId,
+        role: 'owner',
+        status: 'active',
+        joined_at: new Date().toISOString(),
+      }, { merge: true });
+    } catch (mErr) {
+      console.warn('createHostAgency members notice:', mErr);
     }
-    return data as HostAgencyModel;
-  } catch { return null; }
+
+    // 4. Update user in Supabase & Firestore
+    try {
+      await supabase.from('users').update({ agency_id: agencyId, is_host_agent: true }).eq('id', ownerId);
+      await supabase.from('users').update({ agency_id: agencyId, is_host_agent: true }).eq('uid', ownerId);
+      await setDoc(doc(firestoreDb, 'users', ownerId), {
+        agency_id: agencyId,
+        host_agency_id: agencyId,
+        agency_name: name,
+        is_host_agent: true,
+        is_agency_member: true,
+        agency_status: 'active',
+        agency_role: 'owner',
+        agency_joined_at: new Date().toISOString(),
+      }, { merge: true });
+    } catch (uErr) {
+      console.warn('createHostAgency user update notice:', uErr);
+    }
+
+    // 5. Send congratulations notification to owner
+    const adminLabel = extra?.adminName || 'إدارة التطبيق';
+    await sendSystemNotification({
+      userId: ownerId,
+      title: 'مبروك! تم فتح وكالتك وتفعيلها بنجاح 🎉',
+      body: `مبروك! تم فتح وكالة [${name}] وتفعيلها بنجاح بواسطة المشرف [${adminLabel}]. يمكنك الآن الدخول إلى مركز إدارة الوكالة وإضافة المضيفين.`,
+      type: 'system',
+      action: 'agency_created',
+      extraData: { agency_id: agencyId, agency_name: name, admin_name: adminLabel },
+    });
+
+    return (data || { id: agencyId, ...payload }) as HostAgencyModel;
+  } catch (e) {
+    console.error('createHostAgency error:', e);
+    return null;
+  }
 }
 
 export async function updateHostAgency(id: string, updates: Partial<HostAgencyModel>): Promise<boolean> {
-  try { await supabase.from('host_agencies').update(updates).eq('id', id); return true; } catch { return false; }
+  try {
+    await supabase.from('host_agencies').update(updates).eq('id', id);
+    try {
+      await setDoc(doc(firestoreDb, 'host_agencies', id), updates, { merge: true });
+    } catch (_) {}
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function deleteHostAgency(id: string): Promise<boolean> {
   try {
-    await supabase.from('host_agencies').delete().eq('id', id);
-    await supabase.from('host_agency_members').delete().eq('agency_id', id);
+    // Step 1: Collect all member IDs in this agency
+    const userIds = new Set<string>();
+    try {
+      const { data: members } = await supabase.from('host_agency_members').select('user_id').eq('agency_id', id);
+      (members ?? []).forEach((m: any) => { if (m.user_id) userIds.add(m.user_id); });
+    } catch (_) {}
+
+    try {
+      const { data: ag } = await supabase.from('host_agencies').select('owner_id').eq('id', id).maybeSingle();
+      if (ag?.owner_id) userIds.add(ag.owner_id);
+    } catch (_) {}
+
+    // Step 2: Unlink all users in Supabase
+    try {
+      await supabase.from('users').update({
+        agency_id: null,
+        is_host_agent: false,
+      }).eq('agency_id', id);
+    } catch (_) {}
+
+    // Step 3: Unlink users in Firestore
+    for (const uid of Array.from(userIds)) {
+      try {
+        await updateDoc(doc(firestoreDb, 'users', uid), {
+          agency_id: deleteField(),
+          agency_name: deleteField(),
+          host_agency_id: deleteField(),
+          host_agency_name: deleteField(),
+          is_host_agent: false,
+          is_agency_member: false,
+          agency_status: deleteField(),
+          agency_role: deleteField(),
+          agency_joined_at: deleteField(),
+        });
+      } catch (_) {}
+    }
+
+    // Step 4: Delete child records in Supabase (order matters for FK constraints!)
+    try { await supabase.from('agency_achieved_targets').delete().eq('agency_id', id); } catch (_) {}
+    try { await supabase.from('host_agency_members').delete().eq('agency_id', id); } catch (_) {}
+    try { await supabase.from('agency_join_requests').delete().eq('agency_id', id); } catch (_) {}
+    try { await supabase.from('agency_diamond_ledger').delete().eq('agency_id', id); } catch (_) {}
+    try { await supabase.from('agency_withdrawal_requests').delete().eq('agency_id', id); } catch (_) {}
+    try { await supabase.from('agency_applications').delete().eq('agency_id', id); } catch (_) {}
+
+    // Step 5: Delete members in Firestore
+    try {
+      const snap = await getDocs(query(collection(firestoreDb, 'host_agency_members'), where('agency_id', '==', id)));
+      for (const d of snap.docs) {
+        await deleteDoc(d.ref);
+      }
+    } catch (_) {}
+
+    // Step 6: Delete host agency from Supabase
+    const { error: delErr } = await supabase.from('host_agencies').delete().eq('id', id);
+    if (delErr) {
+      console.warn('deleteHostAgency supabase error:', delErr);
+    }
+
+    // Step 7: Delete host agency from Firestore
+    try {
+      await deleteDoc(doc(firestoreDb, 'host_agencies', id));
+    } catch (_) {}
+
     return true;
-  } catch { return false; }
+  } catch (e) {
+    console.error('deleteHostAgency critical error:', e);
+    return false;
+  }
 }
 
 export async function getCommissionSettings(): Promise<CommissionSettingModel[]> {
@@ -1934,6 +2054,23 @@ export async function updateRechargeAgency(userId: string, data: {
       await client.from('users').update(userUpdate).eq('id', resolvedUid);
     }
 
+    // Dual-write to users in Firestore
+    try {
+      await ensureFirebaseAuth();
+      await setDoc(doc(firestoreDb, 'users', resolvedUid), {
+        is_recharge_agent: true,
+        isRechargeAgent: true,
+        recharge_agency_name: agencyName,
+        recharge_agency_logo: data.recharge_agency_logo || '',
+        whatsapp_number: data.whatsapp_number || '',
+        recharge_commission_rate: data.recharge_commission_rate ?? 5,
+        updated_at: nowIso,
+        ...(userUpdate.coins !== undefined ? { coins: userUpdate.coins } : {}),
+      }, { merge: true });
+    } catch (fsErr) {
+      console.warn('updateRechargeAgency firestore notice:', fsErr);
+    }
+
     // Send official opening notification
     await sendSystemNotification({
       userId: resolvedUid,
@@ -1973,6 +2110,15 @@ export async function revokeRechargeAgency(userId: string): Promise<boolean> {
     if (err1) {
       await client.from('users').update(userUpdate).eq('id', resolvedUid);
     }
+
+    try {
+      await ensureFirebaseAuth();
+      await updateDoc(doc(firestoreDb, 'users', resolvedUid), {
+        is_recharge_agent: false,
+        isRechargeAgent: false,
+        recharge_agency_name: deleteField(),
+      });
+    } catch (_) {}
 
     await sendSystemNotification({
       userId: resolvedUid,
@@ -2665,33 +2811,59 @@ export async function migrateAssetOverridesFromConfig(config: Record<string, any
 // ---- Gift Categories ----
 
 export async function getGiftCategories(): Promise<import('../types').GiftCategory[]> {
+  const catMap = new Map<string, import('../types').GiftCategory>();
   try {
-    const { data } = await supabase.from('gift_categories').select('*').order('sort_order')
-    return mapList<import('../types').GiftCategory>(data ?? [])
-  } catch { return [] }
+    const { data } = await supabase.from('gift_categories').select('*').order('sort_order');
+    if (data) {
+      mapList<import('../types').GiftCategory>(data).forEach(c => {
+        if (c.id) catMap.set(c.id, c);
+      });
+    }
+  } catch {}
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'gift_categories'));
+    snap.docs.forEach(d => {
+      const c = { id: d.id, ...d.data() } as import('../types').GiftCategory;
+      if (c.id && !catMap.has(c.id)) {
+        catMap.set(c.id, c);
+      }
+    });
+  } catch {}
+  return Array.from(catMap.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 }
 
 export async function addGiftCategory(id: string, data: import('../types').GiftCategory) {
   try {
-    await supabase.from('gift_categories').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
+    await ensureFirebaseAuth();
+    await setDoc(doc(firestoreDb, 'gift_categories', id), { id, ...data }, { merge: true });
+  } catch (_) {}
+  try {
+    await supabase.from('gift_categories').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) });
   } catch (e) {
-    console.warn('addGiftCategory failed:', e)
+    console.warn('addGiftCategory failed:', e);
   }
 }
 
 export async function updateGiftCategory(id: string, data: Partial<import('../types').GiftCategory>) {
   try {
-    await supabase.from('gift_categories').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
+    await ensureFirebaseAuth();
+    await setDoc(doc(firestoreDb, 'gift_categories', id), data, { merge: true });
+  } catch (_) {}
+  try {
+    await supabase.from('gift_categories').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id);
   } catch (e) {
-    console.warn('updateGiftCategory failed:', e)
+    console.warn('updateGiftCategory failed:', e);
   }
 }
 
 export async function deleteGiftCategory(id: string) {
   try {
-    await supabase.from('gift_categories').delete().eq('id', id)
+    await deleteDoc(doc(firestoreDb, 'gift_categories', id));
+  } catch {}
+  try {
+    await supabase.from('gift_categories').delete().eq('id', id);
   } catch (e) {
-    console.warn('deleteGiftCategory failed:', e)
+    console.warn('deleteGiftCategory failed:', e);
   }
 }
 

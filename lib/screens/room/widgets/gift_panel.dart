@@ -159,9 +159,9 @@ class _GiftPanelState extends State<GiftPanel> {
       return _gifts.where((g) => g.isCpGift || g.giftType == 5 || g.categoryId == 'cp' || (g.categoryId?.toLowerCase().contains('ارتباط') ?? false)).toList();
     }
     if (sel == 'normal' || sel == 'popular') {
-      return _gifts.where((g) => (g.giftType == 1 && !g.isLucky && !g.isCpGift) || g.categoryId == 'normal' || g.categoryId == 'popular' || (g.categoryId?.toLowerCase().contains('شائع') ?? false) || (g.categoryId?.toLowerCase().contains('عادي') ?? false)).toList();
+      return _gifts.where((g) => (g.giftType == 1 && !g.isLucky && !g.isCpGift) || g.categoryId == null || g.categoryId!.isEmpty || g.categoryId == 'normal' || g.categoryId == 'popular' || (g.categoryId?.toLowerCase().contains('شائع') ?? false) || (g.categoryId?.toLowerCase().contains('عادي') ?? false)).toList();
     }
-    return _gifts.where((g) => g.categoryId == _selectedCategoryId || (g.categoryId != null && g.categoryId!.toLowerCase() == sel)).toList();
+    return _gifts.where((g) => g.categoryId == _selectedCategoryId || (g.categoryId != null && (g.categoryId!.toLowerCase() == sel || g.categoryId!.contains(_selectedCategoryId!)))).toList();
   }
 
   void _toggleSelectAll() {

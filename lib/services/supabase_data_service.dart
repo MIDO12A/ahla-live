@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../config/supabase_config.dart';
 import '../models/room_model.dart';
 import '../models/message_model.dart';
@@ -35,7 +37,7 @@ class SupabaseDataService {
 
   Future<bool> createRoom(RoomModel room) async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/rooms');
+      final url = Uri.parse('$_baseUrl/rest/v1/rooms?on_conflict=room_id');
       final body = jsonEncode({
         'room_id': room.roomId,
         'name': room.name,
@@ -76,6 +78,35 @@ class SupabaseDataService {
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] createRoom error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> ensureRoomExists({
+    required String roomId,
+    String? name,
+    String? hostUid,
+    String? hostName,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/rooms?on_conflict=room_id');
+      final body = jsonEncode({
+        'room_id': roomId,
+        'name': (name != null && name.isNotEmpty) ? name : 'Room',
+        'host_uid': hostUid ?? '',
+        'host_name': hostName ?? '',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      final res = await http.post(
+        url,
+        headers: {
+          ..._headers,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: body,
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
       return false;
     }
   }
@@ -188,7 +219,7 @@ class SupabaseDataService {
         'taken_at': DateTime.now().toUtc().toIso8601String(),
       });
 
-      final res = await http.post(
+      var res = await http.post(
         url,
         headers: {
           ..._headers,
@@ -196,6 +227,22 @@ class SupabaseDataService {
         },
         body: body,
       );
+
+      if (res.statusCode >= 400 && (res.body.contains('foreign key') || res.statusCode == 409 || res.body.contains('room_seats_room_id_fkey'))) {
+        await ensureRoomExists(
+          roomId: roomId,
+          hostUid: user.uid,
+          hostName: user.name,
+        );
+        res = await http.post(
+          url,
+          headers: {
+            ..._headers,
+            'Prefer': 'resolution=merge-duplicates',
+          },
+          body: body,
+        );
+      }
 
       debugPrint('[SupabaseDataService] takeSeat ($roomId, $seatIndex) status: ${res.statusCode}');
       return res.statusCode >= 200 && res.statusCode < 300;
@@ -577,35 +624,91 @@ class SupabaseDataService {
   }
 
   Future<List<gm.GiftModel>> getGifts() async {
+    final Map<String, gm.GiftModel> giftMap = {};
+
+    // 1. Fetch from Supabase
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gifts?select=*&order=sort_order.asc');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
-        return list
-            .map((e) => gm.GiftModel.fromMap(Map<String, dynamic>.from(e as Map)))
-            .toList();
+        for (final item in list) {
+          try {
+            final g = gm.GiftModel.fromMap(Map<String, dynamic>.from(item as Map));
+            if (g.id.isNotEmpty) giftMap[g.id] = g;
+          } catch (err) {
+            debugPrint('[SupabaseDataService] Error parsing gift item: $err');
+          }
+        }
       }
     } catch (e) {
-      debugPrint('[SupabaseDataService] getGifts error: $e');
+      debugPrint('[SupabaseDataService] getGifts Supabase error: $e');
     }
-    return [];
+
+    // 2. Fallback / Merge from Firestore
+    try {
+      final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+          .collection('gifts')
+          .get();
+      for (final doc in snap.docs) {
+        try {
+          final data = Map<String, dynamic>.from(doc.data());
+          data['id'] ??= doc.id;
+          final g = gm.GiftModel.fromMap(data);
+          if (g.id.isNotEmpty && !giftMap.containsKey(g.id)) {
+            giftMap[g.id] = g;
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getGifts Firestore fallback notice: $e');
+    }
+
+    final list = giftMap.values.toList();
+    list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return list;
   }
 
   Future<List<GiftCategory>> getGiftCategories() async {
+    final Map<String, GiftCategory> catMap = {};
+
+    // 1. Fetch from Supabase
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gift_categories?select=*&order=sort_order.asc');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
-        return list
-            .map((e) => GiftCategory.fromMap(Map<String, dynamic>.from(e as Map)))
-            .toList();
+        for (final item in list) {
+          try {
+            final c = GiftCategory.fromMap(Map<String, dynamic>.from(item as Map));
+            if (c.id.isNotEmpty) catMap[c.id] = c;
+          } catch (_) {}
+        }
       }
     } catch (e) {
-      debugPrint('[SupabaseDataService] getGiftCategories error: $e');
+      debugPrint('[SupabaseDataService] getGiftCategories Supabase error: $e');
     }
-    return [];
+
+    // 2. Fallback / Merge from Firestore
+    try {
+      final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+          .collection('gift_categories')
+          .get();
+      for (final doc in snap.docs) {
+        try {
+          final data = Map<String, dynamic>.from(doc.data());
+          data['id'] ??= doc.id;
+          final c = GiftCategory.fromMap(data);
+          if (c.id.isNotEmpty && !catMap.containsKey(c.id)) {
+            catMap[c.id] = c;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    final list = catMap.values.toList();
+    list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return list;
   }
 
   Future<void> saveGiftCategory(GiftCategory cat) async {

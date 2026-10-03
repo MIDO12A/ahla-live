@@ -183,7 +183,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const [tier, setTier] = useState('bronze');
   const [photoUrl, setPhotoUrl] = useState('');
   const [isActive, setIsActive] = useState(true);
-  const [sendInviteMode, setSendInviteMode] = useState(true);
+  const [sendInviteMode, setSendInviteMode] = useState(false);
   const [resolvedOwnerUser, setResolvedOwnerUser] = useState<any>(null);
 
   const load = () => { setLoading(true); getHostAgencies().then(d => { setAgencies(d); setLoading(false); }); };
@@ -192,7 +192,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const resetForm = () => {
     setEditId(null); setName(''); setOwnerId(''); setCommissionRate('10');
     setSpecialty('mixed'); setTier('bronze'); setDescription(''); setCountry(''); setPhotoUrl('');
-    setIsActive(true); setSendInviteMode(true); setResolvedOwnerUser(null);
+    setIsActive(true); setSendInviteMode(false); setResolvedOwnerUser(null);
   };
 
   const openEdit = (a: HostAgencyModel) => {
@@ -409,7 +409,16 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
         searchKeys={['name', 'owner_name', 'specialty', 'country', 'tier']}
         onEdit={a => openEdit(a as HostAgencyModel)}
         onDelete={async a => {
-          if (confirm(t('agency.deleteConfirm'))) { await deleteHostAgency((a as HostAgencyModel).id); load(); }
+          const ag = a as HostAgencyModel;
+          if (confirm(`هل أنت متأكد من حذف وكالة "${ag.name}" نهائياً؟ سيتم فك ارتباط جميع المضيفين والمالك وإلغاء تفعيل الوكالة فوراً.`)) {
+            const ok = await deleteHostAgency(ag.id);
+            if (ok) {
+              alert(`تم حذف وكالة "${ag.name}" بنجاح وفك ارتباط جميع الأعضاء.`);
+            } else {
+              alert(`حدث خطأ أثناء محاولة حذف الوكالة.`);
+            }
+            load();
+          }
         }}
       />
     </div>
