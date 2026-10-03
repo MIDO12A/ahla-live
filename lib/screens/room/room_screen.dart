@@ -1011,15 +1011,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         // Immediately restore seat optimistically
         _seats[restoredSeatIndex] = SeatModel(
           index: restoredSeatIndex,
-          user: SeatUser(
-            id: currentUser.uid,
-            name: currentUser.name,
-            avatar: currentUser.photoUrl,
-            activeFrame: currentUser.activeFrame,
-            activeCar: currentUser.activeCar,
-            gender: currentUser.gender,
-            country: currentUser.country,
-          ),
+          user: currentUser,
           state: SeatState.occupied,
         );
         _firebaseService.takeSeat(widget.roomId, restoredSeatIndex, currentUser);
