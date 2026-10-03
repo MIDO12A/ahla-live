@@ -3506,8 +3506,8 @@ class FirebaseService {
         orderByField: orderCol,
         limit: 50,
       );
-      if (sbUsers != null && sbUsers.isNotEmpty) {
-        final hasAnyPoints = sbUsers.some((u) => ((u[orderCol] as num?)?.toInt() ?? 0) > 0);
+      if (sbUsers.isNotEmpty) {
+        final hasAnyPoints = sbUsers.any((u) => ((u[orderCol] as num?)?.toInt() ?? 0) > 0);
         if (hasAnyPoints || timeframe == 'monthly' || timeframe == 'weekly' || timeframe == 'daily') {
           return sbUsers.map((u) {
             final pts = isWealth
