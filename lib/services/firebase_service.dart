@@ -1007,22 +1007,16 @@ class FirebaseService {
 
           // Sync to Supabase host_agency_members & host_agencies
           try {
-            final existingMemb = await Supabase.instance.client
-                .from('host_agency_members')
-                .select('diamonds, diamonds_balance, diamonds_earned_monthly')
-                .eq('user_id', receiverId)
-                .maybeSingle();
-            if (existingMemb != null) {
-              final currentD = (existingMemb['diamonds'] as num?)?.toInt() ?? 0;
-              final currentMonthly = (existingMemb['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-              await Supabase.instance.client
-                  .from('host_agency_members')
-                  .update({
-                    'diamonds': currentD + totalCost,
-                    'diamonds_balance': currentD + totalCost,
-                    'diamonds_earned_monthly': currentMonthly + totalCost,
-                  })
-                  .eq('user_id', receiverId);
+            final q = await _db.collection('host_agency_members').where('user_id', isEqualTo: receiverId).limit(1).get();
+            if (q.docs.isNotEmpty) {
+              final doc = q.docs.first;
+              final currentD = (doc.data()['diamonds'] as num?)?.toInt() ?? 0;
+              final currentMonthly = (doc.data()['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+              await doc.reference.update({
+                'diamonds': currentD + totalCost,
+                'diamonds_balance': currentD + totalCost,
+                'diamonds_earned_monthly': currentMonthly + totalCost,
+              });
             }
           } catch (_) {}
         }
@@ -2759,30 +2753,67 @@ class FirebaseService {
     if (diamonds < rate) {
       return (success: false, coinsReceived: 0, error: 'الحد الأدنى $rate ألماس');
     }
-    final userRef = _db.collection('users').doc(uid);
     try {
-      final result = await _db.runTransaction((txn) async {
-        final snap = await txn.get(userRef);
-        if (!snap.exists) throw Exception('المستخدم غير موجود');
-        final d = snap.data() ?? {};
-        final bal = (d['diamonds'] ?? 0) as int;
-        if (bal < diamonds) throw Exception('رصيد ألماس غير كافٍ');
-        final curCoins = (d['coins'] ?? 0) as int;
-        final coinsReceived = diamonds ~/ rate;
-        txn.update(userRef, {'diamonds': bal - diamonds, 'coins': curCoins + coinsReceived});
+      // 1. Fetch current balances from Supabase and Firestore
+      UserModel? supaUser = await SupabaseAuthService().getUserFromSupabase(uid);
+      supaUser ??= await SupabaseDataService().getUser(uid);
 
-        final walletRef = _db.collection('user_wallets').doc(uid);
-        final wSnap = await txn.get(walletRef);
+      int currentDiamonds = supaUser?.diamonds ?? 0;
+      int currentCoins = supaUser?.coins ?? 0;
+
+      final userRef = _db.collection('users').doc(uid);
+      final walletRef = _db.collection('user_wallets').doc(uid);
+
+      try {
+        final snap = await userRef.get();
+        if (snap.exists) {
+          final d = snap.data() ?? {};
+          final fd = (d['diamonds'] as num?)?.toInt() ?? 0;
+          final fc = (d['coins'] as num?)?.toInt() ?? 0;
+          if (fd > currentDiamonds) currentDiamonds = fd;
+          if (fc > currentCoins) currentCoins = fc;
+        }
+      } catch (_) {}
+
+      try {
+        final wSnap = await walletRef.get();
         if (wSnap.exists) {
           final wd = wSnap.data() ?? {};
-          txn.update(walletRef, {
-            'diamond_balance': ((wd['diamond_balance'] ?? 0) as int) - diamonds,
-            'gold_balance': ((wd['gold_balance'] ?? 0) as int) + coinsReceived,
-          });
+          final fwd = (wd['diamond_balance'] as num?)?.toInt() ?? 0;
+          if (fwd > currentDiamonds) currentDiamonds = fwd;
         }
-        return coinsReceived;
+      } catch (_) {}
+
+      if (currentDiamonds < diamonds) {
+        return (success: false, coinsReceived: 0, error: 'رصيد ألماس غير كافٍ');
+      }
+
+      final coinsReceived = diamonds ~/ rate;
+      final newDiamonds = currentDiamonds - diamonds;
+      final newCoins = currentCoins + coinsReceived;
+
+      // 2. Update Supabase
+      await SupabaseDataService().updateUser(uid, {
+        'diamonds': newDiamonds,
+        'coins': newCoins,
       });
-      return (success: true, coinsReceived: result, error: null);
+
+      // 3. Update Firestore
+      try {
+        await userRef.set({
+          'diamonds': newDiamonds,
+          'coins': newCoins,
+        }, SetOptions(merge: true));
+
+        await walletRef.set({
+          'diamond_balance': newDiamonds,
+          'gold_balance': newCoins,
+        }, SetOptions(merge: true));
+      } catch (fe) {
+        debugPrint('Firestore exchange update non-fatal error: $fe');
+      }
+
+      return (success: true, coinsReceived: coinsReceived, error: null);
     } catch (e) {
       return (success: false, coinsReceived: 0, error: 'فشل التبادل: $e');
     }
@@ -3772,16 +3803,20 @@ class FirebaseService {
             final pts = isWealth
                 ? ((u['total_gifts_sent'] as num?)?.toInt() ?? 0)
                 : ((u['total_gifts_received'] as num?)?.toInt() ?? (u['charm'] as num?)?.toInt() ?? 0);
+            final uid = (u['uid'] ?? u['id'] ?? '').toString();
+            final customId = (u['custom_id'] ?? u['display_id'] ?? '').toString();
+            final displayId = customId.isNotEmpty ? customId : uid;
             return {
-              'uid': u['uid'] ?? u['id'],
-              'user_id': u['uid'] ?? u['id'],
-              'id': u['uid'] ?? u['id'],
+              'uid': uid,
+              'user_id': displayId,
+              'id': displayId,
               'name': u['name'] ?? 'مستخدم',
               'user_name': u['name'] ?? 'مستخدم',
               'photoUrl': u['photo_url'] ?? '',
               'photo_url': u['photo_url'] ?? '',
               'user_photo_url': u['photo_url'] ?? '',
-              'custom_id': u['custom_id'] ?? u['display_id'] ?? '',
+              'custom_id': displayId,
+              'display_id': displayId,
               'points': pts,
               'score': pts,
               'total_value': pts,

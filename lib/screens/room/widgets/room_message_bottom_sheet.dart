@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../../config/r.dart';
 import '../../../services/supabase_service.dart';
 import '../../../providers/user_provider.dart';
-import '../../../core/cache/encrypted_image_provider.dart';
 import '../../message/message_reply_detail_screen.dart';
 import '../../message/event_info_screen.dart';
 import '../../notifications/notifications_screen.dart';
@@ -47,13 +46,21 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
       return;
     }
 
-    _conversationsSub = _firebaseService.conversationsStream(user.uid).listen((convos) {
-      if (mounted) {
-        setState(() {
-          _conversations = convos;
-          _isLoading = false;
-        });
-      }
+    _conversationsSub = _firebaseService.conversationsStream(user.uid).listen(
+      (convos) {
+        if (mounted) {
+          setState(() {
+            _conversations = convos;
+            _isLoading = false;
+          });
+        }
+      },
+      onError: (_) {
+        if (mounted) setState(() => _isLoading = false);
+      },
+    );
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted && _isLoading) setState(() => _isLoading = false);
     });
   }
 
@@ -282,15 +289,20 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
   }
 
   Widget _buildConversationItem(Map<String, dynamic> conv, bool isAr) {
-    final otherName = conv['other_user_name'] ?? (isAr ? 'مستخدم' : 'User');
-    final otherAvatar = conv['other_user_avatar'] ?? '';
-    final otherUid = conv['other_user_id'] ?? '';
-    final lastMessage = conv['last_message'] ?? '';
-    final unreadCount = conv['unread_count'] as int? ?? 0;
-    final updatedAt = conv['updated_at'] as String? ?? '';
+    final otherName = (conv['otherName'] ?? conv['other_user_name'] ?? (isAr ? 'مستخدم' : 'User')).toString();
+    final otherAvatar = (conv['otherPhotoUrl'] ?? conv['other_user_avatar'] ?? '').toString();
+    final otherUid = (conv['otherUid'] ?? conv['other_user_id'] ?? '').toString();
+    final conversationId = (conv['conversationId'] ?? conv['id'] ?? '').toString();
+    final lastMessage = (conv['lastMessage'] ?? conv['last_message'] ?? '').toString();
+    final unreadCount = (conv['unreadCount'] ?? conv['unread_count'] as num?)?.toInt() ?? 0;
+    final updatedAt = (conv['updated_at'] ?? '').toString();
+    final lastMessageTime = (conv['lastMessageTime'] as num?)?.toInt() ?? 0;
 
     String timeStr = '';
-    if (updatedAt.isNotEmpty) {
+    if (lastMessageTime > 0) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(lastMessageTime);
+      timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } else if (updatedAt.isNotEmpty) {
       try {
         final dt = DateTime.parse(updatedAt);
         timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
@@ -298,6 +310,25 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
     }
 
     return ListTile(
+      onTap: () {
+        if (otherUid.isNotEmpty) {
+          final myUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid ?? '';
+          final convId = conversationId.isNotEmpty
+              ? conversationId
+              : ((myUid.compareTo(otherUid) < 0) ? '${myUid}_$otherUid' : '${otherUid}_$myUid');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MessageReplyDetailScreen(
+                conversationId: convId,
+                otherUid: otherUid,
+                otherName: otherName,
+                otherPhotoUrl: otherAvatar,
+              ),
+            ),
+          );
+        }
+      },
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       leading: Stack(
         children: [
@@ -371,21 +402,6 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
             ),
         ],
       ),
-      onTap: () {
-        Navigator.pop(context);
-        final convId = conv['id']?.toString() ?? conv['conversation_id']?.toString() ?? '';
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MessageReplyDetailScreen(
-              conversationId: convId,
-              otherUid: otherUid,
-              otherName: otherName,
-              otherPhotoUrl: otherAvatar,
-            ),
-          ),
-        );
-      },
     );
   }
 }

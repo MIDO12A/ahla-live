@@ -582,7 +582,7 @@ class _GiftPanelState extends State<GiftPanel> {
           borderRadius: BorderRadius.circular(4),
           border: sel
               ? Border.all(color: dc.giftPanelCardSelectedBorderColor, width: 1.5)
-              : (dc.giftPanelCardBorderColor != Colors.transparent ? Border.all(color: dc.giftPanelCardBorderColor, width: 1) : null),
+              : null,
         ),
         child: Column(
           children: [

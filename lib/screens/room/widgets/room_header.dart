@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
-import '../../../config/app_colors.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../../../widgets/user_id_widget.dart';
 
@@ -91,8 +90,6 @@ class RoomHeader extends StatelessWidget {
                       _buildOnlineButton(),
                       const SizedBox(width: 8),
                       _buildRankButton(),
-                      const SizedBox(width: 8),
-                      _buildMinimizeButton(),
                       const SizedBox(width: 8),
                       _buildExitButton(),
                     ],
@@ -314,25 +311,6 @@ class RoomHeader extends StatelessWidget {
     );
   }
 
-  Widget _buildMinimizeButton() {
-    return GestureDetector(
-      onTap: onMinimize,
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.black26,
-        ),
-        child: const Icon(
-          Icons.close_fullscreen,
-          color: Colors.white,
-          size: 16,
-        ),
-      ),
-    );
-  }
-
   Widget _buildRankButton() {
     return GestureDetector(
       onTap: onRank,
@@ -356,15 +334,38 @@ class RoomHeader extends StatelessWidget {
     return GestureDetector(
       onTap: onOnlineTap,
       behavior: HitTestBehavior.opaque,
-      child: Image.asset(
-        'assets/images/room_online_robot_ic.webp',
-        width: 32,
-        height: 32,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Icon(
-          Icons.people_alt_rounded,
-          color: Color(0xFFFFD54F),
-          size: 24,
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white12, width: 0.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (onlineAvatars.isNotEmpty) ...[
+              _OverlapAvatars(avatars: onlineAvatars),
+              const SizedBox(width: 4),
+            ] else ...[
+              const Icon(
+                Icons.people_alt_rounded,
+                color: Color(0xFFFFD54F),
+                size: 14,
+              ),
+              const SizedBox(width: 3),
+            ],
+            Text(
+              onlineCount ?? '1',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -377,8 +378,8 @@ class _OverlapAvatars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double size = 16;
-    const double step = 10;
+    const double size = 18;
+    const double step = 11;
     final count = avatars.length.clamp(0, 3);
     return SizedBox(
       width: size + (count - 1) * step,
@@ -388,19 +389,19 @@ class _OverlapAvatars extends StatelessWidget {
           for (int i = 0; i < count; i++)
             Positioned(
               left: i * step,
-              child: ClipOval(
-                child: Image.asset(
-                  avatars[i],
-                  width: size,
-                  height: size,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white30, width: 0.5),
+                ),
+                child: ClipOval(
+                  child: R.loadImage(
+                    avatars[i],
                     width: size,
                     height: size,
-                    decoration: const BoxDecoration(
-                      color: AppColors.cardBg,
-                      shape: BoxShape.circle,
-                    ),
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),

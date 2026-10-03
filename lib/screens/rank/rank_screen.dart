@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../config/r.dart';
 import '../../services/supabase_service.dart';
 import '../../services/firebase_service.dart';
 import '../../services/dynamic_config_service.dart';
@@ -187,6 +186,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                 Expanded(
                   child: TabBarView(
                     controller: _mainTabController,
+                    physics: const NeverScrollableScrollPhysics(),
                     children: [
                       _buildRankPage('wealth', _wealthSubTabController),
                       _buildRankPage('charm', _charmSubTabController),
@@ -415,7 +415,11 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     final double width = isGold ? 130 : 100;
     final double avatarSize = isGold ? 60 : 50;
     final String photo = (item['photoUrl'] ?? item['photo_url'] ?? '').toString();
-    final String displayId = (item['user_id'] ?? item['id'] ?? '').toString();
+    final String rawCid = (item['custom_id'] ?? item['display_id'] ?? '').toString();
+    final String rawId = (item['user_id'] ?? item['id'] ?? '').toString();
+    final String displayId = rawCid.isNotEmpty 
+        ? rawCid 
+        : (rawId.contains('-') && rawId.length > 20 ? '' : rawId);
 
     return GestureDetector(
       onTap: () {
@@ -562,7 +566,11 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     final remoteBg = config.globalRankListBg;
     final localBg = 'assets/mipmap-xxhdpi/global_rank_list_bg.png';
     final String photo = (item['photoUrl'] ?? item['photo_url'] ?? '').toString();
-    final String displayId = (item['user_id'] ?? item['id'] ?? '').toString();
+    final String rawCid = (item['custom_id'] ?? item['display_id'] ?? '').toString();
+    final String rawId = (item['user_id'] ?? item['id'] ?? '').toString();
+    final String displayId = rawCid.isNotEmpty 
+        ? rawCid 
+        : (rawId.contains('-') && rawId.length > 20 ? '' : rawId);
 
     return GestureDetector(
       onTap: () {

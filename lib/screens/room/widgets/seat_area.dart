@@ -311,7 +311,6 @@ class _NormalSeat extends StatelessWidget {
     final user = seat.user;
     final name = user?.name ?? '';
     final charm = user?.charm;
-    final avatar = user?.avatar;
     final hasFrame = seat.hasFrame || (seat.frameAsset != null && seat.frameAsset!.isNotEmpty);
     final frameAsset = seat.frameAsset;
 
@@ -325,12 +324,12 @@ class _NormalSeat extends StatelessWidget {
           children: [
             SizedBox(
               width: 76,
-              height: 88,
+              height: 70,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
                   Positioned(
-                    top: 6,
+                    top: 2,
                     left: 6,
                     child: _buildAvatarPart(hasUser, user, isSpeaking, hasFrame, frameAsset),
                   ),
@@ -349,7 +348,7 @@ class _NormalSeat extends StatelessWidget {
                 ),
               if (!hasUser && seat.isLocked)
                 Positioned(
-                  bottom: 2,
+                  bottom: 0,
                   left: 0,
                   right: 0,
                   child: Center(
@@ -362,7 +361,7 @@ class _NormalSeat extends StatelessWidget {
                 ),
               if (hasUser && seat.isMuted)
                 Positioned(
-                  top: 34,
+                  top: 30,
                   left: 36,
                   child: R.image(
                     R.roomMicSeatMuteIc,
@@ -374,7 +373,7 @@ class _NormalSeat extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(top: 5),
+          padding: const EdgeInsets.only(top: 2),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,

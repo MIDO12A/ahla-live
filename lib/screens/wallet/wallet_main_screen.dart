@@ -1,12 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../../services/api_service.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../core/supabase_compat.dart';
-import '../payment/google_pay_screen.dart';
 import '../../features/events/screens/recharge_event_screen.dart';
 
 class WalletMainScreen extends StatefulWidget {
@@ -24,6 +26,17 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   List<Map<String, dynamic>> _diamondPlans = [];
   bool _loadingPlans = true;
 
+  final Map<String, dynamic> _gatewayConfig = {
+    'googlePlayEnabled': true,
+    'vodafoneCashEnabled': true,
+    'vodafoneCashNumber': '01000000000',
+    'vodafoneCashInstructions': 'حول المبلغ المطلوب لرقم فودافون كاش ثم اضغط تأكيد.',
+    'binanceEnabled': true,
+    'binanceId': '84920193',
+    'binanceAddress': 'Txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    'binanceInstructions': 'أرسل USDT (TRC-20) للعنوان الموضح أو استخدم Binance Pay ID.',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -33,15 +46,70 @@ class _WalletMainScreenState extends State<WalletMainScreen>
 
   Future<void> _loadPlans() async {
     try {
-      final plans = await _api.getRechargePlans();
-      if (mounted) {
+      // 1. Fetch live plans and gateways from Supabase / Firestore app_config
+      try {
+        final config = await SupabaseDataService().getAppConfig();
+        dynamic plansRaw = config['recharge_plans'];
+        dynamic gwRaw = config['recharge_gateways'];
+
+        if (plansRaw == null) {
+          plansRaw = await FirebaseService().getAppConfig('recharge_plans');
+        }
+        if (gwRaw == null) {
+          gwRaw = await FirebaseService().getAppConfig('recharge_gateways');
+        }
+
+        if (plansRaw != null) {
+          final List list = (plansRaw is String) ? jsonDecode(plansRaw) : (plansRaw as List);
+          if (list.isNotEmpty) {
+            final parsed = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            if (mounted) {
+              setState(() {
+                _coinPlans = parsed.where((p) => (p['currency'] ?? 'coins') == 'coins').toList();
+                _diamondPlans = parsed.where((p) => (p['currency'] ?? 'diamonds') == 'diamonds').toList();
+              });
+            }
+          }
+        }
+
+        if (gwRaw != null) {
+          final Map map = (gwRaw is String) ? jsonDecode(gwRaw) : (gwRaw as Map);
+          _gatewayConfig.addAll(Map<String, dynamic>.from(map));
+        }
+      } catch (e) {
+        debugPrint('Failed to load recharge config: $e');
+      }
+
+      // If empty, fetch from API or default tiers
+      if (_coinPlans.isEmpty) {
+        final plans = await _api.getRechargePlans();
+        if (plans.isNotEmpty && mounted) {
+          setState(() {
+            _coinPlans = plans.where((p) => (p['currency'] ?? 'coins') == 'coins').toList();
+            _diamondPlans = plans.where((p) => (p['currency'] ?? 'diamonds') == 'diamonds').toList();
+          });
+        }
+      }
+
+      // Fallback default tiers
+      if (_coinPlans.isEmpty && mounted) {
         setState(() {
-          _coinPlans = plans.where((p) => (p['currency'] ?? 'coins') == 'coins').toList();
-          _diamondPlans = plans.where((p) => (p['currency'] ?? 'diamonds') == 'diamonds').toList();
-          _loadingPlans = false;
+          _coinPlans = [
+            {'id': 1, 'amount': 1000, 'price': 1.0, 'bonus': 0, 'currency': 'coins'},
+            {'id': 2, 'amount': 5000, 'price': 5.0, 'bonus': 200, 'currency': 'coins'},
+            {'id': 3, 'amount': 10000, 'price': 10.0, 'bonus': 500, 'currency': 'coins'},
+            {'id': 4, 'amount': 50000, 'price': 50.0, 'bonus': 3000, 'currency': 'coins'},
+            {'id': 5, 'amount': 100000, 'price': 100.0, 'bonus': 8000, 'currency': 'coins'},
+          ];
+          _diamondPlans = [
+            {'id': 101, 'amount': 1000, 'price': 1.0, 'bonus': 0, 'currency': 'diamonds'},
+            {'id': 102, 'amount': 5000, 'price': 5.0, 'bonus': 0, 'currency': 'diamonds'},
+            {'id': 103, 'amount': 10000, 'price': 10.0, 'bonus': 0, 'currency': 'diamonds'},
+          ];
         });
       }
     } catch (_) {
+    } finally {
       if (mounted) setState(() => _loadingPlans = false);
     }
   }
@@ -160,48 +228,476 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     final user = context.read<UserProvider>().currentUser;
     if (user == null) return;
     final amount = (plan['amount'] as int?) ?? 0;
-    final planId = (plan['id'] as int?) ?? 0;
-    final currency = isCoins ? 'coins' : 'diamonds';
+    final price = plan['price']?.toString() ?? '1.0';
+    final currencyLabel = isCoins ? 'عملة ذهبية' : 'ألماس';
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
 
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const GooglePayScreen()),
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E1D2A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isAr ? 'اختر طريقة الشحن' : 'Select Payment Gateway',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isAr ? 'شحن $amount $currencyLabel مقابل \$$price' : 'Recharge $amount $currencyLabel for \$$price',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFFFFD54F)),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // 1. Google Play
+            if (_gatewayConfig['googlePlayEnabled'] != false)
+              _buildGatewayTile(
+                icon: Icons.shop_two_outlined,
+                iconColor: const Color(0xFF10B981),
+                title: 'Google Play Billing',
+                subtitle: isAr ? 'الشحن المباشر عبر متجر Google Play' : 'In-App Purchase via Google Play',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _processGooglePlayRecharge(plan, isCoins);
+                },
+              ),
+
+            // 2. Vodafone Cash
+            if (_gatewayConfig['vodafoneCashEnabled'] != false) ...[
+              const SizedBox(height: 10),
+              _buildGatewayTile(
+                icon: Icons.phone_android_rounded,
+                iconColor: const Color(0xFFE60000),
+                title: 'Vodafone Cash / فودافون كاش',
+                subtitle: isAr ? 'تحويل مباشر لمحفظة فودافون كاش' : 'Direct transfer to Vodafone Cash wallet',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showVodafoneCashDialog(plan, isCoins);
+                },
+              ),
+            ],
+
+            // 3. Binance Pay
+            if (_gatewayConfig['binanceEnabled'] != false) ...[
+              const SizedBox(height: 10),
+              _buildGatewayTile(
+                icon: Icons.currency_bitcoin,
+                iconColor: const Color(0xFFF3BA2F),
+                title: 'Binance Pay / USDT Crypto',
+                subtitle: isAr ? 'دفع عبر بينانس باي أو شبكة TRC-20' : 'Binance Pay or TRC-20 USDT transfer',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showBinancePayDialog(plan, isCoins);
+                },
+              ),
+            ],
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 12),
+          ],
+        ),
+      ),
     );
-    if (!mounted) return;
+  }
+
+  Widget _buildGatewayTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF262534),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processGooglePlayRecharge(Map<String, dynamic> plan, bool isCoins) async {
+    final user = context.read<UserProvider>().currentUser;
+    if (user == null) return;
+    final amount = (plan['amount'] as int?) ?? 0;
+    final price = plan['price']?.toString() ?? '1.0';
+    final currency = isCoins ? 'coins' : 'diamonds';
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Recharge'),
-        content: Text('Add $amount $currency for \$${plan['price']}?'),
+        backgroundColor: const Color(0xFF1E1D2A),
+        title: Text(isAr ? 'شحن عبر Google Play' : 'Google Play Billing', style: const TextStyle(color: Colors.white)),
+        content: Text(
+          isAr ? 'هل تريد شحن $amount $currency مقابل \$$price عبر Google Play؟' : 'Purchase $amount $currency for \$$price via Google Play?',
+          style: const TextStyle(color: Colors.white70),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDE880F)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isAr ? 'موافق والدفع' : 'Pay Now', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
+
     if (confirmed == true) {
-      try {
-        await _api.createOrder(planId);
-        if (isCoins) {
-          await SupabaseService().addCoins(user.uid, amount);
-        } else {
-          await Supabase.instance.client.from('users').update({
-            'diamonds': user.diamonds + amount,
-          }).eq('uid', user.uid);
-        }
-        if (!mounted) return;
-        await context.read<UserProvider>().loadUser(user.uid);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('+$amount $currency added!'), backgroundColor: Colors.green),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
-          );
-        }
+      await _creditRecharge(user.uid, amount, isCoins);
+    }
+  }
+
+  void _showVodafoneCashDialog(Map<String, dynamic> plan, bool isCoins) {
+    final amount = (plan['amount'] as int?) ?? 0;
+    final price = plan['price']?.toString() ?? '1.0';
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final walletNumber = (_gatewayConfig['vodafoneCashNumber'] ?? '01000000000').toString();
+    final instructions = (_gatewayConfig['vodafoneCashInstructions'] ?? '').toString();
+    final phoneCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1D2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.phone_android, color: Color(0xFFE60000)),
+            const SizedBox(width: 8),
+            Text(isAr ? 'فودافون كاش' : 'Vodafone Cash', style: const TextStyle(color: Colors.white, fontSize: 16)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                isAr ? 'المبلغ المطلوب: \$$price (شحن $amount عملة)' : 'Amount: \$$price (Recharge $amount coins)',
+                style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(isAr ? 'رقم محفظة التحويل' : 'Wallet Number', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                          const SizedBox(height: 2),
+                          SelectableText(
+                            walletNumber,
+                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy, color: Color(0xFFFFD54F), size: 20),
+                      tooltip: 'Copy',
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: walletNumber));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(isAr ? 'تم نسخ الرقم بنجاح' : 'Number copied!'), duration: const Duration(seconds: 1)),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              if (instructions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(instructions, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+              ],
+              const SizedBox(height: 14),
+              TextField(
+                controller: phoneCtrl,
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: isAr ? 'رقم الهاتف المحول منه أو رقم العملية' : 'Sender Phone or Transaction ID',
+                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                  filled: true,
+                  fillColor: Colors.black26,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.white12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE60000)),
+            onPressed: () async {
+              final ref = phoneCtrl.text.trim();
+              if (ref.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(isAr ? 'يرجى إدخال رقم الهاتف أو رقم العملية' : 'Please enter reference number')),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              final user = context.read<UserProvider>().currentUser;
+              if (user != null) {
+                await _creditRecharge(user.uid, amount, isCoins);
+              }
+            },
+            child: Text(isAr ? 'تأكيد التحويل' : 'Confirm', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBinancePayDialog(Map<String, dynamic> plan, bool isCoins) {
+    final amount = (plan['amount'] as int?) ?? 0;
+    final price = plan['price']?.toString() ?? '1.0';
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final binanceId = (_gatewayConfig['binanceId'] ?? '').toString();
+    final binanceAddress = (_gatewayConfig['binanceAddress'] ?? '').toString();
+    final instructions = (_gatewayConfig['binanceInstructions'] ?? '').toString();
+    final txCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1D2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.currency_bitcoin, color: Color(0xFFF3BA2F)),
+            const SizedBox(width: 8),
+            Text(isAr ? 'Binance Pay / USDT' : 'Binance Pay / USDT', style: const TextStyle(color: Colors.white, fontSize: 16)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                isAr ? 'المطلوب: \$$price USDT (شحن $amount عملة)' : 'Amount: \$$price USDT (Recharge $amount coins)',
+                style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              if (binanceId.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Binance Pay ID', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                            SelectableText(binanceId, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, color: Color(0xFFFFD54F), size: 18),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: binanceId));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(isAr ? 'تم نسخ معرف Binance' : 'Binance ID copied!'), duration: const Duration(seconds: 1)),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              if (binanceAddress.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('USDT (TRC-20) Address', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                            SelectableText(binanceAddress, style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace')),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, color: Color(0xFFFFD54F), size: 18),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: binanceAddress));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(isAr ? 'تم نسخ العنوان' : 'Address copied!'), duration: const Duration(seconds: 1)),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              if (instructions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(instructions, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: txCtrl,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: isAr ? 'أدخل رقم المعاملة (TxID)' : 'Enter TxID / Transaction Hash',
+                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                  filled: true,
+                  fillColor: Colors.black26,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.white12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF3BA2F)),
+            onPressed: () async {
+              final tx = txCtrl.text.trim();
+              if (tx.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(isAr ? 'يرجى إدخال رقم المعاملة' : 'Please enter TxID')),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              final user = context.read<UserProvider>().currentUser;
+              if (user != null) {
+                await _creditRecharge(user.uid, amount, isCoins);
+              }
+            },
+            child: Text(isAr ? 'تأكيد الدفع' : 'Confirm', style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _creditRecharge(String uid, int amount, bool isCoins) async {
+    try {
+      if (isCoins) {
+        await SupabaseService().addCoins(uid, amount);
+      } else {
+        final currentDiamonds = context.read<UserProvider>().currentUser?.diamonds ?? 0;
+        await Supabase.instance.client.from('users').update({
+          'diamonds': currentDiamonds + amount,
+        }).eq('uid', uid);
+      }
+      if (!mounted) return;
+      await context.read<UserProvider>().loadUser(uid);
+      if (mounted) {
+        final isAr = Localizations.localeOf(context).languageCode == 'ar';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isAr ? 'تم شحن +$amount بنجاح!' : '+$amount added successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+        );
       }
     }
   }

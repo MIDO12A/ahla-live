@@ -16,6 +16,7 @@ import '../../config/app_colors.dart';
 import '../../models/room_model.dart';
 import '../../models/message_model.dart';
 import '../message/message_screen.dart';
+import '../message/message_reply_detail_screen.dart';
 import '../../models/user_model.dart' as app;
 import '../../models/gift_model.dart' as gm;
 import '../../models/gift_banner_config_model.dart';
@@ -875,6 +876,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   String? _currentUserId;
   String? _currentUserName;
   bool get _isOwnerOrModerator => _isOwner || _moderators.contains(_currentUserId);
+  static final Map<String, int> _cachedRoomSeatCount = {};
+  static final Map<String, seat_model.SeatStyle> _cachedRoomSeatStyle = {};
   seat_model.SeatStyle _roomSeatStyle = seat_model.SeatStyle.circle;
 
   // Current room data
@@ -913,6 +916,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    if (_cachedRoomSeatStyle.containsKey(widget.roomId)) {
+      _roomSeatStyle = _cachedRoomSeatStyle[widget.roomId]!;
+    }
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
@@ -1150,7 +1156,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         setState(() {
           _currentRoom = room;
           _isOwner = _currentUserId == room.hostUid;
-          _onlineCount = room.memberCount;
+          _onlineCount = max(_onlineCount, max(room.memberCount, _seats.where((s) => s.isOccupied).length));
           _moderators
             ..clear()
             ..addAll(room.moderators);
@@ -1162,6 +1168,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             );
           }
           _roomSeatStyle = room.seatStyle;
+          _cachedRoomSeatCount[widget.roomId] = room.seatCount;
+          _cachedRoomSeatStyle[widget.roomId] = room.seatStyle;
         });
         _resolveHostCustomId(room.hostUid);
       }
@@ -1998,8 +2006,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // }
 
   List<SeatModel> _buildInitialSeats() {
+    final count = _cachedRoomSeatCount[widget.roomId] ?? 20;
     final seats = <SeatModel>[];
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < count; i++) {
       seats.add(SeatModel(index: i));
     }
     return seats;
@@ -2219,6 +2228,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         activeBubble: user.activeBubble,
       );
     }
+    FocusScope.of(context).unfocus();
     _chatCtrl.clear();
     setState(() => _showChatInput = false);
   }
@@ -2798,13 +2808,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _openPrivateChat(UserModel? user) {
     if (user?.id == null) return;
+    final myUid = _currentUserId ?? '';
+    final targetUid = user!.id!;
+    final convId = (myUid.compareTo(targetUid) < 0) ? '${myUid}_$targetUid' : '${targetUid}_$myUid';
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          targetUid: user!.id!,
-          targetName: user.name,
-          targetPhotoUrl: user.avatar,
+        builder: (_) => MessageReplyDetailScreen(
+          conversationId: convId,
+          otherUid: targetUid,
+          otherName: user.name,
+          otherPhotoUrl: user.avatar ?? '',
         ),
       ),
     );
@@ -3083,6 +3097,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 hotValue: widget.hotValue,
                 gameDesc: widget.gameDesc,
                 onlineCount: '$_onlineCount',
+                onlineAvatars: _roomMembers
+                    .map((m) => m.photoUrl)
+                    .where((u) => u.isNotEmpty)
+                    .toList(),
                 isFollowed: _isFollowed,
                 onExit: () => setState(() => _showExit = true),
                 onMinimize: _minimizeRoom,
@@ -3366,7 +3384,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             ),
 
           if (_showEmoj) _buildEmojPanel(),
-          if (_showChatInput) _buildChatInputBar(),
+          if (_showChatInput) ...[
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                  setState(() => _showChatInput = false);
+                },
+                child: const SizedBox.expand(),
+              ),
+            ),
+            _buildChatInputBar(),
+          ],
 
           // ── Full-screen overlays ──────────────────────────────
           if (_showProfile && _selectedUser != null)
@@ -3472,6 +3502,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     _showProfile = false;
                     _showChatInput = true;
                     _chatCtrl.text = '@${_selectedUser?.name} ';
+                    _chatCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _chatCtrl.text.length));
                   });
                 },
                 onGift: _openGiftPanel,
