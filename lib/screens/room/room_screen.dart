@@ -1260,11 +1260,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               final isLucky = giftDef?.isLucky == true || giftDef?.type == 3 || giftDef?.categoryId == 'lucky';
 
               if (!isLucky && (giftId.isEmpty || !_isDuplicateGiftEvent(m.senderUid, giftId))) {
-                final flyIcon = (payload['default_image']?.toString().isNotEmpty == true)
+                String flyIcon = (payload['default_image']?.toString().isNotEmpty == true &&
+                        !payload['default_image'].toString().endsWith('.svga') &&
+                        !payload['default_image'].toString().endsWith('.vap'))
                     ? payload['default_image'].toString()
-                    : ((payload['gift_icon']?.toString().isNotEmpty == true)
+                    : ((payload['gift_icon']?.toString().isNotEmpty == true &&
+                            !payload['gift_icon'].toString().endsWith('.svga') &&
+                            !payload['gift_icon'].toString().endsWith('.vap'))
                         ? payload['gift_icon'].toString()
-                        : (giftDef?.defaultImage ?? giftDef?.iconAsset ?? ''));
+                        : (giftDef?.iconAsset ?? giftDef?.defaultImage ?? ''));
+                if (flyIcon.endsWith('.svga') || flyIcon.endsWith('.vap') || flyIcon.endsWith('.mp4')) {
+                  flyIcon = giftDef?.iconAsset ?? '';
+                }
                 final receiverId = payload['receiver_id']?.toString();
                 if (flyIcon.isNotEmpty && receiverId != null && receiverId.isNotEmpty) {
                   _triggerGiftFlight(
@@ -1548,6 +1555,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final index = <String, StoreItemModel>{};
       for (final item in items) {
         index[item.itemId] = item;
+        if (item.svgaAsset != null && item.svgaAsset!.isNotEmpty) {
+          index[item.svgaAsset!] = item;
+        }
+        if (item.animationUrl != null && item.animationUrl!.isNotEmpty) {
+          index[item.animationUrl!] = item;
+        }
       }
       _storeItemsIndex = index;
       // Re-derive assets for all occupied seats (live updates from dashboard)
@@ -1691,8 +1704,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             _pendingEntrances.add(entry);
             continue;
           }
-          // Fallback: raw URL entrance (VIP-purchased) -> play directly
-          final rawUrl = entranceItemId.startsWith('http') ? entranceItemId : null;
+          // Fallback: raw URL entrance (VIP-purchased or assets) -> play directly
+          final rawUrl = (entranceItemId.startsWith('http') || entranceItemId.startsWith('assets/')) ? entranceItemId : null;
           if (rawUrl == null) continue;
           _playEntranceEffectRaw(entry, rawUrl);
           continue;
@@ -3956,13 +3969,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final payload = m.giftPayload;
       final giftName = payload?['gift_name']?.toString() ?? '';
       final receiverName = payload?['receiver_name']?.toString() ?? '';
-      final giftIcon = payload?['gift_icon']?.toString() ??
+      final giftId = payload?['gift_id']?.toString() ?? '';
+      final cachedGift = _cachedGiftItems[giftId];
+      String? rawIcon = payload?['gift_icon']?.toString() ??
           payload?['image_url']?.toString() ??
           payload?['gift']?['giftIconUrl']?.toString() ??
           payload?['gift']?['giftCoverUrl']?.toString() ??
           payload?['gift']?['iconAsset']?.toString() ??
           payload?['gift']?['default_image']?.toString() ??
           m.imageUrl;
+      if (rawIcon != null && (rawIcon.endsWith('.svga') || rawIcon.endsWith('.vap') || rawIcon.endsWith('.mp4'))) {
+        rawIcon = null;
+      }
+      String? giftIcon = rawIcon ?? cachedGift?.iconAsset;
+      if (giftIcon == null || giftIcon.endsWith('.svga') || giftIcon.endsWith('.vap') || giftIcon.endsWith('.mp4')) {
+        giftIcon = (cachedGift?.defaultImage != null && !cachedGift!.defaultImage!.endsWith('.svga') && !cachedGift!.defaultImage!.endsWith('.vap'))
+            ? cachedGift.defaultImage
+            : null;
+      }
       final count = payload?['count'] ?? 1;
 
       return Padding(
@@ -5747,6 +5771,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _leaveRoomSession() async {
+    if (_isMinimized || MinimizedRoomService().isActiveFor(widget.roomId)) {
+      return;
+    }
     if (_currentUserId == null) return;
     final uid = _currentUserId!;
     final name = _currentUserName;

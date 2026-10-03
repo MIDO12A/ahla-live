@@ -162,13 +162,23 @@ abstract final class AgencyRepository {
               e.toString().contains('مسجل بالفعل'))) {
         rethrow;
       }
-      // Fallback: insert directly into host_agency_members
+      // Fallback: insert directly into host_agency_join_requests and host_agency_members
       final uid = _sb.auth.currentUser?.id;
       if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
+      final reqId = const Uuid().v4();
+      try {
+        await _sb.from('host_agency_join_requests').insert({
+          'id': reqId,
+          'agency_id': agencyId,
+          'user_id': uid,
+          'status': 'pending',
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      } catch (_) {}
       try {
         await _sb.from('host_agency_members').insert({
           'agency_id': agencyId,
-          'host_uid': uid,
+          'user_id': uid,
           'role': 'host',
           'status': 'pending',
         });
@@ -176,7 +186,7 @@ abstract final class AgencyRepository {
         try {
           await _sb.from('host_agency_members').insert({
             'agency_id': agencyId,
-            'user_id': uid,
+            'host_uid': uid,
             'role': 'host',
             'status': 'pending',
           });

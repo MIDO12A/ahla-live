@@ -61,12 +61,6 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     final user = userProvider.currentUser;
     if (user == null) return;
 
-    // Exit any active/minimized room the user is currently in
-    final minSvc = MinimizedRoomService();
-    if (minSvc.isActive) {
-      await minSvc.exitRoom(user.uid);
-    }
-
     RoomModel? room;
     // 1. Check hostedRoomId if valid AND strictly owned by this user
     final targetRoomId = user.hostedRoomId;
@@ -87,8 +81,13 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
       }
     }
 
-    // 3. If own room found, directly enter it!
+    final minSvc = MinimizedRoomService();
+
+    // 3. If own room found, directly enter it without exiting if it's already minimized!
     if (room != null && mounted) {
+      if (minSvc.isActive && minSvc.roomId != room.roomId) {
+        await minSvc.exitRoom(user.uid);
+      }
       navigateToRoom(
         context,
         roomName: room.name,
@@ -99,7 +98,10 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
       return;
     }
 
-    // 4. Otherwise, open create room screen
+    // 4. Otherwise, exit old room and open create room screen
+    if (minSvc.isActive) {
+      await minSvc.exitRoom(user.uid);
+    }
     if (mounted) {
       Navigator.push(
         context,

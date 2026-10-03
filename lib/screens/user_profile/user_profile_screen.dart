@@ -199,11 +199,54 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
 
       if (targetUser != null) {
-        // Fetch all store items
-        List<StoreItemModel> allStoreItems = [];
-        try {
-          allStoreItems = await _supabase.getStoreItems();
-        } catch (_) {}
+        final storeItemsFuture = _supabase.getStoreItems().catchError((_) => <StoreItemModel>[]);
+        final badgesFuture = _supabase.getBadgesCatalog().catchError((_) => <Map<String, dynamic>>[]);
+        final necklacesFuture = _supabase.getNecklacesCatalog().catchError((_) => <Map<String, dynamic>>[]);
+        final giftsCatalogFuture = _supabase.getGiftsCatalog().catchError((_) => <String, gm.GiftModel>{});
+        final receivedGiftsFuture = _supabase.getReceivedGifts(uid).catchError((_) => <Map<String, dynamic>>[]);
+        final followingFuture = _supabase.getFollowing(uid).catchError((_) => <UserModel>[]);
+        final fansFuture = _supabase.getFans(uid).catchError((_) => <UserModel>[]);
+        final visitorsFuture = _supabase.getVisitors(uid).catchError((_) => <UserModel>[]);
+        final roomMemberFuture = Supabase.instance.client
+            .from('room_members')
+            .select('room_id')
+            .eq('user_id', uid)
+            .maybeSingle()
+            .catchError((_) => null);
+        final cpFuture = CpService.getMyData(uid).catchError((_) => <String, dynamic>{});
+        final agencyMemberFuture = Supabase.instance.client
+            .from('host_agency_members')
+            .select('agency_id, role, status')
+            .eq('user_id', uid)
+            .eq('status', 'active')
+            .maybeSingle()
+            .catchError((_) => null);
+
+        final results = await Future.wait([
+          storeItemsFuture,
+          badgesFuture,
+          necklacesFuture,
+          giftsCatalogFuture,
+          receivedGiftsFuture,
+          followingFuture,
+          fansFuture,
+          visitorsFuture,
+          roomMemberFuture,
+          cpFuture,
+          agencyMemberFuture,
+        ]);
+
+        final allStoreItems = results[0] as List<StoreItemModel>;
+        final bList = results[1] as List<Map<String, dynamic>>;
+        final nList = results[2] as List<Map<String, dynamic>>;
+        final giftCatalog = results[3] as Map<String, gm.GiftModel>;
+        final gifts = results[4] as List<Map<String, dynamic>>;
+        final fList = results[5] as List<UserModel>;
+        final fansList = results[6] as List<UserModel>;
+        final vList = results[7] as List<UserModel>;
+        final roomMember = results[8] as Map<String, dynamic>?;
+        final cpResult = results[9] as Map<String, dynamic>;
+        final memberRow = results[10] as Map<String, dynamic>?;
 
         // Resolve activeFrame path
         String? resolvedFrame = targetUser.activeFrame;
@@ -225,24 +268,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           }
         }
 
-        // Fetch Badges & Necklaces Catalogs
+        // Badges & Necklaces Catalogs
         Map<String, Map<String, dynamic>> badgesMap = {};
-        try {
-          final bList = await _supabase.getBadgesCatalog();
-          for (final b in bList) {
-            final id = b['id']?.toString() ?? '';
-            if (id.isNotEmpty) badgesMap[id] = b;
-          }
-        } catch (_) {}
+        for (final b in bList) {
+          final id = b['id']?.toString() ?? '';
+          if (id.isNotEmpty) badgesMap[id] = b;
+        }
 
         Map<String, Map<String, dynamic>> necklacesMap = {};
-        try {
-          final nList = await _supabase.getNecklacesCatalog();
-          for (final n in nList) {
-            final id = n['id']?.toString() ?? '';
-            if (id.isNotEmpty) necklacesMap[id] = n;
-          }
-        } catch (_) {}
+        for (final n in nList) {
+          final id = n['id']?.toString() ?? '';
+          if (id.isNotEmpty) necklacesMap[id] = n;
+        }
 
         // Resolve activeNecklace path
         String? resolvedNecklace = targetUser.activeNecklace;
@@ -252,7 +289,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             resolvedNecklace = n['svga_url']?.toString() ?? n['image_url']?.toString() ?? resolvedNecklace;
           }
         }
-        // If no active necklace, but user has VIP item of type necklace
         if (resolvedNecklace == null || resolvedNecklace.isEmpty) {
           final vipNecklace = targetUser.ownedVipItems.where((m) => m['type'] == 'necklace').firstOrNull;
           if (vipNecklace != null && (vipNecklace['url'] ?? '').isNotEmpty) {
@@ -260,72 +296,35 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           }
         }
 
-        // Fetch store items to match owned frames & rides
+        // Store items to match owned frames & rides
         final ownedSet = targetUser.ownedItems.toSet();
         final frames = allStoreItems.where((i) => i.category == 'frame' && (ownedSet.contains(i.itemId) || i.svgaAsset == targetUser?.activeFrame)).toList();
         final rides = allStoreItems.where((i) => (i.category == 'car' || i.category == 'entrance') && (ownedSet.contains(i.itemId) || i.svgaAsset == targetUser?.activeCar || i.svgaAsset == targetUser?.activeEntrance)).toList();
 
-        // Fetch gifts catalog
-        Map<String, gm.GiftModel> giftCatalog = {};
-        try {
-          giftCatalog = await _supabase.getGiftsCatalog();
-        } catch (_) {}
-
-        // Fetch received gifts
-        final gifts = await _supabase.getReceivedGifts(uid);
         final aggList = _aggregateGifts(gifts, giftCatalog);
         final supporters = _extractSupporters(gifts);
 
         // Fetch counts
-        int followings = targetUser.following;
-        int fans = targetUser.followers;
-        int visitors = targetUser.visitors;
-        try {
-          final fList = await _supabase.getFollowing(uid);
-          followings = fList.length;
-        } catch (_) {}
-        try {
-          final fansList = await _supabase.getFans(uid);
-          fans = fansList.length;
-        } catch (_) {}
-        try {
-          final vList = await _supabase.getVisitors(uid);
-          visitors = vList.length;
-        } catch (_) {}
+        int followings = fList.isNotEmpty ? fList.length : targetUser.following;
+        int fans = fansList.isNotEmpty ? fansList.length : targetUser.followers;
+        int visitors = vList.isNotEmpty ? vList.length : targetUser.visitors;
 
         // Check if user is in an active room
         String? activeRoomId;
-        try {
-          final client = Supabase.instance.client;
-          final roomMember = await client
-              .from('room_members')
-              .select('room_id')
-              .eq('user_id', uid)
-              .maybeSingle();
-          if (roomMember != null && roomMember['room_id'] != null) {
-            activeRoomId = roomMember['room_id'].toString();
-          }
-        } catch (_) {}
+        if (roomMember != null && roomMember['room_id'] != null) {
+          activeRoomId = roomMember['room_id'].toString();
+        }
 
         // Fetch CP / Relationship Data
         Map<String, dynamic>? cpInfo;
-        try {
-          final cpResult = await CpService.getMyData(uid);
-          if (cpResult['has_cp'] == true) {
-            cpInfo = cpResult['couple'] as Map<String, dynamic>?;
-          }
-        } catch (_) {}
+        if (cpResult['has_cp'] == true) {
+          cpInfo = cpResult['couple'] as Map<String, dynamic>?;
+        }
 
         // Fetch Agency Data
         Map<String, dynamic>? agencyInfo;
-        try {
-          final memberRow = await Supabase.instance.client
-              .from('host_agency_members')
-              .select('agency_id, role, status')
-              .eq('user_id', uid)
-              .eq('status', 'active')
-              .maybeSingle();
-          if (memberRow != null && memberRow['agency_id'] != null) {
+        if (memberRow != null && memberRow['agency_id'] != null) {
+          try {
             final agRow = await Supabase.instance.client
                 .from('host_agencies')
                 .select('id, name, photo_url, tier')
@@ -340,8 +339,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 'role': memberRow['role'],
               };
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
 
         if (mounted) {
           setState(() {

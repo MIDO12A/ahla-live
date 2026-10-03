@@ -64,7 +64,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
     final existingRoom = await _firebaseService.getRoomByHost(user.uid);
     if (existingRoom != null && existingRoom.hostUid == user.uid && mounted) {
       final minSvc = MinimizedRoomService();
-      if (minSvc.isActive) {
+      if (minSvc.isActive && minSvc.roomId != existingRoom.roomId) {
         await minSvc.exitRoom(user.uid);
       }
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,15 +124,13 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
         return;
       }
 
-      // Exit any active/minimized room the user was visiting
-      final minSvc = MinimizedRoomService();
-      if (minSvc.isActive) {
-        await minSvc.exitRoom(user.uid);
-      }
-
       // Pre-check: if user already has an active room, go to it instead of recreating
       final existing = await _firebaseService.getRoomByHost(user.uid);
       if (existing != null && existing.hostUid == user.uid) {
+        final minSvc = MinimizedRoomService();
+        if (minSvc.isActive && minSvc.roomId != existing.roomId) {
+          await minSvc.exitRoom(user.uid);
+        }
         await _firebaseService.updateUser(user.uid, {'hosted_room_id': existing.roomId});
         await userProvider.loadUser(user.uid);
         if (mounted) {
@@ -146,6 +144,12 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
           );
         }
         return;
+      }
+
+      // Exit any active/minimized room the user was visiting
+      final minSvc = MinimizedRoomService();
+      if (minSvc.isActive) {
+        await minSvc.exitRoom(user.uid);
       }
 
       final roomId = await _firebaseService.createRoom(

@@ -195,7 +195,6 @@ class _VapPlayerState extends State<VapPlayer> with SingleTickerProviderStateMix
   void _playCurrent() {
     if (_localPath == null) return;
     try {
-      _playAudioTrackIfNeeded();
       _controller.play(
         path: _localPath!,
         sourceType: VapSourceType.file,

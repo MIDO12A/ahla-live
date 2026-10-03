@@ -815,14 +815,20 @@ class FirebaseService {
           'created_at': DateTime.now().toIso8601String(),
         });
 
-        // إرسال رسالة الهدية إلى Supabase فوراً لتشغيل مؤثرات وأنيميشن الهدايا لدى جميع المستخدمين
+        final String cleanGiftIcon = (defaultImage != null &&
+                !defaultImage.endsWith('.svga') &&
+                !defaultImage.endsWith('.vap') &&
+                !defaultImage.endsWith('.mp4'))
+            ? defaultImage
+            : '';
+
         final giftPayloadData = {
           'gift_id': giftId,
           'gift_name': giftName,
           'receiver_name': receiverName,
           'receiver_id': receiverId,
           'count': count,
-          'gift_icon': defaultImage ?? animationAsset ?? '',
+          'gift_icon': cleanGiftIcon.isNotEmpty ? cleanGiftIcon : (defaultImage ?? ''),
           'coin_value': value,
           'animation_asset': animationAsset,
           'default_image': defaultImage,
@@ -838,7 +844,7 @@ class FirebaseService {
           senderPhotoUrl: senderPhotoUrl,
           type: 'gift',
           text: '$senderName 🎁 $giftName x$count → $receiverName',
-          imageUrl: defaultImage ?? animationAsset ?? '',
+          imageUrl: cleanGiftIcon.isNotEmpty ? cleanGiftIcon : (defaultImage ?? animationAsset ?? ''),
           giftPayload: giftPayloadData,
           timestamp: DateTime.now().millisecondsSinceEpoch,
         )).catchError((_) => false));
@@ -941,13 +947,20 @@ class FirebaseService {
           return false;
         }
         // Send Supabase room message even if Firestore failed
+        final String cleanGiftIcon = (defaultImage != null &&
+                !defaultImage.endsWith('.svga') &&
+                !defaultImage.endsWith('.vap') &&
+                !defaultImage.endsWith('.mp4'))
+            ? defaultImage
+            : '';
+
         final giftPayloadData = {
           'gift_id': giftId,
           'gift_name': giftName,
           'receiver_name': receiverName,
           'receiver_id': receiverId,
           'count': count,
-          'gift_icon': defaultImage ?? animationAsset ?? '',
+          'gift_icon': cleanGiftIcon.isNotEmpty ? cleanGiftIcon : (defaultImage ?? ''),
           'coin_value': value,
           'animation_asset': animationAsset,
           'default_image': defaultImage,
@@ -962,7 +975,7 @@ class FirebaseService {
           senderPhotoUrl: senderPhotoUrl,
           type: 'gift',
           text: '$senderName 🎁 $giftName x$count → $receiverName',
-          imageUrl: defaultImage ?? animationAsset ?? '',
+          imageUrl: cleanGiftIcon.isNotEmpty ? cleanGiftIcon : (defaultImage ?? animationAsset ?? ''),
           giftPayload: giftPayloadData,
           timestamp: DateTime.now().millisecondsSinceEpoch,
         )).catchError((_) => false));
@@ -991,6 +1004,27 @@ class FirebaseService {
           } catch (e) {
             debugPrint('agency_diamond_ledger error: $e');
           }
+
+          // Sync to Supabase host_agency_members & host_agencies
+          try {
+            final existingMemb = await Supabase.instance.client
+                .from('host_agency_members')
+                .select('diamonds, diamonds_balance, diamonds_earned_monthly')
+                .eq('user_id', receiverId)
+                .maybeSingle();
+            if (existingMemb != null) {
+              final currentD = (existingMemb['diamonds'] as num?)?.toInt() ?? 0;
+              final currentMonthly = (existingMemb['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+              await Supabase.instance.client
+                  .from('host_agency_members')
+                  .update({
+                    'diamonds': currentD + totalCost,
+                    'diamonds_balance': currentD + totalCost,
+                    'diamonds_earned_monthly': currentMonthly + totalCost,
+                  })
+                  .eq('user_id', receiverId);
+            }
+          } catch (_) {}
         }
 
         try {
@@ -3855,29 +3889,55 @@ class FirebaseService {
     if (results.isEmpty) {
       try {
         final field = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
-        final userSnap = await _db.collection('users')
-            .orderBy(field, descending: true)
-            .limit(50)
-            .get();
-        for (var doc in userSnap.docs) {
-          final ud = doc.data();
-          final val = _asInt(ud[field]);
-          if (val <= 0) continue;
-          final customId = (ud['custom_id'] ?? ud['customId'] ?? ud['display_id'] ?? ud['id'] ?? '').toString();
-          final displayNumericId = customId.isNotEmpty ? customId : doc.id;
+        final sbUsers = await SupabaseDataService().getUserRanking(
+          orderByField: field,
+          limit: 50,
+        );
+        for (final u in sbUsers) {
+          final uid = u['uid']?.toString() ?? u['id']?.toString() ?? '';
+          final customId = (u['custom_id'] ?? u['display_id'] ?? uid).toString();
+          final pts = (u[field] as num?)?.toInt() ?? 0;
           results.add({
-            'uid': doc.id,
-            'id': displayNumericId,
-            'custom_id': displayNumericId,
-            'name': (ud['name'] ?? 'Unknown').toString(),
-            'photo_url': (ud['photo_url'] ?? ud['photoUrl'] ?? '').toString(),
-            'level': ud['level'] ?? 1,
-            'total_gifts_sent': isWealth ? val : _asInt(ud['total_gifts_sent']),
-            'total_gifts_received': !isWealth ? val : _asInt(ud['total_gifts_received']),
-            'user_id': displayNumericId,
+            'uid': uid,
+            'id': customId,
+            'custom_id': customId,
+            'name': (u['name'] ?? 'User').toString(),
+            'photo_url': (u['photo_url'] ?? u['avatar'] ?? '').toString(),
+            'level': (u['level'] as num?)?.toInt() ?? 1,
+            'total_gifts_sent': isWealth ? pts : ((u['total_gifts_sent'] as num?)?.toInt() ?? 0),
+            'total_gifts_received': !isWealth ? pts : ((u['total_gifts_received'] as num?)?.toInt() ?? 0),
+            'user_id': customId,
           });
         }
       } catch (_) {}
+
+      if (results.isEmpty) {
+        try {
+          final field = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
+          final userSnap = await _db.collection('users')
+              .orderBy(field, descending: true)
+              .limit(50)
+              .get();
+          for (var doc in userSnap.docs) {
+            final ud = doc.data();
+            final val = _asInt(ud[field]);
+            if (val <= 0) continue;
+            final customId = (ud['custom_id'] ?? ud['customId'] ?? ud['display_id'] ?? ud['id'] ?? '').toString();
+            final displayNumericId = customId.isNotEmpty ? customId : doc.id;
+            results.add({
+              'uid': doc.id,
+              'id': displayNumericId,
+              'custom_id': displayNumericId,
+              'name': (ud['name'] ?? 'Unknown').toString(),
+              'photo_url': (ud['photo_url'] ?? ud['photoUrl'] ?? '').toString(),
+              'level': ud['level'] ?? 1,
+              'total_gifts_sent': isWealth ? val : _asInt(ud['total_gifts_sent']),
+              'total_gifts_received': !isWealth ? val : _asInt(ud['total_gifts_received']),
+              'user_id': displayNumericId,
+            });
+          }
+        } catch (_) {}
+      }
     }
 
     return results;
@@ -3919,6 +3979,37 @@ class FirebaseService {
         'level': (ud['level'] as num?)?.toInt() ?? 1,
       });
     }
+
+    if (results.isEmpty) {
+      try {
+        final orderCol = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
+        final sbUsers = await SupabaseDataService().getUserRanking(
+          orderByField: orderCol,
+          limit: 10,
+        );
+        for (final u in sbUsers) {
+          final uid = u['uid']?.toString() ?? u['id']?.toString() ?? '';
+          final customId = (u['custom_id'] ?? u['display_id'] ?? uid).toString();
+          final pts = (u[orderCol] as num?)?.toInt() ?? 0;
+          results.add({
+            'user_id': customId,
+            'custom_id': customId,
+            'uid': uid,
+            'id': uid,
+            'name': u['name'] ?? 'مستخدم',
+            'user_name': u['name'] ?? 'مستخدم',
+            'photoUrl': (u['photo_url'] ?? u['avatar'] ?? '').toString(),
+            'photo_url': (u['photo_url'] ?? u['avatar'] ?? '').toString(),
+            'user_photo_url': (u['photo_url'] ?? u['avatar'] ?? '').toString(),
+            'total_value': pts,
+            'points': pts,
+            'score': pts,
+            'level': (u['level'] as num?)?.toInt() ?? 1,
+          });
+        }
+      } catch (_) {}
+    }
+
     return results;
   }
   Future<List<Map<String, dynamic>>> getRoomGlobalRanking({

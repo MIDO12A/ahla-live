@@ -1557,17 +1557,48 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> _getUsersByIds(List<String> uids) async {
     if (uids.isEmpty) return [];
     try {
-      final filter = uids.map((id) => '"$id"').join(',');
-      final url = Uri.parse('$_baseUrl/rest/v1/users?uid=in.($filter)&select=uid,name,photo_url,avatar,gender,level,country_idx,custom_id');
+      final cleanUids = uids.where((id) => id.isNotEmpty).toSet().toList();
+      if (cleanUids.isEmpty) return [];
+
+      // Try Supabase SDK client first
+      try {
+        final res = await Supabase.instance.client
+            .from('users')
+            .select('uid, id, name, photo_url, avatar, gender, level, country_idx, custom_id')
+            .filter('uid', 'in', cleanUids);
+        if (res.isNotEmpty) {
+          return (res as List).map((e) {
+            final m = Map<String, dynamic>.from(e as Map);
+            final photo = m['photo_url']?.toString() ?? m['avatar']?.toString() ?? '';
+            final resolvedUid = m['uid']?.toString() ?? m['id']?.toString() ?? '';
+            return {
+              'uid': resolvedUid,
+              'id': resolvedUid,
+              'name': m['name'] ?? 'User',
+              'photo_url': photo,
+              'avatar': photo,
+              'gender': m['gender'] ?? 'male',
+              'level': (m['level'] as num?)?.toInt() ?? 1,
+              'country_idx': (m['country_idx'] as num?)?.toInt() ?? 0,
+              'custom_id': m['custom_id'] ?? '',
+            };
+          }).toList();
+        }
+      } catch (_) {}
+
+      // Fallback: PostgREST REST API
+      final filter = cleanUids.join(',');
+      final url = Uri.parse('$_baseUrl/rest/v1/users?or=(uid.in.($filter),id.in.($filter))&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) {
           final m = Map<String, dynamic>.from(e as Map);
           final photo = m['photo_url']?.toString() ?? m['avatar']?.toString() ?? '';
+          final resolvedUid = m['uid']?.toString() ?? m['id']?.toString() ?? '';
           return {
-            'uid': m['uid'],
-            'id': m['uid'],
+            'uid': resolvedUid,
+            'id': resolvedUid,
             'name': m['name'] ?? 'User',
             'photo_url': photo,
             'avatar': photo,
@@ -1578,7 +1609,9 @@ class SupabaseDataService {
           };
         }).toList();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SupabaseDataService] _getUsersByIds error: $e');
+    }
     return [];
   }
 

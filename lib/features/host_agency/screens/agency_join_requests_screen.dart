@@ -73,44 +73,94 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
     setState(() => _loading = true);
 
     try {
-      // ✅ الطلبات المعلقة/المرفوضة من host_agency_join_requests (الجدول الصحيح)
-      // نُضيف _req_id لكل صف حتى نمرره لـ agency_accept_member
-      final reqResp = await _sb.from('host_agency_join_requests').select('''
-        id, user_id, status, created_at,
-        profile:profiles(display_name, avatar_url, kayan_id, level)
-      ''')
-          .eq('agency_id', widget.agencyId)
-          .inFilter('status', ['pending', 'invited', 'rejected'])
-          .order('created_at', ascending: false)
-          .limit(200);
+      List<dynamic> reqResp = [];
+      try {
+        reqResp = await _sb.from('host_agency_join_requests')
+            .select('id, user_id, status, created_at')
+            .eq('agency_id', widget.agencyId)
+            .inFilter('status', ['pending', 'invited', 'rejected'])
+            .order('created_at', ascending: false)
+            .limit(200);
+      } catch (e) {
+        debugPrint('[AgencyJoinRequests] reqResp error: $e');
+      }
 
-      final requests = (reqResp as List<dynamic>).map((e) {
+      List<dynamic> membResp = [];
+      try {
+        membResp = await _sb.from('host_agency_members')
+            .select('id, user_id, role, status, joined_at, kicked_at')
+            .eq('agency_id', widget.agencyId)
+            .neq('role', 'owner')
+            .inFilter('status', ['active', 'pending', 'suspended', 'kicked', 'left'])
+            .order('joined_at', ascending: false)
+            .limit(200);
+      } catch (e) {
+        debugPrint('[AgencyJoinRequests] membResp error: $e');
+      }
+
+      final allUserIds = <String>{};
+      for (final r in reqResp) {
+        final uid = r['user_id']?.toString();
+        if (uid != null && uid.isNotEmpty) allUserIds.add(uid);
+      }
+      for (final m in membResp) {
+        final uid = m['user_id']?.toString() ?? m['host_uid']?.toString();
+        if (uid != null && uid.isNotEmpty) allUserIds.add(uid);
+      }
+
+      final userProfiles = <String, Map<String, dynamic>>{};
+      if (allUserIds.isNotEmpty) {
+        try {
+          final usersData = await _sb.from('users')
+              .select('id, uid, name, photo_url, avatar, custom_id, level')
+              .filter('id', 'in', allUserIds.toList());
+          for (final u in usersData) {
+            final uId = u['id']?.toString() ?? u['uid']?.toString() ?? '';
+            final photo = u['photo_url']?.toString() ?? u['avatar']?.toString();
+            userProfiles[uId] = {
+              'display_name': u['name'] ?? 'مستخدم',
+              'avatar_url': photo,
+              'kayan_id': u['custom_id']?.toString() ?? '',
+              'level': (u['level'] as num?)?.toInt() ?? 1,
+            };
+          }
+        } catch (_) {}
+      }
+
+      final requests = reqResp.map((e) {
         final m = Map<String, dynamic>.from(e as Map);
-        m['_req_id'] = m['id'];   // حفظ request ID لاستخدامه في القبول/الرفض
+        final uid = m['user_id']?.toString() ?? '';
+        m['_req_id'] = m['id'];
         m['_source'] = 'request';
+        m['profile'] = userProfiles[uid] ?? {
+          'display_name': 'مستخدم',
+          'avatar_url': null,
+          'kayan_id': '',
+          'level': 1,
+        };
         return m;
       }).toList();
 
-      // ✅ الأعضاء النشطون/المطرودون من host_agency_members
-      final membResp = await _sb.from('host_agency_members').select('''
-        user_id, role, status, joined_at, kicked_at,
-        profile:profiles(display_name, avatar_url, kayan_id, level)
-      ''')
-          .eq('agency_id', widget.agencyId)
-          .neq('role', 'owner')
-          .inFilter('status', ['active', 'suspended', 'kicked', 'left'])
-          .order('joined_at', ascending: false)
-          .limit(200);
-
-      final members = (membResp as List<dynamic>).map((e) {
+      final members = membResp.map((e) {
         final m = Map<String, dynamic>.from(e as Map);
+        final uid = m['user_id']?.toString() ?? m['host_uid']?.toString() ?? '';
+        m['user_id'] = uid;
         m['_source'] = 'member';
+        m['profile'] = userProfiles[uid] ?? {
+          'display_name': 'مستخدم',
+          'avatar_url': null,
+          'kayan_id': '',
+          'level': 1,
+        };
         return m;
       }).toList();
 
       if (!mounted) return;
       setState(() {
-        _pending  = requests.where((m) => ['pending', 'invited'].contains(m['status'])).toList();
+        _pending = [
+          ...requests.where((m) => ['pending', 'invited'].contains(m['status'])),
+          ...members.where((m) => m['status'] == 'pending' && !requests.any((r) => r['user_id'] == m['user_id'])),
+        ];
         _approved = members.where((m) => m['status'] == 'active').toList();
         _rejected = [
           ...requests.where((m) => m['status'] == 'rejected'),
@@ -125,21 +175,41 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
     }
   }
 
-  // p_reqId = host_agency_join_requests.id
-  Future<void> _accept(String reqId, String _unused) async {
+  // p_reqId = host_agency_join_requests.id or host_agency_members.id
+  Future<void> _accept(String reqId, String userId) async {
     try {
-      // ✅ استخدام request ID كما يتوقع RPC agency_accept_member
-      await _sb.rpc('agency_accept_member', params: {
-        'p_request_id': reqId,
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ تم قبول العضو'), backgroundColor: Color(0xFF2E7D32)),
-      );
-      _load();
+      try {
+        await _sb.rpc('agency_accept_member', params: {
+          'p_request_id': reqId,
+        });
+      } catch (rpcErr) {
+        debugPrint('[AgencyJoinRequests] rpc agency_accept_member failed, falling back to direct update: $rpcErr');
+        await _sb.from('host_agency_join_requests')
+            .update({'status': 'accepted', 'resolved_at': DateTime.now().toUtc().toIso8601String()})
+            .eq('id', reqId);
+        if (userId.isNotEmpty) {
+          await _sb.from('host_agency_members').upsert({
+            'agency_id': widget.agencyId,
+            'user_id': userId,
+            'role': 'host',
+            'status': 'active',
+            'joined_at': DateTime.now().toUtc().toIso8601String(),
+          });
+          await _sb.from('users').update({'agency_id': widget.agencyId}).eq('id', userId);
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ تم قبول العضو'), backgroundColor: Color(0xFF2E7D32)),
+        );
+        _load();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -305,8 +375,8 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           // طلبات معلقة: نمرر _req_id للقبول والرفض
           // أعضاء نشطون: نمرر user_id للطرد
           onAccept: () => _accept(
-            list[i]['_req_id'] as String? ?? list[i]['user_id'] as String,
-            '',
+            list[i]['_req_id'] as String? ?? list[i]['id'] as String? ?? list[i]['user_id'] as String,
+            list[i]['user_id'] as String? ?? '',
           ),
           onReject: () => _reject(
             list[i]['_req_id'] as String? ?? list[i]['user_id'] as String,
