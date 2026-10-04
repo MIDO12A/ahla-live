@@ -6,7 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/supabase_auth_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../config/r.dart';
 import '../../core/supabase_compat.dart';
 import '../../core/widgets/cached_image.dart';
@@ -166,23 +168,41 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final currentUser = userProvider.currentUser;
-      final supaUid = SupabaseAuthService().currentUid;
-      final currentUid = currentUser?.uid ?? supaUid ?? FirebaseAuth.instance.currentUser?.uid;
-      final uid = widget.targetUid ?? currentUid;
+      String? resolvedCurrentUid = currentUser?.uid ?? SupabaseAuthService().currentUid ?? FirebaseAuth.instance.currentUser?.uid;
+      if (resolvedCurrentUid == null || resolvedCurrentUid.isEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          resolvedCurrentUid = prefs.getString('supabase_auth_uid') ?? prefs.getString('user_id');
+        } catch (_) {}
+      }
 
-      if (uid == null) {
+      final uid = widget.targetUid ?? resolvedCurrentUid;
+
+      if (uid == null || uid.isEmpty) {
         if (mounted) setState(() => _loading = false);
         return;
       }
 
       UserModel? targetUser;
-      if (widget.targetUid != null && widget.targetUid != currentUid) {
+      if (widget.targetUid != null && widget.targetUid != resolvedCurrentUid) {
         targetUser = await _supabase.getUser(uid);
-        if (currentUser != null) {
-          final following = await _supabase.isFollowing(currentUser.uid, uid);
+        // Fallback: check if target matches currentUser
+        if (targetUser == null && currentUser != null) {
+          if (currentUser.uid == uid || (currentUser.customId.isNotEmpty && currentUser.customId == uid)) {
+            targetUser = currentUser;
+          }
+        }
+        // Fallback: check SupabaseDataService
+        if (targetUser == null) {
+          try {
+            targetUser = await SupabaseDataService().getUser(uid);
+          } catch (_) {}
+        }
+        if (currentUser != null && targetUser != null) {
+          final following = await _supabase.isFollowing(currentUser.uid, targetUser.uid);
           if (mounted) setState(() => _isFollowing = following);
           _supabase.recordProfileVisit(
-            visitedUid: uid,
+            visitedUid: targetUser.uid,
             visitorUid: currentUser.uid,
             visitorName: currentUser.name,
             visitorPhoto: currentUser.photoUrl,
@@ -190,6 +210,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         }
       } else {
         targetUser = currentUser ?? await _supabase.getUser(uid);
+        if (targetUser == null) {
+          try {
+            targetUser = await SupabaseDataService().getUser(uid);
+          } catch (_) {}
+        }
         if (targetUser != null && targetUser.photoUrl.isEmpty) {
           final supaPhoto = SupabaseAuthService().currentUser?.photoUrl;
           if (supaPhoto != null && supaPhoto.isNotEmpty) {
@@ -199,25 +224,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
 
       if (targetUser != null) {
+        final queryUid = targetUser.uid.isNotEmpty ? targetUser.uid : uid;
         final storeItemsFuture = _supabase.getStoreItems().catchError((_) => <StoreItemModel>[]);
         final badgesFuture = _supabase.getBadgesCatalog().catchError((_) => <Map<String, dynamic>>[]);
         final necklacesFuture = _supabase.getNecklacesCatalog().catchError((_) => <Map<String, dynamic>>[]);
         final giftsCatalogFuture = _supabase.getGiftsCatalog().catchError((_) => <String, gm.GiftModel>{});
-        final receivedGiftsFuture = _supabase.getReceivedGifts(uid).catchError((_) => <gm.SentGiftModel>[]);
-        final followingFuture = _supabase.getFollowing(uid).catchError((_) => <UserModel>[]);
-        final fansFuture = _supabase.getFans(uid).catchError((_) => <UserModel>[]);
-        final visitorsFuture = _supabase.getVisitors(uid).catchError((_) => <UserModel>[]);
+        final receivedGiftsFuture = _supabase.getReceivedGifts(queryUid).catchError((_) => <gm.SentGiftModel>[]);
+        final followingFuture = _supabase.getFollowing(queryUid).catchError((_) => <UserModel>[]);
+        final fansFuture = _supabase.getFans(queryUid).catchError((_) => <UserModel>[]);
+        final visitorsFuture = _supabase.getVisitors(queryUid).catchError((_) => <UserModel>[]);
         final roomMemberFuture = Supabase.instance.client
             .from('room_members')
             .select('room_id')
-            .eq('user_id', uid)
+            .eq('user_id', queryUid)
             .maybeSingle()
             .catchError((_) => null);
-        final cpFuture = CpService.getMyData(uid).catchError((_) => <String, dynamic>{});
+        final cpFuture = CpService.getMyData(queryUid).catchError((_) => <String, dynamic>{});
         final agencyMemberFuture = Supabase.instance.client
             .from('host_agency_members')
             .select('agency_id, role, status')
-            .eq('user_id', uid)
+            .eq('user_id', queryUid)
             .eq('status', 'active')
             .maybeSingle()
             .catchError((_) => null);
@@ -989,8 +1015,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             onPressed: () => Navigator.pop(context),
           ),
         ),
-        body: const Center(
-          child: Text('المستخدم غير موجود', style: TextStyle(color: Colors.white70)),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.person_off_rounded, size: 64, color: Colors.white38),
+              const SizedBox(height: 14),
+              const Text('المستخدم غير متاح حالياً', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFD54F),
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                ),
+                onPressed: () {
+                  setState(() => _loading = true);
+                  _loadData();
+                },
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('إعادة المحاولة', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
         ),
       );
     }

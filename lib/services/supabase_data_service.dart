@@ -511,11 +511,19 @@ class SupabaseDataService {
       clean['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
       final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid');
-      final res = await http.patch(
+      var res = await http.patch(
         url,
         headers: _headers,
         body: jsonEncode(clean),
       );
+      if (res.statusCode >= 300) {
+        final altUrl = Uri.parse('$_baseUrl/rest/v1/users?id=eq.$uid');
+        res = await http.patch(
+          altUrl,
+          headers: _headers,
+          body: jsonEncode(clean),
+        );
+      }
       debugPrint('[SupabaseDataService] updateUser ($uid) status: ${res.statusCode}');
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
@@ -525,9 +533,32 @@ class SupabaseDataService {
   }
 
   Future<UserModel?> getUser(String uid) async {
+    final cleanUid = uid.trim();
+    if (cleanUid.isEmpty) return null;
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid&select=*');
-      final res = await http.get(url, headers: _headers);
+      // 1. Try uid=eq
+      var url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$cleanUid&select=*');
+      var res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        if (list.isNotEmpty) {
+          return UserModel.fromMap(list.first as Map<String, dynamic>);
+        }
+      }
+
+      // 2. Try id=eq
+      url = Uri.parse('$_baseUrl/rest/v1/users?id=eq.$cleanUid&select=*');
+      res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        if (list.isNotEmpty) {
+          return UserModel.fromMap(list.first as Map<String, dynamic>);
+        }
+      }
+
+      // 3. Try custom_id=eq
+      url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$cleanUid&select=*');
+      res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {

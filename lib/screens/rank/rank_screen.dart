@@ -80,15 +80,15 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        _api.getGlobalRankings(isWealth: true, timeframe: 'daily'),
-        _api.getGlobalRankings(isWealth: true, timeframe: 'weekly'),
-        _api.getGlobalRankings(isWealth: true, timeframe: 'monthly'),
+        _api.getGlobalRankings(isWealth: true, timeframe: 'daily').catchError((_) => <Map<String, dynamic>>[]),
+        _api.getGlobalRankings(isWealth: true, timeframe: 'weekly').catchError((_) => <Map<String, dynamic>>[]),
+        _api.getGlobalRankings(isWealth: true, timeframe: 'monthly').catchError((_) => <Map<String, dynamic>>[]),
         
-        _api.getGlobalRankings(isWealth: false, timeframe: 'daily'),
-        _api.getGlobalRankings(isWealth: false, timeframe: 'weekly'),
-        _api.getGlobalRankings(isWealth: false, timeframe: 'monthly'),
+        _api.getGlobalRankings(isWealth: false, timeframe: 'daily').catchError((_) => <Map<String, dynamic>>[]),
+        _api.getGlobalRankings(isWealth: false, timeframe: 'weekly').catchError((_) => <Map<String, dynamic>>[]),
+        _api.getGlobalRankings(isWealth: false, timeframe: 'monthly').catchError((_) => <Map<String, dynamic>>[]),
         
-        _api.getRoomGlobalRanking(),
+        _api.getRoomGlobalRanking().catchError((_) => <Map<String, dynamic>>[]),
       ]);
       if (mounted) {
         setState(() {
@@ -142,13 +142,15 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
       final displayId = (customId.isNotEmpty && customId != e['uid'])
           ? customId
           : (e['user_id'] ?? e['id'] ?? e['uid'] ?? '').toString();
+      final realUid = (e['uid'] ?? e['user_id'] ?? e['id'] ?? '').toString();
       return {
-        'uid': e['uid'] ?? '',
+        'uid': realUid,
         'name': (e['name'] ?? 'Unknown').toString(),
         'photoUrl': (e['photo_url'] ?? e['photoUrl'] ?? '').toString(),
         'points': points,
         'level': e['level'] ?? 1,
         'user_id': displayId,
+        'custom_id': displayId,
       };
     }).toList();
   }
@@ -439,7 +441,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
             );
           }
         } else {
-          final uid = (item['uid'] ?? '').toString();
+          final uid = (item['uid'] ?? item['user_id'] ?? item['id'] ?? '').toString();
           if (uid.isNotEmpty) {
             Navigator.push(
               context,
@@ -590,7 +592,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
             );
           }
         } else {
-          final uid = (item['uid'] ?? '').toString();
+          final uid = (item['uid'] ?? item['user_id'] ?? item['id'] ?? '').toString();
           if (uid.isNotEmpty) {
             Navigator.push(
               context,

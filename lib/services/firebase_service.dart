@@ -1755,9 +1755,12 @@ class FirebaseService {
   }
 
   Future<UserModel?> getUser(String uid) async {
-    // 1. Try Supabase first
+    final cleanUid = uid.trim();
+    if (cleanUid.isEmpty) return null;
+
+    // 1. Try Supabase first (uid, id, custom_id)
     try {
-      final supabaseUser = await SupabaseAuthService().getUserFromSupabase(uid);
+      final supabaseUser = await SupabaseAuthService().getUserFromSupabase(cleanUid);
       if (supabaseUser != null) {
         return supabaseUser;
       }
@@ -1765,27 +1768,54 @@ class FirebaseService {
       debugPrint('getUser Supabase error: $e');
     }
 
-    // 2. Fall back to Firestore with permission-denied protection
+    // 2. Fall back to Firestore with doc ID
     try {
-      final doc = await _db.collection('users').doc(uid).get();
-      if (!doc.exists) return null;
-      final m = doc.data() ?? {};
-      return UserModel.fromMap({...m, 'uid': uid});
+      final doc = await _db.collection('users').doc(cleanUid).get();
+      if (doc.exists) {
+        final m = doc.data() ?? {};
+        return UserModel.fromMap({...m, 'uid': cleanUid});
+      }
     } on FirebaseException catch (e) {
-      debugPrint('getUser FirebaseException ($uid): $e');
+      debugPrint('getUser FirebaseException ($cleanUid): $e');
       if (e.code == 'resource-exhausted' || e.code == 'unavailable') {
         try {
-          final cachedDoc = await _db.collection('users').doc(uid).get(const GetOptions(source: Source.cache));
+          final cachedDoc = await _db.collection('users').doc(cleanUid).get(const GetOptions(source: Source.cache));
           if (cachedDoc.exists) {
-            return UserModel.fromMap({...cachedDoc.data() ?? {}, 'uid': uid});
+            return UserModel.fromMap({...cachedDoc.data() ?? {}, 'uid': cleanUid});
           }
         } catch (_) {}
       }
-      return null;
     } catch (e) {
-      debugPrint('getUser general error ($uid): $e');
-      return null;
+      debugPrint('getUser doc error ($cleanUid): $e');
     }
+
+    // 3. Fall back to Firestore query by custom_id
+    try {
+      final snap = await _db.collection('users').where('custom_id', isEqualTo: cleanUid).limit(1).get();
+      if (snap.docs.isNotEmpty) {
+        final doc = snap.docs.first;
+        return UserModel.fromMap({...doc.data(), 'uid': doc.id});
+      }
+    } catch (_) {}
+
+    // 4. Fall back to Firestore query by uid field
+    try {
+      final snap = await _db.collection('users').where('uid', isEqualTo: cleanUid).limit(1).get();
+      if (snap.docs.isNotEmpty) {
+        final doc = snap.docs.first;
+        return UserModel.fromMap({...doc.data(), 'uid': doc.id});
+      }
+    } catch (_) {}
+
+    // 5. Final fallback to SupabaseDataService search
+    try {
+      final results = await SupabaseDataService().searchUsers(cleanUid);
+      if (results.isNotEmpty) {
+        return UserModel.fromMap(results.first);
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   Stream<UserModel?> userStream(String uid) {
@@ -3752,6 +3782,10 @@ class FirebaseService {
         final Map<String, int> roomTotals = {};
         final Map<String, Map<String, dynamic>> userDetails = {};
         for (final g in gifts) {
+          // Check timeframe filter
+          if (g.timestamp.isBefore(startDateUtc)) {
+            continue;
+          }
           final userId = isWealth ? g.senderId : g.receiverId;
           final name = isWealth ? g.senderName : g.receiverName;
           final photo = isWealth ? (g.senderPhotoUrl ?? '') : '';

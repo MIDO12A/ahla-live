@@ -140,10 +140,15 @@ class _UserProfileState extends State<UserProfile> {
         }
       }
       try {
-        final userData = await Supabase.instance.client
+        var userData = await Supabase.instance.client
             .from('users')
             .select('custom_id, active_frame, active_cover, profile_bg_url, owned_badges, owned_level_badges, wealth_level, recharge_level, gems_level, owned_level_frames, owned_level_badges, owned_items, owned_necklaces, country, country_code, is_host, is_agent, role')
             .eq('uid', uid)
+            .maybeSingle();
+        userData ??= await Supabase.instance.client
+            .from('users')
+            .select('custom_id, active_frame, active_cover, profile_bg_url, owned_badges, owned_level_badges, wealth_level, recharge_level, gems_level, owned_level_frames, owned_level_badges, owned_items, owned_necklaces, country, country_code, is_host, is_agent, role')
+            .eq('id', uid)
             .maybeSingle();
         if (userData != null) {
           _extraUserData.addAll(userData);

@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'widgets/nine_patch_image.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/r.dart';
 import '../../config/app_colors.dart';
@@ -919,6 +920,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (_cachedRoomSeatStyle.containsKey(widget.roomId)) {
       _roomSeatStyle = _cachedRoomSeatStyle[widget.roomId]!;
     }
+    SharedPreferences.getInstance().then((prefs) {
+      final savedStyleIdx = prefs.getInt('room_seat_style_${widget.roomId}');
+      final savedCount = prefs.getInt('room_seat_count_${widget.roomId}');
+      if (mounted) {
+        setState(() {
+          if (savedStyleIdx != null && savedStyleIdx >= 0 && savedStyleIdx < seat_model.SeatStyle.values.length) {
+            _roomSeatStyle = seat_model.SeatStyle.values[savedStyleIdx];
+            _cachedRoomSeatStyle[widget.roomId] = _roomSeatStyle;
+          }
+          if (savedCount != null && savedCount > 0 && savedCount != _seats.length) {
+            _cachedRoomSeatCount[widget.roomId] = savedCount;
+            final old = _seats;
+            _seats = List.generate(savedCount, (i) => i < old.length ? old[i] : SeatModel(index: i));
+          }
+        });
+      }
+    });
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
@@ -2747,12 +2765,26 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _openSeatStyle() {
     _closeAllPanels();
+    SeatStyle panelStyle;
+    switch (_roomSeatStyle) {
+      case seat_model.SeatStyle.circle:
+        panelStyle = SeatStyle.game;
+        break;
+      case seat_model.SeatStyle.classic:
+        panelStyle = SeatStyle.classic;
+        break;
+      case seat_model.SeatStyle.heart:
+      case seat_model.SeatStyle.square:
+        panelStyle = SeatStyle.vip;
+        break;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => SeatStylePanel(
-        initialStyle: SeatStyle.values[_roomSeatStyle.index.clamp(0, 2)],
+        initialStyle: panelStyle,
         initialSeatCount: _seats.length,
         onConfirm: (style, count) {
           seat_model.SeatStyle newSeatStyle;
@@ -2767,6 +2799,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               newSeatStyle = seat_model.SeatStyle.heart;
               break;
           }
+          _cachedRoomSeatStyle[widget.roomId] = newSeatStyle;
+          _cachedRoomSeatCount[widget.roomId] = count;
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setInt('room_seat_style_${widget.roomId}', newSeatStyle.index);
+            prefs.setInt('room_seat_count_${widget.roomId}', count);
+          });
           _firebaseService.updateRoomSeatStyle(widget.roomId, newSeatStyle.index);
           _firebaseService.updateRoomSeatCount(widget.roomId, count);
           // Clean up removed seats in Firebase

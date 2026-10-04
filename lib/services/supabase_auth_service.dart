@@ -295,10 +295,14 @@ class SupabaseAuthService {
 
   /// Fetch user directly from Supabase database `public.users`
   Future<UserModel?> getUserFromSupabase(String uid) async {
+    final cleanId = uid.trim();
+    if (cleanId.isEmpty) return null;
+
+    // 1. Try querying by uid
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid&select=*');
+      final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$cleanId&select=*');
       final response = await http.get(url, headers: _headers);
-      debugPrint('[SupabaseAuth] getUser status: ${response.statusCode}');
+      debugPrint('[SupabaseAuth] getUser uid status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final list = jsonDecode(response.body) as List;
         if (list.isNotEmpty) {
@@ -306,11 +310,42 @@ class SupabaseAuthService {
           return UserModel.fromMap(data);
         }
       }
-      return null;
     } catch (e) {
-      debugPrint('[SupabaseAuth] getUserFromSupabase error: $e');
-      return null;
+      debugPrint('[SupabaseAuth] getUserFromSupabase uid error: $e');
     }
+
+    // 2. Try querying by id (in case primary key is id)
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/users?id=eq.$cleanId&select=*');
+      final response = await http.get(url, headers: _headers);
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List;
+        if (list.isNotEmpty) {
+          final data = Map<String, dynamic>.from(list.first);
+          return UserModel.fromMap(data);
+        }
+      }
+    } catch (_) {}
+
+    // 3. Try querying by custom_id (in case numeric display ID was passed)
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$cleanId&select=*');
+      final response = await http.get(url, headers: _headers);
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List;
+        if (list.isNotEmpty) {
+          final data = Map<String, dynamic>.from(list.first);
+          return UserModel.fromMap(data);
+        }
+      }
+    } catch (_) {}
+
+    // 4. Try email or phone if applicable
+    if (cleanId.contains('@')) {
+      return getUserByEmail(cleanId);
+    }
+
+    return null;
   }
 
   /// Find user by email directly from Supabase database `public.users`

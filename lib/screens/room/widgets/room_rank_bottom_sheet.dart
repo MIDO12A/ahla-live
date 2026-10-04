@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../services/firebase_service.dart';
 import '../../../../services/dynamic_config_service.dart';
 import '../../../../config/r.dart';
+import '../../user_profile/user_profile_screen.dart';
 
 class RoomRankBottomSheet extends StatefulWidget {
   final String roomId;
@@ -17,6 +18,19 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
 
   List<Map<String, dynamic>> _rankings = [];
   bool _isLoading = true;
+
+  void _openUserProfile(Map<String, dynamic>? item) {
+    if (item == null) return;
+    final uid = (item['uid'] ?? item['id'] ?? item['user_id'] ?? '').toString();
+    if (uid.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => UserProfileScreen(targetUid: uid),
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -274,9 +288,12 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
     final customId = (item?['custom_id'] ?? item?['user_id'] ?? item?['uid'] ?? item?['id'] ?? '').toString();
     final value = item?['total_value'] ?? item?['points'] ?? item?['score'] ?? 0;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
+    return GestureDetector(
+      onTap: () => _openUserProfile(item),
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
         // Avatar + Authentic Frame (rank_top_avatar_1..3)
         SizedBox(
           width: frameSize,
@@ -394,7 +411,8 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
           ),
         ),
       ],
-    );
+    ),
+  );
   }
 
   // Authentic List Item (rank_adapter_item.xml)
@@ -405,9 +423,12 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
     final value = item['total_value'] ?? item['points'] ?? item['score'] ?? 0;
     final level = item['level'] ?? 1;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    return InkWell(
+      onTap: () => _openUserProfile(item),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF16151A).withOpacity(0.9),
         borderRadius: BorderRadius.circular(12),
@@ -547,7 +568,8 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   // Tab Controls
