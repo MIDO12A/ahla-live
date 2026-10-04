@@ -1,5 +1,4 @@
 import '../services/supabase_data_service.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -157,6 +156,7 @@ class UserProvider extends ChangeNotifier {
           });
         } catch (_) {}
       }
+    }
     if (_currentUser != null) {
       try {
         final prefs = await SharedPreferences.getInstance();
