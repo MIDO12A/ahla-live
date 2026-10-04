@@ -389,13 +389,23 @@ class DynamicConfigService extends ChangeNotifier {
   String get agencyHostNecklaceName => _screenStr('agency', 'hostNecklaceName', _rawConfig['agency']?['hostNecklaceName']?.toString() ?? 'قلادة المضيف');
 
   // ── Agent Recharge Screen Customization (من لوحة التحكم) ──
+  String get agentRechargeTitle => _screenStr('agentRecharge', 'title', 'وكالة الشحن');
+  String get agentRechargeSubtitle => _screenStr('agentRecharge', 'subtitle', 'وكيل معتمد');
   String get agentRechargeBgImage => _screenStr('agentRecharge', 'backgroundImage', '');
   String get agentRechargeHeaderBgImage => _screenStr('agentRecharge', 'headerBgImage', '');
   Color get agentRechargeHeaderColor => _screenColor('agentRecharge', 'headerColor', const Color(0xFF16151A));
   Color get agentRechargeTextColor => _screenColor('agentRecharge', 'textColor', Colors.white);
   Color get agentRechargeCardColor => _screenColor('agentRecharge', 'cardColor', Colors.white);
   Color get agentRechargeAccentColor => _screenColor('agentRecharge', 'accentColor', const Color(0xFFFFD700));
+  Color get agentRechargeTabBarColor => _screenColor('agentRecharge', 'tabBarColor', const Color(0xFF1E1D24));
   String get agentRechargeBannerImage => _screenStr('agentRecharge', 'bannerImage', '');
+  String get agentRechargeTabDashboard => _screenStr('agentRecharge', 'tabDashboard', '📊 لوحة التحكم');
+  String get agentRechargeTabRecharge => _screenStr('agentRecharge', 'tabRecharge', '💸 شحن');
+  String get agentRechargeTabHistory => _screenStr('agentRecharge', 'tabHistory', '📋 السجل');
+  String get agentRechargeTabDiamond => _screenStr('agentRecharge', 'tabDiamond', '💎 ألماسي');
+  String get agentRechargeTabUsd => _screenStr('agentRecharge', 'tabUsd', '💵 الدولار');
+  String get agentRechargeWithdrawText => _screenStr('agentRecharge', 'withdrawButtonText', 'إرسال طلب السحب 📤');
+  String get agentRechargeConfirmText => _screenStr('agentRecharge', 'confirmButtonText', 'تأكيد الشحن ✅');
 
   // ── Host Agency & Hosts Screens Customization (من لوحة التحكم) ──
   String get hostAgencyBgImage => _screenStr('hostAgency', 'backgroundImage', '');
@@ -416,21 +426,35 @@ class DynamicConfigService extends ChangeNotifier {
   Color get cpSpaceTextColor => _screenColor('cp', 'textColor', Colors.white);
   Color get cpSpaceCardColor => _screenColor('cp', 'cardColor', const Color(0xFF1E1D24));
 
-  // ── Profile Screen Icons Customization (من لوحة التحكم) ──
+  // ── Profile Screen Customization (من لوحة التحكم) ──
   String get profileCpIcon => _screenStr('profile', 'cpIcon',
       _assetsOverride['assets/mipmap-xxhdpi/mine_cp_ic.webp'] ??
       _assetsOverride['mine_cp_ic'] ??
       'assets/mipmap-xxhdpi/mine_cp_ic.webp');
+  String get profileCpTitle => _screenStr('profile', 'cpTitle', 'علاقة CP');
 
   String get profileRechargeAgentIcon => _screenStr('profile', 'rechargeAgentIcon',
       _assetsOverride['assets/images/profile/ic_coinseller_entrance.png'] ??
       _assetsOverride['ic_coinseller_entrance'] ??
       'assets/images/profile/ic_coinseller_entrance.png');
+  String get profileRechargeAgentTitle => _screenStr('profile', 'rechargeAgentTitle', 'بوابة شحن الوكلاء والرواتب');
 
   String get profileHostAgencyIcon => _screenStr('profile', 'hostAgencyIcon',
       _assetsOverride['assets/mipmap-xxhdpi/mine_union_ic.webp'] ??
       _assetsOverride['mine_union_ic'] ??
       'assets/mipmap-xxhdpi/mine_union_ic.webp');
+  String get profileHostAgencyTitle => _screenStr('profile', 'hostAgencyTitle', 'الوكالة');
+
+  String get profileBadgesIcon => _screenStr('profile', 'badgesIcon',
+      _assetsOverride['assets/mipmap-xxhdpi/ic_new_user_badge.png'] ??
+      _assetsOverride['ic_new_user_badge'] ??
+      'assets/mipmap-xxhdpi/ic_new_user_badge.png');
+  String get profileBadgesTitle => _screenStr('profile', 'badgesTitle', 'الشارات والميداليات');
+
+  String get profileNecklacesIcon => _screenStr('profile', 'necklacesIcon',
+      _assetsOverride['assets/mipmap-xxhdpi/ic_new_user_badge.png'] ??
+      'assets/mipmap-xxhdpi/ic_new_user_badge.png');
+  String get profileNecklacesTitle => _screenStr('profile', 'necklacesTitle', 'القلادات');
 
   // Getters
   String get appName => _appName;

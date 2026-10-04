@@ -1096,7 +1096,7 @@ class _AgencySearchSheetState extends State<_AgencySearchSheet> {
         final rows = await Supabase.instance.client
             .from('host_agencies')
             .select('id, name, photo_url, member_count, total_diamonds_monthly, agency_public_id, agency_code')
-            .or('name.ilike.%$q%,id.ilike.%$q%')
+            .or('name.ilike.%$q%,id.ilike.%$q%,agency_public_id.eq.$q,agency_code.eq.$q')
             .limit(20);
         for (final r in rows) {
           final m = Map<String, dynamic>.from(r as Map);

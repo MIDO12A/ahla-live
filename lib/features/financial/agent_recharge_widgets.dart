@@ -66,20 +66,20 @@ class AgentRechargeHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'وكالة الشحن',
+                      dc.agentRechargeTitle,
                       style: GoogleFonts.tajawal(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                        color: dc.agentRechargeTextColor,
                       ),
                     ),
                     Row(
                       children: [
                         Text(
-                          'وكيل معتمد',
+                          dc.agentRechargeSubtitle,
                           style: GoogleFonts.tajawal(
                             fontSize: 11,
-                            color: const Color(0xFFFFD770),
+                            color: dc.agentRechargeAccentColor,
                           ),
                         ),
                         if (agentPublicId != null) ...[
@@ -329,7 +329,10 @@ class AgentRechargeConfirmDialog extends StatelessWidget {
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              child: Text(isWithdraw ? 'إرسال طلب السحب 📤' : 'تأكيد الشحن ✅',
+              child: Text(
+                isWithdraw
+                    ? DynamicConfigService().agentRechargeWithdrawText
+                    : DynamicConfigService().agentRechargeConfirmText,
                 style: GoogleFonts.tajawal(
                   fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white))))),
         ]),

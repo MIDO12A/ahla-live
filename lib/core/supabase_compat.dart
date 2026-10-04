@@ -119,8 +119,10 @@ class SupabaseClient {
       case 'agent_get_diamond_wallet':
         return _rpcAgentGetDiamondWallet(params);
       case 'agent_set_pin':
+      case 'agent_set_password':
         return _rpcAgentSetPin(params);
       case 'agent_verify_pin':
+      case 'agent_verify_password':
         return _rpcAgentVerifyPin(params);
       case 'agent_set_quick_amounts':
         return _rpcAgentSetQuickAmounts(params);
@@ -1853,12 +1855,23 @@ class SupabaseClient {
         SupabaseAuthService().currentUser?.uid ??
         FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return {'ok': false};
-    final pin = p?['p_pin']?.toString() ?? '';
+    final pass = (p?['p_pin'] ?? p?['p_password'] ?? p?['password'])?.toString().trim() ?? '';
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('agent_pin_$uid', pin);
+      await prefs.setString('agent_password_$uid', pass);
+      await prefs.setString('agent_pin_$uid', pass);
     } catch (_) {}
-    return {'ok': true};
+    try {
+      final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+      await fs.collection('users').doc(uid).set({
+        'recharge_password': pass,
+        'agent_pin': pass,
+      }, SetOptions(merge: true));
+      await fs.collection('agent_usd_wallets').doc(uid).set({
+        'password': pass,
+      }, SetOptions(merge: true));
+    } catch (_) {}
+    return {'ok': true, 'valid': true};
   }
 
   Future<Map<String, dynamic>> _rpcAgentVerifyPin(Map<String, dynamic>? p) async {
@@ -1866,12 +1879,21 @@ class SupabaseClient {
         SupabaseAuthService().currentUser?.uid ??
         FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return {'ok': false};
-    final pin = p?['p_pin']?.toString() ?? '';
+    final pass = (p?['p_pin'] ?? p?['p_password'] ?? p?['password'])?.toString().trim() ?? '';
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedPin = prefs.getString('agent_pin_$uid');
-      final valid = (savedPin == null || savedPin.isEmpty) || (savedPin == pin);
-      return {'ok': valid, 'valid': valid};
+      var saved = prefs.getString('agent_password_$uid') ?? prefs.getString('agent_pin_$uid');
+      if (saved == null || saved.isEmpty) {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        final doc = await fs.collection('users').doc(uid).get();
+        saved = doc.data()?['recharge_password']?.toString() ?? doc.data()?['agent_pin']?.toString();
+        if (saved != null && saved.isNotEmpty) {
+          await prefs.setString('agent_password_$uid', saved);
+          await prefs.setString('agent_pin_$uid', saved);
+        }
+      }
+      final valid = (saved == null || saved.isEmpty) || (saved == pass);
+      return {'ok': valid, 'valid': valid, 'not_set': saved == null || saved.isEmpty};
     } catch (_) {
       return {'ok': true, 'valid': true};
     }

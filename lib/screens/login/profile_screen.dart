@@ -841,7 +841,7 @@ class ProfileScreen extends StatelessWidget {
             // 1. الوكالة (cl_union)
             _buildFunctionItem(
               icon: DynamicConfigService().profileHostAgencyIcon,
-              title: 'الوكالة',
+              title: DynamicConfigService().profileHostAgencyTitle,
               onTap: () {
                 Navigator.push(
                   context,
@@ -889,17 +889,29 @@ class ProfileScreen extends StatelessWidget {
 
             // 5. الشارات والميداليات (Badges and Medals)
             _buildFunctionItem(
-              icon: 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
-              title: 'الشارات والميداليات',
+              icon: DynamicConfigService().profileBadgesIcon,
+              title: DynamicConfigService().profileBadgesTitle,
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const BadgesScreen()),
+                  MaterialPageRoute(builder: (_) => const BadgesScreen(initialTab: 0)),
                 );
               },
             ),
 
-            // 5. مركز المهام اليومية (Task Center)
+            // 6. القلادات (Necklaces)
+            _buildFunctionItem(
+              icon: DynamicConfigService().profileNecklacesIcon,
+              title: DynamicConfigService().profileNecklacesTitle,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BadgesScreen(initialTab: 1)),
+                );
+              },
+            ),
+
+            // 7. مركز المهام اليومية (Task Center)
             _buildFunctionItem(
               icon: 'assets/images/mine_task.png',
               title: 'مركز المهام',
@@ -911,7 +923,7 @@ class ProfileScreen extends StatelessWidget {
               },
             ),
 
-            // 6. مكافآت تسجيل الدخول اليومي (Daily Sign-In)
+            // 8. مكافآت تسجيل الدخول اليومي (Daily Sign-In)
             _buildFunctionItem(
               icon: 'assets/mipmap-xxhdpi/mine_user_sign_ic.webp',
               title: 'تسجيل الوصول والمكافآت اليومية',
@@ -920,10 +932,10 @@ class ProfileScreen extends StatelessWidget {
               },
             ),
 
-            // 7. علاقة CP
+            // 9. علاقة CP
             _buildFunctionItem(
               icon: DynamicConfigService().profileCpIcon,
-              title: 'علاقة CP',
+              title: DynamicConfigService().profileCpTitle,
               onTap: () {
                 Navigator.push(
                   context,
@@ -932,11 +944,11 @@ class ProfileScreen extends StatelessWidget {
               },
             ),
 
-            // 6. بوابة شحن الوكلاء والرواتب (خاص بالوكلاء المعتمدين)
+            // 10. بوابة شحن الوكلاء والرواتب (خاص بالوكلاء المعتمدين)
             if (isAgent)
               _buildFunctionItem(
                 icon: DynamicConfigService().profileRechargeAgentIcon,
-                title: 'بوابة شحن الوكلاء والرواتب',
+                title: DynamicConfigService().profileRechargeAgentTitle,
                 onTap: () {
                   Navigator.push(
                     context,

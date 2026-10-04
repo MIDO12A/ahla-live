@@ -831,7 +831,7 @@ class _OwnerTransferToAgentTabState extends State<_OwnerTransferToAgentTab> {
   }
 
   Future<void> _search(String q) async {
-    if (q.trim().length < 2) { setState(() => _results = []); return; }
+    if (q.trim().isEmpty) { setState(() => _results = []); return; }
     setState(() => _searching = true);
     try {
       final res = await AgencyRepository.searchRechargeAgents(q);

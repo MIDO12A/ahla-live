@@ -588,16 +588,53 @@ abstract final class AgencyRepository {
 
   // ─── البحث عن وكلاء الشحن ────────────────────────────────────────
   static Future<List<Map<String, dynamic>>> searchRechargeAgents(String query) async {
-    if (query.trim().length < 2) return [];
-    final resp = await _sb
-        .from('profiles')
-        .select('id, display_name, avatar_url, kayan_id')
-        .eq('is_recharge_agent', true)
-        .or('display_name.ilike.%$query%,kayan_id.ilike.%$query%')
-        .limit(10);
-    return (resp as List<dynamic>)
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+    final q = query.trim();
+    if (q.isEmpty) return [];
+    final List<Map<String, dynamic>> results = [];
+    final Set<String> seenIds = {};
+
+    void addAgent(Map<String, dynamic> item) {
+      final id = item['id']?.toString() ?? item['uid']?.toString() ?? '';
+      if (id.isNotEmpty && !seenIds.contains(id)) {
+        seenIds.add(id);
+        results.add(item);
+      }
+    }
+
+    try {
+      final resp = await _sb
+          .from('profiles')
+          .select('id, display_name, avatar_url, kayan_id')
+          .eq('is_recharge_agent', true)
+          .or('display_name.ilike.%$q%,kayan_id.ilike.%$q%,kayan_id.eq.$q')
+          .limit(10);
+      for (final e in (resp as List<dynamic>)) {
+        addAgent(Map<String, dynamic>.from(e as Map));
+      }
+    } catch (_) {}
+
+    // البحث البديل في Firestore
+    try {
+      final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+      final intQ = int.tryParse(q);
+
+      final snap = await fs.collection('users').where('is_agent', isEqualTo: true).limit(20).get();
+      for (final doc in snap.docs) {
+        final d = doc.data();
+        final cid = d['custom_id']?.toString() ?? d['customId']?.toString() ?? '';
+        final name = (d['name'] ?? d['display_name'] ?? '').toString();
+        if (cid == q || (intQ != null && cid == intQ.toString()) || name.toLowerCase().contains(q.toLowerCase())) {
+          addAgent({
+            'id': doc.id,
+            'display_name': name,
+            'avatar_url': d['avatar'] ?? d['avatar_url'] ?? '',
+            'kayan_id': cid,
+          });
+        }
+      }
+    } catch (_) {}
+
+    return results;
   }
 
   // ═══════════════════════════════════════════════════════════════════

@@ -188,7 +188,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
           ),
         ),
       Container(
-        color: const Color(0xFF1E1D24),
+        color: dc.agentRechargeTabBarColor,
         child: TabBar(
           controller: _tabs,
           indicatorColor: accentColor,
@@ -199,12 +199,12 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
               fontSize: 13, fontWeight: FontWeight.w600),
           labelColor: accentColor,
           unselectedLabelColor: Colors.white54,
-          tabs: const [
-            Tab(text: '📊 لوحة التحكم'),
-            Tab(text: '💸 شحن'),
-            Tab(text: '📋 السجل'),
-            Tab(text: '💎 ألماسي'),
-            Tab(text: '💵 الدولار'),
+          tabs: [
+            Tab(text: dc.agentRechargeTabDashboard),
+            Tab(text: dc.agentRechargeTabRecharge),
+            Tab(text: dc.agentRechargeTabHistory),
+            Tab(text: dc.agentRechargeTabDiamond),
+            Tab(text: dc.agentRechargeTabUsd),
           ],
         ),
       ),

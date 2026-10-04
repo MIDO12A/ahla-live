@@ -572,20 +572,83 @@ class SupabaseDataService {
   }
 
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    final results = <Map<String, dynamic>>[];
+    final seenIds = <String>{};
+
+    void addResult(Map<String, dynamic> item) {
+      final id = item['uid']?.toString() ?? item['id']?.toString() ?? '';
+      if (id.isNotEmpty && !seenIds.contains(id)) {
+        seenIds.add(id);
+        results.add(item);
+      }
+    }
+
     try {
       final q = query.trim();
       if (q.isEmpty) return [];
       final encoded = Uri.encodeComponent(q);
-      final url = Uri.parse('$_baseUrl/rest/v1/users?or=(custom_id.ilike.*$encoded*,name.ilike.*$encoded*,email.ilike.*$encoded*)&select=*&limit=20');
-      final res = await http.get(url, headers: _headers);
-      if (res.statusCode == 200) {
-        final List list = jsonDecode(res.body);
-        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+      // 1. Supabase search
+      try {
+        final isNum = int.tryParse(q) != null;
+        final filter = isNum
+            ? 'or=(custom_id.eq.$encoded,id.eq.$encoded,uid.eq.$encoded,name.ilike.*$encoded*)'
+            : 'or=(custom_id.ilike.*$encoded*,name.ilike.*$encoded*,email.ilike.*$encoded*)';
+        final url = Uri.parse('$_baseUrl/rest/v1/users?$filter&select=*&limit=20');
+        final res = await http.get(url, headers: _headers);
+        if (res.statusCode == 200) {
+          final List list = jsonDecode(res.body);
+          for (final e in list) {
+            addResult(Map<String, dynamic>.from(e as Map));
+          }
+        }
+      } catch (e) {
+        debugPrint('[SupabaseDataService] searchUsers supabase error: $e');
       }
+
+      // 2. Firestore fallback search (خصوصاً للـ IDs المميزة المكونة من رقم واحد مثل 1..9)
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        final intQ = int.tryParse(q);
+
+        // A. البحث بواسطة custom_id نصي أو رقمي
+        var qSnap = await fs.collection('users').where('custom_id', isEqualTo: q).limit(5).get();
+        for (final doc in qSnap.docs) {
+          addResult({'id': doc.id, 'uid': doc.id, ...doc.data()});
+        }
+        if (intQ != null) {
+          qSnap = await fs.collection('users').where('custom_id', isEqualTo: intQ).limit(5).get();
+          for (final doc in qSnap.docs) {
+            addResult({'id': doc.id, 'uid': doc.id, ...doc.data()});
+          }
+        }
+
+        // B. البحث بواسطة customId نصي أو رقمي
+        qSnap = await fs.collection('users').where('customId', isEqualTo: q).limit(5).get();
+        for (final doc in qSnap.docs) {
+          addResult({'id': doc.id, 'uid': doc.id, ...doc.data()});
+        }
+        if (intQ != null) {
+          qSnap = await fs.collection('users').where('customId', isEqualTo: intQ).limit(5).get();
+          for (final doc in qSnap.docs) {
+            addResult({'id': doc.id, 'uid': doc.id, ...doc.data()});
+          }
+        }
+
+        // C. البحث بواسطة doc ID
+        final directDoc = await fs.collection('users').doc(q).get();
+        if (directDoc.exists && directDoc.data() != null) {
+          addResult({'id': directDoc.id, 'uid': directDoc.id, ...directDoc.data()!});
+        }
+      } catch (e) {
+        debugPrint('[SupabaseDataService] searchUsers firestore error: $e');
+      }
+
+      return results;
     } catch (e) {
       debugPrint('[SupabaseDataService] searchUsers error: $e');
     }
-    return [];
+    return results;
   }
 
   Future<List<Map<String, dynamic>>> searchRooms(String query) async {
@@ -610,13 +673,74 @@ class SupabaseDataService {
       final cleanId = id.trim();
       if (cleanId.isEmpty) return null;
       final encoded = Uri.encodeComponent(cleanId);
-      final url = Uri.parse('$_baseUrl/rest/v1/users?or=(custom_id.eq.$encoded,uid.eq.$encoded)&select=*&limit=1');
-      final res = await http.get(url, headers: _headers);
-      if (res.statusCode == 200) {
-        final List list = jsonDecode(res.body);
-        if (list.isNotEmpty) {
-          return UserModel.fromMap(Map<String, dynamic>.from(list.first as Map));
+      final intId = int.tryParse(cleanId);
+
+      // 1. Supabase search (custom_id, uid, id)
+      try {
+        final url = Uri.parse('$_baseUrl/rest/v1/users?or=(custom_id.eq.$encoded,uid.eq.$encoded,id.eq.$encoded)&select=*&limit=1');
+        final res = await http.get(url, headers: _headers);
+        if (res.statusCode == 200) {
+          final List list = jsonDecode(res.body);
+          if (list.isNotEmpty) {
+            return UserModel.fromMap(Map<String, dynamic>.from(list.first as Map));
+          }
         }
+      } catch (_) {}
+
+      // 2. Firestore fallback search (خصوصاً للـ IDs المميزة المكونة من رقم واحد)
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+
+        // custom_id كـ String
+        var qSnap = await fs.collection('users').where('custom_id', isEqualTo: cleanId).limit(1).get();
+        if (qSnap.docs.isNotEmpty) {
+          final d = qSnap.docs.first.data();
+          d['uid'] ??= qSnap.docs.first.id;
+          d['id'] ??= qSnap.docs.first.id;
+          return UserModel.fromMap(d);
+        }
+
+        // custom_id كـ int
+        if (intId != null) {
+          qSnap = await fs.collection('users').where('custom_id', isEqualTo: intId).limit(1).get();
+          if (qSnap.docs.isNotEmpty) {
+            final d = qSnap.docs.first.data();
+            d['uid'] ??= qSnap.docs.first.id;
+            d['id'] ??= qSnap.docs.first.id;
+            return UserModel.fromMap(d);
+          }
+        }
+
+        // customId كـ String
+        qSnap = await fs.collection('users').where('customId', isEqualTo: cleanId).limit(1).get();
+        if (qSnap.docs.isNotEmpty) {
+          final d = qSnap.docs.first.data();
+          d['uid'] ??= qSnap.docs.first.id;
+          d['id'] ??= qSnap.docs.first.id;
+          return UserModel.fromMap(d);
+        }
+
+        // customId كـ int
+        if (intId != null) {
+          qSnap = await fs.collection('users').where('customId', isEqualTo: intId).limit(1).get();
+          if (qSnap.docs.isNotEmpty) {
+            final d = qSnap.docs.first.data();
+            d['uid'] ??= qSnap.docs.first.id;
+            d['id'] ??= qSnap.docs.first.id;
+            return UserModel.fromMap(d);
+          }
+        }
+
+        // Document ID مباشر
+        final doc = await fs.collection('users').doc(cleanId).get();
+        if (doc.exists && doc.data() != null) {
+          final d = doc.data()!;
+          d['uid'] ??= doc.id;
+          d['id'] ??= doc.id;
+          return UserModel.fromMap(d);
+        }
+      } catch (e) {
+        debugPrint('[SupabaseDataService] findUserByIdOrCustomId firestore error: $e');
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] findUserByIdOrCustomId error: $e');

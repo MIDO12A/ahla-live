@@ -5071,15 +5071,45 @@ class FirebaseService {
         return {'success': false, 'message': 'يرجى إدخال كمية ألماس صحيحة أكبر من 0'};
       }
 
-      final agentDoc = await _db.collection('users').doc(agentUid).get();
-      final targetDoc = await _db.collection('users').doc(targetUid).get();
+      // التأكد من توفر مصادقة Firebase لتفادي أخطاء permission-denied
+      if (FirebaseAuth.instance.currentUser == null) {
+        try {
+          await FirebaseAuth.instance.signInAnonymously();
+        } catch (_) {}
+      }
 
-      if (!agentDoc.exists || !targetDoc.exists) {
-        return {'success': false, 'message': 'بيانات الوكيل أو المستخدم غير موجودة'};
+      // جلب بيانات الوكيل والمستهدف من Firestore و Supabase بالتوازي
+      final agentDocRef = _db.collection('users').doc(agentUid);
+      final targetDocRef = _db.collection('users').doc(targetUid);
+
+      var agentDoc = await agentDocRef.get().catchError((_) => agentDocRef.get());
+      var targetDoc = await targetDocRef.get().catchError((_) => targetDocRef.get());
+
+      // إذا لم يكن المستند موجوداً في Firestore، نجلبه من Supabase وننشئه
+      final sbAgent = await SupabaseDataService().getUser(agentUid);
+      final sbTarget = await SupabaseDataService().getUser(targetUid);
+
+      if (!agentDoc.exists && sbAgent != null) {
+        await agentDocRef.set(sbAgent.toMap(), SetOptions(merge: true)).catchError((_) {});
+        agentDoc = await agentDocRef.get();
+      }
+      if (!targetDoc.exists && sbTarget != null) {
+        await targetDocRef.set(sbTarget.toMap(), SetOptions(merge: true)).catchError((_) {});
+        targetDoc = await targetDocRef.get();
+      }
+
+      if (!agentDoc.exists && sbAgent == null) {
+        return {'success': false, 'message': 'بيانات وكيل الشحن غير موجودة'};
+      }
+      if (!targetDoc.exists && sbTarget == null) {
+        return {'success': false, 'message': 'لم يتم العثور على حساب المستخدم'};
       }
 
       final targetData = targetDoc.data() ?? {};
-      final targetDiamonds = _asInt(targetData['diamonds'] ?? 0);
+      final fsTargetDiamonds = _asInt(targetData['diamonds'] ?? 0);
+      final sbTargetDiamonds = sbTarget?.diamonds ?? 0;
+      final targetDiamonds = math.max(fsTargetDiamonds, sbTargetDiamonds);
+
       if (targetDiamonds < diamondsAmount) {
         return {
           'success': false,
@@ -5088,8 +5118,8 @@ class FirebaseService {
       }
 
       final agentData = agentDoc.data() ?? {};
-      final agentName = agentData['name'] ?? agentData['display_name'] ?? 'وكيل الشحن';
-      final targetName = targetData['name'] ?? targetData['display_name'] ?? 'المستخدم';
+      final agentName = agentData['name'] ?? agentData['display_name'] ?? sbAgent?.name ?? 'وكيل الشحن';
+      final targetName = targetData['name'] ?? targetData['display_name'] ?? sbTarget?.name ?? 'المستخدم';
 
       final reqRef = _db.collection('agent_withdrawal_requests').doc();
       final now = DateTime.now().toUtc();
@@ -5100,7 +5130,7 @@ class FirebaseService {
         'agent_name': agentName,
         'target_uid': targetUid,
         'target_name': targetName,
-        'target_custom_id': targetData['custom_id']?.toString() ?? '',
+        'target_custom_id': targetData['custom_id']?.toString() ?? sbTarget?.customId ?? '',
         'diamonds_amount': diamondsAmount,
         'status': 'pending',
         'created_at': now.toIso8601String(),
@@ -5136,6 +5166,12 @@ class FirebaseService {
     required bool approved,
   }) async {
     try {
+      if (FirebaseAuth.instance.currentUser == null) {
+        try {
+          await FirebaseAuth.instance.signInAnonymously();
+        } catch (_) {}
+      }
+
       final reqRef = _db.collection('agent_withdrawal_requests').doc(requestId);
       final reqSnap = await reqRef.get();
       if (!reqSnap.exists) {
@@ -5186,7 +5222,7 @@ class FirebaseService {
         return {'success': true, 'action': 'rejected'};
       }
 
-      // موافقة المستخدم: تنفيذ السحب داخل Transaction موثوقة
+      // موافقة المستخدم: تنفيذ السحب داخل Firestore و Supabase
       final userRef = _db.collection('users').doc(userUid);
       final agentRef = _db.collection('users').doc(agentId);
 
@@ -5211,13 +5247,13 @@ class FirebaseService {
           };
         }
 
-        // خصم الألماس من المستخدم
+        // خصم الألماس من المستخدم في Firestore
         txn.update(userRef, {
           'diamonds': uDiamonds - diamondsAmount,
           'total_diamonds_withdrawn': FieldValue.increment(diamondsAmount),
         });
 
-        // إضافة الألماس لحساب ومحفظة الوكيل
+        // إضافة الألماس لحساب ومحفظة الوكيل في Firestore
         txn.update(agentRef, {
           'diamonds': FieldValue.increment(diamondsAmount),
         });
@@ -5254,6 +5290,24 @@ class FirebaseService {
 
         return {'success': true, 'action': 'approved'};
       });
+
+      // مزامنة الألماس مع Supabase أيضاً لضمان الاتساق الكامل
+      if (txnResult['success'] == true) {
+        try {
+          final sbTarget = await SupabaseDataService().getUser(userUid);
+          if (sbTarget != null) {
+            final newD = math.max(0, sbTarget.diamonds - diamondsAmount);
+            await SupabaseDataService().updateUser(userUid, {'diamonds': newD});
+          }
+          final sbAgent = await SupabaseDataService().getUser(agentId);
+          if (sbAgent != null) {
+            final newD = sbAgent.diamonds + diamondsAmount;
+            await SupabaseDataService().updateUser(agentId, {'diamonds': newD});
+          }
+        } catch (e) {
+          debugPrint('[respondToAgentWithdrawalRequest] Supabase sync error: $e');
+        }
+      }
 
       if (txnResult['success'] == true && agentId.isNotEmpty) {
         // إشعار الوكيل بنجاح العملية وموافقة المستخدم

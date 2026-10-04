@@ -25,7 +25,8 @@ class _DetailItem {
 }
 
 class BadgesScreen extends StatefulWidget {
-  const BadgesScreen({super.key});
+  const BadgesScreen({super.key, this.initialTab = 0});
+  final int initialTab;
 
   @override
   State<BadgesScreen> createState() => _BadgesScreenState();
@@ -43,7 +44,7 @@ class _BadgesScreenState extends State<BadgesScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialTab.clamp(0, 1));
     _tabController.addListener(() => setState(() {}));
     _loadData();
   }
