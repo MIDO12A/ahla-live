@@ -284,8 +284,11 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
     bool isCenter = false,
   }) {
     final photoUrl = (item?['user_photo_url'] ?? item?['photo_url'] ?? item?['photoUrl'] ?? '').toString();
-    final name = (item?['user_name'] ?? item?['name'] ?? (item != null ? 'User' : 'شاغر')).toString();
-    final customId = (item?['custom_id'] ?? item?['user_id'] ?? item?['uid'] ?? item?['id'] ?? '').toString();
+    final rawCid = (item?['custom_id'] ?? item?['display_id'] ?? item?['customId'] ?? '').toString();
+    final rawUid = (item?['uid'] ?? item?['id'] ?? item?['user_id'] ?? '').toString();
+    final customId = (rawCid.isNotEmpty && !rawCid.contains('-')) 
+        ? rawCid 
+        : (rawUid.length > 8 ? rawUid.substring(0, 8) : rawUid);
     final value = item?['total_value'] ?? item?['points'] ?? item?['score'] ?? 0;
 
     return GestureDetector(
@@ -418,8 +421,11 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
   // Authentic List Item (rank_adapter_item.xml)
   Widget _buildRestItem(Map<String, dynamic> item, int rank) {
     final photoUrl = (item['user_photo_url'] ?? item['photo_url'] ?? item['photoUrl'] ?? '').toString();
-    final name = (item['user_name'] ?? item['name'] ?? 'User').toString();
-    final customId = (item['custom_id'] ?? item['user_id'] ?? item['uid'] ?? item['id'] ?? '').toString();
+    final rawCid = (item['custom_id'] ?? item['display_id'] ?? item['customId'] ?? '').toString();
+    final rawUid = (item['uid'] ?? item['id'] ?? item['user_id'] ?? '').toString();
+    final customId = (rawCid.isNotEmpty && !rawCid.contains('-')) 
+        ? rawCid 
+        : (rawUid.length > 8 ? rawUid.substring(0, 8) : rawUid);
     final value = item['total_value'] ?? item['points'] ?? item['score'] ?? 0;
     final level = item['level'] ?? 1;
 

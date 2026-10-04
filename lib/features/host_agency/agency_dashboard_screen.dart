@@ -23,6 +23,7 @@ import 'screens/agency_chat_screen.dart';
 import 'screens/agency_invite_by_id_screen.dart';
 import 'screens/agency_owner_wallet_screen.dart';
 import 'screens/agency_verification_screen.dart';
+import 'data/agency_models.dart';
 import 'screens/agency_level_desc_screen.dart';
 import 'data/agency_chat_models.dart';
 import 'data/agency_repository.dart';
@@ -271,7 +272,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
     final spec          = agency['specialty']        ?? '';
     final rate          = agency['commission_rate']  ?? 0.05;
     final totalD        = agency['monthly_diamonds'] ?? 0;
-    final agencyPubId   = agency['agency_public_id'] as String?;
+    final agencyPubId   = formatAgencyNumericId(agency);
 
     // sort members by diamonds desc for leaderboard
     final ranked = [...members]

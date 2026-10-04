@@ -179,6 +179,14 @@ class FirebaseService {
 
   Future<void> followRoom(String uid, String roomId) async {
     try {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final list = prefs.getStringList('followed_rooms_$uid') ?? [];
+        if (!list.contains(roomId)) {
+          list.add(roomId);
+          await prefs.setStringList('followed_rooms_$uid', list);
+        }
+      } catch (_) {}
       await _db.collection('users').doc(uid).set({
         'followed_rooms': FieldValue.arrayUnion([roomId]),
       }, SetOptions(merge: true));
@@ -192,6 +200,14 @@ class FirebaseService {
 
   Future<void> unfollowRoom(String uid, String roomId) async {
     try {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final list = prefs.getStringList('followed_rooms_$uid') ?? [];
+        if (list.contains(roomId)) {
+          list.remove(roomId);
+          await prefs.setStringList('followed_rooms_$uid', list);
+        }
+      } catch (_) {}
       await _db.collection('users').doc(uid).set({
         'followed_rooms': FieldValue.arrayRemove([roomId]),
       }, SetOptions(merge: true));
@@ -1718,6 +1734,12 @@ class FirebaseService {
 
   Future<List<gm.SentGiftModel>> getReceivedGifts(String uid) async {
     try {
+      final supaGifts = await SupabaseDataService().getReceivedGifts(uid, limit: 100);
+      if (supaGifts.isNotEmpty) {
+        return supaGifts;
+      }
+    } catch (_) {}
+    try {
       final snap = await _db
           .collection('sent_gifts')
           .where('receiver_id', isEqualTo: uid)
@@ -1825,8 +1847,22 @@ class FirebaseService {
 
     void fetchSupabase() async {
       try {
-        final u = await SupabaseAuthService().getUserFromSupabase(uid);
+        var u = await SupabaseAuthService().getUserFromSupabase(uid);
         if (u != null && !controller.isClosed) {
+          // Preserve followed_rooms if Supabase returned empty
+          List<String> followed = u.followedRooms;
+          if (followed.isEmpty) {
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              followed = prefs.getStringList('followed_rooms_$uid') ?? [];
+            } catch (_) {}
+            if (followed.isEmpty && latestUser != null) {
+              followed = latestUser!.followedRooms;
+            }
+            if (followed.isNotEmpty) {
+              u = u.copyWith(followedRooms: followed);
+            }
+          }
           latestUser = u;
           controller.add(u);
           // Sync coins/diamonds/customId to Firestore so Firestore checks/transactions match
@@ -1851,6 +1887,9 @@ class FirebaseService {
         if (!controller.isClosed && snap.exists) {
           final m = snap.data() ?? {};
           var fireUser = UserModel.fromMap({...m, 'uid': uid});
+          final fRooms = fireUser.followedRooms.isNotEmpty
+              ? fireUser.followedRooms
+              : (latestUser?.followedRooms ?? []);
           if (latestUser != null) {
             // Keep Supabase coins, diamonds, and owned items if Firestore is zero or stale
             fireUser = fireUser.copyWith(
@@ -1862,6 +1901,7 @@ class FirebaseService {
               email: fireUser.email.isNotEmpty ? fireUser.email : latestUser!.email,
               gender: fireUser.gender.isNotEmpty ? fireUser.gender : latestUser!.gender,
               ownedItems: fireUser.ownedItems.isNotEmpty ? fireUser.ownedItems : latestUser!.ownedItems,
+              followedRooms: fRooms,
               isRechargeAgent: fireUser.isRechargeAgent || latestUser!.isRechargeAgent,
               rechargeAgencyName: fireUser.rechargeAgencyName?.isNotEmpty == true
                   ? fireUser.rechargeAgencyName
@@ -1873,6 +1913,8 @@ class FirebaseService {
                   ? fireUser.whatsappNumber
                   : latestUser!.whatsappNumber,
             );
+          } else if (fRooms.isNotEmpty) {
+            fireUser = fireUser.copyWith(followedRooms: fRooms);
           }
           latestUser = fireUser;
           controller.add(fireUser);
@@ -2743,46 +2785,74 @@ class FirebaseService {
     String? imageUrl,
     String type = 'text',
   }) async {
-    // التحقق من الحظر
-    final blockDoc = await _db.collection('blocks').doc('${receiverId}_$senderId').get();
-    if (blockDoc.exists) {
-      throw Exception('لا يمكنك إرسال رسالة لأن هذا المستخدم قام بحظرك.');
-    }
-    final myBlockDoc = await _db.collection('blocks').doc('${senderId}_$receiverId').get();
-    if (myBlockDoc.exists) {
-      throw Exception('لقد قمت بحظر هذا المستخدم. يجب إزالة الحظر أولاً.');
+    // 1. التحقق من الحظر بشكل آمن
+    try {
+      final blockDoc = await _db.collection('blocks').doc('${receiverId}_$senderId').get();
+      if (blockDoc.exists) {
+        throw Exception('لا يمكنك إرسال رسالة لأن هذا المستخدم قام بحظرك.');
+      }
+      final myBlockDoc = await _db.collection('blocks').doc('${senderId}_$receiverId').get();
+      if (myBlockDoc.exists) {
+        throw Exception('لقد قمت بحظر هذا المستخدم. يجب إزالة الحظر أولاً.');
+      }
+    } catch (e) {
+      if (e is Exception && e.toString().contains('بحظر')) rethrow;
+      debugPrint('[sendPrivateMessage] block check ignored: $e');
     }
 
     final convId = await _getOrCreateConversationId(senderId, receiverId);
     final msgId = const Uuid().v4();
+    final sName = senderName.isNotEmpty ? senderName : 'مستخدم';
+    final rName = receiverName.isNotEmpty ? receiverName : 'مستخدم';
+    final nowMillis = DateTime.now().millisecondsSinceEpoch;
+
     final msg = MessageModel(
       msgId: msgId,
       senderUid: senderId,
-      senderName: senderName,
+      senderName: sName,
       senderPhotoUrl: senderPhotoUrl,
       text: text,
       imageUrl: imageUrl,
       type: type,
-      timestamp: DateTime.now().millisecondsSinceEpoch,
+      timestamp: nowMillis,
     );
     final data = msg.toMap();
     data['conv_id'] = convId;
     data['id'] = msgId;
+
+    // 2. حفظ الرسالة في private_messages
     await _db.collection('private_messages').doc(msgId).set(data);
 
-    final nowMillis = DateTime.now().millisecondsSinceEpoch;
-    for (final uid in [senderId, receiverId]) {
-      final isSender = uid == senderId;
-      await _db.collection('conversations').doc('${uid}_$convId').set({
-        'uid': uid,
+    // 3. تحديث محادثة المرسل
+    try {
+      await _db.collection('conversations').doc('${senderId}_$convId').set({
+        'uid': senderId,
         'conversationId': convId,
-        'otherUid': isSender ? receiverId : senderId,
-        'otherName': isSender ? receiverName : senderName,
-        'otherPhotoUrl': isSender ? receiverPhotoUrl : senderPhotoUrl,
+        'otherUid': receiverId,
+        'otherName': rName,
+        'otherPhotoUrl': receiverPhotoUrl,
         'lastMessage': type == 'image' ? '[صورة]' : text,
         'lastMessageTime': nowMillis,
-        'unreadCount': isSender ? 0 : FieldValue.increment(1),
+        'unreadCount': 0,
       }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[sendPrivateMessage] sender conversation error: $e');
+    }
+
+    // 4. تحديث محادثة المستقبل
+    try {
+      await _db.collection('conversations').doc('${receiverId}_$convId').set({
+        'uid': receiverId,
+        'conversationId': convId,
+        'otherUid': senderId,
+        'otherName': sName,
+        'otherPhotoUrl': senderPhotoUrl,
+        'lastMessage': type == 'image' ? '[صورة]' : text,
+        'lastMessageTime': nowMillis,
+        'unreadCount': FieldValue.increment(1),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[sendPrivateMessage] receiver conversation non-fatal error: $e');
     }
   }
 
@@ -2827,16 +2897,26 @@ class FirebaseService {
     required int diamonds,
     required int rate,
   }) async {
-    if (diamonds < rate) {
-      return (success: false, coinsReceived: 0, error: 'الحد الأدنى $rate ألماس');
+    final effectiveRate = rate <= 0 ? 2 : rate;
+    if (diamonds < 1) {
+      return (success: false, coinsReceived: 0, error: 'يرجى إدخال كمية ألماس صحيحة');
+    }
+    if (diamonds < effectiveRate) {
+      return (success: false, coinsReceived: 0, error: 'الحد الأدنى للتبديل هو $effectiveRate ألماس');
     }
     try {
       // 1. Fetch current balances from Supabase and Firestore
-      UserModel? supaUser = await SupabaseAuthService().getUserFromSupabase(uid);
-      supaUser ??= await SupabaseDataService().getUser(uid);
+      int currentDiamonds = 0;
+      int currentCoins = 0;
 
-      int currentDiamonds = supaUser?.diamonds ?? 0;
-      int currentCoins = supaUser?.coins ?? 0;
+      try {
+        UserModel? supaUser = await SupabaseAuthService().getUserFromSupabase(uid);
+        supaUser ??= await SupabaseDataService().getUser(uid);
+        if (supaUser != null) {
+          if (supaUser.diamonds > currentDiamonds) currentDiamonds = supaUser.diamonds;
+          if (supaUser.coins > currentCoins) currentCoins = supaUser.coins;
+        }
+      } catch (_) {}
 
       final userRef = _db.collection('users').doc(uid);
       final walletRef = _db.collection('user_wallets').doc(uid);
@@ -2857,23 +2937,33 @@ class FirebaseService {
         if (wSnap.exists) {
           final wd = wSnap.data() ?? {};
           final fwd = (wd['diamond_balance'] as num?)?.toInt() ?? 0;
+          final fwc = (wd['gold_balance'] as num?)?.toInt() ?? (wd['coin_balance'] as num?)?.toInt() ?? 0;
           if (fwd > currentDiamonds) currentDiamonds = fwd;
+          if (fwc > currentCoins) currentCoins = fwc;
         }
       } catch (_) {}
 
       if (currentDiamonds < diamonds) {
-        return (success: false, coinsReceived: 0, error: 'رصيد ألماس غير كافٍ');
+        return (success: false, coinsReceived: 0, error: 'رصيد ألماس غير كافٍ (رصيدك الحالي: $currentDiamonds)');
       }
 
-      final coinsReceived = diamonds ~/ rate;
+      final coinsReceived = diamonds ~/ effectiveRate;
+      if (coinsReceived < 1) {
+        return (success: false, coinsReceived: 0, error: 'الحد الأدنى للتبديل هو $effectiveRate ألماس');
+      }
+
       final newDiamonds = currentDiamonds - diamonds;
       final newCoins = currentCoins + coinsReceived;
 
-      // 2. Update Supabase
-      await SupabaseDataService().updateUser(uid, {
-        'diamonds': newDiamonds,
-        'coins': newCoins,
-      });
+      // 2. Update Supabase safely
+      try {
+        await SupabaseDataService().updateUser(uid, {
+          'diamonds': newDiamonds,
+          'coins': newCoins,
+        });
+      } catch (se) {
+        debugPrint('[exchangeDiamondsToCoins] Supabase update non-fatal: $se');
+      }
 
       // 3. Update Firestore
       try {
@@ -2889,6 +2979,17 @@ class FirebaseService {
       } catch (fe) {
         debugPrint('Firestore exchange update non-fatal error: $fe');
       }
+
+      // 4. Log transaction
+      try {
+        await _db.collection('diamond_exchanges').add({
+          'uid': uid,
+          'diamonds_exchanged': diamonds,
+          'coins_received': coinsReceived,
+          'rate': effectiveRate,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      } catch (_) {}
 
       return (success: true, coinsReceived: coinsReceived, error: null);
     } catch (e) {
@@ -4162,64 +4263,114 @@ class FirebaseService {
     int limit = 50,
   }) async {
     try {
-      QuerySnapshot<Map<String, dynamic>> snap;
+      final Map<String, int> roomGiftsTotal = {};
+
+      // 1. Calculate gift points per room from Supabase sent_gifts
       try {
-        snap = await _db
-            .collection('rooms')
-            .orderBy('total_gifts', descending: true)
-            .limit(limit)
-            .get();
-      } catch (e) {
-        snap = await _db.collection('rooms').limit(limit).get();
-      }
-      // If Firestore rooms is empty, fetch real rooms from Supabase
-      if (snap.docs.isEmpty) {
-        try {
-          final sbRooms = await SupabaseDataService().getRoomRanking(limit: limit);
-          if (sbRooms != null && sbRooms.isNotEmpty) {
-            final list = sbRooms.map((data) {
-              final photo = (data['room_photo_url'] ?? data['photo_url'] ?? data['bg_image'] ?? '').toString();
-              final name = (data['name'] ?? 'Room').toString();
-              final roomId = (data['room_id'] ?? '').toString();
-              final points = (data['total_gifts'] as num?)?.toInt() ?? (data['hot_value'] as num?)?.toInt() ?? 0;
-              return {
-                'id': roomId,
-                'room_doc_id': roomId,
-                'name': name,
-                'photoUrl': photo,
-                'photo_url': photo,
-                'user_id': roomId,
-                'points': points,
-                'score': points,
-                'country': (data['country'] ?? 'EG').toString(),
-              };
-            }).toList();
-            list.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
-            return list;
+        final sbGifts = await SupabaseDataService().getAllSentGifts(limit: 500);
+        for (final g in sbGifts) {
+          if (g.roomId.isNotEmpty) {
+            roomGiftsTotal[g.roomId] = (roomGiftsTotal[g.roomId] ?? 0) + g.totalValue.toInt();
           }
-        } catch (_) {}
+        }
+      } catch (_) {}
+
+      // 2. Also check Firestore sent_gifts
+      try {
+        final fsGifts = await _db.collection('sent_gifts').limit(300).get();
+        for (final doc in fsGifts.docs) {
+          final d = doc.data();
+          final rId = (d['room_id'] ?? '').toString();
+          if (rId.isNotEmpty) {
+            final val = _asInt(d['value']) * _asInt(d['count'] ?? 1);
+            roomGiftsTotal[rId] = (roomGiftsTotal[rId] ?? 0) + val;
+          }
+        }
+      } catch (_) {}
+
+      final Map<String, Map<String, dynamic>> roomsMap = {};
+
+      // 3. Fetch rooms from Supabase
+      try {
+        final sbRooms = await SupabaseDataService().getRoomRanking(limit: limit);
+        for (final data in sbRooms) {
+          final roomId = (data['room_id'] ?? '').toString();
+          if (roomId.isEmpty) continue;
+          final photo = (data['room_photo_url'] ?? data['photo_url'] ?? data['bg_image'] ?? '').toString();
+          final name = (data['name'] ?? 'غرفة').toString();
+          final basePoints = (data['total_gifts'] as num?)?.toInt() ?? (data['hot_value'] as num?)?.toInt() ?? 0;
+          final totalPts = math.max(basePoints, roomGiftsTotal[roomId] ?? 0);
+          roomsMap[roomId] = {
+            'id': roomId,
+            'room_id': roomId,
+            'custom_id': roomId,
+            'display_id': roomId,
+            'room_doc_id': roomId,
+            'name': name,
+            'photoUrl': photo,
+            'photo_url': photo,
+            'user_id': roomId,
+            'host_name': (data['host_name'] ?? '').toString(),
+            'points': totalPts,
+            'score': totalPts,
+          };
+        }
+      } catch (_) {}
+
+      // 4. Fetch rooms from Firestore
+      try {
+        final snap = await _db.collection('rooms').limit(limit).get();
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final roomId = (data['room_id'] ?? data['custom_id'] ?? doc.id).toString();
+          final photo = (data['room_photo_url'] ?? data['cover_image'] ?? data['photo_url'] ?? data['image'] ?? data['bg_image'] ?? '').toString();
+          final name = (data['name'] ?? data['title'] ?? 'غرفة').toString();
+          final basePoints = (data['total_gifts'] as num?)?.toInt() ?? (data['hot_value'] as num?)?.toInt() ?? 0;
+          final totalPts = math.max(basePoints, roomGiftsTotal[roomId] ?? 0);
+
+          if (!roomsMap.containsKey(roomId) || totalPts > (roomsMap[roomId]!['points'] as int)) {
+            roomsMap[roomId] = {
+              'id': doc.id,
+              'room_id': roomId,
+              'custom_id': roomId,
+              'display_id': roomId,
+              'room_doc_id': doc.id,
+              'name': name.isNotEmpty ? name : (roomsMap[roomId]?['name'] ?? 'غرفة'),
+              'photoUrl': photo.isNotEmpty ? photo : (roomsMap[roomId]?['photoUrl'] ?? ''),
+              'photo_url': photo.isNotEmpty ? photo : (roomsMap[roomId]?['photo_url'] ?? ''),
+              'user_id': roomId,
+              'host_name': (data['host_name'] ?? roomsMap[roomId]?['host_name'] ?? '').toString(),
+              'password': (data['password'] ?? '').toString(),
+              'points': totalPts,
+              'score': totalPts,
+            };
+          }
+        }
+      } catch (_) {}
+
+      // 5. For any remaining rooms in roomGiftsTotal that were not loaded yet:
+      for (final entry in roomGiftsTotal.entries) {
+        if (!roomsMap.containsKey(entry.key) && entry.value > 0) {
+          roomsMap[entry.key] = {
+            'id': entry.key,
+            'room_id': entry.key,
+            'custom_id': entry.key,
+            'display_id': entry.key,
+            'room_doc_id': entry.key,
+            'name': 'غرفة #${entry.key}',
+            'photoUrl': '',
+            'photo_url': '',
+            'user_id': entry.key,
+            'host_name': '',
+            'points': entry.value,
+            'score': entry.value,
+          };
+        }
       }
 
-      final list = snap.docs.map((doc) {
-        final data = doc.data();
-        final photo = (data['room_photo_url'] ?? data['cover_image'] ?? data['photo_url'] ?? data['image'] ?? data['bg_image'] ?? '').toString();
-        final name = (data['name'] ?? data['title'] ?? 'Room').toString();
-        final roomId = (data['room_id'] ?? data['custom_id'] ?? doc.id).toString();
-        return {
-          'id': doc.id,
-          'room_doc_id': doc.id,
-          'name': name,
-          'photoUrl': photo,
-          'photo_url': photo,
-          'user_id': roomId,
-          'room_id': roomId,
-          'host_name': (data['host_name'] ?? '').toString(),
-          'password': (data['password'] ?? '').toString(),
-          'points': (data['total_gifts'] as num?)?.toInt() ?? 0,
-        };
-      }).toList();
+      final list = roomsMap.values.toList();
       list.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
-      return list;
+      return list.take(limit).toList();
     } catch (e) {
       debugPrint('getRoomGlobalRanking error: $e');
       return [];

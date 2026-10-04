@@ -23,6 +23,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/user_provider.dart';
 import '../../services/dynamic_config_service.dart';
+import 'data/agency_models.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 class HostAgencyScreen extends StatefulWidget {
@@ -857,8 +858,7 @@ class _AgencyRankItem extends StatelessWidget {
     final photoUrl = agency['photo_url'] as String?;
     final diamonds = (agency['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
     final members = (agency['member_count'] as num?)?.toInt() ?? 0;
-    final id = agency['id'] as String? ?? '';
-    final shortId = id.length > 8 ? id.substring(0, 8) : id;
+    final displayId = formatAgencyNumericId(agency);
 
     String cardBg;
     String numBg;
@@ -1023,7 +1023,7 @@ class _AgencyRankItem extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'ID: $shortId',
+                              'ID: $displayId',
                               style: const TextStyle(color: Colors.white54, fontSize: 11),
                             ),
                           ],
@@ -1089,14 +1089,68 @@ class _AgencySearchSheetState extends State<_AgencySearchSheet> {
     }
     setState(() => _searching = true);
     try {
-      final rows = await Supabase.instance.client
-          .from('host_agencies')
-          .select('id, name, photo_url, member_count, total_diamonds_monthly')
-          .or('name.ilike.%$q%,id.ilike.%$q%')
-          .limit(15);
+      final combined = <Map<String, dynamic>>[];
+      final seenIds = <String>{};
+
+      // 1. Supabase search
+      try {
+        final rows = await Supabase.instance.client
+            .from('host_agencies')
+            .select('id, name, photo_url, member_count, total_diamonds_monthly, agency_public_id, agency_code')
+            .or('name.ilike.%$q%,id.ilike.%$q%')
+            .limit(20);
+        for (final r in rows) {
+          final m = Map<String, dynamic>.from(r as Map);
+          final id = m['id']?.toString() ?? '';
+          if (id.isNotEmpty && !seenIds.contains(id)) {
+            seenIds.add(id);
+            combined.add(m);
+          }
+        }
+      } catch (_) {}
+
+      // 2. Firestore search
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        final snap = await fs.collection('host_agencies').limit(50).get();
+        for (final doc in snap.docs) {
+          final d = doc.data();
+          final id = doc.id;
+          final name = (d['name'] ?? '').toString();
+          final pubId = (d['agency_public_id'] ?? d['agency_code'] ?? '').toString();
+          final numericId = formatAgencyNumericId(d);
+
+          if (id.toLowerCase().contains(q.toLowerCase()) ||
+              name.toLowerCase().contains(q.toLowerCase()) ||
+              pubId.contains(q) ||
+              numericId == q) {
+            if (!seenIds.contains(id)) {
+              seenIds.add(id);
+              combined.add({
+                'id': id,
+                'name': name,
+                'photo_url': d['photo_url'],
+                'member_count': d['member_count'] ?? 1,
+                'total_diamonds_monthly': d['total_diamonds_monthly'] ?? 0,
+                'agency_public_id': pubId.isNotEmpty ? pubId : numericId,
+              });
+            }
+          }
+        }
+      } catch (_) {}
+
+      // If user typed 3-digit number (e.g. 100, 200), prioritize matches where formatAgencyNumericId == q
+      combined.sort((a, b) {
+        final numA = formatAgencyNumericId(a);
+        final numB = formatAgencyNumericId(b);
+        if (numA == q && numB != q) return -1;
+        if (numB == q && numA != q) return 1;
+        return 0;
+      });
+
       if (mounted) {
         setState(() {
-          _results = List<Map<String, dynamic>>.from(rows as List);
+          _results = combined;
           _searching = false;
         });
       }

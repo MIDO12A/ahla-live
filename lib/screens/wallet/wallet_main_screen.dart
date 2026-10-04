@@ -813,6 +813,11 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         rate: dc.diamondToCoinRate,
       );
       if (result.success) {
+        final updated = user.copyWith(
+          diamonds: user.diamonds >= _exchangeDiamondAmount ? user.diamonds - _exchangeDiamondAmount : 0,
+          coins: user.coins + result.coinsReceived,
+        );
+        userProvider.updateUser(updated);
         await userProvider.loadUser(user.uid);
         if (mounted) {
           setState(() {

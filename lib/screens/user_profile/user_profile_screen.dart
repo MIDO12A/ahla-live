@@ -256,7 +256,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           final roomMemberFuture = Supabase.instance.client
               .from('room_members')
               .select('room_id')
-              .eq('user_id', queryUid)
+              .eq('uid', queryUid)
               .maybeSingle()
               .catchError((_) => null);
           final cpFuture = CpService.getMyData(queryUid).catchError((_) => <String, dynamic>{});
@@ -267,6 +267,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               .eq('status', 'active')
               .maybeSingle()
               .catchError((_) => null);
+          final backpackFuture = SupabaseDataService().getUserBackpack(queryUid).catchError((_) => <Map<String, dynamic>>[]);
+          final activeRoomFuture = _supabase.getUserCurrentRoomId(queryUid).catchError((_) => null);
 
         final results = await Future.wait([
           storeItemsFuture,
@@ -280,6 +282,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           roomMemberFuture,
           cpFuture,
           agencyMemberFuture,
+          backpackFuture,
+          activeRoomFuture,
         ]);
 
         final allStoreItems = results[0] as List<StoreItemModel>;
@@ -293,6 +297,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         final roomMember = results[8] as Map<String, dynamic>?;
         final cpResult = results[9] as Map<String, dynamic>;
         final memberRow = results[10] as Map<String, dynamic>?;
+        final backpackList = results[11] as List<Map<String, dynamic>>;
+        final activeRoomDetected = results[12] as String?;
 
         // Resolve activeFrame path
         String? resolvedFrame = targetUser.activeFrame;
@@ -342,10 +348,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           }
         }
 
-        // Store items to match owned frames & rides
+        // Store items to match owned frames & rides (merged with user_backpack)
         final ownedSet = targetUser.ownedItems.toSet();
-        final frames = allStoreItems.where((i) => i.category == 'frame' && (ownedSet.contains(i.itemId) || i.svgaAsset == targetUser?.activeFrame)).toList();
-        final rides = allStoreItems.where((i) => (i.category == 'car' || i.category == 'entrance') && (ownedSet.contains(i.itemId) || i.svgaAsset == targetUser?.activeCar || i.svgaAsset == targetUser?.activeEntrance)).toList();
+        for (final b in backpackList) {
+          final bId = b['item_id']?.toString() ?? b['itemId']?.toString() ?? '';
+          if (bId.isNotEmpty) ownedSet.add(bId);
+        }
+        final frames = allStoreItems.where((i) => i.category == 'frame' && (ownedSet.contains(i.itemId) || i.svgaAsset == targetUser?.activeFrame || backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId)))).toList();
+        final rides = allStoreItems.where((i) => (i.category == 'car' || i.category == 'entrance') && (ownedSet.contains(i.itemId) || i.svgaAsset == targetUser?.activeCar || i.svgaAsset == targetUser?.activeEntrance || backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId)))).toList();
 
         final aggList = _aggregateGifts(gifts, giftCatalog);
         final supporters = _extractSupporters(gifts);
@@ -356,9 +366,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         int visitors = vList.isNotEmpty ? vList.length : targetUser.visitors;
 
         // Check if user is in an active room
-        String? activeRoomId;
-        if (roomMember != null && roomMember['room_id'] != null) {
-          activeRoomId = roomMember['room_id'].toString();
+        String? activeRoomId = activeRoomDetected;
+        if (activeRoomId == null || activeRoomId.isEmpty) {
+          if (roomMember != null && roomMember['room_id'] != null) {
+            activeRoomId = roomMember['room_id'].toString();
+          }
+        }
+        if (activeRoomId == null || activeRoomId.isEmpty) {
+          if (targetUser.hostedRoomId != null && targetUser.hostedRoomId!.isNotEmpty && targetUser.hostedRoomId != 'null') {
+            activeRoomId = targetUser.hostedRoomId;
+          }
         }
 
         // Fetch CP / Relationship Data
@@ -658,13 +675,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  void _joinLiveRoom() {
-    if (_currentRoomId != null) {
-      navigateToRoom(
+  void _joinLiveRoom() async {
+    if (_currentRoomId != null && _currentRoomId!.isNotEmpty) {
+      final room = await _supabase.getRoom(_currentRoomId!);
+      if (!mounted) return;
+      await navigateToRoom(
         context,
-        roomName: 'غرفة صوتية',
-        hostName: _user?.name ?? '',
+        roomName: room?.name ?? 'غرفة صوتية',
+        hostName: room?.hostName ?? _user?.name ?? '',
         roomId: _currentRoomId!,
+        hostUid: room?.hostUid ?? _user?.uid,
       );
     }
   }
@@ -2836,8 +2856,11 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       debugPrint('sendPrivateMessage error: $e');
       if (mounted) {
+        final errorMsg = e.toString().contains('Exception: ') 
+            ? e.toString().replaceAll(RegExp(r'^.*Exception: '), '') 
+            : 'فشل إرسال الرسالة، يرجى المحاولة مرة أخرى';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to send message')),
+          SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
         );
       }
     }

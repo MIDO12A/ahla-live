@@ -1389,12 +1389,29 @@ class SupabaseClient {
     final customId = userData['custom_id']?.toString() ?? '';
     final userAvatar = userData['photo_url']?.toString() ?? userData['avatar']?.toString() ?? '';
 
-    // 2. Generate agency ID
+    // 2. Generate agency ID & 3-digit numeric code (100..999)
     final agencyId = 'agency_${now.millisecondsSinceEpoch}_$uid';
+    String agencyCode = '100';
+    try {
+      final existingDocs = await _db.collection('host_agencies').get();
+      final usedCodes = existingDocs.docs
+          .map((d) => d.data()['agency_public_id']?.toString() ?? d.data()['agency_code']?.toString())
+          .toSet();
+      for (int c = 100; c <= 999; c++) {
+        if (!usedCodes.contains(c.toString())) {
+          agencyCode = c.toString();
+          break;
+        }
+      }
+    } catch (_) {
+      agencyCode = (100 + (now.millisecondsSinceEpoch % 900)).toString();
+    }
 
     // 3. Create host agency in host_agencies collection
     final agencyData = {
       'id': agencyId,
+      'agency_public_id': agencyCode,
+      'agency_code': agencyCode,
       'name': name,
       'owner_id': uid,
       'description': p?['p_description'] ?? 'وكالة مضيفين معتمدة',

@@ -142,6 +142,8 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
   Widget _buildUserItem(Map<String, dynamic> item, {bool isVisitor = false}) {
     final name = item['name']?.toString() ?? 'User';
     final id = item['uid']?.toString() ?? item['id']?.toString() ?? '';
+    final customId = item['custom_id']?.toString() ?? item['customId']?.toString() ?? item['display_id']?.toString() ?? '';
+    final displayId = customId.isNotEmpty ? customId : (id.length > 8 ? id.substring(0, 8) : id);
     final gender = item['gender']?.toString() ?? 'male';
     final level = (item['level'] as num?)?.toInt() ?? 0;
     final photoUrl = item['photo_url']?.toString() ?? item['avatar']?.toString() ?? '';
@@ -217,7 +219,7 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'ID: $id',
+                    'ID: $displayId',
                     style: const TextStyle(fontSize: 12, color: Color(0xFF9BA1B6)),
                   ),
                   const SizedBox(height: 4),

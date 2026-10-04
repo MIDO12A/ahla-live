@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../../../core/supabase_compat.dart';
-
 import '../../../core/utils/server_time_service.dart';
 import 'package:flutter/foundation.dart';
-
 import '../../../core/cache/encrypted_image_provider.dart';
+import '../../../services/firebase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyJoinRequestsScreen — طلبات الانضمام (للمالك والمشرف)
@@ -75,27 +76,85 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
     try {
       List<dynamic> reqResp = [];
       try {
-        reqResp = await _sb.from('host_agency_join_requests')
+        final res = await _sb.from('host_agency_join_requests')
             .select('id, user_id, status, created_at')
             .eq('agency_id', widget.agencyId)
             .inFilter('status', ['pending', 'invited', 'rejected'])
             .order('created_at', ascending: false)
             .limit(200);
+        reqResp = List<dynamic>.from(res as List);
       } catch (e) {
-        debugPrint('[AgencyJoinRequests] reqResp error: $e');
+        debugPrint('[AgencyJoinRequests] sb reqResp error: $e');
+      }
+
+      // Also fetch pending requests from Firestore
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        final fsReqSnap = await fs.collection('host_agency_join_requests')
+            .where('agency_id', isEqualTo: widget.agencyId)
+            .get();
+        for (final doc in fsReqSnap.docs) {
+          final data = doc.data();
+          final id = doc.id;
+          final uid = data['user_id']?.toString() ?? '';
+          if (uid.isEmpty) continue;
+          final already = reqResp.any((r) => r['id']?.toString() == id || r['user_id']?.toString() == uid);
+          if (!already) {
+            reqResp.add({
+              'id': id,
+              'user_id': uid,
+              'status': data['status']?.toString() ?? 'pending',
+              'created_at': data['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String(),
+              '_from_fs': true,
+              '_user_name': data['user_name'],
+              '_user_avatar': data['user_avatar'],
+              '_custom_id': data['custom_id'],
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('[AgencyJoinRequests] fsReqSnap error: $e');
       }
 
       List<dynamic> membResp = [];
       try {
-        membResp = await _sb.from('host_agency_members')
+        final res = await _sb.from('host_agency_members')
             .select('id, user_id, role, status, joined_at, kicked_at')
             .eq('agency_id', widget.agencyId)
             .neq('role', 'owner')
             .inFilter('status', ['active', 'pending', 'suspended', 'kicked', 'left'])
             .order('joined_at', ascending: false)
             .limit(200);
+        membResp = List<dynamic>.from(res as List);
       } catch (e) {
-        debugPrint('[AgencyJoinRequests] membResp error: $e');
+        debugPrint('[AgencyJoinRequests] sb membResp error: $e');
+      }
+
+      // Also fetch members from Firestore
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        final fsMembSnap = await fs.collection('host_agency_members')
+            .where('agency_id', isEqualTo: widget.agencyId)
+            .get();
+        for (final doc in fsMembSnap.docs) {
+          final data = doc.data();
+          final uid = data['user_id']?.toString() ?? data['host_uid']?.toString() ?? '';
+          final role = data['role']?.toString() ?? 'host';
+          if (role == 'owner' || uid.isEmpty) continue;
+          final already = membResp.any((m) => m['id']?.toString() == doc.id || m['user_id']?.toString() == uid);
+          if (!already) {
+            membResp.add({
+              'id': doc.id,
+              'user_id': uid,
+              'role': role,
+              'status': data['status']?.toString() ?? 'active',
+              'joined_at': data['joined_at']?.toString() ?? DateTime.now().toUtc().toIso8601String(),
+              'kicked_at': data['kicked_at']?.toString(),
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('[AgencyJoinRequests] fsMembSnap error: $e');
       }
 
       final allUserIds = <String>{};
@@ -125,6 +184,25 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
             };
           }
         } catch (_) {}
+
+        // Fallback to Firestore users if missing or incomplete
+        for (final uid in allUserIds) {
+          if (!userProfiles.containsKey(uid) || userProfiles[uid]?['display_name'] == 'مستخدم') {
+            try {
+              final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+              final uDoc = await fs.collection('users').doc(uid).get();
+              if (uDoc.exists) {
+                final d = uDoc.data() ?? {};
+                userProfiles[uid] = {
+                  'display_name': d['name'] ?? d['displayName'] ?? userProfiles[uid]?['display_name'] ?? 'مستخدم',
+                  'avatar_url': d['photo_url'] ?? d['avatar'] ?? d['photoUrl'] ?? userProfiles[uid]?['avatar_url'],
+                  'kayan_id': d['custom_id']?.toString() ?? d['customId']?.toString() ?? userProfiles[uid]?['kayan_id'] ?? '',
+                  'level': (d['level'] as num?)?.toInt() ?? userProfiles[uid]?['level'] ?? 1,
+                };
+              }
+            } catch (_) {}
+          }
+        }
       }
 
       final requests = reqResp.map((e) {
@@ -132,11 +210,12 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         final uid = m['user_id']?.toString() ?? '';
         m['_req_id'] = m['id'];
         m['_source'] = 'request';
-        m['profile'] = userProfiles[uid] ?? {
-          'display_name': 'مستخدم',
-          'avatar_url': null,
-          'kayan_id': '',
-          'level': 1,
+        final cachedProf = userProfiles[uid];
+        m['profile'] = {
+          'display_name': cachedProf?['display_name'] ?? m['_user_name'] ?? 'مستخدم',
+          'avatar_url': cachedProf?['avatar_url'] ?? m['_user_avatar'],
+          'kayan_id': cachedProf?['kayan_id'] ?? m['_custom_id']?.toString() ?? '',
+          'level': cachedProf?['level'] ?? 1,
         };
         return m;
       }).toList();
@@ -146,7 +225,8 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         final uid = m['user_id']?.toString() ?? m['host_uid']?.toString() ?? '';
         m['user_id'] = uid;
         m['_source'] = 'member';
-        m['profile'] = userProfiles[uid] ?? {
+        final cachedProf = userProfiles[uid];
+        m['profile'] = cachedProf ?? {
           'display_name': 'مستخدم',
           'avatar_url': null,
           'kayan_id': '',
@@ -170,7 +250,8 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() => _loading = false);
       debugPrint('[AgencyJoinRequests] _load error: $e');
     }
   }
@@ -184,10 +265,17 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         });
       } catch (rpcErr) {
         debugPrint('[AgencyJoinRequests] rpc agency_accept_member failed, falling back to direct update: $rpcErr');
+      }
+
+      // Update Supabase
+      try {
         await _sb.from('host_agency_join_requests')
             .update({'status': 'accepted', 'resolved_at': DateTime.now().toUtc().toIso8601String()})
             .eq('id', reqId);
-        if (userId.isNotEmpty) {
+      } catch (_) {}
+
+      if (userId.isNotEmpty) {
+        try {
           await _sb.from('host_agency_members').upsert({
             'agency_id': widget.agencyId,
             'user_id': userId,
@@ -195,12 +283,50 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
             'status': 'active',
             'joined_at': DateTime.now().toUtc().toIso8601String(),
           });
+        } catch (_) {}
+        try {
           await _sb.from('users').update({'agency_id': widget.agencyId}).eq('id', userId);
-        }
+        } catch (_) {}
       }
+
+      // Update Firestore
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        await fs.collection('host_agency_join_requests').doc(reqId).set({
+          'status': 'approved',
+          'resolved_at': DateTime.now().toUtc().toIso8601String(),
+        }, SetOptions(merge: true));
+
+        if (userId.isNotEmpty) {
+          await fs.collection('host_agency_join_requests').doc('${widget.agencyId}_$userId').set({
+            'status': 'approved',
+            'resolved_at': DateTime.now().toUtc().toIso8601String(),
+          }, SetOptions(merge: true));
+
+          await fs.collection('host_agency_members').doc('${widget.agencyId}_$userId').set({
+            'agency_id': widget.agencyId,
+            'user_id': userId,
+            'role': 'host',
+            'status': 'active',
+            'joined_at': DateTime.now().toUtc().toIso8601String(),
+          }, SetOptions(merge: true));
+
+          await fs.collection('users').doc(userId).set({
+            'agency_id': widget.agencyId,
+            'is_agency_member': true,
+          }, SetOptions(merge: true));
+
+          await fs.collection('host_agencies').doc(widget.agencyId).set({
+            'member_count': FieldValue.increment(1),
+          }, SetOptions(merge: true));
+        }
+      } catch (fsErr) {
+        debugPrint('[AgencyJoinRequests] Firestore accept error: $fsErr');
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ تم قبول العضو'), backgroundColor: Color(0xFF2E7D32)),
+          const SnackBar(content: Text('✅ تم قبول العضو في الوكالة بنجاح'), backgroundColor: Color(0xFF2E7D32)),
         );
         _load();
       }
@@ -214,21 +340,47 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
   }
 
   // userId = host_agency_join_requests.user_id أو host_agency_join_requests.id
-  Future<void> _reject(String reqId) async {
+  Future<void> _reject(String reqId, [String? userId]) async {
     try {
-      // ✅ تحديث host_agency_join_requests بالـ request ID
-      await _sb.from('host_agency_join_requests')
-          .update({'status': 'rejected', 'resolved_at': DateTime.now().toUtc().toIso8601String()})
-          .eq('id', reqId)
-          .eq('agency_id', widget.agencyId);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم رفض الطلب')),
-      );
-      _load();
+      // 1. Supabase
+      try {
+        await _sb.from('host_agency_join_requests')
+            .update({'status': 'rejected', 'resolved_at': DateTime.now().toUtc().toIso8601String()})
+            .eq('id', reqId)
+            .eq('agency_id', widget.agencyId);
+      } catch (_) {}
+
+      // 2. Firestore
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        await fs.collection('host_agency_join_requests').doc(reqId).set({
+          'status': 'rejected',
+          'resolved_at': DateTime.now().toUtc().toIso8601String(),
+        }, SetOptions(merge: true));
+
+        if (userId != null && userId.isNotEmpty) {
+          await fs.collection('host_agency_join_requests').doc('${widget.agencyId}_$userId').set({
+            'status': 'rejected',
+            'resolved_at': DateTime.now().toUtc().toIso8601String(),
+          }, SetOptions(merge: true));
+          await fs.collection('host_agency_members').doc('${widget.agencyId}_$userId').delete();
+        }
+      } catch (fsErr) {
+        debugPrint('[AgencyJoinRequests] Firestore reject error: $fsErr');
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم رفض الطلب')),
+        );
+        _load();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -380,6 +532,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           ),
           onReject: () => _reject(
             list[i]['_req_id'] as String? ?? list[i]['user_id'] as String,
+            list[i]['user_id'] as String? ?? '',
           ),
           onKick:   () => _kick(list[i]['user_id'] as String),
         ),

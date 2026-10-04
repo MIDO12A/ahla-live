@@ -203,6 +203,7 @@ class _VapPlayerState extends State<VapPlayer> with SingleTickerProviderStateMix
         textReplacement: widget.textReplacement,
         imageReplacement: widget.imageReplacement,
       );
+      _playAudioTrackIfNeeded();
     } catch (e) {
       debugPrint('*** VapPlayer play error: $e');
     }

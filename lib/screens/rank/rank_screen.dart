@@ -124,6 +124,8 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
           'level': 1,
           'user_id': roomId,
           'room_id': roomId,
+          'custom_id': roomId,
+          'display_id': roomId,
           'host_name': (e['host_name'] ?? '').toString(),
           'password': (e['password'] ?? '').toString(),
         };
@@ -425,10 +427,10 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     final double avatarSize = isGold ? 60 : 50;
     final String photo = (item['photoUrl'] ?? item['photo_url'] ?? '').toString();
     final String rawCid = (item['custom_id'] ?? item['display_id'] ?? '').toString();
-    final String rawId = (item['user_id'] ?? item['id'] ?? '').toString();
+    final String rawId = (item['room_id'] ?? item['user_id'] ?? item['id'] ?? '').toString();
     final String displayId = rawCid.isNotEmpty 
         ? rawCid 
-        : (rawId.contains('-') && rawId.length > 20 ? '' : rawId);
+        : (type == 'rooms' ? rawId : (rawId.contains('-') && rawId.length > 20 ? '' : rawId));
 
     return GestureDetector(
       onTap: () {
@@ -576,10 +578,10 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     final localBg = 'assets/mipmap-xxhdpi/global_rank_list_bg.png';
     final String photo = (item['photoUrl'] ?? item['photo_url'] ?? '').toString();
     final String rawCid = (item['custom_id'] ?? item['display_id'] ?? '').toString();
-    final String rawId = (item['user_id'] ?? item['id'] ?? '').toString();
+    final String rawId = (item['room_id'] ?? item['user_id'] ?? item['id'] ?? '').toString();
     final String displayId = rawCid.isNotEmpty 
         ? rawCid 
-        : (rawId.contains('-') && rawId.length > 20 ? '' : rawId);
+        : (type == 'rooms' ? rawId : (rawId.contains('-') && rawId.length > 20 ? '' : rawId));
 
     return GestureDetector(
       onTap: () {

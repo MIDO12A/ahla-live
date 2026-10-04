@@ -953,6 +953,34 @@ class SupabaseDataService {
     return [];
   }
 
+  Future<List<gm.SentGiftModel>> getReceivedGifts(String receiverId, {int limit = 100}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?receiver_id=eq.$receiverId&select=*&order=created_at.desc&limit=$limit');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          m['id'] = m['id']?.toString() ?? '';
+          m['gift_id'] = m['gift_id']?.toString() ?? '';
+          m['sender_id'] = m['sender_id']?.toString() ?? '';
+          m['sender_name'] = m['sender_name']?.toString() ?? '';
+          m['sender_photo_url'] = m['sender_photo_url']?.toString() ?? '';
+          m['receiver_id'] = m['receiver_id']?.toString() ?? receiverId;
+          m['receiver_name'] = m['receiver_name']?.toString() ?? '';
+          m['room_id'] = m['room_id']?.toString() ?? '';
+          m['value'] = (m['value'] as num?)?.toInt() ?? 0;
+          m['count'] = (m['count'] as num?)?.toInt() ?? 1;
+          m['created_at'] = m['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String();
+          return gm.SentGiftModel.fromMap(m);
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getReceivedGifts error: $e');
+    }
+    return [];
+  }
+
   Future<List<gm.SentGiftModel>> getAllSentGifts({int limit = 200, DateTime? after}) async {
     try {
       String query = 'select=*&order=created_at.desc&limit=$limit';

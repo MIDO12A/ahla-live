@@ -34,7 +34,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
   late final Stream<List<RoomModel>> _roomsStream;
   List<RoomModel>? _cachedRooms;
   late TabController _tabController;
-  int _selectedTabIndex = 0;
+  int _selectedTabIndex = 1;
   String _searchQuery = '';
   String? _selectedCountry;
 
@@ -42,7 +42,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
   void initState() {
     super.initState();
     _roomsStream = _firebaseService.allRoomsStream();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: 1);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() => _selectedTabIndex = _tabController.index);

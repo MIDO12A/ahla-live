@@ -435,7 +435,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                                     fit: BoxFit.contain,
                                     errorBuilder: (_, __, ___) => const Icon(Icons.badge, size: 18, color: Color(0xFFFFFFAD)),
                                   ),
-                                  text: a.agencyPublicId ?? a.id,
+                                  text: formatAgencyNumericId(a.agencyPublicId ?? a.id),
                                 ),
                               ],
                             ),

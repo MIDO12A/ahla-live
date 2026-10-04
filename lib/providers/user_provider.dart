@@ -10,6 +10,7 @@ import '../services/api_service.dart';
 import '../services/supabase_service.dart';
 import '../services/supabase_auth_service.dart';
 import '../core/utils/id_generator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UserProvider extends ChangeNotifier {
   UserModel? _currentUser;
@@ -156,6 +157,15 @@ class UserProvider extends ChangeNotifier {
           });
         } catch (_) {}
       }
+    if (_currentUser != null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final spFollowed = prefs.getStringList('followed_rooms_$uid') ?? [];
+        if (spFollowed.isNotEmpty) {
+          final merged = Set<String>.from(_currentUser!.followedRooms)..addAll(spFollowed);
+          _currentUser = _currentUser!.copyWith(followedRooms: merged.toList());
+        }
+      } catch (_) {}
     }
     _isLoading = false;
     notifyListeners();
@@ -215,6 +225,12 @@ class UserProvider extends ChangeNotifier {
     }
     _currentUser = _currentUser!.copyWith(followedRooms: list);
     notifyListeners();
+    try {
+      final uid = _currentUser!.uid;
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setStringList('followed_rooms_$uid', list);
+      }).catchError((_) {});
+    } catch (_) {}
   }
 
   void deductCoinsLocally(int amount) {
