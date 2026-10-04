@@ -77,11 +77,12 @@ class FunctionPanel extends StatelessWidget {
         'label': isAr ? 'صوت الغرفة' : 'Room Volume',
         'asset': cfg.roomFuncVolumeIcon.isNotEmpty ? cfg.roomFuncVolumeIcon : R.roomSetVolumeIc,
       },
-      {
-        'key': 'Gift Value',
-        'label': isAr ? 'قيمة الهدية' : 'Gift Value',
-        'asset': cfg.roomFuncGiftValIcon.isNotEmpty ? cfg.roomFuncGiftValIcon : R.roomSetGiftIc,
-      },
+      if (isOwner || isModerator)
+        {
+          'key': 'Gift Value',
+          'label': isAr ? 'قيمة الهدية' : 'Gift Value',
+          'asset': cfg.roomFuncGiftValIcon.isNotEmpty ? cfg.roomFuncGiftValIcon : R.roomSetGiftIc,
+        },
     ];
 
     return Container(

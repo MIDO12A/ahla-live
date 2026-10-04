@@ -4,10 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../config/r.dart';
+import '../../../../models/user_model.dart';
 import '../../../../providers/user_provider.dart';
 import '../../../../services/supabase_service.dart';
+import '../../../../services/supabase_data_service.dart';
 import '../data/anchor_agent_model.dart';
 import 'agency_exit_screen.dart';
+import 'agency_invite_by_id_screen.dart';
 import 'agency_item_detail_screen.dart';
 import '../../../../services/dynamic_config_service.dart';
 
@@ -30,6 +33,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   StreamSubscription? _agencySub;
   Timer? _debounceTimer;
 
+  // Invite Host State
+  final TextEditingController _inviteSearchCtrl = TextEditingController();
+  bool _inviteSearching = false;
+  bool _inviteSending = false;
+  Map<String, dynamic>? _foundUser;
+  String? _inviteError;
+  String? _inviteSuccess;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +49,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
   @override
   void dispose() {
+    _inviteSearchCtrl.dispose();
     _membersSub?.cancel();
     _agencySub?.cancel();
     _debounceTimer?.cancel();
@@ -157,9 +169,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           else if (_currentTab == 1)
             _buildIncomeTab(info, isAr)
           else
-            _buildSubAgentsTab(isAr),
+            _buildInviteHostsTab(isAr),
 
-          _buildExitAgencyCard(isAr),
+          _buildRemoveHostCard(isAr),
 
           const SliverToBoxAdapter(
             child: SizedBox(height: 60),
@@ -188,28 +200,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     );
   }
 
-  void _openExitAgencyScreen(bool isAr) async {
-    final deleted = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AgencyExitScreen(agencyId: _agentInfo?.agencyId ?? widget.agencyId),
-      ),
-    );
-    if (deleted == true && mounted) {
-      Navigator.pop(context, true);
-    } else if (mounted) {
-      _loadAgencyData();
-    }
-  }
-
-  Widget _buildExitAgencyCard(bool isAr) {
+  Widget _buildRemoveHostCard(bool isAr) {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFFFF5252).withOpacity(0.08),
+            color: const Color(0xFF2C2C34),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.35)),
           ),
@@ -218,10 +216,10 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 22),
+                  const Icon(Icons.person_remove_rounded, color: Color(0xFFFF5252), size: 22),
                   const SizedBox(width: 8),
                   Text(
-                    isAr ? 'منطقة الخروج وإدارة الوكالة' : 'Agency Management & Exit',
+                    isAr ? 'إزالة مضيف من الوكالة' : 'Remove Host from Agency',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ],
@@ -229,8 +227,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               const SizedBox(height: 8),
               Text(
                 isAr
-                    ? 'عند خروج الوكيل سيتم حذف الوكالة نهائياً وفك ارتباط جميع المضيفين وتصفير مراحلهم المسجلة بالوكالة.'
-                    : 'Leaving as agent will delete the agency, unlink all members, and clear their milestones.',
+                    ? 'يمكنك اختيار أي مضيف لإزالته وإنهاء ارتباطه بالوكالة فوراً دون التأثير على حساب الوكالة.'
+                    : 'Select any host to remove them and unlink them from your agency immediately.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12),
               ),
@@ -238,10 +236,10 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () => _openExitAgencyScreen(isAr),
-                  icon: const Icon(Icons.exit_to_app_rounded, size: 20),
+                  onPressed: () => _showRemoveHostModal(isAr),
+                  icon: const Icon(Icons.person_remove, size: 20),
                   label: Text(
-                    isAr ? 'الخروج من الوكالة وحذفها نهائياً' : 'Leave & Delete Agency',
+                    isAr ? 'إزالة مضيف' : 'Remove Host',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -253,6 +251,108 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRemoveHostModal(bool isAr) {
+    final hostsToRemove = _anchors.where((a) => a.role != 'owner').toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E24),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.person_remove_rounded, color: Color(0xFFFF5252), size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      isAr ? 'إزالة مضيف من الوكالة' : 'Remove Host from Agency',
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isAr ? 'اختر المضيف الذي ترغب في إزالته وفك ارتباطه بالوكالة فوراً:' : 'Select a host to remove from your agency:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                if (hostsToRemove.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: Text(
+                        isAr ? 'لا يوجد مضيفين في الوكالة حالياً للإزالة' : 'No hosts available to remove',
+                        style: const TextStyle(color: Colors.white38, fontSize: 13),
+                      ),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: hostsToRemove.length,
+                      separatorBuilder: (_, __) => const Divider(color: Colors.white10),
+                      itemBuilder: (ctx, i) {
+                        final anchor = hostsToRemove[i];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          leading: CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.white12,
+                            backgroundImage: anchor.avatarUrl.isNotEmpty ? R.cachedImage(anchor.avatarUrl) : null,
+                            child: anchor.avatarUrl.isEmpty ? const Icon(Icons.person, color: Colors.white54) : null,
+                          ),
+                          title: Text(
+                            anchor.nickname.isNotEmpty ? anchor.nickname : (isAr ? 'مضيف' : 'Host'),
+                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            'ID: ${anchor.userNo > 0 ? anchor.userNo : anchor.userId} • ${_getAnchorStage(anchor.totalDiamond, isAr)} • ${(anchor.minute / 60).toStringAsFixed(1)} ${isAr ? 'ساعة' : 'hrs'}',
+                            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                          ),
+                          trailing: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _handleKickMember(anchor, isAr);
+                            },
+                            icon: const Icon(Icons.person_remove, size: 14, color: Colors.white),
+                            label: Text(isAr ? 'إزالة' : 'Remove', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF5252),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -320,12 +420,6 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       tooltip: isAr ? 'قوانين الوكالة' : 'Rules',
                       onPressed: () => _showRulesDialog(isAr),
                     ),
-                    // Exit / Delete Agency icon
-                    IconButton(
-                      icon: const Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 26),
-                      tooltip: isAr ? 'الخروج وحذف الوكالة' : 'Exit / Delete Agency',
-                      onPressed: () => _openExitAgencyScreen(isAr),
-                    ),
                   ],
                 ),
               ),
@@ -385,11 +479,13 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                     ),
 
-                    // Invite Sub-Agent Badge: union_sub_agent_invite_bg
+                    // Invite Host Badge: union_sub_agent_invite_bg
                     Positioned(
                       bottom: -10,
                       child: GestureDetector(
-                        onTap: () => _showInviteDialog(isAr),
+                        onTap: () {
+                          setState(() => _currentTab = 2);
+                        },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
@@ -408,7 +504,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               Image.asset(R.unionSubAgentInviteIc, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                               const SizedBox(width: 4),
                               Text(
-                                isAr ? 'دعوة وكيل فرعي' : 'Invite Agent',
+                                isAr ? 'دعوة مضيف' : 'Invite Host',
                                 style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                               ),
                             ],
@@ -638,7 +734,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         children: [
           _buildTabButton(0, isAr ? 'أعضاء الوكالة' : 'Members'),
           _buildTabButton(1, isAr ? 'دخل الوكالة' : 'Income'),
-          _buildTabButton(2, isAr ? 'الوكلاء الفرعيون' : 'Sub-agents'),
+          _buildTabButton(2, isAr ? 'دعوات المضيفين' : 'Host Invites'),
         ],
       ),
     );
@@ -699,7 +795,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 22,
+                  radius: 24,
                   backgroundColor: Colors.white12,
                   backgroundImage: anchor.avatarUrl.isNotEmpty ? R.cachedImage(anchor.avatarUrl) : null,
                   child: anchor.avatarUrl.isEmpty ? const Icon(Icons.person, color: Colors.white54) : null,
@@ -735,36 +831,74 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               ),
                             ),
                           ),
+                          const SizedBox(width: 6),
+                          // Stage badge (المرحلة)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0x33FFD700),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0x55FFD700)),
+                            ),
+                            child: Text(
+                              _getAnchorStage(anchor.totalDiamond, isAr),
+                              style: const TextStyle(
+                                color: Color(0xFFFFD700),
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
-                        'ID: ${anchor.userId} • ${anchor.formattedTime}',
+                        'ID: ${anchor.userNo > 0 ? anchor.userNo : anchor.userId}',
                         style: const TextStyle(color: Colors.white38, fontSize: 11),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          // Hours count (عدد الساعات)
+                          const Icon(Icons.access_time_rounded, color: Color(0xFF00D4FF), size: 13),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${(anchor.minute / 60).toStringAsFixed(1)} ${isAr ? 'ساعة' : 'hrs'}',
+                            style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 11, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 10),
+                          // Diamonds count (عدد الماس)
+                          Image.asset(R.commonDiamondIc, width: 12, height: 12, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${anchor.totalDiamond} 💎',
+                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(
-                      children: [
-                        Image.asset(R.commonDiamondIc, width: 14, height: 14, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                        const SizedBox(width: 4),
-                        Text(
-                          anchor.totalDiamond.toString(),
-                          style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
-                        ),
-                      ],
+                // Direct Kick Button
+                if (anchor.role != 'owner') ...[
+                  ElevatedButton.icon(
+                    onPressed: () => _handleKickMember(anchor, isAr),
+                    icon: const Icon(Icons.person_remove_rounded, size: 13, color: Colors.white),
+                    label: Text(
+                      isAr ? 'طرد' : 'Kick',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      isAr ? 'نشط اليوم' : 'Active',
-                      style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 11),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF5252),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                      minimumSize: const Size(56, 30),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      elevation: 0,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
                   color: const Color(0xFF2C2C34),
@@ -789,7 +923,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         children: [
                           const Icon(Icons.person_remove, color: Colors.redAccent, size: 18),
                           const SizedBox(width: 8),
-                          Text(isAr ? 'إزالة من الوكالة' : 'Remove', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                          Text(isAr ? 'طرد من الوكالة' : 'Kick Member', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -838,35 +972,91 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         _loadAgencyData();
       }
     } else if (action == 'remove') {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF24242A),
-          title: Text(isAr ? 'إزالة عضو' : 'Remove Member', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-          content: Text(
-            isAr
-                ? 'هل أنت متأكد من إزالة [${anchor.nickname}] من الوكالة؟'
-                : 'Are you sure you want to remove ${anchor.nickname} from the agency?',
-            style: const TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(isAr ? 'إزالة' : 'Remove', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
+      _handleKickMember(anchor, isAr);
+    }
+  }
+
+  Future<void> _handleKickMember(AnchorAgentUserInfoDataModel anchor, bool isAr) async {
+    final agencyId = _agentInfo?.agencyId ?? widget.agencyId ?? '';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF24242A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 22),
+            const SizedBox(width: 8),
+            Text(isAr ? 'طرد من الوكالة' : 'Kick from Agency', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
-      );
-      if (ok == true && anchor.uid.isNotEmpty) {
-        await SupabaseService().removeAgencyMember(agencyId: agencyId, memberUid: anchor.uid);
-        _loadAgencyData();
+        content: Text(
+          isAr
+              ? 'هل أنت متأكد من طرد المضيف [${anchor.nickname.isNotEmpty ? anchor.nickname : anchor.userId}] من الوكالة فوراً؟ سيتم فك ارتباطه وحذف عضويته.'
+              : 'Are you sure you want to kick [${anchor.nickname}] from the agency immediately?',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isAr ? 'طرد فوراً' : 'Kick Now', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      final targetUid = anchor.uid.isNotEmpty ? anchor.uid : anchor.userId.toString();
+      try {
+        await SupabaseService().removeAgencyMember(agencyId: agencyId, memberUid: targetUid);
+      } catch (_) {}
+      try {
+        final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        final memberDocs = await db.collection('host_agency_members')
+            .where('agency_id', isEqualTo: agencyId)
+            .where('user_id', isEqualTo: targetUid)
+            .get();
+        for (final d in memberDocs.docs) {
+          await d.reference.delete();
+        }
+        await db.collection('users').doc(targetUid).set({
+          'is_host': false,
+          'agency_id': null,
+          'agency_name': null,
+        }, SetOptions(merge: true));
+        if (agencyId.isNotEmpty) {
+          await db.collection('host_agencies').doc(agencyId).update({'member_count': FieldValue.increment(-1)});
+        }
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _anchors.removeWhere((a) => (anchor.uid.isNotEmpty && a.uid == anchor.uid) || a.userId == anchor.userId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isAr ? 'تم طرد المضيف بنجاح وإنهاء عضويته' : 'Host kicked successfully'),
+            backgroundColor: const Color(0xFFFF5252),
+          ),
+        );
       }
     }
+  }
+
+  String _getAnchorStage(String diamondsStr, bool isAr) {
+    final d = double.tryParse(diamondsStr) ?? 0.0;
+    if (d >= 5000000) return isAr ? 'المرحلة 7' : 'Stage 7';
+    if (d >= 2000000) return isAr ? 'المرحلة 6' : 'Stage 6';
+    if (d >= 1000000) return isAr ? 'المرحلة 5' : 'Stage 5';
+    if (d >= 500000) return isAr ? 'المرحلة 4' : 'Stage 4';
+    if (d >= 300000) return isAr ? 'المرحلة 3' : 'Stage 3';
+    if (d >= 100000) return isAr ? 'المرحلة 2' : 'Stage 2';
+    return isAr ? 'المرحلة 1' : 'Stage 1';
   }
 
   /// Tab 2: Income & Targets matching union_adapter_agency_detail_item.xml
@@ -1377,40 +1567,404 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     );
   }
 
-  /// Tab 3: Sub Agents matching union_adapter_agency_sub_agent_detail_item.xml
-  Widget _buildSubAgentsTab(bool isAr) {
+  /// Tab 3: Invite Hosts (دعوة مضيف برقم الآيدي والاسم والصورة وإرسال الإشعار)
+  Widget _buildInviteHostsTab(bool isAr) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Image.asset(R.unionSubAgentIc, width: 56, height: 56, errorBuilder: (_, __, ___) => const Icon(Icons.group, size: 56, color: Colors.white24)),
-            const SizedBox(height: 14),
-            Text(
-              isAr ? 'ليس لديك وكلاء فرعيين حالياً' : 'No Sub-agents yet',
-              style: const TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isAr ? 'قم بدعوة وكلاء فرعيين للحصول على عمولات إضافية على نشاطهم' : 'Invite sub-agents to earn bonus commission',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () => _showInviteDialog(isAr),
-              icon: const Icon(Icons.person_add, color: Color(0xFF1A1A1A)),
-              label: Text(isAr ? 'دعوة وكيل فرعي' : 'Invite Sub-agent', style: const TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFD700),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            // Top Welcome / Info Banner
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2C2415), Color(0xFF1E1A17)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.35)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFD700).withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFFFFD700), size: 26),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isAr ? 'دعوة مستخدم للانضمام كمضيف' : 'Invite User to Agency',
+                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isAr
+                              ? 'أدخل آيدي المستخدم للبحث عنه، ثم اضغط لإرسال دعوة انضمام مباشرة لإشعاراته.'
+                              : 'Enter user ID to search, then send an invitation notification.',
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Search Bar by ID
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF242424),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0x33FFFFFF)),
+              ),
+              child: Row(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: Icon(Icons.search, color: Color(0xFFFFD700), size: 22),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _inviteSearchCtrl,
+                      keyboardType: TextInputType.text,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: isAr ? 'أدخل آيدي المستخدم (ID) مثلاً: 12345' : 'Enter User ID (e.g. 12345)',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 13),
+                        border: InputBorder.none,
+                      ),
+                      onSubmitted: (_) => _searchUserToInvite(isAr),
+                    ),
+                  ),
+                  if (_inviteSearching)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFD700)),
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: ElevatedButton(
+                        onPressed: () => _searchUserToInvite(isAr),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFD700),
+                          foregroundColor: const Color(0xFF1A1A1A),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                        child: Text(isAr ? 'بحث' : 'Search', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Error or Success message
+            if (_inviteError != null && _inviteError!.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF5252).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: Color(0xFFFF5252), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(_inviteError!, style: const TextStyle(color: Color(0xFFFF5252), fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (_inviteSuccess != null && _inviteSuccess!.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CAF50).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_outline, color: Color(0xFF4CAF50), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(_inviteSuccess!, style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Found User Card
+            if (_foundUser != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF24242A),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.5)),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3)),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 30,
+                          backgroundColor: Colors.white12,
+                          backgroundImage: (_foundUser!['avatar']?.toString().isNotEmpty ?? false)
+                              ? R.cachedImage(_foundUser!['avatar'].toString())
+                              : null,
+                          child: (_foundUser!['avatar']?.toString().isEmpty ?? true)
+                              ? const Icon(Icons.person, color: Colors.white54, size: 30)
+                              : null,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _foundUser!['name']?.toString() ?? (isAr ? 'مستخدم' : 'User'),
+                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'ID: ${_foundUser!['custom_id'] ?? _foundUser!['user_id'] ?? ''}',
+                                style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                              if (_foundUser!['level'] != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Level ${_foundUser!['level']}',
+                                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _inviteSending ? null : () => _sendHostInvite(isAr),
+                        icon: _inviteSending
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1A1A1A)))
+                            : const Icon(Icons.send_rounded, size: 18),
+                        label: Text(
+                          isAr ? 'إرسال دعوة انضمام للوكالة 📨' : 'Send Agency Invitation 📨',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFD700),
+                          foregroundColor: const Color(0xFF1A1A1A),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _searchUserToInvite(bool isAr) async {
+    final query = _inviteSearchCtrl.text.trim();
+    if (query.isEmpty) return;
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _inviteSearching = true;
+      _inviteError = null;
+      _inviteSuccess = null;
+      _foundUser = null;
+    });
+
+    try {
+      // 1. Supabase search
+      UserModel? supaUser;
+      try {
+        supaUser = await SupabaseDataService().findUserByIdOrCustomId(query);
+      } catch (_) {}
+
+      if (supaUser != null && supaUser.uid.isNotEmpty) {
+        _foundUser = {
+          'uid': supaUser.uid,
+          'name': supaUser.name.isNotEmpty ? supaUser.name : (isAr ? 'مستخدم' : 'User'),
+          'avatar': supaUser.photoUrl,
+          'custom_id': supaUser.customId.isNotEmpty ? supaUser.customId : query,
+          'level': supaUser.level,
+          'country': supaUser.country,
+        };
+      } else {
+        // 2. Firestore fallback search
+        final intId = int.tryParse(query);
+        final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+
+        var qSnap = await db.collection('users').where('custom_id', isEqualTo: query).limit(1).get();
+        if (qSnap.docs.isEmpty && intId != null) {
+          qSnap = await db.collection('users').where('custom_id', isEqualTo: intId).limit(1).get();
+        }
+        if (qSnap.docs.isEmpty) {
+          qSnap = await db.collection('users').where('customId', isEqualTo: query).limit(1).get();
+        }
+        if (qSnap.docs.isEmpty && intId != null) {
+          qSnap = await db.collection('users').where('customId', isEqualTo: intId).limit(1).get();
+        }
+        if (qSnap.docs.isEmpty) {
+          final doc = await db.collection('users').doc(query).get();
+          if (doc.exists && doc.data() != null) {
+            final data = doc.data()!;
+            _foundUser = {
+              'uid': doc.id,
+              'name': data['name'] ?? data['displayName'] ?? (isAr ? 'مستخدم' : 'User'),
+              'avatar': data['photoUrl'] ?? data['photo_url'] ?? data['avatar'] ?? '',
+              'custom_id': data['custom_id'] ?? data['customId'] ?? query,
+              'level': data['level'] ?? 1,
+              'country': data['country'] ?? '',
+            };
+          }
+        } else {
+          final doc = qSnap.docs.first;
+          final data = doc.data();
+          _foundUser = {
+            'uid': doc.id,
+            'name': data['name'] ?? data['displayName'] ?? (isAr ? 'مستخدم' : 'User'),
+            'avatar': data['photoUrl'] ?? data['photo_url'] ?? data['avatar'] ?? '',
+            'custom_id': data['custom_id'] ?? data['customId'] ?? query,
+            'level': data['level'] ?? 1,
+            'country': data['country'] ?? '',
+          };
+        }
+      }
+
+      if (_foundUser == null) {
+        _inviteError = isAr ? 'لم يتم العثور على أي مستخدم بهذا الرقم (ID)' : 'No user found with this ID';
+      }
+    } catch (e) {
+      _inviteError = isAr ? 'حدث خطأ أثناء البحث عن المستخدم' : 'Error searching user';
+    } finally {
+      if (mounted) setState(() => _inviteSearching = false);
+    }
+  }
+
+  Future<void> _sendHostInvite(bool isAr) async {
+    if (_foundUser == null) return;
+    final targetUid = _foundUser!['uid']?.toString() ?? '';
+    final targetName = _foundUser!['name']?.toString() ?? (isAr ? 'مستخدم' : 'User');
+    final targetId = _foundUser!['custom_id']?.toString() ?? '';
+    final agencyId = _agentInfo?.agencyId ?? widget.agencyId ?? '';
+    final agencyName = _agentInfo?.agencyName ?? 'الوكالة الرسمية';
+
+    if (targetUid.isEmpty || agencyId.isEmpty) return;
+
+    // Check if already in agency
+    final isAlreadyMember = _anchors.any((a) => a.uid == targetUid || (targetId.isNotEmpty && a.userId.toString() == targetId));
+    if (isAlreadyMember) {
+      setState(() {
+        _inviteError = isAr ? 'هذا المستخدم عضو بالفعل في وكالتك!' : 'User is already a member of your agency!';
+      });
+      return;
+    }
+
+    setState(() {
+      _inviteSending = true;
+      _inviteError = null;
+      _inviteSuccess = null;
+    });
+
+    try {
+      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+
+      // 1. Add to host_agency_join_requests
+      await db.collection('host_agency_join_requests').add({
+        'agency_id': agencyId,
+        'user_id': targetUid,
+        'agency_name': agencyName,
+        'status': 'invited',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+
+      // 2. Send in-app notification to the user
+      await db.collection('notifications').add({
+        'uid': targetUid,
+        'title': isAr ? 'دعوة انضمام لوكالة مضيفين 🎙️' : 'Host Agency Invitation 🎙️',
+        'body': isAr
+            ? 'تمت دعوتك من قِبل وكالة [$agencyName] للانضمام كمضيف رسمي.'
+            : 'You have been invited by agency [$agencyName] to join as an official host.',
+        'type': 'host_invite',
+        'action': 'host_invite',
+        'data': {
+          'agency_id': agencyId,
+          'agency_name': agencyName,
+        },
+        'is_read': false,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+
+      // 3. Supabase notifications fallback
+      try {
+        await SupabaseDataService().createNotification(
+          userId: targetUid,
+          title: isAr ? 'دعوة انضمام لوكالة مضيفين 🎙️' : 'Host Agency Invitation 🎙️',
+          body: isAr
+              ? 'تمت دعوتك من قِبل وكالة [$agencyName] للانضمام كمضيف رسمي.'
+              : 'You have been invited by agency [$agencyName] to join as an official host.',
+          type: 'host_invite',
+          data: {
+            'agency_id': agencyId,
+            'agency_name': agencyName,
+          },
+        );
+      } catch (_) {}
+
+      setState(() {
+        _inviteSuccess = isAr
+            ? 'تم إرسال دعوة الانضمام إلى [$targetName] بنجاح! سينضم لوكالتك فور قبوله للدعوة.'
+            : 'Invitation sent to [$targetName] successfully! They will join once accepted.';
+        _foundUser = null;
+        _inviteSearchCtrl.clear();
+      });
+    } catch (e) {
+      setState(() {
+        _inviteError = isAr ? 'فشل إرسال الدعوة، يرجى المحاولة لاحقاً' : 'Failed to send invite, try again later';
+      });
+    } finally {
+      if (mounted) setState(() => _inviteSending = false);
+    }
   }
 
   /// Announcement Dialog with Edit Capability

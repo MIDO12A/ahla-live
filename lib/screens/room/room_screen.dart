@@ -870,6 +870,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   // ── 20 seats: index 0 = owner, 1-19 = regular ─────────────────
   late List<SeatModel> _seats;
+  final int _sessionJoinedAt = DateTime.now().millisecondsSinceEpoch - 2000;
 
   // Current user is owner
   bool _isOwner = false;
@@ -1251,9 +1252,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
       if (mounted) {
         final clearedAt = _currentRoom?.chatClearedAt ?? 0;
-        final currentSessionMsgs = clearedAt > 0
-            ? msgs.where((m) => m.timestamp > clearedAt).toList()
-            : msgs;
+        final minTime = clearedAt > _sessionJoinedAt ? clearedAt : _sessionJoinedAt;
+        final currentSessionMsgs = msgs.where((m) => m.timestamp >= minTime).toList();
         _chatMessages
           ..clear()
           ..addAll(currentSessionMsgs);
@@ -2860,9 +2860,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _openPrivateChat(UserModel? user) {
-    if (user?.id == null) return;
-    final myUid = _currentUserId ?? '';
-    final targetUid = user!.id!;
+    final targetUid = (user?.id != null && user!.id!.isNotEmpty) ? user.id! : (user?.customId ?? '');
+    if (targetUid.isEmpty) return;
+    final myUid = _currentUserId ?? SupabaseAuthService().currentUid ?? SupabaseService().currentUser?.uid ?? '';
+    if (myUid.isEmpty) return;
     final convId = (myUid.compareTo(targetUid) < 0) ? '${myUid}_$targetUid' : '${targetUid}_$myUid';
     Navigator.push(
       context,
@@ -2870,8 +2871,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         builder: (_) => MessageReplyDetailScreen(
           conversationId: convId,
           otherUid: targetUid,
-          otherName: user.name,
-          otherPhotoUrl: user.avatar ?? '',
+          otherName: (user?.name != null && user!.name.isNotEmpty) ? user.name : 'مستخدم',
+          otherPhotoUrl: user?.avatar ?? '',
         ),
       ),
     );
@@ -2954,6 +2955,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _openCharmSwitch() {
+    if (!_isOwnerOrModerator) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -3551,10 +3553,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     );
                     return;
                   }
+                  final targetName = (_selectedUser?.name != null &&
+                          _selectedUser!.name.isNotEmpty &&
+                          _selectedUser!.name != 'null')
+                      ? _selectedUser!.name
+                      : ((_selectedUser?.customId != null &&
+                              _selectedUser!.customId!.isNotEmpty &&
+                              _selectedUser!.customId != 'null')
+                          ? _selectedUser!.customId!
+                          : 'مستخدم');
                   setState(() {
                     _showProfile = false;
                     _showChatInput = true;
-                    _chatCtrl.text = '@${_selectedUser?.name} ';
+                    _chatCtrl.text = '@$targetName ';
                     _chatCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _chatCtrl.text.length));
                   });
                 },
@@ -4743,71 +4754,124 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // ── Chat input bar ────────────────────────────────────────────
   Widget _buildChatInputBar() {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final seatedUsers = _seats
+        .where((s) => s.user != null && s.user!.name.isNotEmpty && s.user!.name != 'null')
+        .map((s) => s.user!)
+        .toSet()
+        .toList();
+    final atIndex = _chatCtrl.text.lastIndexOf('@');
+    final isTypingMention = atIndex != -1 &&
+        (atIndex == _chatCtrl.text.length - 1 ||
+            !_chatCtrl.text.substring(atIndex).contains(' '));
+
     return Positioned(
       bottom: 0,
       left: 0,
       right: 0,
-      child: GestureDetector(
-        onTap: () {},
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Color(0xF51D1111), // shape_room_chat_bg
-            borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              const SizedBox(width: 15),
-              GestureDetector(
-                onTap: _pickRoomImage,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: const Color(0x1AFFFFFF),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.image, size: 20, color: Colors.white70),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // edit_text (shape_room_input_bg)
-              Expanded(
-                child: Container(
-                  height: 36,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0x33000000), // shape_room_input_bg
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  alignment: Alignment.center,
-                  child: TextField(
-                    controller: _chatCtrl,
-                    autofocus: true,
-                    style: const TextStyle(fontSize: 15, color: Colors.white), // color_FFFFFF
-                    decoration: InputDecoration(
-                      hintText: isAr ? 'قل شيئاً...' : 'Say something...',
-                      hintStyle: const TextStyle(
-                        fontSize: 15,
-                        color: Color(0x66FFFFFF), // color_66ffffff
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isTypingMention && seatedUsers.isNotEmpty)
+            Container(
+              height: 44,
+              color: const Color(0xEE1E1D24),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: seatedUsers.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (ctx, idx) {
+                  final u = seatedUsers[idx];
+                  final displayName = u.name.isNotEmpty ? u.name : (u.customId ?? 'مستخدم');
+                  return GestureDetector(
+                    onTap: () {
+                      final prefix = _chatCtrl.text.substring(0, atIndex);
+                      setState(() {
+                        _chatCtrl.text = '$prefix@$displayName ';
+                        _chatCtrl.selection = TextSelection.fromPosition(
+                          TextPosition(offset: _chatCtrl.text.length),
+                        );
+                      });
+                    },
+                    child: Chip(
+                      backgroundColor: const Color(0x33FFFFFF),
+                      avatar: CircleAvatar(
+                        backgroundImage: (u.avatar != null && u.avatar!.isNotEmpty)
+                            ? R.cachedImage(u.avatar!)
+                            : null,
+                        child: (u.avatar == null || u.avatar!.isEmpty)
+                            ? const Icon(Icons.person, size: 14, color: Colors.white)
+                            : null,
                       ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      isDense: true,
+                      label: Text(
+                        '@$displayName',
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
                     ),
-                    maxLines: 1,
-                    maxLength: 100,
-                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
-                    onSubmitted: (_) => _sendMessage(),
+                  );
+                },
+              ),
+            ),
+          Container(
+            decoration: const BoxDecoration(
+              color: Color(0xF51D1111), // shape_room_chat_bg
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                const SizedBox(width: 15),
+                GestureDetector(
+                  onTap: _pickRoomImage,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0x1AFFFFFF),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.image, size: 20, color: Colors.white70),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              // send_btn (shape_room_input_btn_send_bg)
-              GestureDetector(
-                onTap: _sendMessage,
-                child: Container(
-                  height: 36,
+                const SizedBox(width: 10),
+                // edit_text (shape_room_input_bg)
+                Expanded(
+                  child: Container(
+                    height: 36,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0x33000000), // shape_room_input_bg
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: TextField(
+                      controller: _chatCtrl,
+                      autofocus: true,
+                      onChanged: (_) => setState(() {}),
+                      style: const TextStyle(fontSize: 15, color: Colors.white), // color_FFFFFF
+                      decoration: InputDecoration(
+                        hintText: isAr ? 'قل شيئاً...' : 'Say something...',
+                        hintStyle: const TextStyle(
+                          fontSize: 15,
+                          color: Color(0x66FFFFFF), // color_66ffffff
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        isDense: true,
+                      ),
+                      maxLines: 1,
+                      maxLength: 100,
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                      onSubmitted: (_) => _sendMessage(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // send_btn (shape_room_input_btn_send_bg)
+                GestureDetector(
+                  onTap: _sendMessage,
+                  child: Container(
+                    height: 36,
                   constraints: const BoxConstraints(minWidth: 70),
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   margin: const EdgeInsets.only(right: 16),
@@ -5855,11 +5919,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _leaveRoomSession() async {
-    if (_isMinimized || MinimizedRoomService().isActiveFor(widget.roomId)) {
-      return;
-    }
-    if (_currentUserId == null) return;
-    final uid = _currentUserId!;
+    final uid = _currentUserId ?? SupabaseAuthService().currentUid ?? SupabaseService().currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
     final name = _currentUserName;
     final roomId = widget.roomId;
 
@@ -5875,6 +5936,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     try {
       await _firebaseService.leaveSeatForUser(roomId, uid);
+    } catch (_) {}
+
+    try {
+      await SupabaseService().leaveSeatForUser(roomId, uid);
+    } catch (_) {}
+
+    try {
+      await SupabaseDataService().leaveSeatForUser(roomId, uid);
+    } catch (_) {}
+
+    try {
+      await Supabase.instance.client
+          .from('room_members')
+          .delete()
+          .eq('room_id', roomId)
+          .eq('uid', uid);
     } catch (_) {}
 
     if (name != null && name.isNotEmpty) {
@@ -5956,7 +6033,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _exitRoom() {
     setState(() => _showExit = false);
+    final uid = _currentUserId ?? SupabaseAuthService().currentUid ?? SupabaseService().currentUser?.uid ?? '';
+    MinimizedRoomService().clear();
+    if (uid.isNotEmpty) {
+      RoomStateService().exitRoom(uid);
+    }
     _leaveRoomSession();
+    _roomAudio.leaveRoom();
     _roomAudio.dispose();
     Navigator.of(context).pop();
   }

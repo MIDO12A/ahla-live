@@ -388,6 +388,49 @@ class DynamicConfigService extends ChangeNotifier {
 
   String get agencyHostNecklaceName => _screenStr('agency', 'hostNecklaceName', _rawConfig['agency']?['hostNecklaceName']?.toString() ?? 'قلادة المضيف');
 
+  // Recharge Agent SVGA Necklace (خاص بوكيل الشحن فقط من لوحة التحكم)
+  String get rechargeAgentNecklaceSvga {
+    final v = _screenStr('agency', 'rechargeAgentNecklaceSvga',
+        _screenStr('agency', 'rechargeNecklaceSvga',
+            _screenStr('necklaces', 'rechargeAgentNecklaceSvga',
+                _screenStr('necklaces', 'rechargeNecklaceSvga',
+                    _screenStr('rechargeAgent', 'necklaceSvga',
+                        _screenStr('agentRecharge', 'necklaceSvga',
+                            _screenStr('userProfile', 'rechargeAgentNecklaceSvga', '')))))));
+    if (v.isNotEmpty) return v;
+    return _rawConfig['agency']?['rechargeAgentNecklaceSvga']?.toString() ??
+        _rawConfig['agency']?['rechargeNecklaceSvga']?.toString() ??
+        _rawConfig['rechargeAgentNecklaceSvga']?.toString() ??
+        _rawConfig['recharge_agent_necklace_svga']?.toString() ??
+        _rawConfig['rechargeNecklaceSvga']?.toString() ??
+        _rawConfig['recharge_necklace_svga']?.toString() ??
+        _rawConfig['agentRecharge']?['necklaceSvga']?.toString() ??
+        _rawConfig['recharge_agent_svga']?.toString() ??
+        '';
+  }
+
+  String get rechargeAgentNecklaceImg {
+    final v = _screenStr('agency', 'rechargeAgentNecklaceImg',
+        _screenStr('agency', 'rechargeNecklaceImg',
+            _screenStr('necklaces', 'rechargeAgentNecklaceImg',
+                _screenStr('necklaces', 'rechargeNecklaceImg',
+                    _screenStr('rechargeAgent', 'necklaceImg',
+                        _screenStr('agentRecharge', 'necklaceImg',
+                            _screenStr('userProfile', 'rechargeAgentNecklaceImg', '')))))));
+    if (v.isNotEmpty) return v;
+    return _rawConfig['agency']?['rechargeAgentNecklaceImg']?.toString() ??
+        _rawConfig['agency']?['rechargeNecklaceImg']?.toString() ??
+        _rawConfig['rechargeAgentNecklaceImg']?.toString() ??
+        _rawConfig['recharge_agent_necklace_img']?.toString() ??
+        _rawConfig['rechargeNecklaceImg']?.toString() ??
+        _rawConfig['recharge_necklace_img']?.toString() ??
+        _rawConfig['agentRecharge']?['necklaceImg']?.toString() ??
+        _rawConfig['recharge_agent_img']?.toString() ??
+        '';
+  }
+
+  String get rechargeAgentNecklaceName => _screenStr('agency', 'rechargeAgentNecklaceName', _rawConfig['agency']?['rechargeAgentNecklaceName']?.toString() ?? 'قلادة وكيل الشحن');
+
   // ── Agent Recharge Screen Customization (من لوحة التحكم) ──
   String get agentRechargeTitle => _screenStr('agentRecharge', 'title', 'وكالة الشحن');
   String get agentRechargeSubtitle => _screenStr('agentRecharge', 'subtitle', 'وكيل معتمد');

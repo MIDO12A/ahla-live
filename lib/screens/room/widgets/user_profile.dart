@@ -142,12 +142,12 @@ class _UserProfileState extends State<UserProfile> {
       try {
         var userData = await Supabase.instance.client
             .from('users')
-            .select('custom_id, active_frame, active_cover, profile_bg_url, owned_badges, owned_level_badges, wealth_level, recharge_level, gems_level, owned_level_frames, owned_level_badges, owned_items, owned_necklaces, country, country_code, is_host, is_agent, role')
+            .select('custom_id, active_frame, active_cover, active_necklace, profile_bg_url, owned_badges, owned_level_badges, wealth_level, recharge_level, gems_level, owned_level_frames, owned_level_badges, owned_items, owned_necklaces, country, country_code, is_host, is_agent, is_recharge_agent, recharge_agency_name, role')
             .eq('uid', uid)
             .maybeSingle();
         userData ??= await Supabase.instance.client
             .from('users')
-            .select('custom_id, active_frame, active_cover, profile_bg_url, owned_badges, owned_level_badges, wealth_level, recharge_level, gems_level, owned_level_frames, owned_level_badges, owned_items, owned_necklaces, country, country_code, is_host, is_agent, role')
+            .select('custom_id, active_frame, active_cover, active_necklace, profile_bg_url, owned_badges, owned_level_badges, wealth_level, recharge_level, gems_level, owned_level_frames, owned_level_badges, owned_items, owned_necklaces, country, country_code, is_host, is_agent, is_recharge_agent, recharge_agency_name, role')
             .eq('id', uid)
             .maybeSingle();
         if (userData != null) {
@@ -746,7 +746,7 @@ class _UserProfileState extends State<UserProfile> {
                         if (widget.onChat != null) {
                           widget.onChat!();
                         } else {
-                          final myUid = currentUser?.uid ?? '';
+                          final myUid = currentUser?.uid ?? SupabaseService().currentUser?.uid ?? SupabaseAuthService().currentUid ?? '';
                           final targetUid = widget.user['id']?.toString() ?? widget.user['uid']?.toString() ?? '';
                           final targetName = widget.user['name']?.toString() ?? 'User';
                           final targetPhoto = widget.user['avatar']?.toString() ?? widget.user['photo_url']?.toString() ?? widget.user['photoUrl']?.toString() ?? '';
@@ -972,12 +972,37 @@ class _UserProfileState extends State<UserProfile> {
 
       badgeWidgets.add(
         _buildBadgeItem(
+          key: ValueKey('agent_necklace_${agentSvga.isNotEmpty ? agentSvga : agentImg}'),
           svgaUrl: agentSvga,
           imageUrl: agentImg,
           fallbackText: 'وكيل',
           fallbackColor: const Color(0xFF8E24AA),
         ),
       );
+    }
+
+    // 3. Recharge Agent Medal / Badge (Auto-injected ONLY if Recharge Agent)
+    final isRechargeAgent = widget.user['is_recharge_agent'] == true ||
+        _extraUserData['is_recharge_agent'] == true ||
+        widget.user['role'] == 'recharge_agent' ||
+        _extraUserData['role'] == 'recharge_agent' ||
+        (widget.user['recharge_agency_name'] != null && widget.user['recharge_agency_name'].toString().isNotEmpty) ||
+        (_extraUserData['recharge_agency_name'] != null && _extraUserData['recharge_agency_name'].toString().isNotEmpty);
+
+    if (isRechargeAgent) {
+      final rechargeSvga = config.rechargeAgentNecklaceSvga;
+      final rechargeImg = config.rechargeAgentNecklaceImg;
+      if (rechargeSvga.isNotEmpty || rechargeImg.isNotEmpty) {
+        badgeWidgets.add(
+          _buildBadgeItem(
+            key: ValueKey('recharge_necklace_${rechargeSvga.isNotEmpty ? rechargeSvga : rechargeImg}'),
+            svgaUrl: rechargeSvga,
+            imageUrl: rechargeImg,
+            fallbackText: 'شحن',
+            fallbackColor: const Color(0xFFE65100),
+          ),
+        );
+      }
     }
 
     // Active Equipped Necklace (from backpack / store)
@@ -989,6 +1014,7 @@ class _UserProfileState extends State<UserProfile> {
       if (resolved.isNotEmpty) {
         badgeWidgets.add(
           _buildBadgeItem(
+            key: ValueKey('active_necklace_$resolved'),
             svgaUrl: detectAssetType(resolved) == AssetType.svga ? resolved : '',
             imageUrl: resolved,
           ),
@@ -996,43 +1022,58 @@ class _UserProfileState extends State<UserProfile> {
       }
     }
 
-    // 3. Owned Necklaces / Medals
+    // 4. Owned Necklaces / Medals
     final ownedNecklaces = _extraUserData['owned_necklaces'];
     if (ownedNecklaces is List) {
       for (final n in ownedNecklaces) {
         if (n is String && n.isNotEmpty) {
           final item = _storeSvgaMap[n];
           if (item != null && item.isNotEmpty) {
-            badgeWidgets.add(_buildBadgeItem(imageUrl: item, svgaUrl: detectAssetType(item) == AssetType.svga ? item : ''));
+            badgeWidgets.add(_buildBadgeItem(
+              key: ValueKey('owned_necklace_$n'),
+              imageUrl: item,
+              svgaUrl: detectAssetType(item) == AssetType.svga ? item : '',
+            ));
           }
         } else if (n is Map) {
           final svga = n['svga_url']?.toString() ?? '';
           final img = n['image_url']?.toString() ?? n['icon_asset']?.toString() ?? '';
           if (svga.isNotEmpty || img.isNotEmpty) {
-            badgeWidgets.add(_buildBadgeItem(svgaUrl: svga, imageUrl: img));
+            badgeWidgets.add(_buildBadgeItem(
+              key: ValueKey('owned_necklace_map_${svga.isNotEmpty ? svga : img}'),
+              svgaUrl: svga,
+              imageUrl: img,
+            ));
           }
         }
       }
     }
 
-    // 4. Owned Level Badges
+    // 5. Owned Level Badges
     final ownedLevelBadges = _extraUserData['owned_level_badges'];
     if (ownedLevelBadges is List) {
       for (final b in ownedLevelBadges) {
         if (b is String && b.isNotEmpty) {
-          badgeWidgets.add(_buildBadgeItem(imageUrl: b));
+          badgeWidgets.add(_buildBadgeItem(
+            key: ValueKey('level_badge_$b'),
+            imageUrl: b,
+          ));
         }
       }
     }
 
-    // 5. Owned Badges
+    // 6. Owned Badges
     final ownedBadges = _extraUserData['owned_badges'];
     if (ownedBadges is List) {
       for (final b in ownedBadges) {
         if (b is String && b.isNotEmpty) {
           final item = _storeSvgaMap[b];
           if (item != null && item.isNotEmpty) {
-            badgeWidgets.add(_buildBadgeItem(imageUrl: item, svgaUrl: detectAssetType(item) == AssetType.svga ? item : ''));
+            badgeWidgets.add(_buildBadgeItem(
+              key: ValueKey('badge_$b'),
+              imageUrl: item,
+              svgaUrl: detectAssetType(item) == AssetType.svga ? item : '',
+            ));
           }
         }
       }
@@ -1040,8 +1081,8 @@ class _UserProfileState extends State<UserProfile> {
 
     if (badgeWidgets.isEmpty) return const SizedBox.shrink();
 
-    // Show up to 3 necklaces side by side
-    final displayBadges = badgeWidgets.take(3).toList();
+    // Show up to 4 necklaces side by side (ثابتة بدون اختفاء)
+    final displayBadges = badgeWidgets.take(4).toList();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -1050,7 +1091,7 @@ class _UserProfileState extends State<UserProfile> {
         mainAxisSize: MainAxisSize.min,
         children: [
           for (int i = 0; i < displayBadges.length; i++) ...[
-            if (i > 0) const SizedBox(width: 10),
+            if (i > 0) const SizedBox(width: 8),
             displayBadges[i],
           ],
         ],
@@ -1076,31 +1117,44 @@ class _UserProfileState extends State<UserProfile> {
   }
 
   Widget _buildBadgeItem({
+    Key? key,
     String svgaUrl = '',
     String imageUrl = '',
     String fallbackText = '',
     Color fallbackColor = const Color(0xFF1E5BB5),
   }) {
-    const double badgeSize = 100;
+    const double badgeSize = 50;
+    Widget content;
     if (svgaUrl.isNotEmpty && detectAssetType(svgaUrl) == AssetType.svga) {
-      return SizedBox(
+      content = SvgaPlayer(
+        key: ValueKey('svga_$svgaUrl'),
+        assetPath: svgaUrl,
         width: badgeSize,
         height: badgeSize,
-        child: SvgaPlayer(assetPath: svgaUrl, fit: BoxFit.contain, loops: true),
+        fit: BoxFit.contain,
+        loops: true,
+        defaultImageUrl: imageUrl.isNotEmpty ? imageUrl : null,
       );
-    }
-    if (imageUrl.isNotEmpty) {
-      return SizedBox(
+    } else if (imageUrl.isNotEmpty) {
+      content = Image(
+        key: ValueKey('img_$imageUrl'),
+        image: R.cachedImage(imageUrl),
         width: badgeSize,
         height: badgeSize,
-        child: Image(
-          image: R.cachedImage(imageUrl),
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _buildFallbackBadge(fallbackText, fallbackColor),
-        ),
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _buildFallbackBadge(fallbackText, fallbackColor),
       );
+    } else {
+      content = _buildFallbackBadge(fallbackText, fallbackColor);
     }
-    return _buildFallbackBadge(fallbackText, fallbackColor);
+
+    return Container(
+      key: key,
+      width: badgeSize,
+      height: badgeSize,
+      alignment: Alignment.center,
+      child: content,
+    );
   }
 
   Widget _buildFallbackBadge(String text, Color color) {

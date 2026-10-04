@@ -306,6 +306,24 @@ class SupabaseClient {
       'status': 'invited',
       'created_at': DateTime.now().toUtc().toIso8601String(),
     });
+
+    try {
+      final agencyDoc = await _db.collection('host_agencies').doc(agencyId).get();
+      final agencyName = agencyDoc.data()?['name']?.toString() ?? 'وكالة المضيفين';
+      await _db.collection('notifications').add({
+        'uid': targetUid,
+        'title': 'دعوة انضمام لوكالة مضيفين 🎙️',
+        'body': 'تمت دعوتك من قِبل وكالة [$agencyName] للانضمام كمضيف رسمي.',
+        'type': 'host_invite',
+        'action': 'host_invite',
+        'data': {
+          'agency_id': agencyId,
+          'agency_name': agencyName,
+        },
+        'is_read': false,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (_) {}
     
     return {
       'status': 'invited',
@@ -1335,12 +1353,6 @@ class SupabaseClient {
       return {'status': 'error', 'message': 'cannot_kick_owner'};
     }
 
-    // Day-of-month check: only days 1-5
-    final day = DateTime.now().toUtc().day;
-    if (day > 5) {
-      return {'status': 'error', 'message': 'لا يمكن طرد الأعضاء بعد اليوم الخامس من الشهر'};
-    }
-
     // Find and update member
     final memberSnap = await _db
         .collection('host_agency_members')
@@ -1348,25 +1360,25 @@ class SupabaseClient {
         .where('user_id', isEqualTo: targetUserId)
         .limit(1)
         .get();
-    if (memberSnap.docs.isEmpty) return {'status': 'error', 'message': 'not_found'};
+    if (memberSnap.docs.isNotEmpty) {
+      await memberSnap.docs.first.reference.delete();
+    }
 
-    await memberSnap.docs.first.reference.update({
-      'status': 'kicked',
-      'kicked_at': DateTime.now().toUtc().toIso8601String(),
-    });
-
-    // Free agent for 7 days
-    final freeUntil = DateTime.now().toUtc().add(const Duration(days: 7));
-    await _db.collection('agency_free_agents').doc(targetUserId).set({
-      'user_id': targetUserId,
-      'free_until': freeUntil.toIso8601String(),
-      'created_at': DateTime.now().toUtc().toIso8601String(),
-    });
+    // Unlink agency from user document
+    try {
+      await _db.collection('users').doc(targetUserId).set({
+        'is_host': false,
+        'agency_id': null,
+        'agency_name': null,
+      }, SetOptions(merge: true));
+    } catch (_) {}
 
     // Decrement member count
-    await _db.collection('host_agencies').doc(agencyId).update({
-      'member_count': FieldValue.increment(-1),
-    });
+    try {
+      await _db.collection('host_agencies').doc(agencyId).update({
+        'member_count': FieldValue.increment(-1),
+      });
+    } catch (_) {}
 
     return {'status': 'ok'};
   }

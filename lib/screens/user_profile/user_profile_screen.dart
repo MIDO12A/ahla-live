@@ -1272,14 +1272,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               child: _buildRankLevelView(user),
                             ),
 
-                            // Active Necklace (القلادة تحت المستويات - لا تظهر هنا إذا كان لديه VIP لمنع التكرار)
-                            if (!hasVip &&
-                                ((_resolvedNecklacePath != null && _resolvedNecklacePath!.isNotEmpty) ||
-                                 (user.activeNecklace != null && user.activeNecklace!.isNotEmpty)))
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                                child: _buildNecklaceView(_resolvedNecklacePath ?? user.activeNecklace!),
-                              ),
+                            // Active Necklaces row (القلادات تحت المستويات - تاخذ 4 قلادات جنب بعض)
+                            _buildNecklacesRow(user),
 
                             // Medals & Badges row (UserMedalView تحت القلادات مباشرة)
                             if (user.ownedBadges.isNotEmpty || user.ownedLevelBadges.isNotEmpty)
@@ -1757,13 +1751,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // VIP / Necklace Badge - Only if user has VIP!
-          if (hasVip)
-            Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: _buildVipNecklaceBadge(user),
-            ),
-
           // Wealth Level Badge
           Padding(
             padding: const EdgeInsets.only(left: 8),
@@ -1836,51 +1823,108 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  /// VIP Necklace badge beside the level (قلادة VIP SVGA فقط بدون صندوق برتقالي وبدون نص VIP)
-  Widget _buildVipNecklaceBadge(UserModel user) {
-    String necklace = _resolvedNecklacePath ?? user.activeNecklace ?? '';
-    if (necklace.isEmpty) {
+  /// Necklaces row directly under the levels row (تاخذ حتى 4 قلادات جنب بعض)
+  Widget _buildNecklacesRow(UserModel user) {
+    final List<String> necklaces = [];
+    final seen = <String>{};
+
+    void addNecklace(String? path) {
+      if (path == null || path.isEmpty || path == 'null') return;
+      String resolved = path;
+      if (_necklacesMap.containsKey(path)) {
+        final item = _necklacesMap[path]!;
+        resolved = item['svga_url']?.toString() ?? item['image_url']?.toString() ?? path;
+      }
+      if (resolved.isNotEmpty && seen.add(resolved)) {
+        necklaces.add(resolved);
+      }
+    }
+
+    // 1. Active equipped necklace
+    if (_resolvedNecklacePath != null && _resolvedNecklacePath!.isNotEmpty) {
+      addNecklace(_resolvedNecklacePath);
+    } else if (user.activeNecklace != null && user.activeNecklace!.isNotEmpty) {
+      addNecklace(user.activeNecklace);
+    }
+
+    // 2. Recharge Agent Necklace (خاص بوكيل الشحن فقط)
+    final isRechargeAgent = user.isRechargeAgent ||
+        (user.rechargeAgencyName != null && user.rechargeAgencyName!.isNotEmpty);
+    if (isRechargeAgent) {
+      final config = DynamicConfigService.instance;
+      final rechargeNecklace = config.rechargeAgentNecklaceSvga.isNotEmpty
+          ? config.rechargeAgentNecklaceSvga
+          : config.rechargeAgentNecklaceImg;
+      if (rechargeNecklace.isNotEmpty) {
+        addNecklace(rechargeNecklace);
+      }
+    }
+
+    // 3. Agency Leader / Agent Necklace (Auto-injected if Agency Owner)
+    final isAgencyOwner = _agencyData != null && (_agencyData!['role'] == 'owner' || _agencyData!['owner_id']?.toString() == user.uid);
+    if (isAgencyOwner) {
+      final config = DynamicConfigService.instance;
+      final leaderNecklace = config.agencyLeaderNecklaceSvga.isNotEmpty
+          ? config.agencyLeaderNecklaceSvga
+          : config.agencyLeaderNecklaceImg;
+      if (leaderNecklace.isNotEmpty) {
+        addNecklace(leaderNecklace);
+      }
+    }
+
+    // 4. Agency Host Necklace (Auto-injected if Agency Host)
+    if (_agencyData != null) {
+      final config = DynamicConfigService.instance;
+      final hostNecklace = config.agencyHostNecklaceSvga.isNotEmpty
+          ? config.agencyHostNecklaceSvga
+          : config.agencyHostNecklaceImg;
+      if (hostNecklace.isNotEmpty) {
+        addNecklace(hostNecklace);
+      }
+    }
+
+    // 5. Owned Necklaces
+    for (final n in user.ownedNecklaces) {
+      addNecklace(n);
+    }
+
+    // 6. VIP / Recharge Level Necklace
+    if (user.rechargeLevel >= 1 || user.rechargeExp > 0 || user.ownedVipItems.isNotEmpty) {
       final lvl = user.rechargeLevel.clamp(1, 5);
-      necklace = 'assets/svga/v${lvl}_left_bottom.svga';
-    } else if (_necklacesMap.containsKey(necklace)) {
-      final item = _necklacesMap[necklace]!;
-      necklace = item['svga_url']?.toString() ?? item['image_url']?.toString() ?? necklace;
+      addNecklace('assets/svga/v${lvl}_left_bottom.svga');
     }
 
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: SvgaFrame(
-        svgaPath: necklace,
-        size: 28,
-        fit: BoxFit.contain,
-      ),
-    );
-  }
+    final displayList = necklaces.take(4).toList();
+    if (displayList.isEmpty) return const SizedBox.shrink();
 
-  /// Active Necklace (القلادات تحت المستويات)
-  Widget _buildNecklaceView(String necklaceAsset) {
-    String path = necklaceAsset;
-    if (_necklacesMap.containsKey(path)) {
-      final item = _necklacesMap[path]!;
-      path = item['svga_url']?.toString() ?? item['image_url']?.toString() ?? path;
-    }
-
-    return Container(
-      height: 48,
-      width: 140,
-      decoration: BoxDecoration(
-        color: const Color(0xFF222028),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0x33FFD770)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: SvgaFrame(
-          svgaPath: path,
-          size: 48,
-          fit: BoxFit.contain,
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          for (int i = 0; i < displayList.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Container(
+              width: 52,
+              height: 52,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF222028),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x33FFD770), width: 1),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SvgaFrame(
+                  key: ValueKey('necklace_${i}_${displayList[i]}'),
+                  svgaPath: displayList[i],
+                  size: 48,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

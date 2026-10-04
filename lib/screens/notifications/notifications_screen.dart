@@ -452,6 +452,126 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
                         ),
 
+                      // Host Invitation to join Agency (Accept/Reject)
+                      if (action == 'host_invite' || notif.type == 'host_invite' || notif.title.contains('دعوة انضمام لوكالة'))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Row(
+                            children: [
+                              _actionButton(
+                                label: isAr ? 'قبول الانضمام ✅' : 'Accept Join ✅',
+                                color: const Color(0xFF10B981),
+                                onTap: () async {
+                                  final currentUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+                                  final agId = notif.data?['agency_id']?.toString() ?? '';
+                                  final agencyName = notif.data?['agency_name']?.toString() ?? 'الوكالة';
+
+                                  if (currentUid != null && agId.isNotEmpty) {
+                                    try {
+                                      await SupabaseDataService().upsertHostAgencyMember({
+                                        'id': const Uuid().v4(),
+                                        'agency_id': agId,
+                                        'host_uid': currentUid,
+                                        'user_id': currentUid,
+                                        'role': 'host',
+                                        'status': 'active',
+                                        'joined_at': DateTime.now().toUtc().toIso8601String(),
+                                      });
+                                      await SupabaseDataService().updateUserData(currentUid, {
+                                        'agency_id': agId,
+                                        'agency_name': agencyName,
+                                        'is_host': true,
+                                      });
+                                    } catch (_) {}
+
+                                    try {
+                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                          .collection('host_agency_members')
+                                          .doc('${agId}_$currentUid')
+                                          .set({
+                                        'agency_id': agId,
+                                        'user_id': currentUid,
+                                        'role': 'host',
+                                        'status': 'active',
+                                        'joined_at': DateTime.now().toUtc().toIso8601String(),
+                                        'minute': 0.0,
+                                        'days': 1,
+                                        'diamonds': '0',
+                                      }, SetOptions(merge: true));
+
+                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                          .collection('users')
+                                          .doc(currentUid)
+                                          .set({
+                                        'agency_id': agId,
+                                        'agency_name': agencyName,
+                                        'is_host': true,
+                                      }, SetOptions(merge: true));
+
+                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                          .collection('host_agencies')
+                                          .doc(agId)
+                                          .update({'member_count': FieldValue.increment(1)});
+                                    } catch (_) {}
+
+                                    try {
+                                      final uProv = Provider.of<UserProvider>(context, listen: false);
+                                      await uProv.loadUser(currentUid);
+                                    } catch (_) {}
+
+                                    try {
+                                      await SupabaseDataService().deleteNotification(notif.id);
+                                    } catch (_) {}
+                                    if (notif.id.isNotEmpty) {
+                                      try {
+                                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                            .collection('notifications')
+                                            .doc(notif.id)
+                                            .delete();
+                                      } catch (_) {}
+                                    }
+
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('مبروك! تم الانضمام بنجاح إلى وكالة $agencyName كمضيف رسمي! 🎉'),
+                                          backgroundColor: const Color(0xFF10B981),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              _actionButton(
+                                label: isAr ? 'رفض ❌' : 'Reject ❌',
+                                color: const Color(0xFFEF4444),
+                                onTap: () async {
+                                  try {
+                                    await SupabaseDataService().deleteNotification(notif.id);
+                                  } catch (_) {}
+                                  if (notif.id.isNotEmpty) {
+                                    try {
+                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                          .collection('notifications')
+                                          .doc(notif.id)
+                                          .delete();
+                                    } catch (_) {}
+                                  }
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(isAr ? 'تم رفض الدعوة' : 'Invitation rejected'),
+                                        backgroundColor: const Color(0xFFEF4444),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
                       // Agency Invitation Actions (Accept/Reject)
                       if (action == 'agency_invite' || notif.type == 'agency_invite' || notif.title.contains('دعوة لفتح وكالة') || notif.body.contains('فتح الوكالة'))
                         Padding(

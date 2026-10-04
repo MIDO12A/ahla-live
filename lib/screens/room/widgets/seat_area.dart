@@ -168,6 +168,7 @@ class SeatArea extends StatelessWidget {
       rows.add(
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Expanded(child: SizedBox()),
             Expanded(
@@ -217,6 +218,7 @@ class SeatArea extends StatelessWidget {
         rows.add(
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (int j = 0; j < rowItems.length; j++)
                 Expanded(
@@ -251,6 +253,7 @@ class SeatArea extends StatelessWidget {
       rows.add(
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (int j = 0; j < rowItems.length; j++)
               Expanded(
@@ -319,7 +322,10 @@ class _NormalSeat extends StatelessWidget {
       builder: (context, speakingUsers, _) {
         final isSpeaking = hasUser && user?.id != null && speakingUsers.contains(user!.id);
 
-        Widget child = Column(
+        Widget child = SizedBox(
+          width: 76,
+          height: 104,
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
@@ -406,11 +412,11 @@ class _NormalSeat extends StatelessWidget {
             ],
           ),
         ),
-        if (hasUser && charm != null)
+        if (showCharmValues && hasUser && charm != null)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: GestureDetector(
-              onTap: onCharmTap,
+              onTap: (isModerator || isCaptain || (seat.user?.isOwner == true)) ? onCharmTap : null,
               child: Container(
                 padding: const EdgeInsets.fromLTRB(4, 1, 4, 1),
                 decoration: BoxDecoration(
@@ -421,20 +427,21 @@ class _NormalSeat extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     R.image(R.roomMicCharmMaleIc, width: 9, height: 9),
-                    if (showCharmValues) ...[
-                      const SizedBox(width: 1),
-                      Text(
-                        _formatCharm(charm),
-                        style: const TextStyle(fontSize: 9, color: Colors.white),
-                      ),
-                    ],
+                    const SizedBox(width: 1),
+                    Text(
+                      _formatCharm(charm),
+                      style: const TextStyle(fontSize: 9, color: Colors.white),
+                    ),
                   ],
                 ),
               ),
             ),
-          ),
+          )
+        else
+          const SizedBox(height: 16),
       ],
-    );
+    ),
+  );
 
     return child;
       },
