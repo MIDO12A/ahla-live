@@ -92,6 +92,39 @@ class AgencyEngineSettings {
   }
 }
 
+/// Helper function to format any agency identifier into a 3-digit numeric string (100–999).
+String formatAgencyNumericId(dynamic agencyDataOrId) {
+  if (agencyDataOrId == null) return '100';
+
+  if (agencyDataOrId is Map) {
+    final pub = agencyDataOrId['agency_code'] ?? agencyDataOrId['agency_public_id'] ?? agencyDataOrId['code'];
+    if (pub != null) {
+      final s = pub.toString().trim();
+      final n = int.tryParse(s);
+      if (n != null) {
+        if (n >= 100 && n <= 999) return n.toString();
+        return (100 + (n % 900)).toString();
+      }
+    }
+    final name = (agencyDataOrId['name'] ?? '').toString().trim();
+    final nameNum = int.tryParse(name);
+    if (nameNum != null && nameNum >= 100 && nameNum <= 999) {
+      return nameNum.toString();
+    }
+    return formatAgencyNumericId(agencyDataOrId['id']);
+  }
+
+  final raw = agencyDataOrId.toString().trim();
+  final directNum = int.tryParse(raw);
+  if (directNum != null) {
+    if (directNum >= 100 && directNum <= 999) return directNum.toString();
+    return (100 + (directNum % 900)).toString();
+  }
+
+  final hash = raw.hashCode.abs();
+  return (100 + (hash % 900)).toString();
+}
+
 // ─── بطاقة الوكالة (للعرض العام والتصنيف) ───────────────────────────────────
 class AgencyCard {
   final String  id;
@@ -133,39 +166,6 @@ class AgencyCard {
     this.ownerName,
     this.ownerAvatarUrl,
   });
-
-/// Helper function to format any agency identifier into a 3-digit numeric string (100–999).
-String formatAgencyNumericId(dynamic agencyDataOrId) {
-  if (agencyDataOrId == null) return '100';
-
-  if (agencyDataOrId is Map) {
-    final pub = agencyDataOrId['agency_code'] ?? agencyDataOrId['agency_public_id'] ?? agencyDataOrId['code'];
-    if (pub != null) {
-      final s = pub.toString().trim();
-      final n = int.tryParse(s);
-      if (n != null) {
-        if (n >= 100 && n <= 999) return n.toString();
-        return (100 + (n % 900)).toString();
-      }
-    }
-    final name = (agencyDataOrId['name'] ?? '').toString().trim();
-    final nameNum = int.tryParse(name);
-    if (nameNum != null && nameNum >= 100 && nameNum <= 999) {
-      return nameNum.toString();
-    }
-    return formatAgencyNumericId(agencyDataOrId['id']);
-  }
-
-  final raw = agencyDataOrId.toString().trim();
-  final directNum = int.tryParse(raw);
-  if (directNum != null) {
-    if (directNum >= 100 && directNum <= 999) return directNum.toString();
-    return (100 + (directNum % 900)).toString();
-  }
-
-  final hash = raw.hashCode.abs();
-  return (100 + (hash % 900)).toString();
-}
 
   factory AgencyCard.fromMap(Map<String, dynamic> m) {
     return AgencyCard(

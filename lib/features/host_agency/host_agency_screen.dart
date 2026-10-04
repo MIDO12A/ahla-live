@@ -12,7 +12,6 @@ import '../../core/supabase_compat.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../services/supabase_auth_service.dart';
-import '../../services/supabase_data_service.dart';
 import '../../core/ui/in_app_toast.dart';
 import 'screens/agency_profile_screen.dart';
 import 'screens/anchor_agent_screen.dart';
