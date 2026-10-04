@@ -2323,7 +2323,7 @@ class FirebaseService {
       emitMerged();
     }).catchError((_) {});
 
-    final timer = Timer.periodic(const Duration(seconds: 45), (_) {
+    final timer = Timer.periodic(const Duration(seconds: 5), (_) {
       SupabaseDataService().getStoreItems().then((list) {
         sbItems = list;
         emitMerged();
@@ -2429,8 +2429,47 @@ class FirebaseService {
   }
 
   Stream<List<Map<String, dynamic>>> storeCategoriesStream() {
-    return _db.collection('store_categories').snapshots().map((snap) {
-      final list = snap.docs.map((e) {
+    final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+    List<Map<String, dynamic>> sbCats = [];
+    List<Map<String, dynamic>> fsCats = [];
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      final map = <String, Map<String, dynamic>>{};
+      for (final c in sbCats) {
+        final k = c['key']?.toString() ?? c['id']?.toString() ?? '';
+        if (k.isNotEmpty) map[k] = c;
+      }
+      for (final c in fsCats) {
+        final k = c['key']?.toString() ?? c['id']?.toString() ?? '';
+        if (k.isNotEmpty) map.putIfAbsent(k, () => c);
+      }
+      final list = map.values.where((c) => c['is_active'] != false).toList();
+      list.sort((a, b) => ((a['sort_order'] ?? 0) as num).compareTo((b['sort_order'] ?? 0) as num));
+      controller.add(list);
+    }
+
+    void fetchSupabase() async {
+      try {
+        final list = await SupabaseDataService().getStoreCategories();
+        sbCats = list.map((d) => {
+          'id': d['id']?.toString() ?? '',
+          'key': d['key']?.toString() ?? d['id']?.toString() ?? '',
+          'name': d['name']?.toString() ?? '',
+          'icon_asset': d['icon_asset']?.toString() ?? d['iconAsset']?.toString() ?? '',
+          'selected_icon_asset': d['selected_icon_asset']?.toString() ?? d['selectedIconAsset']?.toString() ?? '',
+          'sort_order': (d['sort_order'] ?? d['sortOrder'] ?? 0) as num,
+          'is_active': d['is_active'] ?? d['isActive'] ?? true,
+        }).toList();
+        emitMerged();
+      } catch (_) {}
+    }
+
+    fetchSupabase();
+    final timer = Timer.periodic(const Duration(seconds: 5), (_) => fetchSupabase());
+
+    final sub = _db.collection('store_categories').snapshots().listen((snap) {
+      fsCats = snap.docs.map((e) {
         final d = _data(e);
         return {
           'id': d['id']?.toString() ?? e.id,
@@ -2441,10 +2480,16 @@ class FirebaseService {
           'sort_order': (d['sort_order'] ?? d['sortOrder'] ?? 0) as num,
           'is_active': d['is_active'] ?? d['isActive'] ?? true,
         };
-      }).where((c) => c['is_active'] == true).toList();
-      list.sort((a, b) => (a['sort_order'] as num).compareTo(b['sort_order'] as num));
-      return list;
-    });
+      }).toList();
+      emitMerged();
+    }, onError: (_) {});
+
+    controller.onCancel = () {
+      timer.cancel();
+      sub.cancel();
+    };
+
+    return controller.stream;
   }
 
   // ═══════════════════════════════════════════════════════
@@ -3802,23 +3847,31 @@ class FirebaseService {
         if (roomTotals.isNotEmpty) {
           final sorted = roomTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
           final top = sorted.take(10).toList();
+          final userMap = await SupabaseDataService().getUsersMap(top.map((e) => e.key).toList());
           return top.map((e) {
             final info = userDetails[e.key] ?? {};
+            final u = userMap[e.key];
+            final resolvedCustomId = (u?.customId.isNotEmpty ?? false) ? u!.customId : '';
+            final displayId = resolvedCustomId.isNotEmpty ? resolvedCustomId : e.key;
+            final resolvedName = (u?.name.isNotEmpty ?? false) ? u!.name : (info['name'] ?? 'مستخدم');
+            final resolvedPhoto = (u?.photoUrl.isNotEmpty ?? false) ? u!.photoUrl : (info['photo'] ?? '');
+            final resolvedLevel = u?.level ?? 1;
             return {
               'uid': e.key,
-              'user_id': e.key,
-              'id': e.key,
-              'name': info['name'] ?? 'مستخدم',
-              'user_name': info['name'] ?? 'مستخدم',
-              'photoUrl': info['photo'] ?? '',
-              'photo_url': info['photo'] ?? '',
-              'user_photo_url': info['photo'] ?? '',
-              'custom_id': e.key,
+              'user_id': displayId,
+              'id': displayId,
+              'custom_id': displayId,
+              'display_id': displayId,
+              'name': resolvedName,
+              'user_name': resolvedName,
+              'photoUrl': resolvedPhoto,
+              'photo_url': resolvedPhoto,
+              'user_photo_url': resolvedPhoto,
               'points': e.value,
               'score': e.value,
               'total_value': e.value,
-              'level': 1,
-              'gender': 'male',
+              'level': resolvedLevel,
+              'gender': u?.gender ?? 'male',
             };
           }).toList();
         }
@@ -3888,9 +3941,10 @@ class FirebaseService {
     required bool isWealth,
     required String timeframe,
   }) async {
+    final field = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
     if (timeframe == 'all') {
       return getUserRanking(
-        orderByField: isWealth ? 'total_gifts_sent' : 'total_gifts_received',
+        orderByField: field,
       );
     }
     final nowUtc = DateTime.now().toUtc();
@@ -3905,22 +3959,81 @@ class FirebaseService {
     } else { // monthly
       startDateUtc = DateTime.utc(ksaTime.year, ksaTime.month, 1).subtract(const Duration(hours: 3));
     }
-    
-    String startStr = startDateUtc.toIso8601String();
 
+    // 1. Fetch from Supabase sent_gifts for real gifts within timeframe
+    try {
+      final sbGifts = await SupabaseDataService().getAllSentGifts(limit: 200, after: startDateUtc);
+      if (sbGifts.isNotEmpty) {
+        final Map<String, int> totals = {};
+        for (final g in sbGifts) {
+          final userId = isWealth ? g.senderId : g.receiverId;
+          if (userId.isEmpty) continue;
+          totals[userId] = (totals[userId] ?? 0) + g.totalValue.toInt();
+        }
+        if (totals.isNotEmpty) {
+          final sorted = totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+          final top = sorted.take(50).toList();
+          final userMap = await SupabaseDataService().getUsersMap(top.map((e) => e.key).toList());
+          return top.map((entry) {
+            final u = userMap[entry.key];
+            final resolvedCustomId = (u?.customId.isNotEmpty ?? false) ? u!.customId : '';
+            final displayId = resolvedCustomId.isNotEmpty ? resolvedCustomId : entry.key;
+            final resolvedName = (u?.name.isNotEmpty ?? false) ? u!.name : 'مستخدم';
+            final resolvedPhoto = (u?.photoUrl.isNotEmpty ?? false) ? u!.photoUrl : '';
+            final resolvedLevel = u?.level ?? 1;
+            return {
+              'uid': entry.key,
+              'id': displayId,
+              'custom_id': displayId,
+              'user_id': displayId,
+              'display_id': displayId,
+              'name': resolvedName,
+              'photo_url': resolvedPhoto,
+              'photoUrl': resolvedPhoto,
+              'level': resolvedLevel,
+              'points': entry.value,
+              'score': entry.value,
+              'total_value': entry.value,
+              'total_gifts_sent': isWealth ? entry.value : (u?.totalGiftsSent ?? 0),
+              'total_gifts_received': !isWealth ? entry.value : (u?.totalGiftsReceived ?? 0),
+            };
+          }).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[FirebaseService] getGlobalRankings Supabase sent_gifts error: $e');
+    }
+
+    // 2. Fall back to Supabase user ranking sorted by total gifts
+    try {
+      final sbUsers = await SupabaseDataService().getUserRanking(
+        orderByField: field,
+        limit: 50,
+      );
+      if (sbUsers.isNotEmpty) {
+        return sbUsers;
+      }
+    } catch (_) {}
+
+    // 3. Fall back to Firestore sent_gifts / users
+    String startStr = startDateUtc.toIso8601String();
     try {
       final snap = await _db.collection('sent_gifts')
           .where('created_at', isGreaterThanOrEqualTo: startStr)
           .get();
       return _processGlobalRankings(snap.docs, isWealth);
     } catch (e) {
-      final snap = await _db.collection('sent_gifts').get();
-      final filteredDocs = snap.docs.where((doc) {
-        final d = doc.data();
-        final created = d['created_at'] as String? ?? '';
-        return created.compareTo(startStr) >= 0;
-      }).toList();
-      return _processGlobalRankings(filteredDocs, isWealth);
+      try {
+        final snap = await _db.collection('sent_gifts').get();
+        final filteredDocs = snap.docs.where((doc) {
+          final d = doc.data();
+          final created = d['created_at'] as String? ?? '';
+          return created.compareTo(startStr) >= 0;
+        }).toList();
+        return _processGlobalRankings(filteredDocs, isWealth);
+      } catch (_) {
+        return [];
+      }
     }
   }
 
@@ -3939,21 +4052,26 @@ class FirebaseService {
     final top50 = entries.take(50).toList();
 
     final List<Map<String, dynamic>> results = [];
+    final userMap = await SupabaseDataService().getUsersMap(top50.map((e) => e.key).toList());
     for (var entry in top50) {
-      final userSnap = await _db.collection('users').doc(entry.key).get();
-      final ud = userSnap.data() ?? {};
-      final customId = (ud['custom_id'] ?? ud['customId'] ?? ud['display_id'] ?? ud['id'] ?? '').toString();
+      final u = userMap[entry.key];
+      final customId = (u?.customId.isNotEmpty ?? false) ? u!.customId : '';
       final displayNumericId = customId.isNotEmpty ? customId : entry.key;
       results.add({
         'uid': entry.key,
         'id': displayNumericId,
         'custom_id': displayNumericId,
-        'name': (ud['name'] ?? 'Unknown').toString(),
-        'photo_url': (ud['photo_url'] ?? ud['photoUrl'] ?? '').toString(),
-        'level': ud['level'] ?? 1,
-        'total_gifts_sent': isWealth ? entry.value : _asInt(ud['total_gifts_sent']),
-        'total_gifts_received': !isWealth ? entry.value : _asInt(ud['total_gifts_received']),
         'user_id': displayNumericId,
+        'display_id': displayNumericId,
+        'name': (u?.name.isNotEmpty ?? false) ? u!.name : 'مستخدم',
+        'photo_url': (u?.photoUrl.isNotEmpty ?? false) ? u!.photoUrl : '',
+        'photoUrl': (u?.photoUrl.isNotEmpty ?? false) ? u!.photoUrl : '',
+        'level': u?.level ?? 1,
+        'points': entry.value,
+        'score': entry.value,
+        'total_value': entry.value,
+        'total_gifts_sent': isWealth ? entry.value : (u?.totalGiftsSent ?? 0),
+        'total_gifts_received': !isWealth ? entry.value : (u?.totalGiftsReceived ?? 0),
       });
     }
 
@@ -3964,51 +4082,8 @@ class FirebaseService {
           orderByField: field,
           limit: 50,
         );
-        for (final u in sbUsers) {
-          final uid = u['uid']?.toString() ?? u['id']?.toString() ?? '';
-          final customId = (u['custom_id'] ?? u['display_id'] ?? uid).toString();
-          final pts = (u[field] as num?)?.toInt() ?? 0;
-          results.add({
-            'uid': uid,
-            'id': customId,
-            'custom_id': customId,
-            'name': (u['name'] ?? 'User').toString(),
-            'photo_url': (u['photo_url'] ?? u['avatar'] ?? '').toString(),
-            'level': (u['level'] as num?)?.toInt() ?? 1,
-            'total_gifts_sent': isWealth ? pts : ((u['total_gifts_sent'] as num?)?.toInt() ?? 0),
-            'total_gifts_received': !isWealth ? pts : ((u['total_gifts_received'] as num?)?.toInt() ?? 0),
-            'user_id': customId,
-          });
-        }
+        return sbUsers;
       } catch (_) {}
-
-      if (results.isEmpty) {
-        try {
-          final field = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
-          final userSnap = await _db.collection('users')
-              .orderBy(field, descending: true)
-              .limit(50)
-              .get();
-          for (var doc in userSnap.docs) {
-            final ud = doc.data();
-            final val = _asInt(ud[field]);
-            if (val <= 0) continue;
-            final customId = (ud['custom_id'] ?? ud['customId'] ?? ud['display_id'] ?? ud['id'] ?? '').toString();
-            final displayNumericId = customId.isNotEmpty ? customId : doc.id;
-            results.add({
-              'uid': doc.id,
-              'id': displayNumericId,
-              'custom_id': displayNumericId,
-              'name': (ud['name'] ?? 'Unknown').toString(),
-              'photo_url': (ud['photo_url'] ?? ud['photoUrl'] ?? '').toString(),
-              'level': ud['level'] ?? 1,
-              'total_gifts_sent': isWealth ? val : _asInt(ud['total_gifts_sent']),
-              'total_gifts_received': !isWealth ? val : _asInt(ud['total_gifts_received']),
-              'user_id': displayNumericId,
-            });
-          }
-        } catch (_) {}
-      }
     }
 
     return results;

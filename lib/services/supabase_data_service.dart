@@ -953,6 +953,39 @@ class SupabaseDataService {
     return [];
   }
 
+  Future<List<gm.SentGiftModel>> getAllSentGifts({int limit = 200, DateTime? after}) async {
+    try {
+      String query = 'select=*&order=created_at.desc&limit=$limit';
+      if (after != null) {
+        query += '&created_at=gte.${after.toIso8601String()}';
+      }
+      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?$query');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          m['id'] = m['id']?.toString() ?? '';
+          m['gift_id'] = m['gift_id']?.toString() ?? '';
+          m['sender_id'] = m['sender_id']?.toString() ?? '';
+          m['sender_name'] = m['sender_name']?.toString() ?? '';
+          m['sender_photo_url'] = m['sender_photo_url']?.toString() ?? '';
+          m['receiver_id'] = m['receiver_id']?.toString() ?? '';
+          m['receiver_name'] = m['receiver_name']?.toString() ?? '';
+          m['room_id'] = m['room_id']?.toString() ?? '';
+          m['value'] = (m['value'] as num?)?.toInt() ?? 0;
+          m['count'] = (m['count'] as num?)?.toInt() ?? 1;
+          m['created_at'] = m['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String();
+          return gm.SentGiftModel.fromMap(m);
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getAllSentGifts error: $e');
+    }
+    return [];
+  }
+
+
   Future<List<NotificationModel>> getNotifications({String? uid}) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/notifications?select=*&order=sent_at.desc&limit=50');
@@ -1159,25 +1192,71 @@ class SupabaseDataService {
   }) async {
     try {
       final col = orderByField == 'total_gifts_received' ? 'total_gifts_received' : 'total_gifts_sent';
-      final url = Uri.parse('$_baseUrl/rest/v1/users?select=uid,custom_id,name,photo_url,level,total_gifts_sent,total_gifts_received&order=$col.desc&limit=$limit');
+      final url = Uri.parse('$_baseUrl/rest/v1/users?select=uid,id,custom_id,name,photo_url,avatar,level,total_gifts_sent,total_gifts_received&order=$col.desc&limit=$limit');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) {
           final d = Map<String, dynamic>.from(e as Map);
+          final uid = d['uid']?.toString() ?? d['id']?.toString() ?? '';
+          final customId = (d['custom_id'] ?? d['customId'] ?? uid).toString();
+          final photo = (d['photo_url'] ?? d['avatar'] ?? d['photoUrl'] ?? '').toString();
+          final sent = (d['total_gifts_sent'] as num?)?.toInt() ?? 0;
+          final received = (d['total_gifts_received'] as num?)?.toInt() ?? 0;
+          final pts = orderByField == 'total_gifts_received' ? received : sent;
           return <String, dynamic>{
-            'uid': d['uid']?.toString() ?? '',
-            'id': (d['custom_id'] ?? d['customId'] ?? d['uid'] ?? '').toString(),
-            'name': (d['name'] ?? '').toString(),
-            'photo_url': (d['photo_url'] ?? d['photoUrl'] ?? '').toString(),
-            'level': d['level'] ?? 1,
-            'total_gifts_sent': (d['total_gifts_sent'] as num?)?.toInt() ?? 0,
-            'total_gifts_received': (d['total_gifts_received'] as num?)?.toInt() ?? 0,
+            'uid': uid,
+            'id': customId,
+            'custom_id': customId,
+            'user_id': customId,
+            'display_id': customId,
+            'name': (d['name'] ?? 'مستخدم').toString(),
+            'photo_url': photo,
+            'photoUrl': photo,
+            'level': (d['level'] as num?)?.toInt() ?? 1,
+            'total_gifts_sent': sent,
+            'total_gifts_received': received,
+            'points': pts,
+            'score': pts,
+            'total_value': pts,
           };
         }).toList();
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getUserRanking error: $e');
+    }
+    return [];
+  }
+
+  Future<Map<String, UserModel>> getUsersMap(List<String> uids) async {
+    final Map<String, UserModel> map = {};
+    if (uids.isEmpty) return map;
+    try {
+      final clean = uids.map((u) => u.trim()).where((u) => u.isNotEmpty).toSet().toList();
+      for (final id in clean) {
+        final u = await getUser(id);
+        if (u != null) {
+          map[id] = u;
+          if (u.uid.isNotEmpty) map[u.uid] = u;
+          if (u.customId.isNotEmpty) map[u.customId] = u;
+        }
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getUsersMap error: $e');
+    }
+    return map;
+  }
+
+  Future<List<Map<String, dynamic>>> getStoreCategories() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/store_categories?select=*&order=sort_order.asc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getStoreCategories error: $e');
     }
     return [];
   }

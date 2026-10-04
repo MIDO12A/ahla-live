@@ -136,21 +136,28 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     
     return data.map((e) {
       final points = type == 'wealth'
-          ? (e['total_gifts_sent'] ?? 0)
-          : (e['total_gifts_received'] ?? 0);
-      final customId = (e['custom_id'] ?? e['id'] ?? e['user_id'] ?? '').toString();
-      final displayId = (customId.isNotEmpty && customId != e['uid'])
-          ? customId
-          : (e['user_id'] ?? e['id'] ?? e['uid'] ?? '').toString();
+          ? ((e['total_gifts_sent'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0)
+          : ((e['total_gifts_received'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0);
+      final rawCustomId = (e['custom_id'] ?? e['display_id'] ?? '').toString();
+      final rawId = (e['id'] ?? e['user_id'] ?? '').toString();
       final realUid = (e['uid'] ?? e['user_id'] ?? e['id'] ?? '').toString();
+      final displayId = rawCustomId.isNotEmpty
+          ? rawCustomId
+          : (!rawId.contains('-') && rawId.length < 20 && rawId.isNotEmpty
+              ? rawId
+              : (rawCustomId.isNotEmpty ? rawCustomId : realUid));
+      final photo = (e['photo_url'] ?? e['photoUrl'] ?? e['avatar'] ?? '').toString();
+      final name = (e['name'] ?? e['user_name'] ?? 'مستخدم').toString();
       return {
         'uid': realUid,
-        'name': (e['name'] ?? 'Unknown').toString(),
-        'photoUrl': (e['photo_url'] ?? e['photoUrl'] ?? '').toString(),
+        'name': name.isNotEmpty ? name : 'مستخدم',
+        'photoUrl': photo,
+        'photo_url': photo,
         'points': points,
         'level': e['level'] ?? 1,
         'user_id': displayId,
         'custom_id': displayId,
+        'display_id': displayId,
       };
     }).toList();
   }

@@ -187,7 +187,11 @@ class ProfileScreen extends StatelessWidget {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const UserProfileScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => UserProfileScreen(
+                            targetUid: user?.uid ?? SupabaseAuthService().currentUid,
+                          ),
+                        ),
                       );
                     },
                     child: SizedBox(

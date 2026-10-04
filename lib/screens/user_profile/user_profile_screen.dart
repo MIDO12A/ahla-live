@@ -192,6 +192,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             targetUser = currentUser;
           }
         }
+        // Fallback: check SupabaseAuthService
+        if (targetUser == null) {
+          try {
+            targetUser = await SupabaseAuthService().getUserFromSupabase(uid);
+          } catch (_) {}
+        }
         // Fallback: check SupabaseDataService
         if (targetUser == null) {
           try {
@@ -212,6 +218,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         targetUser = currentUser ?? await _supabase.getUser(uid);
         if (targetUser == null) {
           try {
+            targetUser = await SupabaseAuthService().getUserFromSupabase(uid);
+          } catch (_) {}
+        }
+        if (targetUser == null) {
+          try {
             targetUser = await SupabaseDataService().getUser(uid);
           } catch (_) {}
         }
@@ -224,29 +235,38 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
 
       if (targetUser != null) {
-        final queryUid = targetUser.uid.isNotEmpty ? targetUser.uid : uid;
-        final storeItemsFuture = _supabase.getStoreItems().catchError((_) => <StoreItemModel>[]);
-        final badgesFuture = _supabase.getBadgesCatalog().catchError((_) => <Map<String, dynamic>>[]);
-        final necklacesFuture = _supabase.getNecklacesCatalog().catchError((_) => <Map<String, dynamic>>[]);
-        final giftsCatalogFuture = _supabase.getGiftsCatalog().catchError((_) => <String, gm.GiftModel>{});
-        final receivedGiftsFuture = _supabase.getReceivedGifts(queryUid).catchError((_) => <gm.SentGiftModel>[]);
-        final followingFuture = _supabase.getFollowing(queryUid).catchError((_) => <UserModel>[]);
-        final fansFuture = _supabase.getFans(queryUid).catchError((_) => <UserModel>[]);
-        final visitorsFuture = _supabase.getVisitors(queryUid).catchError((_) => <UserModel>[]);
-        final roomMemberFuture = Supabase.instance.client
-            .from('room_members')
-            .select('room_id')
-            .eq('user_id', queryUid)
-            .maybeSingle()
-            .catchError((_) => null);
-        final cpFuture = CpService.getMyData(queryUid).catchError((_) => <String, dynamic>{});
-        final agencyMemberFuture = Supabase.instance.client
-            .from('host_agency_members')
-            .select('agency_id, role, status')
-            .eq('user_id', queryUid)
-            .eq('status', 'active')
-            .maybeSingle()
-            .catchError((_) => null);
+        // Immediately render the profile screen so the user never sees 'user not found'
+        if (mounted) {
+          setState(() {
+            _user = targetUser;
+            _loading = false;
+          });
+        }
+
+        try {
+          final queryUid = targetUser.uid.isNotEmpty ? targetUser.uid : uid;
+          final storeItemsFuture = _supabase.getStoreItems().catchError((_) => <StoreItemModel>[]);
+          final badgesFuture = _supabase.getBadgesCatalog().catchError((_) => <Map<String, dynamic>>[]);
+          final necklacesFuture = _supabase.getNecklacesCatalog().catchError((_) => <Map<String, dynamic>>[]);
+          final giftsCatalogFuture = _supabase.getGiftsCatalog().catchError((_) => <String, gm.GiftModel>{});
+          final receivedGiftsFuture = _supabase.getReceivedGifts(queryUid).catchError((_) => <gm.SentGiftModel>[]);
+          final followingFuture = _supabase.getFollowing(queryUid).catchError((_) => <UserModel>[]);
+          final fansFuture = _supabase.getFans(queryUid).catchError((_) => <UserModel>[]);
+          final visitorsFuture = _supabase.getVisitors(queryUid).catchError((_) => <UserModel>[]);
+          final roomMemberFuture = Supabase.instance.client
+              .from('room_members')
+              .select('room_id')
+              .eq('user_id', queryUid)
+              .maybeSingle()
+              .catchError((_) => null);
+          final cpFuture = CpService.getMyData(queryUid).catchError((_) => <String, dynamic>{});
+          final agencyMemberFuture = Supabase.instance.client
+              .from('host_agency_members')
+              .select('agency_id, role, status')
+              .eq('user_id', queryUid)
+              .eq('status', 'active')
+              .maybeSingle()
+              .catchError((_) => null);
 
         final results = await Future.wait([
           storeItemsFuture,
@@ -388,9 +408,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             _loading = false;
           });
         }
-      } else {
-        if (mounted) setState(() => _loading = false);
+      } catch (err) {
+        debugPrint('[UserProfile] Secondary catalog fetch non-fatal error: $err');
       }
+    } else {
+      if (mounted) setState(() => _loading = false);
+    }
     } catch (e) {
       debugPrint('[UserProfile] loadData error: $e');
       if (mounted) setState(() => _loading = false);

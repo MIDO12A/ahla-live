@@ -1342,8 +1342,8 @@ class DynamicConfigService extends ChangeNotifier {
       debugPrint('DynamicConfigService: supabase getAppConfig error: $e');
     });
 
-    // 2. Periodic poll Supabase app_config every 45s
-    Timer.periodic(const Duration(seconds: 45), (_) {
+    // 2. Periodic poll Supabase app_config every 10s
+    Timer.periodic(const Duration(seconds: 10), (_) {
       SupabaseDataService().getAppConfig().then((cfg) {
         if (cfg.isNotEmpty) {
           _applyConfig(cfg);
