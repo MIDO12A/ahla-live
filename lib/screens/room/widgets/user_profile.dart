@@ -746,7 +746,7 @@ class _UserProfileState extends State<UserProfile> {
                         if (widget.onChat != null) {
                           widget.onChat!();
                         } else {
-                          final myUid = currentUser?.uid ?? SupabaseService().currentUser?.uid ?? SupabaseAuthService().currentUid ?? '';
+                          final myUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid ?? '';
                           final targetUid = widget.user['id']?.toString() ?? widget.user['uid']?.toString() ?? '';
                           final targetName = widget.user['name']?.toString() ?? 'User';
                           final targetPhoto = widget.user['avatar']?.toString() ?? widget.user['photo_url']?.toString() ?? widget.user['photoUrl']?.toString() ?? '';

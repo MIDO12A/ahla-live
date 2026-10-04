@@ -374,6 +374,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       requestId: requestId,
                                       userUid: currentUid,
                                       approved: true,
+                                      agentId: notif.data?['agent_id']?.toString(),
+                                      diamondsAmount: int.tryParse('${notif.data?['diamonds_amount'] ?? 0}') ?? 0,
+                                      targetName: notif.data?['target_name']?.toString(),
                                     );
 
                                     if (!mounted) return;
@@ -381,10 +384,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     if (res['success'] == true) {
                                       await Provider.of<UserProvider>(context, listen: false).loadUser(currentUid);
                                       if (notif.id.isNotEmpty) {
-                                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                            .collection('notifications')
-                                            .doc(notif.id)
-                                            .delete();
+                                        try {
+                                          await SupabaseDataService().deleteNotification(notif.id);
+                                        } catch (_) {}
+                                        try {
+                                          await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                              .collection('notifications')
+                                              .doc(notif.id)
+                                              .delete();
+                                        } catch (_) {}
                                       }
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(context).showSnackBar(
@@ -426,14 +434,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       requestId: requestId,
                                       userUid: currentUid,
                                       approved: false,
+                                      agentId: notif.data?['agent_id']?.toString(),
+                                      diamondsAmount: int.tryParse('${notif.data?['diamonds_amount'] ?? 0}') ?? 0,
+                                      targetName: notif.data?['target_name']?.toString(),
                                     );
                                   }
 
                                   if (notif.id.isNotEmpty) {
-                                    await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                        .collection('notifications')
-                                        .doc(notif.id)
-                                        .delete();
+                                    try {
+                                      await SupabaseDataService().deleteNotification(notif.id);
+                                    } catch (_) {}
+                                    try {
+                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+                                          .collection('notifications')
+                                          .doc(notif.id)
+                                          .delete();
+                                    } catch (_) {}
                                   }
 
                                   if (context.mounted) {

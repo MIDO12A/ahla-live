@@ -1937,13 +1937,13 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
       // 3. Supabase notifications fallback
       try {
-        await SupabaseDataService().createNotification(
-          userId: targetUid,
+        await SupabaseDataService().sendNotification(
+          uid: targetUid,
+          type: 'host_invite',
           title: isAr ? 'دعوة انضمام لوكالة مضيفين 🎙️' : 'Host Agency Invitation 🎙️',
           body: isAr
               ? 'تمت دعوتك من قِبل وكالة [$agencyName] للانضمام كمضيف رسمي.'
               : 'You have been invited by agency [$agencyName] to join as an official host.',
-          type: 'host_invite',
           data: {
             'agency_id': agencyId,
             'agency_name': agencyName,

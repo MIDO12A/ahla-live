@@ -70,9 +70,61 @@ class UpdateService {
     try {
       final ghUpdate = await _checkGithub(info);
       if (ghUpdate != null) return ghUpdate;
+      final sbUpdate = await _checkSupabase(info);
+      if (sbUpdate != null) return sbUpdate;
       return await _checkFirestore(info);
     } catch (e) {
       if (throwOnError) rethrow;
+      return null;
+    }
+  }
+
+  Future<AppUpdateInfo?> _checkSupabase(PackageInfo info) async {
+    try {
+      final dio = Dio();
+      final res = await dio.get<List<dynamic>>(
+        'https://pxyqgeitjdsilgfftnyd.supabase.co/rest/v1/app_config?key=eq.app_update&select=*',
+        options: Options(
+          validateStatus: (status) => status != null && status < 500,
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eXFnZWl0amRzaWxnZmZ0bnlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTI1NjMsImV4cCI6MjA2MTYyODU2M30.13Q8w-l8K9NqSsqsR-Lq58j0jM4Kq7h9q08H-x7yY08',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eXFnZWl0amRzaWxnZmZ0bnlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTI1NjMsImV4cCI6MjA2MTYyODU2M30.13Q8w-l8K9NqSsqsR-Lq58j0jM4Kq7h9q08H-x7yY08',
+          },
+        ),
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200 && res.data != null && res.data!.isNotEmpty) {
+        final d = res.data!.first as Map<String, dynamic>;
+        final latestVersion = (d['latest_version'] ?? '').toString().trim();
+        final apkUrl = (d['apk_url'] ?? '').toString().trim();
+        if (latestVersion.isEmpty || apkUrl.isEmpty) return null;
+
+        final latestBuild = int.tryParse('${d['build_number'] ?? ''}') ?? 0;
+        final currentBuild = int.tryParse(info.buildNumber) ?? 0;
+
+        if (!_isNewer(
+          remoteVersion: latestVersion,
+          remoteBuild: latestBuild,
+          currentVersion: info.version,
+          currentBuild: currentBuild,
+        )) {
+          return null;
+        }
+
+        return AppUpdateInfo(
+          latestVersion: latestVersion,
+          buildNumber: latestBuild,
+          apkUrl: apkUrl,
+          notesAr: (d['notes_ar'] ?? '').toString(),
+          notesEn: (d['notes_en'] ?? '').toString(),
+          forceUpdate: d['force_update'] == true,
+          currentVersion: info.version,
+          currentBuild: currentBuild,
+        );
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Supabase update check failed: $e');
       return null;
     }
   }

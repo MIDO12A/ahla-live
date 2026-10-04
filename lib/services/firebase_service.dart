@@ -5071,44 +5071,49 @@ class FirebaseService {
         return {'success': false, 'message': 'يرجى إدخال كمية ألماس صحيحة أكبر من 0'};
       }
 
-      // التأكد من توفر مصادقة Firebase لتفادي أخطاء permission-denied
-      if (FirebaseAuth.instance.currentUser == null) {
+      // جلب بيانات الوكيل والمستهدف من Supabase أولاً كمصدر أساسي
+      final sbData = SupabaseDataService();
+      var sbAgent = await sbData.getUser(agentUid);
+      var sbTarget = await sbData.getUser(targetUid);
+
+      // إذا لم يتم العثور على المستخدم بالـ UID، نفحص إذا كان المدخل هو المعرف الرقمي (custom_id)
+      if (sbTarget == null) {
         try {
-          await FirebaseAuth.instance.signInAnonymously();
+          final usersByCustomId = await sbData.getUsersByCustomId(targetUid);
+          if (usersByCustomId.isNotEmpty) {
+            sbTarget = usersByCustomId.first;
+          }
         } catch (_) {}
       }
 
-      // جلب بيانات الوكيل والمستهدف من Firestore و Supabase بالتوازي
-      final agentDocRef = _db.collection('users').doc(agentUid);
-      final targetDocRef = _db.collection('users').doc(targetUid);
+      // محاولة فحص Firestore أيضاً بشكل احتياطي دون أن يتسبب خطأ الصلاحيات في فشل العملية
+      Map<String, dynamic>? fsAgentData;
+      Map<String, dynamic>? fsTargetData;
+      try {
+        if (FirebaseAuth.instance.currentUser == null) {
+          await FirebaseAuth.instance.signInAnonymously();
+        }
+        final aDoc = await _db.collection('users').doc(agentUid).get();
+        if (aDoc.exists) fsAgentData = aDoc.data();
+      } catch (_) {}
 
-      var agentDoc = await agentDocRef.get().catchError((_) => agentDocRef.get());
-      var targetDoc = await targetDocRef.get().catchError((_) => targetDocRef.get());
+      try {
+        final tDoc = await _db.collection('users').doc(targetUid).get();
+        if (tDoc.exists) fsTargetData = tDoc.data();
+      } catch (_) {}
 
-      // إذا لم يكن المستند موجوداً في Firestore، نجلبه من Supabase وننشئه
-      final sbAgent = await SupabaseDataService().getUser(agentUid);
-      final sbTarget = await SupabaseDataService().getUser(targetUid);
-
-      if (!agentDoc.exists && sbAgent != null) {
-        await agentDocRef.set(sbAgent.toMap(), SetOptions(merge: true)).catchError((_) {});
-        agentDoc = await agentDocRef.get();
-      }
-      if (!targetDoc.exists && sbTarget != null) {
-        await targetDocRef.set(sbTarget.toMap(), SetOptions(merge: true)).catchError((_) {});
-        targetDoc = await targetDocRef.get();
-      }
-
-      if (!agentDoc.exists && sbAgent == null) {
+      if (sbAgent == null && fsAgentData == null) {
         return {'success': false, 'message': 'بيانات وكيل الشحن غير موجودة'};
       }
-      if (!targetDoc.exists && sbTarget == null) {
+      if (sbTarget == null && fsTargetData == null) {
         return {'success': false, 'message': 'لم يتم العثور على حساب المستخدم'};
       }
 
-      final targetData = targetDoc.data() ?? {};
-      final fsTargetDiamonds = _asInt(targetData['diamonds'] ?? 0);
-      final sbTargetDiamonds = sbTarget?.diamonds ?? 0;
-      final targetDiamonds = math.max(fsTargetDiamonds, sbTargetDiamonds);
+      final resolvedTargetUid = sbTarget?.uid ?? targetUid;
+      final targetDiamonds = math.max(
+        sbTarget?.diamonds ?? 0,
+        _asInt(fsTargetData?['diamonds'] ?? 0),
+      );
 
       if (targetDiamonds < diamondsAmount) {
         return {
@@ -5117,42 +5122,55 @@ class FirebaseService {
         };
       }
 
-      final agentData = agentDoc.data() ?? {};
-      final agentName = agentData['name'] ?? agentData['display_name'] ?? sbAgent?.name ?? 'وكيل الشحن';
-      final targetName = targetData['name'] ?? targetData['display_name'] ?? sbTarget?.name ?? 'المستخدم';
+      final agentName = (sbAgent != null && sbAgent.name.trim().isNotEmpty)
+          ? sbAgent.name
+          : (fsAgentData?['name'] ?? fsAgentData?['display_name'] ?? 'وكيل الشحن').toString();
 
-      final reqRef = _db.collection('agent_withdrawal_requests').doc();
+      final targetName = (sbTarget != null && sbTarget.name.trim().isNotEmpty)
+          ? sbTarget.name
+          : (fsTargetData?['name'] ?? fsTargetData?['display_name'] ?? 'المستخدم').toString();
+
+      final targetCustomId = (sbTarget != null && sbTarget.customId.trim().isNotEmpty)
+          ? sbTarget.customId
+          : (fsTargetData?['custom_id'] ?? '').toString();
+
+      final requestId = 'wd_${DateTime.now().millisecondsSinceEpoch}_$resolvedTargetUid';
       final now = DateTime.now().toUtc();
 
-      await reqRef.set({
-        'request_id': reqRef.id,
-        'agent_id': agentUid,
-        'agent_name': agentName,
-        'target_uid': targetUid,
-        'target_name': targetName,
-        'target_custom_id': targetData['custom_id']?.toString() ?? sbTarget?.customId ?? '',
-        'diamonds_amount': diamondsAmount,
-        'status': 'pending',
-        'created_at': now.toIso8601String(),
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      // حفظ الطلب في Firestore احتياطياً داخل try/catch لتجنب مشكلة permission-denied
+      try {
+        await _db.collection('agent_withdrawal_requests').doc(requestId).set({
+          'request_id': requestId,
+          'agent_id': agentUid,
+          'agent_name': agentName,
+          'target_uid': resolvedTargetUid,
+          'target_name': targetName,
+          'target_custom_id': targetCustomId,
+          'diamonds_amount': diamondsAmount,
+          'status': 'pending',
+          'created_at': now.toIso8601String(),
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      } catch (fsErr) {
+        debugPrint('[createAgentDiamondWithdrawalRequest] Firestore save skipped: $fsErr');
+      }
 
-      // إرسال إشعار فوري للمستخدم للموافقة أو الرفض
+      // إرسال إشعار فوري للمستخدم للموافقة أو الرفض عبر Supabase و Firebase
       await sendNotification(
-        uid: targetUid,
+        uid: resolvedTargetUid,
         type: 'agent_withdrawal_request',
         title: 'طلب سحب راتب 💎',
         body: 'يطلب وكيل الشحن ($agentName) سحب $diamondsAmount ماسة من رصيد ألماسك كراتب. هل توافق على السحب؟',
         data: {
           'action': 'agent_withdrawal_request',
-          'request_id': reqRef.id,
+          'request_id': requestId,
           'agent_id': agentUid,
           'agent_name': agentName,
           'diamonds_amount': diamondsAmount,
         },
       );
 
-      return {'success': true, 'request_id': reqRef.id};
+      return {'success': true, 'request_id': requestId};
     } catch (e) {
       debugPrint('createAgentDiamondWithdrawalRequest error: $e');
       return {'success': false, 'message': 'حدث خطأ أثناء إرسال طلب السحب: $e'};
@@ -5164,57 +5182,46 @@ class FirebaseService {
     required String requestId,
     required String userUid,
     required bool approved,
+    String? agentId,
+    int? diamondsAmount,
+    String? targetName,
   }) async {
     try {
-      if (FirebaseAuth.instance.currentUser == null) {
-        try {
+      Map<String, dynamic>? reqData;
+      try {
+        if (FirebaseAuth.instance.currentUser == null) {
           await FirebaseAuth.instance.signInAnonymously();
-        } catch (_) {}
-      }
+        }
+        final reqSnap = await _db.collection('agent_withdrawal_requests').doc(requestId).get();
+        if (reqSnap.exists) {
+          reqData = reqSnap.data();
+        }
+      } catch (_) {}
 
-      final reqRef = _db.collection('agent_withdrawal_requests').doc(requestId);
-      final reqSnap = await reqRef.get();
-      if (!reqSnap.exists) {
-        return {'success': false, 'message': 'طلب السحب غير موجود أو تم حذفه'};
-      }
-
-      final reqData = reqSnap.data() ?? {};
-      if (reqData['target_uid'] != userUid) {
-        return {'success': false, 'message': 'غير مصرح لك باتخاذ إجراء على هذا الطلب'};
-      }
-
-      final currentStatus = reqData['status']?.toString() ?? 'pending';
-      if (currentStatus != 'pending') {
-        return {
-          'success': false,
-          'message': currentStatus == 'approved'
-              ? 'تمت الموافقة على هذا الطلب مسبقاً'
-              : 'تم رفض هذا الطلب مسبقاً'
-        };
-      }
-
-      final agentId = reqData['agent_id']?.toString() ?? '';
-      final diamondsAmount = _asInt(reqData['diamonds_amount'] ?? 0);
-      final targetName = reqData['target_name']?.toString() ?? 'المستخدم';
+      final resolvedAgentId = (reqData?['agent_id'] ?? agentId ?? '').toString();
+      final resolvedDiamonds = _asInt(reqData?['diamonds_amount'] ?? diamondsAmount ?? 0);
+      final resolvedTargetName = (reqData?['target_name'] ?? targetName ?? 'المستخدم').toString();
 
       if (!approved) {
         // رفض الطلب: لا يتم خصم أي ماسة
-        await reqRef.update({
-          'status': 'rejected',
-          'rejected_at': DateTime.now().toUtc().toIso8601String(),
-        });
+        try {
+          await _db.collection('agent_withdrawal_requests').doc(requestId).update({
+            'status': 'rejected',
+            'rejected_at': DateTime.now().toUtc().toIso8601String(),
+          });
+        } catch (_) {}
 
         // إشعار الوكيل بالرفض
-        if (agentId.isNotEmpty) {
+        if (resolvedAgentId.isNotEmpty) {
           await sendNotification(
-            uid: agentId,
+            uid: resolvedAgentId,
             type: 'agent_withdrawal_rejected',
             title: 'تم رفض طلب السحب ❌',
-            body: 'قام المستخدم $targetName برفض طلب سحب $diamondsAmount ماسة.',
+            body: 'قام المستخدم $resolvedTargetName برفض طلب سحب $resolvedDiamonds ماسة.',
             data: {
               'request_id': requestId,
               'target_uid': userUid,
-              'diamonds_amount': diamondsAmount,
+              'diamonds_amount': resolvedDiamonds,
             },
           );
         }
@@ -5222,109 +5229,88 @@ class FirebaseService {
         return {'success': true, 'action': 'rejected'};
       }
 
-      // موافقة المستخدم: تنفيذ السحب داخل Firestore و Supabase
-      final userRef = _db.collection('users').doc(userUid);
-      final agentRef = _db.collection('users').doc(agentId);
+      // موافقة المستخدم: فحص الرصيد والخصم في Supabase كأصل رئيسي
+      final sbData = SupabaseDataService();
+      final sbTarget = await sbData.getUser(userUid);
+      final currentDiamonds = sbTarget?.diamonds ?? 0;
 
-      final txnResult = await _db.runTransaction<Map<String, dynamic>>((txn) async {
-        final uSnap = await txn.get(userRef);
-        final aSnap = await txn.get(agentRef);
-        final rSnap = await txn.get(reqRef);
+      if (currentDiamonds < resolvedDiamonds) {
+        return {
+          'success': false,
+          'message': 'رصيد الألماس لديك غير كافٍ لإتمام السحب (المتاح: $currentDiamonds ماسة)'
+        };
+      }
 
-        if (!uSnap.exists || !aSnap.exists || !rSnap.exists) {
-          return {'success': false, 'message': 'تعذر استرجاع بيانات الحسابات'};
-        }
+      // 1. خصم الألماس من المستخدم في Supabase
+      final newTargetDiamonds = math.max(0, currentDiamonds - resolvedDiamonds);
+      await sbData.updateUser(userUid, {'diamonds': newTargetDiamonds});
 
-        if (rSnap.data()?['status'] != 'pending') {
-          return {'success': false, 'message': 'تم تغيير حالة هذا الطلب مسبقاً'};
-        }
-
-        final uDiamonds = _asInt(uSnap.data()?['diamonds'] ?? 0);
-        if (uDiamonds < diamondsAmount) {
-          return {
-            'success': false,
-            'message': 'رصيد الألماس لديك غير كافٍ لإتمام السحب (المتاح: $uDiamonds ماسة)'
-          };
-        }
-
-        // خصم الألماس من المستخدم في Firestore
-        txn.update(userRef, {
-          'diamonds': uDiamonds - diamondsAmount,
-          'total_diamonds_withdrawn': FieldValue.increment(diamondsAmount),
-        });
-
-        // إضافة الألماس لحساب ومحفظة الوكيل في Firestore
-        txn.update(agentRef, {
-          'diamonds': FieldValue.increment(diamondsAmount),
-        });
-
-        final agentWalletRef = _db.collection('agent_usd_wallets').doc(agentId);
-        txn.set(agentWalletRef, {
-          'user_id': agentId,
-          'diamond_balance': FieldValue.increment(diamondsAmount),
-          'total_received': FieldValue.increment(diamondsAmount),
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        }, SetOptions(merge: true));
-
-        // تسجيل العملية في سجل المعاملات المالية للوكيل
-        final txRef = _db.collection('agent_recharge_transactions').doc();
-        txn.set(txRef, {
-          'agent_id': agentId,
-          'type': 'withdraw_diamonds',
-          'recipient_uid': userUid,
-          'recipient_display_name': targetName,
-          'recipient_avatar_url': uSnap.data()?['avatar'] ?? uSnap.data()?['avatar_url'] ?? '',
-          'recipient_kayan_id': uSnap.data()?['custom_id']?.toString() ?? '',
-          'diamonds_amount': diamondsAmount,
-          'status': 'completed',
-          'request_id': requestId,
-          'created_at': DateTime.now().toUtc().toIso8601String(),
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-
-        // تحديث حالة الطلب
-        txn.update(reqRef, {
-          'status': 'approved',
-          'approved_at': DateTime.now().toUtc().toIso8601String(),
-        });
-
-        return {'success': true, 'action': 'approved'};
-      });
-
-      // مزامنة الألماس مع Supabase أيضاً لضمان الاتساق الكامل
-      if (txnResult['success'] == true) {
-        try {
-          final sbTarget = await SupabaseDataService().getUser(userUid);
-          if (sbTarget != null) {
-            final newD = math.max(0, sbTarget.diamonds - diamondsAmount);
-            await SupabaseDataService().updateUser(userUid, {'diamonds': newD});
-          }
-          final sbAgent = await SupabaseDataService().getUser(agentId);
-          if (sbAgent != null) {
-            final newD = sbAgent.diamonds + diamondsAmount;
-            await SupabaseDataService().updateUser(agentId, {'diamonds': newD});
-          }
-        } catch (e) {
-          debugPrint('[respondToAgentWithdrawalRequest] Supabase sync error: $e');
+      // 2. إضافة الألماس لحساب الوكيل في Supabase
+      if (resolvedAgentId.isNotEmpty) {
+        final sbAgent = await sbData.getUser(resolvedAgentId);
+        if (sbAgent != null) {
+          final newAgentDiamonds = sbAgent.diamonds + resolvedDiamonds;
+          await sbData.updateUser(resolvedAgentId, {'diamonds': newAgentDiamonds});
         }
       }
 
-      if (txnResult['success'] == true && agentId.isNotEmpty) {
-        // إشعار الوكيل بنجاح العملية وموافقة المستخدم
+      // 3. مزامنة Firestore أيضاً إن أمكن
+      try {
+        await _db.collection('agent_withdrawal_requests').doc(requestId).update({
+          'status': 'approved',
+          'approved_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      } catch (_) {}
+
+      try {
+        await _db.collection('users').doc(userUid).update({
+          'diamonds': FieldValue.increment(-resolvedDiamonds),
+          'total_diamonds_withdrawn': FieldValue.increment(resolvedDiamonds),
+        });
+      } catch (_) {}
+
+      try {
+        if (resolvedAgentId.isNotEmpty) {
+          await _db.collection('users').doc(resolvedAgentId).update({
+            'diamonds': FieldValue.increment(resolvedDiamonds),
+          });
+
+          await _db.collection('agent_usd_wallets').doc(resolvedAgentId).set({
+            'user_id': resolvedAgentId,
+            'diamond_balance': FieldValue.increment(resolvedDiamonds),
+            'total_received': FieldValue.increment(resolvedDiamonds),
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          }, SetOptions(merge: true));
+
+          await _db.collection('agent_recharge_transactions').add({
+            'agent_id': resolvedAgentId,
+            'type': 'withdraw_diamonds',
+            'recipient_uid': userUid,
+            'recipient_display_name': resolvedTargetName,
+            'diamonds_amount': resolvedDiamonds,
+            'status': 'completed',
+            'request_id': requestId,
+            'created_at': DateTime.now().toUtc().toIso8601String(),
+          });
+        }
+      } catch (_) {}
+
+      // 4. إشعار الوكيل بنجاح العملية
+      if (resolvedAgentId.isNotEmpty) {
         await sendNotification(
-          uid: agentId,
+          uid: resolvedAgentId,
           type: 'agent_withdrawal_approved',
           title: 'تمت الموافقة على سحب الألماس ✅',
-          body: 'وافق المستخدم $targetName على طلب سحب $diamondsAmount ماسة، وتم تحويلها لمحفظتك بنجاح.',
+          body: 'وافق المستخدم $resolvedTargetName على طلب سحب $resolvedDiamonds ماسة، وتم تحويلها لمحفظتك بنجاح.',
           data: {
             'request_id': requestId,
             'target_uid': userUid,
-            'diamonds_amount': diamondsAmount,
+            'diamonds_amount': resolvedDiamonds,
           },
         );
       }
 
-      return txnResult;
+      return {'success': true, 'action': 'approved'};
     } catch (e) {
       debugPrint('respondToAgentWithdrawalRequest error: $e');
       return {'success': false, 'message': 'حدث خطأ أثناء معالجة الطلب: $e'};

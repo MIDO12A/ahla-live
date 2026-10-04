@@ -3225,7 +3225,7 @@ export async function getAppUpdate(): Promise<AppUpdateConfig | null> {
 
 export async function publishAppUpdate(cfg: Omit<AppUpdateConfig, 'published_at'>): Promise<string | null> {
   try {
-    await supabase.from('app_config').upsert({ ...cfg, published_at: new Date().toISOString() })
+    await supabase.from('app_config').upsert({ key: 'app_update', ...cfg, published_at: new Date().toISOString() })
     return null
   } catch (e) {
     return e instanceof Error ? e.message : String(e)

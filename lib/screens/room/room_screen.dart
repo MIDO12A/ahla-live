@@ -2862,7 +2862,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   void _openPrivateChat(UserModel? user) {
     final targetUid = (user?.id != null && user!.id!.isNotEmpty) ? user.id! : (user?.customId ?? '');
     if (targetUid.isEmpty) return;
-    final myUid = _currentUserId ?? SupabaseAuthService().currentUid ?? SupabaseService().currentUser?.uid ?? '';
+    final myUid = _currentUserId ?? Provider.of<UserProvider>(context, listen: false).currentUser?.uid ?? '';
     if (myUid.isEmpty) return;
     final convId = (myUid.compareTo(targetUid) < 0) ? '${myUid}_$targetUid' : '${targetUid}_$myUid';
     Navigator.push(
@@ -4897,8 +4897,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             ],
           ),
         ),
-      ),
-    );
+      ],
+    ),
+  );
   }
 
   // ── Room info sheet — fragment_room_owner_fragment.xml ─────────
@@ -5919,7 +5920,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _leaveRoomSession() async {
-    final uid = _currentUserId ?? SupabaseAuthService().currentUid ?? SupabaseService().currentUser?.uid;
+    final uid = _currentUserId ?? Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
     if (uid == null || uid.isEmpty) return;
     final name = _currentUserName;
     final roomId = widget.roomId;
@@ -6033,13 +6034,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _exitRoom() {
     setState(() => _showExit = false);
-    final uid = _currentUserId ?? SupabaseAuthService().currentUid ?? SupabaseService().currentUser?.uid ?? '';
-    MinimizedRoomService().clear();
-    if (uid.isNotEmpty) {
-      RoomStateService().exitRoom(uid);
-    }
     _leaveRoomSession();
-    _roomAudio.leaveRoom();
+    _roomAudio.leaveChannel();
     _roomAudio.dispose();
     Navigator.of(context).pop();
   }
