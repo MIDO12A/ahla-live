@@ -571,6 +571,22 @@ class SupabaseDataService {
     return null;
   }
 
+  Future<List<UserModel>> getUsersByCustomId(String customId) async {
+    final cleanId = customId.trim();
+    if (cleanId.isEmpty) return [];
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$cleanId&select=*');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => UserModel.fromMap(e as Map<String, dynamic>)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getUsersByCustomId error: $e');
+    }
+    return [];
+  }
+
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     final results = <Map<String, dynamic>>[];
     final seenIds = <String>{};
