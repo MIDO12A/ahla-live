@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class UserModel {
   final String uid;
   final String customId; // 8-digit numeric ID for display
@@ -325,6 +327,49 @@ class UserModel {
     return const [];
   }
 
+  static List<String> _extractStringList(dynamic raw, [dynamic rawFallback]) {
+    final val = raw ?? rawFallback;
+    if (val == null) return const [];
+    if (val is List) {
+      return val.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty && e != 'null').toList();
+    }
+    if (val is String) {
+      final str = val.trim();
+      if (str.isEmpty || str == '[]' || str == 'null') return const [];
+      if (str.startsWith('[') && str.endsWith(']')) {
+        try {
+          final decoded = jsonDecode(str);
+          if (decoded is List) {
+            return decoded.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty && e != 'null').toList();
+          }
+        } catch (_) {}
+      }
+      return str.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty && s != 'null').toList();
+    }
+    return const [];
+  }
+
+  static List<Map<String, String>> _extractVipItems(dynamic raw, [dynamic rawFallback]) {
+    final val = raw ?? rawFallback;
+    if (val == null) return const [];
+    dynamic parsed = val;
+    if (parsed is String && parsed.trim().startsWith('[')) {
+      try {
+        parsed = jsonDecode(parsed);
+      } catch (_) {}
+    }
+    if (parsed is List) {
+      final res = <Map<String, String>>[];
+      for (final e in parsed) {
+        if (e is Map) {
+          res.add(e.map((k, v) => MapEntry(k.toString(), v?.toString() ?? '')));
+        }
+      }
+      return res;
+    }
+    return const [];
+  }
+
   factory UserModel.fromMap(Map map) {
     // FIX: Robust ID extraction with multiple fallback fields
     // Try multiple possible field names for custom ID to ensure compatibility
@@ -340,51 +385,49 @@ class UserModel {
       coins: (map['coins'] ?? 0).toInt(),
       diamonds: (map['diamonds'] ?? 0).toInt(),
       gender: map['gender']?.toString() ?? 'male',
-      activeFrame: map['active_frame']?.toString(),
-      activeHeadwear: map['active_headwear']?.toString(),
-      activeBubble: map['active_bubble']?.toString(),
-      activeEntrance: map['active_entrance']?.toString(),
-      activeCar: map['active_car']?.toString(),
-      activeCover: map['active_cover']?.toString(),
-      activeNecklace: map['active_necklace']?.toString(),
+      activeFrame: map['active_frame']?.toString() ?? map['activeFrame']?.toString(),
+      activeHeadwear: map['active_headwear']?.toString() ?? map['activeHeadwear']?.toString(),
+      activeBubble: map['active_bubble']?.toString() ?? map['activeBubble']?.toString(),
+      activeEntrance: map['active_entrance']?.toString() ?? map['activeEntrance']?.toString(),
+      activeCar: map['active_car']?.toString() ?? map['activeCar']?.toString(),
+      activeCover: map['active_cover']?.toString() ?? map['activeCover']?.toString(),
+      activeNecklace: map['active_necklace']?.toString() ?? map['activeNecklace']?.toString(),
       activeMicWave: map['active_mic_wave']?.toString() ?? map['activeMicWave']?.toString(),
       profileBgUrl: map['profile_bg_url']?.toString() ?? map['profileBgUrl']?.toString(),
-      ownedItems: (map['owned_items'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      ownedBadges: (map['owned_badges'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      hostedRoomId: map['hosted_room_id']?.toString(),
-      followedRooms: (map['followed_rooms'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      totalGiftsSent: (map['total_gifts_sent'] ?? 0).toInt(),
-      totalGiftsReceived: (map['total_gifts_received'] ?? 0).toInt(),
+      ownedItems: _extractStringList(map['owned_items'], map['ownedItems']),
+      ownedBadges: _extractStringList(map['owned_badges'], map['ownedBadges']),
+      hostedRoomId: map['hosted_room_id']?.toString() ?? map['hostedRoomId']?.toString(),
+      followedRooms: _extractStringList(map['followed_rooms'], map['followedRooms']),
+      totalGiftsSent: (map['total_gifts_sent'] ?? map['totalGiftsSent'] ?? 0).toInt(),
+      totalGiftsReceived: (map['total_gifts_received'] ?? map['totalGiftsReceived'] ?? 0).toInt(),
       level: (map['level'] ?? 1).toInt(),
       experience: (map['experience'] ?? map['exp'] ?? 0).toInt(),
       followers: (map['followers'] ?? 0).toInt(),
       following: (map['following'] ?? 0).toInt(),
       visitors: (map['visitors'] ?? 0).toInt(),
       signature: map['signature']?.toString() ?? '',
-      country: map['country']?.toString() ?? map['country_code']?.toString() ?? 'EG',
+      country: map['country']?.toString() ?? map['country_code']?.toString() ?? map['countryCode']?.toString() ?? 'EG',
       age: (map['age'] ?? 18).toInt(),
       charm: (map['charm'] ?? 0).toInt(),
-      wealthLevel: (map['wealth_level'] ?? 1).toInt(),
-      wealthExp: (map['wealth_exp'] ?? 0).toInt(),
-      rechargeLevel: (map['recharge_level'] ?? 1).toInt(),
-      rechargeExp: (map['recharge_exp'] ?? 0).toInt(),
-      gemsLevel: (map['gems_level'] ?? 1).toInt(),
-      gemsExp: (map['gems_exp'] ?? 0).toInt(),
+      wealthLevel: (map['wealth_level'] ?? map['wealthLevel'] ?? 1).toInt(),
+      wealthExp: (map['wealth_exp'] ?? map['wealthExp'] ?? 0).toInt(),
+      rechargeLevel: (map['recharge_level'] ?? map['rechargeLevel'] ?? 1).toInt(),
+      rechargeExp: (map['recharge_exp'] ?? map['rechargeExp'] ?? 0).toInt(),
+      gemsLevel: (map['gems_level'] ?? map['gemsLevel'] ?? 1).toInt(),
+      gemsExp: (map['gems_exp'] ?? map['gemsExp'] ?? 0).toInt(),
       banned: map['banned'] == true,
       banReason: map['ban_reason']?.toString() ?? '',
-      ownedLevelFrames: (map['owned_level_frames'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      ownedLevelBadges: (map['owned_level_badges'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      ownedNecklaces: (map['owned_necklaces'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      ownedVipItems: ((map['owned_vip_items'] as List?) ?? const [])
-          .map((e) => (e as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? '')))
-          .toList(),
+      ownedLevelFrames: _extractStringList(map['owned_level_frames'], map['ownedLevelFrames']),
+      ownedLevelBadges: _extractStringList(map['owned_level_badges'], map['ownedLevelBadges']),
+      ownedNecklaces: _extractStringList(map['owned_necklaces'], map['ownedNecklaces']),
+      ownedVipItems: _extractVipItems(map['owned_vip_items'], map['ownedVipItems']),
       isRechargeAgent: map['is_recharge_agent'] == true ||
           map['isRechargeAgent'] == true ||
           map['is_agent'] == true ||
           map['role'] == 'agent' ||
           map['role'] == 'recharge_agent',
-      rechargeAgencyName: map['recharge_agency_name']?.toString(),
-      rechargeAgencyLogo: map['recharge_agency_logo']?.toString(),
+      rechargeAgencyName: map['recharge_agency_name']?.toString() ?? map['rechargeAgencyName']?.toString(),
+      rechargeAgencyLogo: map['recharge_agency_logo']?.toString() ?? map['rechargeAgencyLogo']?.toString(),
       whatsappNumber: map['whatsapp_number']?.toString() ?? map['phone']?.toString(),
       phone: map['phone']?.toString() ?? map['phone_number']?.toString() ?? map['phoneNumber']?.toString(),
     );

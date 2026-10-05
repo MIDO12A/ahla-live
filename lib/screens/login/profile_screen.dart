@@ -363,6 +363,9 @@ class ProfileScreen extends StatelessWidget {
 
                 // صف الأوسمة والمستوى (level_view)
                 _buildRankLevelView(context, user),
+
+                // صف القلادات الفاخرة البارزة
+                _buildNecklacesRow(user),
               ],
             ),
           ),
@@ -501,12 +504,84 @@ class ProfileScreen extends StatelessWidget {
     if (necklace.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
-      width: 32,
-      height: 32,
+      width: 44,
+      height: 44,
       child: SvgaFrame(
         svgaPath: necklace,
-        size: 32,
+        size: 44,
         fit: BoxFit.contain,
+      ),
+    );
+  }
+
+  Widget _buildNecklacesRow(UserModel? user) {
+    if (user == null) return const SizedBox.shrink();
+    final List<String> necklaces = [];
+    final seen = <String>{};
+
+    void addNecklace(String? path) {
+      if (path == null || path.isEmpty || path == 'null') return;
+      if (seen.add(path)) necklaces.add(path);
+    }
+
+    if (user.activeNecklace != null && user.activeNecklace!.isNotEmpty) {
+      addNecklace(user.activeNecklace);
+    }
+
+    final isRechargeAgent = user.isRechargeAgent ||
+        (user.rechargeAgencyName != null && user.rechargeAgencyName!.isNotEmpty);
+    if (isRechargeAgent) {
+      final config = DynamicConfigService.instance;
+      final rc = config.rechargeAgentNecklaceSvga.isNotEmpty
+          ? config.rechargeAgentNecklaceSvga
+          : config.rechargeAgentNecklaceImg;
+      if (rc.isNotEmpty) addNecklace(rc);
+    }
+
+    for (final n in user.ownedNecklaces) {
+      addNecklace(n);
+    }
+
+    final vipLevel = _getUserVipTier(user);
+    if (vipLevel > 0 || user.rechargeLevel >= 1 || user.rechargeExp > 0 || user.ownedVipItems.isNotEmpty) {
+      final lvl = (vipLevel > 0 ? vipLevel : user.rechargeLevel).clamp(1, 5);
+      addNecklace('assets/svga/v${lvl}_left_bottom.svga');
+    }
+
+    final displayList = necklaces.take(4).toList();
+    if (displayList.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (int i = 0; i < displayList.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Container(
+                width: 68,
+                height: 68,
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222028),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0x66FFD770), width: 1.2),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SvgaFrame(
+                    key: ValueKey('mine_necklace_${i}_${displayList[i]}'),
+                    svgaPath: displayList[i],
+                    size: 64,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

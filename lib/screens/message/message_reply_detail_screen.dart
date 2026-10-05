@@ -309,8 +309,8 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
                     errorBuilder: (_, __, ___) => Container(
                       width: 200,
                       height: 200,
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.broken_image),
+                      color: Colors.white10,
+                      child: const Icon(Icons.image, color: Colors.white24, size: 36),
                     ),
                   ),
                 ),

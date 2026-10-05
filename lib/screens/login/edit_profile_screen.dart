@@ -639,7 +639,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         width: 76,
                         height: 76,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 36, color: Colors.grey),
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 76,
+                          height: 76,
+                          color: Colors.white10,
+                          child: const Icon(Icons.photo, size: 32, color: Colors.white24),
+                        ),
                       )
                     : Image.file(
                         File(photoPath),

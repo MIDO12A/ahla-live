@@ -48,7 +48,13 @@ bool isVideoType(String? url) {
 bool isImageType(String? url) {
   if (url == null || url.isEmpty) return false;
   final t = detectAssetType(url);
-  return t == AssetType.webp || t == AssetType.gif || t == AssetType.png;
+  if (t == AssetType.webp || t == AssetType.gif || t == AssetType.png) return true;
+  if (t != AssetType.svga && t != AssetType.vap && t != AssetType.mp4) {
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('assets/')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 class R {
@@ -381,18 +387,25 @@ class R {
   /// Returns an [EncryptedImageProvider] for network URLs, cached locally with AES encryption.
   /// Returns a transparent 1x1 PNG for SVGA URLs to prevent decode errors.
   static ImageProvider cachedImage(String url) {
-    if (url.isEmpty) return transparentImage();
-    if (detectAssetType(url) == AssetType.svga) {
+    final clean = url.trim();
+    if (clean.isEmpty) return transparentImage();
+    if (detectAssetType(clean) == AssetType.svga) {
       return MemoryImage(_transparentPng);
     }
-    if (url.startsWith('/') || url.startsWith('file://')) {
-      final filePath = url.startsWith('file://') ? url.replaceFirst('file://', '') : url;
+    if (clean.startsWith('/') || clean.startsWith('file://')) {
+      final filePath = clean.startsWith('file://') ? clean.replaceFirst('file://', '') : clean;
       return FileImage(File(filePath));
     }
-    if (url.startsWith('assets/')) {
-      return AssetImage(url);
+    if (clean.startsWith('http://') || clean.startsWith('https://')) {
+      return CachedNetworkImageProvider(clean);
     }
-    return CachedNetworkImageProvider(url);
+    if (clean.startsWith('assets/')) {
+      return AssetImage(clean);
+    }
+    if (clean.contains('.')) {
+      return AssetImage('assets/$clean');
+    }
+    return transparentImage();
   }
 
   // Constructor helpers
@@ -428,13 +441,28 @@ class R {
       return VapPlayer(url: path, width: width, height: height, fit: fit, loops: loops, onFinished: onFinished);
     }
     if (isNetworkUrl(path)) {
-      return Image(
-        image: EncryptedImageProvider(path),
+      return CachedNetImage(
+        path,
         width: width,
         height: height,
         fit: fit,
         color: color,
-        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white38),
+        placeholder: (_, __) => Container(
+          width: width,
+          height: height,
+          color: Colors.transparent,
+        ),
+        error: (ctx, err, _) {
+          final lower = path.toLowerCase();
+          if (lower.contains('avatar') || lower.contains('photo') || lower.contains('head') || lower.contains('user')) {
+            return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+          }
+          return Container(
+            width: width,
+            height: height,
+            color: Colors.transparent,
+          );
+        },
       );
     }
     if (path.startsWith('/') || path.startsWith('file://')) {
@@ -445,7 +473,11 @@ class R {
         height: height,
         fit: fit,
         color: color,
-        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white38),
+        errorBuilder: (_, __, ___) => Container(
+          width: width,
+          height: height,
+          color: Colors.transparent,
+        ),
       );
     }
     return image(
@@ -658,12 +690,24 @@ class R {
         ),
       );
     }
+    final safeAsset = assetPath.startsWith('assets/') ? assetPath : (assetPath.contains('/') ? 'assets/$assetPath' : assetPath);
     return Image.asset(
-      assetPath,
+      safeAsset,
       width: width,
       height: height,
       fit: fit,
       color: color,
+      errorBuilder: (ctx, err, stack) {
+        final lower = assetPath.toLowerCase();
+        if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('head') || lower.contains('ava')) {
+          return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+        }
+        return Container(
+          width: width,
+          height: height,
+          color: Colors.transparent,
+        );
+      },
     );
   }
 

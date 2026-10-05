@@ -965,8 +965,8 @@ class _BannerCarouselState extends State<_BannerCarousel> {
                             ),
                           ),
                           error: (context, error, stackTrace) => Container(
-                            color: const Color(0xFFF0F0F0),
-                            child: const Icon(Icons.broken_image, color: Colors.grey),
+                            color: const Color(0xFF221A2E),
+                            child: const Center(child: Icon(Icons.campaign, color: Colors.white24, size: 28)),
                           ),
                         ),
                       ),

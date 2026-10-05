@@ -46,25 +46,38 @@ class CachedNetImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (url.isEmpty) {
+    final safeUrl = url.trim();
+    if (safeUrl.isEmpty) {
       return Image(image: R.transparentImage(), width: width, height: height, fit: fit);
     }
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      if (detectAssetType(url) == AssetType.svga) {
-        return SvgaPlayer(assetPath: url, width: width ?? 100, height: height ?? 100, fit: fit);
+    if (safeUrl.startsWith('http://') || safeUrl.startsWith('https://')) {
+      if (detectAssetType(safeUrl) == AssetType.svga) {
+        return SvgaPlayer(assetPath: safeUrl, width: width ?? 100, height: height ?? 100, fit: fit);
       }
       return CachedNetworkImage(
-        imageUrl: url,
+        imageUrl: safeUrl,
         width: width,
         height: height,
         fit: fit,
         color: color,
         placeholder: placeholder != null ? (ctx, u) => placeholder!(ctx, u) : null,
-        errorWidget: error != null ? (ctx, u, err) => error!(ctx, err, null) : null,
+        errorWidget: error != null
+            ? (ctx, u, err) => error!(ctx, err, null)
+            : (ctx, u, err) {
+                final lower = u.toLowerCase();
+                if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
+                  return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+                }
+                return Container(
+                  width: width,
+                  height: height,
+                  color: Colors.transparent,
+                );
+              },
       );
     }
-    if (url.startsWith('/') || url.startsWith('file://')) {
-      final filePath = url.startsWith('file://') ? url.replaceFirst('file://', '') : url;
+    if (safeUrl.startsWith('/') || safeUrl.startsWith('file://')) {
+      final filePath = safeUrl.startsWith('file://') ? safeUrl.replaceFirst('file://', '') : safeUrl;
       return Image.file(
         File(filePath),
         width: width,
@@ -77,17 +90,22 @@ class CachedNetImage extends StatelessWidget {
         },
       );
     }
-    if (detectAssetType(url) == AssetType.svga) {
-      return SvgaPlayer(assetPath: url, width: width ?? 100, height: height ?? 100, fit: fit);
+    if (detectAssetType(safeUrl) == AssetType.svga) {
+      return SvgaPlayer(assetPath: safeUrl, width: width ?? 100, height: height ?? 100, fit: fit);
     }
+    final safeAsset = safeUrl.startsWith('assets/') ? safeUrl : (safeUrl.contains('/') ? 'assets/$safeUrl' : safeUrl);
     return Image.asset(
-      url,
+      safeAsset,
       width: width,
       height: height,
       fit: fit,
       color: color,
       errorBuilder: (context, err, stack) {
         if (error != null) return error!(context, err, stack);
+        final lower = safeUrl.toLowerCase();
+        if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
+          return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+        }
         return const SizedBox();
       },
     );
@@ -118,24 +136,37 @@ class CachedImg extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (url.isEmpty) {
+    final safeUrl = url.trim();
+    if (safeUrl.isEmpty) {
       return Image(image: R.transparentImage(), width: width, height: height, fit: fit);
     }
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      if (detectAssetType(url) == AssetType.svga) {
-        return SvgaPlayer(assetPath: url, width: width ?? 100, height: height ?? 100, fit: fit);
+    if (safeUrl.startsWith('http://') || safeUrl.startsWith('https://')) {
+      if (detectAssetType(safeUrl) == AssetType.svga) {
+        return SvgaPlayer(assetPath: safeUrl, width: width ?? 100, height: height ?? 100, fit: fit);
       }
       return CachedNetworkImage(
-        imageUrl: url,
+        imageUrl: safeUrl,
         width: width,
         height: height,
         fit: fit,
         placeholder: placeholder != null ? (ctx, u) => placeholder!(ctx, u) : null,
-        errorWidget: error != null ? (ctx, u, err) => error!(ctx, u, err) : null,
+        errorWidget: error != null
+            ? (ctx, u, err) => error!(ctx, u, err)
+            : (ctx, u, err) {
+                final lower = u.toLowerCase();
+                if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
+                  return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+                }
+                return Container(
+                  width: width,
+                  height: height,
+                  color: Colors.transparent,
+                );
+              },
       );
     }
-    if (url.startsWith('/') || url.startsWith('file://')) {
-      final filePath = url.startsWith('file://') ? url.replaceFirst('file://', '') : url;
+    if (safeUrl.startsWith('/') || safeUrl.startsWith('file://')) {
+      final filePath = safeUrl.startsWith('file://') ? safeUrl.replaceFirst('file://', '') : safeUrl;
       return Image.file(
         File(filePath),
         width: width,
@@ -147,16 +178,21 @@ class CachedImg extends StatelessWidget {
         },
       );
     }
-    if (detectAssetType(url) == AssetType.svga) {
-      return SvgaPlayer(assetPath: url, width: width ?? 100, height: height ?? 100, fit: fit);
+    if (detectAssetType(safeUrl) == AssetType.svga) {
+      return SvgaPlayer(assetPath: safeUrl, width: width ?? 100, height: height ?? 100, fit: fit);
     }
+    final safeAsset = safeUrl.startsWith('assets/') ? safeUrl : (safeUrl.contains('/') ? 'assets/$safeUrl' : safeUrl);
     return Image.asset(
-      url,
+      safeAsset,
       width: width,
       height: height,
       fit: fit,
       errorBuilder: (context, err, stack) {
         if (error != null) return error!(context, url, err);
+        final lower = safeUrl.toLowerCase();
+        if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
+          return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+        }
         return const SizedBox();
       },
     );

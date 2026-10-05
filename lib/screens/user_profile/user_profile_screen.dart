@@ -313,9 +313,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       : (match.animationUrl != null && match.animationUrl!.isNotEmpty)
                           ? match.animationUrl
                           : match.iconAsset;
-              resolvedFrame = (anim != null && anim.isNotEmpty) ? anim : null;
+              resolvedFrame = (anim != null && anim.isNotEmpty) ? anim : resolvedFrame;
             } else {
-              resolvedFrame = null;
+              if (resolvedFrame.contains('.svga') || resolvedFrame.contains('.webp') || resolvedFrame.contains('.png')) {
+                resolvedFrame = resolvedFrame.startsWith('assets/') ? resolvedFrame : 'assets/$resolvedFrame';
+              }
             }
           }
         }
@@ -348,14 +350,120 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           }
         }
 
-        // Store items to match owned frames & rides (merged with user_backpack)
+        // Store items to match owned frames & rides (merged with user_backpack & ownedLevelFrames & VIP items)
         final ownedSet = targetUser.ownedItems.toSet();
+        for (final f in targetUser.ownedLevelFrames) {
+          if (f.isNotEmpty) ownedSet.add(f);
+        }
         for (final b in backpackList) {
           final bId = b['item_id']?.toString() ?? b['itemId']?.toString() ?? '';
           if (bId.isNotEmpty) ownedSet.add(bId);
         }
-        final frames = allStoreItems.where((i) => i.category == 'frame' && (ownedSet.contains(i.itemId) || i.svgaAsset == targetUser?.activeFrame || backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId)))).toList();
-        final rides = allStoreItems.where((i) => (i.category == 'car' || i.category == 'entrance') && (ownedSet.contains(i.itemId) || i.svgaAsset == targetUser?.activeCar || i.svgaAsset == targetUser?.activeEntrance || backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId)))).toList();
+        if (targetUser.activeFrame != null && targetUser.activeFrame!.isNotEmpty) {
+          ownedSet.add(targetUser.activeFrame!);
+        }
+        if (targetUser.activeCar != null && targetUser.activeCar!.isNotEmpty) {
+          ownedSet.add(targetUser.activeCar!);
+        }
+        if (targetUser.activeEntrance != null && targetUser.activeEntrance!.isNotEmpty) {
+          ownedSet.add(targetUser.activeEntrance!);
+        }
+
+        final frames = allStoreItems.where((i) => i.category == 'frame' && (
+          ownedSet.contains(i.itemId) ||
+          i.itemId == targetUser.activeFrame ||
+          i.svgaAsset == targetUser.activeFrame ||
+          backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId))
+        )).toList();
+
+        final rides = allStoreItems.where((i) => (i.category == 'car' || i.category == 'entrance') && (
+          ownedSet.contains(i.itemId) ||
+          i.itemId == targetUser.activeCar ||
+          i.svgaAsset == targetUser.activeCar ||
+          i.itemId == targetUser.activeEntrance ||
+          i.svgaAsset == targetUser.activeEntrance ||
+          backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId))
+        )).toList();
+
+        // Ensure active frame appears in frames tab
+        if (targetUser.activeFrame != null && targetUser.activeFrame!.isNotEmpty) {
+          final fPath = resolvedFrame ?? targetUser.activeFrame!;
+          if (!frames.any((f) => f.itemId == targetUser.activeFrame || f.itemId == fPath || f.svgaAsset == fPath)) {
+            frames.insert(0, StoreItemModel(
+              itemId: targetUser.activeFrame!,
+              category: 'frame',
+              name: 'إطار مفعّل',
+              svgaAsset: fPath.contains('.svga') ? fPath : null,
+              iconAsset: fPath,
+              price: 0,
+              days: 30,
+            ));
+          }
+        }
+
+        // Ensure active car appears in rides tab
+        if (targetUser.activeCar != null && targetUser.activeCar!.isNotEmpty) {
+          final cPath = targetUser.activeCar!;
+          if (!rides.any((r) => r.itemId == cPath || r.svgaAsset == cPath)) {
+            rides.insert(0, StoreItemModel(
+              itemId: cPath,
+              category: 'car',
+              name: 'سيارة مفعّلة',
+              svgaAsset: cPath.contains('.svga') ? cPath : null,
+              iconAsset: cPath,
+              price: 0,
+              days: 30,
+            ));
+          }
+        }
+
+        // Ensure active entrance effect appears in rides tab
+        if (targetUser.activeEntrance != null && targetUser.activeEntrance!.isNotEmpty) {
+          final ePath = targetUser.activeEntrance!;
+          if (!rides.any((r) => r.itemId == ePath || r.svgaAsset == ePath)) {
+            rides.insert(0, StoreItemModel(
+              itemId: ePath,
+              category: 'entrance',
+              name: 'تأثير دخول',
+              svgaAsset: ePath.contains('.svga') ? ePath : null,
+              iconAsset: ePath,
+              price: 0,
+              days: 30,
+            ));
+          }
+        }
+
+        // Add VIP items to frames & rides
+        for (final vip in targetUser.ownedVipItems) {
+          final vType = vip['type']?.toString();
+          final vUrl = vip['url']?.toString() ?? '';
+          final vName = vip['name']?.toString() ?? vip['title']?.toString() ?? '';
+          if (vType == 'frame' && vUrl.isNotEmpty) {
+            if (!frames.any((f) => f.iconAsset == vUrl || f.svgaAsset == vUrl)) {
+              frames.add(StoreItemModel(
+                itemId: 'vip_frame_${frames.length}',
+                category: 'frame',
+                name: vName.isNotEmpty ? vName : 'إطار VIP',
+                svgaAsset: vUrl.contains('.svga') ? vUrl : null,
+                iconAsset: vUrl,
+                price: 0,
+                days: 30,
+              ));
+            }
+          } else if ((vType == 'car' || vType == 'entrance') && vUrl.isNotEmpty) {
+            if (!rides.any((r) => r.iconAsset == vUrl || r.svgaAsset == vUrl)) {
+              rides.add(StoreItemModel(
+                itemId: 'vip_ride_${rides.length}',
+                category: vType!,
+                name: vName.isNotEmpty ? vName : (vType == 'car' ? 'سيارة VIP' : 'دخولية VIP'),
+                svgaAsset: vUrl.contains('.svga') ? vUrl : null,
+                iconAsset: vUrl,
+                price: 0,
+                days: 30,
+              ));
+            }
+          }
+        }
 
         final aggList = _aggregateGifts(gifts, giftCatalog);
         final supporters = _extractSupporters(gifts);
@@ -1899,32 +2007,35 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          for (int i = 0; i < displayList.length; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
-            Container(
-              width: 52,
-              height: 52,
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF222028),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0x33FFD770), width: 1),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SvgaFrame(
-                  key: ValueKey('necklace_${i}_${displayList[i]}'),
-                  svgaPath: displayList[i],
-                  size: 48,
-                  fit: BoxFit.contain,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            for (int i = 0; i < displayList.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Container(
+                width: 74,
+                height: 74,
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222028),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0x66FFD770), width: 1.2),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SvgaFrame(
+                    key: ValueKey('necklace_${i}_${displayList[i]}'),
+                    svgaPath: displayList[i],
+                    size: 70,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1954,7 +2065,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (resolvedMedals.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
-      height: 48,
+      height: 62,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: resolvedMedals.length.clamp(0, 10),
@@ -1967,18 +2078,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           return Tooltip(
             message: m['name'] ?? '',
             child: SizedBox(
-              width: 46,
-              height: 46,
+              width: 60,
+              height: 60,
               child: isSvga
                   ? SvgaFrame(
                       svgaPath: url,
-                      size: 46,
+                      size: 60,
                       fit: BoxFit.contain,
                     )
                   : CachedImg(
                       url,
-                      width: 46,
-                      height: 46,
+                      width: 60,
+                      height: 60,
                       fit: BoxFit.contain,
                       error: (_, __, ___) => const SizedBox.shrink(),
                     ),
@@ -3073,8 +3184,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     error: (_, __, ___) => Container(
                       width: 200,
                       height: 200,
-                      color: Colors.white54,
-                      child: const Icon(Icons.broken_image),
+                      color: Colors.white12,
+                      child: const Icon(Icons.image, color: Colors.white24, size: 36),
                     ),
                   ),
                 ),
