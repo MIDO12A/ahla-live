@@ -3572,7 +3572,17 @@ class FirebaseService {
       final list = await SupabaseDataService().getVisitorUsers(uid);
       if (list.isNotEmpty) return list;
     } catch (_) {}
-    return [];
+    try {
+      final snap = await _db.collection('profile_visits').where('visited_uid', isEqualTo: uid).get();
+      final uids = snap.docs
+          .map((e) => e.data()['visitor_uid']?.toString() ?? '')
+          .where((id) => id.isNotEmpty && id != uid)
+          .toSet()
+          .toList();
+      return await _batchFetchUsers(uids);
+    } catch (e) {
+      return [];
+    }
   }
 
   Future<Map<String, int>> getVisitorHistoryDays(String uid) async {
@@ -4168,6 +4178,38 @@ class FirebaseService {
       await _db.collection('room_messages').doc(msgId).set(kickMsg.toMap());
     } catch (e) {
       debugPrint('kickUserFromRoom error: $e');
+    }
+  }
+
+  Future<void> sendSeatInvite(String roomId, {
+    required String inviterUid,
+    required String inviterName,
+    required String targetUid,
+    required String targetName,
+    required int seatIndex,
+  }) async {
+    try {
+      final msgId = const Uuid().v4();
+      final inviteMsg = MessageModel(
+        msgId: msgId,
+        roomId: roomId,
+        senderUid: inviterUid,
+        senderName: inviterName,
+        senderPhotoUrl: '',
+        text: 'دعاك للصعود على المايك',
+        type: 'seat_invite',
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        giftPayload: {
+          'targetUid': targetUid,
+          'targetName': targetName,
+          'seatIndex': seatIndex,
+          'inviterName': inviterName,
+          'inviterUid': inviterUid,
+        },
+      );
+      await _db.collection('room_messages').doc(msgId).set(inviteMsg.toMap());
+    } catch (e) {
+      debugPrint('sendSeatInvite error: $e');
     }
   }
 

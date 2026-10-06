@@ -27,6 +27,7 @@ class UserProfile extends StatefulWidget {
   final bool isModerator;
   final bool isRoomOwner;
   final bool isTargetModerator;
+  final bool isTargetRoomOwner;
   final bool isBlocked;
   final String? currentUserId;
   final VoidCallback? onClose;
@@ -53,6 +54,7 @@ class UserProfile extends StatefulWidget {
     this.isModerator = false,
     this.isRoomOwner = false,
     this.isTargetModerator = false,
+    this.isTargetRoomOwner = false,
     this.isBlocked = false,
     this.currentUserId,
     this.onClose,
@@ -139,6 +141,9 @@ class _UserProfileState extends State<UserProfile> {
           customIdCache[uid] = userObj.customId;
           _extraUserData['custom_id'] = userObj.customId;
         }
+      }
+      if (widget.currentUserId != null && widget.currentUserId!.isNotEmpty && widget.currentUserId != uid) {
+        unawaited(svc.recordProfileVisit(uid, widget.currentUserId!));
       }
       try {
         final sbUser = await SupabaseDataService().getUser(uid);
@@ -668,11 +673,16 @@ class _UserProfileState extends State<UserProfile> {
               const SizedBox(height: 16),
 
               // 6. Mic Controls (Strictly for Room Owner / Room Moderator or user on their own mic)
-              if (widget.showMicControls && (widget.isModerator || widget.isRoomOwner || widget.isCurrentUser)) ...[
+              if (widget.showMicControls &&
+                  (widget.isRoomOwner ||
+                   widget.isCurrentUser ||
+                   (widget.isModerator && !widget.isTargetRoomOwner && !widget.isTargetModerator))) ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (widget.isModerator || widget.isRoomOwner || widget.isCurrentUser)
+                    if (widget.isRoomOwner ||
+                        widget.isCurrentUser ||
+                        (widget.isModerator && !widget.isTargetRoomOwner && !widget.isTargetModerator))
                       GestureDetector(
                         onTap: widget.onMicDown,
                         child: Container(
@@ -1244,7 +1254,7 @@ class _UserProfileState extends State<UserProfile> {
                 ),
 
               // 3. Kick from Room (طرد من الغرفة)
-              if (widget.isModerator)
+              if (widget.isRoomOwner || (widget.isModerator && !widget.isTargetRoomOwner && !widget.isTargetModerator))
                 ListTile(
                   leading: const Icon(Icons.exit_to_app, color: Colors.redAccent),
                   title: const Text('طرد من الغرفة', style: TextStyle(color: Colors.white)),

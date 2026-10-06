@@ -257,6 +257,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           });
         }
 
+        if (mounted) {
+          final userProv = Provider.of<UserProvider>(context, listen: false);
+          final myUid = userProv.currentUser?.uid;
+          if (myUid != null && myUid.isNotEmpty && myUid != targetUser.uid) {
+            final myUser = userProv.currentUser;
+            unawaited(_supabase.recordProfileVisit(
+              targetUser.uid,
+              myUid,
+              visitorName: myUser?.name,
+              visitorPhoto: myUser?.photoUrl,
+            ));
+          }
+        }
+
         try {
           final queryUid = targetUser.uid.isNotEmpty ? targetUser.uid : uid;
           final storeItemsFuture = _supabase.getStoreItems().catchError((_) => <StoreItemModel>[]);

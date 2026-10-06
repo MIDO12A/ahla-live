@@ -12,12 +12,14 @@ class BottomBar extends StatelessWidget {
   final VoidCallback? onGift;
   final VoidCallback? onMusic;
   final VoidCallback? onMsg;
+  final bool showMusic;
   final VoidCallback? onFunction;
 
   const BottomBar({
     super.key,
     this.isMicOn = true,
     this.showMic = true,
+    this.showMusic = true,
     this.msgCount = 0,
     this.onChat,
     this.onEmoj,
@@ -138,12 +140,16 @@ class BottomBar extends StatelessWidget {
                               ),
                           ],
                         ),
-                        const SizedBox(width: 10),
-                        _Btn(asset: musicIcon, size: 32, onTap: onMusic),
+                        if (showMusic) ...[
+                          const SizedBox(width: 10),
+                          _Btn(asset: musicIcon, size: 32, onTap: onMusic),
+                        ],
                       ]
                     : [
-                        _Btn(asset: musicIcon, size: 32, onTap: onMusic),
-                        const SizedBox(width: 10),
+                        if (showMusic) ...[
+                          _Btn(asset: musicIcon, size: 32, onTap: onMusic),
+                          const SizedBox(width: 10),
+                        ],
                         Stack(
                           clipBehavior: Clip.none,
                           children: [

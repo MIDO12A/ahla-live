@@ -62,6 +62,7 @@ class SeatDialogs {
     required UserModel user,
     required bool isOwner,
     required bool isOwnerOrModerator,
+    bool canKickAndMicDown = true,
     required bool isMuted,
     required bool isAdmin,
     required bool isBlacked,
@@ -82,6 +83,7 @@ class SeatDialogs {
         user: user,
         isOwner: isOwner,
         isOwnerOrModerator: isOwnerOrModerator,
+        canKickAndMicDown: canKickAndMicDown,
         isMuted: isMuted,
         isAdmin: isAdmin,
         isBlacked: isBlacked,
@@ -217,6 +219,7 @@ class _OccupiedSeatSheet extends StatelessWidget {
   final bool isMuted;
   final bool isAdmin;
   final bool isBlacked;
+  final bool canKickAndMicDown;
   final VoidCallback? onUserDetail;
   final VoidCallback? onKickOffMic;
   final void Function(bool muted)? onToggleMicLock;
@@ -231,6 +234,7 @@ class _OccupiedSeatSheet extends StatelessWidget {
     required this.user,
     required this.isOwner,
     required this.isOwnerOrModerator,
+    this.canKickAndMicDown = true,
     required this.isMuted,
     required this.isAdmin,
     required this.isBlacked,
@@ -290,14 +294,16 @@ class _OccupiedSeatSheet extends StatelessWidget {
                     // Owner/moderator actions
                     if (isOwnerOrModerator) ...[
                       // idSeatActionKickOffMic
-                      _SheetItem(
-                        label: isAr ? 'إنزال من المايك' : 'Kick Off Mic',
-                        onTap: () {
-                          Navigator.pop(context);
-                          onKickOffMic?.call();
-                        },
-                      ),
-                      _Divider(),
+                      if (canKickAndMicDown) ...[
+                        _SheetItem(
+                          label: isAr ? 'إنزال من المايك' : 'Kick Off Mic',
+                          onTap: () {
+                            Navigator.pop(context);
+                            onKickOffMic?.call();
+                          },
+                        ),
+                        _Divider(),
+                      ],
                       // idSeatActionLockUnLockMic
                       _SheetItem(
                         label: isMuted
@@ -310,15 +316,17 @@ class _OccupiedSeatSheet extends StatelessWidget {
                       ),
                       _Divider(),
                       // idSeatActionKickOutFromRoom — owner/moderator
-                      _SheetItem(
-                        label: isAr ? 'طرد من الغرفة' : 'Kick Out From Room',
-                        color: const Color(0xFFE82323),
-                        onTap: () {
-                          Navigator.pop(context);
-                          onKickOutFromRoom?.call();
-                        },
-                      ),
-                      _Divider(),
+                      if (canKickAndMicDown) ...[
+                        _SheetItem(
+                          label: isAr ? 'طرد من الغرفة' : 'Kick Out From Room',
+                          color: const Color(0xFFE82323),
+                          onTap: () {
+                            Navigator.pop(context);
+                            onKickOutFromRoom?.call();
+                          },
+                        ),
+                        _Divider(),
+                      ],
                     ],
                     // Owner-only actions
                     if (isOwner) ...[

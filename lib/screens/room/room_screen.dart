@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'widgets/nine_patch_image.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -887,6 +888,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   // Track seen entrance message IDs to avoid replaying
   final Set<String> _seenEntranceIds = {};
+  final Set<String> _seenInviteIds = {};
 
   // Track total gifts received per seat user ID
   final Map<String?, int> _giftReceiverTotals = {};
@@ -1427,6 +1429,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               );
               _exitRoom();
               return;
+            }
+          } else if (m.type == 'seat_invite' && m.giftPayload != null) {
+            final targetUid = m.giftPayload!['targetUid']?.toString();
+            final inviteId = m.msgId;
+            if (targetUid == _currentUserId && !_seenInviteIds.contains(inviteId) && mounted) {
+              _seenInviteIds.add(inviteId);
+              final inviterName = m.giftPayload!['inviterName']?.toString() ?? 'المشرف';
+              final seatIndex = (m.giftPayload!['seatIndex'] as num?)?.toInt() ?? -1;
+              if (seatIndex >= 0) {
+                _showSeatInviteDialog(inviterName, seatIndex);
+              }
             }
           }
         }
@@ -2335,11 +2348,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _showOccupiedDialog(int idx, UserModel user) {
     final seat = _seats[idx];
+    final targetUid = user.id;
+    final isTargetOwner = targetUid != null && targetUid == _currentRoom?.hostUid;
+    final isTargetModerator = targetUid != null && _moderators.contains(targetUid);
+    final canKickAndMicDown = _isOwner || (!isTargetOwner && !isTargetModerator);
+
     SeatDialogs.showOccupiedSeatDialog(
       context,
       user: user,
       isOwner: _isOwner,
       isOwnerOrModerator: _isOwnerOrModerator,
+      canKickAndMicDown: canKickAndMicDown,
       isMuted: seat.isMuted,
       isAdmin: user.isAdmin,
       isBlacked: user.isBlacked,
@@ -2437,6 +2456,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _kickOffMic(int idx) {
     final kickedUid = _seats[idx].user?.id;
+    if (kickedUid != null && !_isOwner) {
+      final isTargetOwner = kickedUid == _currentRoom?.hostUid;
+      final isTargetModerator = _moderators.contains(kickedUid);
+      if (isTargetOwner || isTargetModerator) {
+        final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isAr ? 'لا يمكنك إنزال مالك الغرفة أو المشرفين من المايك' : 'Cannot kick owner or moderators off mic')),
+        );
+        return;
+      }
+    }
 
     if (kickedUid == _currentUserId || idx == _currentUserSeatIndex) {
       _takingSeat = false;
@@ -2459,10 +2489,150 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _inviteToMic(int idx) {
-    // Open invite UI — stub
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Invited to seat $idx')));
+    if (idx >= _seats.length || _seats[idx].isOccupied) {
+      final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isAr ? 'المقعد مشغول بالفعل' : 'Seat is already occupied')),
+      );
+      return;
+    }
+
+    final seatedUids = _seats.where((s) => s.isOccupied && s.user?.id != null).map((s) => s.user!.id!).toSet();
+    final candidateMembers = _roomMembers.where((m) => m.uid != _currentUserId && !seatedUids.contains(m.uid)).toList();
+
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.6),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E1B26),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      isAr ? 'دعوة مستخدم للمايك #${idx + 1}' : 'Invite User to Mic #${idx + 1}',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white54),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white12, height: 1),
+              if (candidateMembers.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+                  child: Text(
+                    isAr ? 'لا يوجد أعضاء متاحون للدعوة حالياً' : 'No available members to invite',
+                    style: const TextStyle(color: Colors.white54, fontSize: 14),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: candidateMembers.length,
+                    itemBuilder: (context, i) {
+                      final m = candidateMembers[i];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.white10,
+                          backgroundImage: m.photoUrl.isNotEmpty ? CachedNetworkImageProvider(m.photoUrl) : null,
+                          child: m.photoUrl.isEmpty ? const Icon(Icons.person, color: Colors.white54) : null,
+                        ),
+                        title: Text(m.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                        subtitle: Text('ID: ${m.customId.isNotEmpty ? m.customId : m.uid}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                        trailing: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFC525),
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _firebaseService.sendSeatInvite(
+                              widget.roomId,
+                              inviterUid: _currentUserId ?? '',
+                              inviterName: _currentUserName ?? 'المشرف',
+                              targetUid: m.uid,
+                              targetName: m.name,
+                              seatIndex: idx,
+                            );
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(content: Text(isAr ? 'تم إرسال الدعوة إلى ${m.name}' : 'Invitation sent to ${m.name}')),
+                            );
+                          },
+                          child: Text(isAr ? 'دعوة' : 'Invite'),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSeatInviteDialog(String inviterName, int seatIndex) {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF231E34),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.mic, color: Color(0xFFFFC525)),
+            const SizedBox(width: 8),
+            Text(
+              isAr ? 'دعوة للصعود على المايك' : 'Mic Seat Invitation',
+              style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          isAr
+              ? 'قام $inviterName بدعوتك للصعود على المايك رقم ${seatIndex + 1}.\nهل توافق على الصعود؟'
+              : '$inviterName invited you to take mic #${seatIndex + 1}.\nDo you accept?',
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(isAr ? 'رفض' : 'Decline', style: const TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFC525),
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              _takeMic(seatIndex);
+            },
+            child: Text(isAr ? 'موافقة' : 'Accept'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _toggleSeatLock(int idx, bool locked) {
@@ -2499,6 +2669,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _showKickDialog(UserModel user, [int? seatIdx]) {
+    final targetUid = user.id;
+    if (targetUid != null && !_isOwner) {
+      final isTargetOwner = targetUid == _currentRoom?.hostUid;
+      final isTargetModerator = _moderators.contains(targetUid);
+      if (isTargetOwner || isTargetModerator) {
+        final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isAr ? 'لا يمكنك طرد مالك الغرفة أو المشرفين' : 'Cannot kick room owner or moderators')),
+        );
+        return;
+      }
+    }
+
     bool addToBlacklist = false;
     showDialog(
       context: context,
@@ -3198,6 +3381,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               BottomBar(
                 isMicOn: _isMicOn,
                 showMic: _currentUserSeat != null,
+                showMusic: _isOwnerOrModerator,
                 msgCount: _msgCount,
                 onChat: () {
                   if (_currentRoom?.isChatLocked == true && !_isOwnerOrModerator) {
@@ -3475,6 +3659,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 isModerator: _isOwnerOrModerator,
                 isRoomOwner: _isOwner,
                 isTargetModerator: _selectedUser?.id != null && _moderators.contains(_selectedUser!.id!),
+                isTargetRoomOwner: _selectedUser?.id != null && _selectedUser!.id == _currentRoom?.hostUid,
                 isBlocked: _selectedUser?.id != null && _blockedUsers.contains(_selectedUser!.id!),
                 currentUserId: _currentUserId,
                 onClose: () => setState(() {
@@ -6179,6 +6364,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   // ── Share dialog ───────────────────────────────────────────────
   Widget _buildShare() {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+    final shareText = isAr
+        ? 'انضم إلى غرفتي "${widget.roomName}" في تطبيق أحلى لايف!\nhttps://ahla.live/room/${widget.roomId}'
+        : 'Join my room "${widget.roomName}" on Ahla Live!\nhttps://ahla.live/room/${widget.roomId}';
+
     return Positioned.fill(
       child: GestureDetector(
         onTap: () => setState(() => _showShare = false),
@@ -6189,9 +6379,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             onTap: () {},
             child: Container(
               width: double.infinity,
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
               decoration: const BoxDecoration(
-                color: Color(0xFF211211),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                color: Color(0xFF1E1B26),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
               ),
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
               child: SafeArea(
@@ -6199,39 +6390,147 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Share Room',
-                      style: TextStyle(
+                    Text(
+                      isAr ? 'مشاركة الغرفة' : 'Share Room',
+                      style: const TextStyle(
                         fontSize: 16,
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+                    // External share options
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _buildShareItem('WhatsApp', Icons.chat, Colors.green),
-                        _buildShareItem('Facebook', Icons.facebook, Colors.blue),
-                        _buildShareItem('Twitter', Icons.flutter_dash, Colors.lightBlue),
-                        _buildShareItem('Copy Link', Icons.link, Colors.grey),
+                        _buildShareItem(
+                          'واتساب',
+                          Icons.chat,
+                          const Color(0xFF25D366),
+                          onTap: () async {
+                            final uri = Uri.parse('whatsapp://send?text=${Uri.encodeComponent(shareText)}');
+                            final webUri = Uri.parse('https://api.whatsapp.com/send?text=${Uri.encodeComponent(shareText)}');
+                            try {
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              } else if (await canLaunchUrl(webUri)) {
+                                await launchUrl(webUri, mode: LaunchMode.externalApplication);
+                              }
+                            } catch (_) {}
+                          },
+                        ),
+                        _buildShareItem(
+                          isAr ? 'نسخ الرابط' : 'Copy Link',
+                          Icons.link,
+                          Colors.blueGrey,
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: 'https://ahla.live/room/${widget.roomId}'));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(isAr ? 'تم نسخ رابط الغرفة' : 'Room link copied')),
+                            );
+                            setState(() => _showShare = false);
+                          },
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+                    const Divider(color: Colors.white12),
+                    // Friends sharing section
+                    Align(
+                      alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Text(
+                        isAr ? 'إرسال للأصدقاء (رسالة خاصة)' : 'Send to Friends (Private Chat)',
+                        style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _firebaseService.getFollowing(_currentUserId ?? ''),
+                        builder: (ctx, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Center(child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: CircularProgressIndicator(color: Color(0xFFFFC525)),
+                            ));
+                          }
+                          final friends = snap.data ?? [];
+                          if (friends.isEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Text(
+                                isAr ? 'لا يوجد أصدقاء متابعون حالياً' : 'No followed friends found',
+                                style: const TextStyle(color: Colors.white38, fontSize: 13),
+                              ),
+                            );
+                          }
+                          return ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: friends.length,
+                            itemBuilder: (ctx, i) {
+                              final f = friends[i];
+                              final fUid = f['uid']?.toString() ?? f['id']?.toString() ?? '';
+                              final fName = f['name']?.toString() ?? 'صديق';
+                              final fPhoto = f['photo_url']?.toString() ?? f['avatar']?.toString() ?? '';
+                              return ListTile(
+                                dense: true,
+                                leading: CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: Colors.white10,
+                                  backgroundImage: fPhoto.isNotEmpty ? CachedNetworkImageProvider(fPhoto) : null,
+                                  child: fPhoto.isEmpty ? const Icon(Icons.person, color: Colors.white54, size: 18) : null,
+                                ),
+                                title: Text(fName, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                                trailing: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFFFC525),
+                                    foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                                    minimumSize: const Size(60, 28),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  ),
+                                  onPressed: () async {
+                                    final curUser = Provider.of<UserProvider>(context, listen: false).currentUser;
+                                    await _firebaseService.sendPrivateMessage(
+                                      senderId: _currentUserId ?? '',
+                                      senderName: curUser?.name ?? _currentUserName ?? '',
+                                      senderPhotoUrl: curUser?.photoUrl ?? '',
+                                      receiverId: fUid,
+                                      receiverName: fName,
+                                      receiverPhotoUrl: fPhoto,
+                                      text: isAr
+                                          ? 'تعال إلى غرفتي "${widget.roomName}" الآن! رابط الغرفة: https://ahla.live/room/${widget.roomId}'
+                                          : 'Join my room "${widget.roomName}" now! Link: https://ahla.live/room/${widget.roomId}',
+                                    );
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(isAr ? 'تمت مشاركة الغرفة مع $fName' : 'Shared room with $fName')),
+                                      );
+                                    }
+                                  },
+                                  child: Text(isAr ? 'إرسال' : 'Send', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     GestureDetector(
                       onTap: () => setState(() => _showShare = false),
                       child: Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: Colors.white24,
+                          color: Colors.white12,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         alignment: Alignment.center,
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(
-                            fontSize: 15,
+                        child: Text(
+                          isAr ? 'إغلاق' : 'Close',
+                          style: const TextStyle(
+                            fontSize: 14,
                             color: Colors.white,
                           ),
                         ),
@@ -6247,28 +6546,31 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildShareItem(String label, IconData icon, Color color) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
+  Widget _buildShareItem(String label, IconData icon, Color color, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 26),
           ),
-          child: Icon(icon, color: Colors.white, size: 28),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.white,
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.white,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

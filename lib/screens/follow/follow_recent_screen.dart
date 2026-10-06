@@ -245,10 +245,18 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
               )
             else
               GestureDetector(
-                onTap: () {
+                onTap: () async {
+                  final myUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+                  if (myUid == null || myUid.isEmpty || id.isEmpty) return;
+                  final currentlyFollowed = item['is_followed'] as bool? ?? false;
                   setState(() {
-                    item['is_followed'] = !(item['is_followed'] as bool? ?? false);
+                    item['is_followed'] = !currentlyFollowed;
                   });
+                  if (currentlyFollowed) {
+                    await supabase.unfollowUser(myUid, id);
+                  } else {
+                    await supabase.followUser(myUid, id);
+                  }
                 },
                 child: Container(
                   width: 71, height: 31,
