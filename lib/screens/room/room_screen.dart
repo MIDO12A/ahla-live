@@ -2551,7 +2551,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: Colors.white10,
-                          backgroundImage: m.photoUrl.isNotEmpty ? CachedNetworkImageProvider(m.photoUrl) : null,
+                          backgroundImage: m.photoUrl.isNotEmpty ? R.cachedImage(m.photoUrl) : null,
                           child: m.photoUrl.isEmpty ? const Icon(Icons.person, color: Colors.white54) : null,
                         ),
                         title: Text(m.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
@@ -6477,7 +6477,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 leading: CircleAvatar(
                                   radius: 18,
                                   backgroundColor: Colors.white10,
-                                  backgroundImage: fPhoto.isNotEmpty ? CachedNetworkImageProvider(fPhoto) : null,
+                                  backgroundImage: fPhoto.isNotEmpty ? R.cachedImage(fPhoto) : null,
                                   child: fPhoto.isEmpty ? const Icon(Icons.person, color: Colors.white54, size: 18) : null,
                                 ),
                                 title: Text(fName, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),

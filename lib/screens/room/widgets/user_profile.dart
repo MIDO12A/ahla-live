@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -143,7 +144,10 @@ class _UserProfileState extends State<UserProfile> {
         }
       }
       if (widget.currentUserId != null && widget.currentUserId!.isNotEmpty && widget.currentUserId != uid) {
-        unawaited(svc.recordProfileVisit(uid, widget.currentUserId!));
+        unawaited(svc.recordProfileVisit(
+          visitedUid: uid,
+          visitorUid: widget.currentUserId!,
+        ));
       }
       try {
         final sbUser = await SupabaseDataService().getUser(uid);

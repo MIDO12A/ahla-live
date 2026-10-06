@@ -263,8 +263,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           if (myUid != null && myUid.isNotEmpty && myUid != targetUser.uid) {
             final myUser = userProv.currentUser;
             unawaited(_supabase.recordProfileVisit(
-              targetUser.uid,
-              myUid,
+              visitedUid: targetUser.uid,
+              visitorUid: myUid,
               visitorName: myUser?.name,
               visitorPhoto: myUser?.photoUrl,
             ));
