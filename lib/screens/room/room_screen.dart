@@ -3050,6 +3050,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final currentUser = Provider.of<UserProvider>(context).currentUser;
     final navH = MediaQuery.of(context).padding.bottom;
     final sizeH = MediaQuery.of(context).size.height;
 

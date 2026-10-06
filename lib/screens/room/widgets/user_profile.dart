@@ -6,6 +6,7 @@ import '../../../config/r.dart';
 import '../../../config/app_colors.dart';
 import '../../../services/level_service.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/supabase_data_service.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/widgets/cached_image.dart';
