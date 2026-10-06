@@ -24,6 +24,7 @@ import 'cloudinary_service.dart';
 import 'agency_target_evaluator.dart';
 import 'supabase_auth_service.dart';
 import 'supabase_data_service.dart';
+import '../core/supabase_compat.dart';
 
 /// Firebase (Firestore) implementation of the app's data layer.
 ///
@@ -2899,13 +2900,49 @@ class FirebaseService {
     String? imageUrl,
     String type = 'text',
   }) async {
-    // 1. التحقق من الحظر بشكل آمن
+    // 0. Ensure Firebase anonymous auth is active so Firestore rules never reject
     try {
-      final blockDoc = await _db.collection('blocks').doc('${receiverId}_$senderId').get();
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+    } catch (e) {
+      debugPrint('[sendPrivateMessage] FirebaseAuth signInAnonymously: $e');
+    }
+
+    // 0.1 Resolve numeric customId to canonical auth UID if applicable
+    String resolvedSenderId = senderId.trim();
+    String resolvedReceiverId = receiverId.trim();
+
+    if (RegExp(r'^\d+$').hasMatch(resolvedReceiverId)) {
+      try {
+        final snap = await _db.collection('users').where('custom_id', isEqualTo: resolvedReceiverId).limit(1).get();
+        if (snap.docs.isNotEmpty) {
+          resolvedReceiverId = snap.docs.first.id;
+        } else {
+          final sUser = await SupabaseDataService().findUserByIdOrCustomId(resolvedReceiverId);
+          if (sUser != null && sUser.uid.isNotEmpty) {
+            resolvedReceiverId = sUser.uid;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (RegExp(r'^\d+$').hasMatch(resolvedSenderId)) {
+      try {
+        final snap = await _db.collection('users').where('custom_id', isEqualTo: resolvedSenderId).limit(1).get();
+        if (snap.docs.isNotEmpty) {
+          resolvedSenderId = snap.docs.first.id;
+        }
+      } catch (_) {}
+    }
+
+    // 1. Block checks
+    try {
+      final blockDoc = await _db.collection('blocks').doc('${resolvedReceiverId}_$resolvedSenderId').get();
       if (blockDoc.exists) {
         throw Exception('لا يمكنك إرسال رسالة لأن هذا المستخدم قام بحظرك.');
       }
-      final myBlockDoc = await _db.collection('blocks').doc('${senderId}_$receiverId').get();
+      final myBlockDoc = await _db.collection('blocks').doc('${resolvedSenderId}_$resolvedReceiverId').get();
       if (myBlockDoc.exists) {
         throw Exception('لقد قمت بحظر هذا المستخدم. يجب إزالة الحظر أولاً.');
       }
@@ -2914,15 +2951,16 @@ class FirebaseService {
       debugPrint('[sendPrivateMessage] block check ignored: $e');
     }
 
-    final convId = await _getOrCreateConversationId(senderId, receiverId);
+    final convId = await _getOrCreateConversationId(resolvedSenderId, resolvedReceiverId);
     final msgId = const Uuid().v4();
     final sName = senderName.isNotEmpty ? senderName : 'مستخدم';
     final rName = receiverName.isNotEmpty ? receiverName : 'مستخدم';
     final nowMillis = DateTime.now().millisecondsSinceEpoch;
+    final isoDate = DateTime.fromMillisecondsSinceEpoch(nowMillis).toUtc().toIso8601String();
 
     final msg = MessageModel(
       msgId: msgId,
-      senderUid: senderId,
+      senderUid: resolvedSenderId,
       senderName: sName,
       senderPhotoUrl: senderPhotoUrl,
       text: text,
@@ -2933,16 +2971,38 @@ class FirebaseService {
     final data = msg.toMap();
     data['conv_id'] = convId;
     data['id'] = msgId;
+    data['timestamp'] = nowMillis;
+    data['created_at'] = isoDate;
 
-    // 2. حفظ الرسالة في private_messages
-    await _db.collection('private_messages').doc(msgId).set(data);
-
-    // 3. تحديث محادثة المرسل
+    // 2. Write to Firestore private_messages
     try {
-      await _db.collection('conversations').doc('${senderId}_$convId').set({
-        'uid': senderId,
+      await _db.collection('private_messages').doc(msgId).set(data);
+    } catch (e) {
+      debugPrint('[sendPrivateMessage] Firestore private_messages error: $e');
+    }
+
+    // 2.1 Sync to Supabase private_messages
+    try {
+      await Supabase.instance.client.from('private_messages').insert({
+        'id': msgId,
+        'conv_id': convId,
+        'sender_uid': resolvedSenderId,
+        'sender_name': sName,
+        'sender_photo_url': senderPhotoUrl,
+        'text': text,
+        'image_url': imageUrl,
+        'created_at': isoDate,
+      });
+    } catch (e) {
+      debugPrint('[sendPrivateMessage] Supabase private_messages insert error: $e');
+    }
+
+    // 3. Sender conversation in Firestore
+    try {
+      await _db.collection('conversations').doc('${resolvedSenderId}_$convId').set({
+        'uid': resolvedSenderId,
         'conversationId': convId,
-        'otherUid': receiverId,
+        'otherUid': resolvedReceiverId,
         'otherName': rName,
         'otherPhotoUrl': receiverPhotoUrl,
         'lastMessage': type == 'image' ? '[صورة]' : text,
@@ -2953,12 +3013,12 @@ class FirebaseService {
       debugPrint('[sendPrivateMessage] sender conversation error: $e');
     }
 
-    // 4. تحديث محادثة المستقبل
+    // 4. Receiver conversation in Firestore
     try {
-      await _db.collection('conversations').doc('${receiverId}_$convId').set({
-        'uid': receiverId,
+      await _db.collection('conversations').doc('${resolvedReceiverId}_$convId').set({
+        'uid': resolvedReceiverId,
         'conversationId': convId,
-        'otherUid': senderId,
+        'otherUid': resolvedSenderId,
         'otherName': sName,
         'otherPhotoUrl': senderPhotoUrl,
         'lastMessage': type == 'image' ? '[صورة]' : text,
@@ -2966,40 +3026,212 @@ class FirebaseService {
         'unreadCount': FieldValue.increment(1),
       }, SetOptions(merge: true));
     } catch (e) {
-      debugPrint('[sendPrivateMessage] receiver conversation non-fatal error: $e');
+      debugPrint('[sendPrivateMessage] receiver conversation error: $e');
+    }
+
+    // 4.1 Sync to Supabase conversations table
+    try {
+      await Supabase.instance.client.from('conversations').upsert([
+        {
+          'uid': resolvedSenderId,
+          'conv_id': convId,
+          'last_message': type == 'image' ? '[صورة]' : text,
+          'last_sender_uid': resolvedSenderId,
+          'last_timestamp': isoDate,
+          'unread_count': 0,
+        },
+        {
+          'uid': resolvedReceiverId,
+          'conv_id': convId,
+          'last_message': type == 'image' ? '[صورة]' : text,
+          'last_sender_uid': resolvedSenderId,
+          'last_timestamp': isoDate,
+          'unread_count': 1,
+        }
+      ]);
+    } catch (e) {
+      debugPrint('[sendPrivateMessage] Supabase conversations upsert error: $e');
     }
   }
 
   Stream<List<Map<String, dynamic>>> conversationsStream(String uid) {
-    return _db
-        .collection('conversations')
-        .where('uid', isEqualTo: uid)
-        .snapshots()
-        .map((snap) {
-      final convs = snap.docs.map((e) => Map<String, dynamic>.from(e.data())).toList();
-      convs.sort((a, b) {
+    final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+    final Map<String, Map<String, dynamic>> convsMap = {};
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      final list = convsMap.values.toList();
+      list.sort((a, b) {
         final at = a['lastMessageTime'] as int? ?? 0;
         final bt = b['lastMessageTime'] as int? ?? 0;
         return bt.compareTo(at);
       });
-      return convs;
-    }).handleError((_) => <Map<String, dynamic>>[]);
+      controller.add(list);
+    }
+
+    // 1. Fetch from Supabase conversations
+    Future<void> fetchSupabase() async {
+      try {
+        final rows = await Supabase.instance.client
+            .from('conversations')
+            .select('*')
+            .eq('uid', uid);
+        for (final r in rows) {
+          final cId = r['conv_id']?.toString() ?? '';
+          if (cId.isEmpty) continue;
+          final parts = cId.split('_');
+          final otherUid = parts.firstWhere((p) => p != uid, orElse: () => '');
+          int timeMillis = 0;
+          if (r['last_timestamp'] != null) {
+            timeMillis = DateTime.tryParse(r['last_timestamp'].toString())?.millisecondsSinceEpoch ?? 0;
+          }
+          final key = '${uid}_$cId';
+          if (!convsMap.containsKey(key) || (timeMillis > (convsMap[key]?['lastMessageTime'] as int? ?? 0))) {
+            convsMap[key] = {
+              'uid': uid,
+              'conversationId': cId,
+              'otherUid': otherUid,
+              'otherName': 'مستخدم',
+              'otherPhotoUrl': '',
+              'lastMessage': r['last_message']?.toString() ?? '',
+              'lastMessageTime': timeMillis,
+              'unreadCount': r['unread_count'] as int? ?? 0,
+            };
+          }
+        }
+        emitMerged();
+      } catch (_) {}
+    }
+
+    fetchSupabase();
+    final pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => fetchSupabase());
+
+    // 2. Ensure Firebase anonymous auth before listening to Firestore
+    try {
+      if (FirebaseAuth.instance.currentUser == null) {
+        FirebaseAuth.instance.signInAnonymously().catchError((_) => null as dynamic);
+      }
+    } catch (_) {}
+
+    // 3. Listen to Firestore conversations
+    StreamSubscription? firestoreSub;
+    try {
+      firestoreSub = _db
+          .collection('conversations')
+          .where('uid', isEqualTo: uid)
+          .snapshots()
+          .listen((snap) {
+        for (final doc in snap.docs) {
+          final data = Map<String, dynamic>.from(doc.data());
+          final cId = data['conversationId']?.toString() ?? doc.id;
+          final key = '${uid}_$cId';
+          convsMap[key] = data;
+        }
+        emitMerged();
+      }, onError: (err) {
+        debugPrint('[conversationsStream] Firestore error: $err');
+      });
+    } catch (e) {
+      debugPrint('[conversationsStream] Firestore subscribe error: $e');
+    }
+
+    controller.onCancel = () {
+      pollTimer.cancel();
+      firestoreSub?.cancel();
+    };
+
+    return controller.stream;
   }
 
   Stream<List<MessageModel>> privateMessagesStream(String conversationId) {
-    return _db
-        .collection('private_messages')
-        .where('conv_id', isEqualTo: conversationId)
-        .snapshots()
-        .map((snap) {
-      final msgs = snap.docs.map((e) => MessageModel.fromMap(_data(e))).toList();
-      msgs.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      return msgs;
-    }).handleError((_) => <MessageModel>[]);
+    final controller = StreamController<List<MessageModel>>.broadcast();
+    final Map<String, MessageModel> msgMap = {};
+
+    void emitMerged() {
+      if (controller.isClosed) return;
+      final list = msgMap.values.toList();
+      list.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      controller.add(list);
+    }
+
+    // 1. Fetch from Supabase
+    Future<void> fetchSupabase() async {
+      try {
+        final rows = await Supabase.instance.client
+            .from('private_messages')
+            .select('*')
+            .eq('conv_id', conversationId);
+        for (final r in rows) {
+          final m = MessageModel(
+            msgId: r['id']?.toString() ?? '',
+            senderUid: r['sender_uid']?.toString() ?? '',
+            senderName: r['sender_name']?.toString() ?? '',
+            senderPhotoUrl: r['sender_photo_url']?.toString() ?? '',
+            text: r['text']?.toString() ?? '',
+            imageUrl: r['image_url']?.toString(),
+            type: (r['image_url'] != null && r['image_url'].toString().isNotEmpty) ? 'image' : 'text',
+            timestamp: r['created_at'] != null
+                ? (DateTime.tryParse(r['created_at'].toString())?.millisecondsSinceEpoch ?? 0)
+                : 0,
+          );
+          if (m.msgId.isNotEmpty) {
+            msgMap[m.msgId] = m;
+          }
+        }
+        emitMerged();
+      } catch (_) {}
+    }
+
+    fetchSupabase();
+    final pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => fetchSupabase());
+
+    // 2. Ensure Firebase anonymous auth before listening to Firestore
+    try {
+      if (FirebaseAuth.instance.currentUser == null) {
+        FirebaseAuth.instance.signInAnonymously().catchError((_) => null as dynamic);
+      }
+    } catch (_) {}
+
+    // 3. Listen to Firestore
+    StreamSubscription? firestoreSub;
+    try {
+      firestoreSub = _db
+          .collection('private_messages')
+          .where('conv_id', isEqualTo: conversationId)
+          .snapshots()
+          .listen((snap) {
+        for (final doc in snap.docs) {
+          final m = MessageModel.fromMap(_data(doc));
+          final key = m.msgId.isNotEmpty ? m.msgId : doc.id;
+          msgMap[key] = m;
+        }
+        emitMerged();
+      }, onError: (err) {
+        debugPrint('[privateMessagesStream] Firestore error: $err');
+      });
+    } catch (e) {
+      debugPrint('[privateMessagesStream] Firestore error: $e');
+    }
+
+    controller.onCancel = () {
+      pollTimer.cancel();
+      firestoreSub?.cancel();
+    };
+
+    return controller.stream;
   }
 
   Future<void> markConversationRead(String uid, String conversationId) async {
-    await _db.collection('conversations').doc('${uid}_$conversationId').update({'unreadCount': 0});
+    try {
+      await _db.collection('conversations').doc('${uid}_$conversationId').update({'unreadCount': 0});
+    } catch (_) {}
+    try {
+      await Supabase.instance.client
+          .from('conversations')
+          .update({'unread_count': 0})
+          .eq('uid', uid)
+          .eq('conv_id', conversationId);
+    } catch (_) {}
   }
 
   // ═══════════════════════════════════════════════════════

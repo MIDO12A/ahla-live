@@ -4,6 +4,10 @@ import '../../../config/r.dart';
 import '../../../providers/user_provider.dart';
 import '../models/task_model.dart';
 import '../services/task_service.dart';
+import '../../../screens/mall/mall_screen.dart';
+import '../../../screens/wallet/wallet_main_screen.dart';
+import '../../../screens/login/edit_profile_screen.dart';
+import '../../../utils/app_action_navigator.dart';
 
 /// شاشة مركز المهام (Task Center) — مطابقة تماماً لتصميم act_tasks.xml و frag_task.xml و item_task.xml
 class DailyTasksScreen extends StatefulWidget {
@@ -71,20 +75,31 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
 
     if (task.isCompleted) return;
 
-    Navigator.of(context).pop();
-    switch (task.actionRoute) {
-      case 'room':
-        break;
-      case 'gift':
-      case 'lucky_gift':
-        break;
+    final route = task.actionRoute.toLowerCase().trim();
+    switch (route) {
       case 'recharge':
+      case 'wallet':
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletMainScreen()));
         break;
       case 'store':
+      case 'mall':
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const MallScreen()));
         break;
       case 'profile':
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen()));
+        break;
+      case 'room':
+      case 'gift':
+      case 'lucky_gift':
+        // Pop task screen so the user returns to current voice room or room list
+        Navigator.of(context).pop();
         break;
       default:
+        if (route.isNotEmpty && route != 'none') {
+          AppActionNavigator.handleAction(context, actionValue: route);
+        } else {
+          Navigator.of(context).pop();
+        }
         break;
     }
   }

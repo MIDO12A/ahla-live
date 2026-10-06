@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -212,7 +213,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         if (targetUser == null) {
           try {
             final snap = await FirebaseFirestore.instance.collection('users').where('custom_id', isEqualTo: uid).limit(1).get();
-            if (snap.docs.isNotEmpty && snap.docs.first.data() != null) {
+            if (snap.docs.isNotEmpty) {
               targetUser = UserModel.fromMap({...snap.docs.first.data(), 'uid': snap.docs.first.id});
             }
           } catch (_) {}
@@ -263,9 +264,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           final necklacesFuture = _supabase.getNecklacesCatalog().catchError((_) => <Map<String, dynamic>>[]);
           final giftsCatalogFuture = _supabase.getGiftsCatalog().catchError((_) => <String, gm.GiftModel>{});
           final receivedGiftsFuture = _supabase.getReceivedGifts(queryUid).catchError((_) => <gm.SentGiftModel>[]);
-          final followingFuture = _supabase.getFollowing(queryUid).catchError((_) => <UserModel>[]);
-          final fansFuture = _supabase.getFans(queryUid).catchError((_) => <UserModel>[]);
-          final visitorsFuture = _supabase.getVisitors(queryUid).catchError((_) => <UserModel>[]);
+          final followingFuture = _supabase.getFollowing(queryUid).catchError((_) => <Map<String, dynamic>>[]);
+          final fansFuture = _supabase.getFans(queryUid).catchError((_) => <Map<String, dynamic>>[]);
+          final visitorsFuture = _supabase.getVisitors(queryUid).catchError((_) => <Map<String, dynamic>>[]);
           final roomMemberFuture = Supabase.instance.client
               .from('room_members')
               .select('room_id')
@@ -304,9 +305,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         final nList = results[2] as List<Map<String, dynamic>>;
         final giftCatalog = results[3] as Map<String, gm.GiftModel>;
         final gifts = results[4] as List<gm.SentGiftModel>;
-        final fList = results[5] as List<UserModel>;
-        final fansList = results[6] as List<UserModel>;
-        final vList = results[7] as List<UserModel>;
+        final fList = results[5] as List<dynamic>;
+        final fansList = results[6] as List<dynamic>;
+        final vList = results[7] as List<dynamic>;
         final roomMember = results[8] as Map<String, dynamic>?;
         final cpResult = results[9] as Map<String, dynamic>;
         final memberRow = results[10] as Map<String, dynamic>?;
@@ -364,59 +365,61 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         }
 
         // Store items to match owned frames & rides (merged with user_backpack & ownedLevelFrames & VIP items)
-        final ownedSet = targetUser.ownedItems.toSet();
-        for (final f in targetUser.ownedLevelFrames) {
+        final u = targetUser;
+        final uFrame = u.activeFrame;
+        final uCar = u.activeCar;
+        final uEntrance = u.activeEntrance;
+        final uVipItems = u.ownedVipItems;
+
+        final ownedSet = u.ownedItems.toSet();
+        for (final f in u.ownedLevelFrames) {
           if (f.isNotEmpty) ownedSet.add(f);
         }
         for (final b in backpackList) {
           final bId = b['item_id']?.toString() ?? b['itemId']?.toString() ?? '';
           if (bId.isNotEmpty) ownedSet.add(bId);
         }
-        if (targetUser.activeFrame != null && targetUser.activeFrame!.isNotEmpty) {
-          ownedSet.add(targetUser.activeFrame!);
+        if (uFrame != null && uFrame.isNotEmpty) {
+          ownedSet.add(uFrame);
         }
-        if (targetUser.activeCar != null && targetUser.activeCar!.isNotEmpty) {
-          ownedSet.add(targetUser.activeCar!);
+        if (uCar != null && uCar.isNotEmpty) {
+          ownedSet.add(uCar);
         }
-        if (targetUser.activeEntrance != null && targetUser.activeEntrance!.isNotEmpty) {
-          ownedSet.add(targetUser.activeEntrance!);
+        if (uEntrance != null && uEntrance.isNotEmpty) {
+          ownedSet.add(uEntrance);
         }
 
         final frames = allStoreItems.where((i) => i.category == 'frame' && (
           ownedSet.contains(i.itemId) ||
-          i.itemId == targetUser.activeFrame ||
-          i.svgaAsset == targetUser.activeFrame ||
+          (uFrame != null && (i.itemId == uFrame || i.svgaAsset == uFrame)) ||
           backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId))
         )).toList();
 
         final rides = allStoreItems.where((i) => (i.category == 'car' || i.category == 'entrance') && (
           ownedSet.contains(i.itemId) ||
-          i.itemId == targetUser.activeCar ||
-          i.svgaAsset == targetUser.activeCar ||
-          i.itemId == targetUser.activeEntrance ||
-          i.svgaAsset == targetUser.activeEntrance ||
+          (uCar != null && (i.itemId == uCar || i.svgaAsset == uCar)) ||
+          (uEntrance != null && (i.itemId == uEntrance || i.svgaAsset == uEntrance)) ||
           backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId))
         )).toList();
 
         // Ensure active frame appears in frames tab
-        if (targetUser.activeFrame != null && targetUser.activeFrame!.isNotEmpty) {
-          final fPath = resolvedFrame ?? targetUser.activeFrame!;
-          if (!frames.any((f) => f.itemId == targetUser.activeFrame || f.itemId == fPath || f.svgaAsset == fPath)) {
+        if (uFrame != null && uFrame.isNotEmpty) {
+          final fPath = resolvedFrame ?? uFrame;
+          if (!frames.any((f) => f.itemId == uFrame || f.itemId == fPath || f.svgaAsset == fPath)) {
             frames.insert(0, StoreItemModel(
-              itemId: targetUser.activeFrame!,
+              itemId: uFrame,
               category: 'frame',
               name: 'إطار مفعّل',
               svgaAsset: fPath.contains('.svga') ? fPath : null,
               iconAsset: fPath,
               price: 0,
-              days: 30,
             ));
           }
         }
 
         // Ensure active car appears in rides tab
-        if (targetUser.activeCar != null && targetUser.activeCar!.isNotEmpty) {
-          final cPath = targetUser.activeCar!;
+        if (uCar != null && uCar.isNotEmpty) {
+          final cPath = uCar;
           if (!rides.any((r) => r.itemId == cPath || r.svgaAsset == cPath)) {
             rides.insert(0, StoreItemModel(
               itemId: cPath,
@@ -425,14 +428,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               svgaAsset: cPath.contains('.svga') ? cPath : null,
               iconAsset: cPath,
               price: 0,
-              days: 30,
             ));
           }
         }
 
         // Ensure active entrance effect appears in rides tab
-        if (targetUser.activeEntrance != null && targetUser.activeEntrance!.isNotEmpty) {
-          final ePath = targetUser.activeEntrance!;
+        if (uEntrance != null && uEntrance.isNotEmpty) {
+          final ePath = uEntrance;
           if (!rides.any((r) => r.itemId == ePath || r.svgaAsset == ePath)) {
             rides.insert(0, StoreItemModel(
               itemId: ePath,
@@ -441,13 +443,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               svgaAsset: ePath.contains('.svga') ? ePath : null,
               iconAsset: ePath,
               price: 0,
-              days: 30,
             ));
           }
         }
 
         // Add VIP items to frames & rides
-        for (final vip in targetUser.ownedVipItems) {
+        for (final vip in uVipItems) {
           final vType = vip['type']?.toString();
           final vUrl = vip['url']?.toString() ?? '';
           final vName = vip['name']?.toString() ?? vip['title']?.toString() ?? '';
@@ -460,7 +461,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 svgaAsset: vUrl.contains('.svga') ? vUrl : null,
                 iconAsset: vUrl,
                 price: 0,
-                days: 30,
               ));
             }
           } else if ((vType == 'car' || vType == 'entrance') && vUrl.isNotEmpty) {
@@ -472,7 +472,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 svgaAsset: vUrl.contains('.svga') ? vUrl : null,
                 iconAsset: vUrl,
                 price: 0,
-                days: 30,
               ));
             }
           }
@@ -1241,11 +1240,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
     _ensureBannerTimer(photos.length);
 
-    final hasVip = user.ownedVipItems.isNotEmpty ||
-        (_resolvedNecklacePath != null && _resolvedNecklacePath!.isNotEmpty) ||
-        (user.activeNecklace != null && user.activeNecklace!.isNotEmpty) ||
-        (user.rechargeLevel > 1) ||
-        (user.rechargeExp > 0);
 
     return Scaffold(
       backgroundColor: const Color(0xFF16151A),
@@ -1867,11 +1861,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final wealthCfg = lvlService.getLevelConfig('wealth', user.wealthLevel);
     final gemsCfg = lvlService.getLevelConfig('gems', user.gemsLevel);
 
-    final hasVip = user.ownedVipItems.isNotEmpty ||
-        (_resolvedNecklacePath != null && _resolvedNecklacePath!.isNotEmpty) ||
-        (user.activeNecklace != null && user.activeNecklace!.isNotEmpty) ||
-        (user.rechargeLevel > 1) ||
-        (user.rechargeExp > 0);
 
     return GestureDetector(
       onTap: () {
@@ -3047,6 +3036,9 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _pickImage() async {
+    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+    if (user == null) return;
+
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
@@ -3056,9 +3048,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _sendingImage = true);
     try {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final user = userProvider.currentUser;
-      if (user == null) return;
 
       final imageUrl = await CloudinaryService().uploadImage(
         File(image.path),

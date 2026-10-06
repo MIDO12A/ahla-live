@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/supabase_compat.dart';
 import '../../../providers/user_provider.dart';
 import '../../../services/supabase_data_service.dart';
 import '../models/task_model.dart';
@@ -38,18 +40,52 @@ class TaskService {
       userGrowthData = await SupabaseDataService().getGrowthTasksProgress(userId);
     } catch (_) {}
 
-    // 3. جلب قائمة المهام من قاعدة البيانات مع وجود قائمة افتراضية كاملة
+    // 3. جلب قائمة المهام من لوحة التحكم (Supabase app_config ثم Firestore) مع الاحتياطي الافتراضي
     List<Map<String, dynamic>> rawTasks = [];
     try {
-      final snapshot = await _db.collection('tasks_config').get();
-      if (snapshot.docs.isNotEmpty) {
-        rawTasks = snapshot.docs.map((d) {
-          final data = d.data();
-          data['id'] = d.id;
-          return data;
-        }).toList();
+      final row = await Supabase.instance.client
+          .from('app_config')
+          .select('value')
+          .eq('key', 'tasks_config')
+          .maybeSingle();
+      if (row != null && row['value'] != null) {
+        final val = row['value'];
+        final parsed = val is String ? jsonDecode(val) : val;
+        if (parsed is List) {
+          rawTasks = List<Map<String, dynamic>>.from(parsed.map((e) => Map<String, dynamic>.from(e)));
+        } else if (parsed is Map) {
+          rawTasks = parsed.values.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[TaskService] Supabase tasks_config fetch: $e');
+    }
+
+    if (rawTasks.isEmpty) {
+      try {
+        final doc = await _db.collection('app_config').doc('tasks_config').get();
+        if (doc.exists && doc.data()?['value'] != null) {
+          final val = doc.data()!['value'];
+          final parsed = val is String ? jsonDecode(val) : val;
+          if (parsed is List) {
+            rawTasks = List<Map<String, dynamic>>.from(parsed.map((e) => Map<String, dynamic>.from(e)));
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (rawTasks.isEmpty) {
+      try {
+        final snapshot = await _db.collection('tasks_config').get();
+        if (snapshot.docs.isNotEmpty) {
+          rawTasks = snapshot.docs.map((d) {
+            final data = d.data();
+            data['id'] = d.id;
+            return data;
+          }).toList();
+        }
+      } catch (_) {}
+    }
 
     if (rawTasks.isEmpty) {
       rawTasks = _getDefaultTasks();
@@ -96,6 +132,7 @@ class TaskService {
   /// استلام مكافأة المهمة وإيداع الجوائز فوراً
   Future<bool> claimTaskReward(BuildContext context, String userId, TaskModel task) async {
     if (!task.canClaim) return false;
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
     final today = _getTodayKey();
     final isGrowth = task.group != 'daily';
 
@@ -108,8 +145,7 @@ class TaskService {
         dateKey: today,
       );
 
-      // 2. إيداع العملات ونقاط EXP في حساب المستخدم في Supabase
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      // 2. إيداع العملات ونقاط EXP في حساب المستخدم في Supabase و Firestore
       final currentCoins = userProvider.currentUser?.coins ?? 0;
       final currentExp = userProvider.currentUser?.experience ?? 0;
       final supaUpdates = <String, dynamic>{};
@@ -122,6 +158,9 @@ class TaskService {
       }
       if (supaUpdates.isNotEmpty) {
         await SupabaseDataService().updateUser(userId, supaUpdates);
+        try {
+          await _db.collection('users').doc(userId).set(supaUpdates, SetOptions(merge: true));
+        } catch (_) {}
         await userProvider.loadUser(userId);
       }
 
@@ -152,7 +191,8 @@ class TaskService {
       }
 
       return true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[TaskService] claimTaskReward error: $e');
       return false;
     }
   }
@@ -160,11 +200,38 @@ class TaskService {
   /// جلب رابط بانر الفعالية لمركز المهام
   Future<String?> fetchEventBanner() async {
     try {
+      final row = await Supabase.instance.client
+          .from('app_config')
+          .select('value')
+          .eq('key', 'tasks_event_config')
+          .maybeSingle();
+      if (row != null && row['value'] != null) {
+        final val = row['value'];
+        final parsed = val is String ? jsonDecode(val) : val;
+        if (parsed is Map && parsed['banner_url'] != null) {
+          final b = parsed['banner_url'].toString();
+          if (b.isNotEmpty) return b;
+        }
+      }
+    } catch (_) {}
+
+    try {
       final doc = await _db.collection('settings').doc('tasks_event_config').get();
       if (doc.exists && doc.data() != null) {
         return doc.data()?['banner_url']?.toString();
       }
     } catch (_) {}
+
+    try {
+      final doc = await _db.collection('app_config').doc('tasks_event_config').get();
+      if (doc.exists && doc.data() != null) {
+        final val = doc.data()!['value'] ?? doc.data();
+        if (val is Map && val['banner_url'] != null) {
+          return val['banner_url'].toString();
+        }
+      }
+    } catch (_) {}
+
     return null;
   }
 
