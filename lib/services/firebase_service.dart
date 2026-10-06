@@ -612,35 +612,72 @@ class FirebaseService {
   Stream<List<MessageModel>> messagesStream(String roomId, {String? since}) {
     final controller = StreamController<List<MessageModel>>.broadcast();
     Timer? pollTimer;
+    StreamSubscription? firestoreSub;
     final Map<String, MessageModel> msgMap = {};
+
+    void addMessages(List<MessageModel> list) {
+      if (controller.isClosed) return;
+      bool hasNew = false;
+      for (final m in list) {
+        final key = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}';
+        if (!msgMap.containsKey(key)) {
+          msgMap[key] = m;
+          hasNew = true;
+        }
+      }
+      if (hasNew || msgMap.isNotEmpty) {
+        final sorted = msgMap.values.toList()
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        controller.add(sorted);
+      }
+    }
 
     void fetchSupabase() async {
       try {
         final sinceMs = since != null ? DateTime.tryParse(since)?.millisecondsSinceEpoch : null;
         final list = await SupabaseDataService().getRoomMessages(roomId, limit: 60, sinceMs: sinceMs);
-        if (!controller.isClosed) {
-          bool hasNew = false;
-          for (final m in list) {
-            final key = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}';
-            if (!msgMap.containsKey(key)) {
-              msgMap[key] = m;
-              hasNew = true;
-            }
-          }
-          if (hasNew || msgMap.isNotEmpty) {
-            final sorted = msgMap.values.toList()
-              ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-            controller.add(sorted);
-          }
-        }
+        addMessages(list);
       } catch (_) {}
     }
+
+    // 1. استماع لحظي لـ Firestore room_messages لدعم المزامنة الفورية بين كل مستخدمي الغرفة
+    try {
+      firestoreSub = _db
+          .collection('room_messages')
+          .where('room_id', isEqualTo: roomId)
+          .limit(60)
+          .snapshots()
+          .listen((snap) {
+        final list = snap.docs.map((doc) {
+          final data = doc.data();
+          final createdIso = data['created_at']?.toString() ?? '';
+          final ts = DateTime.tryParse(createdIso)?.millisecondsSinceEpoch ??
+              (data['timestamp'] as num?)?.toInt() ??
+              DateTime.now().millisecondsSinceEpoch;
+          return MessageModel(
+            msgId: doc.id,
+            roomId: data['room_id']?.toString() ?? roomId,
+            senderUid: data['sender_uid']?.toString() ?? '',
+            senderName: data['sender_name']?.toString() ?? '',
+            senderPhotoUrl: data['sender_photo_url']?.toString() ?? '',
+            text: data['text']?.toString() ?? '',
+            type: data['type']?.toString() ?? 'text',
+            timestamp: ts,
+            imageUrl: data['image_url']?.toString(),
+            activeBubble: data['active_bubble']?.toString(),
+            giftPayload: data['gift_payload'] is Map ? Map<String, dynamic>.from(data['gift_payload'] as Map) : null,
+          );
+        }).toList();
+        addMessages(list);
+      }, onError: (_) {});
+    } catch (_) {}
 
     fetchSupabase();
     pollTimer = Timer.periodic(const Duration(milliseconds: 1000), (_) => fetchSupabase());
 
     controller.onCancel = () {
       pollTimer?.cancel();
+      firestoreSub?.cancel();
     };
 
     return controller.stream;
@@ -898,18 +935,25 @@ class FirebaseService {
             if (isBurst) 'rocket_burst_time': DateTime.now().toIso8601String(),
           });
 
-          // Global broadcast for big gifts
-          if (totalCost >= 5000) {
-            txn.set(_db.collection('broadcasts').doc(const Uuid().v4()), {
+          // Global broadcast for room gifts (لافتة الهدايا العامة لجميع الغرف)
+          if (totalCost >= 200) {
+            final bId = const Uuid().v4();
+            final now = DateTime.now();
+            txn.set(_db.collection('broadcasts').doc(bId), {
+              'id': bId,
               'sender_uid': senderId,
               'sender_name': senderName,
               'sender_photo_url': senderPhotoUrl,
+              'receiver_name': receiverName,
               'room_id': roomId,
               'room_name': rm['name']?.toString() ?? 'غرفة صوتية',
-              'content': 'أرسل هدية كبرى: $giftName x$count!',
+              'content': 'أرسل $giftName x$count بقيمة $totalCost عملة!',
+              'gift_name': giftName,
               'gift_icon': defaultImage ?? animationAsset ?? '',
+              'count': count,
               'type': 'big_gift',
-              'created_at': DateTime.now().toIso8601String(),
+              'timestamp': now.millisecondsSinceEpoch,
+              'created_at': now.toUtc().toIso8601String(),
             });
           }
         }
@@ -1066,19 +1110,26 @@ class FirebaseService {
     ).catchError((_) {}));
 
     // بث الهدايا الفاخرة للبانر الماركي العام لجميع الغرف (view_room_all_banner.xml)
-    if (totalCost >= 500) {
+    if (totalCost >= 200) {
       unawaited(Future(() async {
         try {
-          await _db.collection('broadcasts').add({
+          final bId = const Uuid().v4();
+          final now = DateTime.now();
+          await _db.collection('broadcasts').doc(bId).set({
+            'id': bId,
             'sender_uid': senderId,
             'sender_name': senderName,
             'sender_photo_url': senderPhotoUrl,
+            'receiver_name': receiverName,
             'room_id': roomId,
             'room_name': 'غرفة صوتية',
             'content': 'أرسل $giftName x$count بقيمة $totalCost عملة!',
+            'gift_name': giftName,
             'gift_icon': animationAsset ?? '',
+            'count': count,
             'type': 'big_gift',
-            'created_at': DateTime.now().toIso8601String(),
+            'timestamp': now.millisecondsSinceEpoch,
+            'created_at': now.toUtc().toIso8601String(),
           });
         } catch (_) {}
       }));
@@ -1514,38 +1565,53 @@ class FirebaseService {
         }));
       }
 
-      // بث الفوز الكبير عبر جميع الغرف في التطبيق (Global Big Win Broadcast)
-      if (isBigWin || maxMultiplier >= 20) {
+      // بث الفوز بمضاعفات الحظ عبر جميع الغرف في التطبيق (Global Lucky Broadcast)
+      if (maxMultiplier >= 5 || isBigWin || totalWonCoins > 0) {
         unawaited(Future(() async {
+          final now = DateTime.now();
+          final bId = const Uuid().v4();
           try {
-            await _db.collection('broadcasts').add({
+            await _db.collection('broadcasts').doc(bId).set({
+              'id': bId,
               'sender_uid': senderId,
               'sender_name': senderName,
               'sender_photo_url': senderPhotoUrl,
+              'receiver_name': receiverName,
               'room_id': roomId,
               'room_name': 'غرفة صوتية',
-              'content': '🎉 فاز بمضاعف $maxMultiplier X في هدية الحظ $giftNameAr!',
+              'content': maxMultiplier > 1
+                  ? '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!'
+                  : 'أرسل هدية الحظ $giftNameAr x$count',
+              'gift_name': giftNameAr,
               'gift_icon': giftIconUrl,
               'multiplier': maxMultiplier,
+              'count': count,
+              'won_coins': totalWonCoins,
+              'coins': totalWonCoins,
+              'is_lucky': true,
               'type': 'lucky_gift',
-              'created_at': DateTime.now().toIso8601String(),
+              'timestamp': now.millisecondsSinceEpoch,
+              'created_at': now.toUtc().toIso8601String(),
             });
           } catch (err) {
             debugPrint('broadcasts error: $err');
           }
 
-          try {
-            await _db.collection('global_announcements').add({
-              'type': 'lucky_big_win',
-              'sender_name': senderName,
-              'gift_name': giftNameAr,
-              'room_id': roomId,
-              'multiplier': maxMultiplier,
-              'total_won': totalWonCoins,
-              'created_at': DateTime.now().toIso8601String(),
-            });
-          } catch (err) {
-            debugPrint('global_announcements error: $err');
+          if (isBigWin || maxMultiplier >= 50) {
+            try {
+              await _db.collection('global_announcements').add({
+                'type': 'lucky_big_win',
+                'sender_name': senderName,
+                'gift_name': giftNameAr,
+                'room_id': roomId,
+                'multiplier': maxMultiplier,
+                'total_won': totalWonCoins,
+                'timestamp': now.millisecondsSinceEpoch,
+                'created_at': now.toUtc().toIso8601String(),
+              });
+            } catch (err) {
+              debugPrint('global_announcements error: $err');
+            }
           }
         }));
       }
@@ -1662,6 +1728,53 @@ class FirebaseService {
           value: value,
           count: count,
         );
+
+        try {
+          await _db.collection('room_messages').doc(luckyMsgId).set({
+            'msg_id': luckyMsgId,
+            'room_id': roomId,
+            'sender_uid': senderId,
+            'sender_name': senderName,
+            'sender_photo_url': senderPhotoUrl,
+            'type': 'lucky_gift',
+            'image_url': giftIconUrl,
+            'text': '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)',
+            'gift_payload': luckyGiftPayload,
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+            'created_at': DateTime.now().toUtc().toIso8601String(),
+          });
+        } catch (_) {}
+
+        if (maxMultiplier >= 5 || isBigWin || totalWonCoins > 0) {
+          unawaited(Future(() async {
+            try {
+              final now = DateTime.now();
+              final bId = const Uuid().v4();
+              await _db.collection('broadcasts').doc(bId).set({
+                'id': bId,
+                'sender_uid': senderId,
+                'sender_name': senderName,
+                'sender_photo_url': senderPhotoUrl,
+                'receiver_name': receiverName,
+                'room_id': roomId,
+                'room_name': 'غرفة صوتية',
+                'content': maxMultiplier > 1
+                    ? '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!'
+                    : 'أرسل هدية الحظ $giftNameAr x$count',
+                'gift_name': giftNameAr,
+                'gift_icon': giftIconUrl,
+                'multiplier': maxMultiplier,
+                'count': count,
+                'won_coins': totalWonCoins,
+                'coins': totalWonCoins,
+                'is_lucky': true,
+                'type': 'lucky_gift',
+                'timestamp': now.millisecondsSinceEpoch,
+                'created_at': now.toUtc().toIso8601String(),
+              });
+            } catch (_) {}
+          }));
+        }
 
         final newCoins = (currentCoins - totalCost + totalWonCoins).clamp(0, 999999999999);
         await SupabaseDataService().updateUser(senderId, {

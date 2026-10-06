@@ -183,25 +183,38 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         return;
       }
 
+      final isExplicitlyOtherUser = widget.targetUid != null &&
+          widget.targetUid!.trim().isNotEmpty &&
+          widget.targetUid!.trim() != resolvedCurrentUid &&
+          (currentUser == null || currentUser.customId.isEmpty || widget.targetUid!.trim() != currentUser.customId);
+
       UserModel? targetUser;
-      if (widget.targetUid != null && widget.targetUid != resolvedCurrentUid) {
+      if (isExplicitlyOtherUser) {
         targetUser = await _supabase.getUser(uid);
-        // Fallback: check if target matches currentUser
-        if (targetUser == null && currentUser != null) {
-          if (currentUser.uid == uid || (currentUser.customId.isNotEmpty && currentUser.customId == uid)) {
-            targetUser = currentUser;
-          }
-        }
-        // Fallback: check SupabaseAuthService
         if (targetUser == null) {
           try {
             targetUser = await SupabaseAuthService().getUserFromSupabase(uid);
           } catch (_) {}
         }
-        // Fallback: check SupabaseDataService
         if (targetUser == null) {
           try {
             targetUser = await SupabaseDataService().getUser(uid);
+          } catch (_) {}
+        }
+        if (targetUser == null) {
+          try {
+            final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+            if (doc.exists && doc.data() != null) {
+              targetUser = UserModel.fromMap({...doc.data()!, 'uid': uid});
+            }
+          } catch (_) {}
+        }
+        if (targetUser == null) {
+          try {
+            final snap = await FirebaseFirestore.instance.collection('users').where('custom_id', isEqualTo: uid).limit(1).get();
+            if (snap.docs.isNotEmpty && snap.docs.first.data() != null) {
+              targetUser = UserModel.fromMap({...snap.docs.first.data(), 'uid': snap.docs.first.id});
+            }
           } catch (_) {}
         }
         if (currentUser != null && targetUser != null) {
@@ -656,8 +669,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   bool get _isMe {
     final currentUser = Provider.of<UserProvider>(context, listen: false).currentUser;
+    final myUid = currentUser?.uid ?? SupabaseAuthService().currentUid ?? FirebaseAuth.instance.currentUser?.uid;
+    final myCustomId = currentUser?.customId;
+
+    // إذا تم تمرير targetUid وكان لمعرف مستخدم آخر، فإنه ليس ملفي قطعياً
+    if (widget.targetUid != null && widget.targetUid!.trim().isNotEmpty) {
+      final t = widget.targetUid!.trim();
+      final isTargetMe = (myUid != null && myUid.isNotEmpty && t == myUid) ||
+          (myCustomId != null && myCustomId.isNotEmpty && t == myCustomId);
+      if (!isTargetMe) return false;
+    }
+
     if (_user == null || currentUser == null) return false;
-    return _user!.uid == currentUser.uid;
+    if (_user!.uid.isEmpty || (myUid == null || myUid.isEmpty)) return false;
+    return _user!.uid == myUid || (_user!.customId.isNotEmpty && myCustomId != null && _user!.customId == myCustomId);
   }
 
   Color _getNickNameColor(int vipLevel) {

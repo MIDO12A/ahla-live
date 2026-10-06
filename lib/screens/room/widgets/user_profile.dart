@@ -533,8 +533,11 @@ class _UserProfileState extends State<UserProfile> {
                   if (widget.onViewProfile != null) {
                     widget.onViewProfile!();
                   } else {
-                    final targetId = widget.user['id']?.toString() ?? widget.user['uid']?.toString();
-                    if (targetId != null) {
+                    final targetId = widget.user['id']?.toString() ??
+                        widget.user['uid']?.toString() ??
+                        widget.user['custom_id']?.toString() ??
+                        widget.user['customId']?.toString();
+                    if (targetId != null && targetId.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => UserProfileScreen(targetUid: targetId)),
@@ -809,8 +812,11 @@ class _UserProfileState extends State<UserProfile> {
               if (widget.onViewProfile != null) {
                 widget.onViewProfile!();
               } else {
-                final targetId = widget.user['id']?.toString() ?? widget.user['uid']?.toString();
-                if (targetId != null) {
+                final targetId = widget.user['id']?.toString() ??
+                    widget.user['uid']?.toString() ??
+                    widget.user['custom_id']?.toString() ??
+                    widget.user['customId']?.toString();
+                if (targetId != null && targetId.isNotEmpty) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => UserProfileScreen(targetUid: targetId)),

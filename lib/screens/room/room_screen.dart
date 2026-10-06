@@ -1201,9 +1201,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
       if (!mounted || broadcasts.isEmpty) return;
       final latest = broadcasts.first;
-      final createdAt = DateTime.tryParse(latest['created_at']?.toString() ?? '');
-      if (createdAt != null && DateTime.now().difference(createdAt).inSeconds < 15) {
-        final bId = latest['id']?.toString() ?? '${createdAt.millisecondsSinceEpoch}_${latest['sender_uid']}';
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final bTs = (latest['timestamp'] as num?)?.toInt() ??
+          (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
+      final isRecent = bTs == 0 || (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
+      if (isRecent) {
+        final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
         if (!seenMsgIds.contains(bId)) {
           seenMsgIds.add(bId);
           _currentBroadcast = latest;
@@ -3462,7 +3465,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     _selectedSeatIdx != null &&
                     _seats[_selectedSeatIdx!].isOccupied &&
                     (_isOwnerOrModerator || _selectedUser?.id == _currentUserId),
-                isCurrentUser: _selectedUser?.id == _currentUserId,
+                isCurrentUser: (_selectedUser?.id != null && _selectedUser!.id == _currentUserId) ||
+                    (_selectedUser?.customId != null &&
+                        currentUser?.customId != null &&
+                        currentUser!.customId.isNotEmpty &&
+                        _selectedUser!.customId == currentUser.customId),
                 isFollowed: _selectedUser?.id != null && _followedUsers.contains(_selectedUser!.id!),
                 isModerator: _isOwnerOrModerator,
                 isRoomOwner: _isOwner,
@@ -3475,9 +3482,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   _selectedSeatIdx = null;
                 }),
                 onViewProfile: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => UserProfileScreen(targetUid: _selectedUser!.id),
-                  ));
+                  final targetId = _selectedUser?.id ?? _selectedUser?.customId;
+                  if (targetId != null && targetId.isNotEmpty) {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => UserProfileScreen(targetUid: targetId),
+                    ));
+                  }
                 },
                 onToggleAdmin: () async {
                   final targetUid = _selectedUser?.id;
