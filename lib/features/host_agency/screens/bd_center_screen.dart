@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../models/user_model.dart';
 import '../../../core/ui/in_app_toast.dart';
-import '../../../utils/translations.dart';
+import '../../../core/localization/app_strings.dart';
 
 const Color _bgDeep    = Color(0xFF0A0E21);
 const Color _bgCard    = Color(0xFF141A32);
