@@ -6,6 +6,7 @@ import '../../core/widgets/cached_image.dart';
 import '../../config/r.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../models/banner_config.dart';
 import '../../models/room_model.dart';
 import '../../providers/user_provider.dart';
@@ -16,7 +17,6 @@ import '../../screens/room/widgets/svga_player.dart';
 import '../../screens/room/widgets/vap_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../screens/rank/rank_screen.dart';
-import 'package:zero/screens/user_profile/user_profile_screen.dart';
 import '../../utils/app_action_navigator.dart';
 import 'global_search_delegate.dart';
 import '../../widgets/user_id_widget.dart';
@@ -98,7 +98,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
             (user.customId.isNotEmpty ? await SupabaseDataService().getRoomByHostUid(user.customId) : null);
         if (sbRoom != null) {
           room = sbRoom;
-          await _firebaseService.updateUser(user.uid, {'hosted_room_id': room.roomId});
+          await _firebaseService.updateUser(user.uid, {'hosted_room_id': sbRoom.roomId});
           await userProvider.loadUser(user.uid);
         }
       } catch (_) {}
