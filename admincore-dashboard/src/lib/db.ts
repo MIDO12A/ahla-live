@@ -277,12 +277,30 @@ export async function checkCustomIdAvailable(
     console.warn('Store check error (ignored):', err);
   }
 
+  // 3. Check if taken by another room
+  try {
+    let roomQuery = client.from('rooms').select('room_id, name, host_uid').eq('room_id', cleanId);
+    if (excludeUid) {
+      roomQuery = roomQuery.neq('host_uid', excludeUid);
+    }
+    const { data: roomMatch } = await roomQuery.maybeSingle();
+    if (roomMatch) {
+      return {
+        available: false,
+        reason: `هذا الآيدي (${cleanId}) مستخدم بالفعل كآيدي لغرفة أخرى ("${roomMatch.name || roomMatch.room_id}")!`,
+      };
+    }
+  } catch (err) {
+    console.warn('Room check error (ignored):', err);
+  }
+
   return { available: true };
 }
 
 export async function updateUser(uid: string, data: Partial<UserModel>) {
   const client = getAdminSupabase() || supabase
 
+  let customIdUpdated: string | null = null;
   // Check custom ID uniqueness if updating customId
   if (data.customId !== undefined || (data as Record<string, unknown>).custom_id !== undefined) {
     const rawId = String(data.customId ?? (data as Record<string, unknown>).custom_id ?? '').trim();
@@ -291,6 +309,11 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
       if (!check.available) {
         throw new Error(check.reason);
       }
+      customIdUpdated = rawId;
+      (data as any).customId = rawId;
+      (data as any).custom_id = rawId;
+      (data as any).hosted_room_id = rawId;
+      (data as any).hostedRoomId = rawId;
     }
   }
   
@@ -352,6 +375,35 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
       if (error) {
         console.error('Error updating user:', error)
         throw error
+      }
+    }
+
+    // Automatically sync/migrate room to match new custom_id
+    if (customIdUpdated) {
+      try {
+        const { data: hostRoom } = await client
+          .from('rooms')
+          .select('*')
+          .eq('host_uid', uid)
+          .maybeSingle();
+
+        if (hostRoom && hostRoom.room_id !== customIdUpdated) {
+          const oldRoomId = hostRoom.room_id;
+          const newRoomData = {
+            ...hostRoom,
+            room_id: customIdUpdated,
+          };
+          await client.from('rooms').upsert(newRoomData);
+
+          await client.from('room_seats').update({ room_id: customIdUpdated }).eq('room_id', oldRoomId);
+          await client.from('room_members').update({ room_id: customIdUpdated }).eq('room_id', oldRoomId);
+          await client.from('room_messages').update({ room_id: customIdUpdated }).eq('room_id', oldRoomId);
+          await client.from('sent_gifts').update({ room_id: customIdUpdated }).eq('room_id', oldRoomId);
+
+          await client.from('rooms').delete().eq('room_id', oldRoomId);
+        }
+      } catch (rErr) {
+        console.warn('Error migrating user room to custom ID in Supabase:', rErr);
       }
     }
   } catch (e) {

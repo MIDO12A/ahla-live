@@ -162,6 +162,7 @@ Future<void> navigateToRoom(
       roomName: roomName,
       hostName: hostName,
       roomId: roomId,
+      hostUid: hostUid,
       roomPassword: roomPassword,
       hotValue: hotValue,
       gameDesc: gameDesc,
@@ -218,6 +219,7 @@ class RoomScreen extends StatefulWidget {
   final String roomName;
   final String hostName;
   final String roomId;
+  final String? hostUid;
   final String roomPassword;
   final String hotValue;
   final String gameDesc;
@@ -231,6 +233,7 @@ class RoomScreen extends StatefulWidget {
     required this.roomName,
     required this.hostName,
     required this.roomId,
+    this.hostUid,
     this.roomPassword = '',
     this.hotValue = '0',
     this.gameDesc = '',
@@ -543,6 +546,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   String? _hostCustomId;
   void _resolveHostCustomId(String hostUid) {
     if (hostUid.isEmpty) return;
+    if (hostUid == _currentUserId) {
+      final cur = Provider.of<UserProvider>(context, listen: false).currentUser;
+      if (cur != null && cur.customId.isNotEmpty) {
+        _hostCustomId = cur.customId;
+        UserProfile.customIdCache[hostUid] = _hostCustomId!;
+        return;
+      }
+    }
     if (UserProfile.customIdCache.containsKey(hostUid)) {
       _hostCustomId = UserProfile.customIdCache[hostUid];
       return;
@@ -1069,6 +1080,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _currentUserName = currentUser.name;
       _isOwner = false;
       _isFollowed = currentUser.followedRooms.contains(widget.roomId);
+      if (widget.hostUid != null && widget.hostUid!.isNotEmpty) {
+        _resolveHostCustomId(widget.hostUid!);
+      } else if (currentUser.hostedRoomId == widget.roomId) {
+        _resolveHostCustomId(currentUser.uid);
+      }
       _checkRoomBan(currentUser.uid);
       _userBanSub?.cancel();
       _userBanSub = _firebaseService.userRoomBanStream(widget.roomId, currentUser.uid).listen((isBanned) {
@@ -1817,10 +1833,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     _lastProcessedSeatMap = Map<int, Map<String, dynamic>>.from(seatMap);
 
-    // Preserve locked state
+    // Preserve locked state from both local and remote state
     final lockedIndices = <int>{};
     for (int i = 0; i < _seats.length; i++) {
-      if (_seats[i].isLocked) lockedIndices.add(i);
+      if (_seats[i].isLocked || seatMap[i]?['is_locked'] == true) lockedIndices.add(i);
     }
 
     final newSeats = List<SeatModel>.generate(_seats.length, (i) {
@@ -2640,6 +2656,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _seats[idx].isLocked = locked;
       _seats[idx].state = locked ? SeatState.locked : SeatState.empty;
     });
+    _firebaseService.toggleSeatLock(widget.roomId, idx, locked);
   }
 
   void _toggleSeatMute(int idx, bool muted) {
@@ -3329,7 +3346,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               // Header
                RoomHeader(
                 roomName: widget.roomName,
-                roomId: widget.roomId,
+                roomId: (_hostCustomId != null && _hostCustomId!.isNotEmpty) ? _hostCustomId! : widget.roomId,
                 hostAvatar: (_currentRoom?.roomPhotoUrl != null && _currentRoom!.roomPhotoUrl.isNotEmpty)
                     ? _currentRoom!.roomPhotoUrl
                     : ((_seats.isNotEmpty && (_seats[0].user?.avatar?.isNotEmpty ?? false))

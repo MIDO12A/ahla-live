@@ -73,7 +73,13 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
           backgroundColor: Color(0xFF10B981),
         ),
       );
-      await _firebaseService.updateUser(user.uid, {'hosted_room_id': existingRoom.roomId});
+      String targetRoomId = existingRoom.roomId;
+      if (user.customId.isNotEmpty && existingRoom.roomId != user.customId) {
+        await _firebaseService.migrateUserRoomId(user.uid, user.customId);
+        targetRoomId = user.customId;
+      } else {
+        await _firebaseService.updateUser(user.uid, {'hosted_room_id': existingRoom.roomId});
+      }
       await userProvider.loadUser(user.uid);
       if (mounted) {
         navigateToRoom(
@@ -81,7 +87,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
           roomName: existingRoom.name,
           hostName: user.name,
           hostUid: existingRoom.hostUid,
-          roomId: existingRoom.roomId,
+          roomId: targetRoomId,
           replace: true,
         );
       }
@@ -131,7 +137,13 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
         if (minSvc.isActive && minSvc.roomId != existing.roomId) {
           await minSvc.exitRoom(user.uid);
         }
-        await _firebaseService.updateUser(user.uid, {'hosted_room_id': existing.roomId});
+        String targetRoomId = existing.roomId;
+        if (user.customId.isNotEmpty && existing.roomId != user.customId) {
+          await _firebaseService.migrateUserRoomId(user.uid, user.customId);
+          targetRoomId = user.customId;
+        } else {
+          await _firebaseService.updateUser(user.uid, {'hosted_room_id': existing.roomId});
+        }
         await userProvider.loadUser(user.uid);
         if (mounted) {
           navigateToRoom(
@@ -139,7 +151,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
             roomName: existing.name,
             hostName: user.name,
             hostUid: existing.hostUid,
-            roomId: existing.roomId,
+            roomId: targetRoomId,
             replace: true,
           );
         }

@@ -289,6 +289,89 @@ class SupabaseDataService {
     }
   }
 
+  Future<bool> toggleSeatLock(String roomId, int seatIndex, bool isLocked) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/room_seats?on_conflict=room_id,seat_index');
+      final res = await http.post(
+        url,
+        headers: {
+          ..._headers,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: jsonEncode({
+          'room_id': roomId,
+          'seat_index': seatIndex,
+          'is_locked': isLocked,
+          if (isLocked) 'uid': null,
+        }),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] toggleSeatLock error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> migrateUserRoomId(String hostUid, String newRoomId) async {
+    try {
+      final existing = await getRoomByHostUid(hostUid);
+      if (existing != null && existing.roomId != newRoomId) {
+        final oldRoomId = existing.roomId;
+        final updatedRoom = RoomModel(
+          roomId: newRoomId,
+          name: existing.name,
+          description: existing.description,
+          roomPhotoUrl: existing.roomPhotoUrl,
+          hostUid: existing.hostUid,
+          hostName: existing.hostName,
+          hostPhotoUrl: existing.hostPhotoUrl,
+          memberCount: existing.memberCount,
+          maxMembers: existing.maxMembers,
+          isLocked: existing.isLocked,
+          category: existing.category,
+          createdAt: existing.createdAt,
+          password: existing.password,
+          seatCount: existing.seatCount,
+          seatStyle: existing.seatStyle,
+          seatColor: existing.seatColor,
+          totalGifts: existing.totalGifts,
+          hotValue: existing.hotValue,
+          country: existing.country,
+        );
+        await createRoom(updatedRoom);
+
+        try {
+          await http.patch(
+            Uri.parse('$_baseUrl/rest/v1/sent_gifts?room_id=eq.$oldRoomId'),
+            headers: _headers,
+            body: jsonEncode({'room_id': newRoomId}),
+          );
+          await http.patch(
+            Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$oldRoomId'),
+            headers: _headers,
+            body: jsonEncode({'room_id': newRoomId}),
+          );
+          await http.patch(
+            Uri.parse('$_baseUrl/rest/v1/room_members?room_id=eq.$oldRoomId'),
+            headers: _headers,
+            body: jsonEncode({'room_id': newRoomId}),
+          );
+          await deleteRoom(oldRoomId);
+        } catch (_) {}
+      }
+
+      await updateUser(hostUid, {
+        'hosted_room_id': newRoomId,
+        'custom_id': newRoomId,
+      });
+
+      return true;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] migrateUserRoomId error: $e');
+      return false;
+    }
+  }
+
   Future<Map<int, Map<String, dynamic>>> getSeats(String roomId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&select=*');

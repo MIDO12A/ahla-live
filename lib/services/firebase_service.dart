@@ -4287,31 +4287,36 @@ class FirebaseService {
     await _db.collection(collection).doc(docId).delete();
   }
 
-  /// Fetch Top 10 rankings for a room (Wealth = senders, Magic = receivers)
+  DateTime _getRankingStartDateUtc(String timeframe) {
+    final nowUtc = DateTime.now().toUtc();
+    final ksaTime = nowUtc.add(const Duration(hours: 3));
+
+    if (timeframe == 'daily') {
+      // يومي: 24 ساعة يبدأ عند منتصف الليل بتوقيت السعودية/مصر (UTC+3)
+      return DateTime.utc(ksaTime.year, ksaTime.month, ksaTime.day).subtract(const Duration(hours: 3));
+    } else if (timeframe == 'weekly') {
+      // أسبوعي: 7 أيام يبدأ من يوم الأحد ويتم تصفيره
+      final daysSinceSunday = ksaTime.weekday % 7;
+      return DateTime.utc(ksaTime.year, ksaTime.month, ksaTime.day).subtract(Duration(days: daysSinceSunday, hours: 3));
+    } else {
+      // شهري: يبدأ من يوم 1 إلى يوم 30 أو 31 حسب الشهر ويتم تصفيره
+      return DateTime.utc(ksaTime.year, ksaTime.month, 1).subtract(const Duration(hours: 3));
+    }
+  }
+
+  /// Fetch Top rankings for a room (Wealth = senders, Magic = receivers)
+  /// Returns only real room gifts; if empty, returns [] so an empty state is shown.
   Future<List<Map<String, dynamic>>> getRoomRankings({
     required String roomId,
     required bool isWealth,
     required String timeframe,
   }) async {
-    // احسب منتصف الليل بتوقيت السعودية/مصر (UTC+3)
-    final nowUtc = DateTime.now().toUtc();
-    final ksaTime = nowUtc.add(const Duration(hours: 3));
-    
-    DateTime startDateUtc;
-    if (timeframe == 'daily') {
-      startDateUtc = DateTime.utc(ksaTime.year, ksaTime.month, ksaTime.day).subtract(const Duration(hours: 3));
-    } else if (timeframe == 'weekly') {
-      final daysToSubtract = ksaTime.weekday - 1;
-      startDateUtc = DateTime.utc(ksaTime.year, ksaTime.month, ksaTime.day).subtract(Duration(days: daysToSubtract, hours: 3));
-    } else { // monthly
-      startDateUtc = DateTime.utc(ksaTime.year, ksaTime.month, 1).subtract(const Duration(hours: 3));
-    }
-    
-    String startStr = startDateUtc.toIso8601String();
+    final startDateUtc = _getRankingStartDateUtc(timeframe);
+    final startStr = startDateUtc.toIso8601String();
 
     // 1. Fetch from Supabase sent_gifts for real room-specific leaderboard data
     try {
-      final gifts = await SupabaseDataService().getSentGifts(roomId, limit: 100);
+      final gifts = await SupabaseDataService().getSentGifts(roomId, limit: 300);
       if (gifts.isNotEmpty) {
         final Map<String, int> roomTotals = {};
         final Map<String, Map<String, dynamic>> userDetails = {};
@@ -4325,6 +4330,7 @@ class FirebaseService {
           final photo = isWealth ? (g.senderPhotoUrl ?? '') : '';
           if (userId.isEmpty) continue;
           final val = g.totalValue.toInt();
+          if (val <= 0) continue;
           roomTotals[userId] = (roomTotals[userId] ?? 0) + val;
           if (!userDetails.containsKey(userId)) {
             userDetails[userId] = {
@@ -4335,7 +4341,7 @@ class FirebaseService {
         }
         if (roomTotals.isNotEmpty) {
           final sorted = roomTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-          final top = sorted.take(10).toList();
+          final top = sorted.take(20).toList();
           final userMap = await SupabaseDataService().getUsersMap(top.map((e) => e.key).toList());
           return top.map((e) {
             final info = userDetails[e.key] ?? {};
@@ -4367,62 +4373,27 @@ class FirebaseService {
       }
     } catch (_) {}
 
-    // 2. Fetch from Supabase users for real leaderboard data
-    try {
-      final orderCol = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
-      final sbUsers = await SupabaseDataService().getUserRanking(
-        orderByField: orderCol,
-        limit: 50,
-      );
-      if (sbUsers.isNotEmpty) {
-        final hasAnyPoints = sbUsers.any((u) => ((u[orderCol] as num?)?.toInt() ?? 0) > 0);
-        if (hasAnyPoints || timeframe == 'monthly' || timeframe == 'weekly' || timeframe == 'daily') {
-          return sbUsers.map((u) {
-            final pts = isWealth
-                ? ((u['total_gifts_sent'] as num?)?.toInt() ?? 0)
-                : ((u['total_gifts_received'] as num?)?.toInt() ?? (u['charm'] as num?)?.toInt() ?? 0);
-            final uid = (u['uid'] ?? u['id'] ?? '').toString();
-            final customId = (u['custom_id'] ?? u['display_id'] ?? '').toString();
-            final displayId = customId.isNotEmpty ? customId : uid;
-            return {
-              'uid': uid,
-              'user_id': displayId,
-              'id': displayId,
-              'name': u['name'] ?? 'مستخدم',
-              'user_name': u['name'] ?? 'مستخدم',
-              'photoUrl': u['photo_url'] ?? '',
-              'photo_url': u['photo_url'] ?? '',
-              'user_photo_url': u['photo_url'] ?? '',
-              'custom_id': displayId,
-              'display_id': displayId,
-              'points': pts,
-              'score': pts,
-              'total_value': pts,
-              'level': (u['level'] as num?)?.toInt() ?? 1,
-              'gender': u['gender'] ?? 'male',
-            };
-          }).toList();
-        }
-      }
-    } catch (_) {}
-
+    // 2. Fetch from Firestore sent_gifts for room-specific gifts
     try {
       final snap = await _db.collection('sent_gifts')
           .where('room_id', isEqualTo: roomId)
           .where('created_at', isGreaterThanOrEqualTo: startStr)
           .get();
-      return _processRankings(snap.docs, isWealth);
+      return await _processRankings(snap.docs, isWealth);
     } catch (e) {
-      // Fallback if composite index is missing
-      final snap = await _db.collection('sent_gifts')
-          .where('room_id', isEqualTo: roomId)
-          .get();
-      final filteredDocs = snap.docs.where((doc) {
-        final d = doc.data();
-        final created = d['created_at'] as String? ?? '';
-        return created.compareTo(startStr) >= 0;
-      }).toList();
-      return _processRankings(filteredDocs, isWealth);
+      try {
+        final snap = await _db.collection('sent_gifts')
+            .where('room_id', isEqualTo: roomId)
+            .get();
+        final filteredDocs = snap.docs.where((doc) {
+          final d = doc.data();
+          final created = d['created_at'] as String? ?? '';
+          return created.compareTo(startStr) >= 0;
+        }).toList();
+        return await _processRankings(filteredDocs, isWealth);
+      } catch (_) {
+        return [];
+      }
     }
   }
 
@@ -4432,32 +4403,23 @@ class FirebaseService {
   }) async {
     final field = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
     if (timeframe == 'all') {
-      return getUserRanking(
-        orderByField: field,
-      );
+      final allUsers = await getUserRanking(orderByField: field);
+      return allUsers.where((u) => ((u['points'] as num?)?.toInt() ?? (u['score'] as num?)?.toInt() ?? (u[field] as num?)?.toInt() ?? 0) > 0).toList();
     }
-    final nowUtc = DateTime.now().toUtc();
-    final ksaTime = nowUtc.add(const Duration(hours: 3));
-    
-    DateTime startDateUtc;
-    if (timeframe == 'daily') {
-      startDateUtc = DateTime.utc(ksaTime.year, ksaTime.month, ksaTime.day).subtract(const Duration(hours: 3));
-    } else if (timeframe == 'weekly') {
-      final daysToSubtract = ksaTime.weekday - 1;
-      startDateUtc = DateTime.utc(ksaTime.year, ksaTime.month, ksaTime.day).subtract(Duration(days: daysToSubtract, hours: 3));
-    } else { // monthly
-      startDateUtc = DateTime.utc(ksaTime.year, ksaTime.month, 1).subtract(const Duration(hours: 3));
-    }
+
+    final startDateUtc = _getRankingStartDateUtc(timeframe);
 
     // 1. Fetch from Supabase sent_gifts for real gifts within timeframe
     try {
-      final sbGifts = await SupabaseDataService().getAllSentGifts(limit: 200, after: startDateUtc);
+      final sbGifts = await SupabaseDataService().getAllSentGifts(limit: 500, after: startDateUtc);
       if (sbGifts.isNotEmpty) {
         final Map<String, int> totals = {};
         for (final g in sbGifts) {
           final userId = isWealth ? g.senderId : g.receiverId;
           if (userId.isEmpty) continue;
-          totals[userId] = (totals[userId] ?? 0) + g.totalValue.toInt();
+          final val = g.totalValue.toInt();
+          if (val <= 0) continue;
+          totals[userId] = (totals[userId] ?? 0) + val;
         }
         if (totals.isNotEmpty) {
           final sorted = totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
@@ -4493,24 +4455,13 @@ class FirebaseService {
       debugPrint('[FirebaseService] getGlobalRankings Supabase sent_gifts error: $e');
     }
 
-    // 2. Fall back to Supabase user ranking sorted by total gifts
-    try {
-      final sbUsers = await SupabaseDataService().getUserRanking(
-        orderByField: field,
-        limit: 50,
-      );
-      if (sbUsers.isNotEmpty) {
-        return sbUsers;
-      }
-    } catch (_) {}
-
-    // 3. Fall back to Firestore sent_gifts / users
-    String startStr = startDateUtc.toIso8601String();
+    // 2. Fall back to Firestore sent_gifts
+    final startStr = startDateUtc.toIso8601String();
     try {
       final snap = await _db.collection('sent_gifts')
           .where('created_at', isGreaterThanOrEqualTo: startStr)
           .get();
-      return _processGlobalRankings(snap.docs, isWealth);
+      return await _processGlobalRankings(snap.docs, isWealth);
     } catch (e) {
       try {
         final snap = await _db.collection('sent_gifts').get();
@@ -4519,7 +4470,7 @@ class FirebaseService {
           final created = d['created_at'] as String? ?? '';
           return created.compareTo(startStr) >= 0;
         }).toList();
-        return _processGlobalRankings(filteredDocs, isWealth);
+        return await _processGlobalRankings(filteredDocs, isWealth);
       } catch (_) {
         return [];
       }
@@ -4532,11 +4483,11 @@ class FirebaseService {
       final d = doc.data() as Map<String, dynamic>;
       final userId = isWealth ? d['sender_id'] : d['receiver_id'];
       final value = _asInt(d['value']) * _asInt(d['count']);
-      if (userId == null) continue;
+      if (userId == null || value <= 0) continue;
       totals[userId] = (totals[userId] ?? 0) + value;
     }
 
-    final entries = totals.entries.toList();
+    final entries = totals.entries.where((e) => e.value > 0).toList();
     entries.sort((a, b) => b.value.compareTo(a.value));
     final top50 = entries.take(50).toList();
 
@@ -4564,17 +4515,6 @@ class FirebaseService {
       });
     }
 
-    if (results.isEmpty) {
-      try {
-        final field = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
-        final sbUsers = await SupabaseDataService().getUserRanking(
-          orderByField: field,
-          limit: 50,
-        );
-        return sbUsers;
-      } catch (_) {}
-    }
-
     return results;
   }
 
@@ -4584,11 +4524,11 @@ class FirebaseService {
       final d = doc.data() as Map<String, dynamic>;
       final userId = isWealth ? d['sender_id'] : d['receiver_id'];
       final value = _asInt(d['value']) * _asInt(d['count']);
-      if (userId == null) continue;
+      if (userId == null || value <= 0) continue;
       totals[userId] = (totals[userId] ?? 0) + value;
     }
 
-    final entries = totals.entries.toList();
+    final entries = totals.entries.where((e) => e.value > 0).toList();
     entries.sort((a, b) => b.value.compareTo(a.value));
     final top10 = entries.take(10).toList();
 
@@ -4615,154 +4555,165 @@ class FirebaseService {
       });
     }
 
-    if (results.isEmpty) {
-      try {
-        final orderCol = isWealth ? 'total_gifts_sent' : 'total_gifts_received';
-        final sbUsers = await SupabaseDataService().getUserRanking(
-          orderByField: orderCol,
-          limit: 10,
-        );
-        for (final u in sbUsers) {
-          final uid = u['uid']?.toString() ?? u['id']?.toString() ?? '';
-          final customId = (u['custom_id'] ?? u['display_id'] ?? uid).toString();
-          final pts = (u[orderCol] as num?)?.toInt() ?? 0;
-          results.add({
-            'user_id': customId,
-            'custom_id': customId,
-            'uid': uid,
-            'id': uid,
-            'name': u['name'] ?? 'مستخدم',
-            'user_name': u['name'] ?? 'مستخدم',
-            'photoUrl': (u['photo_url'] ?? u['avatar'] ?? '').toString(),
-            'photo_url': (u['photo_url'] ?? u['avatar'] ?? '').toString(),
-            'user_photo_url': (u['photo_url'] ?? u['avatar'] ?? '').toString(),
-            'total_value': pts,
-            'points': pts,
-            'score': pts,
-            'level': (u['level'] as num?)?.toInt() ?? 1,
-          });
-        }
-      } catch (_) {}
-    }
-
     return results;
   }
+
   Future<List<Map<String, dynamic>>> getRoomGlobalRanking({
+    String timeframe = 'daily',
     int limit = 50,
   }) async {
     try {
+      final startDateUtc = _getRankingStartDateUtc(timeframe);
+      final startStr = startDateUtc.toIso8601String();
       final Map<String, int> roomGiftsTotal = {};
 
-      // 1. Calculate gift points per room from Supabase sent_gifts
+      // 1. Calculate gift points per room from Supabase sent_gifts within timeframe
       try {
-        final sbGifts = await SupabaseDataService().getAllSentGifts(limit: 500);
+        final sbGifts = await SupabaseDataService().getAllSentGifts(limit: 500, after: startDateUtc);
         for (final g in sbGifts) {
-          if (g.roomId.isNotEmpty) {
+          if (g.roomId.isNotEmpty && g.totalValue > 0) {
             roomGiftsTotal[g.roomId] = (roomGiftsTotal[g.roomId] ?? 0) + g.totalValue.toInt();
           }
         }
       } catch (_) {}
 
-      // 2. Also check Firestore sent_gifts
+      // 2. Also check Firestore sent_gifts within timeframe
       try {
-        final fsGifts = await _db.collection('sent_gifts').limit(300).get();
+        final fsGifts = await _db.collection('sent_gifts')
+            .where('created_at', isGreaterThanOrEqualTo: startStr)
+            .limit(300)
+            .get();
         for (final doc in fsGifts.docs) {
           final d = doc.data();
           final rId = (d['room_id'] ?? '').toString();
           if (rId.isNotEmpty) {
             final val = _asInt(d['value']) * _asInt(d['count'] ?? 1);
-            roomGiftsTotal[rId] = (roomGiftsTotal[rId] ?? 0) + val;
+            if (val > 0) {
+              roomGiftsTotal[rId] = (roomGiftsTotal[rId] ?? 0) + val;
+            }
           }
         }
       } catch (_) {}
 
+      // If no rooms have received gifts in this timeframe, return empty list
+      if (roomGiftsTotal.isEmpty) {
+        return [];
+      }
+
       final Map<String, Map<String, dynamic>> roomsMap = {};
 
-      // 3. Fetch rooms from Supabase
+      // 3. Fetch rooms from Supabase for only rooms that have points
       try {
-        final sbRooms = await SupabaseDataService().getRoomRanking(limit: limit);
+        final sbRooms = await SupabaseDataService().getAllRooms();
         for (final data in sbRooms) {
-          final roomId = (data['room_id'] ?? '').toString();
-          if (roomId.isEmpty) continue;
-          final photo = (data['room_photo_url'] ?? data['photo_url'] ?? data['bg_image'] ?? '').toString();
-          final name = (data['name'] ?? 'غرفة').toString();
-          final basePoints = (data['total_gifts'] as num?)?.toInt() ?? (data['hot_value'] as num?)?.toInt() ?? 0;
-          final totalPts = math.max(basePoints, roomGiftsTotal[roomId] ?? 0);
+          final roomId = data.roomId;
+          if (roomId.isEmpty || !roomGiftsTotal.containsKey(roomId)) continue;
+          final totalPts = roomGiftsTotal[roomId] ?? 0;
+          if (totalPts <= 0) continue;
           roomsMap[roomId] = {
             'id': roomId,
             'room_id': roomId,
             'custom_id': roomId,
             'display_id': roomId,
             'room_doc_id': roomId,
-            'name': name,
-            'photoUrl': photo,
-            'photo_url': photo,
+            'name': data.name.isNotEmpty ? data.name : 'غرفة',
+            'photoUrl': data.roomPhotoUrl,
+            'photo_url': data.roomPhotoUrl,
             'user_id': roomId,
-            'host_name': (data['host_name'] ?? '').toString(),
+            'host_name': data.hostName,
             'points': totalPts,
             'score': totalPts,
           };
         }
       } catch (_) {}
 
-      // 4. Fetch rooms from Firestore
-      try {
-        final snap = await _db.collection('rooms').limit(limit).get();
-        for (final doc in snap.docs) {
-          final data = doc.data();
-          final roomId = (data['room_id'] ?? data['custom_id'] ?? doc.id).toString();
-          final photo = (data['room_photo_url'] ?? data['cover_image'] ?? data['photo_url'] ?? data['image'] ?? data['bg_image'] ?? '').toString();
-          final name = (data['name'] ?? data['title'] ?? 'غرفة').toString();
-          final basePoints = (data['total_gifts'] as num?)?.toInt() ?? (data['hot_value'] as num?)?.toInt() ?? 0;
-          final totalPts = math.max(basePoints, roomGiftsTotal[roomId] ?? 0);
-
-          if (!roomsMap.containsKey(roomId) || totalPts > (roomsMap[roomId]!['points'] as int)) {
-            roomsMap[roomId] = {
-              'id': doc.id,
-              'room_id': roomId,
-              'custom_id': roomId,
-              'display_id': roomId,
-              'room_doc_id': doc.id,
-              'name': name.isNotEmpty ? name : (roomsMap[roomId]?['name'] ?? 'غرفة'),
-              'photoUrl': photo.isNotEmpty ? photo : (roomsMap[roomId]?['photoUrl'] ?? ''),
-              'photo_url': photo.isNotEmpty ? photo : (roomsMap[roomId]?['photo_url'] ?? ''),
-              'user_id': roomId,
-              'host_name': (data['host_name'] ?? roomsMap[roomId]?['host_name'] ?? '').toString(),
-              'password': (data['password'] ?? '').toString(),
-              'points': totalPts,
-              'score': totalPts,
+      // 4. Fetch missing rooms from Firestore
+      for (final entry in roomGiftsTotal.entries) {
+        if (!roomsMap.containsKey(entry.key) && entry.value > 0) {
+          try {
+            final doc = await _db.collection('rooms').doc(entry.key).get();
+            if (doc.exists) {
+              final data = doc.data() ?? {};
+              final photo = (data['room_photo_url'] ?? data['cover_image'] ?? data['photo_url'] ?? data['image'] ?? data['bg_image'] ?? '').toString();
+              final name = (data['name'] ?? data['title'] ?? 'غرفة #${entry.key}').toString();
+              roomsMap[entry.key] = {
+                'id': doc.id,
+                'room_id': entry.key,
+                'custom_id': entry.key,
+                'display_id': entry.key,
+                'room_doc_id': doc.id,
+                'name': name.isNotEmpty ? name : 'غرفة #${entry.key}',
+                'photoUrl': photo,
+                'photo_url': photo,
+                'user_id': entry.key,
+                'host_name': (data['host_name'] ?? '').toString(),
+                'points': entry.value,
+                'score': entry.value,
+              };
+            } else {
+              roomsMap[entry.key] = {
+                'id': entry.key,
+                'room_id': entry.key,
+                'custom_id': entry.key,
+                'display_id': entry.key,
+                'room_doc_id': entry.key,
+                'name': 'غرفة #${entry.key}',
+                'photoUrl': '',
+                'photo_url': '',
+                'user_id': entry.key,
+                'host_name': '',
+                'points': entry.value,
+                'score': entry.value,
+              };
+            }
+          } catch (_) {
+            roomsMap[entry.key] = {
+              'id': entry.key,
+              'room_id': entry.key,
+              'custom_id': entry.key,
+              'display_id': entry.key,
+              'room_doc_id': entry.key,
+              'name': 'غرفة #${entry.key}',
+              'photoUrl': '',
+              'photo_url': '',
+              'user_id': entry.key,
+              'host_name': '',
+              'points': entry.value,
+              'score': entry.value,
             };
           }
         }
-      } catch (_) {}
-
-      // 5. For any remaining rooms in roomGiftsTotal that were not loaded yet:
-      for (final entry in roomGiftsTotal.entries) {
-        if (!roomsMap.containsKey(entry.key) && entry.value > 0) {
-          roomsMap[entry.key] = {
-            'id': entry.key,
-            'room_id': entry.key,
-            'custom_id': entry.key,
-            'display_id': entry.key,
-            'room_doc_id': entry.key,
-            'name': 'غرفة #${entry.key}',
-            'photoUrl': '',
-            'photo_url': '',
-            'user_id': entry.key,
-            'host_name': '',
-            'points': entry.value,
-            'score': entry.value,
-          };
-        }
       }
 
-      final list = roomsMap.values.toList();
+      final list = roomsMap.values.where((r) => (r['points'] as int) > 0).toList();
       list.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
       return list.take(limit).toList();
     } catch (e) {
       debugPrint('getRoomGlobalRanking error: $e');
       return [];
     }
+  }
+
+  Future<bool> toggleSeatLock(String roomId, int seatIndex, bool isLocked) async {
+    final ok = await SupabaseDataService().toggleSeatLock(roomId, seatIndex, isLocked);
+    try {
+      await _db.collection('rooms').doc(roomId).collection('seats').doc(seatIndex.toString()).set({
+        'is_locked': isLocked,
+      }, SetOptions(merge: true));
+    } catch (_) {}
+    return ok;
+  }
+
+  Future<bool> migrateUserRoomId(String hostUid, String newRoomId) async {
+    final ok = await SupabaseDataService().migrateUserRoomId(hostUid, newRoomId);
+    try {
+      await _db.collection('users').doc(hostUid).set({
+        'hosted_room_id': newRoomId,
+        'custom_id': newRoomId,
+        'customId': newRoomId,
+      }, SetOptions(merge: true));
+    } catch (_) {}
+    return ok;
   }
 
   Future<List<Map<String, dynamic>>> getTopMonthlyFans(String uid) async {

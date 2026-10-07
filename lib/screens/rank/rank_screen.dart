@@ -88,7 +88,9 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
         _api.getGlobalRankings(isWealth: false, timeframe: 'weekly').catchError((_) => <Map<String, dynamic>>[]),
         _api.getGlobalRankings(isWealth: false, timeframe: 'monthly').catchError((_) => <Map<String, dynamic>>[]),
         
-        _api.getRoomGlobalRanking().catchError((_) => <Map<String, dynamic>>[]),
+        _api.getRoomGlobalRanking(timeframe: 'daily').catchError((_) => <Map<String, dynamic>>[]),
+        _api.getRoomGlobalRanking(timeframe: 'weekly').catchError((_) => <Map<String, dynamic>>[]),
+        _api.getRoomGlobalRanking(timeframe: 'monthly').catchError((_) => <Map<String, dynamic>>[]),
       ]);
       if (mounted) {
         setState(() {
@@ -100,7 +102,9 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
           _cachedRankings['charm_weekly'] = results[4];
           _cachedRankings['charm_monthly'] = results[5];
           
-          _cachedRankings['rooms'] = results[6];
+          _cachedRankings['rooms_daily'] = results[6];
+          _cachedRankings['rooms_weekly'] = results[7];
+          _cachedRankings['rooms_monthly'] = results[8];
           _loading = false;
         });
       }
@@ -110,9 +114,12 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
   }
 
   List<Map<String, dynamic>> _getRankingData(_RankPeriod period, String type) {
+    final periodKey = period == _RankPeriod.daily ? 'daily' : period == _RankPeriod.weekly ? 'weekly' : 'monthly';
+    final key = '${type}_$periodKey';
+
     if (type == 'rooms') {
-      final list = _cachedRankings['rooms'] ?? [];
-      return list.map((e) {
+      final list = _cachedRankings[key] ?? [];
+      return list.where((e) => ((e['points'] as num?)?.toInt() ?? 0) > 0).map((e) {
         final photo = (e['photoUrl'] ?? e['photo_url'] ?? e['room_photo_url'] ?? e['cover_image'] ?? e['image'] ?? e['bg_image'] ?? '').toString();
         final roomId = (e['room_id'] ?? e['user_id'] ?? e['id'] ?? '').toString();
         return {
@@ -132,11 +139,14 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
       }).toList();
     }
     
-    final periodKey = period == _RankPeriod.daily ? 'daily' : period == _RankPeriod.weekly ? 'weekly' : 'monthly';
-    final key = '${type}_$periodKey';
     final data = _cachedRankings[key] ?? [];
     
-    return data.map((e) {
+    return data.where((e) {
+      final points = type == 'wealth'
+          ? ((e['total_gifts_sent'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0)
+          : ((e['total_gifts_received'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0);
+      return points > 0;
+    }).map((e) {
       final points = type == 'wealth'
           ? ((e['total_gifts_sent'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0)
           : ((e['total_gifts_received'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0);
