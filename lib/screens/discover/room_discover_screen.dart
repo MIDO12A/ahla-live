@@ -66,7 +66,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     final targetRoomId = user.hostedRoomId;
     if (targetRoomId != null && targetRoomId.isNotEmpty && targetRoomId != 'null') {
       final candidate = await _firebaseService.getRoom(targetRoomId);
-      if (candidate != null && candidate.hostUid == user.uid) {
+      if (candidate != null && (candidate.hostUid == user.uid || (user.customId.isNotEmpty && candidate.hostUid == user.customId))) {
         room = candidate;
       }
     }
@@ -74,11 +74,34 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     // 2. If not found or not owned, lookup strictly by host uid
     if (room == null) {
       final candidate = await _firebaseService.getRoomByHost(user.uid);
-      if (candidate != null && candidate.hostUid == user.uid) {
+      if (candidate != null && (candidate.hostUid == user.uid || (user.customId.isNotEmpty && candidate.hostUid == user.customId))) {
         room = candidate;
         await _firebaseService.updateUser(user.uid, {'hosted_room_id': room.roomId});
         await userProvider.loadUser(user.uid);
       }
+    }
+
+    // 3. Lookup by customId if available
+    if (room == null && user.customId.isNotEmpty) {
+      final candidate = await _firebaseService.getRoomByHost(user.customId) ?? await _firebaseService.getRoom(user.customId);
+      if (candidate != null && (candidate.hostUid == user.uid || candidate.hostUid == user.customId)) {
+        room = candidate;
+        await _firebaseService.updateUser(user.uid, {'hosted_room_id': room.roomId});
+        await userProvider.loadUser(user.uid);
+      }
+    }
+
+    // 4. Supabase direct fallback lookup
+    if (room == null) {
+      try {
+        final sbRoom = await SupabaseDataService().getRoomByHostUid(user.uid) ??
+            (user.customId.isNotEmpty ? await SupabaseDataService().getRoomByHostUid(user.customId) : null);
+        if (sbRoom != null) {
+          room = sbRoom;
+          await _firebaseService.updateUser(user.uid, {'hosted_room_id': room.roomId});
+          await userProvider.loadUser(user.uid);
+        }
+      } catch (_) {}
     }
 
     final minSvc = MinimizedRoomService();

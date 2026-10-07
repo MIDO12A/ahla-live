@@ -2024,12 +2024,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       addNecklace(n);
     }
 
-    // 6. VIP / Recharge Level Necklace
-    if (user.rechargeLevel >= 1 || user.rechargeExp > 0 || user.ownedVipItems.isNotEmpty) {
-      final lvl = user.rechargeLevel.clamp(1, 5);
-      addNecklace('assets/svga/v${lvl}_left_bottom.svga');
-    }
-
     final displayList = necklaces.take(4).toList();
     if (displayList.isEmpty) return const SizedBox.shrink();
 
@@ -2042,23 +2036,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           children: [
             for (int i = 0; i < displayList.length; i++) ...[
               if (i > 0) const SizedBox(width: 8),
-              Container(
-                width: 74,
-                height: 74,
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF222028),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0x66FFD770), width: 1.2),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: SvgaFrame(
-                    key: ValueKey('necklace_${i}_${displayList[i]}'),
-                    svgaPath: displayList[i],
-                    size: 70,
-                    fit: BoxFit.contain,
-                  ),
+              SizedBox(
+                width: 72,
+                height: 72,
+                child: SvgaFrame(
+                  key: ValueKey('necklace_${i}_${displayList[i]}'),
+                  svgaPath: displayList[i],
+                  size: 72,
+                  fit: BoxFit.contain,
                 ),
               ),
             ],

@@ -532,7 +532,11 @@ class FirebaseService {
     unawaited(SupabaseDataService().toggleMute(roomId, seatIndex, muted));
     try {
       final ref = _db.collection('room_seats').doc('${roomId}_$seatIndex');
-      await ref.update({'is_muted': muted});
+      await ref.set({
+        'room_id': roomId,
+        'seat_index': seatIndex,
+        'is_muted': muted,
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('toggleMute error: $e');
     }

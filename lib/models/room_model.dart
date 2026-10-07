@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../screens/room/models/seat_model.dart';
 
 class RoomModel {
@@ -138,9 +139,17 @@ class RoomModel {
       ],
       totalGifts: (map['total_gifts'] ?? 0).toInt(),
       hotValue: (map['hot_value'] ?? 0).toInt(),
-      moderators: map['moderators'] != null
-          ? List<String>.from(map['moderators'] as List)
-          : const [],
+      moderators: () {
+        final m = map['moderators'];
+        if (m is List) return m.map((e) => e.toString()).toList();
+        if (m is String && m.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(m);
+            if (decoded is List) return decoded.map((e) => e.toString()).toList();
+          } catch (_) {}
+        }
+        return <String>[];
+      }(),
       country: map['country']?.toString() ?? '',
       bgImage: map['bgImage']?.toString() ?? map['bg_image']?.toString() ?? '',
       chatClearedAt: (map['chat_cleared_at'] as num?)?.toInt() ?? 0,

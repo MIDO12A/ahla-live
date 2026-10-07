@@ -533,8 +533,12 @@ class _UserProfileState extends State<UserProfile> {
                 ],
               ),
 
-              // 3. Badges, Medals, Host & Agent Medals (الشارات والقلادات التلقائية)
-              _buildBadgesAndMedals(config),
+              // 3. Necklaces (القلادات تحت المعرف مباشرة)
+              _buildNecklacesRow(config),
+              const SizedBox(height: 6),
+
+              // 4. Badges & Medals (الأوسمة تحت القلادات)
+              _buildBadgesRow(config),
               const SizedBox(height: 10),
 
               // 4. Received Gifts Gallery Bar (شريط استلام الهدايا)
@@ -962,169 +966,162 @@ class _UserProfileState extends State<UserProfile> {
     );
   }
 
-  Widget _buildBadgesAndMedals(DynamicConfigService config) {
-    final List<Widget> badgeWidgets = [];
+  Widget _buildNecklacesRow(DynamicConfigService config) {
+    final List<Widget> necklaceWidgets = [];
+    final seen = <String>{};
 
-    final isHost = widget.user['is_host'] == true ||
-        widget.user['role'] == 'host' ||
-        widget.user['role'] == 'owner' ||
-        widget.isModerator ||
-        _extraUserData['is_host'] == true ||
-        _userAgency != null;
-
-    final isAgent = widget.user['is_agent'] == true ||
-        widget.user['role'] == 'agent' ||
-        _extraUserData['is_agent'] == true ||
-        (_userAgency != null && _userAgency!['owner_id']?.toString() == (widget.user['uid'] ?? widget.user['id']));
-
-    // 1. Host Medal / Badge (Auto-injected if Host)
-    if (isHost) {
-      final hostImg = config.agencyHostNecklaceImg.isNotEmpty
-          ? config.agencyHostNecklaceImg
-          : (config.miniprofileHostBadgeImg.isNotEmpty ? config.miniprofileHostBadgeImg : '');
-      final hostSvga = config.agencyHostNecklaceSvga;
-
-      badgeWidgets.add(
+    void addNecklaceWidget(String path, {Key? key}) {
+      if (path.isEmpty || path == 'null') return;
+      final resolved = _storeSvgaMap[path] ?? _resolveSvga(path);
+      final finalPath = resolved.isNotEmpty ? resolved : path;
+      if (finalPath.isEmpty || !seen.add(finalPath)) return;
+      necklaceWidgets.add(
         _buildBadgeItem(
-          svgaUrl: hostSvga,
-          imageUrl: hostImg,
-          fallbackText: 'مضيف',
-          fallbackColor: const Color(0xFF1E5BB5),
+          key: key ?? ValueKey('necklace_$finalPath'),
+          svgaUrl: detectAssetType(finalPath) == AssetType.svga ? finalPath : (finalPath.contains('.svga') ? finalPath : ''),
+          imageUrl: finalPath,
+          fallbackText: 'قلادة',
+          fallbackColor: const Color(0xFFFFB300),
+          size: 58,
         ),
       );
     }
 
-    // 2. Agent Medal / Badge (Auto-injected if Agent / Agency Leader)
-    if (isAgent) {
-      final agentImg = config.agencyLeaderNecklaceImg.isNotEmpty
-          ? config.agencyLeaderNecklaceImg
-          : (config.miniprofileAgentBadgeImg.isNotEmpty ? config.miniprofileAgentBadgeImg : '');
-      final agentSvga = config.agencyLeaderNecklaceSvga;
-
-      badgeWidgets.add(
-        _buildBadgeItem(
-          key: ValueKey('agent_necklace_${agentSvga.isNotEmpty ? agentSvga : agentImg}'),
-          svgaUrl: agentSvga,
-          imageUrl: agentImg,
-          fallbackText: 'وكيل',
-          fallbackColor: const Color(0xFF8E24AA),
-        ),
-      );
+    // 1. Active Equipped Necklace
+    final activeNecklace = _extraUserData['active_necklace']?.toString() ??
+        widget.user['active_necklace']?.toString() ??
+        widget.user['activeNecklace']?.toString() ??
+        '';
+    if (activeNecklace.isNotEmpty) {
+      addNecklaceWidget(activeNecklace);
     }
 
-    // 3. Recharge Agent Medal / Badge (Auto-injected ONLY if Recharge Agent)
+    // 2. Recharge Agent Necklace (خاص بوكيل الشحن فقط)
     final isRechargeAgent = widget.user['is_recharge_agent'] == true ||
         _extraUserData['is_recharge_agent'] == true ||
         widget.user['role'] == 'recharge_agent' ||
         _extraUserData['role'] == 'recharge_agent' ||
         (widget.user['recharge_agency_name'] != null && widget.user['recharge_agency_name'].toString().isNotEmpty) ||
         (_extraUserData['recharge_agency_name'] != null && _extraUserData['recharge_agency_name'].toString().isNotEmpty);
-
     if (isRechargeAgent) {
       final rechargeSvga = config.rechargeAgentNecklaceSvga;
       final rechargeImg = config.rechargeAgentNecklaceImg;
-      if (rechargeSvga.isNotEmpty || rechargeImg.isNotEmpty) {
-        badgeWidgets.add(
-          _buildBadgeItem(
-            key: ValueKey('recharge_necklace_${rechargeSvga.isNotEmpty ? rechargeSvga : rechargeImg}'),
-            svgaUrl: rechargeSvga,
-            imageUrl: rechargeImg,
-            fallbackText: 'شحن',
-            fallbackColor: const Color(0xFFE65100),
-          ),
-        );
+      final rc = rechargeSvga.isNotEmpty ? rechargeSvga : rechargeImg;
+      if (rc.isNotEmpty) addNecklaceWidget(rc);
+    }
+
+    // 3. Agency Leader / Host Necklace
+    final isHost = widget.user['is_host'] == true ||
+        widget.user['role'] == 'host' ||
+        widget.user['role'] == 'owner' ||
+        widget.isModerator ||
+        _extraUserData['is_host'] == true ||
+        _userAgency != null;
+    final isAgent = widget.user['is_agent'] == true ||
+        widget.user['role'] == 'agent' ||
+        _extraUserData['is_agent'] == true ||
+        (_userAgency != null && _userAgency!['owner_id']?.toString() == (widget.user['uid'] ?? widget.user['id']));
+
+    if (isAgent) {
+      final agentSvga = config.agencyLeaderNecklaceSvga;
+      final agentImg = config.agencyLeaderNecklaceImg;
+      final ag = agentSvga.isNotEmpty ? agentSvga : agentImg;
+      if (ag.isNotEmpty) addNecklaceWidget(ag);
+    }
+    if (isHost) {
+      final hostSvga = config.agencyHostNecklaceSvga;
+      final hostImg = config.agencyHostNecklaceImg;
+      final ho = hostSvga.isNotEmpty ? hostSvga : hostImg;
+      if (ho.isNotEmpty) addNecklaceWidget(ho);
+    }
+
+    // 4. Owned Necklaces
+    final ownedNecklaces = _extraUserData['owned_necklaces'] ?? widget.user['owned_necklaces'] ?? widget.user['ownedNecklaces'];
+    if (ownedNecklaces is List) {
+      for (final n in ownedNecklaces) {
+        if (n is String && n.isNotEmpty) {
+          addNecklaceWidget(n);
+        } else if (n is Map) {
+          final svga = n['svga_url']?.toString() ?? '';
+          final img = n['image_url']?.toString() ?? n['icon_asset']?.toString() ?? '';
+          final path = svga.isNotEmpty ? svga : img;
+          if (path.isNotEmpty) addNecklaceWidget(path);
+        }
       }
     }
 
-    // Active Equipped Necklace (from backpack / store)
-    final activeNecklace = _extraUserData['active_necklace']?.toString() ??
-        widget.user['active_necklace']?.toString() ??
-        widget.user['activeNecklace']?.toString() ??
-        '';
-    if (activeNecklace.isNotEmpty) {
-      final resolved = _resolveSvga(activeNecklace);
-      final finalPath = resolved.isNotEmpty ? resolved : activeNecklace;
+    if (necklaceWidgets.isEmpty) return const SizedBox.shrink();
+
+    final displayNecklaces = necklaceWidgets.take(4).toList();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 2),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (int i = 0; i < displayNecklaces.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              displayNecklaces[i],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadgesRow(DynamicConfigService config) {
+    final List<Widget> badgeWidgets = [];
+    final seen = <String>{};
+
+    void addBadgeWidget(String path, {Key? key, String label = 'وسام', Color color = const Color(0xFF00897B)}) {
+      if (path.isEmpty || path == 'null') return;
+      final resolved = _storeSvgaMap[path] ?? _resolveSvga(path);
+      final finalPath = resolved.isNotEmpty ? resolved : path;
+      if (finalPath.isEmpty || !seen.add(finalPath)) return;
       badgeWidgets.add(
         _buildBadgeItem(
-          key: ValueKey('active_necklace_$finalPath'),
+          key: key ?? ValueKey('badge_$finalPath'),
           svgaUrl: detectAssetType(finalPath) == AssetType.svga ? finalPath : (finalPath.contains('.svga') ? finalPath : ''),
           imageUrl: finalPath,
-          fallbackText: 'قلادة',
-          fallbackColor: const Color(0xFFFFB300),
+          fallbackText: label,
+          fallbackColor: color,
+          size: 46,
         ),
       );
     }
 
-    // 4. Owned Necklaces / Medals
-    final ownedNecklaces = _extraUserData['owned_necklaces'];
-    if (ownedNecklaces is List) {
-      for (final n in ownedNecklaces) {
-        if (n is String && n.isNotEmpty) {
-          final item = _storeSvgaMap[n] ?? _resolveSvga(n);
-          final finalItem = item.isNotEmpty ? item : n;
-          badgeWidgets.add(_buildBadgeItem(
-            key: ValueKey('owned_necklace_$n'),
-            imageUrl: finalItem,
-            svgaUrl: detectAssetType(finalItem) == AssetType.svga ? finalItem : (finalItem.contains('.svga') ? finalItem : ''),
-            fallbackText: 'قلادة',
-            fallbackColor: const Color(0xFFFFB300),
-          ));
-        } else if (n is Map) {
-          final svga = n['svga_url']?.toString() ?? '';
-          final img = n['image_url']?.toString() ?? n['icon_asset']?.toString() ?? '';
-          if (svga.isNotEmpty || img.isNotEmpty) {
-            badgeWidgets.add(_buildBadgeItem(
-              key: ValueKey('owned_necklace_map_${svga.isNotEmpty ? svga : img}'),
-              svgaUrl: svga,
-              imageUrl: img,
-              fallbackText: 'قلادة',
-              fallbackColor: const Color(0xFFFFB300),
-            ));
-          }
-        }
-      }
-    }
-
-    // 5. Owned Level Badges
-    final ownedLevelBadges = _extraUserData['owned_level_badges'];
+    // 1. Owned Level Badges
+    final ownedLevelBadges = _extraUserData['owned_level_badges'] ?? widget.user['owned_level_badges'] ?? widget.user['ownedLevelBadges'];
     if (ownedLevelBadges is List) {
       for (final b in ownedLevelBadges) {
         if (b is String && b.isNotEmpty) {
-          badgeWidgets.add(_buildBadgeItem(
-            key: ValueKey('level_badge_$b'),
-            imageUrl: b,
-            fallbackText: 'شارة',
-            fallbackColor: const Color(0xFF1E5BB5),
-          ));
+          addBadgeWidget(b, label: 'شارة', color: const Color(0xFF1E5BB5));
         }
       }
     }
 
-    // 6. Owned Badges
-    final ownedBadges = _extraUserData['owned_badges'];
+    // 2. Owned Badges
+    final ownedBadges = _extraUserData['owned_badges'] ?? widget.user['owned_badges'] ?? widget.user['ownedBadges'];
     if (ownedBadges is List) {
       for (final b in ownedBadges) {
         if (b is String && b.isNotEmpty) {
-          final item = _storeSvgaMap[b] ?? _resolveSvga(b);
-          final finalItem = item.isNotEmpty ? item : b;
-          badgeWidgets.add(_buildBadgeItem(
-            key: ValueKey('badge_$b'),
-            imageUrl: finalItem,
-            svgaUrl: detectAssetType(finalItem) == AssetType.svga ? finalItem : (finalItem.contains('.svga') ? finalItem : ''),
-            fallbackText: 'وسام',
-            fallbackColor: const Color(0xFF00897B),
-          ));
+          addBadgeWidget(b, label: 'وسام', color: const Color(0xFF00897B));
+        } else if (b is Map) {
+          final svga = b['svga_url']?.toString() ?? '';
+          final img = b['image_url']?.toString() ?? b['icon_asset']?.toString() ?? '';
+          final path = svga.isNotEmpty ? svga : img;
+          if (path.isNotEmpty) addBadgeWidget(path, label: 'وسام', color: const Color(0xFF00897B));
         }
       }
     }
 
     if (badgeWidgets.isEmpty) return const SizedBox.shrink();
 
-    // Show up to 4 prominent necklaces / badges side by side (كبيرة وثابتة)
     final displayBadges = badgeWidgets.take(4).toList();
-
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.only(top: 2, bottom: 4),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -1164,15 +1161,15 @@ class _UserProfileState extends State<UserProfile> {
     String imageUrl = '',
     String fallbackText = '',
     Color fallbackColor = const Color(0xFF1E5BB5),
+    double size = 58,
   }) {
-    const double badgeSize = 85;
     Widget content;
     if (svgaUrl.isNotEmpty && detectAssetType(svgaUrl) == AssetType.svga) {
       content = SvgaPlayer(
         key: ValueKey('svga_$svgaUrl'),
         assetPath: svgaUrl,
-        width: badgeSize,
-        height: badgeSize,
+        width: size,
+        height: size,
         fit: BoxFit.contain,
         loops: true,
         defaultImageUrl: imageUrl.isNotEmpty ? imageUrl : null,
@@ -1181,8 +1178,8 @@ class _UserProfileState extends State<UserProfile> {
       content = CachedNetImage(
         imageUrl,
         key: ValueKey('img_$imageUrl'),
-        width: badgeSize,
-        height: badgeSize,
+        width: size,
+        height: size,
         fit: BoxFit.contain,
         error: (_, __, ___) => _buildFallbackBadge(fallbackText, fallbackColor),
       );
@@ -1192,8 +1189,8 @@ class _UserProfileState extends State<UserProfile> {
 
     return Container(
       key: key,
-      width: badgeSize,
-      height: badgeSize,
+      width: size,
+      height: size,
       alignment: Alignment.center,
       child: content,
     );

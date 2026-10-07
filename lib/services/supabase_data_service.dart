@@ -276,13 +276,29 @@ class SupabaseDataService {
 
   Future<bool> toggleMute(String roomId, int seatIndex, bool isMuted) async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&seat_index=eq.$seatIndex');
-      final res = await http.patch(
+      final url = Uri.parse('$_baseUrl/rest/v1/room_seats?on_conflict=room_id,seat_index');
+      final res = await http.post(
         url,
+        headers: {
+          ..._headers,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: jsonEncode({
+          'room_id': roomId,
+          'seat_index': seatIndex,
+          'is_muted': isMuted,
+        }),
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return true;
+      }
+      final patchUrl = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&seat_index=eq.$seatIndex');
+      final patchRes = await http.patch(
+        patchUrl,
         headers: _headers,
         body: jsonEncode({'is_muted': isMuted}),
       );
-      return res.statusCode >= 200 && res.statusCode < 300;
+      return patchRes.statusCode >= 200 && patchRes.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] toggleMute error: $e');
       return false;

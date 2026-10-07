@@ -1841,7 +1841,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     final newSeats = List<SeatModel>.generate(_seats.length, (i) {
       final isLocked = lockedIndices.contains(i);
-      return SeatModel(index: i, state: isLocked ? SeatState.locked : SeatState.empty, isLocked: isLocked);
+      final isSeatMuted = seatMap[i]?['is_muted'] == true;
+      return SeatModel(
+        index: i,
+        state: isLocked ? SeatState.locked : (isSeatMuted ? SeatState.muted : SeatState.empty),
+        isLocked: isLocked,
+        isMuted: isSeatMuted,
+      );
     });
 
     bool isCurrentUserOnSeatNow = false;
@@ -1858,8 +1864,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           isCurrentUserOnSeatNow = true;
           currentUserMuted = isMuted;
           _currentUserSeatIndex = idx;
-          if (_isMicOn == isMuted) {
-            _isMicOn = !isMuted;
+          if (isMuted && _isMicOn) {
+            _isMicOn = false;
+            _roomAudio.toggleMic(false);
           }
         } else {
           _roomAudio.muteRemoteAudio(uid, widget.roomId, isMuted);
@@ -1893,7 +1900,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
         newSeats[idx] = SeatModel(
           index: idx,
-          state: SeatState.occupied,
+          state: isMuted ? SeatState.muted : SeatState.occupied,
           user: UserModel(
             name: data['name']?.toString() ?? '',
             avatar: data['photo_url']?.toString() ?? data['avatar']?.toString() ?? cachedUser?.photoUrl ?? (uid == _currentUserId ? currentUser?.photoUrl : null),
@@ -2853,12 +2860,41 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     );
   }
 
-  void _setAdmin(int idx, bool isAdmin) {
+  Future<void> _setAdmin(int idx, bool isAdmin) async {
     final user = _seats[idx].user;
-    if (user == null) return;
+    if (user == null || user.id == null) return;
+    final targetUid = user.id!;
     setState(() {
       _seats[idx].user = user.copyWith(isAdmin: isAdmin);
+      if (isAdmin) {
+        _moderators.add(targetUid);
+      } else {
+        _moderators.remove(targetUid);
+      }
     });
+
+    final updated = List<String>.from(_moderators);
+    // 1. Sync Supabase rooms.moderators
+    unawaited(SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated}));
+    // 2. Sync Firestore rooms.moderators
+    try {
+      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+          .collection('rooms')
+          .doc(widget.roomId)
+          .update({
+        'moderators': isAdmin ? FieldValue.arrayUnion([targetUid]) : FieldValue.arrayRemove([targetUid]),
+      });
+    } catch (_) {}
+
+    if (!mounted) return;
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isAdmin
+            ? (isAr ? 'تم تعيين ${user.name} كمشرف في الغرفة 👑' : 'Appointed ${user.name} as room admin')
+            : (isAr ? 'تم إلغاء إشراف ${user.name}' : 'Removed ${user.name} from room admins')),
+      ),
+    );
   }
 
   void _toggleBlack(int idx, bool blacked) {
@@ -3421,6 +3457,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 },
                 onMic: () async {
                   if (_currentUserSeat == null) return;
+                  if (_currentUserSeat!.isMuted && !_isOwnerOrModerator) {
+                    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(isAr ? 'تم كتم المايك بواسطة إدارة الغرفة' : 'Microphone was muted by room admin')),
+                    );
+                    return;
+                  }
                   final newVal = !_isMicOn;
                   setState(() => _isMicOn = newVal);
                   await _roomAudio.toggleMic(newVal);
@@ -3698,18 +3741,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   final isMod = _moderators.contains(targetUid);
                   try {
                     if (isMod) {
+                      setState(() => _moderators.remove(targetUid));
+                      final updated = List<String>.from(_moderators);
+                      unawaited(SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated}));
                       await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
                         'moderators': FieldValue.arrayRemove([targetUid]),
                       });
-                      setState(() => _moderators.remove(targetUid));
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('تم إلغاء إشراف ${_selectedUser?.name}')),
                       );
                     } else {
+                      setState(() => _moderators.add(targetUid));
+                      final updated = List<String>.from(_moderators);
+                      unawaited(SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated}));
                       await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
                         'moderators': FieldValue.arrayUnion([targetUid]),
                       });
-                      setState(() => _moderators.add(targetUid));
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('تم تعيين ${_selectedUser?.name} كمشرف في الغرفة 👑')),
                       );
@@ -4123,11 +4170,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _openVolume();
         break;
       case 'Settings':
-        if (_isOwnerOrModerator) {
+        if (_isOwner) {
           _openSettings();
         } else {
+          final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'إعدادات الغرفة متاحة للمالك والمشرفين فقط' : 'Room settings available for owner and admins only')),
+            SnackBar(content: Text(isAr ? 'تعديل إعدادات وبيانات الغرفة متاح لمالك الغرفة فقط' : 'Room settings available for owner only')),
           );
         }
         break;
@@ -5317,7 +5365,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                             ],
                                           ),
                                         ),
-                                        if (_isOwnerOrModerator) ...[
+                                        if (_isOwner) ...[
                                           GestureDetector(
                                             onTap: () {
                                               setState(() => _showRoomInfo = false);

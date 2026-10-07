@@ -56,13 +56,39 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkExistingRoom());
   }
 
+  Future<RoomModel?> _findUserExistingRoom(UserModel user) async {
+    final targetRoomId = user.hostedRoomId;
+    if (targetRoomId != null && targetRoomId.isNotEmpty && targetRoomId != 'null') {
+      final candidate = await _firebaseService.getRoom(targetRoomId);
+      if (candidate != null && (candidate.hostUid == user.uid || (user.customId.isNotEmpty && candidate.hostUid == user.customId))) {
+        return candidate;
+      }
+    }
+    final candidateUid = await _firebaseService.getRoomByHost(user.uid);
+    if (candidateUid != null && (candidateUid.hostUid == user.uid || (user.customId.isNotEmpty && candidateUid.hostUid == user.customId))) {
+      return candidateUid;
+    }
+    if (user.customId.isNotEmpty) {
+      final candidateCustom = await _firebaseService.getRoomByHost(user.customId) ?? await _firebaseService.getRoom(user.customId);
+      if (candidateCustom != null && (candidateCustom.hostUid == user.uid || candidateCustom.hostUid == user.customId)) {
+        return candidateCustom;
+      }
+    }
+    try {
+      final sbRoom = await SupabaseDataService().getRoomByHostUid(user.uid) ??
+          (user.customId.isNotEmpty ? await SupabaseDataService().getRoomByHostUid(user.customId) : null);
+      if (sbRoom != null) return sbRoom;
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _checkExistingRoom() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.currentUser;
     if (user == null) return;
 
-    final existingRoom = await _firebaseService.getRoomByHost(user.uid);
-    if (existingRoom != null && existingRoom.hostUid == user.uid && mounted) {
+    final existingRoom = await _findUserExistingRoom(user);
+    if (existingRoom != null && mounted) {
       final minSvc = MinimizedRoomService();
       if (minSvc.isActive && minSvc.roomId != existingRoom.roomId) {
         await minSvc.exitRoom(user.uid);
@@ -131,8 +157,8 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
       }
 
       // Pre-check: if user already has an active room, go to it instead of recreating
-      final existing = await _firebaseService.getRoomByHost(user.uid);
-      if (existing != null && existing.hostUid == user.uid) {
+      final existing = await _findUserExistingRoom(user);
+      if (existing != null) {
         final minSvc = MinimizedRoomService();
         if (minSvc.isActive && minSvc.roomId != existing.roomId) {
           await minSvc.exitRoom(user.uid);

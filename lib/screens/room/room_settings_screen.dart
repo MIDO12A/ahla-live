@@ -236,48 +236,49 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
             ),
           ),
 
-          // ── Confirm button ─────────────────────────────────────
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, navH + 12),
-            child: GestureDetector(
-              onTap: () {
-                final name = _nameCtrl.text.trim();
-                final pwd = _isLocked ? _pwdCtrl.text.trim() : '';
-                final topic = _topicCtrl.text.trim();
-                widget.onConfirm?.call(name, pwd, _roomAvatar, topic);
-                Navigator.pop(context);
-              },
-              child: Container(
-                width: double.infinity,
-                height: 50,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      cfg.roomSettingsConfirmBtnStart,
-                      cfg.roomSettingsConfirmBtnEnd,
+          // ── Confirm button (owner only) ───────────────────────
+          if (!widget.isModerator)
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, navH + 12),
+              child: GestureDetector(
+                onTap: () {
+                  final name = _nameCtrl.text.trim();
+                  final pwd = _isLocked ? _pwdCtrl.text.trim() : '';
+                  final topic = _topicCtrl.text.trim();
+                  widget.onConfirm?.call(name, pwd, _roomAvatar, topic);
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  width: double.infinity,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        cfg.roomSettingsConfirmBtnStart,
+                        cfg.roomSettingsConfirmBtnEnd,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: cfg.roomSettingsConfirmBtnEnd.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [
-                    BoxShadow(
-                      color: cfg.roomSettingsConfirmBtnEnd.withValues(alpha: 0.35),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
+                  alignment: Alignment.center,
+                  child: Text(
+                    isAr ? 'تأكيد' : 'Confirm',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFFFFFFFF),
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  isAr ? 'تأكيد' : 'Confirm',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    color: Color(0xFFFFFFFF),
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -333,7 +334,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
   // ── Room image: 108×108 circle + camera icon ────────────────────
   Widget _buildRoomImage(DynamicConfigService cfg) {
     return GestureDetector(
-      onTap: _pickRoomImage,
+      onTap: widget.isModerator ? null : _pickRoomImage,
       child: Center(
         child: SizedBox(
           width: 108,
@@ -367,16 +368,17 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                       : _avatarPlaceholder(),
                 ),
               ),
-              Positioned(
-                bottom: 8,
-                right: 0,
-                child: R.loadAssetOr(
-                  cfg.roomSettingsCameraIcon,
-                  R.roomCameraLogoIc,
-                  width: 30,
-                  height: 30,
+              if (!widget.isModerator)
+                Positioned(
+                  bottom: 8,
+                  right: 0,
+                  child: R.loadAssetOr(
+                    cfg.roomSettingsCameraIcon,
+                    R.roomCameraLogoIc,
+                    width: 30,
+                    height: 30,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -415,6 +417,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
       constraints: const BoxConstraints(minHeight: 49),
       child: TextField(
         controller: _nameCtrl,
+        enabled: !widget.isModerator,
         style: const TextStyle(fontSize: 13, color: Color(0xFF16151A)),
         maxLength: 20,
         decoration: InputDecoration(
@@ -440,6 +443,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
       height: 92,
       child: TextField(
         controller: _topicCtrl,
+        enabled: !widget.isModerator,
         style: const TextStyle(fontSize: 13, color: Color(0xFF16151A)),
         maxLength: 100,
         maxLines: null,
