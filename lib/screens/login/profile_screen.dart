@@ -24,6 +24,7 @@ import '../setting/feedback_screen.dart';
 import '../vip/vip_center_screen.dart';
 import '../../features/cp/cp_space_screen.dart';
 import '../../features/host_agency/host_agency_screen.dart';
+import '../../features/host_agency/screens/bd_center_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/level_service.dart';
@@ -1013,6 +1014,19 @@ class ProfileScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const AgentRechargePortalScreen()),
+                  );
+                },
+              ),
+
+            // 11. مركز الـ BD والوكالات (خاص بمسؤولي الـ BD المعتمدين)
+            if (user?.isBd == true)
+              _buildFunctionItem(
+                icon: 'assets/mipmap-xxhdpi/mine_union_ic.webp',
+                title: 'مركز الـ BD والوكالات',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => BDCenterScreen(currentUser: user!)),
                   );
                 },
               ),

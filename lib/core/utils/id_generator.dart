@@ -50,11 +50,15 @@ class UserIdGenerator {
   /// التحقق من تفرد الرقم في Supabase و Firestore
   Future<bool> _checkIdUniqueness(String customId) async {
     try {
-      // 1. التحقق من Supabase
+      // 1. التحقق من Supabase (مستخدمين وغرف)
       try {
         final existing = await SupabaseDataService().findUserByIdOrCustomId(customId);
         if (existing != null) {
           return false; // الرقم موجود بالفعل في Supabase
+        }
+        final existingRoom = await SupabaseDataService().getRoom(customId);
+        if (existingRoom != null) {
+          return false; // الرقم مستخدم كـ ID غرفة بالفعل
         }
       } catch (e) {
         debugPrint('UserIdGenerator: Supabase check error: $e');

@@ -37,6 +37,10 @@ export interface UserModel {
   lastIp: string;
   banned: boolean;
   banReason: string;
+  isBd?: boolean;
+  bdSupervisorId?: string | null;
+  bdSalary?: number;
+  bdCommissionRate?: number;
 }
 
 export interface RoomModel {
@@ -166,12 +170,13 @@ export interface BugReport {
 export interface AdminUser {
   uid: string;
   email: string;
-  role: 'superadmin' | 'admin' | 'moderator';
+  role: 'super_admin' | 'superadmin' | 'admin' | 'moderator';
   displayName: string;
   permissions: Record<string, boolean>;
   photoUrl: string;
   isActive: boolean;
   createdBy: string;
+  appId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -642,13 +647,42 @@ export interface CPModel {
 
 export interface BDModel {
   id: string;
+  uid: string;
+  appId?: string;
   name: string;
-  region: string;
-  contactName: string;
-  contactEmail: string;
-  partnerSince: number;
-  dealValue: number;
-  status: 'active' | 'inactive';
+  region?: string;
+  contactName?: string;
+  contactEmail?: string;
+  email?: string;
+  photoUrl?: string;
+  supervisorId?: string;
+  supervisorName?: string;
+  agencyCount: number;
+  totalHosts: number;
+  totalEarnings: number;
+  salary: number;
+  commissionRate: number;
+  specialId?: string;
+  giftedFrame?: string;
+  giftedBadge?: string;
+  giftedNecklace?: string;
+  status: 'active' | 'suspended' | 'inactive';
+  dealValue?: number;
+  partnerSince?: number;
+  createdAt?: string | number;
+}
+
+export interface BDAgencyDetail {
+  id: string;
+  name: string;
+  ownerUid: string;
+  ownerName?: string;
+  ownerAppId?: string;
+  memberCount: number;
+  monthlyDiamonds: number;
+  totalDiamonds: number;
+  status: string;
+  createdAt?: string;
 }
 
 export interface GiftCategory {

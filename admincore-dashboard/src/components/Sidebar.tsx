@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Gift, Store, DoorOpen,
   Building2, Crown, BarChart3, Award, Handshake,
@@ -6,58 +6,71 @@ import {
   Bell, Settings, Shield, ChevronLeft, LogOut, SlidersHorizontal, Grid, Gift as GiftIcon,
   Tag, Sparkles, Eye, ImageIcon, Calendar, Rocket, Phone, CheckSquare, Volume2, Mic, User, Zap, X,
 } from 'lucide-react';
-import { logout } from '../lib/auth';
+import { logout, type AppUser } from '../lib/auth';
 import { useContext } from 'react';
 import { I18nContext } from '../lib/i18n';
+import { canUserAccess } from '../lib/permissions';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'nav.dashboard', end: true },
-  { to: '/recharge-event', icon: Zap, label: 'nav.rechargeEvent' },
-  { to: '/users', icon: Users, label: 'nav.users' },
-  { to: '/gifts', icon: Gift, label: 'nav.gifts' },
-  { to: '/store', icon: Store, label: 'nav.store' },
-  { to: '/rooms', icon: DoorOpen, label: 'nav.rooms' },
-  { to: '/lucky-gifts', icon: Sparkles, label: 'nav.luckyGifts' },
-  { to: '/red-packets', icon: Gift, label: 'المظاريف وصناديق الحظ 🧧' },
-  { to: '/tasks-manager', icon: CheckSquare, label: 'مركز المهام والمكافآت' },
-  { to: '/unions', icon: Building2, label: 'nav.unions' },
-  { to: '/vip', icon: Crown, label: 'nav.vip' },
-  { to: '/vip-gifting', icon: GiftIcon, label: 'nav.vipGifting' },
-  { to: '/levels', icon: BarChart3, label: 'nav.levels' },
-  { to: '/badges', icon: Award, label: 'nav.badges' },
-  { to: '/necklaces', icon: Crown, label: 'nav.necklaces' },
-  { to: '/badge-necklace-gifts', icon: GiftIcon, label: 'Badge & Necklace Gifts' },
-  { to: '/app-visual-designer', icon: Phone, label: 'nav.appVisualDesigner' },
-  { to: '/screen-customization', icon: SlidersHorizontal, label: 'nav.screenVisuals' },
-  { to: '/app-assets', icon: Image, label: 'nav.appAssets' },
-  { to: '/app-sounds', icon: Volume2, label: 'nav.appSounds' },
-  { to: '/audio-settings', icon: Mic, label: 'nav.audioSettings' },
-  { to: '/app-icons', icon: Grid, label: 'nav.appIcons' },
-  { to: '/visual-manager', icon: Eye, label: 'المظهر الشامل' },
-  { to: '/image-customize', icon: ImageIcon, label: 'nav.images' },
-  { to: '/color-customize', icon: Palette, label: 'nav.colors' },
-  { to: '/gift-items', icon: Gift, label: 'nav.giftItems' },
-  { to: '/gift-categories', icon: Tag, label: 'nav.giftCategories' },
-  { to: '/gift-banner-configs', icon: Sparkles, label: 'nav.giftBannerConfigs' },
-  { to: '/banners', icon: SlidersHorizontal, label: 'nav.banners' },
-  { to: '/agency', icon: Handshake, label: 'nav.agency' },
-  { to: '/cp-features', icon: Gift, label: 'CP Features' },
-  { to: '/signin-features', icon: Calendar, label: 'nav.signin' },
-  { to: '/app-updates', icon: Rocket, label: 'App Updates' },
-  { to: '/bd', icon: TrendingUp, label: 'nav.bd' },
-  { to: '/profile-customize', icon: User, label: 'nav.profileCustomize' },
-  { to: '/error-analysis', icon: Bug, label: 'nav.errors' },
-  { to: '/admins', icon: Shield, label: 'nav.admins' },
-  { to: '/notifications', icon: Bell, label: 'nav.notifications' },
-  { to: '/reports', icon: Shield, label: 'البلاغات' },
-  { to: '/emojis', icon: ImageIcon, label: 'الإيموجي' },
-  { to: '/room-backgrounds', icon: ImageIcon, label: 'خلفيات الغرف' },
-  { to: '/settings', icon: Settings, label: 'nav.settings' },
+  { to: '/', icon: LayoutDashboard, label: 'nav.dashboard', end: true, permKey: 'dashboard' },
+  { to: '/recharge-event', icon: Zap, label: 'nav.rechargeEvent', permKey: 'recharge_event' },
+  { to: '/users', icon: Users, label: 'nav.users', permKey: 'users' },
+  { to: '/gifts', icon: Gift, label: 'nav.gifts', permKey: 'gifts' },
+  { to: '/store', icon: Store, label: 'nav.store', permKey: 'store' },
+  { to: '/rooms', icon: DoorOpen, label: 'nav.rooms', permKey: 'rooms' },
+  { to: '/lucky-gifts', icon: Sparkles, label: 'nav.luckyGifts', permKey: 'lucky_gifts' },
+  { to: '/red-packets', icon: Gift, label: 'المظاريف وصناديق الحظ 🧧', permKey: 'red_packets' },
+  { to: '/tasks-manager', icon: CheckSquare, label: 'مركز المهام والمكافآت', permKey: 'tasks_manager' },
+  { to: '/unions', icon: Building2, label: 'nav.unions', permKey: 'unions' },
+  { to: '/vip', icon: Crown, label: 'nav.vip', permKey: 'vip' },
+  { to: '/vip-gifting', icon: GiftIcon, label: 'nav.vipGifting', permKey: 'vip_gifting' },
+  { to: '/levels', icon: BarChart3, label: 'nav.levels', permKey: 'levels' },
+  { to: '/badges', icon: Award, label: 'nav.badges', permKey: 'badges' },
+  { to: '/necklaces', icon: Crown, label: 'nav.necklaces', permKey: 'necklaces' },
+  { to: '/badge-necklace-gifts', icon: GiftIcon, label: 'Badge & Necklace Gifts', permKey: 'badge_necklace_gifts' },
+  { to: '/app-visual-designer', icon: Phone, label: 'nav.appVisualDesigner', permKey: 'app_visual_designer' },
+  { to: '/screen-customization', icon: SlidersHorizontal, label: 'nav.screenVisuals', permKey: 'screen_customization' },
+  { to: '/app-assets', icon: Image, label: 'nav.appAssets', permKey: 'app_assets' },
+  { to: '/app-sounds', icon: Volume2, label: 'nav.appSounds', permKey: 'app_sounds' },
+  { to: '/audio-settings', icon: Mic, label: 'nav.audioSettings', permKey: 'audio_settings' },
+  { to: '/app-icons', icon: Grid, label: 'nav.appIcons', permKey: 'app_icons' },
+  { to: '/visual-manager', icon: Eye, label: 'المظهر الشامل', permKey: 'visual_manager' },
+  { to: '/image-customize', icon: ImageIcon, label: 'nav.images', permKey: 'image_customize' },
+  { to: '/color-customize', icon: Palette, label: 'nav.colors', permKey: 'color_customize' },
+  { to: '/gift-items', icon: Gift, label: 'nav.giftItems', permKey: 'gift_items' },
+  { to: '/gift-categories', icon: Tag, label: 'nav.giftCategories', permKey: 'gift_categories' },
+  { to: '/gift-banner-configs', icon: Sparkles, label: 'nav.giftBannerConfigs', permKey: 'gift_banners' },
+  { to: '/banners', icon: SlidersHorizontal, label: 'nav.banners', permKey: 'banners' },
+  { to: '/agency', icon: Handshake, label: 'nav.agency', permKey: 'agency' },
+  { to: '/cp-features', icon: Gift, label: 'CP Features', permKey: 'cp_features' },
+  { to: '/signin-features', icon: Calendar, label: 'nav.signin', permKey: 'signin_features' },
+  { to: '/app-updates', icon: Rocket, label: 'App Updates', permKey: 'app_updates' },
+  { to: '/bd', icon: TrendingUp, label: 'nav.bd', permKey: 'bd' },
+  { to: '/profile-customize', icon: User, label: 'nav.profileCustomize', permKey: 'profile_customize' },
+  { to: '/error-analysis', icon: Bug, label: 'nav.errors', permKey: 'error_analysis' },
+  { to: '/admins', icon: Shield, label: 'nav.admins', permKey: 'admins' },
+  { to: '/notifications', icon: Bell, label: 'nav.notifications', permKey: 'notifications' },
+  { to: '/reports', icon: Shield, label: 'البلاغات', permKey: 'reports' },
+  { to: '/emojis', icon: ImageIcon, label: 'الإيموجي', permKey: 'emojis' },
+  { to: '/room-backgrounds', icon: ImageIcon, label: 'خلفيات الغرف', permKey: 'room_backgrounds' },
+  { to: '/settings', icon: Settings, label: 'nav.settings', permKey: 'settings' },
 ];
 
-export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: { collapsed: boolean; onToggle: () => void; mobileOpen?: boolean; onMobileClose?: () => void }) {
-  const location = useLocation();
+export default function Sidebar({
+  collapsed,
+  onToggle,
+  mobileOpen,
+  onMobileClose,
+  currentUser,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+  currentUser?: AppUser | null;
+}) {
   const { t, lang } = useContext(I18nContext);
+  const visibleNavItems = navItems.filter(item => canUserAccess(currentUser, item.permKey));
 
   return (
     <>
@@ -86,7 +99,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
         </button>
       </div>
       <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-1 custom-scrollbar">
-        {navItems.map(item => (
+        {visibleNavItems.map(item => (
           <NavLink key={item.to} to={item.to} end={item.end} onClick={onMobileClose}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
@@ -120,7 +133,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
         </button>
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 custom-scrollbar">
-        {navItems.map(item => (
+        {visibleNavItems.map(item => (
           <NavLink
             key={item.to}
             to={item.to}

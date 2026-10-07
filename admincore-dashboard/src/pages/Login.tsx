@@ -131,19 +131,19 @@ export default function Login() {
 
           {/* Input Fields */}
           <div className="space-y-4">
-            {/* Email Field */}
+            {/* Identifier Field (Email or App ID) */}
             <div>
               <label className="block text-[11px] uppercase text-slate-400 font-bold mb-1.5 tracking-wider">
-                {t('login.email')}
+                {lang === 'ar' ? 'البريد الإلكتروني أو الآيدي (App ID)' : 'Email or App ID'}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 text-slate-500 w-4 h-4 rtl:left-auto rtl:right-3" />
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="admin@zero.app"
-                  className="w-full bg-[#161618] border border-white/10 rounded-xl py-2.5 px-9 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                  placeholder={lang === 'ar' ? 'البريد أو الآيدي داخل التطبيق...' : 'Email or App ID...'}
+                  className="w-full bg-[#161618] border border-white/10 rounded-xl py-2.5 px-9 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-sans"
                   required
                 />
               </div>

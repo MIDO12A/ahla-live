@@ -143,7 +143,19 @@ class FirebaseService {
     String category = '',
     String country = '',
   }) async {
-    final roomId = hostCustomId;
+    String resolvedRoomId = (hostCustomId.trim().isNotEmpty && hostCustomId.trim() != 'null')
+        ? hostCustomId.trim()
+        : hostUid.trim();
+
+    // Guard against collision with another user's room
+    try {
+      final existingSb = await SupabaseDataService().getRoom(resolvedRoomId);
+      if (existingSb != null && existingSb.hostUid.isNotEmpty && existingSb.hostUid != hostUid) {
+        resolvedRoomId = '${resolvedRoomId}_${DateTime.now().millisecondsSinceEpoch % 10000}';
+      }
+    } catch (_) {}
+
+    final roomId = resolvedRoomId;
     final room = RoomModel(
       roomId: roomId,
       name: name,

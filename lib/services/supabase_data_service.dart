@@ -91,6 +91,11 @@ class SupabaseDataService {
     String? hostName,
   }) async {
     try {
+      // 1. If room already exists, never touch or overwrite its host/data
+      final existing = await getRoom(roomId);
+      if (existing != null) {
+        return true;
+      }
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?on_conflict=room_id');
       final body = jsonEncode({
         'room_id': roomId,
@@ -103,7 +108,7 @@ class SupabaseDataService {
         url,
         headers: {
           ..._headers,
-          'Prefer': 'resolution=merge-duplicates',
+          'Prefer': 'resolution=ignore-duplicates',
         },
         body: body,
       );
@@ -231,8 +236,8 @@ class SupabaseDataService {
       if (res.statusCode >= 400 && (res.body.contains('foreign key') || res.statusCode == 409 || res.body.contains('room_seats_room_id_fkey'))) {
         await ensureRoomExists(
           roomId: roomId,
-          hostUid: user.uid,
-          hostName: user.name,
+          hostUid: '',
+          hostName: '',
         );
         res = await http.post(
           url,

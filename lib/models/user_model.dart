@@ -51,6 +51,10 @@ class UserModel {
   final String? rechargeAgencyLogo;
   final String? whatsappNumber;
   final List<String> album;
+  final bool isBd;
+  final String? bdSupervisorId;
+  final double bdSalary;
+  final double bdCommissionRate;
 
   int get exp => experience;
 
@@ -105,6 +109,10 @@ class UserModel {
     this.rechargeAgencyName,
     this.rechargeAgencyLogo,
     this.whatsappNumber,
+    this.isBd = false,
+    this.bdSupervisorId,
+    this.bdSalary = 0.0,
+    this.bdCommissionRate = 10.0,
   });
 
   UserModel copyWith({
@@ -157,6 +165,10 @@ class UserModel {
     String? rechargeAgencyName,
     String? rechargeAgencyLogo,
     String? whatsappNumber,
+    bool? isBd,
+    String? bdSupervisorId,
+    double? bdSalary,
+    double? bdCommissionRate,
   }) {
     return UserModel(
       uid: uid,
@@ -209,6 +221,10 @@ class UserModel {
       rechargeAgencyLogo: rechargeAgencyLogo ?? this.rechargeAgencyLogo,
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
       phone: phone ?? this.phone,
+      isBd: isBd ?? this.isBd,
+      bdSupervisorId: bdSupervisorId ?? this.bdSupervisorId,
+      bdSalary: bdSalary ?? this.bdSalary,
+      bdCommissionRate: bdCommissionRate ?? this.bdCommissionRate,
     );
   }
 
@@ -430,6 +446,10 @@ class UserModel {
       rechargeAgencyLogo: map['recharge_agency_logo']?.toString() ?? map['rechargeAgencyLogo']?.toString(),
       whatsappNumber: map['whatsapp_number']?.toString() ?? map['phone']?.toString(),
       phone: map['phone']?.toString() ?? map['phone_number']?.toString() ?? map['phoneNumber']?.toString(),
+      isBd: map['is_bd'] == true || map['isBd'] == true || map['role'] == 'bd',
+      bdSupervisorId: map['bd_supervisor_id']?.toString() ?? map['bdSupervisorId']?.toString(),
+      bdSalary: (map['bd_salary'] ?? map['bdSalary'] ?? 0).toDouble(),
+      bdCommissionRate: (map['bd_commission_rate'] ?? map['bdCommissionRate'] ?? 10).toDouble(),
     );
   }
 
@@ -489,6 +509,10 @@ class UserModel {
         'recharge_agency_name': rechargeAgencyName,
         'recharge_agency_logo': rechargeAgencyLogo,
         'whatsapp_number': whatsappNumber,
+        'is_bd': isBd,
+        'bd_supervisor_id': bdSupervisorId,
+        'bd_salary': bdSalary,
+        'bd_commission_rate': bdCommissionRate,
       };
 
   Map<String, dynamic> toSupabaseMap() => {
@@ -543,5 +567,9 @@ class UserModel {
         'whatsapp_number': whatsappNumber,
         'banned': banned,
         'ban_reason': banReason,
+        'is_bd': isBd,
+        'bd_supervisor_id': bdSupervisorId,
+        'bd_salary': bdSalary,
+        'bd_commission_rate': bdCommissionRate,
       };
 }

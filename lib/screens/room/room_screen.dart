@@ -1068,10 +1068,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
 
     // Ensure room exists in Supabase rooms table
+    final effectiveHostUid = (currentUser?.hostedRoomId == widget.roomId)
+        ? currentUser?.uid
+        : (widget.hostUid != null && widget.hostUid!.isNotEmpty ? widget.hostUid : null);
     SupabaseDataService().ensureRoomExists(
       roomId: widget.roomId,
       name: widget.roomName,
-      hostUid: currentUser?.uid,
+      hostUid: effectiveHostUid,
       hostName: widget.hostName,
     );
 

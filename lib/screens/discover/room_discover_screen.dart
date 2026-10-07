@@ -83,7 +83,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
 
     // 3. Lookup by customId if available
     if (room == null && user.customId.isNotEmpty) {
-      final candidate = await _firebaseService.getRoomByHost(user.customId) ?? await _firebaseService.getRoom(user.customId);
+      final candidate = await _firebaseService.getRoomByHost(user.customId);
       if (candidate != null && (candidate.hostUid == user.uid || candidate.hostUid == user.customId)) {
         room = candidate;
         await _firebaseService.updateUser(user.uid, {'hosted_room_id': room.roomId});
@@ -91,12 +91,11 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
       }
     }
 
-    // 4. Supabase direct fallback lookup
+    // 4. Supabase direct fallback lookup (strictly verify host ownership)
     if (room == null) {
       try {
-        final sbRoom = await SupabaseDataService().getRoomByHostUid(user.uid) ??
-            (user.customId.isNotEmpty ? await SupabaseDataService().getRoomByHostUid(user.customId) : null);
-        if (sbRoom != null) {
+        final sbRoom = await SupabaseDataService().getRoomByHostUid(user.uid);
+        if (sbRoom != null && (sbRoom.hostUid == user.uid || (user.customId.isNotEmpty && sbRoom.hostUid == user.customId))) {
           room = sbRoom;
           await _firebaseService.updateUser(user.uid, {'hosted_room_id': sbRoom.roomId});
           await userProvider.loadUser(user.uid);

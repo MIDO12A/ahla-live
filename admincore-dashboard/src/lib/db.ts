@@ -2142,20 +2142,301 @@ export function subscribeCPs(cb: (cps: CPModel[]) => void) {
   return () => { try { supabase.removeChannel(sub) } catch {} }
 }
 
-// ---- BDs ----
+// ---- Gift User Items (Necklace, Badge, Frame, Special ID) ----
 
-export async function getBDs(): Promise<BDModel[]> {
+export async function giftUserItems(uid: string, items: {
+  necklaceId?: string;
+  badgeId?: string;
+  frameId?: string;
+  specialId?: string;
+}) {
+  const client = getAdminSupabase() || supabase;
   try {
-    const { data } = await supabase.from('bds').select('*').order('id')
-    return mapList<BDModel>(data ?? [])
-  } catch {
-    return []
+    const { data: user } = await client
+      .from('users')
+      .select('owned_necklaces, owned_badges, owned_items, active_necklace, active_frame, custom_id')
+      .eq('uid', uid)
+      .maybeSingle();
+
+    if (!user) return;
+
+    const updates: Record<string, any> = {};
+
+    if (items.necklaceId && items.necklaceId.trim()) {
+      const cur = Array.isArray(user.owned_necklaces) ? user.owned_necklaces : [];
+      updates.owned_necklaces = Array.from(new Set([...cur, items.necklaceId.trim()]));
+      updates.active_necklace = items.necklaceId.trim();
+    }
+
+    if (items.badgeId && items.badgeId.trim()) {
+      const cur = Array.isArray(user.owned_badges) ? user.owned_badges : [];
+      updates.owned_badges = Array.from(new Set([...cur, items.badgeId.trim()]));
+    }
+
+    if (items.frameId && items.frameId.trim()) {
+      const cur = Array.isArray(user.owned_items) ? user.owned_items : [];
+      updates.owned_items = Array.from(new Set([...cur, items.frameId.trim()]));
+      updates.active_frame = items.frameId.trim();
+    }
+
+    if (items.specialId && items.specialId.trim()) {
+      updates.custom_id = items.specialId.trim();
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await client.from('users').update(updates).eq('uid', uid);
+    }
+  } catch (err) {
+    console.warn('giftUserItems error:', err);
+  }
+}
+
+// ---- BD Management ----
+
+export async function getBDManagers(): Promise<BDModel[]> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    // 1. Fetch users where is_bd = true
+    const { data: bdUsers } = await client
+      .from('users')
+      .select('uid, custom_id, name, email, photo_url, is_bd, bd_supervisor_id, bd_salary, bd_commission_rate, created_at')
+      .eq('is_bd', true);
+
+    // Also fetch all metadata from app_config
+    const { data: configs } = await client
+      .from('app_config')
+      .select('key, value')
+      .like('key', 'bd_meta_%');
+
+    const configMap: Record<string, any> = {};
+    (configs || []).forEach(c => {
+      const u = c.key.replace('bd_meta_', '');
+      configMap[u] = c.value;
+    });
+
+    // 2. Fetch all host_agencies to compute statistics
+    const { data: agencies } = await client
+      .from('host_agencies')
+      .select('id, name, owner_uid, member_count, total_diamonds_monthly, total_diamonds_cumulative, data, created_at');
+
+    // 3. Fetch admin users for supervisor names
+    const admins = await getAdminUsers();
+    const adminMap: Record<string, string> = {};
+    admins.forEach(a => { adminMap[a.uid] = a.displayName || a.email; });
+
+    const allBds: Map<string, BDModel> = new Map();
+
+    // Add from bdUsers
+    (bdUsers || []).forEach(u => {
+      const meta = configMap[u.uid] || {};
+      const supId = u.bd_supervisor_id || meta.supervisorId || '';
+      allBds.set(u.uid, {
+        id: u.uid,
+        uid: u.uid,
+        appId: u.custom_id || meta.appId || '',
+        name: u.name || meta.name || 'BD Manager',
+        email: u.email || meta.email || '',
+        photoUrl: u.photo_url || meta.photoUrl || '',
+        supervisorId: supId,
+        supervisorName: adminMap[supId] || meta.supervisorName || supId,
+        agencyCount: 0,
+        totalHosts: 0,
+        totalEarnings: 0,
+        salary: Number(u.bd_salary ?? meta.salary ?? 0),
+        commissionRate: Number(u.bd_commission_rate ?? meta.commissionRate ?? 10),
+        specialId: meta.specialId || u.custom_id || '',
+        giftedFrame: meta.giftedFrame,
+        giftedBadge: meta.giftedBadge,
+        giftedNecklace: meta.giftedNecklace,
+        status: 'active',
+        createdAt: u.created_at || meta.createdAt,
+      });
+    });
+
+    // Add any from configMap not yet added
+    Object.keys(configMap).forEach(uid => {
+      if (!allBds.has(uid) && configMap[uid]?.status !== 'revoked') {
+        const meta = configMap[uid] || {};
+        const supId = meta.supervisorId || '';
+        allBds.set(uid, {
+          id: uid,
+          uid,
+          appId: meta.appId || '',
+          name: meta.name || 'BD Manager',
+          email: meta.email || '',
+          photoUrl: meta.photoUrl || '',
+          supervisorId: supId,
+          supervisorName: adminMap[supId] || meta.supervisorName || supId,
+          agencyCount: 0,
+          totalHosts: 0,
+          totalEarnings: 0,
+          salary: Number(meta.salary || 0),
+          commissionRate: Number(meta.commissionRate || 10),
+          specialId: meta.specialId || '',
+          giftedFrame: meta.giftedFrame,
+          giftedBadge: meta.giftedBadge,
+          giftedNecklace: meta.giftedNecklace,
+          status: 'active',
+          createdAt: meta.createdAt,
+        });
+      }
+    });
+
+    // Aggregate agency statistics for each BD
+    (agencies || []).forEach(ag => {
+      const bdUid = ag.data?.bd_uid || ag.data?.bdUid || ag.owner_uid;
+      if (bdUid && allBds.has(bdUid)) {
+        const bd = allBds.get(bdUid)!;
+        bd.agencyCount += 1;
+        bd.totalHosts += Number(ag.member_count || 1);
+        bd.totalEarnings += Number(ag.total_diamonds_monthly || ag.total_diamonds_cumulative || 0);
+      }
+    });
+
+    return Array.from(allBds.values());
+  } catch (err) {
+    console.error('getBDManagers error:', err);
+    return [];
+  }
+}
+
+export const getBDs = getBDManagers;
+
+export async function assignBDManager(params: {
+  uid: string;
+  appId?: string;
+  name?: string;
+  supervisorId?: string;
+  salary?: number;
+  commissionRate?: number;
+  specialId?: string;
+  frameId?: string;
+  badgeId?: string;
+  necklaceId?: string;
+}) {
+  const client = getAdminSupabase() || supabase;
+  const { uid, appId, name, supervisorId, salary = 0, commissionRate = 10, specialId, frameId, badgeId, necklaceId } = params;
+
+  // 1. Update public.users
+  const updates: Record<string, any> = {
+    is_bd: true,
+    bd_supervisor_id: supervisorId || null,
+    bd_salary: salary,
+    bd_commission_rate: commissionRate,
+  };
+  if (specialId && specialId.trim()) {
+    updates.custom_id = specialId.trim();
+  }
+  try {
+    await client.from('users').update(updates).eq('uid', uid);
+  } catch (e) {
+    console.warn('Update user for BD error:', e);
+  }
+
+  // 2. Gift Items (Frame, Badge, Necklace, Special ID)
+  await giftUserItems(uid, {
+    necklaceId,
+    badgeId,
+    frameId,
+    specialId,
+  });
+
+  // 3. Save meta in app_config
+  const meta = {
+    uid,
+    appId: specialId || appId || '',
+    name: name || '',
+    supervisorId: supervisorId || '',
+    salary,
+    commissionRate,
+    specialId: specialId || '',
+    giftedFrame: frameId || '',
+    giftedBadge: badgeId || '',
+    giftedNecklace: necklaceId || '',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    await client.from('app_config').upsert({
+      key: 'bd_meta_' + uid,
+      value: meta,
+    });
+  } catch (e) {
+    console.warn('Save bd_meta error:', e);
+  }
+}
+
+export async function revokeBDManager(uid: string) {
+  const client = getAdminSupabase() || supabase;
+  // 1. Clear is_bd in users
+  try {
+    await client.from('users').update({
+      is_bd: false,
+      bd_supervisor_id: null,
+      bd_salary: 0,
+      bd_commission_rate: 0,
+    }).eq('uid', uid);
+  } catch (e) {
+    console.warn('Revoke user is_bd error:', e);
+  }
+
+  // 2. Delete / update meta in app_config
+  try {
+    await client.from('app_config').delete().eq('key', 'bd_meta_' + uid);
+  } catch (e) {
+    console.warn('Delete bd_meta error:', e);
+  }
+}
+
+export async function getBDAgencies(bdUid: string): Promise<BDAgencyDetail[]> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const { data } = await client
+      .from('host_agencies')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!data) return [];
+
+    const filtered = data.filter(a => {
+      const assignedBd = a.data?.bd_uid || a.data?.bdUid;
+      return assignedBd === bdUid || a.owner_uid === bdUid;
+    });
+
+    return filtered.map(a => ({
+      id: a.id,
+      name: a.name || 'Agency',
+      ownerUid: a.owner_uid,
+      ownerName: a.name || '',
+      memberCount: a.member_count || 1,
+      monthlyDiamonds: a.total_diamonds_monthly || 0,
+      totalDiamonds: a.total_diamonds_cumulative || 0,
+      status: a.status || 'active',
+      createdAt: a.created_at,
+    }));
+  } catch (e) {
+    console.error('getBDAgencies error:', e);
+    return [];
+  }
+}
+
+export async function linkAgencyToBD(agencyId: string, bdUid: string) {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const { data: ag } = await client.from('host_agencies').select('data').eq('id', agencyId).maybeSingle();
+    const curData = ag?.data || {};
+    await client.from('host_agencies').update({
+      data: { ...curData, bd_uid: bdUid },
+    }).eq('id', agencyId);
+  } catch (e) {
+    console.error('linkAgencyToBD error:', e);
   }
 }
 
 export function subscribeBDs(cb: (bds: BDModel[]) => void) {
-  const sub = supabase.channel('bds').on('postgres_changes', { event: '*', schema: 'public', table: 'bds' }, () => {
-    getBDs().then(cb)
+  const sub = supabase.channel('bds_sync').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+    getBDManagers().then(cb)
   }).subscribe()
   return () => { try { supabase.removeChannel(sub) } catch {} }
 }
@@ -2344,54 +2625,284 @@ export async function getStats(): Promise<{
 export async function getAdminUsers(): Promise<AdminUser[]> {
   try {
     const client = getAdminSupabase() || supabase
-    const { data } = await client.from('admin_users').select('*').order('created_at', { ascending: false })
-    return mapList<AdminUser>(data ?? [])
-  } catch { return [] }
+    const { data: rows } = await client.from('admin_users').select('*').order('created_at', { ascending: false })
+    if (!rows) return []
+
+    // Fetch display names and photo URLs stored in app_config
+    const { data: configs } = await client.from('app_config').select('*').like('key', 'admin_meta_%')
+    const configMap: Record<string, any> = {}
+    if (configs) {
+      for (const c of configs) {
+        if (c.key && c.value) {
+          const uid = c.key.replace('admin_meta_', '')
+          configMap[uid] = c.value
+        }
+      }
+    }
+
+    return rows.map((r: any) => {
+      const uid = r.uid || r.id
+      const meta = configMap[uid] || {}
+      const role = r.role === 'superadmin' ? 'super_admin' : (r.role || 'moderator')
+
+      const permsMap: Record<string, boolean> = {}
+      if (Array.isArray(r.permissions)) {
+        const isAll = r.permissions.includes('all') || r.permissions.includes('*') || role === 'super_admin'
+        if (isAll) {
+          permsMap['all'] = true
+        }
+        for (const p of r.permissions) {
+          permsMap[p] = true
+        }
+      } else if (typeof r.permissions === 'object' && r.permissions !== null) {
+        Object.assign(permsMap, r.permissions)
+      }
+
+      return {
+        uid,
+        email: r.email || '',
+        role: role as any,
+        displayName: meta.displayName || meta.display_name || r.display_name || (r.email ? r.email.split('@')[0] : 'Admin'),
+        permissions: permsMap,
+        photoUrl: meta.photoUrl || meta.photo_url || r.photo_url || '',
+        isActive: meta.isActive !== false && r.is_active !== false,
+        createdBy: meta.createdBy || r.created_by || '',
+        appId: meta.appId || meta.customId || '',
+        createdAt: r.created_at || new Date().toISOString(),
+        updatedAt: r.updated_at || new Date().toISOString(),
+      }
+    })
+  } catch (err) {
+    console.warn('getAdminUsers error:', err)
+    return []
+  }
 }
 
 export async function getAdminUser(uid: string): Promise<AdminUser | null> {
   try {
-    const client = getAdminSupabase() || supabase
-    const { data } = await client.from('admin_users').select('*').eq('uid', uid).maybeSingle()
-    return mapSingle<AdminUser>(data)
+    const users = await getAdminUsers()
+    return users.find(u => u.uid === uid) || null
   } catch { return null }
 }
 
-export async function createAdminUser(uid: string, data: Partial<AdminUser>, password: string) {
-  const adminClient = getAdminSupabase()
-  if (!adminClient) throw new Error('Admin client not available')
-  try {
-    await adminClient.auth.admin.createUser({ email: data.email, password, email_confirm: true })
-  } catch (e: any) {
-    if (!e?.message?.includes('already exists') && !e?.message?.includes('already registered')) {
-      throw e
+export async function createAdminUser(
+  uid: string,
+  data: Partial<AdminUser> & { appId?: string; customId?: string },
+  password: string
+) {
+  const client = getAdminSupabase() || supabase
+  const cleanEmail = (data.email || '').trim().toLowerCase()
+  const role = data.role === 'superadmin' ? 'super_admin' : (data.role || 'moderator')
+  const appId = (data.appId || data.customId || '').trim()
+
+  // 1. Prepare permissions array
+  let permsArray: string[] = []
+  if (role === 'super_admin') {
+    permsArray = ['all']
+  } else if (data.permissions) {
+    if (data.permissions['all']) {
+      permsArray = ['all', ...Object.keys(data.permissions).filter(k => k !== 'all' && data.permissions![k])]
+    } else {
+      permsArray = Object.keys(data.permissions).filter(k => data.permissions![k])
     }
   }
-  const payload: Record<string, unknown> = {
-    uid,
-    email: data.email || '',
-    display_name: data.displayName || '',
-    role: data.role || 'moderator',
-    permissions: data.permissions || {},
-    photo_url: data.photoUrl || '',
-    is_active: data.isActive !== false,
-    created_by: data.createdBy || '',
+
+  // 2. Try Supabase Auth signUp safely (ignore rate-limit / 429)
+  try {
+    const { error: signUpError } = await client.auth.signUp({
+      email: cleanEmail,
+      password,
+    })
+    if (signUpError) {
+      console.warn('Supabase auth signUp warning (ignoring 429/rate-limit):', signUpError.message)
+    }
+  } catch (authErr: any) {
+    console.warn('Supabase auth signUp caught error:', authErr?.message)
   }
-  const { error } = await adminClient.from('admin_users').upsert(payload as any)
-  if (error) throw error
+
+  const authPayload = {
+    uid,
+    email: cleanEmail,
+    appId: appId || undefined,
+    password,
+    displayName: data.displayName || cleanEmail.split('@')[0],
+    role,
+    permissions: permsArray,
+    updatedAt: new Date().toISOString(),
+  }
+
+  // 3. Save credentials in app_config so admin can log in with Email
+  try {
+    await client.from('app_config').upsert({
+      key: 'admin_auth_' + cleanEmail,
+      value: authPayload,
+    })
+  } catch (e) {
+    console.warn('Saving admin_auth error:', e)
+  }
+
+  // 4. If appId provided, save credentials under appId so admin can log in with App ID
+  if (appId) {
+    try {
+      await client.from('app_config').upsert({
+        key: 'admin_auth_' + appId.toLowerCase(),
+        value: authPayload,
+      })
+      await client.from('app_config').upsert({
+        key: 'admin_appid_' + appId.toLowerCase(),
+        value: { uid, email: cleanEmail, appId },
+      })
+    } catch (e) {
+      console.warn('Saving admin_auth for appId error:', e)
+    }
+  }
+
+  // 5. Save metadata in app_config
+  try {
+    await client.from('app_config').upsert({
+      key: 'admin_meta_' + uid,
+      value: {
+        uid,
+        email: cleanEmail,
+        appId: appId || undefined,
+        displayName: data.displayName || '',
+        photoUrl: data.photoUrl || '',
+        role,
+        isActive: data.isActive !== false,
+        createdBy: data.createdBy || '',
+        updatedAt: new Date().toISOString(),
+      },
+    })
+  } catch (e) {
+    console.warn('Saving admin_meta error:', e)
+  }
+
+  // 6. Insert/upsert into admin_users table with ONLY the actual DB columns
+  const payload = {
+    id: uid,
+    uid,
+    email: cleanEmail,
+    role,
+    permissions: permsArray,
+    updated_at: new Date().toISOString(),
+  }
+  const { error } = await client.from('admin_users').upsert(payload)
+  if (error) {
+    console.error('Error inserting admin_users:', error)
+    throw error
+  }
+
+  // 7. If this admin is an app user in the users table, update their role in the app as well
+  try {
+    const userRole = role === 'super_admin' ? 'admin' : role
+    await client.from('users').update({ role: userRole }).eq('uid', uid)
+  } catch (_) {}
+
+  // 8. If giftNecklaceId or giftBadgeId provided, gift them directly into app account
+  const giftNecklace = (data as any).giftNecklaceId;
+  const giftBadge = (data as any).giftBadgeId;
+  if (giftNecklace || giftBadge) {
+    await giftUserItems(uid, {
+      necklaceId: giftNecklace,
+      badgeId: giftBadge,
+    });
+  }
 }
 
-export async function updateAdminUser(uid: string, data: Partial<AdminUser>) {
+export async function updateAdminUser(
+  uid: string,
+  data: Partial<AdminUser> & { appId?: string; customId?: string; password?: string }
+) {
   const client = getAdminSupabase() || supabase
-  const { error } = await client.from('admin_users').update(toSnakeCase(data as Record<string, unknown>)).eq('uid', uid)
-  if (error) throw error
+  const role = data.role ? (data.role === 'superadmin' ? 'super_admin' : data.role) : undefined
+  const appId = (data.appId || data.customId || '').trim()
+
+  // 1. Update metadata in app_config
+  try {
+    const { data: existingMeta } = await client.from('app_config').select('value').eq('key', 'admin_meta_' + uid).maybeSingle()
+    const metaVal = (existingMeta?.value as any) || {}
+    if (data.displayName !== undefined) metaVal.displayName = data.displayName
+    if (data.photoUrl !== undefined) metaVal.photoUrl = data.photoUrl
+    if (data.isActive !== undefined) metaVal.isActive = data.isActive
+    if (role !== undefined) metaVal.role = role
+    if (appId) metaVal.appId = appId
+    metaVal.updatedAt = new Date().toISOString()
+    await client.from('app_config').upsert({
+      key: 'admin_meta_' + uid,
+      value: metaVal,
+    })
+  } catch (e) {
+    console.warn('Updating admin_meta error:', e)
+  }
+
+  // 2. If password provided, update credentials
+  if (data.password) {
+    const email = (data.email || '').trim().toLowerCase()
+    const authPayload = {
+      uid,
+      email,
+      appId: appId || undefined,
+      password: data.password,
+      displayName: data.displayName || '',
+      role: role || 'moderator',
+      updatedAt: new Date().toISOString(),
+    }
+    if (email) {
+      try {
+        await client.from('app_config').upsert({
+          key: 'admin_auth_' + email,
+          value: authPayload,
+        })
+      } catch (_) {}
+    }
+    if (appId) {
+      try {
+        await client.from('app_config').upsert({
+          key: 'admin_auth_' + appId.toLowerCase(),
+          value: authPayload,
+        })
+      } catch (_) {}
+    }
+  }
+
+  // 3. Prepare database payload with ONLY existing table columns
+  const payload: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  }
+  if (role) payload.role = role
+  if (data.email) payload.email = data.email.trim().toLowerCase()
+
+  if (data.permissions) {
+    let permsArray: string[] = []
+    if (role === 'super_admin' || data.permissions['all']) {
+      permsArray = ['all', ...Object.keys(data.permissions).filter(k => k !== 'all' && data.permissions![k])]
+    } else {
+      permsArray = Object.keys(data.permissions).filter(k => data.permissions![k])
+    }
+    payload.permissions = permsArray
+  }
+
+  const { error } = await client.from('admin_users').update(payload).eq('uid', uid)
+  if (error) {
+    console.error('Error updating admin_users:', error)
+    throw error
+  }
+
+  // 4. Gift necklace or badge if specified
+  const giftNecklace = (data as any).giftNecklaceId;
+  const giftBadge = (data as any).giftBadgeId;
+  if (giftNecklace || giftBadge) {
+    await giftUserItems(uid, {
+      necklaceId: giftNecklace,
+      badgeId: giftBadge,
+    });
+  }
 }
 
 export async function deleteAdminUser(uid: string) {
-  const adminClient = getAdminSupabase()
-  if (!adminClient) throw new Error('Admin client not available')
-  await adminClient.from('admin_users').delete().eq('uid', uid)
-  try { await adminClient.auth.admin.deleteUser(uid) } catch {}
+  const client = getAdminSupabase() || supabase
+  await client.from('admin_users').delete().eq('uid', uid)
+  try { await client.from('app_config').delete().eq('key', 'admin_meta_' + uid) } catch {}
 }
 
 export async function logAdminAction(

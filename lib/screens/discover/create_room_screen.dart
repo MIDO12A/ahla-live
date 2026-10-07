@@ -72,15 +72,16 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
       return candidateUid;
     }
     if (user.customId.isNotEmpty) {
-      final candidateCustom = await _firebaseService.getRoomByHost(user.customId) ?? await _firebaseService.getRoom(user.customId);
+      final candidateCustom = await _firebaseService.getRoomByHost(user.customId);
       if (candidateCustom != null && (candidateCustom.hostUid == user.uid || candidateCustom.hostUid == user.customId)) {
         return candidateCustom;
       }
     }
     try {
-      final sbRoom = await SupabaseDataService().getRoomByHostUid(user.uid) ??
-          (user.customId.isNotEmpty ? await SupabaseDataService().getRoomByHostUid(user.customId) : null);
-      if (sbRoom != null) return sbRoom;
+      final sbRoom = await SupabaseDataService().getRoomByHostUid(user.uid);
+      if (sbRoom != null && (sbRoom.hostUid == user.uid || (user.customId.isNotEmpty && sbRoom.hostUid == user.customId))) {
+        return sbRoom;
+      }
     } catch (_) {}
     return null;
   }
