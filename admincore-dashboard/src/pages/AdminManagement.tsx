@@ -143,11 +143,17 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
   };
 
   const handleRoleChangeEdit = (newRole: string) => {
-    setEditForm(prev => ({
-      ...prev,
-      role: newRole,
-      permissions: getDefaultPermissionsForRole(newRole),
-    }));
+    setEditForm(prev => {
+      let nextPerms = { ...prev.permissions };
+      if (newRole === 'super_admin' && Object.values(nextPerms).filter(Boolean).length === 0) {
+        nextPerms = getAllPermissionsMap();
+      }
+      return {
+        ...prev,
+        role: newRole,
+        permissions: nextPerms,
+      };
+    });
   };
 
   const selectAllAdd = () => {
@@ -240,8 +246,10 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
   const startEdit = (admin: AdminUser) => {
     setEditingAdmin(admin);
     const perms = { ...admin.permissions };
-    if (admin.role === 'super_admin' || admin.role === 'superadmin' || perms['all']) {
+    if (perms['all']) {
       Object.assign(perms, getAllPermissionsMap());
+    } else if (Object.keys(perms).length === 0) {
+      Object.assign(perms, getDefaultPermissionsForRole(admin.role));
     }
     setEditForm({
       displayName: admin.displayName || '',
@@ -1114,6 +1122,10 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
                       className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
                       <Square className="w-3.5 h-3.5" />
                       {isAr ? 'إلغاء التحديد' : 'Deselect All'}
+                    </button>
+                    <button type="button" onClick={() => setEditForm(p => ({ ...p, permissions: getDefaultPermissionsForRole(p.role) }))}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/20 transition-colors">
+                      {isAr ? 'استعادة افتراضي الرتبة' : 'Role Defaults'}
                     </button>
                   </div>
                 </div>

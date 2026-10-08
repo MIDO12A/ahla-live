@@ -56,7 +56,7 @@ export async function hydrateUserPermissions(user: AppUser | null) {
     lower.startsWith('admin@')
 
   if (isMaster) {
-    user.role = 'super_admin'
+    user.role = 'owner'
     user.permissions = ['all']
     setLocalAdmin(user)
     return
@@ -77,9 +77,6 @@ export async function hydrateUserPermissions(user: AppUser | null) {
         user.permissions = Object.keys(data.permissions).filter(k => (data.permissions as any)[k])
       } else {
         user.permissions = user.role === 'super_admin' ? ['all'] : []
-      }
-      if (user.role === 'super_admin') {
-        user.permissions = ['all']
       }
       setLocalAdmin(user)
     }

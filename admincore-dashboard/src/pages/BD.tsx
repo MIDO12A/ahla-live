@@ -3,10 +3,10 @@ import { I18nContext } from '../lib/i18n';
 import {
   Briefcase, UserPlus, Trash2, Building, Users, DollarSign,
   Award, Crown, Sparkles, Search, Save, X, Eye, Shield,
-  CheckCircle, AlertTriangle, RefreshCw, ChevronRight, Layers, Percent
+  CheckCircle, AlertTriangle, RefreshCw, ChevronRight, Layers, Percent, Edit3
 } from 'lucide-react';
 import {
-  getBDManagers, assignBDManager, revokeBDManager, getBDAgencies,
+  getBDManagers, assignBDManager, updateBDManager, revokeBDManager, getBDAgencies,
   getAdminUsers, getBadges, getNecklaces, getStoreItems, searchUserProfile
 } from '../lib/db';
 import type { BDModel, BDAgencyDetail, AdminUser, BadgeConfig, NecklaceConfig, StoreItemModel } from '../types';
@@ -44,6 +44,20 @@ export default function BDPage() {
   const [assignSaving, setAssignSaving] = useState(false);
   const [assignError, setAssignError] = useState('');
 
+  // Edit BD Modal
+  const [editingBd, setEditingBd] = useState<BDModel | null>(null);
+  const [editForm, setEditForm] = useState({
+    supervisorId: '',
+    salary: 0,
+    commissionRate: 10,
+    specialId: '',
+    frameId: '',
+    badgeId: '',
+    necklaceId: '',
+  });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
   // Viewing Agencies Modal
   const [activeBdAgencies, setActiveBdAgencies] = useState<{ bd: BDModel; agencies: BDAgencyDetail[] } | null>(null);
   const [loadingAgencies, setLoadingAgencies] = useState(false);
@@ -51,6 +65,45 @@ export default function BDPage() {
   // Revoke Dialog
   const [confirmRevoke, setConfirmRevoke] = useState<BDModel | null>(null);
   const [revoking, setRevoking] = useState(false);
+
+  const openEditModal = (bd: BDModel) => {
+    setEditingBd(bd);
+    setEditForm({
+      supervisorId: bd.supervisorId || '',
+      salary: bd.salary || 0,
+      commissionRate: bd.commissionRate || 10,
+      specialId: bd.specialId || bd.appId || '',
+      frameId: bd.giftedFrame || '',
+      badgeId: bd.giftedBadge || '',
+      necklaceId: bd.giftedNecklace || '',
+    });
+    setEditError('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingBd) return;
+    setEditSaving(true);
+    setEditError('');
+    try {
+      await updateBDManager({
+        uid: editingBd.uid,
+        appId: editForm.specialId || editingBd.appId,
+        supervisorId: editForm.supervisorId || undefined,
+        salary: Number(editForm.salary || 0),
+        commissionRate: Number(editForm.commissionRate || 10),
+        specialId: editForm.specialId.trim() || undefined,
+        frameId: editForm.frameId || undefined,
+        badgeId: editForm.badgeId || undefined,
+        necklaceId: editForm.necklaceId || undefined,
+      });
+      setEditingBd(null);
+      await loadData();
+    } catch (e: any) {
+      setEditError(e?.message || (isAr ? 'فشل تعديل بيانات مسؤول الـ BD' : 'Failed to update BD manager'));
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -400,6 +453,14 @@ export default function BDPage() {
                       </button>
 
                       <button
+                        onClick={() => openEditModal(bd)}
+                        className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition-colors"
+                        title={isAr ? 'تعديل بيانات وصلاحيات BD' : 'Edit BD Details'}
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
                         onClick={() => setConfirmRevoke(bd)}
                         className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 transition-colors"
                         title={isAr ? 'تجريد وحذف صلاحيات الـ BD' : 'Revoke BD privileges'}
@@ -649,6 +710,217 @@ export default function BDPage() {
               >
                 <Save className="w-3.5 h-3.5" />
                 {assignSaving ? t('saving') : (isAr ? 'حفظ وتعيين مسؤول الـ BD' : 'Save & Assign BD')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === EDIT BD MODAL === */}
+      {editingBd && (
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-sm" onClick={() => setEditingBd(null)}>
+          <div className="bg-[#141417] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className={`p-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-[#17171B] ${isAr ? 'flex-row-reverse' : ''}`}>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-sm">
+                    {isAr ? `تعديل بيانات وصلاحيات BD (${editingBd.name})` : `Edit BD Manager (${editingBd.name})`}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {isAr ? 'تعديل المشرف التابع له، الراتب، العمولة، أو إهداء مزايا إضافية' : 'Modify assigned supervisor, salary, commission, and items'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setEditingBd(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar">
+              {/* Account Info Banner */}
+              <div className={`flex items-center justify-between p-3 rounded-xl bg-[#18181C] border border-white/10 ${isAr ? 'flex-row-reverse' : ''}`}>
+                <div className={`flex items-center gap-2.5 ${isAr ? 'flex-row-reverse' : ''}`}>
+                  <img
+                    src={editingBd.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(editingBd.name || 'BD')}&background=random`}
+                    alt=""
+                    className="w-10 h-10 rounded-full object-cover border border-amber-500/30"
+                  />
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>{editingBd.name}</span>
+                      <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                        #{editingBd.appId}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono">{editingBd.uid}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] text-slate-400">{isAr ? 'الوكالات التابعة' : 'Agencies'}: <span className="font-bold text-indigo-400">{editingBd.agencyCount}</span></div>
+                  <div className="text-[11px] text-slate-400">{isAr ? 'إجمالي المضيفين' : 'Hosts'}: <span className="font-bold text-purple-400">{editingBd.totalHosts}</span></div>
+                </div>
+              </div>
+
+              {/* Supervisor & Compensation */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Supervisor Selection */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    {isAr ? 'المشرف التابع له *' : 'Assigned Supervisor *'}
+                  </label>
+                  <select
+                    value={editForm.supervisorId}
+                    onChange={e => setEditForm(p => ({ ...p, supervisorId: e.target.value }))}
+                    className="w-full bg-[#18181C] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">{isAr ? '-- غير محدد / بدون مشرف --' : '-- None / No Supervisor --'}</option>
+                    {admins.map(a => (
+                      <option key={a.uid} value={a.uid}>{a.displayName || a.email} ({a.role})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Monthly Salary */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    {isAr ? 'الراتب الشهري ($)' : 'Monthly Salary ($)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.salary}
+                    onChange={e => setEditForm(p => ({ ...p, salary: Number(e.target.value) }))}
+                    className="w-full bg-[#18181C] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+
+                {/* Commission Rate */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    {isAr ? 'نسبة العمولة (%)' : 'Commission Rate (%)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.commissionRate}
+                    onChange={e => setEditForm(p => ({ ...p, commissionRate: Number(e.target.value) }))}
+                    className="w-full bg-[#18181C] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Automatic Gifts Section */}
+              <div className="bg-[#18181C] p-3.5 rounded-xl border border-amber-500/25 space-y-3">
+                <div className={`flex items-center justify-between ${isAr ? 'flex-row-reverse' : ''}`}>
+                  <label className="block text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                    <span>🎁</span>
+                    <span>{isAr ? 'تعديل أو إهداء مزايا إضافية للـ BD' : 'Modify or Gift In-App Items'}</span>
+                  </label>
+                  <span className="text-[10px] text-amber-400/80">
+                    {isAr ? 'تُطبق على الحساب' : 'Applied to account'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Special ID */}
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      {isAr ? 'الآيدي المميز' : 'Special ID'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.specialId}
+                      onChange={e => setEditForm(p => ({ ...p, specialId: e.target.value }))}
+                      placeholder={isAr ? 'مثال: 7777 أو 888' : 'e.g. 7777'}
+                      className="w-full bg-[#141417] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+
+                  {/* Frame */}
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1 flex items-center gap-1">
+                      <Crown className="w-3 h-3 text-amber-400" />
+                      {isAr ? 'إهداء إطار' : 'Gift Frame'}
+                    </label>
+                    <select
+                      value={editForm.frameId}
+                      onChange={e => setEditForm(p => ({ ...p, frameId: e.target.value }))}
+                      className="w-full bg-[#141417] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">{isAr ? '-- بدون تغيير الإطار --' : '-- No Change / None --'}</option>
+                      {frames.map((f: any) => (
+                        <option key={f.id || f.itemId} value={f.itemId || f.id}>{f.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Badge */}
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1 flex items-center gap-1">
+                      <Award className="w-3 h-3 text-amber-400" />
+                      {isAr ? 'إهداء وسام' : 'Gift Badge'}
+                    </label>
+                    <select
+                      value={editForm.badgeId}
+                      onChange={e => setEditForm(p => ({ ...p, badgeId: e.target.value }))}
+                      className="w-full bg-[#141417] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">{isAr ? '-- بدون تغيير الوسام --' : '-- No Change / None --'}</option>
+                      {badges.map((b: any) => (
+                        <option key={b.id} value={b.id}>{b.name || b.id}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Necklace */}
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1 flex items-center gap-1">
+                      <Layers className="w-3 h-3 text-amber-400" />
+                      {isAr ? 'إهداء قلادة' : 'Gift Necklace'}
+                    </label>
+                    <select
+                      value={editForm.necklaceId}
+                      onChange={e => setEditForm(p => ({ ...p, necklaceId: e.target.value }))}
+                      className="w-full bg-[#141417] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">{isAr ? '-- بدون تغيير القلادة --' : '-- No Change / None --'}</option>
+                      {necklaces.map((n: any) => (
+                        <option key={n.id} value={n.id}>{n.name || n.id}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {editError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs rounded-xl flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{editError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-white/10 bg-[#17171B] flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEditingBd(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 transition-colors"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={editSaving}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 text-white shadow-lg shadow-amber-600/25 flex items-center gap-1.5 transition-all"
+              >
+                <Save className="w-3.5 h-3.5" />
+                {editSaving ? t('saving') : (isAr ? 'حفظ التعديلات' : 'Save Changes')}
               </button>
             </div>
           </div>

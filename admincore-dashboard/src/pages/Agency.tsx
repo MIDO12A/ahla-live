@@ -19,8 +19,10 @@ import {
 } from '../lib/db';
 import { uploadStoreItem } from '../lib/storage';
 import { supabase } from '../lib/supabase';
-import { getCurrentAdminName } from '../lib/auth';
+import { getCurrentAdminName, onAuthChange, type AppUser } from '../lib/auth';
 import { I18nContext } from '../lib/i18n';
+import { useOutletContext } from 'react-router-dom';
+import { canUserAccess } from '../lib/permissions';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
 import {
@@ -115,22 +117,41 @@ function UserSearchPreview({ query, onSelect }: { query?: string | null; onSelec
 }
 
 const tabs = [
-  { key: 'agencies', label: 'الوكالات', labelKey: 'agency.agencies', icon: Handshake },
-  { key: 'recharge_agencies', label: 'وكالات الشحن والرواتب', labelKey: 'agency.rechargeAgencies', icon: Wallet },
-  { key: 'agency_requests', label: 'طلبات فتح الوكالات', labelKey: 'agency.agencyRequests', icon: ClipboardCheck },
-  { key: 'milestones', label: 'المراحل والتارجت والرواتب', labelKey: 'agency.milestones', icon: Target },
-  { key: 'members', label: 'أعضاء الوكالات', labelKey: 'agency.members', icon: Users },
-  { key: 'necklaces', label: 'قلادات الوكالة SVGA', labelKey: 'agency.necklaces', icon: Sparkles },
-  { key: 'join_requests', label: 'طلبات الانضمام', labelKey: 'agency.joinRequests', icon: UserPlus },
-  { key: 'financial', label: 'السجلات المالية', labelKey: 'agency.financial', icon: Wallet },
-  { key: 'commission', label: 'نسب العمولات العامة', labelKey: 'agency.commission', icon: Settings },
+  { key: 'agencies', permKey: 'agency', label: 'الوكالات', labelKey: 'agency.agencies', icon: Handshake },
+  { key: 'recharge_agencies', permKey: 'agency_recharge', label: 'وكالات الشحن والرواتب', labelKey: 'agency.rechargeAgencies', icon: Wallet },
+  { key: 'agency_requests', permKey: 'agency_requests', label: 'طلبات فتح الوكالات', labelKey: 'agency.agencyRequests', icon: ClipboardCheck },
+  { key: 'milestones', permKey: 'agency_milestones', label: 'المراحل والتارجت والرواتب', labelKey: 'agency.milestones', icon: Target },
+  { key: 'members', permKey: 'agency_members', label: 'أعضاء الوكالات', labelKey: 'agency.members', icon: Users },
+  { key: 'necklaces', permKey: 'agency_necklaces', label: 'قلادات الوكالة SVGA', labelKey: 'agency.necklaces', icon: Sparkles },
+  { key: 'join_requests', permKey: 'agency_join_requests', label: 'طلبات الانضمام', labelKey: 'agency.joinRequests', icon: UserPlus },
+  { key: 'financial', permKey: 'agency_financial', label: 'السجلات المالية', labelKey: 'agency.financial', icon: Wallet },
+  { key: 'commission', permKey: 'agency_commission', label: 'نسب العمولات العامة', labelKey: 'agency.commission', icon: Settings },
 ] as const;
 type Tab = typeof tabs[number]['key'];
 
 export default function AgencyPage() {
-  const [tab, setTab] = useState<Tab>('agencies');
+  const outletCtx = useOutletContext<{ currentUser?: AppUser | null }>();
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => outletCtx?.currentUser || null);
+
+  useEffect(() => {
+    if (outletCtx?.currentUser) {
+      setCurrentUser(outletCtx.currentUser);
+    } else {
+      const unsub = onAuthChange(u => setCurrentUser(u));
+      return unsub;
+    }
+  }, [outletCtx?.currentUser]);
+
+  const visibleTabs = tabs.filter(tabItem => canUserAccess(currentUser, tabItem.permKey));
+  const [tab, setTab] = useState<Tab>(() => visibleTabs[0]?.key || 'agencies');
   const [filterAgencyId, setFilterAgencyId] = useState<string>('');
   const { t } = useContext(I18nContext);
+
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.some(t => t.key === tab)) {
+      setTab(visibleTabs[0].key);
+    }
+  }, [visibleTabs, tab]);
 
   const handleViewAgencyMembers = (agencyId: string) => {
     setFilterAgencyId(agencyId);
@@ -143,24 +164,33 @@ export default function AgencyPage() {
         <Handshake className="w-5 h-5 text-indigo-400" />
         <h2 className="text-white text-lg font-semibold">{t('agency.title')}</h2>
       </div>
-      <div className="flex gap-2 flex-wrap">
-        {tabs.map(tabItem => (
-          <button key={tabItem.key} onClick={() => setTab(tabItem.key)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg font-semibold transition-colors ${tab === tabItem.key ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400 hover:text-white'}`}>
-            <tabItem.icon className="w-3.5 h-3.5" />
-            {tabItem.label || t(tabItem.labelKey)}
-          </button>
-        ))}
-      </div>
-      {tab === 'agencies' && <AgenciesTab onViewMembers={handleViewAgencyMembers} />}
-      {tab === 'recharge_agencies' && <RechargeAgenciesTab />}
-      {tab === 'agency_requests' && <AgencyRequestsTab />}
-      {tab === 'milestones' && <MilestonesTab />}
-      {tab === 'members' && <MembersTab initialAgencyId={filterAgencyId} />}
-      {tab === 'necklaces' && <AgencyNecklacesTab />}
-      {tab === 'join_requests' && <JoinRequestsTab />}
-      {tab === 'financial' && <FinancialTab />}
-      {tab === 'commission' && <CommissionTab />}
+
+      {visibleTabs.length === 0 ? (
+        <div className="p-8 text-center text-slate-400 bg-[#141417] border border-white/5 rounded-2xl">
+          ليس لديك صلاحية للوصول إلى أي من أقسام الوكالات الفرعية. يرجى مراجعة إدارة اللوحة.
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-2 flex-wrap">
+            {visibleTabs.map(tabItem => (
+              <button key={tabItem.key} onClick={() => setTab(tabItem.key)}
+                className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg font-semibold transition-colors ${tab === tabItem.key ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400 hover:text-white'}`}>
+                <tabItem.icon className="w-3.5 h-3.5" />
+                {tabItem.label || t(tabItem.labelKey)}
+              </button>
+            ))}
+          </div>
+          {tab === 'agencies' && canUserAccess(currentUser, 'agency') && <AgenciesTab onViewMembers={handleViewAgencyMembers} />}
+          {tab === 'recharge_agencies' && canUserAccess(currentUser, 'agency_recharge') && <RechargeAgenciesTab />}
+          {tab === 'agency_requests' && canUserAccess(currentUser, 'agency_requests') && <AgencyRequestsTab />}
+          {tab === 'milestones' && canUserAccess(currentUser, 'agency_milestones') && <MilestonesTab />}
+          {tab === 'members' && canUserAccess(currentUser, 'agency_members') && <MembersTab initialAgencyId={filterAgencyId} />}
+          {tab === 'necklaces' && canUserAccess(currentUser, 'agency_necklaces') && <AgencyNecklacesTab />}
+          {tab === 'join_requests' && canUserAccess(currentUser, 'agency_join_requests') && <JoinRequestsTab />}
+          {tab === 'financial' && canUserAccess(currentUser, 'agency_financial') && <FinancialTab />}
+          {tab === 'commission' && canUserAccess(currentUser, 'agency_commission') && <CommissionTab />}
+        </>
+      )}
     </div>
   );
 }

@@ -2367,6 +2367,74 @@ export async function assignBDManager(params: {
   }
 }
 
+export async function updateBDManager(params: {
+  uid: string;
+  appId?: string;
+  supervisorId?: string;
+  salary?: number;
+  commissionRate?: number;
+  specialId?: string;
+  frameId?: string;
+  badgeId?: string;
+  necklaceId?: string;
+}) {
+  const client = getAdminSupabase() || supabase;
+  const { uid, appId, supervisorId, salary = 0, commissionRate = 10, specialId, frameId, badgeId, necklaceId } = params;
+
+  // 1. Update public.users
+  const updates: Record<string, any> = {
+    is_bd: true,
+    bd_supervisor_id: supervisorId || null,
+    bd_salary: salary,
+    bd_commission_rate: commissionRate,
+  };
+  if (specialId && specialId.trim()) {
+    updates.custom_id = specialId.trim();
+  }
+  try {
+    await client.from('users').update(updates).eq('uid', uid);
+  } catch (e) {
+    console.warn('Update user for BD error:', e);
+  }
+
+  // 2. Gift in-app items if specified
+  if (necklaceId || badgeId || frameId || specialId) {
+    await giftUserItems(uid, {
+      necklaceId,
+      badgeId,
+      frameId,
+      specialId,
+    });
+  }
+
+  // 3. Update bd_meta in app_config
+  try {
+    const { data: curMeta } = await client.from('app_config').select('value').eq('key', 'bd_meta_' + uid).maybeSingle();
+    const cur = (curMeta?.value as any) || {};
+    const meta = {
+      ...cur,
+      uid,
+      appId: specialId || appId || cur.appId || '',
+      supervisorId: supervisorId !== undefined ? supervisorId : (cur.supervisorId || ''),
+      salary: salary !== undefined ? salary : (cur.salary ?? 0),
+      commissionRate: commissionRate !== undefined ? commissionRate : (cur.commissionRate ?? 10),
+      specialId: specialId !== undefined ? specialId : (cur.specialId || ''),
+      giftedFrame: frameId || cur.giftedFrame || '',
+      giftedBadge: badgeId || cur.giftedBadge || '',
+      giftedNecklace: necklaceId || cur.giftedNecklace || '',
+      status: 'active',
+      updatedAt: new Date().toISOString(),
+    };
+
+    await client.from('app_config').upsert({
+      key: 'bd_meta_' + uid,
+      value: meta,
+    });
+  } catch (e) {
+    console.warn('Update bd_meta error:', e);
+  }
+}
+
 export async function revokeBDManager(uid: string) {
   const client = getAdminSupabase() || supabase;
   // 1. Clear is_bd in users
@@ -2647,15 +2715,29 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
 
       const permsMap: Record<string, boolean> = {}
       if (Array.isArray(r.permissions)) {
-        const isAll = r.permissions.includes('all') || r.permissions.includes('*') || role === 'super_admin'
+        const isAll = r.permissions.includes('all') || r.permissions.includes('*')
         if (isAll) {
           permsMap['all'] = true
+          for (const k of ALL_PERMISSION_KEYS) {
+            permsMap[k] = true
+          }
         }
         for (const p of r.permissions) {
           permsMap[p] = true
         }
       } else if (typeof r.permissions === 'object' && r.permissions !== null) {
         Object.assign(permsMap, r.permissions)
+      } else if (meta.permissions && Array.isArray(meta.permissions)) {
+        const isAll = meta.permissions.includes('all') || meta.permissions.includes('*')
+        if (isAll) {
+          permsMap['all'] = true
+          for (const k of ALL_PERMISSION_KEYS) {
+            permsMap[k] = true
+          }
+        }
+        for (const p of meta.permissions) {
+          permsMap[p] = true
+        }
       }
 
       return {
@@ -2697,14 +2779,14 @@ export async function createAdminUser(
 
   // 1. Prepare permissions array
   let permsArray: string[] = []
-  if (role === 'super_admin') {
-    permsArray = ['all']
-  } else if (data.permissions) {
+  if (data.permissions) {
     if (data.permissions['all']) {
-      permsArray = ['all', ...Object.keys(data.permissions).filter(k => k !== 'all' && data.permissions![k])]
+      permsArray = ['all', ...ALL_PERMISSION_KEYS]
     } else {
       permsArray = Object.keys(data.permissions).filter(k => data.permissions![k])
     }
+  } else if (role === 'super_admin') {
+    permsArray = ['all', ...ALL_PERMISSION_KEYS]
   }
 
   // 2. Try Supabase Auth signUp safely (ignore rate-limit / 429)
@@ -2817,7 +2899,36 @@ export async function updateAdminUser(
   const role = data.role ? (data.role === 'superadmin' ? 'super_admin' : data.role) : undefined
   const appId = (data.appId || data.customId || '').trim()
 
-  // 1. Update metadata in app_config
+  // 1. Fetch existing admin record to know current email / appId / password
+  let existingEmail = (data.email || '').trim().toLowerCase()
+  let existingAppId = appId
+  let existingPassword = data.password || ''
+
+  try {
+    const { data: currentAdmin } = await client.from('admin_users').select('*').eq('uid', uid).maybeSingle()
+    if (currentAdmin && currentAdmin.email) {
+      if (!existingEmail) existingEmail = currentAdmin.email.toLowerCase()
+    }
+  } catch (_) {}
+
+  try {
+    const { data: existingMeta } = await client.from('app_config').select('value').eq('key', 'admin_meta_' + uid).maybeSingle()
+    const metaVal = (existingMeta?.value as any) || {}
+    if (!existingAppId && metaVal.appId) existingAppId = metaVal.appId
+    if (!existingEmail && metaVal.email) existingEmail = metaVal.email
+  } catch (_) {}
+
+  // 2. Prepare permissions array
+  let permsArray: string[] | undefined = undefined
+  if (data.permissions) {
+    if (data.permissions['all']) {
+      permsArray = ['all', ...ALL_PERMISSION_KEYS]
+    } else {
+      permsArray = Object.keys(data.permissions).filter(k => data.permissions![k])
+    }
+  }
+
+  // 3. Update metadata in app_config
   try {
     const { data: existingMeta } = await client.from('app_config').select('value').eq('key', 'admin_meta_' + uid).maybeSingle()
     const metaVal = (existingMeta?.value as any) || {}
@@ -2825,7 +2936,9 @@ export async function updateAdminUser(
     if (data.photoUrl !== undefined) metaVal.photoUrl = data.photoUrl
     if (data.isActive !== undefined) metaVal.isActive = data.isActive
     if (role !== undefined) metaVal.role = role
-    if (appId) metaVal.appId = appId
+    if (existingAppId) metaVal.appId = existingAppId
+    if (existingEmail) metaVal.email = existingEmail
+    if (permsArray !== undefined) metaVal.permissions = permsArray
     metaVal.updatedAt = new Date().toISOString()
     await client.from('app_config').upsert({
       key: 'admin_meta_' + uid,
@@ -2835,52 +2948,68 @@ export async function updateAdminUser(
     console.warn('Updating admin_meta error:', e)
   }
 
-  // 2. If password provided, update credentials
-  if (data.password) {
-    const email = (data.email || '').trim().toLowerCase()
-    const authPayload = {
-      uid,
-      email,
-      appId: appId || undefined,
-      password: data.password,
-      displayName: data.displayName || '',
-      role: role || 'moderator',
-      updatedAt: new Date().toISOString(),
-    }
-    if (email) {
-      try {
-        await client.from('app_config').upsert({
-          key: 'admin_auth_' + email,
-          value: authPayload,
-        })
-      } catch (_) {}
-    }
-    if (appId) {
-      try {
-        await client.from('app_config').upsert({
-          key: 'admin_auth_' + appId.toLowerCase(),
-          value: authPayload,
-        })
-      } catch (_) {}
-    }
+  // 4. Update credentials in app_config under admin_auth_*
+  const keysToCheck = [
+    existingEmail ? 'admin_auth_' + existingEmail : '',
+    existingAppId ? 'admin_auth_' + existingAppId.toLowerCase() : '',
+    'admin_auth_' + uid.toLowerCase(),
+  ].filter(Boolean)
+
+  let currentStoredAuth: any = null
+  for (const k of keysToCheck) {
+    try {
+      const { data: row } = await client.from('app_config').select('value').eq('key', k).maybeSingle()
+      if (row?.value) {
+        currentStoredAuth = row.value
+        if (!existingPassword && currentStoredAuth.password) {
+          existingPassword = currentStoredAuth.password
+        }
+        break
+      }
+    } catch (_) {}
   }
 
-  // 3. Prepare database payload with ONLY existing table columns
+  const authPayload = {
+    uid,
+    email: existingEmail,
+    appId: existingAppId || undefined,
+    password: existingPassword || data.password || 'admin123',
+    displayName: data.displayName || currentStoredAuth?.displayName || existingEmail.split('@')[0],
+    role: role || currentStoredAuth?.role || 'moderator',
+    permissions: permsArray !== undefined ? permsArray : (currentStoredAuth?.permissions || []),
+    updatedAt: new Date().toISOString(),
+  }
+
+  if (existingEmail) {
+    try {
+      await client.from('app_config').upsert({
+        key: 'admin_auth_' + existingEmail,
+        value: authPayload,
+      })
+    } catch (_) {}
+  }
+  if (existingAppId) {
+    try {
+      await client.from('app_config').upsert({
+        key: 'admin_auth_' + existingAppId.toLowerCase(),
+        value: authPayload,
+      })
+      await client.from('app_config').upsert({
+        key: 'admin_appid_' + existingAppId.toLowerCase(),
+        value: { uid, email: existingEmail, appId: existingAppId },
+      })
+    } catch (_) {}
+  }
+
+  // 5. Update admin_users table
   const payload: Record<string, any> = {
     updated_at: new Date().toISOString(),
   }
   if (role) payload.role = role
-  if (data.email) payload.email = data.email.trim().toLowerCase()
-
-  if (data.permissions) {
-    let permsArray: string[] = []
-    if (role === 'super_admin' || data.permissions['all']) {
-      permsArray = ['all', ...Object.keys(data.permissions).filter(k => k !== 'all' && data.permissions![k])]
-    } else {
-      permsArray = Object.keys(data.permissions).filter(k => data.permissions![k])
-    }
-    payload.permissions = permsArray
-  }
+  if (existingEmail) payload.email = existingEmail
+  if (permsArray !== undefined) payload.permissions = permsArray
+  if (data.displayName) payload.display_name = data.displayName
+  if (data.isActive !== undefined) payload.is_active = data.isActive
 
   const { error } = await client.from('admin_users').update(payload).eq('uid', uid)
   if (error) {
@@ -2888,14 +3017,20 @@ export async function updateAdminUser(
     throw error
   }
 
-  // 4. Gift necklace or badge if specified
-  const giftNecklace = (data as any).giftNecklaceId;
-  const giftBadge = (data as any).giftBadgeId;
+  // 6. If user exists in users table, sync role
+  try {
+    const userRole = role === 'super_admin' ? 'admin' : (role || 'moderator')
+    await client.from('users').update({ role: userRole }).eq('uid', uid)
+  } catch (_) {}
+
+  // 7. Gift necklace or badge if specified
+  const giftNecklace = (data as any).giftNecklaceId
+  const giftBadge = (data as any).giftBadgeId
   if (giftNecklace || giftBadge) {
     await giftUserItems(uid, {
       necklaceId: giftNecklace,
       badgeId: giftBadge,
-    });
+    })
   }
 }
 

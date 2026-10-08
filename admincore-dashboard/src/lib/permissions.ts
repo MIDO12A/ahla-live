@@ -1,4 +1,4 @@
-﻿export interface PermissionItem {
+export interface PermissionItem {
   key: string;
   ar: string;
   en: string;
@@ -158,17 +158,18 @@ export function canUserAccess(
 ): boolean {
   if (!user) return true;
   const role = user.role || '';
-  if (role === 'super_admin' || role === 'superadmin' || role === 'owner') return true;
+  if (role === 'owner') return true;
 
   const perms = user.permissions || [];
   if (perms.includes('all') || perms.includes('*')) return true;
   if (!permKey || permKey === 'dashboard') return true;
 
+  // Exact permission match
   if (perms.includes(permKey)) return true;
 
-  // Parent fallbacks for sub-sections
-  if (permKey.startsWith('gift_') && perms.includes('gifts')) return true;
-  if (permKey.startsWith('agency_') && perms.includes('agency')) return true;
+  // Top-level route fallbacks (allow sidebar navigation if user holds ANY child permission)
+  if (permKey === 'agency' && perms.some(p => p.startsWith('agency_') || p === 'agency')) return true;
+  if (permKey === 'gifts' && perms.some(p => p.startsWith('gift_') || p === 'gifts')) return true;
 
   return false;
 }
