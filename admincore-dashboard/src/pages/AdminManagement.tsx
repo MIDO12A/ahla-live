@@ -390,7 +390,20 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
     await load();
   };
 
-  const filteredAdmins = admins.filter(a => {
+  const isOwner = currentUser?.role === 'owner' ||
+    (currentUser?.role === 'super_admin' && (currentUser?.permissions?.includes('all') || currentUser?.permissions?.includes('*'))) ||
+    currentUser?.email?.toLowerCase() === 'admin@zero.app' ||
+    currentUser?.email?.toLowerCase() === 'm3290556@gmail.com' ||
+    currentUser?.email?.toLowerCase() === 'admin@ahlalive.com';
+
+  const visibleAdmins = isOwner
+    ? admins
+    : admins.filter(a =>
+        a.uid === currentUser?.id ||
+        (currentUser?.email && a.email?.toLowerCase() === currentUser.email.toLowerCase())
+      );
+
+  const filteredAdmins = visibleAdmins.filter(a => {
     if (!searchQ) return true;
     const q = searchQ.toLowerCase();
     const email = (a.email || '').toLowerCase();
@@ -399,16 +412,23 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
     return email.includes(q) || name.includes(q) || appId.includes(q);
   });
 
-  const filteredLogs = logs.filter(l =>
+  const visibleLogs = isOwner
+    ? logs
+    : logs.filter(l =>
+        l.adminUid === currentUser?.id ||
+        (currentUser?.displayName && l.adminName.toLowerCase().includes(currentUser.displayName.toLowerCase()))
+      );
+
+  const filteredLogs = visibleLogs.filter(l =>
     !logFilter ||
     l.adminName.toLowerCase().includes(logFilter.toLowerCase()) ||
     l.action.toLowerCase().includes(logFilter.toLowerCase())
   );
 
   const tabs = [
-    { key: 'admins' as const, ar: 'المشرفين والصلاحيات', en: 'Admins & Permissions', icon: Shield },
+    { key: 'admins' as const, ar: isOwner ? 'المشرفين والصلاحيات' : 'حسابي وصلاحياتي', en: isOwner ? 'Admins & Permissions' : 'My Account & Permissions', icon: Shield },
     { key: 'logs' as const, ar: 'سجل الإجراءات', en: 'Action Logs', icon: FileText },
-    { key: 'bans' as const, ar: 'الحظر من اللوحة', en: 'Dashboard Bans', icon: Ban },
+    ...(isOwner ? [{ key: 'bans' as const, ar: 'الحظر من اللوحة', en: 'Dashboard Bans', icon: Ban }] : []),
     { key: 'profile' as const, ar: 'ملفي الشخصي', en: 'My Profile', icon: Camera },
   ];
 
@@ -416,8 +436,12 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-white text-lg font-semibold">{isAr ? 'إدارة المشرفين والصلاحيات' : 'Admin & Permissions Management'}</h2>
-          <p className="text-slate-500 text-xs mt-0.5">{admins.length} {isAr ? 'مشرف مسجل' : 'registered admins'}</p>
+          <h2 className="text-white text-lg font-semibold">{isOwner ? (isAr ? 'إدارة المشرفين والصلاحيات' : 'Admin & Permissions Management') : (isAr ? 'بيانات المشرف والصلاحيات' : 'My Supervisor Account & Permissions')}</h2>
+          <p className="text-slate-500 text-xs mt-0.5">
+            {isOwner
+              ? `${admins.length} ${isAr ? 'مشرف مسجل' : 'registered admins'}`
+              : (isAr ? 'بيانات حسابك الإداري وصلاحيات الأقسام الممنوحة لك' : 'Your administrative account details and assigned permissions')}
+          </p>
         </div>
         <button onClick={load} className="px-3 py-1.5 bg-[#141417] border border-white/5 hover:border-white/10 text-xs text-slate-300 font-semibold rounded-lg flex items-center gap-1">
           <RefreshCw className="w-3.5 h-3.5" /> {isAr ? 'تحديث' : 'Refresh'}
@@ -452,9 +476,11 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
                     placeholder={isAr ? 'بحث عن مشرف بالاسم، البريد، أو الآيدي...' : 'Search admin by name, email, or ID...'}
                     className={`w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 ${isAr ? 'pr-9 pl-3' : 'pl-9 pr-3'} text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-600`} />
                 </div>
-                <button onClick={() => { setShowAddModal(true); resetAddForm(); }} className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-xs text-white font-semibold rounded-xl flex items-center gap-1.5 shadow-lg shadow-indigo-600/20 transition-all">
-                  <UserPlus className="w-4 h-4" /> {isAr ? 'إضافة مشرف جديد' : 'Add New Admin'}
-                </button>
+                {isOwner && (
+                  <button onClick={() => { setShowAddModal(true); resetAddForm(); }} className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-xs text-white font-semibold rounded-xl flex items-center gap-1.5 shadow-lg shadow-indigo-600/20 transition-all">
+                    <UserPlus className="w-4 h-4" /> {isAr ? 'إضافة مشرف جديد' : 'Add New Admin'}
+                  </button>
+                )}
               </div>
 
               <div className="bg-[#141417] rounded-2xl border border-white/5 overflow-hidden">
@@ -536,16 +562,20 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
                             </td>
                             <td className="p-3">
                               <div className={`flex items-center gap-1.5 ${isAr ? 'flex-row-reverse' : ''}`}>
-                                <button onClick={() => startEdit(admin)} title={isAr ? 'تعديل الصلاحيات' : 'Edit permissions'} className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 transition-colors">
+                                <button onClick={() => startEdit(admin)} title={isAr ? (isOwner ? 'تعديل الصلاحيات' : 'عرض الصلاحيات') : (isOwner ? 'Edit permissions' : 'View permissions')} className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 transition-colors">
                                   <Shield className="w-3.5 h-3.5" />
                                 </button>
-                                <button onClick={() => toggleActive(admin)} title={admin.isActive ? (isAr ? 'تعطيل' : 'Disable') : (isAr ? 'تفعيل' : 'Enable')} className="p-1.5 rounded-lg bg-slate-500/10 text-slate-400 hover:bg-slate-500/20 transition-colors">
-                                  {admin.isActive ? <ShieldOff className="w-3.5 h-3.5" /> : <Shield className="w-3.5 h-3.5" />}
-                                </button>
-                                {!isSuper && (
-                                  <button onClick={() => setConfirmDelete(admin.uid)} title={isAr ? 'حذف' : 'Delete'} className="p-1.5 rounded-lg bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 transition-colors">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                {isOwner && (
+                                  <>
+                                    <button onClick={() => toggleActive(admin)} title={admin.isActive ? (isAr ? 'تعطيل' : 'Disable') : (isAr ? 'تفعيل' : 'Enable')} className="p-1.5 rounded-lg bg-slate-500/10 text-slate-400 hover:bg-slate-500/20 transition-colors">
+                                      {admin.isActive ? <ShieldOff className="w-3.5 h-3.5" /> : <Shield className="w-3.5 h-3.5" />}
+                                    </button>
+                                    {!isSuper && (
+                                      <button onClick={() => setConfirmDelete(admin.uid)} title={isAr ? 'حذف' : 'Delete'} className="p-1.5 rounded-lg bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 transition-colors">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -572,9 +602,11 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
                     placeholder={isAr ? 'بحث في السجلات...' : 'Search logs...'}
                     className={`w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 ${isAr ? 'pr-9 pl-3' : 'pl-9 pr-3'} text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-600`} />
                 </div>
-                <button onClick={handleClearLogs} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold rounded-lg flex items-center gap-1 transition-colors">
-                  <Trash2 className="w-3.5 h-3.5" /> {isAr ? 'مسح كل السجلات' : 'Clear All'}
-                </button>
+                {isOwner && (
+                  <button onClick={handleClearLogs} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold rounded-lg flex items-center gap-1 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" /> {isAr ? 'مسح كل السجلات' : 'Clear All'}
+                  </button>
+                )}
               </div>
 
               <div className="bg-[#141417] rounded-2xl border border-white/5 overflow-hidden">

@@ -1,5 +1,7 @@
 import { useEffect, useState, useContext } from 'react';
 import { I18nContext } from '../lib/i18n';
+import { useOutletContext } from 'react-router-dom';
+import { onAuthChange, type AppUser } from '../lib/auth';
 import {
   Briefcase, UserPlus, Trash2, Building, Users, DollarSign,
   Award, Crown, Sparkles, Search, Save, X, Eye, Shield,
@@ -14,6 +16,18 @@ import type { BDModel, BDAgencyDetail, AdminUser, BadgeConfig, NecklaceConfig, S
 export default function BDPage() {
   const { t, lang } = useContext(I18nContext);
   const isAr = lang === 'ar';
+
+  const outletCtx = useOutletContext<{ currentUser?: AppUser | null }>();
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => outletCtx?.currentUser || null);
+
+  useEffect(() => {
+    if (outletCtx?.currentUser) {
+      setCurrentUser(outletCtx.currentUser);
+    } else {
+      const unsub = onAuthChange(u => setCurrentUser(u));
+      return unsub;
+    }
+  }, [outletCtx?.currentUser]);
 
   const [bds, setBds] = useState<BDModel[]>([]);
   const [admins, setAdmins] = useState<AdminUser[]>([]);
@@ -66,10 +80,21 @@ export default function BDPage() {
   const [confirmRevoke, setConfirmRevoke] = useState<BDModel | null>(null);
   const [revoking, setRevoking] = useState(false);
 
+  const isOwner = currentUser?.role === 'owner' ||
+    (currentUser?.role === 'super_admin' && (currentUser?.permissions?.includes('all') || currentUser?.permissions?.includes('*'))) ||
+    currentUser?.email?.toLowerCase() === 'admin@zero.app' ||
+    currentUser?.email?.toLowerCase() === 'm3290556@gmail.com' ||
+    currentUser?.email?.toLowerCase() === 'admin@ahlalive.com';
+
+  const myAdminRecord = admins.find(a =>
+    a.uid === currentUser?.id ||
+    (currentUser?.email && a.email.toLowerCase() === currentUser.email.toLowerCase())
+  );
+
   const openEditModal = (bd: BDModel) => {
     setEditingBd(bd);
     setEditForm({
-      supervisorId: bd.supervisorId || '',
+      supervisorId: isOwner ? (bd.supervisorId || '') : (myAdminRecord?.uid || currentUser?.id || bd.supervisorId || ''),
       salary: bd.salary || 0,
       commissionRate: bd.commissionRate || 10,
       specialId: bd.specialId || bd.appId || '',
@@ -136,7 +161,7 @@ export default function BDPage() {
       appId: '',
       uid: '',
       name: '',
-      supervisorId: '',
+      supervisorId: isOwner ? '' : (myAdminRecord?.uid || currentUser?.id || ''),
       salary: 0,
       commissionRate: 10,
       specialId: '',
@@ -237,21 +262,42 @@ export default function BDPage() {
     }
   };
 
+  const mySupervisorIdentifiers = new Set([
+    currentUser?.id,
+    myAdminRecord?.uid,
+    myAdminRecord?.appId,
+    currentUser?.email?.toLowerCase(),
+    myAdminRecord?.email?.toLowerCase(),
+  ].filter(Boolean));
+
+  // If not owner, filter strictly to this supervisor's BDs!
+  const scopedBds = isOwner
+    ? bds
+    : bds.filter(b =>
+        (b.supervisorId && mySupervisorIdentifiers.has(b.supervisorId)) ||
+        (b.supervisorName && (
+          b.supervisorName === currentUser?.displayName ||
+          b.supervisorName === myAdminRecord?.displayName ||
+          b.supervisorName === currentUser?.email
+        )) ||
+        (currentUser?.id && b.supervisorId === currentUser.id)
+      );
+
   // Filtered BDs
-  const filteredBds = bds.filter(b => {
+  const filteredBds = scopedBds.filter(b => {
     const matchSearch = !searchQ ||
       b.name.toLowerCase().includes(searchQ.toLowerCase()) ||
       (b.appId && b.appId.includes(searchQ)) ||
       (b.supervisorName && b.supervisorName.toLowerCase().includes(searchQ.toLowerCase()));
-    const matchSup = !supervisorFilter || b.supervisorId === supervisorFilter;
+    const matchSup = !isOwner || !supervisorFilter || b.supervisorId === supervisorFilter;
     return matchSearch && matchSup;
   });
 
-  // Summary Metrics
-  const totalAgencies = bds.reduce((sum, b) => sum + (b.agencyCount || 0), 0);
-  const totalHosts = bds.reduce((sum, b) => sum + (b.totalHosts || 0), 0);
-  const totalEarnings = bds.reduce((sum, b) => sum + (b.totalEarnings || 0), 0);
-  const totalSalaries = bds.reduce((sum, b) => sum + (b.salary || 0), 0);
+  // Summary Metrics calculated from scopedBds
+  const totalAgencies = scopedBds.reduce((sum, b) => sum + (b.agencyCount || 0), 0);
+  const totalHosts = scopedBds.reduce((sum, b) => sum + (b.totalHosts || 0), 0);
+  const totalEarnings = scopedBds.reduce((sum, b) => sum + (b.totalEarnings || 0), 0);
+  const totalSalaries = scopedBds.reduce((sum, b) => sum + (b.salary || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -263,13 +309,15 @@ export default function BDPage() {
               <Briefcase className="w-5 h-5" />
             </div>
             <h2 className="text-white text-lg font-bold">
-              {isAr ? 'إدارة مسؤولي الـ BD والوكالات (BD Management)' : 'Business Development (BD) Management'}
+              {isOwner
+                ? (isAr ? 'إدارة مسؤولي الـ BD والوكالات (BD Management)' : 'Business Development (BD) Management')
+                : (isAr ? 'مركز الـ BD والوكالات التابعة لي' : 'My BD Center & Agencies')}
             </h2>
           </div>
           <p className="text-slate-400 text-xs mt-1">
-            {isAr
-              ? 'تعيين مدراء الـ BD للمشرفين، مراقبة وكالاتهم، الأرباح، الرواتب، وإهداء المزايا الخاصة.'
-              : 'Appoint BD managers under supervisors, monitor recruited agencies, profits, and manage rewards.'}
+            {isOwner
+              ? (isAr ? 'تعيين مدراء الـ BD للمشرفين، مراقبة وكالاتهم، الأرباح، الرواتب، وإهداء المزايا الخاصة.' : 'Appoint BD managers under supervisors, monitor recruited agencies, profits, and manage rewards.')
+              : (isAr ? `متابعة مسؤولي الـ BD التابعين لك، الوكالات المنضمة، الأرباح، والرواتب (${currentUser?.displayName || myAdminRecord?.displayName || 'مشرفك'})` : `Manage your assigned BD managers, their agencies, earnings, and salaries`)}
           </p>
         </div>
 
@@ -298,7 +346,7 @@ export default function BDPage() {
             <span>{isAr ? 'مسؤولي الـ BD' : 'Total BDs'}</span>
             <Briefcase className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="text-xl font-bold text-white font-mono">{bds.length}</div>
+          <div className="text-xl font-bold text-white font-mono">{scopedBds.length}</div>
         </div>
 
         <div className="bg-[#141417] p-4 rounded-2xl border border-white/5 space-y-1">
@@ -340,19 +388,27 @@ export default function BDPage() {
         </div>
 
         {/* Supervisor Filter */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="text-xs text-slate-400 whitespace-nowrap">{isAr ? 'المشرف المسؤول:' : 'Supervisor:'}</span>
-          <select
-            value={supervisorFilter}
-            onChange={e => setSupervisorFilter(e.target.value)}
-            className="bg-[#161618] border border-white/10 rounded-xl py-1.5 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
-          >
-            <option value="">{isAr ? 'جميع المشرفين' : 'All Supervisors'}</option>
-            {admins.map(a => (
-              <option key={a.uid} value={a.uid}>{a.displayName || a.email}</option>
-            ))}
-          </select>
-        </div>
+        {isOwner ? (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-xs text-slate-400 whitespace-nowrap">{isAr ? 'المشرف المسؤول:' : 'Supervisor:'}</span>
+            <select
+              value={supervisorFilter}
+              onChange={e => setSupervisorFilter(e.target.value)}
+              className="bg-[#161618] border border-white/10 rounded-xl py-1.5 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
+            >
+              <option value="">{isAr ? 'جميع المشرفين' : 'All Supervisors'}</option>
+              {admins.map(a => (
+                <option key={a.uid} value={a.uid}>{a.displayName || a.email}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold">
+            <Shield className="w-3.5 h-3.5 text-indigo-400" />
+            <span>{isAr ? 'المشرف المسؤول:' : 'Supervisor:'}</span>
+            <span className="text-white font-bold">{currentUser?.displayName || myAdminRecord?.displayName || currentUser?.email}</span>
+          </div>
+        )}
       </div>
 
       {/* BD List Table */}
@@ -562,16 +618,26 @@ export default function BDPage() {
                   <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                     {isAr ? 'المشرف التابع له *' : 'Assigned Supervisor *'}
                   </label>
-                  <select
-                    value={assignForm.supervisorId}
-                    onChange={e => setAssignForm(p => ({ ...p, supervisorId: e.target.value }))}
-                    className="w-full bg-[#18181C] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="">{isAr ? '-- اختر المشرف --' : '-- Select Supervisor --'}</option>
-                    {admins.map(a => (
-                      <option key={a.uid} value={a.uid}>{a.displayName || a.email} ({a.role})</option>
-                    ))}
-                  </select>
+                  {isOwner ? (
+                    <select
+                      value={assignForm.supervisorId}
+                      onChange={e => setAssignForm(p => ({ ...p, supervisorId: e.target.value }))}
+                      className="w-full bg-[#18181C] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">{isAr ? '-- اختر المشرف --' : '-- Select Supervisor --'}</option>
+                      {admins.map(a => (
+                        <option key={a.uid} value={a.uid}>{a.displayName || a.email} ({a.role})</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full bg-[#141417] border border-white/10 rounded-xl py-2 px-3 text-xs text-slate-300 flex items-center gap-2">
+                      <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                      <span className="font-semibold text-white">{currentUser?.displayName || myAdminRecord?.displayName || currentUser?.email}</span>
+                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono">
+                        {isAr ? 'حسابك' : 'You'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Monthly Salary */}
@@ -773,16 +839,26 @@ export default function BDPage() {
                   <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                     {isAr ? 'المشرف التابع له *' : 'Assigned Supervisor *'}
                   </label>
-                  <select
-                    value={editForm.supervisorId}
-                    onChange={e => setEditForm(p => ({ ...p, supervisorId: e.target.value }))}
-                    className="w-full bg-[#18181C] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="">{isAr ? '-- غير محدد / بدون مشرف --' : '-- None / No Supervisor --'}</option>
-                    {admins.map(a => (
-                      <option key={a.uid} value={a.uid}>{a.displayName || a.email} ({a.role})</option>
-                    ))}
-                  </select>
+                  {isOwner ? (
+                    <select
+                      value={editForm.supervisorId}
+                      onChange={e => setEditForm(p => ({ ...p, supervisorId: e.target.value }))}
+                      className="w-full bg-[#18181C] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">{isAr ? '-- غير محدد / بدون مشرف --' : '-- None / No Supervisor --'}</option>
+                      {admins.map(a => (
+                        <option key={a.uid} value={a.uid}>{a.displayName || a.email} ({a.role})</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full bg-[#141417] border border-white/10 rounded-xl py-2 px-3 text-xs text-slate-300 flex items-center gap-2">
+                      <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                      <span className="font-semibold text-white">{currentUser?.displayName || myAdminRecord?.displayName || currentUser?.email}</span>
+                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono">
+                        {isAr ? 'حسابك' : 'You'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Monthly Salary */}
