@@ -184,12 +184,16 @@ export default function LuckyGiftsManager() {
     { id: 'r_1000', category: 'room_win', title: 'أنيميشن مكسب الغرفة 1000X', tierOrNumber: '1000X', pathOrUrl: 'assets/svga/gift_1000.svga', textKey: 'test-b (الاسم) / test-a (الكوينز)', imageKey: 'Avatar', description: 'يظهر لجميع أعضاء الغرفة' },
   ]);
 
+  // نسبة دخول هدايا الحظ في تارجت وماسات المستلم (%)
+  const [targetPercentage, setTargetPercentage] = useState<number>(10.0);
+
   useEffect(() => {
     loadSettings();
   }, []);
 
   const loadSettings = async () => {
     try {
+      // 1. قراءة إعدادات صندوق الحظ
       const { data, error } = await supabase
         .from('app_config')
         .select('value')
@@ -211,9 +215,26 @@ export default function LuckyGiftsManager() {
           globalBroadcastMinMultiplier: cfg.globalBroadcastMinMultiplier ?? prev.globalBroadcastMinMultiplier,
           enableBurstMode: cfg.enableBurstMode ?? prev.enableBurstMode,
         }));
+        if (cfg.targetPercentage !== undefined) {
+          setTargetPercentage(Number(cfg.targetPercentage) || 0);
+        }
         if (cfg.oddsTiers) setOddsTiers(cfg.oddsTiers);
         if (cfg.giftsList) setGiftsList(cfg.giftsList);
         if (cfg.svgaLibrary) setSvgaLibrary(cfg.svgaLibrary);
+      }
+
+      // 2. قراءة النسبة المباشرة إن وجدت
+      const { data: directData } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'lucky_gift_target_percentage')
+        .maybeSingle();
+
+      if (directData?.value !== undefined && directData?.value !== null) {
+        const val = Number(directData.value);
+        if (!isNaN(val)) {
+          setTargetPercentage(val);
+        }
       }
     } catch (e) {
       console.log('Supabase load fallback:', e);
@@ -239,10 +260,12 @@ export default function LuckyGiftsManager() {
     setLoading(true);
     setSavedSuccess(false);
     try {
-      const { error } = await supabase.from('app_config').upsert({
+      // حفظ lucky_box_config
+      const { error: boxErr } = await supabase.from('app_config').upsert({
         key: 'lucky_box_config',
         value: {
           ...visuals,
+          targetPercentage,
           oddsTiers,
           giftsList,
           svgaLibrary,
@@ -250,7 +273,13 @@ export default function LuckyGiftsManager() {
         },
       }, { onConflict: 'key' });
 
-      if (error) throw error;
+      if (boxErr) throw boxErr;
+
+      // حفظ المفتاح المباشر lucky_gift_target_percentage لسرعة وسهولة القراءة في التطبيق
+      await supabase.from('app_config').upsert({
+        key: 'lucky_gift_target_percentage',
+        value: targetPercentage,
+      }, { onConflict: 'key' });
 
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
@@ -524,6 +553,81 @@ export default function LuckyGiftsManager() {
       {/* TAB 2: ODDS & RTP */}
       {activeTab === 'odds' && (
         <div className="space-y-4">
+          {/* كارت نسبة دخول هدايا الحظ في تارجت وماسات المستلم */}
+          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-transparent border border-amber-500/30 rounded-2xl p-5 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                  <Flame className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>نسبة احتساب هدايا الحظ في تارجت وماسات المستلم</span>
+                    <span className="text-xs bg-amber-500 text-black font-extrabold px-2 py-0.5 rounded-full">
+                      {targetPercentage}%
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1">
+                    عند إرسال هدية حظ (مثلاً بقيمة 10 كوينز)، يحصل المستلم في رصيد ماساته وتارجت الوكالة على{' '}
+                    <strong className="text-amber-400">
+                      {((10 * targetPercentage) / 100).toFixed(1)} ماسة
+                    </strong>{' '}
+                    بدلاً من القيمة الكاملة، وذلك للحفاظ على توازن واقتصادية هدايا الحظ.
+                  </p>
+                </div>
+              </div>
+
+              {/* أزرار سريعة لاختيار النسبة */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[0, 5, 10, 15, 20, 50, 100].map(pct => (
+                  <button
+                    key={pct}
+                    onClick={() => setTargetPercentage(pct)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
+                      targetPercentage === pct
+                        ? 'bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/20'
+                        : 'bg-black/40 text-slate-300 border-white/10 hover:border-amber-500/50 hover:text-white'
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* سلايدر وحقل إدخال يدوي */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pt-3 border-t border-white/5">
+              <div className="md:col-span-8 flex items-center gap-3">
+                <span className="text-xs text-slate-400 shrink-0">0%</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={targetPercentage}
+                  onChange={e => setTargetPercentage(Number(e.target.value))}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+                <span className="text-xs text-slate-400 shrink-0">100%</span>
+              </div>
+              <div className="md:col-span-4 flex items-center gap-2">
+                <span className="text-xs text-slate-300 font-medium shrink-0">النسبة المئوية:</span>
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={targetPercentage}
+                    onChange={e => setTargetPercentage(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:border-amber-500 outline-none pr-7 font-bold text-center"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-amber-400 font-bold">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-[#121214] border border-white/5 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className={`p-3 rounded-xl border ${

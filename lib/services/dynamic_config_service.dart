@@ -1497,6 +1497,27 @@ class DynamicConfigService extends ChangeNotifier {
     return _parseColor(val, Colors.transparent);
   }
 
+  /// نسبة دخول هدايا الحظ في تارجت وماسات المستلم (%)
+  /// القيمة الافتراضية 10.0 (أي 10%) ويمكن تعديلها من لوحة الإدارة
+  double get luckyGiftTargetPercentage {
+    final direct = _rawConfig['lucky_gift_target_percentage'] ??
+        _rawConfig['luckyGiftTargetPercentage'] ??
+        _rawConfig['lucky_gift_rate'];
+    if (direct != null) {
+      final p = double.tryParse(direct.toString());
+      if (p != null && p >= 0) return p;
+    }
+    final lbc = _rawConfig['lucky_box_config'];
+    if (lbc is Map) {
+      final v = lbc['targetPercentage'] ?? lbc['target_percentage'];
+      if (v != null) {
+        final p = double.tryParse(v.toString());
+        if (p != null && p >= 0) return p;
+      }
+    }
+    return 10.0;
+  }
+
   // ─── Audio & Zego Configurations ──────────────────────────────────────
   int get zegoAppId {
     final v = _rawConfig['zego_app_id'] ?? _rawConfig['zegoAppId'];

@@ -22,6 +22,7 @@ import '../models/gift_banner_config_model.dart';
 import 'level_service.dart';
 import 'cloudinary_service.dart';
 import 'agency_target_evaluator.dart';
+import 'dynamic_config_service.dart';
 import 'supabase_auth_service.dart';
 import 'supabase_data_service.dart';
 import '../core/supabase_compat.dart';
@@ -1269,6 +1270,9 @@ class FirebaseService {
       totalWonCoins += (value * m);
     }
     final totalCost = value * count;
+    // حساب نسبة الماس والتارجت التي تدخل للمستلم من هدايا الحظ (افتراضياً 10% أو حسب إعدادات اللوحة)
+    final luckyTargetPct = DynamicConfigService().luckyGiftTargetPercentage;
+    final int recipientDiamonds = math.max(0, ((totalCost * luckyTargetPct) / 100.0).round());
     final bool isSelfSend = senderId == receiverId;
     final isBigWin = multipliers.any((m) => m >= 50);
     final maxMultiplier = multipliers.isEmpty ? 0 : multipliers.reduce((curr, next) => curr > next ? curr : next);
@@ -1488,10 +1492,14 @@ class FirebaseService {
           'total_gifts_sent': sentTotal + totalCost,
         });
 
+        // حساب نسبة الماس والتارجت التي تدخل للمستلم من هدايا الحظ (افتراضياً 10% أو حسب إعدادات اللوحة)
+        final luckyTargetPct = DynamicConfigService().luckyGiftTargetPercentage;
+        final int recipientDiamonds = math.max(0, ((totalCost * luckyTargetPct) / 100.0).round());
+
         if (recvSnap.exists) {
           final rd = recvSnap.data() ?? {};
           txn.update(receiverRef, {
-            'diamonds': _asInt(rd['diamonds']) + totalCost,
+            'diamonds': _asInt(rd['diamonds']) + recipientDiamonds,
             'total_gifts_received': _asInt(rd['total_gifts_received']) + totalCost,
           });
         }
@@ -1514,9 +1522,9 @@ class FirebaseService {
 
         if (wSnap.exists) {
           final wd = wSnap.data() ?? {};
-          txn.update(walletRef, {'diamond_balance': _asInt(wd['diamond_balance']) + totalCost});
+          txn.update(walletRef, {'diamond_balance': _asInt(wd['diamond_balance']) + recipientDiamonds});
         } else {
-          txn.set(walletRef, {'user_id': receiverId, 'diamond_balance': totalCost, 'gold_balance': 0});
+          txn.set(walletRef, {'user_id': receiverId, 'diamond_balance': recipientDiamonds, 'gold_balance': 0});
         }
 
         // Only update agency earnings and host agency target if NOT self-sending
@@ -1524,11 +1532,11 @@ class FirebaseService {
           if (agencyMemberSnap != null && agencyMemberSnap.exists) {
             final md = agencyMemberSnap.data() as Map<String, dynamic>? ?? {};
             txn.update(agencyMemberSnap.reference, {
-              'diamonds': _asInt(md['diamonds']) + totalCost,
-              'diamonds_balance': _asInt(md['diamonds_balance']) + totalCost,
-              'diamonds_available': _asInt(md['diamonds_available']) + totalCost,
-              'diamonds_earned_monthly': _asInt(md['diamonds_earned_monthly']) + totalCost,
-              'diamonds_earned_cumulative': _asInt(md['diamonds_earned_cumulative']) + totalCost,
+              'diamonds': _asInt(md['diamonds']) + recipientDiamonds,
+              'diamonds_balance': _asInt(md['diamonds_balance']) + recipientDiamonds,
+              'diamonds_available': _asInt(md['diamonds_available']) + recipientDiamonds,
+              'diamonds_earned_monthly': _asInt(md['diamonds_earned_monthly']) + recipientDiamonds,
+              'diamonds_earned_cumulative': _asInt(md['diamonds_earned_cumulative']) + recipientDiamonds,
             });
           } else if (agencyMemberRef != null && (agencyMemberSnap == null || !agencyMemberSnap.exists) && resolvedAgencyId != null) {
             txn.set(agencyMemberRef, {
@@ -1537,11 +1545,11 @@ class FirebaseService {
               'user_id': receiverId,
               'status': 'active',
               'role': 'host',
-              'diamonds': totalCost,
-              'diamonds_balance': totalCost,
-              'diamonds_available': totalCost,
-              'diamonds_earned_monthly': totalCost,
-              'diamonds_earned_cumulative': totalCost,
+              'diamonds': recipientDiamonds,
+              'diamonds_balance': recipientDiamonds,
+              'diamonds_available': recipientDiamonds,
+              'diamonds_earned_monthly': recipientDiamonds,
+              'diamonds_earned_cumulative': recipientDiamonds,
               'joined_at': DateTime.now().toUtc().toIso8601String(),
             }, SetOptions(merge: true));
           }
@@ -1549,8 +1557,8 @@ class FirebaseService {
           if (agencySnap != null && agencySnap.exists) {
             final ad = agencySnap.data() as Map<String, dynamic>? ?? {};
             txn.update(agencySnap.reference, {
-              'total_diamonds_monthly': _asInt(ad['total_diamonds_monthly']) + totalCost,
-              'total_diamonds_cumulative': _asInt(ad['total_diamonds_cumulative']) + totalCost,
+              'total_diamonds_monthly': _asInt(ad['total_diamonds_monthly']) + recipientDiamonds,
+              'total_diamonds_cumulative': _asInt(ad['total_diamonds_cumulative']) + recipientDiamonds,
             });
           }
         }
@@ -1567,7 +1575,7 @@ class FirebaseService {
               'sender_name': senderName,
               'gift_id': giftId,
               'gift_name': giftNameAr,
-              'amount': totalCost,
+              'amount': recipientDiamonds,
               'direction': 1,
               'txn_type': 'gift',
               'created_at': DateTime.now().toUtc().toIso8601String(),
@@ -1647,7 +1655,7 @@ class FirebaseService {
           final rUser = await SupabaseAuthService().getUserFromSupabase(receiverId);
           if (rUser != null) {
             await SupabaseDataService().updateUser(receiverId, {
-              'diamonds': rUser.diamonds + totalCost,
+              'diamonds': rUser.diamonds + recipientDiamonds,
               'total_gifts_received': rUser.totalGiftsReceived + totalCost,
             });
           }
@@ -1799,10 +1807,13 @@ class FirebaseService {
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
         });
 
+        final fallbackLuckyPct = DynamicConfigService().luckyGiftTargetPercentage;
+        final int fallbackRecipientDiamonds = math.max(0, ((totalCost * fallbackLuckyPct) / 100.0).round());
+
         final rUser = await SupabaseAuthService().getUserFromSupabase(receiverId);
         if (rUser != null) {
           await SupabaseDataService().updateUser(receiverId, {
-            'diamonds': rUser.diamonds + totalCost,
+            'diamonds': rUser.diamonds + fallbackRecipientDiamonds,
             'total_gifts_received': rUser.totalGiftsReceived + totalCost,
           });
         }
