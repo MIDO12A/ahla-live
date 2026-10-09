@@ -94,7 +94,8 @@ class UpdateService {
       ).timeout(const Duration(seconds: 8));
 
       if (res.statusCode == 200 && res.data != null && res.data!.isNotEmpty) {
-        final d = res.data!.first as Map<String, dynamic>;
+        final row = res.data!.first as Map<String, dynamic>;
+        final d = (row['value'] is Map) ? Map<String, dynamic>.from(row['value'] as Map) : row;
         final latestVersion = (d['latest_version'] ?? '').toString().trim();
         final apkUrl = (d['apk_url'] ?? '').toString().trim();
         if (latestVersion.isEmpty || apkUrl.isEmpty) return null;
