@@ -1185,11 +1185,14 @@ class FirebaseService {
     // Deduct coins & add diamonds in Supabase
     unawaited(Future(() async {
       try {
-        final newCoins = (senderCoins - totalCost).clamp(0, 999999999999);
-        await SupabaseDataService().updateUser(senderId, {
-          'coins': newCoins,
-          'total_gifts_sent': sentTotal + totalCost,
-        });
+        final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
+        if (sUser != null) {
+          final newCoins = (sUser.coins - totalCost).clamp(0, 999999999999);
+          await SupabaseDataService().updateUser(senderId, {
+            'coins': newCoins,
+            'total_gifts_sent': sUser.totalGiftsSent + totalCost,
+          });
+        }
         final rUser = await SupabaseAuthService().getUserFromSupabase(receiverId);
         if (rUser != null) {
           await SupabaseDataService().updateUser(receiverId, {
@@ -1664,11 +1667,14 @@ class FirebaseService {
       // Deduct coins & add diamonds in Supabase
       unawaited(Future(() async {
         try {
-          final newCoins = (senderCoins - totalCost + totalWonCoins).clamp(0, 999999999999);
-          await SupabaseDataService().updateUser(senderId, {
-            'coins': newCoins,
-            'total_gifts_sent': sentTotal + totalCost,
-          });
+          final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
+          if (sUser != null) {
+            final newCoins = (sUser.coins - totalCost + totalWonCoins).clamp(0, 999999999999);
+            await SupabaseDataService().updateUser(senderId, {
+              'coins': newCoins,
+              'total_gifts_sent': sUser.totalGiftsSent + totalCost,
+            });
+          }
           final rUser = await SupabaseAuthService().getUserFromSupabase(receiverId);
           if (rUser != null) {
             await SupabaseDataService().updateUser(receiverId, {
