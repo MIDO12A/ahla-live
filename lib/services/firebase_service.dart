@@ -2093,7 +2093,7 @@ class FirebaseService {
     }
 
     fetchSupabase();
-    pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => fetchSupabase());
+    pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => fetchSupabase());
 
     StreamSubscription? firestoreSub;
     try {
