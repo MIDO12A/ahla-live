@@ -1048,6 +1048,9 @@ class SupabaseDataService {
     } catch (e) {
       debugPrint('[SupabaseDataService] getGiftBannerConfigs error: $e');
     }
+    return [];
+  }
+
   Future<List<Map<String, dynamic>>> getHostAgencyMembers(String agencyId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&select=*');

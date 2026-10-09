@@ -25,7 +25,6 @@ import 'agency_target_evaluator.dart';
 import 'dynamic_config_service.dart';
 import 'supabase_auth_service.dart';
 import 'supabase_data_service.dart';
-import '../core/supabase_compat.dart';
 
 /// Firebase (Firestore) implementation of the app's data layer.
 ///
