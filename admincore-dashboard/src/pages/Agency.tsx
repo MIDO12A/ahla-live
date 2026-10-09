@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import {
   HostAgencyModel, HostAgencyMemberModel, CommissionSettingModel,
   HostMilestoneModel, AgencyJoinRequestModel, AgencyLedgerEntryModel,
-  AgencyWithdrawalRequestModel, AgencyApplicationModel,
+  AgencyWithdrawalRequestModel, AgencyApplicationModel, HostRechargeRecord,
 } from '../types';
 import {
   getHostAgencies, createHostAgency, updateHostAgency, deleteHostAgency,
@@ -11,6 +11,8 @@ import {
   createHostMilestone, deleteHostMilestone,
   getHostAgencyJoinRequests, approveJoinRequest, rejectJoinRequest,
   updateAgencyMemberRole, removeAgencyMember, addAgencyMember,
+  transferAgencyMember, removeAgencyMemberWithNotification,
+  getHostRechargeHistory, refundAgentRechargeTransaction,
   getAgencyApplications, approveAgencyApplication, rejectAgencyApplication, createAgencyApplication,
   updateRechargeAgency, revokeRechargeAgency,
   getAgencyLedger, getWithdrawalRequests, approveWithdrawal, rejectWithdrawal,
@@ -29,6 +31,7 @@ import {
   Handshake, Users, UserPlus, Wallet, Target, Settings, Sparkles,
   Save, CheckCircle2, RefreshCw, ClipboardCheck, Plus, Trash2, Edit3,
   XCircle, Check, ShieldCheck, UserMinus, Eye, ExternalLink,
+  ArrowRightLeft, RotateCcw, Coins, FileText, AlertTriangle,
 } from 'lucide-react';
 
 /* =============================================================
@@ -202,6 +205,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const { t } = useContext(I18nContext);
   const [agencies, setAgencies] = useState<HostAgencyModel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedAgencyForLedger, setSelectedAgencyForLedger] = useState<HostAgencyModel | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -401,8 +405,11 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
             const ag = a as HostAgencyModel;
             return (
               <div className="flex items-center gap-2">
-                {ag.owner_avatar && <img src={ag.owner_avatar} alt="" className="w-6 h-6 rounded-full object-cover border border-white/10" />}
-                <span className="text-slate-200 text-xs font-semibold">{ag.owner_name || ag.owner_id?.slice(0, 8)}</span>
+                {ag.owner_avatar && <img src={ag.owner_avatar} alt="" className="w-7 h-7 rounded-full object-cover border border-amber-400/30 shrink-0" />}
+                <div>
+                  <div className="text-slate-200 text-xs font-semibold">{ag.owner_name || ag.owner_id?.slice(0, 8)}</div>
+                  <div className="text-[10px] text-emerald-400 font-mono font-bold">ID: #{ag.owner_custom_id || ag.owner_id?.slice(0, 8)}</div>
+                </div>
               </div>
             );
           }},
@@ -434,6 +441,19 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
             const active = (a as HostAgencyModel).is_active;
             return <span className={active ? 'text-emerald-400' : 'text-rose-400'}>{active ? t('agency.yes') : t('agency.no')}</span>;
           }},
+          { key: 'record_action', label: 'سجل الوكالة', render: a => {
+            const ag = a as HostAgencyModel;
+            return (
+              <button
+                onClick={() => setSelectedAgencyForLedger(ag)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-indigo-500/20 hover:from-amber-500/30 hover:to-indigo-500/30 border border-amber-500/35 text-amber-200 rounded-xl text-xs font-bold transition-all shadow-sm"
+                title="عرض سجل أعضاء الوكالة الكامل وإدارتهم"
+              >
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                <span>📋 سجل الوكالة</span>
+              </button>
+            );
+          }},
         ]}
         data={agencies}
         searchKeys={['name', 'owner_name', 'specialty', 'country', 'tier']}
@@ -451,6 +471,14 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
           }
         }}
       />
+
+      {selectedAgencyForLedger && (
+        <AgencyRecordModal
+          agency={selectedAgencyForLedger}
+          allAgencies={agencies}
+          onClose={() => { setSelectedAgencyForLedger(null); load(); }}
+        />
+      )}
     </div>
   );
 }
@@ -475,6 +503,10 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
   const [addRole, setAddRole] = useState('host');
   const [adding, setAdding] = useState(false);
 
+  // Transfer & Recharge History Modal States
+  const [transferTarget, setTransferTarget] = useState<HostAgencyMemberModel | null>(null);
+  const [rechargeTarget, setRechargeTarget] = useState<HostAgencyMemberModel | null>(null);
+
   useEffect(() => {
     if (initialAgencyId) {
       setFilterAgency(initialAgencyId);
@@ -495,8 +527,10 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
   };
 
   const handleRemove = async (agencyId: string, userId: string, userName?: string) => {
-    if (confirm(`هل أنت متأكد من إزالة ${userName || 'هذا العضو'} من الوكالة؟ سيتم فصله وتحديث عدد أعضاء الوكالة فوراً.`)) {
-      await removeAgencyMember(agencyId, userId);
+    const ag = agencies.find(a => a.id === agencyId);
+    if (confirm(`هل أنت متأكد من حذف ${userName || 'هذا المضيف'} نهائياً من الوكالة؟\nسيتم خروجه فوراً وإرسال إشعار حذف رسمي له داخل التطبيق.`)) {
+      const res = await removeAgencyMemberWithNotification(agencyId, userId, ag?.name, userName);
+      alert(res.message);
       load();
     }
   };
@@ -590,7 +624,7 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
                 <img src={mem.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(mem.user_name || 'User')}&background=random`} alt="" className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
                 <div>
                   <div className="text-white font-bold text-xs">{mem.user_name || 'مستخدم'}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">ID: {mem.custom_id || mem.user_id?.slice(0, 8)}</div>
+                  <div className="text-[10px] text-cyan-400 font-mono font-bold">ID: #{mem.custom_id || mem.user_id?.slice(0, 8)}</div>
                 </div>
               </div>
             );
@@ -611,27 +645,43 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
           }},
           { key: 'diamonds_earned_monthly', label: 'ألماس الشهر', sortable: true, render: m => {
             const v = (m as HostAgencyMemberModel).diamonds_earned_monthly;
-            return <span className="text-amber-400 font-semibold">{v?.toLocaleString() ?? '0'} 💎</span>;
+            return <span className="text-amber-400 font-bold font-mono">{v?.toLocaleString() ?? '0'} 💎</span>;
           }},
           { key: 'diamonds_balance', label: 'الرصيد القابل للسحب', sortable: true, render: m => {
             const v = (m as HostAgencyMemberModel).diamonds_balance;
-            return <span className="text-cyan-400 font-semibold">{v?.toLocaleString() ?? '0'} 💎</span>;
+            return <span className="text-cyan-400 font-semibold font-mono">{v?.toLocaleString() ?? '0'} 💎</span>;
           }},
           { key: 'joined_at', label: 'تاريخ الانضمام', sortable: true, render: m => new Date((m as HostAgencyMemberModel).joined_at).toLocaleDateString('ar-EG') },
           { key: 'actions', label: 'الإجراءات', render: m => {
             const member = m as HostAgencyMemberModel;
-            if (member.role === 'owner') return <span className="text-[10px] text-amber-400 font-semibold">مالك الوكالة</span>;
+            if (member.role === 'owner') return <span className="text-[10px] text-amber-400 font-semibold">👑 مالك الوكالة</span>;
             return (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  onClick={() => setTransferTarget(member)}
+                  className="text-[10px] bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1"
+                  title="نقل المضيف لوكالة أخرى وتصفير تارجته"
+                >
+                  <ArrowRightLeft className="w-3 h-3" />
+                  <span>نقل</span>
+                </button>
+                <button
+                  onClick={() => setRechargeTarget(member)}
+                  className="text-[10px] bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1"
+                  title="سجل الشحن الكامل وإرجاع الشحن"
+                >
+                  <Coins className="w-3 h-3" />
+                  <span>سجل الشحن</span>
+                </button>
                 <select defaultValue="" onChange={e => { if (e.target.value) handleRoleChange(member.agency_id, member.user_id, e.target.value); }}
                   className="bg-[#161618] border border-white/10 rounded py-0.5 px-1 text-[10px] text-white">
-                  <option value="" disabled>تغيير الرتبة</option>
+                  <option value="" disabled>الرتبة</option>
                   <option value="supervisor">مشرف</option>
                   <option value="host">مضيف</option>
                 </select>
                 <button onClick={() => handleRemove(member.agency_id, member.user_id, member.user_name)}
                   className="text-[10px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-semibold transition-all">
-                  إزالة من الوكالة
+                  حذف
                 </button>
               </div>
             );
@@ -640,6 +690,23 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
         data={members}
         searchKeys={['user_name', 'role', 'status', 'custom_id']}
       />
+
+      {transferTarget && (
+        <TransferHostModal
+          member={transferTarget}
+          currentAgency={agencies.find(a => a.id === transferTarget.agency_id) || { id: transferTarget.agency_id, name: 'الوكالة الحالية' } as HostAgencyModel}
+          allAgencies={agencies}
+          onClose={() => setTransferTarget(null)}
+          onSuccess={() => { setTransferTarget(null); load(); }}
+        />
+      )}
+
+      {rechargeTarget && (
+        <HostRechargeHistoryModal
+          member={rechargeTarget}
+          onClose={() => setRechargeTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2156,6 +2223,674 @@ function AgencyNecklacesTab() {
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
           {syncing ? 'جارٍ المزامنة...' : '⚡ مزامنة القلادات لجميع أصحاب الوكالات والمضيفين الآن'}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* =============================================================
+   TRANSFER HOST MODAL (نقل المضيف لوكالة أخرى وتصفير التارجت)
+   ============================================================= */
+function TransferHostModal({
+  member,
+  currentAgency,
+  allAgencies,
+  onClose,
+  onSuccess,
+}: {
+  member: HostAgencyMemberModel;
+  currentAgency: HostAgencyModel;
+  allAgencies: HostAgencyModel[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [targetAgencyId, setTargetAgencyId] = useState<string>('');
+  const [transferring, setTransferring] = useState(false);
+  const otherAgencies = allAgencies.filter(a => a.id !== currentAgency.id);
+
+  const handleTransfer = async () => {
+    if (!targetAgencyId) {
+      alert('يرجى اختيار الوكالة المستهدفة للنقل');
+      return;
+    }
+    const targetAg = allAgencies.find(a => a.id === targetAgencyId);
+    if (!confirm(`هل أنت متأكد من نقل المضيف (${member.user_name || member.custom_id}) من وكالة "${currentAgency.name}" إلى وكالة "${targetAg?.name}"؟\n\nتنبيه: سيتم تصفير تارجت الألماس الشهري الخاص به بالكامل لهذا الشهر فوراً (0 💎).`)) {
+      return;
+    }
+    setTransferring(true);
+    const res = await transferAgencyMember(
+      member.user_id,
+      currentAgency.id,
+      targetAgencyId,
+      currentAgency.name,
+      targetAg?.name
+    );
+    setTransferring(false);
+    alert(res.message);
+    if (res.success) {
+      onSuccess();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-[#18181b] border border-indigo-500/30 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <ArrowRightLeft className="w-5 h-5 text-indigo-400" />
+            <h3 className="text-white font-bold text-sm">نقل المضيف إلى وكالة أخرى</h3>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">✕</button>
+        </div>
+
+        {/* Member Preview */}
+        <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+          <img
+            src={member.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.user_name || 'Host')}&background=random`}
+            alt=""
+            className="w-12 h-12 rounded-full object-cover border border-indigo-400/40"
+          />
+          <div className="space-y-0.5">
+            <div className="text-white font-bold text-xs">{member.user_name || 'مضيف'}</div>
+            <div className="text-[11px] text-cyan-400 font-mono font-bold">ID: #{member.custom_id || member.user_id?.slice(0, 8)}</div>
+            <div className="text-[10px] text-slate-400">الوكالة الحالية: <span className="text-slate-200 font-bold">{currentAgency.name}</span></div>
+          </div>
+        </div>
+
+        {/* Warning Callout */}
+        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1">
+          <div className="text-amber-400 font-bold text-xs flex items-center gap-1.5">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>تنبيه تصفير التارجت الشهري:</span>
+          </div>
+          <p className="text-[11px] text-amber-200/90 leading-relaxed">
+            عند النقل، سيتم نقل ارتباط المضيف فوراً للوكالة الجديدة، و<strong>تصفير تارجت الألماس الشهري الخاص به بالكامل لهذا الشهر (0 💎)</strong> لبدء دورة جديدة، مع إرسال إشعار فوري داخل نظام التطبيق لإبلاغ المضيف.
+          </p>
+        </div>
+
+        {/* Select Target Agency */}
+        <div className="space-y-1.5">
+          <label className="text-xs text-slate-300 font-bold block">اختر الوكالة المستهدفة للنقل إليها *</label>
+          {otherAgencies.length === 0 ? (
+            <p className="text-xs text-rose-400">لا توجد وكالات أخرى متاحة للنقل إليها.</p>
+          ) : (
+            <select
+              value={targetAgencyId}
+              onChange={e => setTargetAgencyId(e.target.value)}
+              className="w-full bg-[#121214] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            >
+              <option value="">-- اضغط لاختيار الوكالة المستهدفة --</option>
+              {otherAgencies.map(a => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({a.member_count ?? 0} أعضاء) - المالك: {a.owner_name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+          <button onClick={onClose} className="px-4 py-2 text-xs text-slate-400 hover:text-white">إلغاء</button>
+          <button
+            onClick={handleTransfer}
+            disabled={transferring || !targetAgencyId}
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg shadow-indigo-600/30"
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5" />
+            {transferring ? 'جاري النقل...' : 'تأكيد النقل وتصفير التارجت'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =============================================================
+   HOST RECHARGE HISTORY & REFUND MODAL
+   ============================================================= */
+function HostRechargeHistoryModal({
+  member,
+  onClose,
+}: {
+  member: HostAgencyMemberModel;
+  onClose: () => void;
+}) {
+  const [records, setRecords] = useState<HostRechargeRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refundingTx, setRefundingTx] = useState<HostRechargeRecord | null>(null);
+  const [refunding, setRefunding] = useState(false);
+  const [memberCoins, setMemberCoins] = useState<number>(member.coins || 0);
+
+  const load = async () => {
+    setLoading(true);
+    const recs = await getHostRechargeHistory(member.user_id);
+    setRecords(recs);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, [member.user_id]);
+
+  // Current month calculation
+  const now = new Date();
+  const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const thisMonthRecords = records.filter(r => r.created_at.startsWith(currentMonthPrefix));
+
+  const totalMonthCoins = thisMonthRecords.reduce((sum, r) => sum + r.amount_coins, 0);
+  const totalAgentCoins = thisMonthRecords.filter(r => r.source === 'agent').reduce((sum, r) => sum + r.amount_coins, 0);
+  const totalAdminCoins = thisMonthRecords.filter(r => r.source === 'admin').reduce((sum, r) => sum + r.amount_coins, 0);
+
+  const handleConfirmRefund = async () => {
+    if (!refundingTx) return;
+    setRefunding(true);
+    const res = await refundAgentRechargeTransaction(
+      refundingTx.id,
+      refundingTx.agent_id || '',
+      refundingTx.target_uid,
+      refundingTx.amount_coins,
+      member.custom_id,
+      refundingTx.agent_custom_id
+    );
+    setRefunding(false);
+    alert(res.message);
+    if (res.success) {
+      setMemberCoins(prev => Math.max(0, prev - refundingTx.amount_coins));
+      setRefundingTx(null);
+      load();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-[#18181b] border border-amber-500/30 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-3">
+            <Coins className="w-5 h-5 text-amber-400" />
+            <div>
+              <h3 className="text-white font-bold text-sm">سجل الشحن الكامل للمضيف لهذا الشهر</h3>
+              <p className="text-[11px] text-slate-400">تفاصيل جميع عمليات الشحن من الوكلاء والإدارة والمتجر مع خيار استرجاع الشحن الخاطئ</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">✕</button>
+        </div>
+
+        {/* Host Details Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+          <div className="flex items-center gap-3">
+            <img
+              src={member.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.user_name || 'Host')}&background=random`}
+              alt=""
+              className="w-10 h-10 rounded-full object-cover border border-amber-400/50"
+            />
+            <div>
+              <div className="text-white font-bold text-xs">{member.user_name || 'مضيف'}</div>
+              <div className="text-[11px] text-cyan-400 font-mono font-bold">ID: #{member.custom_id || member.user_id?.slice(0, 8)}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-left bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg">
+              <span className="text-[10px] text-slate-400 block">رصيد الكوينز الحالي</span>
+              <span className="text-xs text-amber-400 font-bold font-mono">🪙 {memberCoins.toLocaleString()} عملة</span>
+            </div>
+            <div className="text-left bg-cyan-500/10 border border-cyan-500/20 px-3 py-1.5 rounded-lg">
+              <span className="text-[10px] text-slate-400 block">ألماس الشهر الحالي</span>
+              <span className="text-xs text-cyan-400 font-bold font-mono">💎 {(member.diamonds_earned_monthly ?? 0).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Month Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="bg-[#141416] p-3 rounded-xl border border-white/5">
+            <span className="text-[10px] text-slate-400 block">إجمالي مشحون الشهر</span>
+            <span className="text-sm font-bold text-amber-400 font-mono">🪙 {totalMonthCoins.toLocaleString()}</span>
+          </div>
+          <div className="bg-[#141416] p-3 rounded-xl border border-white/5">
+            <span className="text-[10px] text-slate-400 block">شحن وكلاء الشحن</span>
+            <span className="text-sm font-bold text-indigo-400 font-mono">🪙 {totalAgentCoins.toLocaleString()}</span>
+          </div>
+          <div className="bg-[#141416] p-3 rounded-xl border border-white/5">
+            <span className="text-[10px] text-slate-400 block">شحن الإدارة المباشر</span>
+            <span className="text-sm font-bold text-emerald-400 font-mono">🪙 {totalAdminCoins.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* Table / List */}
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+          {loading ? (
+            <div className="py-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+              <span>جاري تحميل سجل الشحن...</span>
+            </div>
+          ) : records.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate-500">
+              لا توجد أي حركات شحن مسجلة لهذا الحساب.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="text-slate-400 border-b border-white/10 text-[11px]">
+                    <th className="py-2 px-3">نوع المصدر</th>
+                    <th className="py-2 px-3">القائم بالشحن</th>
+                    <th className="py-2 px-3">الكوينز المشحونة</th>
+                    <th className="py-2 px-3">التاريخ والوقت</th>
+                    <th className="py-2 px-3">الحالة</th>
+                    <th className="py-2 px-3 text-center">الإجراء</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {records.map(rec => (
+                    <tr key={rec.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-2.5 px-3">
+                        {rec.source === 'agent' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            وكيل شحن
+                          </span>
+                        ) : rec.source === 'admin' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            الإدارة
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            داخل التطبيق
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {rec.source === 'agent' ? (
+                          <div className="flex items-center gap-2">
+                            {rec.agent_avatar && (
+                              <img src={rec.agent_avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                            )}
+                            <div>
+                              <div className="text-white font-semibold text-[11px]">{rec.agent_name}</div>
+                              {rec.agent_custom_id && (
+                                <div className="text-[10px] text-cyan-400 font-mono">ID: #{rec.agent_custom_id}</div>
+                              )}
+                            </div>
+                          </div>
+                        ) : rec.source === 'admin' ? (
+                          <span className="text-slate-300 text-[11px]">إدارة التطبيق</span>
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">متجر العملات</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
+                        +{rec.amount_coins.toLocaleString()} 🪙
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] text-slate-400">
+                        {new Date(rec.created_at).toLocaleString('ar-EG', {
+                          year: 'numeric',
+                          month: 'numeric',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {rec.is_refunded ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
+                            مسترجعة ↩️
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                            مكتملة ✅
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        {rec.source === 'agent' ? (
+                          rec.is_refunded ? (
+                            <span className="text-[10px] text-slate-500">تم ردها</span>
+                          ) : (
+                            <button
+                              onClick={() => setRefundingTx(rec)}
+                              className="px-2.5 py-1 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 rounded-lg text-[10px] font-bold flex items-center gap-1 mx-auto transition-all"
+                              title="إرجاع هذا الشحن الخاطئ وإعادة الكوينز للوكيل"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>إرجاع الشحن ↩️</span>
+                            </button>
+                          )
+                        ) : (
+                          <span className="text-[10px] text-slate-600">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Confirmation Modal for Refund */}
+        {refundingTx && (
+          <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-[#1c1c20] border border-rose-500/40 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+              <div className="flex items-center gap-2 text-rose-400 font-bold text-sm">
+                <RotateCcw className="w-4 h-4" />
+                <span>تأكيد استرجاع الشحن الخاطئ للوكيل</span>
+              </div>
+
+              <div className="p-3 bg-white/5 rounded-xl space-y-2 text-xs">
+                <div className="flex justify-between border-b border-white/5 pb-1.5">
+                  <span className="text-slate-400">الكوينز المراد استرجاعها:</span>
+                  <span className="text-amber-400 font-mono font-bold">🪙 {refundingTx.amount_coins.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between border-b border-white/5 pb-1.5">
+                  <span className="text-slate-400">المستخدم (سيتم الخصم منه):</span>
+                  <span className="text-white font-bold">{member.user_name} (ID: #{member.custom_id})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">وكيل الشحن (ستعاد إليه):</span>
+                  <span className="text-indigo-300 font-bold">{refundingTx.agent_name} (ID: #{refundingTx.agent_custom_id})</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-rose-300 leading-relaxed bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+                ⚠️ سيتم خصم الكوينز فورياً من رصيد المستخدم وإعادتها بالكامل إلى محفظة وكيل الشحن، مع إرسال إشعار فوري داخل نظام التطبيق لكلا الطرفين لإبلاغهما بالاسترجاع.
+              </p>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setRefundingTx(null)}
+                  disabled={refunding}
+                  className="px-4 py-2 text-xs text-slate-400 hover:text-white"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleConfirmRefund}
+                  disabled={refunding}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg shadow-rose-600/30"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  {refunding ? 'جاري الاسترجاع...' : 'تأكيد الخصم والاسترجاع'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="flex justify-end pt-2 border-t border-white/10">
+          <button onClick={onClose} className="px-4 py-2 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold">
+            إغلاق
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =============================================================
+   AGENCY RECORD MODAL (سجل الوكالة وإدارة المضيفين)
+   ============================================================= */
+function AgencyRecordModal({
+  agency,
+  allAgencies,
+  onClose,
+}: {
+  agency: HostAgencyModel;
+  allAgencies: HostAgencyModel[];
+  onClose: () => void;
+}) {
+  const [members, setMembers] = useState<HostAgencyMemberModel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [transferTarget, setTransferTarget] = useState<HostAgencyMemberModel | null>(null);
+  const [rechargeTarget, setRechargeTarget] = useState<HostAgencyMemberModel | null>(null);
+
+  const loadMembers = async () => {
+    setLoading(true);
+    const m = await getHostAgencyMembers(agency.id);
+    setMembers(m);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadMembers();
+  }, [agency.id]);
+
+  const handleRemoveHost = async (m: HostAgencyMemberModel) => {
+    if (confirm(`هل أنت متأكد من حذف المضيف (${m.user_name || m.custom_id}) من وكالة "${agency.name}"؟\nسيتم خروجه فوراً وإرسال إشعار رسمي له داخل التطبيق.`)) {
+      const res = await removeAgencyMemberWithNotification(agency.id, m.user_id, agency.name, m.user_name);
+      alert(res.message);
+      loadMembers();
+    }
+  };
+
+  const filteredMembers = members.filter(m => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return (
+      (m.user_name || '').toLowerCase().includes(q) ||
+      (m.custom_id || '').toLowerCase().includes(q) ||
+      (m.user_id || '').toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-[#161619] border border-amber-500/30 rounded-2xl max-w-5xl w-full p-6 space-y-5 shadow-2xl max-h-[92vh] flex flex-col">
+        {/* Modal Top Header */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-3">
+            <img
+              src={agency.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(agency.name)}&background=random`}
+              alt=""
+              className="w-11 h-11 rounded-xl object-cover border border-amber-400/40"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-white font-bold text-base">{agency.name}</h3>
+                <span className="px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 uppercase">
+                  {agency.tier || 'bronze'}
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${agency.is_active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                  {agency.is_active ? 'نشطة' : 'معطلة'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 font-mono">ID: {agency.id}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-base">✕</button>
+        </div>
+
+        {/* Agency Owner & Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          {/* Real In-App Owner ID Card */}
+          <div className="md:col-span-2 bg-gradient-to-r from-amber-500/10 to-indigo-500/10 border border-amber-500/25 p-3 rounded-xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                src={agency.owner_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(agency.owner_name || 'Owner')}&background=random`}
+                alt=""
+                className="w-10 h-10 rounded-full object-cover border-2 border-amber-400/50"
+              />
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-white">{agency.owner_name || 'مالك الوكالة'}</span>
+                  <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded font-bold border border-amber-400/30">👑 مالك الوكالة</span>
+                </div>
+                <div className="text-[11px] text-emerald-400 font-mono font-bold">
+                  الآيدي بالتطبيق: #{agency.owner_custom_id || agency.owner_id?.slice(0, 8)}
+                </div>
+              </div>
+            </div>
+            <div className="text-left text-[11px] text-slate-400">
+              <span className="block text-slate-500 text-[10px]">عمولة الوكالة</span>
+              <span className="text-amber-400 font-bold font-mono">{((agency.commission_rate ?? 0.1) * 100)}%</span>
+            </div>
+          </div>
+
+          {/* Monthly Diamonds */}
+          <div className="bg-[#1c1c20] p-3 rounded-xl border border-white/5 flex flex-col justify-center">
+            <span className="text-[10px] text-slate-400">💎 ألماس الوكالة هذا الشهر</span>
+            <span className="text-sm font-bold text-amber-400 font-mono">{(agency.monthly_diamonds ?? 0).toLocaleString()}</span>
+          </div>
+
+          {/* Total Members */}
+          <div className="bg-[#1c1c20] p-3 rounded-xl border border-white/5 flex flex-col justify-center">
+            <span className="text-[10px] text-slate-400">👥 إجمالي الأعضاء الحقيقيين</span>
+            <span className="text-sm font-bold text-indigo-400 font-mono">{members.length} عضو</span>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs font-bold text-white flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-indigo-400" />
+            <span>سجل أعضاء ومضيفي الوكالة ({filteredMembers.length})</span>
+          </div>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="بحث باسم المضيف أو الـ ID..."
+            className="bg-[#121214] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-500 w-64 focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+
+        {/* Members Table */}
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+          {loading ? (
+            <div className="py-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
+              <span>جاري تحميل أعضاء الوكالة...</span>
+            </div>
+          ) : filteredMembers.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate-500">
+              لا يوجد أعضاء يطابقون البحث.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="text-slate-400 border-b border-white/10 text-[11px]">
+                    <th className="py-2.5 px-3">المضيف</th>
+                    <th className="py-2.5 px-3">آيدي التطبيق (Custom ID)</th>
+                    <th className="py-2.5 px-3">الرتبة</th>
+                    <th className="py-2.5 px-3">ألماس هذا الشهر</th>
+                    <th className="py-2.5 px-3">رصيد الكوينز</th>
+                    <th className="py-2.5 px-3">تاريخ الانضمام</th>
+                    <th className="py-2.5 px-3 text-center">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {filteredMembers.map(m => (
+                    <tr key={m.user_id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={m.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.user_name || 'Host')}&background=random`}
+                            alt=""
+                            className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
+                          />
+                          <div>
+                            <div className="text-white font-bold text-xs">{m.user_name || 'مضيف'}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">{m.user_id?.slice(0, 8)}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-mono text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 text-xs">
+                          ID: #{m.custom_id || m.user_id?.slice(0, 8)}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {m.role === 'owner' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">👑 مالك</span>
+                        ) : m.role === 'supervisor' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">⭐ مشرف</span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">🎙️ مضيف</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
+                        💎 {(m.diamonds_earned_monthly ?? 0).toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-amber-300">
+                        🪙 {(m.coins ?? 0).toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] text-slate-400">
+                        {new Date(m.joined_at).toLocaleDateString('ar-EG')}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {m.role === 'owner' ? (
+                          <div className="text-center text-[10px] text-amber-400 font-bold">مالك الوكالة</div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* Transfer button */}
+                            <button
+                              onClick={() => setTransferTarget(m)}
+                              className="px-2 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all"
+                              title="نقل المضيف لوكالة أخرى وتصفير تارجته"
+                            >
+                              <ArrowRightLeft className="w-3 h-3" />
+                              <span>نقل لوكالة أخرى</span>
+                            </button>
+
+                            {/* Remove button */}
+                            <button
+                              onClick={() => handleRemoveHost(m)}
+                              className="px-2 py-1 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all"
+                              title="حذف المضيف فوراً وإرسال إشعار له"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>حذف</span>
+                            </button>
+
+                            {/* Recharge history button */}
+                            <button
+                              onClick={() => setRechargeTarget(m)}
+                              className="px-2 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all"
+                              title="عرض سجل الشحن الشهري بالكامل مع إمكانية استرجاع الشحن"
+                            >
+                              <Coins className="w-3 h-3" />
+                              <span>سجل الشحن</span>
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Modals triggered from within AgencyRecordModal */}
+        {transferTarget && (
+          <TransferHostModal
+            member={transferTarget}
+            currentAgency={agency}
+            allAgencies={allAgencies}
+            onClose={() => setTransferTarget(null)}
+            onSuccess={() => {
+              setTransferTarget(null);
+              loadMembers();
+            }}
+          />
+        )}
+
+        {rechargeTarget && (
+          <HostRechargeHistoryModal
+            member={rechargeTarget}
+            onClose={() => setRechargeTarget(null)}
+          />
+        )}
+
+        {/* Modal Footer */}
+        <div className="flex justify-end pt-2 border-t border-white/10">
+          <button onClick={onClose} className="px-5 py-2 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold">
+            إغلاق السجل
+          </button>
+        </div>
       </div>
     </div>
   );

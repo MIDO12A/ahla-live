@@ -1,4 +1,5 @@
 import { supabase, getAdminSupabase } from './supabase'
+import { getCurrentAdminName } from './auth'
 import type {
   UserModel, RoomModel, GiftModel, SentGiftModel,
   StoreItemModel, UnionModel, BugReport, AppConfig,
@@ -8,7 +9,7 @@ import type {
   HostAgencyMemberModel, HostMilestoneModel, CommissionSettingModel,
   AgencyJoinRequestModel, AgencyLedgerEntryModel, AgencyWithdrawalRequestModel,
   HostAgencyModel, CpGiftModel, CpCarModel, CpEventSettings, CpRankRewardModel,
-  SigninRewardModel, AgencyApplicationModel,
+  SigninRewardModel, AgencyApplicationModel, HostRechargeRecord,
 } from '../types'
 
 // ---- Auth Admin ----
@@ -1123,6 +1124,7 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
         member_count: Math.max(1, realCount),
         owner_name: owner?.name || owner?.displayName || a.owner_id?.slice(0, 8),
         owner_avatar: owner?.photo_url || owner?.avatar || '',
+        owner_custom_id: owner?.custom_id || '',
       };
     }));
   } catch { return []; }
@@ -1345,8 +1347,8 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
     const members = data ?? [];
     if (members.length === 0) return [];
 
-    // Fetch user details for each member
-    const userIds = Array.from(new Set(members.map((m: any) => m.user_id).filter(Boolean)));
+    // Fetch user details for each member (support both user_id and host_uid)
+    const userIds = Array.from(new Set(members.map((m: any) => m.user_id || m.host_uid).filter(Boolean)));
     const usersMap: Record<string, any> = {};
     if (userIds.length > 0) {
       const { data: usersData } = await supabase.from('users').select('*');
@@ -1359,12 +1361,17 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
     }
 
     return mapList<HostAgencyMemberModel>(members.map((m: any) => {
-      const u = usersMap[m.user_id];
+      const uid = m.user_id || m.host_uid;
+      const u = usersMap[uid];
       return {
         ...m,
-        user_name: u?.name || u?.displayName || m.user_id?.slice(0, 8),
-        custom_id: u?.custom_id || '',
+        user_id: uid,
+        user_name: u?.name || u?.displayName || uid?.slice(0, 8),
+        custom_id: u?.custom_id || m.custom_id || '',
         avatar_url: u?.photo_url || u?.avatar || '',
+        coins: Number(u?.coins || 0),
+        diamonds_earned_monthly: Number(m.diamonds_earned_monthly || 0),
+        diamonds_balance: Number(m.diamonds_balance || m.diamonds || 0),
       };
     }));
   } catch { return []; }
@@ -1809,10 +1816,316 @@ export async function updateAgencyMemberRole(agencyId: string, userId: string, r
 export async function removeAgencyMember(agencyId: string, userId: string): Promise<boolean> {
   try {
     await supabase.from('host_agency_members').delete().eq('agency_id', agencyId).eq('user_id', userId);
+    await supabase.from('host_agency_members').delete().eq('agency_id', agencyId).eq('host_uid', userId);
     await supabase.from('users').update({ agency_id: null }).eq('id', userId);
+    await supabase.from('users').update({ agency_id: null }).eq('uid', userId);
     await adjustAgencyMemberCount(agencyId, -1);
     return true;
   } catch { return false; }
+}
+
+export async function removeAgencyMemberWithNotification(
+  agencyId: string,
+  userId: string,
+  agencyName?: string,
+  userName?: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const client = getAdminSupabase() || supabase;
+
+    // 1. Delete from host_agency_members
+    await client.from('host_agency_members').delete().eq('agency_id', agencyId).eq('user_id', userId);
+    await client.from('host_agency_members').delete().eq('agency_id', agencyId).eq('host_uid', userId);
+
+    // 2. Reset agency_id in users
+    await client.from('users').update({ agency_id: null }).eq('id', userId);
+    await client.from('users').update({ agency_id: null }).eq('uid', userId);
+
+    // 3. Adjust member count
+    await adjustAgencyMemberCount(agencyId, -1);
+
+    // 4. Send official in-app system notification
+    const aName = agencyName || 'الوكالة';
+    await sendSystemNotification({
+      userId,
+      title: '❌ تم إنهاء عضويتك في الوكالة',
+      body: `تم إنهاء عضويتك وإزالتك من وكالة [${aName}] بواسطة إدارة التطبيق.`,
+      type: 'system',
+      action: 'agency_member_removed',
+      extraData: { agency_id: agencyId },
+    });
+
+    return { success: true, message: `تم إزالة ${userName || 'المضيف'} من الوكالة بنجاح وإرسال إشعار فوري له!` };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'فشل إزالة العضو من الوكالة' };
+  }
+}
+
+export async function transferAgencyMember(
+  userId: string,
+  fromAgencyId: string,
+  toAgencyId: string,
+  fromAgencyName?: string,
+  toAgencyName?: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    if (!userId || !toAgencyId) {
+      return { success: false, message: 'معرف المستخدم والوكالة الجديدة مطلوبان' };
+    }
+    if (fromAgencyId === toAgencyId) {
+      return { success: false, message: 'لا يمكن نقل العضو إلى نفس الوكالة الحالية' };
+    }
+
+    const client = getAdminSupabase() || supabase;
+    const nowIso = new Date().toISOString();
+
+    // 1. Update member row in host_agency_members: reset monthly diamonds and target to 0
+    await client.from('host_agency_members')
+      .update({
+        agency_id: toAgencyId,
+        diamonds_earned_monthly: 0,
+        daily_target: 0,
+        monthly_target: 0,
+        joined_at: nowIso,
+      })
+      .eq('agency_id', fromAgencyId)
+      .eq('user_id', userId);
+
+    await client.from('host_agency_members')
+      .update({
+        agency_id: toAgencyId,
+        diamonds_earned_monthly: 0,
+        daily_target: 0,
+        monthly_target: 0,
+        joined_at: nowIso,
+      })
+      .eq('agency_id', fromAgencyId)
+      .eq('host_uid', userId);
+
+    // 2. Update user agency_id in users table
+    await client.from('users').update({ agency_id: toAgencyId }).eq('id', userId);
+    await client.from('users').update({ agency_id: toAgencyId }).eq('uid', userId);
+
+    // 3. Adjust member counts for both agencies
+    if (fromAgencyId) {
+      await adjustAgencyMemberCount(fromAgencyId, -1);
+    }
+    await adjustAgencyMemberCount(toAgencyId, 1);
+
+    // 4. Send official system notification to host
+    const fromLabel = fromAgencyName || 'الوكالة السابقة';
+    const toLabel = toAgencyName || 'الوكالة الجديدة';
+    await sendSystemNotification({
+      userId,
+      title: '🔄 نقل إلى وكالة جديدة',
+      body: `تم نقلك بنجاح من وكالة [${fromLabel}] إلى وكالة [${toLabel}] بواسطة الإدارة، وتم تصفير تارجت الألماس الشهري لبدء دورة تارجت جديدة في الوكالة الجديدة.`,
+      type: 'system',
+      action: 'agency_transferred',
+      extraData: { from_agency_id: fromAgencyId, to_agency_id: toAgencyId },
+    });
+
+    return { success: true, message: `تم نقل العضو بنجاح إلى وكالة [${toLabel}] وتصفير تارجته الشهري وإرسال إشعار له!` };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'حدث خطأ أثناء نقل العضو' };
+  }
+}
+
+export async function getHostRechargeHistory(userId: string): Promise<HostRechargeRecord[]> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const records: HostRechargeRecord[] = [];
+
+    // 1. Fetch agent recharge transactions where target_uid == userId
+    const { data: agentTxs } = await client
+      .from('agent_recharge_transactions')
+      .select('*')
+      .eq('target_uid', userId)
+      .order('created_at', { ascending: false });
+
+    // 2. Fetch refunded status from app_config
+    const { data: refundedConfigs } = await client
+      .from('app_config')
+      .select('key, value')
+      .ilike('key', 'refunded_agent_tx_%');
+
+    const refundedMap: Record<string, any> = {};
+    (refundedConfigs ?? []).forEach((c: any) => {
+      const txId = c.key.replace('refunded_agent_tx_', '');
+      refundedMap[txId] = c.value;
+    });
+
+    // 3. Fetch agent users to get their name, custom_id, avatar
+    const agentIds = Array.from(new Set((agentTxs ?? []).map((t: any) => t.agent_id).filter(Boolean)));
+    const agentsMap: Record<string, any> = {};
+    if (agentIds.length > 0) {
+      const { data: agentUsers } = await client.from('users').select('*');
+      (agentUsers ?? []).forEach((u: any) => {
+        const uid = u.id || u.uid;
+        if (agentIds.includes(uid) || (u.custom_id && agentIds.includes(u.custom_id))) {
+          agentsMap[uid] = u;
+          if (u.custom_id) agentsMap[u.custom_id] = u;
+        }
+      });
+    }
+
+    for (const t of agentTxs ?? []) {
+      const agent = agentsMap[t.agent_id];
+      const isRefunded = Boolean(t.is_refunded || refundedMap[t.id]?.is_refunded);
+      const refundedInfo = refundedMap[t.id] || {};
+      records.push({
+        id: t.id,
+        source: 'agent',
+        source_label: 'وكيل شحن',
+        amount_coins: Number(t.amount_coins || 0),
+        amount_usd: t.amount_usd ? Number(t.amount_usd) : undefined,
+        agent_id: t.agent_id,
+        agent_name: agent?.name || agent?.displayName || 'وكيل شحن معتمد',
+        agent_custom_id: agent?.custom_id || '',
+        agent_avatar: agent?.photo_url || agent?.avatar || '',
+        target_uid: t.target_uid,
+        target_custom_id: t.target_custom_id || '',
+        created_at: t.created_at || new Date().toISOString(),
+        is_refunded: isRefunded,
+        refunded_at: refundedInfo.refunded_at || t.refunded_at,
+        refunded_by: refundedInfo.refunded_by || t.refunded_by,
+      });
+    }
+
+    // 4. Fetch admin recharge logs from notifications table
+    try {
+      const { data: notifs } = await client
+        .from('notifications')
+        .select('*')
+        .or(`uid.eq.${userId},target.eq.${userId}`)
+        .order('sent_at', { ascending: false });
+
+      for (const n of notifs ?? []) {
+        const isCoinsRecharge = n.data?.action === 'coins_recharged' || n.action === 'coins_recharged' || (n.title && n.title.includes('شحن رصيد'));
+        if (isCoinsRecharge) {
+          const coinsAmt = n.data?.amount || n.data?.coins || 0;
+          if (coinsAmt > 0) {
+            records.push({
+              id: `notif_${n.id}`,
+              source: 'admin',
+              source_label: 'شحن إداري',
+              amount_coins: Number(coinsAmt),
+              target_uid: userId,
+              created_at: n.sent_at || n.created_at || new Date().toISOString(),
+            });
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Sort descending by date
+    records.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return records;
+  } catch (err) {
+    console.warn('getHostRechargeHistory error:', err);
+    return [];
+  }
+}
+
+export async function refundAgentRechargeTransaction(
+  transactionId: string,
+  agentId: string,
+  targetUid: string,
+  amountCoins: number,
+  targetCustomId?: string,
+  agentCustomId?: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const adminName = getCurrentAdminName() || 'إدارة التطبيق';
+    const nowIso = new Date().toISOString();
+
+    // 1. Fetch current balances of target user and agent
+    const { data: users } = await client.from('users').select('*').in('id', [targetUid, agentId]);
+    let targetUser = (users ?? []).find((u: any) => (u.id || u.uid) === targetUid);
+    let agentUser = (users ?? []).find((u: any) => (u.id || u.uid) === agentId);
+
+    // Fallback if searched by uid
+    if (!targetUser) {
+      const { data: tU } = await client.from('users').select('*').eq('uid', targetUid).maybeSingle();
+      targetUser = tU;
+    }
+    if (!agentUser) {
+      const { data: aU } = await client.from('users').select('*').eq('uid', agentId).maybeSingle();
+      agentUser = aU;
+    }
+
+    if (!targetUser) {
+      return { success: false, message: 'لم يتم العثور على بيانات المستخدم المستلم للعملات' };
+    }
+    if (!agentUser) {
+      return { success: false, message: 'لم يتم العثور على بيانات وكيل الشحن' };
+    }
+
+    const currentTargetCoins = Number(targetUser.coins || 0);
+    const newTargetCoins = Math.max(0, currentTargetCoins - amountCoins);
+
+    const currentAgentCoins = Number(agentUser.coins || 0);
+    const newAgentCoins = currentAgentCoins + amountCoins;
+
+    // 2. Update target user coins (deduct)
+    await client.from('users').update({ coins: newTargetCoins }).eq('id', targetUid);
+    await client.from('users').update({ coins: newTargetCoins }).eq('uid', targetUid);
+
+    // 3. Update agent user coins (credit back)
+    await client.from('users').update({ coins: newAgentCoins }).eq('id', agentId);
+    await client.from('users').update({ coins: newAgentCoins }).eq('uid', agentId);
+
+    // 4. Mark transaction as refunded in app_config
+    await client.from('app_config').upsert({
+      key: `refunded_agent_tx_${transactionId}`,
+      value: {
+        is_refunded: true,
+        transaction_id: transactionId,
+        amount_coins: amountCoins,
+        agent_id: agentId,
+        target_uid: targetUid,
+        refunded_at: nowIso,
+        refunded_by: adminName,
+      },
+    });
+
+    // Also attempt updating agent_recharge_transactions table if column exists
+    try {
+      await client.from('agent_recharge_transactions').update({
+        is_refunded: true,
+        refunded_at: nowIso,
+        refunded_by: adminName,
+      }).eq('id', transactionId);
+    } catch (_) {}
+
+    // 5. Send notification to Agent
+    const targetDisplayId = targetCustomId || targetUser.custom_id || targetUid.slice(0, 8);
+    await sendSystemNotification({
+      userId: agentId,
+      title: '↩️ تم استرجاع شحن كوينز خاطئ لمحفظتك',
+      body: `قامت الإدارة باسترجاع الشحن الخاطئ بقيمة ${amountCoins.toLocaleString()} كوينز من المستخدم (ID: ${targetDisplayId}) وإعادة الرصيد إلى محفظتك بنجاح. رصيدك الآن: ${newAgentCoins.toLocaleString()} عملة.`,
+      type: 'system',
+      action: 'agent_recharge_refunded',
+      extraData: { transaction_id: transactionId, amount_coins: amountCoins, target_uid: targetUid },
+    });
+
+    // 6. Send notification to Target User
+    await sendSystemNotification({
+      userId: targetUid,
+      title: '↩️ تنبيه استرجاع شحن كوينز خاطئ',
+      body: `قامت الإدارة باسترجاع ${amountCoins.toLocaleString()} كوينز تم شحنها لحسابك بالخطأ وإعادتها إلى وكيل الشحن. رصيدك الحالي الآن: ${newTargetCoins.toLocaleString()} عملة.`,
+      type: 'system',
+      action: 'user_recharge_reverted',
+      extraData: { transaction_id: transactionId, amount_coins: amountCoins },
+    });
+
+    return {
+      success: true,
+      message: `تم بنجاح خصم ${amountCoins.toLocaleString()} كوينز من المستخدم وإعادتها لرصيد وكيل الشحن، مع إرسال إشعار فوري للطرفين!`,
+    };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'فشلت عملية استرجاع الشحن' };
+  }
 }
 
 export async function sendSystemNotification(data: {

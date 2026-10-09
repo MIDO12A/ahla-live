@@ -546,6 +546,7 @@ export interface HostAgencyModel {
   phone?: string;
   owner_name?: string;
   owner_avatar?: string;
+  owner_custom_id?: string;
   created_at: string;
 }
 
@@ -562,7 +563,27 @@ export interface HostAgencyMemberModel {
   user_name?: string;
   custom_id?: string;
   avatar_url?: string;
+  coins?: number;
   joined_at: string;
+}
+
+export interface HostRechargeRecord {
+  id: string;
+  source: 'agent' | 'admin' | 'store';
+  source_label: string;
+  amount_coins: number;
+  amount_usd?: number;
+  agent_id?: string;
+  agent_name?: string;
+  agent_custom_id?: string;
+  agent_avatar?: string;
+  target_uid: string;
+  target_custom_id?: string;
+  target_name?: string;
+  created_at: string;
+  is_refunded?: boolean;
+  refunded_at?: string;
+  refunded_by?: string;
 }
 
 export interface AgencyApplicationModel {
