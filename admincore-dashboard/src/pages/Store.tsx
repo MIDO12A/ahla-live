@@ -33,6 +33,7 @@ const svgaCategories = new Set(['entrance', 'car', 'cover', 'mic_wave']);
 
 export default function StorePage() {
   const [activeTab, setActiveTab] = useState<'items' | 'categories'>('items');
+  const [selectedItemCategory, setSelectedItemCategory] = useState<string>('all');
   const [items, setItems] = useState<StoreItemModel[]>([]);
   const [categories, setCategories] = useState<StoreCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,10 +91,11 @@ export default function StorePage() {
   }, []);
 
   // --- Store Items Handlers ---
-  const resetForm = () =>
+  const resetForm = (targetCat?: string) => {
+    const cat = targetCat || (selectedItemCategory !== 'all' ? selectedItemCategory : (categories[0]?.key || 'frame'));
     setForm({
       name: '',
-      category: categories[0]?.key || 'frame',
+      category: cat,
       iconAsset: '',
       price: 0,
       svgaAsset: '',
@@ -107,6 +109,7 @@ export default function StorePage() {
       colorEffect: 'golden',
       isAvailable: true,
     });
+  };
 
   const handleEdit = (item: StoreItemModel) => {
     setEditing(item);
@@ -553,6 +556,46 @@ export default function StorePage() {
             </div>
           )}
 
+          {/* Individual Category Tabs for Store Items */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-[#141417] p-2 rounded-2xl border border-white/5">
+            <button
+              onClick={() => setSelectedItemCategory('all')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                selectedItemCategory === 'all'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                  : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <span>الكل (جميع المقتنيات)</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">
+                {items.length}
+              </span>
+            </button>
+
+            {categories.map(cat => {
+              const catKey = cat.key || cat.id;
+              const count = items.filter(i => (i.category || 'frame') === catKey).length;
+              const isActive = selectedItemCategory === catKey;
+
+              return (
+                <button
+                  key={catKey}
+                  onClick={() => setSelectedItemCategory(catKey)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                      : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <span>{cat.name}</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           <DataTable
             loading={loading}
             columns={[
@@ -636,7 +679,11 @@ export default function StorePage() {
                   ),
               },
             ]}
-            data={items}
+            data={
+              selectedItemCategory === 'all'
+                ? items
+                : items.filter(i => (i.category || 'frame') === selectedItemCategory)
+            }
             searchKeys={['name', 'category', 'customId']}
             onEdit={handleEdit}
             onDelete={handleDelete}

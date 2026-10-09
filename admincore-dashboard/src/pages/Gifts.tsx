@@ -1,21 +1,22 @@
 import { useEffect, useState, useContext } from 'react';
 import { GiftModel, GiftCategory } from '../types';
-import { getGifts, getGiftCategories, deleteGift, updateGift, addGift } from '../lib/db';
+import { getGifts, getGiftCategories, deleteGift, updateGift, addGift, addGiftCategory } from '../lib/db';
 import { uploadGiftIcon, uploadGiftAnimation } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
-import { Plus, Save, X } from 'lucide-react';
+import { Plus, Save, X, Sparkles, Gift } from 'lucide-react';
 import { I18nContext } from '../lib/i18n';
 
 export default function GiftsPage() {
   const [gifts, setGifts] = useState<GiftModel[]>([]);
   const [categories, setCategories] = useState<GiftCategory[]>([]);
+  const [activeTab, setActiveTab] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<GiftModel | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     id: '', name: '', value: 0, iconAsset: '', animationAsset: '',
-    type: 1, // TODO: Critical fix - Add type field for gift classification (1: normal, 2: VIP, 3: lucky, 4: backpack, 5: CP)
+    type: 1, // (1: normal, 2: VIP, 3: lucky, 4: backpack, 5: CP)
     isVap: false, isLucky: false, isStar: false, isMusic: false,
     packageCount: 0, sortOrder: 0, categoryId: '',
     nameKey: '', photoKey: '', receiverNameKey: '', receiverPhotoKey: '', countKey: '', defaultImage: '',
@@ -27,7 +28,7 @@ export default function GiftsPage() {
   const STANDARD_CATEGORIES: GiftCategory[] = [
     { id: 'normal', name: 'شائع (عادي)', sortOrder: 1 },
     { id: 'luxury', name: '👑 فاخر (VIP)', sortOrder: 2 },
-    { id: 'lucky', name: '🍀 الحظ (Lucky)', sortOrder: 3 },
+    { id: 'lucky', name: '🍀 هدايا الحظ (Lucky)', sortOrder: 3 },
     { id: 'cp', name: '💍 الارتباط (CP)', sortOrder: 4 },
     { id: 'backpack', name: '🎒 الحقيبة (Backpack)', sortOrder: 5 },
   ];
@@ -47,7 +48,33 @@ export default function GiftsPage() {
   };
   useEffect(() => { load(); }, []);
 
-  const resetForm = () => setForm({ id: '', name: '', value: 0, iconAsset: '', animationAsset: '', type: 1, isVap: false, isLucky: false, isStar: false, isMusic: false, packageCount: 0, sortOrder: 0, categoryId: '', nameKey: '', photoKey: '', receiverNameKey: '', receiverPhotoKey: '', countKey: '', defaultImage: '', isCpGift: false, cpGiftDurationHours: 0, luckyRtp: 85, luckyMaxMultiplier: 100, luckyBurst: true, luckyDisplayMode: 'cards' });
+  const resetForm = (targetCatId?: string) => {
+    const cat = targetCatId || (activeTab !== 'all' ? activeTab : 'normal');
+    let type = 1;
+    let isLucky = false;
+    let isVap = false;
+    let isCp = false;
+    if (cat === 'lucky') { type = 3; isLucky = true; }
+    else if (cat === 'luxury') { type = 2; isVap = true; }
+    else if (cat === 'cp') { type = 5; isCp = true; }
+    else if (cat === 'backpack') { type = 4; }
+
+    setForm({
+      id: '', name: '', value: 0, iconAsset: '', animationAsset: '',
+      type,
+      isVap,
+      isLucky,
+      isStar: false,
+      isMusic: false,
+      packageCount: 0,
+      sortOrder: 0,
+      categoryId: cat,
+      nameKey: '', photoKey: '', receiverNameKey: '', receiverPhotoKey: '', countKey: '', defaultImage: '',
+      isCpGift: isCp,
+      cpGiftDurationHours: 0,
+      luckyRtp: 85, luckyMaxMultiplier: 100, luckyBurst: true, luckyDisplayMode: 'cards'
+    });
+  };
 
   const handleEdit = (g: GiftModel) => {
     setEditing(g);
@@ -361,6 +388,65 @@ export default function GiftsPage() {
         </div>
       )}
 
+      {/* Individual Category Tabs / الأقسام الفردية للهدايا */}
+      <div className="flex flex-wrap items-center gap-1.5 bg-[#141417] p-2 rounded-2xl border border-white/5">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            activeTab === 'all'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          <span>الكل (جميع الهدايا)</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">
+            {gifts.length}
+          </span>
+        </button>
+
+        {categories.map(cat => {
+          const isLuckyTab = cat.id === 'lucky';
+          const isNormalTab = cat.id === 'normal';
+          const isLuxuryTab = cat.id === 'luxury';
+          const isCpTab = cat.id === 'cp';
+          const isBackpackTab = cat.id === 'backpack';
+
+          const count = gifts.filter(g => {
+            if (isLuckyTab) return g.isLucky || g.type === 3 || g.categoryId === 'lucky';
+            if (isNormalTab) return g.categoryId === 'normal' || (!g.isLucky && !g.isCpGift && (g.type === 1 || !g.type));
+            if (isLuxuryTab) return g.categoryId === 'luxury' || g.type === 2;
+            if (isCpTab) return g.isCpGift || g.categoryId === 'cp' || g.type === 5;
+            if (isBackpackTab) return g.categoryId === 'backpack' || g.type === 4;
+            return g.categoryId === cat.id;
+          }).length;
+
+          const isActive = activeTab === cat.id;
+
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setActiveTab(cat.id)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                isActive
+                  ? isLuckyTab
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                    : isCpTab
+                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                    : isLuxuryTab
+                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                    : 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                  : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <span>{cat.name}</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <DataTable
         loading={loading}
         columns={[
@@ -375,7 +461,18 @@ export default function GiftsPage() {
           { key: 'isCpGift', label: 'CP', render: g => g.isCpGift ? <span className="text-rose-400 font-semibold">♥ {g.cpGiftDurationHours ? `${Math.round(g.cpGiftDurationHours / 24)}d` : ''}</span> : '-' },
           { key: 'sortOrder', label: 'Order', sortable: true },
         ]}
-        data={gifts}
+        data={
+          activeTab === 'all'
+            ? gifts
+            : gifts.filter(g => {
+                if (activeTab === 'lucky') return g.isLucky || g.type === 3 || g.categoryId === 'lucky';
+                if (activeTab === 'normal') return g.categoryId === 'normal' || (!g.isLucky && !g.isCpGift && (g.type === 1 || !g.type));
+                if (activeTab === 'luxury') return g.categoryId === 'luxury' || g.type === 2;
+                if (activeTab === 'cp') return g.isCpGift || g.categoryId === 'cp' || g.type === 5;
+                if (activeTab === 'backpack') return g.categoryId === 'backpack' || g.type === 4;
+                return g.categoryId === activeTab;
+              })
+        }
         searchKeys={['name', 'id']}
         onEdit={handleEdit}
         onDelete={handleDelete}

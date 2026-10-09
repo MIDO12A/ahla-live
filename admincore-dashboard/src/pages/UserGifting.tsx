@@ -110,6 +110,19 @@ export default function UserGifting() {
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
+const DEFAULT_STORE_CATEGORIES: StoreCategory[] = [
+  { id: 'frame', key: 'frame', name: 'إطار الرأس', iconAsset: 'assets/mipmap-xxhdpi/mine_mall_type_head_wear_nor_ic.webp', selectedIconAsset: '', sortOrder: 1, isActive: true },
+  { id: 'car', key: 'car', name: 'مركبة الدخول', iconAsset: 'assets/mipmap-xxhdpi/mine_mall_type_car_nor_ic.webp', selectedIconAsset: '', sortOrder: 2, isActive: true },
+  { id: 'entrance', key: 'entrance', name: 'تأثير الدخول', iconAsset: 'assets/mipmap-xxhdpi/mine_mall_type_entrance_nor_ic.webp', selectedIconAsset: '', sortOrder: 3, isActive: true },
+  { id: 'bubble', key: 'bubble', name: 'فقاعة الشات', iconAsset: 'assets/mipmap-xxhdpi/mine_mall_type_bubble_nor_ic.webp', selectedIconAsset: '', sortOrder: 4, isActive: true },
+  { id: 'cover', key: 'cover', name: 'غلاف الملف', iconAsset: 'assets/mipmap-xxhdpi/ic_profile_card.png', selectedIconAsset: '', sortOrder: 5, isActive: true },
+  { id: 'ring', key: 'ring', name: 'الخواتم', iconAsset: 'assets/mipmap-xxhdpi/ic_id_card_prop.png', selectedIconAsset: '', sortOrder: 6, isActive: true },
+  { id: 'badge', key: 'badge', name: 'الشارات', iconAsset: 'assets/mipmap-xxhdpi/ic_new_user_badge.png', selectedIconAsset: '', sortOrder: 7, isActive: true },
+  { id: 'mic_wave', key: 'mic_wave', name: 'موجات المايك', iconAsset: 'assets/room_speaking_wave_male.svga', selectedIconAsset: '', sortOrder: 8, isActive: true },
+  { id: 'special', key: 'special', name: 'مؤثرات خاصة', iconAsset: 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp', selectedIconAsset: '', sortOrder: 9, isActive: true },
+  { id: 'special_id', key: 'special_id', name: 'آيديهات مميزة', iconAsset: 'assets/mipmap-xxhdpi/ic_id_card_prop.png', selectedIconAsset: '', sortOrder: 10, isActive: true },
+];
+
   // 1. Initial Load
   const loadData = async () => {
     setLoading(true);
@@ -123,7 +136,16 @@ export default function UserGifting() {
         getUnifiedGiftedItems(),
       ]);
       setStoreItems(items);
-      setStoreCategories(cats);
+
+      // Merge loaded categories with defaults to ensure all sections are accessible
+      const existingKeys = new Set(cats.map(c => c.key || c.id));
+      const mergedCats = [...cats];
+      for (const def of DEFAULT_STORE_CATEGORIES) {
+        if (!existingKeys.has(def.key || def.id)) {
+          mergedCats.push(def);
+        }
+      }
+      setStoreCategories(mergedCats);
       setVipConfigs(vips);
       setBadges(bList);
       setNecklaces(nList);

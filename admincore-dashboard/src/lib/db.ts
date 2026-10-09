@@ -931,15 +931,27 @@ export async function updateVIPConfig(tier: number, data: Partial<VIPConfig>) {
   const payload = { tier, ...toSnakeCase(data as Record<string, unknown>) }
   console.log('VIP save payload keys:', Object.keys(payload))
 
-  
-
-  // 2. Write to Supabase (catch error so UI succeeds via Firestore)
+  // 2. Write to Supabase
   try {
     const client = getAdminSupabase() || supabase
     const { error } = await client.from('vip_config').upsert(payload)
     if (error) console.warn('Supabase vip_config upsert warning:', error.message)
   } catch (e) {
     console.warn('Supabase vip_config upsert error:', e)
+  }
+}
+
+export async function deleteVIPConfig(tier: number) {
+  try {
+    const client = getAdminSupabase() || supabase
+    const { error } = await client.from('vip_config').delete().eq('tier', tier)
+    if (error) {
+      console.warn('Supabase vip_config delete warning:', error.message)
+      throw error
+    }
+  } catch (e) {
+    console.warn('Supabase vip_config delete error:', e)
+    throw e
   }
 }
 

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { VIPConfig, VIPBenefitItem, VIPAdditionalFile } from '../types';
-import { getVIPConfig, updateVIPConfig } from '../lib/db';
+import { getVIPConfig, updateVIPConfig, deleteVIPConfig } from '../lib/db';
 import { uploadStoreItem } from '../lib/storage';
-import { Crown, Plus, Save, X, Trash2, FolderOpen } from 'lucide-react';
+import { Crown, Plus, Save, X, Trash2, FolderOpen, Edit2 } from 'lucide-react';
 import ImageUpload from '../components/ImageUpload';
 
 const emptyItem = (): VIPBenefitItem => ({ name: '', img: '', peculiarityId: 0, title: '' });
@@ -64,6 +64,22 @@ export default function VIPPage() {
     setConfigs(await getVIPConfig());
   };
 
+  const handleDelete = async (tier: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm(`هل أنت متأكد من حذف مستوى VIP ${tier} نهائياً؟`)) {
+      return;
+    }
+    try {
+      await deleteVIPConfig(tier);
+      if (editing?.tier === tier) {
+        setEditing(null);
+      }
+      setConfigs(await getVIPConfig());
+    } catch (err: any) {
+      alert(`فشل حذف مستوى VIP ${tier}: ${err?.message || err}`);
+    }
+  };
+
   const handleAdd = async () => {
     const lastTier = configs.length > 0 ? Math.max(...configs.map(c => c.tier)) : 0;
     const newTier = lastTier + 1;
@@ -105,10 +121,28 @@ export default function VIPPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {configs.map(v => (
-          <div key={v.tier} className="bg-[#141417] rounded-2xl border border-white/5 p-5 hover:border-white/10 transition-colors cursor-pointer" onClick={() => handleEdit(v)}>
-            <div className="flex items-center gap-2 mb-3">
-              {v.color && !v.color.startsWith('#') ? <img src={v.color} className="w-5 h-5 object-contain" /> : <Crown className="w-5 h-5" style={{ color: v.color || '#DE880F' }} />}
-              <h3 className="text-white font-semibold text-sm">VIP {v.tier}</h3>
+          <div key={v.tier} className="bg-[#141417] rounded-2xl border border-white/5 p-5 hover:border-white/10 transition-colors relative group">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                {v.color && !v.color.startsWith('#') ? <img src={v.color} className="w-5 h-5 object-contain" /> : <Crown className="w-5 h-5" style={{ color: v.color || '#DE880F' }} />}
+                <h3 className="text-white font-semibold text-sm">VIP {v.tier}</h3>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleEdit(v)}
+                  className="p-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 transition-colors"
+                  title="تعديل هذا المستوى"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => handleDelete(v.tier, e)}
+                  className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition-colors"
+                  title="حذف هذا المستوى"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
             {v.imageUrl && (
               <img src={v.imageUrl} alt={v.name} className="w-full h-28 object-contain rounded-lg mb-2 bg-black/30" />
@@ -118,6 +152,20 @@ export default function VIPPage() {
             <ul className="mt-2 space-y-1">
               {v.benefits?.map((b, i) => <li key={i} className="text-[10px] text-slate-400 flex items-start gap-1"><span className="text-emerald-400 mt-0.5">•</span>{b}</li>)}
             </ul>
+            <div className="mt-4 pt-3 border-t border-white/5 flex gap-2">
+              <button
+                onClick={() => handleEdit(v)}
+                className="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-slate-300 font-medium transition-colors"
+              >
+                تعديل البيانات
+              </button>
+              <button
+                onClick={(e) => handleDelete(v.tier, e)}
+                className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-xs text-rose-400 font-medium transition-colors"
+              >
+                حذف
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -425,9 +473,18 @@ export default function VIPPage() {
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <button onClick={handleSave} className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs text-white font-semibold rounded-lg flex items-center gap-1"><Save className="w-3 h-3" /> Save</button>
-            <button onClick={() => setEditing(null)} className="px-4 py-1.5 border border-white/10 text-xs text-slate-400 rounded-lg">Cancel</button>
+          <div className="flex items-center justify-between pt-2 border-t border-white/5">
+            <div className="flex gap-2">
+              <button onClick={handleSave} className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs text-white font-semibold rounded-lg flex items-center gap-1"><Save className="w-3 h-3" /> Save</button>
+              <button onClick={() => setEditing(null)} className="px-4 py-1.5 border border-white/10 text-xs text-slate-400 rounded-lg">Cancel</button>
+            </div>
+            <button
+              onClick={() => handleDelete(editing.tier)}
+              className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              حذف هذا المستوى (Delete Tier {editing.tier})
+            </button>
           </div>
         </div>
       )}
