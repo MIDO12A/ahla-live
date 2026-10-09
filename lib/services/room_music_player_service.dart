@@ -88,13 +88,13 @@ class RoomMusicPlayerService {
         await _zegoPlayer!.enableAux(true);
         await _zegoPlayer!.setVolume((volumeNotifier.value * 100).toInt());
 
-        _zegoPlayer!.onMediaPlayerStateUpdate = (player, state, errorCode) {
+        ZegoExpressEngine.onMediaPlayerStateUpdate = (player, state, errorCode) {
           if (_useZego) {
             if (state == ZegoMediaPlayerState.Playing) {
               isPlayingNotifier.value = true;
-            } else if (state == ZegoMediaPlayerState.Paused) {
+            } else if (state == ZegoMediaPlayerState.Pausing) {
               isPlayingNotifier.value = false;
-            } else if (state == ZegoMediaPlayerState.NoPlay) {
+            } else if (state == ZegoMediaPlayerState.NoPlay || state == ZegoMediaPlayerState.PlayEnded) {
               isPlayingNotifier.value = false;
               if (errorCode == 0) {
                 _onTrackCompleted();
@@ -103,7 +103,7 @@ class RoomMusicPlayerService {
           }
         };
 
-        _zegoPlayer!.onMediaPlayerPlayingProgress = (player, millisecond) {
+        ZegoExpressEngine.onMediaPlayerPlayingProgress = (player, millisecond) {
           if (_useZego) {
             positionNotifier.value = Duration(milliseconds: millisecond);
           }

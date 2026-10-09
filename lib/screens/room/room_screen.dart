@@ -2542,7 +2542,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[takeMic] error: $e');
     } finally {
-      await Future.delayed(const Duration(milliseconds: 1500));
+      await Future.delayed(const Duration(milliseconds: 100));
       if (mounted) {
         setState(() {
           _takingSeat = false;
@@ -5151,9 +5151,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                               setState(() => _showEmoj = false);
                             },
                             child: Center(
-                              child: chosenEmoji.startsWith('http')
-                                  ? Image.network(chosenEmoji, width: 44, height: 44, fit: BoxFit.contain)
-                                  : Text(chosenEmoji, style: const TextStyle(fontSize: 28)),
+                              child: emojis[idx].startsWith('http')
+                                  ? Image.network(emojis[idx], width: 44, height: 44, fit: BoxFit.contain)
+                                  : Text(emojis[idx], style: const TextStyle(fontSize: 28)),
                             ),
                           ),
                         ),
