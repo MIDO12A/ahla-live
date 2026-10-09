@@ -2419,11 +2419,26 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     } else {
       // Empty or locked seat
       if (!seat.isLocked) {
-        // إذا كان المقعد فارغاً وغير مقفل، الانتقال أو الصعود فورياً بلمسة واحدة دون الحاجة لحوار
-        _takeMic(idx);
+        if (_isOwnerOrModerator) {
+          // المالك والمشرف: فتح قائمة إدارة المقعد (صعود، نزول، قفل المقعد، دعوة للمايك، كتم)
+          _showEmptyDialog(idx);
+        } else {
+          // المستخدم العادي: صعود فوري بلمسة واحدة
+          _takeMic(idx);
+        }
       } else {
         _showEmptyDialog(idx);
       }
+    }
+  }
+
+  void _onSeatLongPress(int idx) {
+    if (idx < 0 || idx >= _seats.length) return;
+    final seat = _seats[idx];
+    if (seat.isOccupied && seat.user != null) {
+      _showOccupiedDialog(idx, seat.user!);
+    } else {
+      _showEmptyDialog(idx);
     }
   }
 
@@ -3518,6 +3533,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               SeatArea(
                 seats: _seats,
                 onSeatTap: _onSeatTap,
+                onSeatLongPress: _onSeatLongPress,
                 seatEmojis: _seatEmojis,
                 moderators: _moderators,
                 hostUid: _currentRoom?.hostUid,

@@ -74,11 +74,25 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
     setState(() => _loading = true);
 
     try {
+      final candidateAgencyIds = <String>{widget.agencyId};
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        final aDoc = await fs.collection('host_agencies').doc(widget.agencyId).get();
+        if (aDoc.exists) {
+          final ad = aDoc.data() ?? {};
+          if (ad['id'] != null) candidateAgencyIds.add(ad['id'].toString());
+          if (ad['agency_id'] != null) candidateAgencyIds.add(ad['agency_id'].toString());
+          if (ad['custom_id'] != null) candidateAgencyIds.add(ad['custom_id'].toString());
+          if (ad['user_id'] != null) candidateAgencyIds.add(ad['user_id'].toString());
+          if (ad['owner_id'] != null) candidateAgencyIds.add(ad['owner_id'].toString());
+        }
+      } catch (_) {}
+
       List<dynamic> reqResp = [];
       try {
         final res = await _sb.from('host_agency_join_requests')
             .select('id, user_id, status, created_at')
-            .eq('agency_id', widget.agencyId)
+            .inFilter('agency_id', candidateAgencyIds.toList())
             .inFilter('status', ['pending', 'invited', 'rejected'])
             .order('created_at', ascending: false)
             .limit(200);
@@ -87,11 +101,11 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         debugPrint('[AgencyJoinRequests] sb reqResp error: $e');
       }
 
-      // Also fetch pending requests from Firestore
+      // Also fetch pending requests from Firestore across candidate agency IDs
       try {
         final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
         final fsReqSnap = await fs.collection('host_agency_join_requests')
-            .where('agency_id', isEqualTo: widget.agencyId)
+            .where('agency_id', whereIn: candidateAgencyIds.take(10).toList())
             .get();
         for (final doc in fsReqSnap.docs) {
           final data = doc.data();
@@ -110,6 +124,32 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
               '_user_avatar': data['user_avatar'],
               '_custom_id': data['custom_id'],
             });
+          }
+        }
+
+        // Also check if any join request notifications exist for the owner
+        final notifsSnap = await fs.collection('notifications')
+            .where('type', isEqualTo: 'agency_host_request')
+            .limit(50)
+            .get();
+        for (final nDoc in notifsSnap.docs) {
+          final nData = nDoc.data();
+          final notifAgencyId = nData['data']?['agency_id']?.toString() ?? '';
+          final applicantUid = nData['data']?['applicant_uid']?.toString() ?? nData['actor_uid']?.toString() ?? '';
+          if (applicantUid.isNotEmpty && (candidateAgencyIds.contains(notifAgencyId) || candidateAgencyIds.contains(nData['uid']))) {
+            final already = reqResp.any((r) => r['user_id']?.toString() == applicantUid);
+            if (!already) {
+              reqResp.add({
+                'id': nDoc.id,
+                'user_id': applicantUid,
+                'status': 'pending',
+                'created_at': nData['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String(),
+                '_from_fs': true,
+                '_user_name': nData['data']?['applicant_name'] ?? nData['title'] ?? 'مستخدم',
+                '_user_avatar': '',
+                '_custom_id': '',
+              });
+            }
           }
         }
       } catch (e) {
@@ -319,6 +359,14 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           await fs.collection('host_agencies').doc(widget.agencyId).set({
             'member_count': FieldValue.increment(1),
           }, SetOptions(merge: true));
+
+          FirebaseService().sendNotification(
+            uid: userId,
+            type: 'agency_host_accepted',
+            title: 'تم قبول انضمامك للوكالة 🎉',
+            body: 'تهانينا! تمت الموافقة على طلب انضمامك إلى الوكالة كمضيف رسمي.',
+            data: {'agency_id': widget.agencyId, 'status': 'accepted'},
+          ).catchError((_) {});
         }
       } catch (fsErr) {
         debugPrint('[AgencyJoinRequests] Firestore accept error: $fsErr');
@@ -364,6 +412,14 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
             'resolved_at': DateTime.now().toUtc().toIso8601String(),
           }, SetOptions(merge: true));
           await fs.collection('host_agency_members').doc('${widget.agencyId}_$userId').delete();
+
+          FirebaseService().sendNotification(
+            uid: userId,
+            type: 'agency_host_rejected',
+            title: 'تم رفض طلب الانضمام للوكالة',
+            body: 'للأسف، تم رفض طلب انضمامك إلى الوكالة.',
+            data: {'agency_id': widget.agencyId, 'status': 'rejected'},
+          ).catchError((_) {});
         }
       } catch (fsErr) {
         debugPrint('[AgencyJoinRequests] Firestore reject error: $fsErr');

@@ -3659,6 +3659,35 @@ class FirebaseService {
       await _incrementCounter('users', uid, 'following', 1);
       await _incrementCounter('users', targetUid, 'followers', 1);
     } catch (_) {}
+
+    // إرسال إشعار فوري لحظي للطرف الآخر عند المتابعة
+    try {
+      String followerName = 'مستخدم';
+      String followerPhoto = '';
+      final doc = await _db.collection('users').doc(uid).get();
+      if (doc.exists) {
+        followerName = doc.data()?['name']?.toString() ?? 'مستخدم';
+        followerPhoto = doc.data()?['photoUrl']?.toString() ?? doc.data()?['photo_url']?.toString() ?? doc.data()?['avatar']?.toString() ?? '';
+      } else {
+        final sbUser = await SupabaseDataService().getUser(uid);
+        if (sbUser != null) {
+          followerName = sbUser.name;
+          followerPhoto = sbUser.avatar;
+        }
+      }
+      sendNotification(
+        uid: targetUid,
+        type: 'follow',
+        actorUid: uid,
+        title: 'متابع جديد 🌟',
+        body: 'قام $followerName بمتابعتك',
+        data: {
+          'follower_uid': uid,
+          'follower_name': followerName,
+          'follower_photo': followerPhoto,
+        },
+      ).catchError((_) {});
+    } catch (_) {}
   }
 
   Future<void> unfollowUser(String uid, String targetUid) async {
@@ -3775,21 +3804,37 @@ class FirebaseService {
     for (final uid in uids) {
       try {
         final doc = await _db.collection('users').doc(uid).get();
-        if (!doc.exists) continue;
-        final d = doc.data() ?? {};
-        final photo = d['photoUrl']?.toString() ?? d['photo_url']?.toString() ?? d['avatar']?.toString() ?? '';
-        final name = d['name']?.toString() ?? 'User';
-        users.add({
-          'uid': uid,
-          'id': uid,
-          'name': name,
-          'photo_url': photo,
-          'avatar': photo,
-          'gender': d['gender']?.toString() ?? 'male',
-          'level': (d['level'] as num?)?.toInt() ?? 1,
-          'country_idx': (d['country_idx'] as num?)?.toInt() ?? 0,
-          'custom_id': d['custom_id']?.toString() ?? d['customId']?.toString() ?? '',
-        });
+        if (doc.exists) {
+          final d = doc.data() ?? {};
+          final photo = d['photoUrl']?.toString() ?? d['photo_url']?.toString() ?? d['avatar']?.toString() ?? '';
+          final name = d['name']?.toString() ?? 'User';
+          users.add({
+            'uid': uid,
+            'id': uid,
+            'name': name,
+            'photo_url': photo,
+            'avatar': photo,
+            'gender': d['gender']?.toString() ?? 'male',
+            'level': (d['level'] as num?)?.toInt() ?? 1,
+            'country_idx': (d['country_idx'] as num?)?.toInt() ?? 0,
+            'custom_id': d['custom_id']?.toString() ?? d['customId']?.toString() ?? '',
+          });
+        } else {
+          final sUser = await SupabaseDataService().getUser(uid);
+          if (sUser != null) {
+            users.add({
+              'uid': sUser.id ?? uid,
+              'id': sUser.id ?? uid,
+              'name': sUser.name,
+              'photo_url': sUser.avatar,
+              'avatar': sUser.avatar,
+              'gender': sUser.gender ?? 'male',
+              'level': sUser.level,
+              'country_idx': sUser.countryIdx,
+              'custom_id': sUser.customId ?? '',
+            });
+          }
+        }
       } catch (_) {}
     }
     return users;
@@ -5155,6 +5200,34 @@ class FirebaseService {
       });
     }
 
+    // التأكد من وجود مالك الوكالة دائماً في قائمة الأعضاء بدور 'owner'
+    final ownerUid = agencyData['owner_id']?.toString() ?? agentUid;
+    final hasOwner = anchors.any((a) => a['uid'] == ownerUid || a['role'] == 'owner');
+    if (!hasOwner && ownerUid.isNotEmpty) {
+      final ownerDoc = await _db.collection('users').doc(ownerUid).get();
+      final od = ownerDoc.exists ? (ownerDoc.data() ?? {}) : {};
+      anchors.insert(0, {
+        'user_id': _asInt(od['custom_id'] ?? 0),
+        'user_no': _asInt(od['custom_id'] ?? 0),
+        'uid': ownerUid,
+        'role': 'owner',
+        'nickname': od['name'] ?? od['display_name'] ?? 'مالك الوكالة',
+        'headImage': od['photo_url'] ?? od['photoUrl'] ?? od['avatar'] ?? '',
+        'country': _asInt(od['country'] ?? 0),
+        'country_flag_url': od['country_flag_url'] ?? '',
+        'days': 30,
+        'minute': 3600.0,
+        'diamonds': '0',
+        'experience': _asInt(od['wealth_xp'] ?? 0),
+        'level': _asInt(od['level'] ?? 1),
+        'recg_level': _asInt(od['wealth_level'] ?? 0),
+        'recharge_value': _asInt(od['recharge_coins'] ?? 0),
+        'sex': _asInt(od['gender'] ?? 1),
+        'vip': _asInt(od['vip_level'] ?? 0),
+        'target_diamonds': 1000000,
+      });
+    }
+
     final agentUserSnap = await _db.collection('users').doc(agentUid).get();
     final agentUserData = agentUserSnap.exists ? ((agentUserSnap.data() as Map<String, dynamic>?) ?? {}) : {};
 
@@ -5209,7 +5282,7 @@ class FirebaseService {
         'agent_bean': _asInt(agentUserData['coins'] ?? 0),
         'transfer_money': totalDiamonds,
         'transfer_dollar': (totalDiamonds / 1000).toInt(),
-        'transfer_number': membersSnap.docs.length,
+        'transfer_number': anchors.length,
         'commission_rate': commissionRate,
         'tier': tier,
         'notice': notice,

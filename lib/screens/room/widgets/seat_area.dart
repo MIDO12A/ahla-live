@@ -47,6 +47,7 @@ Widget _emptyCircle(double s) => Container(
 class SeatArea extends StatelessWidget {
   final List<SeatModel> seats;
   final void Function(int index) onSeatTap;
+  final void Function(int index)? onSeatLongPress;
   final void Function()? onCharmTap;
   final bool showCharmValues;
   final Map<int, String>? seatEmojis;
@@ -58,6 +59,7 @@ class SeatArea extends StatelessWidget {
     super.key,
     required this.seats,
     required this.onSeatTap,
+    this.onSeatLongPress,
     this.onCharmTap,
     this.showCharmValues = true,
     this.seatEmojis,
@@ -141,6 +143,7 @@ class SeatArea extends StatelessWidget {
   Widget _buildCircularSeatItem(int idx, bool isCaptain) {
     return GestureDetector(
       onTap: () => onSeatTap(idx),
+      onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(idx) : null,
       child: _NormalSeat(
         key: ValueKey('seat_$idx'),
         seat: seats[idx],
@@ -175,6 +178,7 @@ class SeatArea extends StatelessWidget {
               child: Center(
                 child: GestureDetector(
                   onTap: () => onSeatTap(0),
+                  onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(0) : null,
                   child: _NormalSeat(
                     key: ValueKey('seat_${items[0].index}'),
                     seat: items[0],
@@ -193,6 +197,7 @@ class SeatArea extends StatelessWidget {
               child: Center(
                 child: GestureDetector(
                   onTap: () => onSeatTap(1),
+                  onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(1) : null,
                   child: _NormalSeat(
                     key: ValueKey('seat_${items[1].index}'),
                     seat: items[1],
@@ -225,6 +230,7 @@ class SeatArea extends StatelessWidget {
                   child: Center(
                     child: GestureDetector(
                       onTap: () => onSeatTap(i + j),
+                      onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(i + j) : null,
                       child: _NormalSeat(
                         key: ValueKey('seat_${rowItems[j].index}'),
                         seat: rowItems[j],
@@ -260,6 +266,7 @@ class SeatArea extends StatelessWidget {
                 child: Center(
                   child: GestureDetector(
                     onTap: () => onSeatTap(i + j),
+                    onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(i + j) : null,
                     child: _NormalSeat(
                       key: ValueKey('seat_${rowItems[j].index}'),
                       seat: rowItems[j],

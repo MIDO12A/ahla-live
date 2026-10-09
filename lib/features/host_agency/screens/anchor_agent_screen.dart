@@ -12,6 +12,7 @@ import '../data/anchor_agent_model.dart';
 import 'agency_exit_screen.dart';
 import 'agency_invite_by_id_screen.dart';
 import 'agency_item_detail_screen.dart';
+import 'agency_join_requests_screen.dart';
 import '../../../../services/dynamic_config_service.dart';
 
 /// شاشة وكيل المضيفين وإدارة الوكالة (AnchorAgentActivity)
@@ -28,6 +29,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   AgentInfoModel? _agentInfo;
   List<AnchorAgentUserInfoDataModel> _anchors = [];
   bool _loading = true;
+  bool _isAgencyOwner = false;
   String? _error;
   StreamSubscription? _membersSub;
   StreamSubscription? _agencySub;
@@ -101,8 +103,34 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       final infoData = data['info'] as Map<String, dynamic>?;
       final infoModel = infoData != null ? AgentInfoModel.fromJson(infoData) : null;
 
+      final loadedAnchors = (data['anchors'] as List<dynamic>?)
+              ?.map((e) => AnchorAgentUserInfoDataModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [];
+
+      // فحص ما إذا كان المستخدم الحالي هو مالك الوكالة (الوكيل)
+      bool isOwner = false;
+      final aid = infoModel?.agencyId ?? widget.agencyId;
+      if (aid != null && aid.isNotEmpty) {
+        try {
+          final agencyDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+              .collection('host_agencies').doc(aid).get();
+          if (agencyDoc.exists) {
+            final ownerId = agencyDoc.data()?['owner_id']?.toString() ?? '';
+            isOwner = (ownerId.isNotEmpty && ownerId == uid);
+          }
+        } catch (_) {}
+      }
+      if (!isOwner) {
+        isOwner = loadedAnchors.any((a) => a.uid == uid && a.role == 'owner');
+      }
+      if (!isOwner && user?.isHostAgent == true) {
+        isOwner = true;
+      }
+
       if (mounted) {
         setState(() {
+          _isAgencyOwner = isOwner;
           _agentInfo = infoModel ??
               AgentInfoModel(
                 userId: int.tryParse(user?.customId ?? '0') ?? 0,
@@ -115,16 +143,13 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           if (_agentInfo?.notice.isNotEmpty == true) {
             _noticeText = _agentInfo!.notice;
           }
-          _anchors = (data['anchors'] as List<dynamic>?)
-                  ?.map((e) => AnchorAgentUserInfoDataModel.fromJson(e as Map<String, dynamic>))
-                  .toList() ??
-              [];
+          _anchors = loadedAnchors;
           _loading = false;
         });
 
-        final aid = _agentInfo?.agencyId ?? widget.agencyId;
-        if (aid != null && aid.isNotEmpty && _membersSub == null) {
-          _listenRealtime(aid);
+        final resolvedAid = _agentInfo?.agencyId ?? widget.agencyId;
+        if (resolvedAid != null && resolvedAid.isNotEmpty && _membersSub == null) {
+          _listenRealtime(resolvedAid);
         }
       }
     } catch (e) {
@@ -409,6 +434,24 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       ),
                     ),
                     const Spacer(),
+                    if (_isAgencyOwner) ...[
+                      IconButton(
+                        icon: const Icon(Icons.assignment_ind_rounded, color: Color(0xFFFFD700), size: 24),
+                        tooltip: isAr ? 'طلبات الانضمام' : 'Join Requests',
+                        onPressed: () {
+                          final aid = _agentInfo?.agencyId ?? widget.agencyId ?? '';
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AgencyJoinRequestsScreen(
+                                agencyId: aid,
+                                canKick: true,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                     // Rules icon: union_rule_ic
                     IconButton(
                       icon: Image.asset(
@@ -713,6 +756,76 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 ),
               ),
 
+              if (_isAgencyOwner) ...[
+                const SizedBox(height: 10),
+                GestureDetector(
+                  onTap: () {
+                    final aid = _agentInfo?.agencyId ?? widget.agencyId ?? '';
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AgencyJoinRequestsScreen(
+                          agencyId: aid,
+                          canKick: true,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF382A0F), Color(0xFF231A08)],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.6)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFFD700).withOpacity(0.12),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD700).withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.group_add_rounded, color: Color(0xFFFFD700), size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isAr ? 'طلبات الانضمام للوكالة' : 'Agency Join Requests',
+                                style: const TextStyle(
+                                  color: Color(0xFFFFD700),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                isAr ? 'عرض وقبول أو رفض طلبات انضمام المضيفين الجديدة' : 'View, accept or reject incoming join requests',
+                                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFFFFD700)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 14),
             ],
           ),
@@ -816,21 +929,54 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: anchor.role == 'supervisor' ? const Color(0x33FF9800) : const Color(0x22FFFFFF),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              anchor.role == 'supervisor' ? (isAr ? 'مشرف' : 'Admin') : (isAr ? 'مضيف' : 'Host'),
-                              style: TextStyle(
-                                color: anchor.role == 'supervisor' ? const Color(0xFFFF9800) : Colors.white70,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                          if (anchor.role == 'owner') ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFFD700), Color(0xFFFF9800)],
+                                ),
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFFFD700).withOpacity(0.4),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.workspace_premium, color: Colors.black, size: 12),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    isAr ? 'ملك الوكالة' : 'Agency Owner',
+                                    style: const TextStyle(
+                                      color: Colors.black,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
+                          ] else ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: anchor.role == 'supervisor' ? const Color(0x33FF9800) : const Color(0x22FFFFFF),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                anchor.role == 'supervisor' ? (isAr ? 'مشرف' : 'Admin') : (isAr ? 'مضيف' : 'Host'),
+                                style: TextStyle(
+                                  color: anchor.role == 'supervisor' ? const Color(0xFFFF9800) : Colors.white70,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(width: 6),
                           // Stage badge (المرحلة)
                           Container(
@@ -852,6 +998,17 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         ],
                       ),
                       const SizedBox(height: 4),
+                      if (anchor.role == 'owner') ...[
+                        Text(
+                          isAr ? '👑 ملك الوكالة' : '👑 Agency Owner',
+                          style: const TextStyle(
+                            color: Color(0xFFFFD700),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                      ],
                       Text(
                         'ID: ${anchor.userNo > 0 ? anchor.userNo : anchor.userId}',
                         style: const TextStyle(color: Colors.white38, fontSize: 11),

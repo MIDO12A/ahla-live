@@ -1942,30 +1942,55 @@ class SupabaseDataService {
       final cleanUids = uids.where((id) => id.isNotEmpty).toSet().toList();
       if (cleanUids.isEmpty) return [];
 
-
-      // Fallback: PostgREST REST API
+      // 1. PostgREST REST API batch query
       final filter = cleanUids.join(',');
-      final url = Uri.parse('$_baseUrl/rest/v1/users?or=(uid.in.($filter),id.in.($filter))&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id');
-      final res = await http.get(url, headers: _headers);
+      var url = Uri.parse('$_baseUrl/rest/v1/users?or=(uid.in.($filter),id.in.($filter))&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id');
+      var res = await http.get(url, headers: _headers);
+      if (res.statusCode != 200) {
+        url = Uri.parse('$_baseUrl/rest/v1/users?id=in.($filter)&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id');
+        res = await http.get(url, headers: _headers);
+      }
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
-        return list.map((e) {
-          final m = Map<String, dynamic>.from(e as Map);
-          final photo = m['photo_url']?.toString() ?? m['avatar']?.toString() ?? '';
-          final resolvedUid = m['uid']?.toString() ?? m['id']?.toString() ?? '';
-          return {
-            'uid': resolvedUid,
-            'id': resolvedUid,
-            'name': m['name'] ?? 'User',
-            'photo_url': photo,
-            'avatar': photo,
-            'gender': m['gender'] ?? 'male',
-            'level': (m['level'] as num?)?.toInt() ?? 1,
-            'country_idx': (m['country_idx'] as num?)?.toInt() ?? 0,
-            'custom_id': m['custom_id'] ?? '',
-          };
-        }).toList();
+        if (list.isNotEmpty) {
+          return list.map((e) {
+            final m = Map<String, dynamic>.from(e as Map);
+            final photo = m['photo_url']?.toString() ?? m['avatar']?.toString() ?? '';
+            final resolvedUid = m['uid']?.toString() ?? m['id']?.toString() ?? '';
+            return {
+              'uid': resolvedUid,
+              'id': resolvedUid,
+              'name': m['name'] ?? 'User',
+              'photo_url': photo,
+              'avatar': photo,
+              'gender': m['gender'] ?? 'male',
+              'level': (m['level'] as num?)?.toInt() ?? 1,
+              'country_idx': (m['country_idx'] as num?)?.toInt() ?? 0,
+              'custom_id': m['custom_id'] ?? '',
+            };
+          }).toList();
+        }
       }
+
+      // 2. Individual getUser lookup fallback
+      final results = <Map<String, dynamic>>[];
+      for (final uid in cleanUids) {
+        final user = await getUser(uid);
+        if (user != null) {
+          results.add({
+            'uid': user.id ?? uid,
+            'id': user.id ?? uid,
+            'name': user.name,
+            'photo_url': user.avatar,
+            'avatar': user.avatar,
+            'gender': user.gender ?? 'male',
+            'level': user.level,
+            'country_idx': user.countryIdx,
+            'custom_id': user.customId ?? '',
+          });
+        }
+      }
+      if (results.isNotEmpty) return results;
     } catch (e) {
       debugPrint('[SupabaseDataService] _getUsersByIds error: $e');
     }

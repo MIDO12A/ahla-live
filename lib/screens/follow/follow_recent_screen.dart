@@ -37,9 +37,14 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
       final myUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
       final uid = widget.targetUid ?? myUid;
       if (uid != null && uid.isNotEmpty) {
-        _following = await supabase.getFollowing(uid);
-        _fans = await supabase.getFans(uid);
-        _visitors = await supabase.getVisitors(uid);
+        final results = await Future.wait([
+          supabase.getFollowing(uid),
+          supabase.getFans(uid),
+          supabase.getVisitors(uid),
+        ]);
+        _following = results[0];
+        _fans = results[1];
+        _visitors = results[2];
       }
     } catch (e) {
       debugPrint('FollowRecentScreen _loadData error: $e');
@@ -121,21 +126,36 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
 
   Widget _buildUserList(List<Map<String, dynamic>> items, {bool isVisitor = false}) {
     if (items.isEmpty) {
-      return Center(
-        child: Text(
-          isVisitor ? 'لا يوجد زوار حتى الآن' : 'لا يوجد مستخدمين حتى الآن',
-          style: const TextStyle(color: Color(0xFF9BA1B6), fontSize: 14),
+      return RefreshIndicator(
+        onRefresh: _loadData,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.4,
+              child: Center(
+                child: Text(
+                  isVisitor ? 'لا يوجد زوار حتى الآن' : 'لا يوجد مستخدمين حتى الآن',
+                  style: const TextStyle(color: Color(0xFF9BA1B6), fontSize: 14),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: items.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, indent: 72, color: Color(0xFFF0F0F0)),
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _buildUserItem(item, isVisitor: isVisitor);
-      },
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, indent: 72, color: Color(0xFFF0F0F0)),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          return _buildUserItem(item, isVisitor: isVisitor);
+        },
+      ),
     );
   }
 
