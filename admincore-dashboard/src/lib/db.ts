@@ -55,7 +55,7 @@ export async function getAuthUser(uid: string) {
 // ---- Helpers ----
 
 function toCamelCase(record: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {}
+  const result: Record<string, unknown> = { ...record }
   for (const [key, value] of Object.entries(record)) {
     const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
     result[camelKey] = value
@@ -1135,14 +1135,22 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
     }
 
     return mapList<HostAgencyModel>(agencies.map((a: any) => {
-      const owner = ownersMap[a.owner_id];
+      const ownerId = a.owner_id || a.owner_uid;
+      const owner = ownersMap[ownerId] || ownersMap[a.owner_id] || ownersMap[a.owner_uid];
       const realCount = memberCounts[a.id] ?? a.member_count ?? 1;
       return {
         ...a,
         member_count: Math.max(1, realCount),
-        owner_name: owner?.name || owner?.displayName || a.owner_id?.slice(0, 8),
+        owner_name: owner?.name || owner?.displayName || ownerId?.slice(0, 8) || 'مالك الوكالة',
+        ownerName: owner?.name || owner?.displayName || ownerId?.slice(0, 8) || 'مالك الوكالة',
         owner_avatar: owner?.photo_url || owner?.avatar || '',
+        ownerAvatar: owner?.photo_url || owner?.avatar || '',
         owner_custom_id: owner?.custom_id || '',
+        ownerCustomId: owner?.custom_id || '',
+        owner_id: ownerId,
+        ownerId: ownerId,
+        owner_uid: ownerId,
+        ownerUid: ownerId,
       };
     }));
   } catch { return []; }
@@ -1424,17 +1432,28 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
     return mapList<HostAgencyMemberModel>(members.map((m: any) => {
       const uid = m.user_id || m.host_uid;
       const u = usersMap[uid];
+      const monthlyDiamonds = Number(m.diamonds_earned_monthly || m.diamondsEarnedMonthly || m.diamonds || u?.diamonds || 0);
+      const joinedDate = m.joined_at || m.joinedAt || m.created_at || m.createdAt || new Date().toISOString();
       return {
         ...m,
         id: m.id || `${m.agency_id}_${uid}`,
         user_id: uid,
-        user_name: u?.name || u?.displayName || uid?.slice(0, 8),
-        custom_id: u?.custom_id || m.custom_id || '',
+        userId: uid,
+        host_uid: uid,
+        hostUid: uid,
+        user_name: u?.name || u?.displayName || uid?.slice(0, 8) || 'مضيف',
+        userName: u?.name || u?.displayName || uid?.slice(0, 8) || 'مضيف',
+        custom_id: u?.custom_id || m.custom_id || m.customId || '',
+        customId: u?.custom_id || m.custom_id || m.customId || '',
         avatar_url: u?.photo_url || u?.avatar || '',
+        avatarUrl: u?.photo_url || u?.avatar || '',
         coins: Number(u?.coins || 0),
-        diamonds_earned_monthly: Number(m.diamonds_earned_monthly || 0),
-        diamonds_balance: Number(m.diamonds_balance || m.diamonds || 0),
-        joined_at: m.joined_at || m.created_at || new Date().toISOString(),
+        diamonds_earned_monthly: monthlyDiamonds,
+        diamondsEarnedMonthly: monthlyDiamonds,
+        diamonds_balance: Number(m.diamonds_balance || m.diamonds || u?.diamonds || 0),
+        diamondsBalance: Number(m.diamonds_balance || m.diamonds || u?.diamonds || 0),
+        joined_at: joinedDate,
+        joinedAt: joinedDate,
       };
     }));
   } catch { return []; }

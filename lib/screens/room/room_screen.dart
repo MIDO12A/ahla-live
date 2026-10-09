@@ -28,6 +28,7 @@ import '../../services/supabase_data_service.dart';
 import '../../services/media_prefetch_service.dart';
 import '../../services/media_cache_service.dart';
 import '../../services/dynamic_config_service.dart';
+import '../../services/global_banner_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/room_audio_service.dart';
 import '../../services/room_state_service.dart';
@@ -3751,6 +3752,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             _startRoomComboTimer(data);
                             _pendingBannerData = data;
                             _checkGiftBanner(data);
+                            GlobalBannerService.instance.triggerGiftBannerLocally(data);
 
                             // تحميل مسبق في الخلفية دون حظر واجهة المستخدم
                             if (animAsset.isNotEmpty && (animAsset.startsWith('http://') || animAsset.startsWith('https://'))) {

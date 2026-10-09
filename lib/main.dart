@@ -27,6 +27,8 @@ import 'config/r.dart';
 import 'config/app_colors.dart';
 import 'core/ui/in_app_toast.dart';
 import 'features/host_agency/widgets/agency_notification_handler.dart';
+import 'services/global_banner_service.dart';
+import 'widgets/global_banner_overlay.dart';
 
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -66,6 +68,7 @@ void main() async {
   final localeProvider = LocaleProvider();
   await localeProvider.init();
 
+  GlobalBannerService.instance.init();
   WakelockPlus.enable();
   runApp(ZeroApp(localeProvider: localeProvider));
 }
@@ -116,7 +119,9 @@ class _ZeroAppState extends State<ZeroApp> {
                   final isRtl = localeProvider.locale?.languageCode == 'ar';
                   return Directionality(
                     textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-                    child: GlobalFloatingRoomOverlay(child: child!),
+                    child: GlobalBannerOverlay(
+                      child: GlobalFloatingRoomOverlay(child: child!),
+                    ),
                   );
                 },
                 theme: ThemeData(

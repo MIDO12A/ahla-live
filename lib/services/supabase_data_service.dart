@@ -1048,6 +1048,17 @@ class SupabaseDataService {
     } catch (e) {
       debugPrint('[SupabaseDataService] getGiftBannerConfigs error: $e');
     }
+  Future<List<Map<String, dynamic>>> getHostAgencyMembers(String agencyId) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&select=*');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getHostAgencyMembers error: $e');
+    }
     return [];
   }
 

@@ -2718,7 +2718,7 @@ function AgencyRecordModal({
                   <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded font-bold border border-amber-400/30">👑 مالك الوكالة</span>
                 </div>
                 <div className="text-[11px] text-emerald-400 font-mono font-bold">
-                  الآيدي بالتطبيق: #{agency.owner_custom_id || agency.owner_id?.slice(0, 8)}
+                  الآيدي بالتطبيق: #{agency.owner_custom_id || (agency as any).ownerCustomId || agency.owner_id?.slice(0, 8)}
                 </div>
               </div>
             </div>
@@ -2791,14 +2791,14 @@ function AgencyRecordModal({
                             className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
                           />
                           <div>
-                            <div className="text-white font-bold text-xs">{m.user_name || 'مضيف'}</div>
-                            <div className="text-[10px] text-slate-500 font-mono">{m.user_id?.slice(0, 8)}</div>
+                            <div className="text-white font-bold text-xs">{m.user_name || (m as any).userName || 'مضيف'}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">{(m.user_id || (m as any).userId)?.slice(0, 8)}</div>
                           </div>
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
                         <span className="font-mono text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 text-xs">
-                          ID: #{m.custom_id || m.user_id?.slice(0, 8)}
+                          ID: #{m.custom_id || (m as any).customId || (m.user_id || (m as any).userId)?.slice(0, 8)}
                         </span>
                       </td>
                       <td className="py-2.5 px-3">
@@ -2811,13 +2811,13 @@ function AgencyRecordModal({
                         )}
                       </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
-                        💎 {(m.diamonds_earned_monthly ?? 0).toLocaleString()}
+                        💎 {(m.diamonds_earned_monthly ?? (m as any).diamondsEarnedMonthly ?? (m as any).diamonds ?? 0).toLocaleString()}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-amber-300">
                         🪙 {(m.coins ?? 0).toLocaleString()}
                       </td>
                       <td className="py-2.5 px-3 text-[11px] text-slate-400">
-                        {new Date(m.joined_at).toLocaleDateString('ar-EG')}
+                        {(m.joined_at || (m as any).joinedAt) ? new Date(m.joined_at || (m as any).joinedAt).toLocaleDateString('ar-EG') : '—'}
                       </td>
                       <td className="py-2.5 px-3">
                         {m.role === 'owner' ? (

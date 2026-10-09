@@ -976,23 +976,36 @@ class FirebaseService {
             if (isBurst) 'rocket_burst_time': DateTime.now().toIso8601String(),
           });
 
-          // Global broadcast for room gifts (لافتة الهدايا العامة لجميع الغرف)
-          if (totalCost >= 200) {
+          // Global broadcast for room gifts (لافتة الهدايا العامة لجميع الغرف وشاشات التطبيق)
+          if (totalCost >= 50) {
             final bId = const Uuid().v4();
             final now = DateTime.now();
+            final roomName = rm['name']?.toString() ?? 'غرفة صوتية';
+            final cleanIcon = defaultImage ?? animationAsset ?? '';
+            final rPhoto = recvSnap.data()?['photoUrl']?.toString() ??
+                recvSnap.data()?['avatar']?.toString() ??
+                '';
             txn.set(_db.collection('broadcasts').doc(bId), {
               'id': bId,
               'sender_uid': senderId,
               'sender_name': senderName,
               'sender_photo_url': senderPhotoUrl,
+              'receiver_uid': receiverId,
               'receiver_name': receiverName,
+              'receiver_photo_url': rPhoto,
               'room_id': roomId,
-              'room_name': rm['name']?.toString() ?? 'غرفة صوتية',
+              'room_name': roomName,
               'content': 'أرسل $giftName x$count بقيمة $totalCost عملة!',
+              'gift_id': giftId,
               'gift_name': giftName,
-              'gift_icon': defaultImage ?? animationAsset ?? '',
+              'gift_icon': cleanIcon,
+              'animation_asset': animationAsset ?? '',
+              'default_image': defaultImage ?? '',
               'count': count,
+              'value': value,
+              'total_cost': totalCost,
               'type': 'big_gift',
+              'is_lucky': false,
               'timestamp': now.millisecondsSinceEpoch,
               'created_at': now.toUtc().toIso8601String(),
             });
@@ -1653,24 +1666,35 @@ class FirebaseService {
         unawaited(Future(() async {
           final now = DateTime.now();
           final bId = const Uuid().v4();
+          String resolvedRoomName = 'غرفة صوتية';
+          try {
+            final rDoc = await _db.collection('rooms').doc(roomId).get();
+            if (rDoc.exists) {
+              resolvedRoomName = rDoc.data()?['name']?.toString() ?? 'غرفة صوتية';
+            }
+          } catch (_) {}
+
           try {
             await _db.collection('broadcasts').doc(bId).set({
               'id': bId,
               'sender_uid': senderId,
               'sender_name': senderName,
               'sender_photo_url': senderPhotoUrl,
+              'receiver_uid': receiverId,
               'receiver_name': receiverName,
               'room_id': roomId,
-              'room_name': 'غرفة صوتية',
+              'room_name': resolvedRoomName,
               'content': maxMultiplier > 1
                   ? '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!'
                   : 'أرسل هدية الحظ $giftNameAr x$count',
+              'gift_id': giftId,
               'gift_name': giftNameAr,
               'gift_icon': giftIconUrl,
               'multiplier': maxMultiplier,
               'count': count,
               'won_coins': totalWonCoins,
               'coins': totalWonCoins,
+              'total_cost': totalCost,
               'is_lucky': true,
               'type': 'lucky_gift',
               'timestamp': now.millisecondsSinceEpoch,
@@ -5156,12 +5180,8 @@ class FirebaseService {
     final Map<String, Map<String, dynamic>> mergedMembers = {};
 
     // 1. من Supabase host_agency_members
-    try {
-      final sbRes = await SupabaseDataService().supabase
-          .from('host_agency_members')
-          .select('*')
-          .eq('agency_id', agencyDocId);
-      for (final row in (sbRes as List? ?? [])) {
+      final sbRes = await SupabaseDataService().getHostAgencyMembers(agencyDocId);
+      for (final row in sbRes) {
         final m = Map<String, dynamic>.from(row as Map);
         final uid = m['host_uid']?.toString() ?? m['user_id']?.toString() ?? '';
         if (uid.isNotEmpty) {
