@@ -56,8 +56,13 @@ class UserModel {
   final double bdSalary;
   final double bdCommissionRate;
   final String? originalCustomId;
+  final bool isHostAgent;
+  final String? agencyId;
 
   int get exp => experience;
+  String get id => uid;
+  String get avatar => photoUrl;
+  int get countryIdx => 0;
 
   UserModel({
     required this.uid,
@@ -115,6 +120,8 @@ class UserModel {
     this.bdSalary = 0.0,
     this.bdCommissionRate = 10.0,
     this.originalCustomId,
+    this.isHostAgent = false,
+    this.agencyId,
   });
 
   UserModel copyWith({
@@ -172,6 +179,8 @@ class UserModel {
     String? bdSupervisorId,
     double? bdSalary,
     double? bdCommissionRate,
+    bool? isHostAgent,
+    String? agencyId,
   }) {
     return UserModel(
       uid: uid,
@@ -229,6 +238,8 @@ class UserModel {
       bdSalary: bdSalary ?? this.bdSalary,
       bdCommissionRate: bdCommissionRate ?? this.bdCommissionRate,
       originalCustomId: originalCustomId ?? this.originalCustomId,
+      isHostAgent: isHostAgent ?? this.isHostAgent,
+      agencyId: agencyId ?? this.agencyId,
     );
   }
 
@@ -455,6 +466,10 @@ class UserModel {
       bdSalary: (map['bd_salary'] ?? map['bdSalary'] ?? 0).toDouble(),
       bdCommissionRate: (map['bd_commission_rate'] ?? map['bdCommissionRate'] ?? 10).toDouble(),
       originalCustomId: map['original_custom_id']?.toString() ?? map['originalCustomId']?.toString(),
+      isHostAgent: map['is_host_agent'] == true ||
+          map['isHostAgent'] == true ||
+          map['role'] == 'host_agent',
+      agencyId: map['agency_id']?.toString() ?? map['agencyId']?.toString(),
     );
   }
 
@@ -578,5 +593,7 @@ class UserModel {
         'bd_supervisor_id': bdSupervisorId,
         'bd_salary': bdSalary,
         'bd_commission_rate': bdCommissionRate,
+        'is_host_agent': isHostAgent,
+        'agency_id': agencyId,
       };
 }

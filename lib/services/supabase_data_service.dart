@@ -1978,15 +1978,15 @@ class SupabaseDataService {
         final user = await getUser(uid);
         if (user != null) {
           results.add({
-            'uid': user.id ?? uid,
-            'id': user.id ?? uid,
+            'uid': user.uid,
+            'id': user.uid,
             'name': user.name,
-            'photo_url': user.avatar,
-            'avatar': user.avatar,
-            'gender': user.gender ?? 'male',
+            'photo_url': user.photoUrl,
+            'avatar': user.photoUrl,
+            'gender': user.gender,
             'level': user.level,
-            'country_idx': user.countryIdx,
-            'custom_id': user.customId ?? '',
+            'country_idx': 0,
+            'custom_id': user.customId,
           });
         }
       }

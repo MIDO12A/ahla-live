@@ -3672,7 +3672,7 @@ class FirebaseService {
         final sbUser = await SupabaseDataService().getUser(uid);
         if (sbUser != null) {
           followerName = sbUser.name;
-          followerPhoto = sbUser.avatar;
+          followerPhoto = sbUser.photoUrl;
         }
       }
       sendNotification(
@@ -3823,15 +3823,15 @@ class FirebaseService {
           final sUser = await SupabaseDataService().getUser(uid);
           if (sUser != null) {
             users.add({
-              'uid': sUser.id ?? uid,
-              'id': sUser.id ?? uid,
+              'uid': sUser.uid,
+              'id': sUser.uid,
               'name': sUser.name,
-              'photo_url': sUser.avatar,
-              'avatar': sUser.avatar,
-              'gender': sUser.gender ?? 'male',
+              'photo_url': sUser.photoUrl,
+              'avatar': sUser.photoUrl,
+              'gender': sUser.gender,
               'level': sUser.level,
-              'country_idx': sUser.countryIdx,
-              'custom_id': sUser.customId ?? '',
+              'country_idx': 0,
+              'custom_id': sUser.customId,
             });
           }
         }
