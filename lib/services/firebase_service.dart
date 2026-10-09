@@ -2032,11 +2032,14 @@ class FirebaseService {
           final fRooms = fireUser.followedRooms.isNotEmpty
               ? fireUser.followedRooms
               : (latestUser?.followedRooms ?? []);
+          final hasCoins = m.containsKey('coins');
+          final resolvedCoins = hasCoins ? (m['coins'] as num).toInt() : (latestUser?.coins ?? fireUser.coins);
+          final hasDiamonds = m.containsKey('diamonds');
+          final resolvedDiamonds = hasDiamonds ? (m['diamonds'] as num).toInt() : (latestUser?.diamonds ?? fireUser.diamonds);
           if (latestUser != null) {
-            // Keep Supabase coins, diamonds, and owned items if Firestore is zero or stale
             fireUser = fireUser.copyWith(
-              coins: fireUser.coins > 0 ? fireUser.coins : latestUser!.coins,
-              diamonds: fireUser.diamonds > 0 ? fireUser.diamonds : latestUser!.diamonds,
+              coins: resolvedCoins,
+              diamonds: resolvedDiamonds,
               photoUrl: fireUser.photoUrl.isNotEmpty ? fireUser.photoUrl : latestUser!.photoUrl,
               name: fireUser.name.isNotEmpty ? fireUser.name : latestUser!.name,
               customId: fireUser.customId.isNotEmpty ? fireUser.customId : latestUser!.customId,

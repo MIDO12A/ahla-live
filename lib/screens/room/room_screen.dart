@@ -1248,20 +1248,20 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
       if (!mounted || broadcasts.isEmpty) return;
-      final latest = broadcasts.first;
       final nowMs = DateTime.now().millisecondsSinceEpoch;
-      final bTs = (latest['timestamp'] as num?)?.toInt() ??
-          (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-      final isRecent = bTs == 0 || (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
-      if (isRecent) {
+      for (final latest in broadcasts) {
+        final bTs = (latest['timestamp'] as num?)?.toInt() ??
+            (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
+        final isRecent = bTs == 0 || (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
+        if (!isRecent) continue;
         final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
-        if (!seenMsgIds.contains(bId)) {
-          seenMsgIds.add(bId);
-          _currentBroadcast = latest;
-          _broadcastNotifier.value = latest;
+        if (seenMsgIds.contains(bId)) continue;
+        seenMsgIds.add(bId);
+        _currentBroadcast = latest;
+        _broadcastNotifier.value = latest;
 
-          // ✅ عرض الهدية/الفوز مباشرة في شات وتعليقات الغرفة تزامناً مع البانر
-          final isLucky = latest['is_lucky'] == true || (latest['multiplier'] != null && (latest['multiplier'] as num) > 0);
+        // ✅ عرض الهدية/الفوز مباشرة في شات وتعليقات الغرفة تزامناً مع البانر
+        final isLucky = latest['is_lucky'] == true || (latest['multiplier'] != null && (latest['multiplier'] as num) > 0);
           _chatMessages.add(MessageModel(
             msgId: bId,
             roomId: widget.roomId,
@@ -1296,8 +1296,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               curve: Curves.easeOut,
             );
           }
+          break;
         }
-      }
     });
 
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
@@ -1900,6 +1900,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           }
         } else {
           _roomAudio.muteRemoteAudio(uid, widget.roomId, isMuted);
+          final customId = data['custom_id']?.toString() ?? _cachedUsers[uid]?.customId;
+          if (customId != null && customId.isNotEmpty) {
+            _roomAudio.muteRemoteAudio(customId, widget.roomId, isMuted);
+          }
         }
         // Fetch full user data for frame asset resolution
         if (!_cachedUsers.containsKey(uid)) {
@@ -2368,8 +2372,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final seat = _seats[idx];
     if (seat.isOccupied && seat.user != null) {
       final user = seat.user!;
-      if (_isOwnerOrModerator || user.isAdmin) {
-        // Owner/moderator/admin: show action sheet directly
+      final isSelf = user.id != null && user.id == _currentUserId;
+      if (isSelf || _isOwnerOrModerator || user.isAdmin) {
+        // Owner/moderator/admin or current user tapping their own seat: show action sheet directly
         _showOccupiedDialog(idx, user);
       } else {
         // Regular user: show profile first
@@ -2387,13 +2392,21 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _showEmptyDialog(int idx) {
     final seat = _seats[idx];
+    final isUserOnSeat = _currentUserSeatIndex != null || _seats.any((s) => s.user?.id == _currentUserId);
+    final userCurrentIdx = _currentUserSeatIndex ?? _seats.indexWhere((s) => s.user?.id == _currentUserId);
     SeatDialogs.showEmptySeatDialog(
       context,
       seatIndex: idx,
       isOwnerOrModerator: _isOwnerOrModerator,
       isLocked: seat.isLocked,
       isMuted: seat.isMuted,
+      isUserOnSeat: isUserOnSeat,
       onTakeMic: () => _takeMic(idx),
+      onLeaveMic: () {
+        if (userCurrentIdx >= 0) {
+          _kickOffMic(userCurrentIdx);
+        }
+      },
       onInviteToMic: () => _inviteToMic(idx),
       onToggleLock: (locked) => _toggleSeatLock(idx, locked),
       onToggleMic: (muted) => _toggleSeatMute(idx, muted),
@@ -2403,6 +2416,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   void _showOccupiedDialog(int idx, UserModel user) {
     final seat = _seats[idx];
     final targetUid = user.id;
+    final isSelf = targetUid != null && targetUid == _currentUserId;
     final isTargetOwner = targetUid != null && targetUid == _currentRoom?.hostUid;
     final isTargetModerator = targetUid != null && _moderators.contains(targetUid);
     final canKickAndMicDown = _isOwner || (!isTargetOwner && !isTargetModerator);
@@ -2412,6 +2426,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       user: user,
       isOwner: _isOwner,
       isOwnerOrModerator: _isOwnerOrModerator,
+      isSelf: isSelf,
       canKickAndMicDown: canKickAndMicDown,
       isMuted: seat.isMuted,
       isAdmin: user.isAdmin,
@@ -2509,8 +2524,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _kickOffMic(int idx) {
-    final kickedUid = _seats[idx].user?.id;
-    if (kickedUid != null && !_isOwner) {
+    final kickedUser = _seats[idx].user;
+    final kickedUid = kickedUser?.id;
+    final isSelf = kickedUid != null && kickedUid == _currentUserId;
+
+    if (kickedUid != null && !isSelf && !_isOwner) {
       final isTargetOwner = kickedUid == _currentRoom?.hostUid;
       final isTargetModerator = _moderators.contains(kickedUid);
       if (isTargetOwner || isTargetModerator) {
@@ -2522,11 +2540,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     }
 
-    if (kickedUid == _currentUserId || idx == _currentUserSeatIndex) {
+    if (isSelf || idx == _currentUserSeatIndex) {
       _takingSeat = false;
       _pendingSeatIndex = null;
       _currentUserSeatIndex = null;
+      _isMicOn = false;
+      _roomAudio.toggleMic(false);
+      _roomAudio.stopPublishingIfActive();
+      _roomAudio.resetPublishingState();
     }
+
+    final kickedCustomId = kickedUser?.customId;
 
     setState(() {
       _seats[idx].state = SeatState.empty;
@@ -2536,8 +2560,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     _firebaseService.leaveSeat(widget.roomId, idx);
 
-    if (kickedUid != null) {
+    if (kickedUid != null && !isSelf) {
       _roomAudio.muteRemoteAudio(kickedUid, widget.roomId, true);
+      if (kickedCustomId != null && kickedCustomId.isNotEmpty) {
+        _roomAudio.muteRemoteAudio(kickedCustomId, widget.roomId, true);
+      }
       _roomAudio.stopRemoteStream(kickedUid, widget.roomId);
     }
   }
@@ -2706,12 +2733,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     });
     final targetUser = _seats[idx].user;
     final targetUid = targetUser?.id;
+    final targetCustomId = targetUser?.customId;
     if (targetUid != null && targetUid.isNotEmpty) {
       if (targetUid == _currentUserId) {
         _isMicOn = !muted;
         _roomAudio.toggleMic(!muted);
       } else {
         _roomAudio.muteRemoteAudio(targetUid, widget.roomId, muted);
+        if (targetCustomId != null && targetCustomId.isNotEmpty) {
+          _roomAudio.muteRemoteAudio(targetCustomId, widget.roomId, muted);
+        }
       }
     }
     _firebaseService.toggleMute(widget.roomId, idx, muted);
@@ -4163,6 +4194,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 left: 0,
                 right: 0,
                 child: RoomMarqueeBroadcast(
+                  key: ValueKey(broadcast['id'] ?? broadcast['timestamp'] ?? DateTime.now().millisecondsSinceEpoch),
                   broadcast: broadcast,
                   onDismissed: () {
                     _currentBroadcast = null;

@@ -38,12 +38,13 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 200),
+      reverseDuration: const Duration(milliseconds: 150),
     );
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, -1.2),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutBack));
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
 
     _animController.forward();
 

@@ -49,32 +49,32 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // ✅ الاستماع للبانرات العامة وبانرات فوز الحظ (100X, 250X, 500X) عبر كل شاشات التطبيق
     _broadcastSub = FirebaseService().globalBroadcastStream().listen((broadcasts) {
       if (!mounted || broadcasts.isEmpty) return;
-      final latest = broadcasts.first;
       final nowMs = DateTime.now().millisecondsSinceEpoch;
-      final bTs = (latest['timestamp'] as num?)?.toInt() ??
-          (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-      final isRecent = bTs == 0 || (nowMs - bTs).abs() < 90000;
-      if (isRecent) {
+      for (final latest in broadcasts) {
+        final bTs = (latest['timestamp'] as num?)?.toInt() ??
+            (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
+        final isRecent = bTs == 0 || (nowMs - bTs).abs() < 90000;
+        if (!isRecent) continue;
         final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
-        if (!_seenBroadcastIds.contains(bId)) {
-          _seenBroadcastIds.add(bId);
-          _broadcastNotifier.value = latest;
+        if (_seenBroadcastIds.contains(bId)) continue;
+        _seenBroadcastIds.add(bId);
+        _broadcastNotifier.value = latest;
 
-          // إذا كان فوزاً كبيراً 100X أو 250X أو 500X+، تشغيل بانر SVGA العالمي الأسطوري
-          final mult = latest['multiplier'] is num
-              ? (latest['multiplier'] as num).toInt()
-              : int.tryParse(latest['multiplier']?.toString() ?? '0') ?? 0;
-          if (mult >= 100 && mounted) {
-            LuckyGiftService().showBigWinBanner(
-              context,
-              senderName: latest['sender_name']?.toString() ?? 'مستخدم',
-              senderAvatar: latest['sender_photo_url']?.toString() ?? '',
-              giftName: latest['gift_name']?.toString() ?? 'هدية الحظ',
-              multiplier: mult,
-              totalWon: (latest['won_coins'] as num?)?.toInt() ?? 0,
-            );
-          }
+        // إذا كان فوزاً كبيراً 100X أو 250X أو 500X+، تشغيل بانر SVGA العالمي الأسطوري
+        final mult = latest['multiplier'] is num
+            ? (latest['multiplier'] as num).toInt()
+            : int.tryParse(latest['multiplier']?.toString() ?? '0') ?? 0;
+        if (mult >= 100 && mounted) {
+          LuckyGiftService().showBigWinBanner(
+            context,
+            senderName: latest['sender_name']?.toString() ?? 'مستخدم',
+            senderAvatar: latest['sender_photo_url']?.toString() ?? '',
+            giftName: latest['gift_name']?.toString() ?? 'هدية الحظ',
+            multiplier: mult,
+            totalWon: (latest['won_coins'] as num?)?.toInt() ?? 0,
+          );
         }
+        break; // Display the newest unseen broadcast immediately
       }
     });
   }
@@ -141,17 +141,18 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                 valueListenable: _broadcastNotifier,
                 builder: (context, broadcast, _) {
                   if (broadcast == null) return const SizedBox.shrink();
-                  return Positioned(
-                    top: MediaQuery.of(context).padding.top + 8,
-                    left: 0,
-                    right: 0,
-                    child: RoomMarqueeBroadcast(
-                      broadcast: broadcast,
-                      onDismissed: () {
-                        _broadcastNotifier.value = null;
-                      },
-                    ),
-                  );
+                    return Positioned(
+                      top: MediaQuery.of(context).padding.top + 8,
+                      left: 0,
+                      right: 0,
+                      child: RoomMarqueeBroadcast(
+                        key: ValueKey(broadcast['id'] ?? broadcast['timestamp'] ?? DateTime.now().millisecondsSinceEpoch),
+                        broadcast: broadcast,
+                        onDismissed: () {
+                          _broadcastNotifier.value = null;
+                        },
+                      ),
+                    );
                 },
               ),
             ],

@@ -26,6 +26,8 @@ class RoomAudioService {
   bool get isPublishing => _isPublishing;
   bool _isRoomDeafened = false;
   int _roomVolume = 100;
+  final Set<String> _activeStreamIds = {};
+  final Set<String> _mutedUserKeys = {};
 
   bool get isRoomDeafened => _isRoomDeafened;
   int get roomVolume => _roomVolume;
@@ -47,7 +49,9 @@ class RoomAudioService {
     _roomVolume = volume.clamp(0, 100);
     if (!_initialized || effectiveAppSign.isEmpty) return;
     try {
-      await ZegoExpressEngine.instance.setAllPlayStreamVolume(_roomVolume);
+      if (!_isRoomDeafened) {
+        await ZegoExpressEngine.instance.setAllPlayStreamVolume(_roomVolume);
+      }
       debugPrint('[RoomAudioService] Set room playback volume: $_roomVolume');
     } catch (e) {
       debugPrint('[RoomAudioService] setRoomVolume failed: $e');
@@ -59,8 +63,17 @@ class RoomAudioService {
     roomDeafenedNotifier.value = _isRoomDeafened;
     if (!_initialized || effectiveAppSign.isEmpty) return;
     try {
-      await ZegoExpressEngine.instance.muteAllPlayStreamAudio(_isRoomDeafened);
-      debugPrint('[RoomAudioService] Room deafen toggled to: $_isRoomDeafened');
+      final engine = ZegoExpressEngine.instance;
+      // 1. Mute or unmute all stream playback at SDK level
+      await engine.muteAllPlayStreamAudio(_isRoomDeafened);
+      // 2. Hardware mixer volume mute: 0 when deafened, restore when undeafened
+      await engine.setAllPlayStreamVolume(_isRoomDeafened ? 0 : _roomVolume);
+      // 3. Explicitly mute/unmute each active stream as a safety guarantee
+      for (final sId in _activeStreamIds) {
+        final shouldMute = _isRoomDeafened || _mutedUserKeys.any((key) => key.isNotEmpty && sId.contains(key));
+        await engine.mutePlayStreamAudio(sId, shouldMute);
+      }
+      debugPrint('[RoomAudioService] Room deafen toggled to: $_isRoomDeafened (streams: ${_activeStreamIds.length})');
     } catch (e) {
       debugPrint('[RoomAudioService] toggleRoomDeafen failed: $e');
     }
@@ -73,14 +86,17 @@ class RoomAudioService {
       final engine = ZegoExpressEngine.instance;
       for (final stream in streamList) {
         if (updateType == ZegoUpdateType.Add) {
+          _activeStreamIds.add(stream.streamID);
           engine.startPlayingStream(stream.streamID).catchError((e) {
             debugPrint('[ZegoAudio] startPlayingStream error: $e');
           });
-          if (_isRoomDeafened) {
+          final shouldMute = _isRoomDeafened || _mutedUserKeys.any((key) => key.isNotEmpty && stream.streamID.contains(key));
+          if (shouldMute) {
             engine.mutePlayStreamAudio(stream.streamID, true).catchError((_) {});
           }
-          debugPrint('[ZegoAudio] Started playing stream: ${stream.streamID}');
+          debugPrint('[ZegoAudio] Started playing stream: ${stream.streamID} (muted=$shouldMute)');
         } else {
+          _activeStreamIds.remove(stream.streamID);
           engine.stopPlayingStream(stream.streamID).catchError((e) {
             debugPrint('[ZegoAudio] stopPlayingStream error: $e');
           });
@@ -247,6 +263,8 @@ class RoomAudioService {
     _currentRoomId = null;
     _isPublishing = false;
     _isRoomDeafened = false;
+    _activeStreamIds.clear();
+    _mutedUserKeys.clear();
     roomDeafenedNotifier.value = false;
     speakingUsersNotifier.value = {};
   }
@@ -271,12 +289,23 @@ class RoomAudioService {
   }
 
   void muteRemoteAudio(String uid, String channelName, bool muted) async {
+    if (uid.isEmpty) return;
+    if (muted) {
+      _mutedUserKeys.add(uid);
+    } else {
+      _mutedUserKeys.remove(uid);
+    }
     if (!_initialized || effectiveAppSign.isEmpty) return;
     try {
       final engine = ZegoExpressEngine.instance;
       final streamId = 'audio_${uid}_$channelName';
       await engine.mutePlayStreamAudio(streamId, muted);
-      debugPrint('[RoomAudioService] ${muted ? "Muted" : "Unmuted"} remote stream: $streamId');
+      for (final sId in _activeStreamIds) {
+        if (sId.contains(uid)) {
+          await engine.mutePlayStreamAudio(sId, muted);
+        }
+      }
+      debugPrint('[RoomAudioService] ${muted ? "Muted" : "Unmuted"} remote stream for: $uid');
     } catch (e) {
       debugPrint('[RoomAudioService] muteRemoteAudio failed: $e');
     }

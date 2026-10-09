@@ -24,7 +24,9 @@ class SeatDialogs {
     required bool isOwnerOrModerator,
     required bool isLocked,
     required bool isMuted,
+    bool isUserOnSeat = false,
     VoidCallback? onTakeMic,
+    VoidCallback? onLeaveMic,
     VoidCallback? onInviteToMic,
     void Function(bool locked)? onToggleLock,
     void Function(bool muted)? onToggleMic,
@@ -37,7 +39,9 @@ class SeatDialogs {
         isOwnerOrModerator: isOwnerOrModerator,
         isLocked: isLocked,
         isMuted: isMuted,
+        isUserOnSeat: isUserOnSeat,
         onTakeMic: onTakeMic,
+        onLeaveMic: onLeaveMic,
         onInviteToMic: onInviteToMic,
         onToggleLock: onToggleLock,
         onToggleMic: onToggleMic,
@@ -62,6 +66,7 @@ class SeatDialogs {
     required UserModel user,
     required bool isOwner,
     required bool isOwnerOrModerator,
+    bool isSelf = false,
     bool canKickAndMicDown = true,
     required bool isMuted,
     required bool isAdmin,
@@ -83,6 +88,7 @@ class SeatDialogs {
         user: user,
         isOwner: isOwner,
         isOwnerOrModerator: isOwnerOrModerator,
+        isSelf: isSelf,
         canKickAndMicDown: canKickAndMicDown,
         isMuted: isMuted,
         isAdmin: isAdmin,
@@ -109,7 +115,9 @@ class _EmptySeatSheet extends StatelessWidget {
   final bool isOwnerOrModerator;
   final bool isLocked;
   final bool isMuted;
+  final bool isUserOnSeat;
   final VoidCallback? onTakeMic;
+  final VoidCallback? onLeaveMic;
   final VoidCallback? onInviteToMic;
   final void Function(bool locked)? onToggleLock;
   final void Function(bool muted)? onToggleMic;
@@ -119,7 +127,9 @@ class _EmptySeatSheet extends StatelessWidget {
     required this.isOwnerOrModerator,
     required this.isLocked,
     required this.isMuted,
+    this.isUserOnSeat = false,
     this.onTakeMic,
+    this.onLeaveMic,
     this.onInviteToMic,
     this.onToggleLock,
     this.onToggleMic,
@@ -144,14 +154,33 @@ class _EmptySeatSheet extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _DragHandle(),
-                  // idSeatActionTakeMic
-                  _SheetItem(
-                    label: isAr ? 'صعود المايك' : 'Take Mic',
-                    onTap: () {
-                      Navigator.pop(context);
-                      onTakeMic?.call();
-                    },
-                  ),
+                  // idSeatActionTakeMic / Move / Leave
+                  if (isUserOnSeat) ...[
+                    _SheetItem(
+                      label: isAr ? 'الانتقال إلى هذا المقعد' : 'Move to this Seat',
+                      onTap: () {
+                        Navigator.pop(context);
+                        onTakeMic?.call();
+                      },
+                    ),
+                    _Divider(),
+                    _SheetItem(
+                      label: isAr ? 'نزول من المايك' : 'Leave Mic',
+                      color: const Color(0xFFE82323),
+                      onTap: () {
+                        Navigator.pop(context);
+                        onLeaveMic?.call();
+                      },
+                    ),
+                  ] else ...[
+                    _SheetItem(
+                      label: isAr ? 'صعود المايك' : 'Take Mic',
+                      onTap: () {
+                        Navigator.pop(context);
+                        onTakeMic?.call();
+                      },
+                    ),
+                  ],
                   _Divider(),
                   // idSeatActionInviteSeat — owner/moderator only
                   if (isOwnerOrModerator) ...[
@@ -216,6 +245,7 @@ class _OccupiedSeatSheet extends StatelessWidget {
   final UserModel user;
   final bool isOwner;
   final bool isOwnerOrModerator;
+  final bool isSelf;
   final bool isMuted;
   final bool isAdmin;
   final bool isBlacked;
@@ -234,6 +264,7 @@ class _OccupiedSeatSheet extends StatelessWidget {
     required this.user,
     required this.isOwner,
     required this.isOwnerOrModerator,
+    this.isSelf = false,
     this.canKickAndMicDown = true,
     required this.isMuted,
     required this.isAdmin,
@@ -282,29 +313,29 @@ class _OccupiedSeatSheet extends StatelessWidget {
                       ),
                     ),
                     _Divider(),
-                    // idSeatActionUserDetail
-                    _SheetItem(
-                      label: isAr ? 'معلومات المستخدم' : 'User Detail',
-                      onTap: () {
-                        Navigator.pop(context);
-                        onUserDetail?.call();
-                      },
-                    ),
-                    _Divider(),
-                    // Owner/moderator actions
-                    if (isOwnerOrModerator) ...[
-                      // idSeatActionKickOffMic
-                      if (canKickAndMicDown) ...[
-                        _SheetItem(
-                          label: isAr ? 'إنزال من المايك' : 'Kick Off Mic',
-                          onTap: () {
-                            Navigator.pop(context);
-                            onKickOffMic?.call();
-                          },
-                        ),
-                        _Divider(),
-                      ],
-                      // idSeatActionLockUnLockMic
+
+                    // ── If this is the current user's own seat: ──
+                    if (isSelf) ...[
+                      // idSeatActionLeaveMic — prominent red button
+                      _SheetItem(
+                        label: isAr ? 'نزول من المايك' : 'Leave Mic',
+                        color: const Color(0xFFE82323),
+                        onTap: () {
+                          Navigator.pop(context);
+                          onKickOffMic?.call();
+                        },
+                      ),
+                      _Divider(),
+                      // idSeatActionUserDetail
+                      _SheetItem(
+                        label: isAr ? 'معلومات المستخدم' : 'User Detail',
+                        onTap: () {
+                          Navigator.pop(context);
+                          onUserDetail?.call();
+                        },
+                      ),
+                      _Divider(),
+                      // idSeatActionMicStatus
                       _SheetItem(
                         label: isMuted
                             ? (isAr ? 'إلغاء كتم المايك' : 'Unmute Mic')
@@ -314,72 +345,107 @@ class _OccupiedSeatSheet extends StatelessWidget {
                           onToggleMicLock?.call(!isMuted);
                         },
                       ),
+                    ] else ...[
+                      // ── When viewing another user on the seat: ──
+                      // idSeatActionUserDetail
+                      _SheetItem(
+                        label: isAr ? 'معلومات المستخدم' : 'User Detail',
+                        onTap: () {
+                          Navigator.pop(context);
+                          onUserDetail?.call();
+                        },
+                      ),
                       _Divider(),
-                      // idSeatActionKickOutFromRoom — owner/moderator
-                      if (canKickAndMicDown) ...[
+                      // Owner/moderator actions
+                      if (isOwnerOrModerator) ...[
+                        // idSeatActionKickOffMic
+                        if (canKickAndMicDown) ...[
+                          _SheetItem(
+                            label: isAr ? 'إنزال من المايك' : 'Kick Off Mic',
+                            onTap: () {
+                              Navigator.pop(context);
+                              onKickOffMic?.call();
+                            },
+                          ),
+                          _Divider(),
+                        ],
+                        // idSeatActionLockUnLockMic
                         _SheetItem(
-                          label: isAr ? 'طرد من الغرفة' : 'Kick Out From Room',
-                          color: const Color(0xFFE82323),
+                          label: isMuted
+                              ? (isAr ? 'إلغاء كتم المايك' : 'Unmute Mic')
+                              : (isAr ? 'كتم المايك' : 'Mute Mic'),
                           onTap: () {
                             Navigator.pop(context);
-                            onKickOutFromRoom?.call();
+                            onToggleMicLock?.call(!isMuted);
+                          },
+                        ),
+                        _Divider(),
+                        // idSeatActionKickOutFromRoom — owner/moderator
+                        if (canKickAndMicDown) ...[
+                          _SheetItem(
+                            label: isAr ? 'طرد من الغرفة' : 'Kick Out From Room',
+                            color: const Color(0xFFE82323),
+                            onTap: () {
+                              Navigator.pop(context);
+                              onKickOutFromRoom?.call();
+                            },
+                          ),
+                          _Divider(),
+                        ],
+                      ],
+                      // Owner-only actions
+                      if (isOwner) ...[
+                        // idSeatActionSetAdminOrRemove
+                        _SheetItem(
+                          label: isAdmin
+                              ? (isAr ? 'إلغاء تعيين مسؤول' : 'Remove Admin')
+                              : (isAr ? 'تعيين كمسؤول' : 'Set as Admin'),
+                          onTap: () {
+                            Navigator.pop(context);
+                            onSetAdmin?.call(!isAdmin);
+                          },
+                        ),
+                        _Divider(),
+                        // idSeatActionComments
+                        _SheetItem(
+                          label: isAr ? 'السماح بالتعليقات' : 'Allow Comments',
+                          onTap: () {
+                            Navigator.pop(context);
+                            onToggleComments?.call(true);
+                          },
+                        ),
+                        _Divider(),
+                        // idSeatActionBlackOrUnBlackUser
+                        _SheetItem(
+                          label: isBlacked
+                              ? (isAr ? 'إلغاء الحظر' : 'Unblack User')
+                              : (isAr ? 'إضافة للقائمة السوداء' : 'Black User'),
+                          color: isBlacked ? Colors.black87 : const Color(0xFFE82323),
+                          onTap: () {
+                            Navigator.pop(context);
+                            onToggleBlack?.call(!isBlacked);
                           },
                         ),
                         _Divider(),
                       ],
-                    ],
-                    // Owner-only actions
-                    if (isOwner) ...[
-                      // idSeatActionSetAdminOrRemove
-                      _SheetItem(
-                        label: isAdmin
-                            ? (isAr ? 'إلغاء تعيين مسؤول' : 'Remove Admin')
-                            : (isAr ? 'تعيين كمسؤول' : 'Set as Admin'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          onSetAdmin?.call(!isAdmin);
-                        },
-                      ),
-                      _Divider(),
-                      // idSeatActionComments
-                      _SheetItem(
-                        label: isAr ? 'السماح بالتعليقات' : 'Allow Comments',
-                        onTap: () {
-                          Navigator.pop(context);
-                          onToggleComments?.call(true);
-                        },
-                      ),
-                      _Divider(),
-                      // idSeatActionBlackOrUnBlackUser
-                      _SheetItem(
-                        label: isBlacked
-                            ? (isAr ? 'إلغاء الحظر' : 'Unblack User')
-                            : (isAr ? 'إضافة للقائمة السوداء' : 'Black User'),
-                        color: isBlacked ? Colors.black87 : const Color(0xFFE82323),
-                        onTap: () {
-                          Navigator.pop(context);
-                          onToggleBlack?.call(!isBlacked);
-                        },
-                      ),
-                      _Divider(),
-                    ],
-                    if (!isOwnerOrModerator) ...[
-                      // Regular user options: private message, gift
-                      _SheetItem(
-                        label: isAr ? 'رسالة خاصة' : 'Private Message',
-                        onTap: () {
-                          Navigator.pop(context);
-                          onPrivateMessage?.call();
-                        },
-                      ),
-                      _Divider(),
-                      _SheetItem(
-                        label: isAr ? 'إرسال هدية' : 'Send Gift',
-                        onTap: () {
-                          Navigator.pop(context);
-                          onGift?.call();
-                        },
-                      ),
+                      if (!isOwnerOrModerator) ...[
+                        // Regular user options: private message, gift
+                        _SheetItem(
+                          label: isAr ? 'رسالة خاصة' : 'Private Message',
+                          onTap: () {
+                            Navigator.pop(context);
+                            onPrivateMessage?.call();
+                          },
+                        ),
+                        _Divider(),
+                        _SheetItem(
+                          label: isAr ? 'إرسال هدية' : 'Send Gift',
+                          onTap: () {
+                            Navigator.pop(context);
+                            onGift?.call();
+                          },
+                        ),
+                      ],
                     ],
                   ],
                 ),
