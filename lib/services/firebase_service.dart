@@ -1390,6 +1390,18 @@ class FirebaseService {
       } catch (_) {}
     }
 
+    // Pre-sync sender coins if Firestore is lagging behind Supabase (لوحة التحكم ومصدر الحقيقة)
+    try {
+      final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
+      if (sUser != null && sUser.coins > 0) {
+        final sSnap = await senderRef.get();
+        final fCoins = _asInt(sSnap.data()?['coins']);
+        if (sUser.coins != fCoins) {
+          await senderRef.set({'coins': sUser.coins}, SetOptions(merge: true));
+        }
+      }
+    } catch (_) {}
+
     try {
       await _db.runTransaction((txn) async {
         final senderSnap = await txn.get(senderRef);
