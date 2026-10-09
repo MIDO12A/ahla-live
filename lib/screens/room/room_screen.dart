@@ -679,19 +679,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     // ✅ إرسال الهدية عبر الشبكة بشكل غير متزامن تماماً (fire-and-forget background coroutine)
     // مثل الأصل (Dispatchers.IO) دون حظر الواجهة لسرعة إرسال فائقة
-    final gift = data['gift'] as gm.GiftModel?;
-    final selectedTargets = (data['selectedTargets'] as List<dynamic>?) ?? [];
     if (gift != null && widget.roomId.isNotEmpty) {
       final roomId = widget.roomId;
       final comboMultiplier = _roomComboMultiplier;
-      final count = data['giftCount'] as int? ?? 1;
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final user = userProvider.currentUser;
-      final totalCost = gift.value * count * (selectedTargets.isNotEmpty ? selectedTargets.length : 1);
-
-      if ((user?.coins ?? 0) < totalCost) {
-        return; // رصيد غير كافٍ للكومبو
-      }
 
       // خصم فوري في الذاكرة لسرعة استجابة فائقة
       userProvider.deductCoinsLocally(totalCost);
