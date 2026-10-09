@@ -3042,23 +3042,7 @@ class FirebaseService {
       debugPrint('[sendPrivateMessage] Firestore private_messages error: $e');
     }
 
-    // 2.1 Sync to Supabase private_messages
-    try {
-      await Supabase.instance.client.from('private_messages').insert({
-        'id': msgId,
-        'conv_id': convId,
-        'sender_uid': resolvedSenderId,
-        'sender_name': sName,
-        'sender_photo_url': senderPhotoUrl,
-        'text': text,
-        'image_url': imageUrl,
-        'created_at': isoDate,
-      });
-    } catch (e) {
-      debugPrint('[sendPrivateMessage] Supabase private_messages insert error: $e');
-    }
-
-    // 3. Sender conversation in Firestore
+    // 2. Sender conversation in Firestore
     try {
       await _db.collection('conversations').doc('${resolvedSenderId}_$convId').set({
         'uid': resolvedSenderId,
@@ -3074,7 +3058,7 @@ class FirebaseService {
       debugPrint('[sendPrivateMessage] sender conversation error: $e');
     }
 
-    // 4. Receiver conversation in Firestore
+    // 3. Receiver conversation in Firestore
     try {
       await _db.collection('conversations').doc('${resolvedReceiverId}_$convId').set({
         'uid': resolvedReceiverId,
@@ -3090,28 +3074,34 @@ class FirebaseService {
       debugPrint('[sendPrivateMessage] receiver conversation error: $e');
     }
 
-    // 4.1 Sync to Supabase conversations table
+    // 4. Supabase conversations upsert FIRST (satisfies foreign key constraint)
     try {
-      await Supabase.instance.client.from('conversations').upsert([
-        {
-          'uid': resolvedSenderId,
-          'conv_id': convId,
-          'last_message': type == 'image' ? '[صورة]' : text,
-          'last_sender_uid': resolvedSenderId,
-          'last_timestamp': isoDate,
-          'unread_count': 0,
-        },
-        {
-          'uid': resolvedReceiverId,
-          'conv_id': convId,
-          'last_message': type == 'image' ? '[صورة]' : text,
-          'last_sender_uid': resolvedSenderId,
-          'last_timestamp': isoDate,
-          'unread_count': 1,
-        }
-      ]);
+      await Supabase.instance.client.from('conversations').upsert({
+        'conv_id': convId,
+        'uid': resolvedSenderId,
+        'other_uid': resolvedReceiverId,
+        'other_name': rName,
+        'other_photo_url': receiverPhotoUrl,
+        'last_message': type == 'image' ? '[صورة]' : text,
+        'unread_count': 1,
+      }, onConflict: 'conv_id');
     } catch (e) {
       debugPrint('[sendPrivateMessage] Supabase conversations upsert error: $e');
+    }
+
+    // 5. Supabase private_messages insert (matches actual database schema)
+    try {
+      await Supabase.instance.client.from('private_messages').insert({
+        'id': msgId,
+        'conv_id': convId,
+        'sender_uid': resolvedSenderId,
+        'receiver_uid': resolvedReceiverId,
+        'text': type == 'image' ? (text.isNotEmpty ? text : '[صورة]') : text,
+        'is_read': false,
+        'created_at': isoDate,
+      });
+    } catch (e) {
+      debugPrint('[sendPrivateMessage] Supabase private_messages insert error: $e');
     }
   }
 
@@ -3130,42 +3120,43 @@ class FirebaseService {
       controller.add(list);
     }
 
-    // 1. Fetch from Supabase conversations
+    // 1. Fetch from Supabase conversations (matches where user is sender or receiver)
     Future<void> fetchSupabase() async {
       try {
         final rows = await Supabase.instance.client
             .from('conversations')
             .select('*')
-            .eq('uid', uid);
+            .or('uid.eq.$uid,other_uid.eq.$uid');
         for (final r in rows) {
           final cId = r['conv_id']?.toString() ?? '';
           if (cId.isEmpty) continue;
-          final parts = cId.split('_');
-          final otherUid = parts.firstWhere((p) => p != uid, orElse: () => '');
-          int timeMillis = 0;
-          if (r['last_timestamp'] != null) {
-            timeMillis = DateTime.tryParse(r['last_timestamp'].toString())?.millisecondsSinceEpoch ?? 0;
-          }
+          final isSender = (r['uid']?.toString() == uid);
+          final otherUid = isSender ? (r['other_uid']?.toString() ?? '') : (r['uid']?.toString() ?? '');
+          final otherName = isSender ? (r['other_name']?.toString() ?? 'مستخدم') : 'مستخدم';
+          final otherPhoto = isSender ? (r['other_photo_url']?.toString() ?? '') : '';
+
           final key = '${uid}_$cId';
-          if (!convsMap.containsKey(key) || (timeMillis > (convsMap[key]?['lastMessageTime'] as int? ?? 0))) {
+          if (!convsMap.containsKey(key)) {
             convsMap[key] = {
               'uid': uid,
               'conversationId': cId,
               'otherUid': otherUid,
-              'otherName': 'مستخدم',
-              'otherPhotoUrl': '',
+              'otherName': otherName,
+              'otherPhotoUrl': otherPhoto,
               'lastMessage': r['last_message']?.toString() ?? '',
-              'lastMessageTime': timeMillis,
-              'unreadCount': r['unread_count'] as int? ?? 0,
+              'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
+              'unreadCount': isSender ? 0 : (r['unread_count'] as int? ?? 0),
             };
           }
         }
         emitMerged();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[conversationsStream] Supabase fetch error: $e');
+      }
     }
 
     fetchSupabase();
-    final pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => fetchSupabase());
+    final pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => fetchSupabase());
 
     // 2. Ensure Firebase anonymous auth before listening to Firestore
     try {
@@ -3215,36 +3206,41 @@ class FirebaseService {
       controller.add(list);
     }
 
-    // 1. Fetch from Supabase
+    // 1. Fetch from Supabase private_messages
     Future<void> fetchSupabase() async {
       try {
         final rows = await Supabase.instance.client
             .from('private_messages')
             .select('*')
-            .eq('conv_id', conversationId);
+            .eq('conv_id', conversationId)
+            .order('created_at', ascending: true);
         for (final r in rows) {
+          final mId = r['id']?.toString() ?? '';
+          if (mId.isEmpty) continue;
+          final existing = msgMap[mId];
+          final text = r['text']?.toString() ?? '';
           final m = MessageModel(
-            msgId: r['id']?.toString() ?? '',
-            senderUid: r['sender_uid']?.toString() ?? '',
-            senderName: r['sender_name']?.toString() ?? '',
-            senderPhotoUrl: r['sender_photo_url']?.toString() ?? '',
-            text: r['text']?.toString() ?? '',
-            imageUrl: r['image_url']?.toString(),
-            type: (r['image_url'] != null && r['image_url'].toString().isNotEmpty) ? 'image' : 'text',
+            msgId: mId,
+            senderUid: r['sender_uid']?.toString() ?? existing?.senderUid ?? '',
+            senderName: existing?.senderName ?? '',
+            senderPhotoUrl: existing?.senderPhotoUrl ?? '',
+            text: text,
+            imageUrl: existing?.imageUrl,
+            type: (existing != null && existing.type == 'image') || text == '[صورة]' ? 'image' : 'text',
             timestamp: r['created_at'] != null
-                ? (DateTime.tryParse(r['created_at'].toString())?.millisecondsSinceEpoch ?? 0)
-                : 0,
+                ? (DateTime.tryParse(r['created_at'].toString())?.millisecondsSinceEpoch ?? (existing?.timestamp ?? 0))
+                : (existing?.timestamp ?? 0),
           );
-          if (m.msgId.isNotEmpty) {
-            msgMap[m.msgId] = m;
-          }
+          msgMap[mId] = m;
         }
         emitMerged();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[privateMessagesStream] Supabase fetch error: $e');
+      }
     }
 
     fetchSupabase();
-    final pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => fetchSupabase());
+    final pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => fetchSupabase());
 
     // 2. Ensure Firebase anonymous auth before listening to Firestore
     try {
@@ -3253,7 +3249,7 @@ class FirebaseService {
       }
     } catch (_) {}
 
-    // 3. Listen to Firestore
+    // 3. Listen to Firestore private_messages
     StreamSubscription? firestoreSub;
     try {
       firestoreSub = _db
@@ -3274,9 +3270,35 @@ class FirebaseService {
       debugPrint('[privateMessagesStream] Firestore error: $e');
     }
 
+    // 4. Supabase Realtime changes
+    RealtimeChannel? supaChannel;
+    try {
+      supaChannel = Supabase.instance.client
+          .channel('pm_$conversationId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'private_messages',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'conv_id',
+              value: conversationId,
+            ),
+            callback: (payload) {
+              fetchSupabase();
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+
     controller.onCancel = () {
       pollTimer.cancel();
       firestoreSub?.cancel();
+      if (supaChannel != null) {
+        try {
+          Supabase.instance.client.removeChannel(supaChannel);
+        } catch (_) {}
+      }
     };
 
     return controller.stream;

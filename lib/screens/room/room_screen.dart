@@ -67,6 +67,7 @@ import '../game/game_teaming_screen.dart';
 import '../music/music_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../user_profile/user_profile_screen.dart';
+import '../message/message_reply_detail_screen.dart';
 import '../report/report_room_screen.dart';
 import '../report/report_user_screen.dart';
 import '../../features/lucky_gift/services/lucky_gift_service.dart';
@@ -3836,6 +3837,33 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   _selectedUser = null;
                   _selectedSeatIdx = null;
                 }),
+                onChat: () {
+                  final target = _selectedUser;
+                  setState(() {
+                    _showProfile = false;
+                    _selectedUser = null;
+                    _selectedSeatIdx = null;
+                  });
+                  if (target != null && currentUser != null) {
+                    final myUid = currentUser.uid;
+                    final targetUid = (target.id != null && target.id!.isNotEmpty) ? target.id! : (target.customId ?? '');
+                    if (targetUid.isNotEmpty && myUid.isNotEmpty) {
+                      final sorted = [myUid, targetUid]..sort();
+                      final convId = '${sorted[0]}_${sorted[1]}';
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MessageReplyDetailScreen(
+                            conversationId: convId,
+                            otherUid: targetUid,
+                            otherName: target.name,
+                            otherPhotoUrl: target.avatar ?? '',
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
                 onViewProfile: () {
                   final targetId = _selectedUser?.id ?? _selectedUser?.customId;
                   if (targetId != null && targetId.isNotEmpty) {

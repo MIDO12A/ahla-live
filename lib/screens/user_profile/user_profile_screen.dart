@@ -23,6 +23,7 @@ import '../../services/dynamic_config_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/level_service.dart';
 import '../follow/follow_recent_screen.dart';
+import '../message/message_reply_detail_screen.dart';
 import '../login/edit_profile_screen.dart';
 import '../level/level_screen.dart';
 import '../room/room_screen.dart';
@@ -803,13 +804,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   void _navigateToChat() {
     if (_user == null) return;
+    final currentUser = Provider.of<UserProvider>(context, listen: false).currentUser;
+    if (currentUser == null) return;
+    final myUid = currentUser.uid;
+    final targetUid = _user!.uid;
+    if (myUid.isEmpty || targetUid.isEmpty) return;
+    final sorted = [myUid, targetUid]..sort();
+    final convId = '${sorted[0]}_${sorted[1]}';
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          targetUid: _user!.uid,
-          targetName: _user!.name,
-          targetPhotoUrl: _user!.photoUrl,
+        builder: (_) => MessageReplyDetailScreen(
+          conversationId: convId,
+          otherUid: targetUid,
+          otherName: _user!.name,
+          otherPhotoUrl: _user!.photoUrl,
         ),
       ),
     );

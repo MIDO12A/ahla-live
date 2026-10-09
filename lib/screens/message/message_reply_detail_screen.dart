@@ -254,10 +254,9 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
-                      final isMe = msg.senderUid ==
-                          Provider.of<UserProvider>(context, listen: false)
-                              .currentUser
-                              ?.uid;
+                      final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+                      final isMe = msg.senderUid == user?.uid ||
+                          (user?.customId != null && user!.customId.isNotEmpty && msg.senderUid == user.customId);
                       return _buildMessageBubble(msg, isMe);
                     },
                   ),
@@ -289,7 +288,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
               Padding(
                 padding: const EdgeInsets.only(left: 4, bottom: 2),
                 child: Text(
-                  msg.senderName,
+                  msg.senderName.isNotEmpty ? msg.senderName : widget.otherName,
                   style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF9BA1B6),

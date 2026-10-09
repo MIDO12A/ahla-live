@@ -774,7 +774,6 @@ class _UserProfileState extends State<UserProfile> {
                           ? Image(image: R.cachedImage(config.miniprofileChatIcon), width: 52, height: 52, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 38))
                           : const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 38),
                       onTap: () {
-                        widget.onClose?.call();
                         if (widget.onChat != null) {
                           widget.onChat!();
                         } else {
@@ -782,8 +781,10 @@ class _UserProfileState extends State<UserProfile> {
                           final targetUid = widget.user['id']?.toString() ?? widget.user['uid']?.toString() ?? '';
                           final targetName = widget.user['name']?.toString() ?? 'User';
                           final targetPhoto = widget.user['avatar']?.toString() ?? widget.user['photo_url']?.toString() ?? widget.user['photoUrl']?.toString() ?? '';
+                          widget.onClose?.call();
                           if (targetUid.isNotEmpty && myUid.isNotEmpty) {
-                            final convId = (myUid.compareTo(targetUid) < 0) ? '${myUid}_$targetUid' : '${targetUid}_$myUid';
+                            final sorted = [myUid, targetUid]..sort();
+                            final convId = '${sorted[0]}_${sorted[1]}';
                             Navigator.push(
                               context,
                               MaterialPageRoute(
