@@ -118,6 +118,9 @@ class _GiftPanelState extends State<GiftPanel> {
         MediaPrefetchService().prefetchGifts(gifts);
         setState(() {
           _gifts = gifts;
+          if (_sel < 0 && _gifts.isNotEmpty) {
+            _sel = 0;
+          }
         });
       }
     }).catchError((_) {});
@@ -135,7 +138,11 @@ class _GiftPanelState extends State<GiftPanel> {
       if (mounted) {
         setState(() {
           _gifts = gifts;
-          if (_sel >= _gifts.length) _sel = -1;
+          if (_sel < 0 && _gifts.isNotEmpty) {
+            _sel = 0;
+          } else if (_sel >= _gifts.length) {
+            _sel = _gifts.isNotEmpty ? 0 : -1;
+          }
         });
       }
     });
@@ -209,6 +216,12 @@ class _GiftPanelState extends State<GiftPanel> {
   @override
   Widget build(BuildContext context) {
     final dc = DynamicConfigService();
+    // Auto-select first gift if none selected
+    final filtered = _filteredGifts;
+    if ((_sel < 0 || _sel >= _gifts.length) && filtered.isNotEmpty) {
+      final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
+      if (idx >= 0) _sel = idx;
+    }
     final selectedGift = (_sel >= 0 && _sel < _gifts.length) ? _gifts[_sel] : null;
     final isLuckyActive = _selectedCategoryId == 'lucky' || (selectedGift != null && (selectedGift.isLucky || selectedGift.categoryId == 'lucky' || selectedGift.type == 3));
 
@@ -371,7 +384,16 @@ class _GiftPanelState extends State<GiftPanel> {
               children: [
                 for (final cat in allTabs)
                   GestureDetector(
-                    onTap: () => setState(() => _selectedCategoryId = cat.id),
+                    onTap: () {
+                      setState(() {
+                        _selectedCategoryId = cat.id;
+                        final filtered = _filteredGifts;
+                        if (filtered.isNotEmpty) {
+                          final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
+                          if (idx >= 0) _sel = idx;
+                        }
+                      });
+                    },
                     child: Container(
                       margin: const EdgeInsets.only(right: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 12),

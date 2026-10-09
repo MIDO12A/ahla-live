@@ -732,7 +732,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               );
             }
 
-            await fb.sendLuckyGift(
+            final res = await fb.sendLuckyGift(
               roomId: roomId,
               giftId: gift.id,
               giftName: gift.name,
@@ -752,6 +752,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               comboCount: comboMultiplier,
               preDrawnMultipliers: drawn,
             );
+            if (res != null && res['wonCoins'] != null) {
+              final won = (res['wonCoins'] as num).toInt();
+              if (won > 0) {
+                userProvider.addCoinsLocally(won);
+              }
+            }
           } else {
             final cover = gift.defaultImage ?? gift.iconAsset;
             if (cover.isNotEmpty) {

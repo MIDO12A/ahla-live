@@ -9,6 +9,7 @@ import '../../../services/supabase_data_service.dart';
 import '../../../services/cloudinary_service.dart';
 import '../../../providers/user_provider.dart';
 import '../../../models/store_item_model.dart';
+import '../../../models/app_asset_model.dart';
 import 'svga_player.dart';
 
 class RoomBackgroundBottomSheet extends StatefulWidget {
@@ -33,6 +34,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
   late TabController _tabController;
   List<StoreItemModel> _ownedBackgrounds = [];
   List<AppAssetModel> _adminBackgrounds = [];
+  bool _loadingStoreBg = true;
 
   @override
   void initState() {
