@@ -32,13 +32,29 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
   bool _isUploading = false;
   late TabController _tabController;
   List<StoreItemModel> _ownedBackgrounds = [];
-  bool _loadingStoreBg = true;
+  List<AppAssetModel> _adminBackgrounds = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadOwnedBackgrounds();
+    _loadAdminBackgrounds();
+  }
+
+  void _loadAdminBackgrounds() async {
+    try {
+      final assets = await SupabaseDataService().getAppAssets();
+      final bgAssets = assets.values
+          .where((a) => (a.category == 'roomBg' || a.category == 'room_bg') && a.isActive)
+          .toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      if (mounted && bgAssets.isNotEmpty) {
+        setState(() {
+          _adminBackgrounds = bgAssets;
+        });
+      }
+    } catch (_) {}
   }
 
   void _loadOwnedBackgrounds() async {
@@ -166,7 +182,16 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
   @override
   Widget build(BuildContext context) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
-    final backgrounds = DynamicConfigService().getAssetsByCategory('roomBg');
+    final dynBackgrounds = DynamicConfigService().getAssetsByCategory('roomBg');
+    // Merge both sources and deduplicate by remoteUrl/key
+    final seen = <String>{};
+    final backgrounds = <AppAssetModel>[];
+    for (final b in [...dynBackgrounds, ..._adminBackgrounds]) {
+      final key = b.remoteUrl ?? b.key;
+      if (key.isNotEmpty && seen.add(key)) {
+        backgrounds.add(b);
+      }
+    }
     final price = DynamicConfigService().roomBgPrice;
 
     return Container(

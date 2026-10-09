@@ -2823,6 +2823,16 @@ export async function sendUnifiedGift(params: {
         expires_at: expiresAt,
       });
 
+      // Send notification
+      await sendGiftSystemNotification({
+        client, uid,
+        title: 'هدية جديدة من الإدارة 🎁',
+        body: `قام المشرف ${sentByName} بإهدائك: آيدي مميز (${specialIdClean})`,
+        itemIcon: itemIcon || 'assets/mipmap-xxhdpi/ic_id_card_prop.png',
+        itemName: itemName || `آيدي مميز: ${specialIdClean}`,
+        sentByName,
+      });
+
       return { success: true, message: `تم إهداء الآيدي المميز (${specialIdClean}) بنجاح والاحتفاظ بالآيدي القديم!` };
     }
 
@@ -2863,6 +2873,16 @@ export async function sendUnifiedGift(params: {
         expires_at: expiresAt,
       });
 
+      // Send notification
+      await sendGiftSystemNotification({
+        client, uid,
+        title: 'هدية جديدة من الإدارة 🎁',
+        body: `قام المشرف ${sentByName} بإهدائك: ${itemName}`,
+        itemIcon: itemIcon || '',
+        itemName,
+        sentByName,
+      });
+
       return { success: true, message: `تم إهداء العنصر (${itemName}) بنجاح!` };
     }
 
@@ -2881,6 +2901,16 @@ export async function sendUnifiedGift(params: {
         sent_by_name: sentByName,
         sent_at: sentAt,
         expires_at: expiresAt,
+      });
+
+      // Send notification
+      await sendGiftSystemNotification({
+        client, uid,
+        title: 'هدية جديدة من الإدارة 🎁',
+        body: `قام المشرف ${sentByName} بإهدائك رتبة: ${itemName || 'VIP ' + tierNum}`,
+        itemIcon: itemIcon || 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
+        itemName: itemName || `VIP ${tierNum}`,
+        sentByName,
       });
 
       return { success: true, message: `تم إهداء رتبة (${itemName || 'VIP ' + tierNum}) بنجاح!` };
@@ -2905,6 +2935,16 @@ export async function sendUnifiedGift(params: {
         sent_by_name: sentByName,
         sent_at: sentAt,
         expires_at: expiresAt,
+      });
+
+      // Send notification
+      await sendGiftSystemNotification({
+        client, uid,
+        title: 'هدية جديدة من الإدارة 🎁',
+        body: `قام المشرف ${sentByName} بإهدائك شارة: ${itemName}`,
+        itemIcon: itemIcon || 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
+        itemName,
+        sentByName,
       });
 
       return { success: true, message: `تم إهداء الشارة (${itemName}) بنجاح!` };
@@ -2934,6 +2974,17 @@ export async function sendUnifiedGift(params: {
         expires_at: expiresAt,
       });
 
+      // Send system notification
+      await sendGiftSystemNotification({
+        client,
+        uid,
+        title: 'هدية جديدة من الإدارة 🎁',
+        body: `قام المشرف ${sentByName} بإهدائك: ${itemName || 'عنصر جديد'}`,
+        itemIcon: itemIcon || '',
+        itemName: itemName || '',
+        sentByName,
+      });
+
       return { success: true, message: `تم إهداء القلادة (${itemName}) بنجاح!` };
     }
 
@@ -2941,6 +2992,42 @@ export async function sendUnifiedGift(params: {
   } catch (err: any) {
     console.error('sendUnifiedGift error:', err);
     return { success: false, message: err?.message || 'حدث خطأ أثناء الإهداء' };
+  }
+}
+
+async function sendGiftSystemNotification(params: {
+  client: any;
+  uid: string;
+  title: string;
+  body: string;
+  itemIcon: string;
+  itemName: string;
+  sentByName: string;
+}) {
+  try {
+    const notifId = 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    await params.client.from('notifications').insert({
+      id: notifId,
+      uid: params.uid,
+      target: params.uid,
+      type: 'system',
+      title: params.title,
+      body: params.body,
+      actor_uid: 'admin',
+      is_read: false,
+      sent_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      data: {
+        action: 'gift_received',
+        item_name: params.itemName,
+        gift_name: params.itemName,
+        gift_image: params.itemIcon,
+        image_url: params.itemIcon,
+        sent_by_name: params.sentByName,
+      },
+    });
+  } catch (err) {
+    console.warn('sendGiftSystemNotification failed:', err);
   }
 }
 
@@ -3503,19 +3590,19 @@ export async function getAppAssets(options?: {
     const list: AppAssetRecord[] = (data ?? []).map((row: any) => ({
       id: row.key,
       key: row.key,
-      name: row.key,
+      name: row.name || row.key,
       type: row.type || 'image',
-      category: '',
-      subcategory: '',
-      localPath: '',
-      remoteUrl: row.url || '',
+      category: row.category || '',
+      subcategory: row.subcategory || '',
+      localPath: row.local_path || '',
+      remoteUrl: row.remote_url || row.url || '',
       defaultValue: '',
-      mimeType: '',
-      fileSize: 0,
-      width: null,
-      height: null,
-      sortOrder: 0,
-      isActive: true,
+      mimeType: row.mime_type || '',
+      fileSize: row.file_size || 0,
+      width: row.width || null,
+      height: row.height || null,
+      sortOrder: row.sort_order || 0,
+      isActive: row.is_active !== false,
       createdAt: row.updated_at || new Date().toISOString(),
       updatedAt: row.updated_at || new Date().toISOString(),
     }));
@@ -3536,19 +3623,19 @@ export async function getAppAssetByKey(key: string): Promise<AppAssetRecord | nu
       return {
         id: data.key,
         key: data.key,
-        name: data.key,
+        name: data.name || data.key,
         type: data.type || 'image',
-        category: '',
-        subcategory: '',
-        localPath: '',
-        remoteUrl: data.url || '',
+        category: data.category || '',
+        subcategory: data.subcategory || '',
+        localPath: data.local_path || '',
+        remoteUrl: data.remote_url || data.url || '',
         defaultValue: '',
-        mimeType: '',
-        fileSize: 0,
-        width: null,
-        height: null,
-        sortOrder: 0,
-        isActive: true,
+        mimeType: data.mime_type || '',
+        fileSize: data.file_size || 0,
+        width: data.width || null,
+        height: data.height || null,
+        sortOrder: data.sort_order || 0,
+        isActive: data.is_active !== false,
         createdAt: data.updated_at || new Date().toISOString(),
         updatedAt: data.updated_at || new Date().toISOString(),
       };
@@ -3564,16 +3651,20 @@ function getAppAssetsClient() {
 export async function updateAppAsset(idOrKey: string, data: Partial<AppAssetRecord>) {
   const assetUrl = data.remoteUrl || (data as any).url;
 
-
-
   // 2. Write to Supabase
   try {
     const client = getAppAssetsClient();
     const payload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
-    if (assetUrl !== undefined) payload.url = assetUrl;
+    if (assetUrl !== undefined) {
+      payload.url = assetUrl;
+      payload.remote_url = assetUrl;
+    }
     if (data.type !== undefined) payload.type = data.type;
+    if (data.name !== undefined) payload.name = data.name;
+    if (data.category !== undefined) payload.category = data.category;
+    if (data.isActive !== undefined) payload.is_active = data.isActive;
     await client.from('app_assets').update(payload).eq('key', idOrKey);
   } catch (e) {
     console.warn('updateAppAsset Supabase failed:', e);
@@ -3584,15 +3675,18 @@ export async function upsertAppAsset(data: AppAssetRecord) {
   const assetUrl = data.remoteUrl || (data as any).url || '';
   const assetType = data.type || 'image';
 
-
-
   // 2. Write to Supabase
   try {
     const client = getAppAssetsClient();
     const payload = {
       key: data.key,
+      name: data.name || data.key,
       url: assetUrl,
+      remote_url: assetUrl,
       type: assetType,
+      category: data.category || 'other',
+      subcategory: data.subcategory || '',
+      is_active: data.isActive !== false,
       updated_at: new Date().toISOString(),
     };
     await client.from('app_assets').upsert(payload, { onConflict: 'key' });

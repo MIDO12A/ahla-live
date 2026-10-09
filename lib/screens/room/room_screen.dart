@@ -73,6 +73,7 @@ import '../../features/lucky_gift/widgets/gift_seat_flight_overlay.dart';
 import '../../features/lucky_bag/models/lucky_bag_model.dart';
 import '../../features/lucky_bag/services/lucky_bag_service.dart';
 import '../../features/lucky_bag/widgets/lucky_bag_send_dialog.dart';
+import '../../services/room_music_player_service.dart';
 import '../../features/lucky_bag/widgets/lucky_bag_claim_dialog.dart';
 import '../../features/lucky_bag/widgets/lucky_bag_floating_widget.dart';
 import '../../core/widgets/user_id_display_widget.dart';
@@ -2093,6 +2094,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _seenEntranceIds.clear();
     _storeItemsIndex.clear();
     if (!_isMinimized) {
+      RoomMusicPlayerService().stop();
       _leaveRoomSession();
       _roomAudio.dispose();
     }
@@ -6298,6 +6300,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _exitRoom() {
     setState(() => _showExit = false);
+    RoomMusicPlayerService().stop();
     _leaveRoomSession();
     _roomAudio.leaveChannel();
     _roomAudio.dispose();

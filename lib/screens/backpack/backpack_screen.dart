@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../models/gift_model.dart' as gm;
 import '../../models/store_item_model.dart';
+import '../../models/gifted_item_model.dart';
 import '../../providers/user_provider.dart';
 import '../../services/supabase_service.dart';
 import '../mall/mall_screen.dart';
@@ -319,11 +320,23 @@ class _BackpackScreenState extends State<BackpackScreen> {
 
   /// شبكة العناصر المملوكة للتصنيف الحالي
   Widget _buildCategoryItems(UserProvider userProvider, dynamic user, String category) {
-    return StreamBuilder<List<StoreItemModel>>(
-      stream: _firebaseService.storeItemsStream(),
-      builder: (context, snapshot) {
-        final allItems = snapshot.data ?? [];
-        final userOwnedIds = user?.ownedItems ?? [];
+    final uid = user?.uid ?? '';
+    return StreamBuilder<List<GiftedItemModel>>(
+      stream: uid.isNotEmpty ? _firebaseService.userGiftedItemsStream(uid) : const Stream.empty(),
+      builder: (context, giftedSnap) {
+        final giftedItems = giftedSnap.data ?? [];
+        final giftMap = <String, GiftedItemModel>{};
+        for (final gi in giftedItems) {
+          if (!gi.isExpired) {
+            giftMap[gi.itemId] = gi;
+          }
+        }
+
+        return StreamBuilder<List<StoreItemModel>>(
+          stream: _firebaseService.storeItemsStream(),
+          builder: (context, snapshot) {
+            final allItems = snapshot.data ?? [];
+            final userOwnedIds = user?.ownedItems ?? [];
 
         // 1. العناصر المشتراة من المتجر
         final catLower = category.toLowerCase();
@@ -519,34 +532,54 @@ class _BackpackScreenState extends State<BackpackScreen> {
                     const SizedBox(height: 4),
 
                     // المدة الزمنية / الصلاحية tv_gold_time مع أيقونة mine_mall_time_ic
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Image.asset(
-                            'assets/mipmap-xxhdpi/mine_mall_time_ic.webp',
-                            width: 14,
-                            height: 14,
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'دائم',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF9BA1B6),
+                    Builder(builder: (_) {
+                      final gifted = giftMap[item.itemId];
+                      String durationText = 'دائم';
+                      if (gifted != null && gifted.expiresAt > 0) {
+                        final remainingMs = gifted.expiresAt - DateTime.now().millisecondsSinceEpoch;
+                        if (remainingMs > 0) {
+                          final days = (remainingMs / (1000 * 60 * 60 * 24)).ceil();
+                          if (days > 1) {
+                            durationText = '$days يوم';
+                          } else {
+                            final hours = (remainingMs / (1000 * 60 * 60)).ceil();
+                            durationText = hours > 0 ? '$hours ساعة' : 'ينتهي قريباً';
+                          }
+                        } else {
+                          durationText = 'منتهي الصلاحية';
+                        }
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/mipmap-xxhdpi/mine_mall_time_ic.webp',
+                              width: 14,
+                              height: 14,
+                              fit: BoxFit.contain,
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
+                            const SizedBox(width: 4),
+                            Text(
+                              durationText,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF9BA1B6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
                   ],
                 ),
               ),
             );
           },
         );
+      },
+    );
       },
     );
   }
