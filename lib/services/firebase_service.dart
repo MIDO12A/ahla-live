@@ -1699,6 +1699,26 @@ class FirebaseService {
         }));
       }
 
+      // Real-time notification for the receiver (إشعار استلام هدية الحظ للمستلم)
+      unawaited(sendNotification(
+        uid: receiverId,
+        type: 'gift',
+        actorUid: senderId,
+        title: '🍀 هدية حظ من $senderName',
+        body: '$senderName أرسل لك "$giftNameAr" x$count (بقيمة $totalCost عملة)',
+        data: <String, dynamic>{
+          'sender_name': senderName,
+          'sender_photo': senderPhotoUrl,
+          'gift_id': giftId,
+          'gift_name': giftNameAr,
+          'gift_image': giftIconUrl,
+          'value': value,
+          'count': count,
+          'room_id': roomId,
+          'is_lucky': true,
+        },
+      ).catchError((_) {}));
+
       // Deduct coins & add diamonds in Supabase
       unawaited(Future(() async {
         try {
