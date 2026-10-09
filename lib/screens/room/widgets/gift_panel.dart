@@ -97,7 +97,9 @@ class _GiftPanelState extends State<GiftPanel> {
   @override
   void didUpdateWidget(GiftPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.receiverId != oldWidget.receiverId) {
+    if (widget.receiverId != oldWidget.receiverId ||
+        (_selectedUserIds.isEmpty && widget.targetUsers.isNotEmpty) ||
+        widget.targetUsers.length != oldWidget.targetUsers.length) {
       _initSelection();
     }
   }

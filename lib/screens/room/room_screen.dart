@@ -2418,7 +2418,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     } else {
       // Empty or locked seat
-      _showEmptyDialog(idx);
+      if (!seat.isLocked) {
+        // إذا كان المقعد فارغاً وغير مقفل، الانتقال أو الصعود فورياً بلمسة واحدة دون الحاجة لحوار
+        _takeMic(idx);
+      } else {
+        _showEmptyDialog(idx);
+      }
     }
   }
 
@@ -2525,20 +2530,20 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     });
 
     try {
-      if (previousIdx != null) {
-        await _firebaseService.leaveSeat(widget.roomId, previousIdx);
-      }
-      await _firebaseService.takeSeat(widget.roomId, idx, app.UserModel(
-        uid: _currentUserId!,
-        customId: currentUser?.customId ?? '',
-        name: name,
-        photoUrl: currentUser?.photoUrl ?? '',
-        activeFrame: currentUser?.activeFrame,
-        activeCar: currentUser?.activeCar,
-        activeMicWave: currentUser?.activeMicWave,
-        gender: currentUser?.gender ?? 'male',
-        country: currentUser?.country ?? 'EG',
-      ));
+      await Future.wait([
+        if (previousIdx != null) _firebaseService.leaveSeat(widget.roomId, previousIdx),
+        _firebaseService.takeSeat(widget.roomId, idx, app.UserModel(
+          uid: _currentUserId!,
+          customId: currentUser?.customId ?? '',
+          name: name,
+          photoUrl: currentUser?.photoUrl ?? '',
+          activeFrame: currentUser?.activeFrame,
+          activeCar: currentUser?.activeCar,
+          activeMicWave: currentUser?.activeMicWave,
+          gender: currentUser?.gender ?? 'male',
+          country: currentUser?.country ?? 'EG',
+        )),
+      ]);
     } catch (e) {
       debugPrint('[takeMic] error: $e');
     } finally {
