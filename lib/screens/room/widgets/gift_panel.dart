@@ -777,10 +777,16 @@ class _GiftPanelState extends State<GiftPanel> {
     }
 
     final totalCost = gift.value * widget.selectedCount * selectedTargets.length;
-    final availableCoins = Provider.of<UserProvider>(context, listen: false).currentUser?.coins ?? widget.coins;
+    final availableCoins = Provider.of<UserProvider>(context, listen: false).currentUser?.coins ?? 0;
 
     if (availableCoins < totalCost) {
       if (!mounted) return;
+      _comboTimer?.cancel();
+      setState(() {
+        _comboSeconds = 0;
+        _comboMultiplier = 0;
+        _comboRemainingMs = 0;
+      });
       _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: availableCoins);
       return;
     }
@@ -790,12 +796,31 @@ class _GiftPanelState extends State<GiftPanel> {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final currentUser = userProvider.currentUser;
 
-    // خصم العملات لحظياً في الذاكرة لتحديث الواجهة فوراً (0ms latency)
-    userProvider.deductCoinsLocally(totalCost);
-
     // TODO: Critical fix - Use strict boolean and type check for lucky gifts
     // Only use sendLuckyGift if gift.isLucky == true OR gift.type == 3
     final isLuckyGift = gift.isLucky || gift.type == 3;
+    final fb = SupabaseService();
+    final stepCount = widget.selectedCount > 0 ? widget.selectedCount : 1;
+
+    // سحب النتائج وحساب صافي الرصيد فوريًا في الذاكرة لتحديث رصيد الواجهة بـ 0ms تأخير ومنع التدبيل
+    final Map<String, List<int>> targetDrawnMultipliers = {};
+    int totalAggregatedWon = 0;
+    if (isLuckyGift) {
+      for (final r in selectedTargets) {
+        final rid = r['id']?.toString() ?? '';
+        final drawn = fb.drawLuckyMultipliers(stepCount);
+        targetDrawnMultipliers[rid] = drawn;
+        totalAggregatedWon += drawn.fold<int>(0, (total, m) => total + (gift.value * m));
+      }
+      final netDelta = totalAggregatedWon - totalCost;
+      if (netDelta < 0) {
+        userProvider.deductCoinsLocally(netDelta.abs());
+      } else if (netDelta > 0) {
+        userProvider.addCoinsLocally(netDelta);
+      }
+    } else {
+      userProvider.deductCoinsLocally(totalCost);
+    }
 
     if (widget.onSend != null) {
       widget.onSend!();
@@ -819,6 +844,8 @@ class _GiftPanelState extends State<GiftPanel> {
       'giftCount': widget.selectedCount,
       'categoryId': gift.categoryId,
       'isLucky': isLuckyGift,
+      'targetDrawnMultipliers': targetDrawnMultipliers,
+      'totalWonCoins': totalAggregatedWon,
     });
 
     _startComboTimer();
@@ -827,13 +854,13 @@ class _GiftPanelState extends State<GiftPanel> {
     // إرسال عبر الشبكة في الخلفية دون حظر الواجهة إطلاقاً (Background Future)
     if (widget.roomId.isNotEmpty && currentUser != null) {
       unawaited(Future(() async {
-        final fb = SupabaseService();
         final results = await Future.wait(selectedTargets.map((r) async {
           final receiverId = r['id']?.toString() ?? '';
           final receiverName = r['name']?.toString() ?? '';
           bool ok;
           if (isLuckyGift) {
             final cover = gift.defaultImage ?? gift.iconAsset;
+            final drawn = targetDrawnMultipliers[receiverId] ?? fb.drawLuckyMultipliers(stepCount);
             final res = await fb.sendLuckyGift(
               roomId: widget.roomId,
               giftId: gift.id,
@@ -849,17 +876,13 @@ class _GiftPanelState extends State<GiftPanel> {
               receiverId: receiverId,
               receiverName: receiverName,
               value: gift.value,
-              count: widget.selectedCount,
+              count: stepCount,
               comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
-              comboCount: widget.selectedCount,
+              comboCount: stepCount,
+              preDrawnMultipliers: drawn,
             );
             ok = res != null;
-            if (res != null && res['wonCoins'] != null) {
-              final won = (res['wonCoins'] as num).toInt();
-              if (won > 0) {
-                userProvider.addCoinsLocally(won);
-              }
-            }
+            // ✅ تم تحديث الرصيد مسبقاً بالصافي لحظياً، لا نضيف won مجدداً لمنع التدبيل
           } else {
             final cover = gift.defaultImage ?? gift.iconAsset;
             ok = await fb.sendGift(
@@ -1109,7 +1132,8 @@ class _GiftPanelState extends State<GiftPanel> {
         .where((u) => _selectedUserIds.contains(u['id']?.toString()))
         .length;
     final totalCost = gift != null ? gift.value * widget.selectedCount * (selectedTargetsCount > 0 ? selectedTargetsCount : 1) : 0;
-    final liveCoins = Provider.of<UserProvider>(context).currentUser?.coins ?? widget.coins;
+    final currUser = Provider.of<UserProvider>(context).currentUser;
+    final liveCoins = currUser != null ? currUser.coins : widget.coins;
     final canAfford = liveCoins >= totalCost && totalCost > 0;
     final double comboProgress = _comboRemainingMs > 0 ? (_comboRemainingMs / 10000.0).clamp(0.0, 1.0) : 0.0;
 

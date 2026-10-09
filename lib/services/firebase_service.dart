@@ -1185,14 +1185,11 @@ class FirebaseService {
     // Deduct coins & add diamonds in Supabase
     unawaited(Future(() async {
       try {
-        final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
-        if (sUser != null) {
-          final newCoins = (sUser.coins - totalCost).clamp(0, 999999999999);
-          await SupabaseDataService().updateUser(senderId, {
-            'coins': newCoins,
-            'total_gifts_sent': sUser.totalGiftsSent + totalCost,
-          });
-        }
+        final newCoins = (senderCoins - totalCost).clamp(0, 999999999999);
+        await SupabaseDataService().updateUser(senderId, {
+          'coins': newCoins,
+          'total_gifts_sent': sentTotal + totalCost,
+        });
         final rUser = await SupabaseAuthService().getUserFromSupabase(receiverId);
         if (rUser != null) {
           await SupabaseDataService().updateUser(receiverId, {
@@ -1211,36 +1208,60 @@ class FirebaseService {
   /// ═══════════════════════════════════════════════════════
 
   List<int> drawLuckyMultipliers(int count) {
-    final odds = [
-      {'multiplier': 0, 'weight': 650},
-      {'multiplier': 1, 'weight': 200},
-      {'multiplier': 2, 'weight': 90},
-      {'multiplier': 5, 'weight': 40},
-      {'multiplier': 10, 'weight': 15},
-      {'multiplier': 50, 'weight': 4},
-      {'multiplier': 100, 'weight': 1},
-      {'multiplier': 500, 'weight': 1},
-    ];
-
-    final totalWeight = odds.fold<int>(0, (tot, item) => tot + (item['weight'] as int));
+    final cardCount = count < 4 ? 4 : (count > 8 ? 8 : count);
     final random = math.Random.secure();
-    final results = <int>[];
 
-    for (int i = 0; i < count; i++) {
-      int roll = random.nextInt(totalWeight);
-      int accumulated = 0;
-      int chosenMultiplier = 0;
-
-      for (final tier in odds) {
-        accumulated += tier['weight'] as int;
-        if (roll < accumulated) {
-          chosenMultiplier = tier['multiplier'] as int;
-          break;
-        }
+    // جدول نسب الفوز والخسارة المعياري العالمي (RTP: 82.5%، نسبة الخسارة: 58.3%)
+    // يضمن عدم استمرار الفوز بلا توقف وتوزيع النتائج بدقة هندسية:
+    // - خسارة (0X): 58.296% (58,296 / 100,000)
+    // - استرداد التكلفة / تعادل (1X): 28.000% (28,000 / 100,000)
+    // - ربح مضاعف (2X): 10.000% (10,000 / 100,000)
+    // - ربح جيد (5X): 2.500% (2,500 / 100,000)
+    // - ربح كبير (10X): 0.800% (800 / 100,000)
+    // - ربح فائق (20X): 0.300% (300 / 100,000)
+    // - بيج وين (50X): 0.080% (80 / 100,000)
+    // - جاكبوت (100X): 0.020% (20 / 100,000)
+    // - سوبر جاكبوت (500X): 0.004% (4 / 100,000)
+    final effectiveCount = count > 0 ? count : 1;
+    final wonMultipliers = <int>[];
+    for (int c = 0; c < effectiveCount; c++) {
+      final roll = random.nextInt(100000);
+      int mult;
+      if (roll < 58296) {
+        mult = 0;
+      } else if (roll < 86296) {
+        mult = 1;
+      } else if (roll < 96296) {
+        mult = 2;
+      } else if (roll < 98796) {
+        mult = 5;
+      } else if (roll < 99596) {
+        mult = 10;
+      } else if (roll < 99896) {
+        mult = 20;
+      } else if (roll < 99976) {
+        mult = 50;
+      } else if (roll < 99996) {
+        mult = 100;
+      } else {
+        mult = 500;
       }
-      results.add(chosenMultiplier);
+      if (mult > 0) {
+        wonMultipliers.add(mult);
+      }
     }
-    return results;
+
+    final cards = List<int>.filled(cardCount, 0);
+    final indices = List<int>.generate(cardCount, (i) => i)..shuffle(random);
+    for (int i = 0; i < wonMultipliers.length && i < cardCount; i++) {
+      cards[indices[i]] = wonMultipliers[i];
+    }
+    for (int i = cardCount; i < wonMultipliers.length; i++) {
+      final randomIdx = random.nextInt(cardCount);
+      cards[randomIdx] += wonMultipliers[i];
+    }
+
+    return cards;
   }
 
   Future<Map<String, dynamic>?> sendLuckyGift({
@@ -1263,8 +1284,7 @@ class FirebaseService {
     int comboCount = 1,
     List<int>? preDrawnMultipliers,
   }) async {
-    final cardCount = count < 4 ? 4 : (count > 8 ? 8 : count);
-    final multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(cardCount);
+    final multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count);
     int totalWonCoins = 0;
     for (final m in multipliers) {
       totalWonCoins += (value * m);
@@ -1644,14 +1664,11 @@ class FirebaseService {
       // Deduct coins & add diamonds in Supabase
       unawaited(Future(() async {
         try {
-          final sUser = await SupabaseAuthService().getUserFromSupabase(senderId);
-          if (sUser != null) {
-            final newCoins = (sUser.coins - totalCost + totalWonCoins).clamp(0, 999999999999);
-            await SupabaseDataService().updateUser(senderId, {
-              'coins': newCoins,
-              'total_gifts_sent': sUser.totalGiftsSent + totalCost,
-            });
-          }
+          final newCoins = (senderCoins - totalCost + totalWonCoins).clamp(0, 999999999999);
+          await SupabaseDataService().updateUser(senderId, {
+            'coins': newCoins,
+            'total_gifts_sent': sentTotal + totalCost,
+          });
           final rUser = await SupabaseAuthService().getUserFromSupabase(receiverId);
           if (rUser != null) {
             await SupabaseDataService().updateUser(receiverId, {
@@ -2005,17 +2022,31 @@ class FirebaseService {
               u = u.copyWith(followedRooms: followed);
             }
           }
-          latestUser = u;
-          controller.add(u);
-          // Sync coins/diamonds/customId to Firestore so Firestore checks/transactions match
-          try {
-            _db.collection('users').doc(uid).set({
-              'coins': u.coins,
-              'diamonds': u.diamonds,
-              'custom_id': u.customId,
-              'owned_items': u.ownedItems,
-            }, SetOptions(merge: true));
-          } catch (_) {}
+          if (latestUser == null) {
+            latestUser = u;
+            controller.add(u);
+            try {
+              _db.collection('users').doc(uid).set({
+                'coins': u.coins,
+                'diamonds': u.diamonds,
+                'custom_id': u.customId,
+                'owned_items': u.ownedItems,
+              }, SetOptions(merge: true));
+            } catch (_) {}
+          } else {
+            // Keep real-time coins & diamonds from Firestore transactions to prevent balance bounce
+            final mergedCoins = (latestUser!.coins >= 0) ? latestUser!.coins : u.coins;
+            final mergedDiamonds = (latestUser!.diamonds >= 0) ? latestUser!.diamonds : u.diamonds;
+            final merged = u.copyWith(coins: mergedCoins, diamonds: mergedDiamonds);
+            latestUser = merged;
+            controller.add(merged);
+            try {
+              _db.collection('users').doc(uid).set({
+                'custom_id': u.customId,
+                'owned_items': u.ownedItems,
+              }, SetOptions(merge: true));
+            } catch (_) {}
+          }
         }
       } catch (_) {}
     }

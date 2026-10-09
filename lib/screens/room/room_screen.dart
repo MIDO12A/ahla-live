@@ -683,18 +683,35 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final roomId = widget.roomId;
       final comboMultiplier = _roomComboMultiplier;
 
-      // خصم فوري في الذاكرة لسرعة استجابة فائقة
-      userProvider.deductCoinsLocally(totalCost);
+      // سحب النتائج وحساب صافي الرصيد فوريًا في الذاكرة لتحديث رصيد الواجهة بـ 0ms تأخير ومنع التدبيل واهتزاز الرصيد
+      final fb = SupabaseService();
+      final isLucky = gift.isLucky || gift.type == 3;
+      final Map<String, List<int>> targetDrawnMultipliers = {};
+      int totalAggregatedWon = 0;
+      if (isLucky) {
+        for (final r in selectedTargets) {
+          final rid = r['id']?.toString() ?? '';
+          final drawn = fb.drawLuckyMultipliers(count);
+          targetDrawnMultipliers[rid] = drawn;
+          totalAggregatedWon += drawn.fold<int>(0, (total, m) => total + (gift.value * m));
+        }
+        final netDelta = totalAggregatedWon - totalCost;
+        if (netDelta < 0) {
+          userProvider.deductCoinsLocally(netDelta.abs());
+        } else if (netDelta > 0) {
+          userProvider.addCoinsLocally(netDelta);
+        }
+      } else {
+        userProvider.deductCoinsLocally(totalCost);
+      }
 
       unawaited(Future.microtask(() async {
-        final fb = SupabaseService();
         await Future.wait(selectedTargets.map((r) async {
           final receiverId = r['id']?.toString() ?? '';
           final receiverName = r['name']?.toString() ?? '';
-          if (gift.isLucky || gift.type == 3) {
+          if (isLucky) {
             final cover = gift.defaultImage ?? gift.iconAsset;
-            final cardCount = count.clamp(1, 10);
-            final drawn = fb.drawLuckyMultipliers(cardCount);
+            final drawn = targetDrawnMultipliers[receiverId] ?? fb.drawLuckyMultipliers(count);
             final totalWon = drawn.fold<int>(0, (total, m) => total + (gift.value * m));
             final maxMult = drawn.isEmpty ? 0 : drawn.reduce((a, b) => a > b ? a : b);
             final cards = List.generate(drawn.length, (i) => LuckyCardResult(
@@ -742,7 +759,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               );
             }
 
-            final res = await fb.sendLuckyGift(
+            await fb.sendLuckyGift(
               roomId: roomId,
               giftId: gift.id,
               giftName: gift.name,
@@ -762,12 +779,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               comboCount: comboMultiplier,
               preDrawnMultipliers: drawn,
             );
-            if (res != null && res['wonCoins'] != null) {
-              final won = (res['wonCoins'] as num).toInt();
-              if (won > 0) {
-                userProvider.addCoinsLocally(won);
-              }
-            }
+            // ✅ تم تحديث الرصيد مسبقاً بالصافي لحظياً، لا نضيف won مجدداً لمنع التدبيل
           } else {
             final cover = gift.defaultImage ?? gift.iconAsset;
             if (cover.isNotEmpty) {
@@ -3702,7 +3714,52 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             if (sPhoto.isNotEmpty) {
                               unawaited(MediaCacheService().downloadToBytes(sPhoto).catchError((_) => Uint8List(0)));
                             }
-
+                            if (data['isLucky'] == true) {
+                              try {
+                                final giftObj = data['gift'] as gm.GiftModel?;
+                                final targetDrawn = data['targetDrawnMultipliers'] as Map<String, List<int>>?;
+                                if (giftObj != null && targetDrawn != null && targetDrawn.isNotEmpty) {
+                                  for (final entry in targetDrawn.entries) {
+                                    final drawn = entry.value;
+                                    final totalWon = drawn.fold<int>(0, (total, m) => total + (giftObj.value * m));
+                                    final maxMult = drawn.isEmpty ? 0 : drawn.reduce((a, b) => a > b ? a : b);
+                                    final cards = List.generate(drawn.length, (i) => LuckyCardResult(
+                                      index: i,
+                                      multiplier: drawn[i],
+                                      wonCoins: giftObj.value * drawn[i],
+                                      giftName: giftObj.name,
+                                      giftIcon: giftObj.iconAsset,
+                                    ));
+                                    final luckyModel = LuckyGiftModel(
+                                      id: giftObj.id,
+                                      giftName: giftObj.name,
+                                      giftNameAr: giftObj.name,
+                                      coinPrice: giftObj.value,
+                                      giftIconUrl: giftObj.iconAsset,
+                                      giftCoverUrl: defImg ?? giftObj.iconAsset,
+                                      giftBgUrl: defImg ?? giftObj.iconAsset,
+                                      svgaAnimUrl: giftObj.animationAsset,
+                                    );
+                                    final localData = LuckyGiftBroadcastData(
+                                      roomId: widget.roomId,
+                                      senderName: sName,
+                                      senderAvatar: sPhoto,
+                                      receiverName: data['receiverName']?.toString() ?? '',
+                                      gift: luckyModel,
+                                      cards: cards,
+                                      totalWonCoins: totalWon,
+                                      maxMultiplier: maxMult,
+                                      isBigWin: maxMult >= 50,
+                                      comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
+                                      comboCount: (data['giftCount'] as num?)?.toInt() ?? 1,
+                                    );
+                                    if (mounted) {
+                                      LuckyGiftService().enqueueLuckyGift(context, localData);
+                                    }
+                                  }
+                                }
+                              } catch (_) {}
+                            }
                           }
                         },
                         onCountTap: _showGiftCountMenu,
