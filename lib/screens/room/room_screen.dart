@@ -1332,6 +1332,35 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           if (seenMsgIds.contains(mId)) continue;
           seenMsgIds.add(mId);
 
+          if (m.type == 'seat_emoji') {
+            int seatIdx = -1;
+            if (m.giftPayload != null && m.giftPayload!['seat_index'] != null) {
+              seatIdx = (m.giftPayload!['seat_index'] as num).toInt();
+            }
+            if (seatIdx < 0 || seatIdx >= _seats.length || _seats[seatIdx].user?.id != m.senderUid) {
+              for (int s = 0; s < _seats.length; s++) {
+                if (_seats[s].user?.id == m.senderUid) {
+                  seatIdx = s;
+                  break;
+                }
+              }
+            }
+            if (seatIdx >= 0 && seatIdx < _seats.length) {
+              final sIdx = seatIdx;
+              final emojiStr = m.text;
+              setState(() {
+                _seatEmojis[sIdx] = emojiStr;
+              });
+              Future.delayed(const Duration(seconds: 4), () {
+                if (mounted && _seatEmojis[sIdx] == emojiStr) {
+                  setState(() {
+                    _seatEmojis.remove(sIdx);
+                  });
+                }
+              });
+            }
+          }
+
           if (m.type == 'gift') {
             if (m.senderUid != _currentUserId) {
               final payload = m.giftPayload ?? {};
@@ -5013,9 +5042,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // ── Emoji panel ───────────────────────────────────────────────
   Widget _buildEmojPanel() {
     final navH = MediaQuery.of(context).padding.bottom;
-    final staticEmojis = ['😀', '😂', '🥰', '😎', '🤔', '😅', '😊', '🙂',
-                   '❤️', '🔥', '💯', '✨', '🎉', '🎁', '👍', '👏',
-                   '😢', '😡', '😱', '🤩', '😴', '🤗', '😇', '🤫'];
     
     final config = context.read<DynamicConfigService>();
     final dynamicEmojis = config.appAssets.values
@@ -5023,7 +5049,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         .map((a) => a.remoteUrl!)
         .toList();
         
-    final emojis = [...dynamicEmojis, ...staticEmojis];
+    final emojis = dynamicEmojis;
     
     // Find current user's seat
     int? currentUserSeat;
@@ -5062,62 +5088,76 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 ),
               ),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 6, bottom: 15),
-                  child: GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 8,
-                      crossAxisSpacing: 6,
-                      mainAxisSpacing: 6,
-                    ),
-                    itemCount: emojis.length,
-                    itemBuilder: (_, idx) => GestureDetector(
-                      onTap: () {
-                        // Show emoji on current user's seat
-                        if (currentUserSeat != null) {
-                          final seat = currentUserSeat;
-                          setState(() {
-                            _seatEmojis[seat] = emojis[idx];
-                          });
-                          // Clear emoji after some time
-                          Future.delayed(const Duration(seconds: 3), () {
-                            if (mounted) {
-                              setState(() {
-                                if (_seatEmojis[seat] == emojis[idx]) {
-                                  _seatEmojis.remove(seat);
+                child: emojis.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'لا توجد إيموجيات مضافة من لوحة التحكم',
+                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.only(top: 6, bottom: 15),
+                        child: GridView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 6,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                          ),
+                          itemCount: emojis.length,
+                          itemBuilder: (_, idx) => GestureDetector(
+                            onTap: () {
+                              final userProvider = Provider.of<UserProvider>(context, listen: false);
+                              final user = userProvider.currentUser;
+                              final chosenEmoji = emojis[idx];
+
+                              // Show emoji on current user's seat and broadcast to all room members
+                              if (currentUserSeat != null && user != null) {
+                                final seat = currentUserSeat;
+                                setState(() {
+                                  _seatEmojis[seat] = chosenEmoji;
+                                });
+                                _firebaseService.sendSeatEmoji(
+                                  widget.roomId,
+                                  chosenEmoji,
+                                  user.uid,
+                                  user.name ?? '',
+                                  user.photoUrl ?? '',
+                                  seatIndex: seat,
+                                );
+                                Future.delayed(const Duration(seconds: 4), () {
+                                  if (mounted && _seatEmojis[seat] == chosenEmoji) {
+                                    setState(() {
+                                      _seatEmojis.remove(seat);
+                                    });
+                                  }
+                                });
+                              }
+                              
+                              // Send emoji directly to chat
+                              if (user != null) {
+                                if (chosenEmoji.startsWith('http')) {
+                                  _firebaseService.sendImageMessage(
+                                    widget.roomId, chosenEmoji, user.uid, user.name, user.photoUrl,
+                                  );
+                                } else {
+                                  _firebaseService.sendMessage(
+                                    widget.roomId, chosenEmoji, user.uid, user.name, user.photoUrl,
+                                    activeBubble: user.activeBubble,
+                                  );
                                 }
-                              });
-                            }
-                          });
-                        }
-                        
-                        // Send emoji directly to chat
-                        final userProvider = Provider.of<UserProvider>(context, listen: false);
-                        final user = userProvider.currentUser;
-                        if (user != null) {
-                          if (emojis[idx].startsWith('http')) {
-                            _firebaseService.sendImageMessage(
-                              widget.roomId, emojis[idx], user.uid, user.name, user.photoUrl,
-                            );
-                          } else {
-                            _firebaseService.sendMessage(
-                              widget.roomId, emojis[idx], user.uid, user.name, user.photoUrl,
-                              activeBubble: user.activeBubble,
-                            );
-                          }
-                        }
-                        
-                        setState(() => _showEmoj = false);
-                      },
-                      child: Center(
-                        child: emojis[idx].startsWith('http')
-                            ? Image.network(emojis[idx], width: 40, height: 40, fit: BoxFit.contain)
-                            : Text(emojis[idx], style: const TextStyle(fontSize: 26)),
+                              }
+                              
+                              setState(() => _showEmoj = false);
+                            },
+                            child: Center(
+                              child: chosenEmoji.startsWith('http')
+                                  ? Image.network(chosenEmoji, width: 44, height: 44, fit: BoxFit.contain)
+                                  : Text(chosenEmoji, style: const TextStyle(fontSize: 28)),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
               ),
             ],
           ),

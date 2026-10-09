@@ -36,10 +36,19 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
   List<MessageModel> _messages = [];
   bool _sendingImage = false;
   StreamSubscription? _messagesSub;
+  late String _otherName;
+  late String _otherPhotoUrl;
 
   @override
   void initState() {
     super.initState();
+    _otherName = widget.otherName;
+    _otherPhotoUrl = widget.otherPhotoUrl;
+
+    if (_otherName.isEmpty || _otherName == 'مستخدم' || _otherPhotoUrl.isEmpty) {
+      _loadOtherUserProfile();
+    }
+
     _messagesSub = _firebaseService
         .privateMessagesStream(widget.conversationId)
         .listen((msgs) {
@@ -56,6 +65,24 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
             userProvider.currentUser!.uid, widget.conversationId);
       }
     });
+  }
+
+  Future<void> _loadOtherUserProfile() async {
+    try {
+      final user = await _firebaseService.getUser(widget.otherUid);
+      if (user != null && mounted) {
+        setState(() {
+          if (user.name != null && user.name!.isNotEmpty) {
+            _otherName = user.name!;
+          }
+          if (user.photoUrl != null && user.photoUrl!.isNotEmpty) {
+            _otherPhotoUrl = user.photoUrl!;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading other user profile: $e');
+    }
   }
 
   void _confirmBlockUser() {
@@ -116,8 +143,8 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
         senderName: user.name ?? '',
         senderPhotoUrl: user.photoUrl ?? '',
         receiverId: widget.otherUid,
-        receiverName: widget.otherName,
-        receiverPhotoUrl: widget.otherPhotoUrl,
+        receiverName: _otherName,
+        receiverPhotoUrl: _otherPhotoUrl,
         text: text,
       );
     } catch (e) {
@@ -151,8 +178,8 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
         senderName: user.name ?? '',
         senderPhotoUrl: user.photoUrl ?? '',
         receiverId: widget.otherUid,
-        receiverName: widget.otherName,
-        receiverPhotoUrl: widget.otherPhotoUrl,
+        receiverName: _otherName,
+        receiverPhotoUrl: _otherPhotoUrl,
         text: '',
         imageUrl: imageUrl,
         type: 'image',
@@ -194,16 +221,16 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundImage: widget.otherPhotoUrl.isNotEmpty
-                  ? R.cachedImage(widget.otherPhotoUrl)
+              backgroundImage: _otherPhotoUrl.isNotEmpty
+                  ? R.cachedImage(_otherPhotoUrl)
                   : null,
-              child: widget.otherPhotoUrl.isEmpty
+              child: _otherPhotoUrl.isEmpty
                   ? const Icon(Icons.person, size: 18)
                   : null,
             ),
             const SizedBox(width: 8),
             Text(
-              widget.otherName,
+              _otherName,
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -219,7 +246,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
               if (value == 'report') {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => ReportUserScreen(nickname: widget.otherName, avatar: widget.otherPhotoUrl, reportedUid: widget.otherUid)),
+                  MaterialPageRoute(builder: (_) => ReportUserScreen(nickname: _otherName, avatar: _otherPhotoUrl, reportedUid: widget.otherUid)),
                 );
               } else if (value == 'block') {
                 _confirmBlockUser();
@@ -273,79 +300,118 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
   }
 
   Widget _buildMessageBubble(MessageModel msg, bool isMe) {
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.7,
-        ),
-        child: Column(
-          crossAxisAlignment:
-              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            if (!isMe)
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 2),
-                child: Text(
-                  msg.senderName.isNotEmpty ? msg.senderName : widget.otherName,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF9BA1B6),
-                  ),
-                ),
+    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+    final otherAvatarUrl = msg.senderPhotoUrl.isNotEmpty ? msg.senderPhotoUrl : _otherPhotoUrl;
+    final otherDisplayName = msg.senderName.isNotEmpty ? msg.senderName : _otherName;
+
+    final avatarWidget = CircleAvatar(
+      radius: 16,
+      backgroundColor: Colors.grey.shade300,
+      backgroundImage: (isMe
+          ? (user?.photoUrl != null && user!.photoUrl!.isNotEmpty ? R.cachedImage(user.photoUrl!) : null)
+          : (otherAvatarUrl.isNotEmpty ? R.cachedImage(otherAvatarUrl) : null)),
+      child: (isMe ? (user?.photoUrl == null || user!.photoUrl!.isEmpty) : otherAvatarUrl.isEmpty)
+          ? Icon(Icons.person, size: 16, color: Colors.grey.shade600)
+          : null,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isMe) ...[
+            avatarWidget,
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.72,
               ),
-            if (msg.type == 'image' && msg.imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: GestureDetector(
-                  onTap: () => _showImagePreview(msg.imageUrl!),
-                  child: Image(
-                    image: R.cachedImage(msg.imageUrl!),
-                    width: 200,
-                    height: 200,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 200,
-                      height: 200,
-                      color: Colors.white10,
-                      child: const Icon(Icons.image, color: Colors.white24, size: 36),
+              child: Column(
+                crossAxisAlignment:
+                    isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  if (!isMe)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 4),
+                      child: Text(
+                        otherDisplayName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    ),
+                  if (msg.type == 'image' && msg.imageUrl != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: GestureDetector(
+                        onTap: () => _showImagePreview(msg.imageUrl!),
+                        child: Image(
+                          image: R.cachedImage(msg.imageUrl!),
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 200,
+                            height: 200,
+                            color: Colors.white10,
+                            child: const Icon(Icons.image, color: Colors.white24, size: 36),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isMe
+                            ? const Color(0xFF1E90FF)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(16).copyWith(
+                          bottomRight: isMe ? const Radius.circular(2) : null,
+                          bottomLeft: !isMe ? const Radius.circular(2) : null,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        msg.text,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isMe ? Colors.white : const Color(0xFF16151A),
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+                    child: Text(
+                      _formatTime(msg.timestamp),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF9BA1B6),
+                      ),
                     ),
                   ),
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isMe
-                      ? const Color(0xFF1E90FF)
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(12).copyWith(
-                    bottomRight: isMe ? const Radius.circular(0) : null,
-                    bottomLeft: !isMe ? const Radius.circular(0) : null,
-                  ),
-                ),
-                child: Text(
-                  msg.text,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isMe ? Colors.white : const Color(0xFF16151A),
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                _formatTime(msg.timestamp),
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Color(0xFF9BA1B6),
-                ),
+                ],
               ),
             ),
+          ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            avatarWidget,
           ],
-        ),
+        ],
       ),
     );
   }

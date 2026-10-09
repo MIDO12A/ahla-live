@@ -3,6 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_express_engine/zego_express_engine.dart';
 import '../config/app_config.dart';
 import '../services/dynamic_config_service.dart';
+import 'room_music_player_service.dart';
 
 class RoomAudioService {
   static final RoomAudioService _instance = RoomAudioService._();
@@ -278,7 +279,12 @@ class RoomAudioService {
       final engine = ZegoExpressEngine.instance;
       await engine.muteMicrophone(!on);
       if (_isPublishing) {
-        await engine.mutePublishStreamAudio(!on);
+        final isMusicPlaying = RoomMusicPlayerService().isPlaying;
+        if (!isMusicPlaying) {
+          await engine.mutePublishStreamAudio(!on);
+        } else {
+          await engine.mutePublishStreamAudio(false);
+        }
       }
       debugPrint('[RoomAudioService] toggleMic on=$on (hardware + stream muted=${!on})');
       return true;

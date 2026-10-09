@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:zego_express_engine/zego_express_engine.dart';
+import 'room_audio_service.dart';
 
 class RoomMusicTrack {
   final String id;
@@ -29,6 +32,8 @@ class RoomMusicPlayerService {
   }
 
   AudioPlayer? _player;
+  ZegoMediaPlayer? _zegoPlayer;
+  bool _useZego = false;
   final List<RoomMusicTrack> _playlist = [];
   int _currentIndex = -1;
 
@@ -49,23 +54,64 @@ class RoomMusicPlayerService {
     _player = AudioPlayer();
 
     _player!.playerStateStream.listen((state) {
-      isPlayingNotifier.value = state.playing;
-      if (state.processingState == ProcessingState.completed) {
-        _onTrackCompleted();
+      if (!_useZego) {
+        isPlayingNotifier.value = state.playing;
+        if (state.processingState == ProcessingState.completed) {
+          _onTrackCompleted();
+        }
       }
     });
 
     _player!.positionStream.listen((pos) {
-      positionNotifier.value = pos;
+      if (!_useZego) {
+        positionNotifier.value = pos;
+      }
     });
 
     _player!.durationStream.listen((dur) {
-      if (dur != null) {
+      if (!_useZego && dur != null) {
         durationNotifier.value = dur;
       }
     });
 
     _player!.setVolume(volumeNotifier.value);
+  }
+
+  Future<void> _ensureZegoPlayer() async {
+    final roomAudio = RoomAudioService();
+    if (!roomAudio.isInitialized) return;
+    if (_zegoPlayer != null) return;
+
+    try {
+      _zegoPlayer = await ZegoExpressEngine.instance.createMediaPlayer();
+      if (_zegoPlayer != null) {
+        await _zegoPlayer!.enableAux(true);
+        await _zegoPlayer!.setVolume((volumeNotifier.value * 100).toInt());
+
+        _zegoPlayer!.onMediaPlayerStateUpdate = (player, state, errorCode) {
+          if (_useZego) {
+            if (state == ZegoMediaPlayerState.Playing) {
+              isPlayingNotifier.value = true;
+            } else if (state == ZegoMediaPlayerState.Paused) {
+              isPlayingNotifier.value = false;
+            } else if (state == ZegoMediaPlayerState.NoPlay) {
+              isPlayingNotifier.value = false;
+              if (errorCode == 0) {
+                _onTrackCompleted();
+              }
+            }
+          }
+        };
+
+        _zegoPlayer!.onMediaPlayerPlayingProgress = (player, millisecond) {
+          if (_useZego) {
+            positionNotifier.value = Duration(milliseconds: millisecond);
+          }
+        };
+      }
+    } catch (e) {
+      debugPrint('[RoomMusicPlayerService] createMediaPlayer error: $e');
+    }
   }
 
   void _onTrackCompleted() {
@@ -136,6 +182,38 @@ class RoomMusicPlayerService {
     final track = _playlist[index];
     currentTrackNotifier.value = track;
 
+    final roomAudio = RoomAudioService();
+    if (roomAudio.isInitialized && !roomAudio.isPublishing) {
+      unawaited(roomAudio.startPublishing());
+    }
+
+    await _ensureZegoPlayer();
+
+    if (_zegoPlayer != null) {
+      _useZego = true;
+      try {
+        await _player?.stop();
+        await _zegoPlayer!.stop();
+        final res = await _zegoPlayer!.loadResource(track.path);
+        if (res.errorCode == 0) {
+          final totalMs = await _zegoPlayer!.getTotalDuration();
+          if (totalMs > 0) {
+            durationNotifier.value = Duration(milliseconds: totalMs);
+          }
+          await _zegoPlayer!.enableAux(true);
+          await _zegoPlayer!.setVolume((volumeNotifier.value * 100).toInt());
+          await _zegoPlayer!.start();
+          isPlayingNotifier.value = true;
+          return;
+        } else {
+          debugPrint('[RoomMusicPlayerService] zego loadResource failed code: ${res.errorCode}, falling back to just_audio');
+        }
+      } catch (e) {
+        debugPrint('[RoomMusicPlayerService] zego play error: $e, falling back to just_audio');
+      }
+    }
+
+    _useZego = false;
     try {
       _player ??= AudioPlayer();
       if (track.isLocal) {
@@ -144,8 +222,9 @@ class RoomMusicPlayerService {
         await _player!.setUrl(track.path);
       }
       await _player!.play();
+      isPlayingNotifier.value = true;
     } catch (e) {
-      debugPrint('[RoomMusicPlayerService] playTrack error: $e');
+      debugPrint('[RoomMusicPlayerService] playTrack fallback error: $e');
     }
   }
 
@@ -154,11 +233,23 @@ class RoomMusicPlayerService {
       await playTrack(0);
       return;
     }
-    await _player?.play();
+    if (_useZego && _zegoPlayer != null) {
+      await _zegoPlayer!.resume();
+      isPlayingNotifier.value = true;
+    } else {
+      await _player?.play();
+      isPlayingNotifier.value = true;
+    }
   }
 
   Future<void> pause() async {
-    await _player?.pause();
+    if (_useZego && _zegoPlayer != null) {
+      await _zegoPlayer!.pause();
+      isPlayingNotifier.value = false;
+    } else {
+      await _player?.pause();
+      isPlayingNotifier.value = false;
+    }
   }
 
   Future<void> togglePlay() async {
@@ -188,12 +279,20 @@ class RoomMusicPlayerService {
   }
 
   Future<void> seek(Duration position) async {
-    await _player?.seek(position);
+    positionNotifier.value = position;
+    if (_useZego && _zegoPlayer != null) {
+      await _zegoPlayer!.seekTo(position.inMilliseconds);
+    } else {
+      await _player?.seek(position);
+    }
   }
 
   Future<void> setVolume(double vol) async {
     final v = vol.clamp(0.0, 1.0);
     volumeNotifier.value = v;
+    if (_zegoPlayer != null) {
+      await _zegoPlayer!.setVolume((v * 100).toInt());
+    }
     await _player?.setVolume(v);
   }
 
@@ -201,17 +300,23 @@ class RoomMusicPlayerService {
     final current = loopModeNotifier.value;
     if (current == LoopMode.all) {
       loopModeNotifier.value = LoopMode.one;
+      _zegoPlayer?.enableRepeat(true);
       _player?.setLoopMode(LoopMode.one);
     } else if (current == LoopMode.one) {
       loopModeNotifier.value = LoopMode.off;
+      _zegoPlayer?.enableRepeat(false);
       _player?.setLoopMode(LoopMode.off);
     } else {
       loopModeNotifier.value = LoopMode.all;
+      _zegoPlayer?.enableRepeat(false);
       _player?.setLoopMode(LoopMode.all);
     }
   }
 
   Future<void> stop() async {
+    if (_zegoPlayer != null) {
+      await _zegoPlayer!.stop();
+    }
     await _player?.stop();
     isPlayingNotifier.value = false;
   }
@@ -222,5 +327,14 @@ class RoomMusicPlayerService {
     _currentIndex = -1;
     currentTrackNotifier.value = null;
     playlistNotifier.value = [];
+  }
+
+  void release() {
+    stop();
+    if (_zegoPlayer != null) {
+      ZegoExpressEngine.instance.destroyMediaPlayer(_zegoPlayer!);
+      _zegoPlayer = null;
+    }
+    _useZego = false;
   }
 }

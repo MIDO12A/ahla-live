@@ -43,6 +43,8 @@ class FirebaseService {
   factory FirebaseService() => _instance;
   FirebaseService._();
 
+  static final Map<String, ({String name, String photoUrl})> _userInfoCache = {};
+
   late final FirebaseApp _app;
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -620,6 +622,27 @@ class FirebaseService {
       type: 'text',
       timestamp: DateTime.now().millisecondsSinceEpoch,
       activeBubble: activeBubble,
+    );
+    unawaited(SupabaseDataService().sendMessage(msg));
+    try {
+      await _db.collection('room_messages').doc(msgId).set(msg.toMap());
+    } catch (_) {}
+  }
+
+  Future<void> sendSeatEmoji(String roomId, String emoji, String senderUid,
+      String senderName, String senderPhotoUrl, {int? seatIndex}) async {
+    final msgId = const Uuid().v4();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final msg = MessageModel(
+      msgId: msgId,
+      roomId: roomId,
+      senderUid: senderUid,
+      senderName: senderName,
+      senderPhotoUrl: senderPhotoUrl,
+      text: emoji,
+      type: 'seat_emoji',
+      timestamp: now,
+      giftPayload: seatIndex != null ? {'seat_index': seatIndex} : null,
     );
     unawaited(SupabaseDataService().sendMessage(msg));
     try {
@@ -3138,11 +3161,21 @@ class FirebaseService {
           if (cId.isEmpty) continue;
           final isSender = (r['uid']?.toString() == uid);
           final otherUid = isSender ? (r['other_uid']?.toString() ?? '') : (r['uid']?.toString() ?? '');
-          final otherName = isSender ? (r['other_name']?.toString() ?? 'مستخدم') : 'مستخدم';
-          final otherPhoto = isSender ? (r['other_photo_url']?.toString() ?? '') : '';
+          String otherName = isSender ? (r['other_name']?.toString() ?? '') : '';
+          String otherPhoto = isSender ? (r['other_photo_url']?.toString() ?? '') : '';
+
+          if (_userInfoCache.containsKey(otherUid)) {
+            final cached = _userInfoCache[otherUid]!;
+            if (otherName.isEmpty || otherName == 'مستخدم') otherName = cached.name;
+            if (otherPhoto.isEmpty) otherPhoto = cached.photoUrl;
+          }
+
+          if (otherName.isEmpty) otherName = 'مستخدم';
 
           final key = '${uid}_$cId';
-          if (!convsMap.containsKey(key)) {
+          if (!convsMap.containsKey(key) ||
+              (convsMap[key]?['otherName'] == 'مستخدم' && otherName != 'مستخدم') ||
+              ((convsMap[key]?['otherPhotoUrl'] == null || (convsMap[key]?['otherPhotoUrl'] as String).isEmpty) && otherPhoto.isNotEmpty)) {
             convsMap[key] = {
               'uid': uid,
               'conversationId': cId,
@@ -3150,9 +3183,27 @@ class FirebaseService {
               'otherName': otherName,
               'otherPhotoUrl': otherPhoto,
               'lastMessage': r['last_message']?.toString() ?? '',
-              'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
+              'lastMessageTime': r['updated_at'] != null
+                  ? (DateTime.tryParse(r['updated_at'].toString())?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch)
+                  : DateTime.now().millisecondsSinceEpoch,
               'unreadCount': isSender ? 0 : (r['unread_count'] as int? ?? 0),
             };
+          }
+
+          if (otherUid.isNotEmpty && (otherName == 'مستخدم' || otherPhoto.isEmpty)) {
+            getUser(otherUid).then((u) {
+              if (u != null) {
+                final uName = (u.name != null && u.name!.isNotEmpty) ? u.name! : 'مستخدم';
+                final uPhoto = (u.photoUrl != null && u.photoUrl!.isNotEmpty) ? u.photoUrl! : '';
+                _userInfoCache[otherUid] = (name: uName, photoUrl: uPhoto);
+                final cur = convsMap[key];
+                if (cur != null) {
+                  cur['otherName'] = uName;
+                  cur['otherPhotoUrl'] = uPhoto;
+                  emitMerged();
+                }
+              }
+            }).catchError((_) {});
           }
         }
         emitMerged();
@@ -3183,6 +3234,28 @@ class FirebaseService {
           final data = Map<String, dynamic>.from(doc.data());
           final cId = data['conversationId']?.toString() ?? doc.id;
           final key = '${uid}_$cId';
+          final oUid = data['otherUid']?.toString() ?? '';
+          if (oUid.isNotEmpty && (data['otherName'] == null || data['otherName'] == 'مستخدم' || data['otherPhotoUrl'] == null || (data['otherPhotoUrl'] as String).isEmpty)) {
+            if (_userInfoCache.containsKey(oUid)) {
+              final cached = _userInfoCache[oUid]!;
+              data['otherName'] = cached.name;
+              data['otherPhotoUrl'] = cached.photoUrl;
+            } else {
+              getUser(oUid).then((u) {
+                if (u != null) {
+                  final uName = (u.name != null && u.name!.isNotEmpty) ? u.name! : 'مستخدم';
+                  final uPhoto = (u.photoUrl != null && u.photoUrl!.isNotEmpty) ? u.photoUrl! : '';
+                  _userInfoCache[oUid] = (name: uName, photoUrl: uPhoto);
+                  final cur = convsMap[key];
+                  if (cur != null) {
+                    cur['otherName'] = uName;
+                    cur['otherPhotoUrl'] = uPhoto;
+                    emitMerged();
+                  }
+                }
+              }).catchError((_) {});
+            }
+          }
           convsMap[key] = data;
         }
         emitMerged();
@@ -3225,11 +3298,21 @@ class FirebaseService {
           if (mId.isEmpty) continue;
           final existing = msgMap[mId];
           final text = r['text']?.toString() ?? '';
+          final sUid = r['sender_uid']?.toString() ?? existing?.senderUid ?? '';
+          String sName = r['sender_name']?.toString() ?? existing?.senderName ?? '';
+          String sPhoto = r['sender_photo_url']?.toString() ?? existing?.senderPhotoUrl ?? '';
+
+          if (_userInfoCache.containsKey(sUid)) {
+            final cached = _userInfoCache[sUid]!;
+            if (sName.isEmpty || sName == 'مستخدم') sName = cached.name;
+            if (sPhoto.isEmpty) sPhoto = cached.photoUrl;
+          }
+
           final m = MessageModel(
             msgId: mId,
-            senderUid: r['sender_uid']?.toString() ?? existing?.senderUid ?? '',
-            senderName: existing?.senderName ?? '',
-            senderPhotoUrl: existing?.senderPhotoUrl ?? '',
+            senderUid: sUid,
+            senderName: sName,
+            senderPhotoUrl: sPhoto,
             text: text,
             imageUrl: existing?.imageUrl,
             type: (existing != null && existing.type == 'image') || text == '[صورة]' ? 'image' : 'text',
@@ -3238,6 +3321,31 @@ class FirebaseService {
                 : (existing?.timestamp ?? 0),
           );
           msgMap[mId] = m;
+
+          if (sUid.isNotEmpty && (sName.isEmpty || sPhoto.isEmpty)) {
+            getUser(sUid).then((u) {
+              if (u != null) {
+                final uName = (u.name != null && u.name!.isNotEmpty) ? u.name! : '';
+                final uPhoto = (u.photoUrl != null && u.photoUrl!.isNotEmpty) ? u.photoUrl! : '';
+                _userInfoCache[sUid] = (name: uName, photoUrl: uPhoto);
+                final cur = msgMap[mId];
+                if (cur != null && (cur.senderName.isEmpty || cur.senderPhotoUrl.isEmpty)) {
+                  msgMap[mId] = MessageModel(
+                    msgId: cur.msgId,
+                    roomId: cur.roomId,
+                    senderUid: cur.senderUid,
+                    senderName: cur.senderName.isNotEmpty ? cur.senderName : uName,
+                    senderPhotoUrl: cur.senderPhotoUrl.isNotEmpty ? cur.senderPhotoUrl : uPhoto,
+                    text: cur.text,
+                    imageUrl: cur.imageUrl,
+                    type: cur.type,
+                    timestamp: cur.timestamp,
+                  );
+                  emitMerged();
+                }
+              }
+            }).catchError((_) {});
+          }
         }
         emitMerged();
       } catch (e) {
