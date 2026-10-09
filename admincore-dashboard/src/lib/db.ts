@@ -1833,15 +1833,68 @@ export async function sendSystemNotification(data: {
   }
 }
 
-function mapFoundUserProfile(u: any) {
+export async function getUserOriginalCustomId(uid: string): Promise<string> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const { data: user } = await client.from('users').select('custom_id, original_custom_id').eq('uid', uid).maybeSingle();
+    if (user?.original_custom_id) {
+      return String(user.original_custom_id).trim();
+    }
+    const { data: cfg } = await client.from('app_config').select('value').eq('key', `orig_cid_${uid}`).maybeSingle();
+    if (cfg?.value?.originalId) {
+      return String(cfg.value.originalId).trim();
+    }
+    if (typeof cfg?.value === 'string' && cfg.value.trim()) {
+      return cfg.value.trim();
+    }
+  } catch (e) {
+    console.warn('getUserOriginalCustomId error:', e);
+  }
+  return '';
+}
+
+export async function setUserOriginalCustomId(uid: string, originalId: string): Promise<void> {
+  if (!uid || !originalId) return;
+  const client = getAdminSupabase() || supabase;
+  const cleanId = String(originalId).trim();
+  try {
+    await client.from('users').update({ original_custom_id: cleanId }).eq('uid', uid);
+  } catch {
+    // If column missing in users table, ignore error
+  }
+  try {
+    await client.from('app_config').upsert({
+      key: `orig_cid_${uid}`,
+      value: { originalId: cleanId, savedAt: Date.now() },
+    });
+  } catch (err) {
+    console.warn('setUserOriginalCustomId app_config error:', err);
+  }
+}
+
+async function mapFoundUserProfile(u: any) {
   if (!u) return null;
+  const uid = String(u.uid || u.id || '');
+  const customId = String(u.custom_id || u.customId || u.display_id || (uid ? uid.slice(0, 8) : ''));
+  let origId = String(u.original_custom_id || u.originalCustomId || '').trim();
+  if (!origId && uid) {
+    origId = await getUserOriginalCustomId(uid);
+  }
+  const isSpecial = Boolean(
+    (origId && origId !== customId) ||
+    (customId && !isNaN(Number(customId)) && customId.length <= 6)
+  );
+
   return {
-    id: String(u.uid || u.id || ''),
-    uid: String(u.uid || u.id || ''),
+    id: uid,
+    uid: uid,
     name: u.name || u.display_name || 'بدون اسم',
-    custom_id: String(u.custom_id || u.customId || u.display_id || (u.uid || u.id || '').slice(0, 8)),
+    custom_id: customId,
+    original_custom_id: origId || undefined,
+    is_special_id: isSpecial,
     photo_url: u.photo_url || u.photoUrl || u.avatar || '',
     coins: Number(u.coins || 0),
+    diamonds: Number(u.diamonds || 0),
     agency_id: u.agency_id || undefined,
     is_recharge_agent: Boolean(u.is_recharge_agent || u.isRechargeAgent || u.is_agent),
   };
@@ -1852,8 +1905,11 @@ export async function searchUserProfile(queryStr: string): Promise<{
   uid: string;
   name: string;
   custom_id: string;
+  original_custom_id?: string;
+  is_special_id?: boolean;
   photo_url: string;
   coins: number;
+  diamonds?: number;
   agency_id?: string;
   is_recharge_agent?: boolean;
 } | null> {
@@ -1872,7 +1928,7 @@ export async function searchUserProfile(queryStr: string): Promise<{
       .limit(1);
 
     if (!errCid && byCid && byCid.length > 0) {
-      return mapFoundUserProfile(byCid[0]);
+      return await mapFoundUserProfile(byCid[0]);
     }
 
     if (!isNaN(Number(q))) {
@@ -1882,7 +1938,7 @@ export async function searchUserProfile(queryStr: string): Promise<{
         .eq('custom_id', Number(q))
         .limit(1);
       if (byNumCid && byNumCid.length > 0) {
-        return mapFoundUserProfile(byNumCid[0]);
+        return await mapFoundUserProfile(byNumCid[0]);
       }
     }
 
@@ -1894,9 +1950,19 @@ export async function searchUserProfile(queryStr: string): Promise<{
       .limit(1);
 
     if (!errUid && byUid && byUid.length > 0) {
-      return mapFoundUserProfile(byUid[0]);
+      return await mapFoundUserProfile(byUid[0]);
     }
 
+    // 3. Check by id (uuid)
+    const { data: byId } = await client
+      .from('users')
+      .select('*')
+      .eq('id', q)
+      .limit(1);
+
+    if (byId && byId.length > 0) {
+      return await mapFoundUserProfile(byId[0]);
+    }
 
     // 4. Check by name (ilike search)
     const { data: byName } = await client
@@ -1906,7 +1972,7 @@ export async function searchUserProfile(queryStr: string): Promise<{
       .limit(1);
 
     if (byName && byName.length > 0) {
-      return mapFoundUserProfile(byName[0]);
+      return await mapFoundUserProfile(byName[0]);
     }
 
     // 5. Fallback in-memory search over top users
@@ -1923,11 +1989,9 @@ export async function searchUserProfile(queryStr: string): Promise<{
         return uid === qLower || cid === qLower || (name && name.includes(qLower));
       });
       if (found) {
-        return mapFoundUserProfile(found);
+        return await mapFoundUserProfile(found);
       }
     }
-
-
   } catch (e) {
     console.warn('searchUserProfile failed:', e);
   }
@@ -2652,6 +2716,321 @@ export async function revokeUserVIP(uid: string, tier: number) {
     await supabase.from('user_vips').delete().eq('uid', uid).eq('tier', tier)
   } catch (e) {
     console.warn('revokeUserVIP failed:', e)
+  }
+}
+
+// ---- Unified User Gifting (Store, Special IDs, VIP, Badges & Necklaces) ----
+
+export async function getUnifiedGiftedItems(): Promise<GiftedItem[]> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const { data: gifts, error } = await client
+      .from('gifted_items')
+      .select('*')
+      .order('sent_at', { ascending: false });
+
+    if (error) {
+      console.warn('getUnifiedGiftedItems error:', error);
+      return [];
+    }
+    const rows = gifts || [];
+    if (rows.length === 0) return [];
+
+    const uids = [...new Set(rows.map((r: any) => r.uid).filter(Boolean))];
+    const { data: users } = await client
+      .from('users')
+      .select('uid, name, custom_id, original_custom_id, photo_url')
+      .in('uid', uids);
+
+    const userMap: Record<string, any> = {};
+    (users || []).forEach((u: any) => {
+      userMap[u.uid] = u;
+    });
+
+    return rows.map((r: any) => ({
+      id: String(r.id),
+      uid: String(r.uid),
+      item_id: String(r.item_id || ''),
+      item_category: String(r.item_category || ''),
+      item_name: String(r.item_name || ''),
+      item_icon: String(r.item_icon || ''),
+      svga_asset: r.svga_asset || null,
+      video_asset: r.video_asset || null,
+      sent_by: String(r.sent_by || 'admin'),
+      sent_by_name: String(r.sent_by_name || 'الإدارة'),
+      sent_at: Number(r.sent_at || 0),
+      expires_at: Number(r.expires_at || 0),
+      user: userMap[r.uid] ? {
+        uid: userMap[r.uid].uid,
+        name: userMap[r.uid].name || 'بدون اسم',
+        custom_id: userMap[r.uid].custom_id || '',
+        original_custom_id: userMap[r.uid].original_custom_id || '',
+        photo_url: userMap[r.uid].photo_url || '',
+      } : undefined,
+    }));
+  } catch (err) {
+    console.error('getUnifiedGiftedItems error:', err);
+    return [];
+  }
+}
+
+export async function sendUnifiedGift(params: {
+  uid: string;
+  type: 'store' | 'special_id' | 'vip' | 'badge' | 'necklace';
+  itemId: string;
+  itemName: string;
+  itemCategory: string;
+  itemIcon?: string;
+  svgaAsset?: string;
+  videoAsset?: string;
+  expiryDays?: number; // 0 or undefined for permanent
+  sentBy?: string;
+  sentByName?: string;
+}): Promise<{ success: boolean; message?: string }> {
+  const client = getAdminSupabase() || supabase;
+  const { uid, type, itemId, itemName, itemCategory, itemIcon, svgaAsset, videoAsset, expiryDays = 0, sentBy = 'admin', sentByName = 'الإدارة' } = params;
+
+  try {
+    // 1. Verify user exists
+    const { data: user, error: uErr } = await client
+      .from('users')
+      .select('*')
+      .eq('uid', uid)
+      .maybeSingle();
+
+    if (uErr || !user) {
+      return { success: false, message: 'المستخدم غير موجود' };
+    }
+
+    const giftId = 'gi_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    const sentAt = Date.now();
+    const expiresAt = expiryDays > 0 ? Date.now() + (expiryDays * 86400000) : 0;
+
+    if (type === 'special_id') {
+      const specialIdClean = itemId.trim();
+      if (!specialIdClean) {
+        return { success: false, message: 'يرجى إدخال الآيدي المميز' };
+      }
+      // Check availability
+      const avail = await checkCustomIdAvailable(specialIdClean, uid);
+      if (!avail.available) {
+        return { success: false, message: avail.reason || 'هذا الآيدي مستخدم بالفعل' };
+      }
+
+      // Check if user already has an original custom ID saved
+      const existingOrig = await getUserOriginalCustomId(uid);
+      if (!existingOrig) {
+        const currentCid = String(user.custom_id || user.customId || '').trim();
+        if (currentCid && currentCid !== specialIdClean) {
+          await setUserOriginalCustomId(uid, currentCid);
+        }
+      }
+
+      // Update user custom_id
+      await updateUser(uid, { customId: specialIdClean });
+
+      // Save to gifted_items
+      await client.from('gifted_items').insert({
+        id: giftId,
+        uid,
+        item_id: specialIdClean,
+        item_category: 'special_id',
+        item_name: itemName || `آيدي مميز: ${specialIdClean}`,
+        item_icon: itemIcon || 'assets/mipmap-xxhdpi/ic_id_card_prop.png',
+        sent_by: sentBy,
+        sent_by_name: sentByName,
+        sent_at: sentAt,
+        expires_at: expiresAt,
+      });
+
+      return { success: true, message: `تم إهداء الآيدي المميز (${specialIdClean}) بنجاح والاحتفاظ بالآيدي القديم!` };
+    }
+
+    if (type === 'store') {
+      // Add to owned_items in users table
+      const currentOwned = Array.isArray(user.owned_items) ? user.owned_items : [];
+      if (!currentOwned.includes(itemId)) {
+        await client.from('users').update({
+          owned_items: [...currentOwned, itemId],
+        }).eq('uid', uid);
+      }
+
+      // Add to user_backpack
+      try {
+        await client.from('user_backpack').upsert({
+          user_id: uid,
+          item_id: itemId,
+          item_type: itemCategory || 'store',
+          expires_at: expiresAt > 0 ? new Date(expiresAt).toISOString() : null,
+        });
+      } catch (bpErr) {
+        console.warn('user_backpack insert warning:', bpErr);
+      }
+
+      // Add to gifted_items
+      await client.from('gifted_items').insert({
+        id: giftId,
+        uid,
+        item_id: itemId,
+        item_category: itemCategory || 'frame',
+        item_name: itemName,
+        item_icon: itemIcon || '',
+        svga_asset: svgaAsset || null,
+        video_asset: videoAsset || null,
+        sent_by: sentBy,
+        sent_by_name: sentByName,
+        sent_at: sentAt,
+        expires_at: expiresAt,
+      });
+
+      return { success: true, message: `تم إهداء العنصر (${itemName}) بنجاح!` };
+    }
+
+    if (type === 'vip') {
+      const tierNum = Number(itemId) || 1;
+      await giftVIP(uid, tierNum, sentByName, expiryDays > 0 ? expiryDays : undefined);
+
+      await client.from('gifted_items').insert({
+        id: giftId,
+        uid,
+        item_id: String(tierNum),
+        item_category: 'vip',
+        item_name: itemName || `VIP ${tierNum}`,
+        item_icon: itemIcon || 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
+        sent_by: sentBy,
+        sent_by_name: sentByName,
+        sent_at: sentAt,
+        expires_at: expiresAt,
+      });
+
+      return { success: true, message: `تم إهداء رتبة (${itemName || 'VIP ' + tierNum}) بنجاح!` };
+    }
+
+    if (type === 'badge') {
+      const currentBadges = Array.isArray(user.owned_badges) ? user.owned_badges : [];
+      if (!currentBadges.includes(itemId)) {
+        await client.from('users').update({
+          owned_badges: [...currentBadges, itemId],
+        }).eq('uid', uid);
+      }
+
+      await client.from('gifted_items').insert({
+        id: giftId,
+        uid,
+        item_id: itemId,
+        item_category: 'badge',
+        item_name: itemName,
+        item_icon: itemIcon || 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
+        sent_by: sentBy,
+        sent_by_name: sentByName,
+        sent_at: sentAt,
+        expires_at: expiresAt,
+      });
+
+      return { success: true, message: `تم إهداء الشارة (${itemName}) بنجاح!` };
+    }
+
+    if (type === 'necklace') {
+      const currentNecklaces = Array.isArray(user.owned_necklaces) ? user.owned_necklaces : [];
+      const updates: Record<string, any> = {
+        active_necklace: itemId,
+      };
+      if (!currentNecklaces.includes(itemId)) {
+        updates.owned_necklaces = [...currentNecklaces, itemId];
+      }
+      await client.from('users').update(updates).eq('uid', uid);
+
+      await client.from('gifted_items').insert({
+        id: giftId,
+        uid,
+        item_id: itemId,
+        item_category: 'necklace',
+        item_name: itemName,
+        item_icon: itemIcon || '',
+        svga_asset: svgaAsset || null,
+        sent_by: sentBy,
+        sent_by_name: sentByName,
+        sent_at: sentAt,
+        expires_at: expiresAt,
+      });
+
+      return { success: true, message: `تم إهداء القلادة (${itemName}) بنجاح!` };
+    }
+
+    return { success: false, message: 'نوع إهداء غير معروف' };
+  } catch (err: any) {
+    console.error('sendUnifiedGift error:', err);
+    return { success: false, message: err?.message || 'حدث خطأ أثناء الإهداء' };
+  }
+}
+
+export async function revokeUnifiedGift(giftId: string): Promise<{ success: boolean; message?: string }> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const { data: gift, error } = await client
+      .from('gifted_items')
+      .select('*')
+      .eq('id', giftId)
+      .maybeSingle();
+
+    if (error || !gift) {
+      return { success: false, message: 'الهدية غير موجودة أو تم حذفها مسبقاً' };
+    }
+
+    const { uid, item_category, item_id } = gift;
+
+    // 1. Fetch user
+    const { data: user } = await client.from('users').select('*').eq('uid', uid).maybeSingle();
+
+    if (item_category === 'special_id') {
+      // Revert custom_id to original_custom_id
+      const origCid = await getUserOriginalCustomId(uid);
+      if (origCid && user?.custom_id === item_id) {
+        await updateUser(uid, { customId: origCid });
+      }
+    } else if (item_category === 'vip') {
+      await revokeUserVIP(uid, Number(item_id));
+    } else if (item_category === 'badge') {
+      if (user && Array.isArray(user.owned_badges)) {
+        const updated = user.owned_badges.filter((b: string) => b !== item_id);
+        await client.from('users').update({ owned_badges: updated }).eq('uid', uid);
+      }
+    } else if (item_category === 'necklace') {
+      if (user) {
+        const currentNecklaces = Array.isArray(user.owned_necklaces) ? user.owned_necklaces : [];
+        const updated = currentNecklaces.filter((n: string) => n !== item_id);
+        const updates: Record<string, any> = { owned_necklaces: updated };
+        if (user.active_necklace === item_id) {
+          updates.active_necklace = null;
+        }
+        await client.from('users').update(updates).eq('uid', uid);
+      }
+    } else {
+      // Store items: frame, car, entrance, bubble, etc.
+      if (user) {
+        const currentOwned = Array.isArray(user.owned_items) ? user.owned_items : [];
+        const updated = currentOwned.filter((it: string) => it !== item_id);
+        const updates: Record<string, any> = { owned_items: updated };
+        if (user.active_frame === item_id) updates.active_frame = null;
+        if (user.active_headwear === item_id) updates.active_headwear = null;
+        if (user.active_bubble === item_id) updates.active_bubble = null;
+        if (user.active_entrance === item_id) updates.active_entrance = null;
+        if (user.active_car === item_id) updates.active_car = null;
+        if (user.active_cover === item_id) updates.active_cover = null;
+        await client.from('users').update(updates).eq('uid', uid);
+      }
+      try {
+        await client.from('user_backpack').delete().eq('user_id', uid).eq('item_id', item_id);
+      } catch (_) {}
+    }
+
+    // Delete record from gifted_items
+    await client.from('gifted_items').delete().eq('id', giftId);
+
+    return { success: true, message: 'تم سحب الهدية بنجاح واسترجاع الحالة السابقة!' };
+  } catch (err: any) {
+    console.error('revokeUnifiedGift error:', err);
+    return { success: false, message: err?.message || 'فشل سحب الهدية' };
   }
 }
 

@@ -37,11 +37,36 @@ export interface UserModel {
   lastIp: string;
   banned: boolean;
   banReason: string;
+  originalCustomId?: string;
   isBd?: boolean;
   bdSupervisorId?: string | null;
   bdSalary?: number;
   bdCommissionRate?: number;
 }
+
+export interface GiftedItemModel {
+  id: string;
+  uid: string;
+  item_id: string;
+  item_category: string;
+  item_name: string;
+  item_icon: string;
+  svga_asset?: string | null;
+  video_asset?: string | null;
+  sent_by: string;
+  sent_by_name: string;
+  sent_at: number;
+  expires_at: number;
+  user?: {
+    uid: string;
+    name: string;
+    custom_id?: string;
+    original_custom_id?: string;
+    photo_url?: string;
+  };
+}
+
+export type GiftedItem = GiftedItemModel;
 
 export interface RoomModel {
   roomId: string;

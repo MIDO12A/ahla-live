@@ -49,9 +49,12 @@ class UserProvider extends ChangeNotifier {
   Future<void> _reconcileGiftedItems(String uid, List<GiftedItemModel> items) async {
     final activeItemIds = <String>{};
     final expiredGiftIds = <String>[];
+    final expiredGifts = <GiftedItemModel>[];
+
     for (final gift in items) {
       if (gift.isExpired) {
         expiredGiftIds.add(gift.id);
+        expiredGifts.add(gift);
       } else {
         activeItemIds.add(gift.itemId);
       }
@@ -59,10 +62,16 @@ class UserProvider extends ChangeNotifier {
     final user = _currentUser;
     if (user == null) return;
     final currentOwned = Set<String>.from(user.ownedItems);
+    final currentBadges = Set<String>.from(user.ownedBadges);
+    final currentNecklaces = Set<String>.from(user.ownedNecklaces);
     final needsUpdate = <String, dynamic>{};
     final newOwned = List<String>.from(currentOwned);
+    final newBadges = List<String>.from(currentBadges);
+    final newNecklaces = List<String>.from(currentNecklaces);
 
     bool changed = false;
+
+    // Add active store items to owned
     for (final itemId in activeItemIds) {
       if (!currentOwned.contains(itemId)) {
         newOwned.add(itemId);
@@ -70,16 +79,52 @@ class UserProvider extends ChangeNotifier {
       }
     }
 
-    final expiredItemIds = items.where((g) => g.isExpired).map((g) => g.itemId).toSet();
-    for (final itemId in expiredItemIds) {
-      if (currentOwned.contains(itemId)) {
-        newOwned.remove(itemId);
+    // Process expired gifts
+    for (final gift in expiredGifts) {
+      // 1. Special ID expired -> restore original custom ID!
+      if (gift.itemCategory == 'special_id') {
+        if (user.customId == gift.itemId) {
+          final orig = user.originalCustomId;
+          if (orig != null && orig.isNotEmpty && orig != gift.itemId) {
+            needsUpdate['custom_id'] = orig;
+            changed = true;
+          } else if (user.uid.length >= 8) {
+            needsUpdate['custom_id'] = user.uid.substring(0, 8);
+            changed = true;
+          }
+        }
+      }
+
+      // 2. Badge expired -> remove from owned_badges
+      if (gift.itemCategory == 'badge') {
+        if (newBadges.contains(gift.itemId)) {
+          newBadges.remove(gift.itemId);
+          needsUpdate['owned_badges'] = newBadges;
+          changed = true;
+        }
+      }
+
+      // 3. Necklace expired -> remove from owned_necklaces
+      if (gift.itemCategory == 'necklace') {
+        if (newNecklaces.contains(gift.itemId)) {
+          newNecklaces.remove(gift.itemId);
+          needsUpdate['owned_necklaces'] = newNecklaces;
+          if (user.activeNecklace == gift.itemId) {
+            needsUpdate['active_necklace'] = null;
+          }
+          changed = true;
+        }
+      }
+
+      // 4. Store item expired -> remove from owned_items
+      if (currentOwned.contains(gift.itemId)) {
+        newOwned.remove(gift.itemId);
         changed = true;
-        if (user.activeFrame == itemId) needsUpdate['active_frame'] = null;
-        if (user.activeHeadwear == itemId) needsUpdate['active_headwear'] = null;
-        if (user.activeBubble == itemId) needsUpdate['active_bubble'] = null;
-        if (user.activeEntrance == itemId) needsUpdate['active_entrance'] = null;
-        if (user.activeCar == itemId) needsUpdate['active_car'] = null;
+        if (user.activeFrame == gift.itemId) needsUpdate['active_frame'] = null;
+        if (user.activeHeadwear == gift.itemId) needsUpdate['active_headwear'] = null;
+        if (user.activeBubble == gift.itemId) needsUpdate['active_bubble'] = null;
+        if (user.activeEntrance == gift.itemId) needsUpdate['active_entrance'] = null;
+        if (user.activeCar == gift.itemId) needsUpdate['active_car'] = null;
       }
     }
 

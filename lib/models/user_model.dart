@@ -55,6 +55,7 @@ class UserModel {
   final String? bdSupervisorId;
   final double bdSalary;
   final double bdCommissionRate;
+  final String? originalCustomId;
 
   int get exp => experience;
 
@@ -113,10 +114,12 @@ class UserModel {
     this.bdSupervisorId,
     this.bdSalary = 0.0,
     this.bdCommissionRate = 10.0,
+    this.originalCustomId,
   });
 
   UserModel copyWith({
     String? customId,
+    String? originalCustomId,
     String? name,
     String? email,
     String? phone,
@@ -225,6 +228,7 @@ class UserModel {
       bdSupervisorId: bdSupervisorId ?? this.bdSupervisorId,
       bdSalary: bdSalary ?? this.bdSalary,
       bdCommissionRate: bdCommissionRate ?? this.bdCommissionRate,
+      originalCustomId: originalCustomId ?? this.originalCustomId,
     );
   }
 
@@ -450,6 +454,7 @@ class UserModel {
       bdSupervisorId: map['bd_supervisor_id']?.toString() ?? map['bdSupervisorId']?.toString(),
       bdSalary: (map['bd_salary'] ?? map['bdSalary'] ?? 0).toDouble(),
       bdCommissionRate: (map['bd_commission_rate'] ?? map['bdCommissionRate'] ?? 10).toDouble(),
+      originalCustomId: map['original_custom_id']?.toString() ?? map['originalCustomId']?.toString(),
     );
   }
 
@@ -513,11 +518,13 @@ class UserModel {
         'bd_supervisor_id': bdSupervisorId,
         'bd_salary': bdSalary,
         'bd_commission_rate': bdCommissionRate,
+        'original_custom_id': originalCustomId,
       };
 
   Map<String, dynamic> toSupabaseMap() => {
         'uid': uid,
         'custom_id': customId,
+        'original_custom_id': originalCustomId,
         'name': name,
         'email': email,
         'phone': phone,

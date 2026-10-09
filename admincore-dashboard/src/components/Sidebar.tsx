@@ -17,6 +17,7 @@ const navItems = [
   { to: '/users', icon: Users, label: 'nav.users', permKey: 'users' },
   { to: '/gifts', icon: Gift, label: 'nav.gifts', permKey: 'gifts' },
   { to: '/store', icon: Store, label: 'nav.store', permKey: 'store' },
+  { to: '/user-gifting', icon: GiftIcon, label: 'إهداء إلى المستخدمين 🎁', permKey: 'user_gifting' },
   { to: '/rooms', icon: DoorOpen, label: 'nav.rooms', permKey: 'rooms' },
   { to: '/lucky-gifts', icon: Sparkles, label: 'nav.luckyGifts', permKey: 'lucky_gifts' },
   { to: '/red-packets', icon: Gift, label: 'المظاريف وصناديق الحظ 🧧', permKey: 'red_packets' },

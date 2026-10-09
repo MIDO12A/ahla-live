@@ -33,6 +33,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { key: 'gift_banners', ar: 'بانرات وإعلانات الهدايا', en: 'Gift Banner Configs' },
       { key: 'lucky_gifts', ar: 'الهدايا المحظوظة ونسب الربح', en: 'Lucky Gifts' },
       { key: 'red_packets', ar: 'المظاريف وصناديق الحظ 🧧', en: 'Red Packets & Boxes' },
+      { key: 'user_gifting', ar: 'إهداء إلى المستخدمين 🎁 (المتجر، الآيدي، VIP، الشارات)', en: 'User Gifting 🎁 (Store, Special ID, VIP, Badges)' },
       { key: 'vip_gifting', ar: 'هدايا VIP الحصرية', en: 'VIP Gifting' },
       { key: 'badge_necklace_gifts', ar: 'هدايا الشارات والقلائد', en: 'Badge & Necklace Gifts' },
     ],

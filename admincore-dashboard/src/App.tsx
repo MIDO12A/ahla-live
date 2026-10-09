@@ -19,6 +19,7 @@ import Necklaces from './pages/Necklaces';
 import BadgeNecklaceGifts from './pages/BadgeNecklaceGifts';
 import Agency from './pages/Agency';
 import BD from './pages/BD';
+import UserGifting from './pages/UserGifting';
 import ImageCustomize from './pages/ImageCustomize';
 import ColorCustomize from './pages/ColorCustomize';
 import ErrorAnalysis from './pages/ErrorAnalysis';
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/gifts" element={<Gifts />} />
             <Route path="/store" element={<Store />} />
+            <Route path="/user-gifting" element={<UserGifting />} />
             <Route path="/rooms" element={<Rooms />} />
             <Route path="/lucky-gifts" element={<LuckyGiftsManager />} />
             <Route path="/red-packets" element={<RedPacketsManager />} />
