@@ -2260,13 +2260,7 @@ export async function giftUserItems(uid: string, items: {
 export async function getBDManagers(): Promise<BDModel[]> {
   const client = getAdminSupabase() || supabase;
   try {
-    // 1. Fetch users where is_bd = true
-    const { data: bdUsers } = await client
-      .from('users')
-      .select('uid, custom_id, name, email, photo_url, is_bd, bd_supervisor_id, bd_salary, bd_commission_rate, created_at')
-      .eq('is_bd', true);
-
-    // Also fetch all metadata from app_config
+    // 1. Fetch all metadata from app_config (where key starts with bd_meta_)
     const { data: configs } = await client
       .from('app_config')
       .select('key, value')
@@ -2278,72 +2272,58 @@ export async function getBDManagers(): Promise<BDModel[]> {
       configMap[u] = c.value;
     });
 
-    // 2. Fetch all host_agencies to compute statistics
+    const bdUids = Object.keys(configMap).filter(Boolean);
+
+    // 2. Fetch corresponding users with safe standard columns only
+    let bdUsers: any[] = [];
+    if (bdUids.length > 0) {
+      const { data: uData } = await client
+        .from('users')
+        .select('uid, custom_id, name, email, photo_url, created_at')
+        .in('uid', bdUids);
+      if (uData) bdUsers = uData;
+    }
+
+    // 3. Fetch all host_agencies to compute statistics
     const { data: agencies } = await client
       .from('host_agencies')
       .select('id, name, owner_uid, member_count, total_diamonds_monthly, total_diamonds_cumulative, data, created_at');
 
-    // 3. Fetch admin users for supervisor names
+    // 4. Fetch admin users for supervisor names
     const admins = await getAdminUsers();
     const adminMap: Record<string, string> = {};
     admins.forEach(a => { adminMap[a.uid] = a.displayName || a.email; });
 
     const allBds: Map<string, BDModel> = new Map();
 
-    // Add from bdUsers
-    (bdUsers || []).forEach(u => {
-      const meta = configMap[u.uid] || {};
-      const supId = u.bd_supervisor_id || meta.supervisorId || '';
-      allBds.set(u.uid, {
-        id: u.uid,
-        uid: u.uid,
-        appId: u.custom_id || meta.appId || '',
-        name: u.name || meta.name || 'BD Manager',
-        email: u.email || meta.email || '',
-        photoUrl: u.photo_url || meta.photoUrl || '',
+    // Map each BD
+    bdUids.forEach(uid => {
+      if (configMap[uid]?.status === 'revoked') return;
+      const meta = configMap[uid] || {};
+      const u = bdUsers.find((user: any) => user.uid === uid);
+      const supId = meta.supervisorId || '';
+
+      allBds.set(uid, {
+        id: uid,
+        uid: uid,
+        appId: meta.appId || u?.custom_id || '',
+        name: meta.name || u?.name || 'BD Manager',
+        email: meta.email || u?.email || '',
+        photoUrl: meta.photoUrl || u?.photo_url || '',
         supervisorId: supId,
         supervisorName: adminMap[supId] || meta.supervisorName || supId,
         agencyCount: 0,
         totalHosts: 0,
         totalEarnings: 0,
-        salary: Number(u.bd_salary ?? meta.salary ?? 0),
-        commissionRate: Number(u.bd_commission_rate ?? meta.commissionRate ?? 10),
-        specialId: meta.specialId || u.custom_id || '',
+        salary: Number(meta.salary ?? 0),
+        commissionRate: Number(meta.commissionRate ?? 10),
+        specialId: meta.specialId || u?.custom_id || '',
         giftedFrame: meta.giftedFrame,
         giftedBadge: meta.giftedBadge,
         giftedNecklace: meta.giftedNecklace,
         status: 'active',
-        createdAt: u.created_at || meta.createdAt,
+        createdAt: u?.created_at || meta.createdAt,
       });
-    });
-
-    // Add any from configMap not yet added
-    Object.keys(configMap).forEach(uid => {
-      if (!allBds.has(uid) && configMap[uid]?.status !== 'revoked') {
-        const meta = configMap[uid] || {};
-        const supId = meta.supervisorId || '';
-        allBds.set(uid, {
-          id: uid,
-          uid,
-          appId: meta.appId || '',
-          name: meta.name || 'BD Manager',
-          email: meta.email || '',
-          photoUrl: meta.photoUrl || '',
-          supervisorId: supId,
-          supervisorName: adminMap[supId] || meta.supervisorName || supId,
-          agencyCount: 0,
-          totalHosts: 0,
-          totalEarnings: 0,
-          salary: Number(meta.salary || 0),
-          commissionRate: Number(meta.commissionRate || 10),
-          specialId: meta.specialId || '',
-          giftedFrame: meta.giftedFrame,
-          giftedBadge: meta.giftedBadge,
-          giftedNecklace: meta.giftedNecklace,
-          status: 'active',
-          createdAt: meta.createdAt,
-        });
-      }
     });
 
     // Aggregate agency statistics for each BD
