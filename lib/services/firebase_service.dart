@@ -2040,14 +2040,14 @@ class FirebaseService {
               }, SetOptions(merge: true));
             } catch (_) {}
           } else {
-            // Keep real-time coins & diamonds from Firestore transactions to prevent balance bounce
-            final mergedCoins = (latestUser!.coins >= 0) ? latestUser!.coins : u.coins;
-            final mergedDiamonds = (latestUser!.diamonds >= 0) ? latestUser!.diamonds : u.diamonds;
-            final merged = u.copyWith(coins: mergedCoins, diamonds: mergedDiamonds);
+            // Update coins & diamonds directly from Supabase (source of truth modified by admin/recharge)
+            final merged = u.copyWith(coins: u.coins, diamonds: u.diamonds);
             latestUser = merged;
             controller.add(merged);
             try {
               _db.collection('users').doc(uid).set({
+                'coins': u.coins,
+                'diamonds': u.diamonds,
                 'custom_id': u.customId,
                 'owned_items': u.ownedItems,
               }, SetOptions(merge: true));
