@@ -13,6 +13,9 @@ import '../login/profile_screen.dart';
 import '../room/widgets/svga_player.dart';
 import '../../widgets/app_update_dialog.dart';
 import '../../features/signin/weekly_signin_screen.dart';
+import '../../services/firebase_service.dart';
+import '../room/widgets/room_marquee_broadcast.dart';
+import '../../features/lucky_gift/services/lucky_gift_service.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -26,6 +29,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   Timer? _updatePoll;
   bool _checkingUpdate = false;
+  StreamSubscription? _broadcastSub;
+  final ValueNotifier<Map<String, dynamic>?> _broadcastNotifier = ValueNotifier<Map<String, dynamic>?>(null);
+  final Set<String> _seenBroadcastIds = <String>{};
 
   @override
   void initState() {
@@ -39,6 +45,38 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     });
     // Periodic update check while the app is open (splash only checks cold start)
     _updatePoll = Timer.periodic(const Duration(minutes: 15), (_) => _checkUpdate());
+
+    // ✅ الاستماع للبانرات العامة وبانرات فوز الحظ (100X, 250X, 500X) عبر كل شاشات التطبيق
+    _broadcastSub = FirebaseService().globalBroadcastStream().listen((broadcasts) {
+      if (!mounted || broadcasts.isEmpty) return;
+      final latest = broadcasts.first;
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final bTs = (latest['timestamp'] as num?)?.toInt() ??
+          (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
+      final isRecent = bTs == 0 || (nowMs - bTs).abs() < 90000;
+      if (isRecent) {
+        final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
+        if (!_seenBroadcastIds.contains(bId)) {
+          _seenBroadcastIds.add(bId);
+          _broadcastNotifier.value = latest;
+
+          // إذا كان فوزاً كبيراً 100X أو 250X أو 500X+، تشغيل بانر SVGA العالمي الأسطوري
+          final mult = latest['multiplier'] is num
+              ? (latest['multiplier'] as num).toInt()
+              : int.tryParse(latest['multiplier']?.toString() ?? '0') ?? 0;
+          if (mult >= 100 && mounted) {
+            LuckyGiftService().showBigWinBanner(
+              context,
+              senderName: latest['sender_name']?.toString() ?? 'مستخدم',
+              senderAvatar: latest['sender_photo_url']?.toString() ?? '',
+              giftName: latest['gift_name']?.toString() ?? 'هدية الحظ',
+              multiplier: mult,
+              totalWon: (latest['won_coins'] as num?)?.toInt() ?? 0,
+            );
+          }
+        }
+      }
+    });
   }
 
   Future<void> _checkUpdate() async {
@@ -69,6 +107,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _updatePoll?.cancel();
+    _broadcastSub?.cancel();
+    _broadcastNotifier.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -86,12 +126,35 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         ];
         return Scaffold(
           backgroundColor: const Color(0xFFFFFFFF),
-          body: PageView(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() => _currentIndex = index);
-            },
-            children: pages,
+          body: Stack(
+            children: [
+              PageView(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() => _currentIndex = index);
+                },
+                children: pages,
+              ),
+
+              // ── Global Marquee Broadcast for all screens ──
+              ValueListenableBuilder<Map<String, dynamic>?>(
+                valueListenable: _broadcastNotifier,
+                builder: (context, broadcast, _) {
+                  if (broadcast == null) return const SizedBox.shrink();
+                  return Positioned(
+                    top: MediaQuery.of(context).padding.top + 8,
+                    left: 0,
+                    right: 0,
+                    child: RoomMarqueeBroadcast(
+                      broadcast: broadcast,
+                      onDismissed: () {
+                        _broadcastNotifier.value = null;
+                      },
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,

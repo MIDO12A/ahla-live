@@ -1179,6 +1179,12 @@ class _GiftPanelState extends State<GiftPanel> {
                 GestureDetector(
                   onTap: () {
                     if (!canAfford) {
+                      _comboTimer?.cancel();
+                      setState(() {
+                        _comboSeconds = 0;
+                        _comboMultiplier = 0;
+                        _comboRemainingMs = 0;
+                      });
                       _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: liveCoins);
                       return;
                     }

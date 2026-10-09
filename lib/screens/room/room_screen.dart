@@ -58,6 +58,8 @@ import 'widgets/room_message_bottom_sheet.dart';
 import 'widgets/room_game_bottom_sheet.dart';
 import 'widgets/room_music_bottom_sheet.dart';
 import '../../features/lucky_gift/widgets/room_burst_settlement_dialog.dart';
+import '../../widgets/coin_recharge_tip_dialog.dart';
+import '../wallet/wallet_main_screen.dart';
 import 'widgets/svga_player.dart'; // ✅ لاستخدام SvgaPlayer.prefetch قبل عرض الأنيميشن
 import 'widgets/vap_player.dart'; // ✅ لاستخدام VapPlayer.prefetch قبل عرض الأنيميشن
 import '../rank/rank_screen.dart';
@@ -597,6 +599,26 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   void _onRoomComboTap() {
     if (_lastGiftComboData == null || _currentUserId == null) return;
 
+    final data = _lastGiftComboData!;
+    final gift = data['gift'] as gm.GiftModel?;
+    final selectedTargets = (data['selectedTargets'] as List<dynamic>?) ?? [];
+    final count = data['giftCount'] as int? ?? 1;
+    final totalCost = (gift?.value ?? 0) * count * (selectedTargets.isNotEmpty ? selectedTargets.length : 1);
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final user = userProvider.currentUser;
+    final availableCoins = user?.coins ?? 0;
+
+    // ✅ التحقق أولاً من الرصيد: إذا نفد الرصيد لا يرسل ولا يزيد الكومبو ولا يشغل أنيميشن، ويظهر نافذة الشحن فوراً
+    if (availableCoins < totalCost) {
+      _roomComboTimer?.cancel();
+      _roomComboSeconds = 0;
+      _roomComboMultiplier = 0;
+      _lastGiftComboData = null;
+      _comboNotifier.value = _ComboState(0, 0, false);
+      CoinRechargeTipDialog.show(context, totalCost: totalCost, currentCoins: availableCoins);
+      return;
+    }
+
     // ✅ إعادة ضبط مؤقت الـ 10 ثوانٍ مع كل ضغطة كومبو (مثل التطبيق الأصلي تماماً restartCountdown)
     // حتى لا يختفي الزر أثناء الضغط المتتالي
     _roomComboTimer?.cancel();
@@ -620,8 +642,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _comboNotifier.value = _ComboState(_roomComboSeconds, _roomComboMultiplier, false);
       }
     });
-
-    final data = _lastGiftComboData!;
     final iconUrl = data['defaultImage']?.toString() ?? data['animationAsset']?.toString() ?? '';
     if (iconUrl.isNotEmpty) {
       _triggerGiftFlight(

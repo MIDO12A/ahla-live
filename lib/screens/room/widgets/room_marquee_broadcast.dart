@@ -164,12 +164,21 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              if (multiplier != null && multiplier > 1) ...[
+                              if (multiplier != null && (multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0) > 1) ...[
                                 TextSpan(
-                                  text: ' فاز بمضاعف ${multiplier}X ',
-                                  style: const TextStyle(
-                                    color: Color(0xFFFF416C),
-                                    fontWeight: FontWeight.bold,
+                                  text: ' 🔥 فاز بمضاعف ${(multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0)}X ',
+                                  style: TextStyle(
+                                    color: ((multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0) >= 500)
+                                        ? const Color(0xFFFF1493)
+                                        : (((multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0) >= 250)
+                                            ? const Color(0xFFFF6F00)
+                                            : (((multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0) >= 100)
+                                                ? const Color(0xFFFF0055)
+                                                : const Color(0xFFFF416C))),
+                                    fontWeight: FontWeight.w900,
+                                    shadows: const [
+                                      Shadow(color: Color(0xAA000000), blurRadius: 4, offset: Offset(0, 1)),
+                                    ],
                                   ),
                                 ),
                               ],
