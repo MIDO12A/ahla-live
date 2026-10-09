@@ -5152,23 +5152,68 @@ class FirebaseService {
   }
 
   Future<Map<String, dynamic>> _buildAgencyDataPayload(String agencyDocId, Map<String, dynamic> agencyData, String agentUid) async {
-    // جلب بيانات الأعضاء والمضيفين
-    final membersSnap = await _db
-        .collection('host_agency_members')
-        .where('agency_id', isEqualTo: agencyDocId)
-        .get();
+    // جلب بيانات الأعضاء والمضيفين من Supabase و Firestore معاً
+    final Map<String, Map<String, dynamic>> mergedMembers = {};
+
+    // 1. من Supabase host_agency_members
+    try {
+      final sbRes = await SupabaseDataService().supabase
+          .from('host_agency_members')
+          .select('*')
+          .eq('agency_id', agencyDocId);
+      for (final row in (sbRes as List? ?? [])) {
+        final m = Map<String, dynamic>.from(row as Map);
+        final uid = m['host_uid']?.toString() ?? m['user_id']?.toString() ?? '';
+        if (uid.isNotEmpty) {
+          mergedMembers[uid] = m;
+        }
+      }
+    } catch (e) {
+      debugPrint('[_buildAgencyDataPayload] sb members error: $e');
+    }
+
+    // 2. من Firestore host_agency_members
+    try {
+      final membersSnap = await _db
+          .collection('host_agency_members')
+          .where('agency_id', isEqualTo: agencyDocId)
+          .get();
+      for (final mDoc in membersSnap.docs) {
+        final mData = mDoc.data() as Map<String, dynamic>? ?? {};
+        final uid = mData['user_id']?.toString() ?? mData['host_uid']?.toString() ?? mDoc.id;
+        if (uid.isNotEmpty && !mergedMembers.containsKey(uid)) {
+          mergedMembers[uid] = mData;
+        }
+      }
+    } catch (e) {
+      debugPrint('[_buildAgencyDataPayload] fs members error: $e');
+    }
 
     final anchors = <Map<String, dynamic>>[];
     int totalDiamonds = 0;
 
-    for (final mDoc in membersSnap.docs) {
-      final mData = mDoc.data() as Map<String, dynamic>? ?? {};
+    for (final entry in mergedMembers.entries) {
+      final mUid = entry.key;
+      final mData = entry.value;
       final st = mData['status']?.toString();
       if (st == 'pending' || st == 'rejected' || st == 'kicked' || st == 'left') continue;
 
-      final mUid = mData['user_id']?.toString() ?? mDoc.id;
-      final uSnap = await _db.collection('users').doc(mUid).get();
-      final uData = uSnap.exists ? ((uSnap.data() as Map<String, dynamic>?) ?? {}) : {};
+      // جلب بيانات المستخدم من Supabase أولاً ثم Firestore
+      Map<String, dynamic> uData = {};
+      try {
+        final sbUser = await SupabaseDataService().getUser(mUid);
+        if (sbUser != null) {
+          uData = sbUser.toMap();
+        }
+      } catch (_) {}
+      if (uData.isEmpty) {
+        try {
+          final uSnap = await _db.collection('users').doc(mUid).get();
+          if (uSnap.exists) {
+            uData = (uSnap.data() as Map<String, dynamic>?) ?? {};
+          }
+        } catch (_) {}
+      }
 
       final d1 = _asInt(mData['diamonds']);
       final d2 = _asInt(mData['diamonds_earned_monthly']);
@@ -5200,32 +5245,53 @@ class FirebaseService {
       });
     }
 
-    // التأكد من وجود مالك الوكالة دائماً في قائمة الأعضاء بدور 'owner'
-    final ownerUid = agencyData['owner_id']?.toString() ?? agentUid;
-    final hasOwner = anchors.any((a) => a['uid'] == ownerUid || a['role'] == 'owner');
-    if (!hasOwner && ownerUid.isNotEmpty) {
-      final ownerDoc = await _db.collection('users').doc(ownerUid).get();
-      final od = ownerDoc.exists ? (ownerDoc.data() ?? {}) : {};
-      anchors.insert(0, {
-        'user_id': _asInt(od['custom_id'] ?? 0),
-        'user_no': _asInt(od['custom_id'] ?? 0),
-        'uid': ownerUid,
-        'role': 'owner',
-        'nickname': od['name'] ?? od['display_name'] ?? 'مالك الوكالة',
-        'headImage': od['photo_url'] ?? od['photoUrl'] ?? od['avatar'] ?? '',
-        'country': _asInt(od['country'] ?? 0),
-        'country_flag_url': od['country_flag_url'] ?? '',
-        'days': 30,
-        'minute': 3600.0,
-        'diamonds': '0',
-        'experience': _asInt(od['wealth_xp'] ?? 0),
-        'level': _asInt(od['level'] ?? 1),
-        'recg_level': _asInt(od['wealth_level'] ?? 0),
-        'recharge_value': _asInt(od['recharge_coins'] ?? 0),
-        'sex': _asInt(od['gender'] ?? 1),
-        'vip': _asInt(od['vip_level'] ?? 0),
-        'target_diamonds': 1000000,
-      });
+    // التأكد من وجود مالك الوكالة (الوكيل) دائماً في أول قائمة الأعضاء بدور 'owner'
+    final ownerUid = agencyData['owner_uid']?.toString() ?? agencyData['owner_id']?.toString() ?? agentUid;
+    final ownerIdx = anchors.indexWhere((a) => a['uid'] == ownerUid || a['role'] == 'owner');
+
+    Map<String, dynamic> od = {};
+    if (ownerUid.isNotEmpty) {
+      try {
+        final sbOwner = await SupabaseDataService().getUser(ownerUid);
+        if (sbOwner != null) od = sbOwner.toMap();
+      } catch (_) {}
+      if (od.isEmpty) {
+        try {
+          final ownerDoc = await _db.collection('users').doc(ownerUid).get();
+          if (ownerDoc.exists) od = ownerDoc.data() ?? {};
+        } catch (_) {}
+      }
+    }
+
+    final ownerMap = {
+      'user_id': _asInt(od['custom_id'] ?? 0),
+      'user_no': _asInt(od['custom_id'] ?? 0),
+      'uid': ownerUid,
+      'role': 'owner',
+      'nickname': od['name'] ?? od['display_name'] ?? 'مالك الوكالة',
+      'headImage': od['photo_url'] ?? od['photoUrl'] ?? od['avatar'] ?? '',
+      'country': _asInt(od['country'] ?? 0),
+      'country_flag_url': od['country_flag_url'] ?? '',
+      'days': 30,
+      'minute': 3600.0,
+      'diamonds': '0',
+      'experience': _asInt(od['wealth_xp'] ?? 0),
+      'level': _asInt(od['level'] ?? 1),
+      'recg_level': _asInt(od['wealth_level'] ?? 0),
+      'recharge_value': _asInt(od['recharge_coins'] ?? 0),
+      'sex': _asInt(od['gender'] ?? 1),
+      'vip': _asInt(od['vip_level'] ?? 0),
+      'target_diamonds': 1000000,
+    };
+
+    if (ownerIdx >= 0) {
+      anchors[ownerIdx]['role'] = 'owner';
+      if (ownerIdx != 0) {
+        final ow = anchors.removeAt(ownerIdx);
+        anchors.insert(0, ow);
+      }
+    } else if (ownerUid.isNotEmpty) {
+      anchors.insert(0, ownerMap);
     }
 
     final agentUserSnap = await _db.collection('users').doc(agentUid).get();

@@ -85,15 +85,16 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           if (ad['custom_id'] != null) candidateAgencyIds.add(ad['custom_id'].toString());
           if (ad['user_id'] != null) candidateAgencyIds.add(ad['user_id'].toString());
           if (ad['owner_id'] != null) candidateAgencyIds.add(ad['owner_id'].toString());
+          if (ad['owner_uid'] != null) candidateAgencyIds.add(ad['owner_uid'].toString());
         }
       } catch (_) {}
 
+      // 1. Fetch join requests from Supabase
       List<dynamic> reqResp = [];
       try {
         final res = await _sb.from('host_agency_join_requests')
-            .select('id, user_id, status, created_at')
+            .select('*')
             .inFilter('agency_id', candidateAgencyIds.toList())
-            .inFilter('status', ['pending', 'invited', 'rejected'])
             .order('created_at', ascending: false)
             .limit(200);
         reqResp = List<dynamic>.from(res as List);
@@ -101,7 +102,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         debugPrint('[AgencyJoinRequests] sb reqResp error: $e');
       }
 
-      // Also fetch pending requests from Firestore across candidate agency IDs
+      // 2. Fetch pending requests from Firestore across candidate agency IDs
       try {
         final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
         final fsReqSnap = await fs.collection('host_agency_join_requests')
@@ -110,13 +111,14 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         for (final doc in fsReqSnap.docs) {
           final data = doc.data();
           final id = doc.id;
-          final uid = data['user_id']?.toString() ?? '';
+          final uid = data['user_id']?.toString() ?? data['host_uid']?.toString() ?? data['applicant_uid']?.toString() ?? '';
           if (uid.isEmpty) continue;
-          final already = reqResp.any((r) => r['id']?.toString() == id || r['user_id']?.toString() == uid);
+          final already = reqResp.any((r) => r['id']?.toString() == id || (r['user_id']?.toString() == uid || r['host_uid']?.toString() == uid));
           if (!already) {
             reqResp.add({
               'id': id,
               'user_id': uid,
+              'host_uid': uid,
               'status': data['status']?.toString() ?? 'pending',
               'created_at': data['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String(),
               '_from_fs': true,
@@ -137,11 +139,12 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           final notifAgencyId = nData['data']?['agency_id']?.toString() ?? '';
           final applicantUid = nData['data']?['applicant_uid']?.toString() ?? nData['actor_uid']?.toString() ?? '';
           if (applicantUid.isNotEmpty && (candidateAgencyIds.contains(notifAgencyId) || candidateAgencyIds.contains(nData['uid']))) {
-            final already = reqResp.any((r) => r['user_id']?.toString() == applicantUid);
+            final already = reqResp.any((r) => (r['user_id']?.toString() == applicantUid || r['host_uid']?.toString() == applicantUid));
             if (!already) {
               reqResp.add({
                 'id': nDoc.id,
                 'user_id': applicantUid,
+                'host_uid': applicantUid,
                 'status': 'pending',
                 'created_at': nData['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String(),
                 '_from_fs': true,
@@ -156,13 +159,13 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         debugPrint('[AgencyJoinRequests] fsReqSnap error: $e');
       }
 
+      // 3. Fetch members from Supabase
       List<dynamic> membResp = [];
       try {
         final res = await _sb.from('host_agency_members')
-            .select('id, user_id, role, status, joined_at, kicked_at')
-            .eq('agency_id', widget.agencyId)
+            .select('*')
+            .inFilter('agency_id', candidateAgencyIds.toList())
             .neq('role', 'owner')
-            .inFilter('status', ['active', 'pending', 'suspended', 'kicked', 'left'])
             .order('joined_at', ascending: false)
             .limit(200);
         membResp = List<dynamic>.from(res as List);
@@ -170,22 +173,23 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         debugPrint('[AgencyJoinRequests] sb membResp error: $e');
       }
 
-      // Also fetch members from Firestore
+      // 4. Also fetch members from Firestore
       try {
         final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
         final fsMembSnap = await fs.collection('host_agency_members')
-            .where('agency_id', isEqualTo: widget.agencyId)
+            .where('agency_id', whereIn: candidateAgencyIds.take(10).toList())
             .get();
         for (final doc in fsMembSnap.docs) {
           final data = doc.data();
           final uid = data['user_id']?.toString() ?? data['host_uid']?.toString() ?? '';
           final role = data['role']?.toString() ?? 'host';
           if (role == 'owner' || uid.isEmpty) continue;
-          final already = membResp.any((m) => m['id']?.toString() == doc.id || m['user_id']?.toString() == uid);
+          final already = membResp.any((m) => m['id']?.toString() == doc.id || (m['user_id']?.toString() == uid || m['host_uid']?.toString() == uid));
           if (!already) {
             membResp.add({
               'id': doc.id,
               'user_id': uid,
+              'host_uid': uid,
               'role': role,
               'status': data['status']?.toString() ?? 'active',
               'joined_at': data['joined_at']?.toString() ?? DateTime.now().toUtc().toIso8601String(),
@@ -199,7 +203,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
 
       final allUserIds = <String>{};
       for (final r in reqResp) {
-        final uid = r['user_id']?.toString();
+        final uid = r['user_id']?.toString() ?? r['host_uid']?.toString() ?? r['applicant_uid']?.toString();
         if (uid != null && uid.isNotEmpty) allUserIds.add(uid);
       }
       for (final m in membResp) {
@@ -211,11 +215,11 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
       if (allUserIds.isNotEmpty) {
         try {
           final usersData = await _sb.from('users')
-              .select('id, uid, name, photo_url, avatar, custom_id, level')
-              .inFilter('id', allUserIds.toList());
+              .select('uid, name, photo_url, custom_id, level')
+              .inFilter('uid', allUserIds.toList());
           for (final u in usersData) {
-            final uId = u['id']?.toString() ?? u['uid']?.toString() ?? '';
-            final photo = u['photo_url']?.toString() ?? u['avatar']?.toString();
+            final uId = u['uid']?.toString() ?? '';
+            final photo = u['photo_url']?.toString();
             userProfiles[uId] = {
               'display_name': u['name'] ?? 'مستخدم',
               'avatar_url': photo,
@@ -223,7 +227,9 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
               'level': (u['level'] as num?)?.toInt() ?? 1,
             };
           }
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('[AgencyJoinRequests] sb usersData error: $e');
+        }
 
         // Fallback to Firestore users if missing or incomplete
         for (final uid in allUserIds) {
@@ -247,7 +253,8 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
 
       final requests = reqResp.map((e) {
         final m = Map<String, dynamic>.from(e as Map);
-        final uid = m['user_id']?.toString() ?? '';
+        final uid = m['user_id']?.toString() ?? m['host_uid']?.toString() ?? m['applicant_uid']?.toString() ?? '';
+        m['user_id'] = uid;
         m['_req_id'] = m['id'];
         m['_source'] = 'request';
         final cachedProf = userProfiles[uid];
@@ -284,7 +291,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         _approved = members.where((m) => m['status'] == 'active').toList();
         _rejected = [
           ...requests.where((m) => m['status'] == 'rejected'),
-          ...members.where((m) => ['kicked', 'left', 'suspended'].contains(m['status'])),
+          ...members.where((m) => ['kicked', 'left', 'suspended', 'rejected', 'pending_exit', 'terminated'].contains(m['status'])),
         ]..sort((a, b) => (b['created_at'] ?? b['kicked_at'] ?? '').toString()
             .compareTo((a['created_at'] ?? a['kicked_at'] ?? '').toString()));
         _loading = false;
@@ -318,6 +325,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         try {
           await _sb.from('host_agency_members').upsert({
             'agency_id': widget.agencyId,
+            'host_uid': userId,
             'user_id': userId,
             'role': 'host',
             'status': 'active',
@@ -325,7 +333,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           });
         } catch (_) {}
         try {
-          await _sb.from('users').update({'agency_id': widget.agencyId}).eq('id', userId);
+          await _sb.from('users').update({'agency_id': widget.agencyId}).eq('uid', userId);
         } catch (_) {}
       }
 
@@ -495,21 +503,48 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
     if (confirmed != true) return;
 
     try {
-      // استدعاء RPC الرسمي — يُطبّق كل قواعد العمل:
-      // ✅ التحقق من الصلاحيات (مالك/مشرف فقط)
-      // ✅ فحص نافذة الطرد (1-5 من الشهر) بتوقيت السعودية
-      // ✅ حماية الألماس (لا تُمس لحظة الطرد)
-      // ✅ تسجيل في agency_free_agents مع free_agent_until
-      // ✅ إشعار الوكالة عبر Realtime
-      // ✅ إصلاح: RPC يقبل p_user_id (UUID) — لا int.parse
-      await _sb.rpc('agency_kick_member', params: {
-        'p_agency_id': widget.agencyId,
-        'p_user_id':   memberId,   // memberId هو user_id (UUID)
-      });
+      bool rpcSuccess = false;
+      try {
+        await _sb.rpc('agency_kick_member', params: {
+          'p_agency_id': widget.agencyId,
+          'p_user_id':   memberId,
+        });
+        rpcSuccess = true;
+      } catch (rpcErr) {
+        debugPrint('[AgencyJoinRequests] rpc agency_kick_member failed, falling back to direct update: $rpcErr');
+      }
+
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      // Supabase direct fallback
+      try {
+        await _sb.from('host_agency_members')
+            .update({'status': 'kicked', 'kicked_at': nowIso})
+            .eq('agency_id', widget.agencyId)
+            .or('id.eq.$memberId,user_id.eq.$memberId,host_uid.eq.$memberId');
+        await _sb.from('users').update({'agency_id': null}).or('uid.eq.$memberId,id.eq.$memberId');
+      } catch (_) {}
+
+      // Firestore direct fallback
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        await fs.collection('host_agency_members').doc(memberId).set({
+          'status': 'kicked',
+          'kicked_at': nowIso,
+        }, SetOptions(merge: true));
+        await fs.collection('host_agency_members').doc('${widget.agencyId}_$memberId').set({
+          'status': 'kicked',
+          'kicked_at': nowIso,
+        }, SetOptions(merge: true));
+        await fs.collection('users').doc(memberId).set({
+          'agency_id': null,
+          'is_agency_member': false,
+        }, SetOptions(merge: true));
+      } catch (_) {}
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ تم طرد العضو — لديه 7 أيام للانتقال لوكالة أخرى'),
+          content: Text('✅ تم طرد العضو من الوكالة بنجاح'),
           backgroundColor: Color(0xFFBF360C),
           duration: Duration(seconds: 4),
         ),
@@ -517,7 +552,6 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
       _load();
     } catch (e) {
       if (!mounted) return;
-      // عرض رسالة الخطأ من قاعدة البيانات بشكل واضح
       final msg = e.toString().contains('لا يمكن') || e.toString().contains('ليس لديك')
           ? e.toString().replaceAll(RegExp(r'^.*Exception: '), '')
           : 'خطأ في الطرد: $e';

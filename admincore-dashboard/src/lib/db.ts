@@ -1106,20 +1106,32 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
     } catch (_) {}
 
     // Fetch owner details
-    const ownerIds = Array.from(new Set(agencies.map((a: any) => a.owner_id).filter(Boolean)));
+    const ownerIds = Array.from(new Set(agencies.map((a: any) => a.owner_id || a.owner_uid).filter(Boolean)));
     const ownersMap: Record<string, any> = {};
     if (ownerIds.length > 0) {
       try {
-        const { data: usersData } = await supabase.from('users').select('*');
+        const { data: usersData } = await supabase.from('users').select('*').in('uid', ownerIds);
         (usersData ?? []).forEach((u: any) => {
-          const resolvedId = u.id || u.uid;
+          const resolvedId = u.uid || u.id;
           const mapped = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
-          if (ownerIds.includes(resolvedId) || (u.custom_id && ownerIds.includes(u.custom_id))) {
-            ownersMap[resolvedId] = mapped;
-            if (u.custom_id) ownersMap[u.custom_id] = mapped;
-          }
+          ownersMap[resolvedId] = mapped;
+          if (u.custom_id) ownersMap[u.custom_id] = mapped;
         });
       } catch (_) {}
+
+      // Fallback for any missing owner
+      for (const oid of ownerIds) {
+        if (!ownersMap[oid]) {
+          try {
+            const u = await searchUserProfile(oid);
+            if (u) {
+              const mapped = { ...u, id: u.uid || u.id, avatar: u.avatar || u.photo_url };
+              ownersMap[oid] = mapped;
+              if (u.custom_id) ownersMap[u.custom_id] = mapped;
+            }
+          } catch (_) {}
+        }
+      }
     }
 
     return mapList<HostAgencyModel>(agencies.map((a: any) => {
@@ -1347,23 +1359,66 @@ export async function updateCommissionSetting(id: string, value: number): Promis
 
 export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgencyMemberModel[]> {
   try {
-    let query = supabase.from('host_agency_members').select('*').order('joined_at');
+    let query = supabase.from('host_agency_members').select('*');
     if (agencyId) query = query.eq('agency_id', agencyId);
     const { data } = await query;
-    const members = data ?? [];
+    let members: any[] = (data ?? []).map((m: any) => ({ ...m }));
+
+    // Fetch agencies to ensure owners are included in the members list
+    try {
+      let agQuery = supabase.from('host_agencies').select('*');
+      if (agencyId) agQuery = agQuery.eq('id', agencyId);
+      const { data: agList } = await agQuery;
+
+      for (const ag of agList ?? []) {
+        const ownerUid = ag.owner_uid || ag.owner_id;
+        if (!ownerUid) continue;
+        const exists = members.some((m: any) => m.agency_id === ag.id && ((m.user_id || m.host_uid) === ownerUid || m.role === 'owner'));
+        if (!exists) {
+          members.unshift({
+            id: `owner_${ag.id}_${ownerUid}`,
+            agency_id: ag.id,
+            user_id: ownerUid,
+            host_uid: ownerUid,
+            role: 'owner',
+            status: 'active',
+            joined_at: ag.created_at || new Date().toISOString(),
+            diamonds_earned_monthly: ag.total_diamonds_monthly ?? ag.monthly_diamonds ?? 0,
+            diamonds_balance: 0,
+          });
+        }
+      }
+    } catch (_) {}
+
     if (members.length === 0) return [];
 
     // Fetch user details for each member (support both user_id and host_uid)
     const userIds = Array.from(new Set(members.map((m: any) => m.user_id || m.host_uid).filter(Boolean)));
     const usersMap: Record<string, any> = {};
     if (userIds.length > 0) {
-      const { data: usersData } = await supabase.from('users').select('*');
-      (usersData ?? []).forEach((u: any) => {
-        const resolvedId = u.id || u.uid;
-        const mapped = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
-        usersMap[resolvedId] = mapped;
-        if (u.custom_id) usersMap[u.custom_id] = mapped;
-      });
+      try {
+        const { data: usersData } = await supabase.from('users').select('*').in('uid', userIds);
+        (usersData ?? []).forEach((u: any) => {
+          const resolvedId = u.uid || u.id;
+          const mapped = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
+          usersMap[resolvedId] = mapped;
+          if (u.custom_id) usersMap[u.custom_id] = mapped;
+        });
+      } catch (_) {}
+
+      // Fallback for any missing users
+      for (const uid of userIds) {
+        if (!usersMap[uid]) {
+          try {
+            const u = await searchUserProfile(uid);
+            if (u) {
+              const mapped = { ...u, id: u.uid || u.id, avatar: u.avatar || u.photo_url };
+              usersMap[uid] = mapped;
+              if (u.custom_id) usersMap[u.custom_id] = mapped;
+            }
+          } catch (_) {}
+        }
+      }
     }
 
     return mapList<HostAgencyMemberModel>(members.map((m: any) => {
@@ -1371,6 +1426,7 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
       const u = usersMap[uid];
       return {
         ...m,
+        id: m.id || `${m.agency_id}_${uid}`,
         user_id: uid,
         user_name: u?.name || u?.displayName || uid?.slice(0, 8),
         custom_id: u?.custom_id || m.custom_id || '',
@@ -1378,6 +1434,7 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         coins: Number(u?.coins || 0),
         diamonds_earned_monthly: Number(m.diamonds_earned_monthly || 0),
         diamonds_balance: Number(m.diamonds_balance || m.diamonds || 0),
+        joined_at: m.joined_at || m.created_at || new Date().toISOString(),
       };
     }));
   } catch { return []; }
