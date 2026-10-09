@@ -3837,33 +3837,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   _selectedUser = null;
                   _selectedSeatIdx = null;
                 }),
-                onChat: () {
-                  final target = _selectedUser;
-                  setState(() {
-                    _showProfile = false;
-                    _selectedUser = null;
-                    _selectedSeatIdx = null;
-                  });
-                  if (target != null && currentUser != null) {
-                    final myUid = currentUser.uid;
-                    final targetUid = (target.id != null && target.id!.isNotEmpty) ? target.id! : (target.customId ?? '');
-                    if (targetUid.isNotEmpty && myUid.isNotEmpty) {
-                      final sorted = [myUid, targetUid]..sort();
-                      final convId = '${sorted[0]}_${sorted[1]}';
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => MessageReplyDetailScreen(
-                            conversationId: convId,
-                            otherUid: targetUid,
-                            otherName: target.name,
-                            otherPhotoUrl: target.avatar ?? '',
-                          ),
-                        ),
-                      );
-                    }
-                  }
-                },
                 onViewProfile: () {
                   final targetId = _selectedUser?.id ?? _selectedUser?.customId;
                   if (targetId != null && targetId.isNotEmpty) {
@@ -3936,11 +3909,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     );
                     return;
                   }
+                  final target = _selectedUser;
                   setState(() {
                     _showProfile = false;
+                    _selectedUser = null;
+                    _selectedSeatIdx = null;
                   });
                   // Navigate to private message screen
-                  _openPrivateChat(_selectedUser);
+                  _openPrivateChat(target);
                 },
                 onMention: () {
                   final userId = _selectedUser?.id;
