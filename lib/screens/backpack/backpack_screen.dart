@@ -5,6 +5,7 @@ import '../../models/gift_model.dart' as gm;
 import '../../models/store_item_model.dart';
 import '../../models/gifted_item_model.dart';
 import '../../providers/user_provider.dart';
+import '../../models/user_model.dart';
 import '../../services/supabase_service.dart';
 import '../mall/mall_screen.dart';
 import '../room/widgets/svga_player.dart';
@@ -717,7 +718,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
   }
 
   /// معاينة ملء الشاشة للسيارات ومؤثرات الدخول car_svga_play
-  Widget _buildFullscreenAnimationOverlay(dynamic user) {
+  Widget _buildFullscreenAnimationOverlay(UserModel? user) {
     final item = _previewItem!;
     final animUrl = (item.videoAsset != null && item.videoAsset!.isNotEmpty)
         ? item.videoAsset!
@@ -725,8 +726,8 @@ class _BackpackScreenState extends State<BackpackScreen> {
             ? item.svgaAsset!
             : (item.animationUrl ?? item.iconAsset));
     final isVideo = item.isVideo || animUrl.toLowerCase().endsWith('.mp4') || animUrl.toLowerCase().endsWith('.vap');
-    final photoUrl = user?.photoUrl?.isNotEmpty == true ? user.photoUrl : null;
-    final userName = user?.nickname ?? user?.name ?? '';
+    final photoUrl = (user != null && user.photoUrl.isNotEmpty) ? user.photoUrl : null;
+    final userName = user?.name ?? '';
 
     final imageReplacement = <String, String>{};
     if (photoUrl != null) {

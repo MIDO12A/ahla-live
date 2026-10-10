@@ -819,7 +819,7 @@ class _MallScreenState extends State<MallScreen> {
                     ? {item.photoKey!: photoUrl}
                     : null,
                 textReplacement: (item.nameKey != null && user != null)
-                    ? {item.nameKey!: user.nickname ?? user.name ?? ''}
+                    ? {item.nameKey!: user.name}
                     : null,
               )
             else

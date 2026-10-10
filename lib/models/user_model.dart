@@ -62,6 +62,8 @@ class UserModel {
   int get exp => experience;
   String get id => uid;
   String get avatar => photoUrl;
+  String get nickname => name;
+  String get displayName => name;
   int get countryIdx => 0;
 
   UserModel({
