@@ -18,6 +18,7 @@ class RoomBannerWidget extends StatefulWidget {
 class _RoomBannerWidgetState extends State<RoomBannerWidget> {
   final FirebaseService _firebaseService = FirebaseService();
   final PageController _pageController = PageController();
+  late final Stream<List<BannerConfig>> _bannersStream;
   Timer? _autoScrollTimer;
   int _currentPage = 0;
   List<BannerConfig> _banners = [];
@@ -25,6 +26,7 @@ class _RoomBannerWidgetState extends State<RoomBannerWidget> {
   @override
   void initState() {
     super.initState();
+    _bannersStream = _firebaseService.bannersStream().asBroadcastStream();
     _startAutoScroll();
   }
 
@@ -51,7 +53,7 @@ class _RoomBannerWidgetState extends State<RoomBannerWidget> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<BannerConfig>>(
-      stream: _firebaseService.bannersStream(),
+      stream: _bannersStream,
       builder: (context, snapshot) {
         final list = snapshot.data ?? [];
         _banners = list;

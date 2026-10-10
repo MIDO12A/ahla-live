@@ -41,7 +41,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
   @override
   void initState() {
     super.initState();
-    _roomsStream = _firebaseService.allRoomsStream();
+    _roomsStream = _firebaseService.allRoomsStream().asBroadcastStream();
     _tabController = TabController(length: 2, vsync: this, initialIndex: 1);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
@@ -917,12 +917,14 @@ class _BannerCarouselState extends State<_BannerCarousel> {
   final SupabaseService _firebaseService = SupabaseService();
   late PageController _bannerController;
   late Timer _bannerTimer;
+  late final Stream<List<BannerConfig>> _bannersStream;
   int _currentBannerPage = 0;
   List<BannerConfig> _banners = [];
 
   @override
   void initState() {
     super.initState();
+    _bannersStream = _firebaseService.bannersStream().asBroadcastStream();
     _bannerController = PageController(initialPage: 0);
     _bannerTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (_bannerController.hasClients && _banners.length > 1) {
@@ -946,7 +948,7 @@ class _BannerCarouselState extends State<_BannerCarousel> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<BannerConfig>>(
-      stream: _firebaseService.bannersStream(),
+      stream: _bannersStream,
       builder: (context, snapshot) {
         _banners = snapshot.data ?? [];
         if (_banners.isEmpty) return const SizedBox.shrink();

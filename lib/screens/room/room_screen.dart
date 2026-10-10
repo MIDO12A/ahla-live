@@ -483,7 +483,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Future<void> _playGiftArrivalSound() async {
     try {
       HapticFeedback.lightImpact();
-      _giftAudioPlayer ??= AudioPlayer();
+      if (_giftAudioPlayer == null) {
+        _giftAudioPlayer = AudioPlayer();
+      }
 
       final remoteUrl = DynamicConfigService().getAssetUrl('gift_sound') ??
           DynamicConfigService().getAssetUrl('gift') ??
@@ -498,18 +500,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       await _giftAudioPlayer!.seek(Duration.zero);
       await _giftAudioPlayer!.play();
     } catch (e) {
-      debugPrint('[RoomScreen] gift sound error: $e');
-      try {
-        final player = AudioPlayer();
-        await player.setAsset('assets/sounds/key_music.mp3');
-        await player.setVolume(1.0);
-        await player.play();
-        player.playerStateStream.listen((state) {
-          if (state.processingState == ProcessingState.completed) {
-            player.dispose();
-          }
-        });
-      } catch (_) {}
+      debugPrint('[RoomScreen] gift sound notice: $e');
     }
   }
 
