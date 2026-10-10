@@ -372,6 +372,7 @@ class SupabaseService {
         value: value,
         count: count,
       ).catchError((_) => false));
+      unawaited(_ds.incrementRoomGifts(roomId, totalCost));
 
       // 4. بث رسالة الغرفة عبر room_messages في Supabase
       final luckyMsgId = const Uuid().v4();
@@ -570,6 +571,7 @@ class SupabaseService {
         value: value,
         count: count,
       ).catchError((_) => false));
+      unawaited(_ds.incrementRoomGifts(roomId, totalCost));
 
       unawaited(_ds.sendMessage(MessageModel(
         msgId: const Uuid().v4(),
@@ -1345,22 +1347,53 @@ class SupabaseService {
 
   Future<List<Map<String, dynamic>>> getRoomGlobalRanking({required String timeframe}) async {
     try {
-      final gifts = await _ds.getSentGifts('', limit: 200);
+      final gifts = await _ds.getSentGifts('', limit: 500);
+      final now = DateTime.now().toUtc();
+      DateTime? cutoff;
+      if (timeframe == 'daily') {
+        cutoff = now.subtract(const Duration(days: 1));
+      } else if (timeframe == 'weekly') {
+        cutoff = now.subtract(const Duration(days: 7));
+      } else if (timeframe == 'monthly') {
+        cutoff = now.subtract(const Duration(days: 30));
+      }
+
+      var filtered = gifts;
+      if (cutoff != null) {
+        final timeFiltered = gifts.where((g) => g.timestamp.isAfter(cutoff!)).toList();
+        if (timeFiltered.isNotEmpty) {
+          filtered = timeFiltered;
+        }
+      }
+
       final Map<String, int> roomTotals = {};
-      for (final g in gifts) {
+      for (final g in filtered) {
         if (g.roomId.isNotEmpty) {
           roomTotals[g.roomId] = (roomTotals[g.roomId] ?? 0) + (g.value * g.count).toInt();
         }
       }
       final sortedKeys = roomTotals.keys.toList()..sort((a, b) => roomTotals[b]!.compareTo(roomTotals[a]!));
       final List<Map<String, dynamic>> result = [];
-      for (final rid in sortedKeys) {
+      for (final rid in sortedKeys.take(50)) {
         final room = await _ds.getRoom(rid);
+        final amt = roomTotals[rid] ?? 0;
+        final photo = (room?.roomPhotoUrl.isNotEmpty == true) ? room!.roomPhotoUrl : (room?.bgImage ?? '');
         result.add({
+          'id': rid,
+          'uid': rid,
           'roomId': rid,
+          'room_id': rid,
           'name': room?.name ?? 'غرفة #$rid',
-          'photoUrl': room?.roomPhotoUrl ?? '',
-          'amount': roomTotals[rid] ?? 0,
+          'photoUrl': photo,
+          'photo_url': photo,
+          'room_photo_url': photo,
+          'host_name': room?.hostName ?? '',
+          'password': room?.password ?? '',
+          'amount': amt,
+          'points': amt,
+          'total_value': amt,
+          'total_gifts': amt,
+          'hot_value': amt,
         });
       }
       return result;

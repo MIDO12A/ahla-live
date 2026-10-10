@@ -189,6 +189,21 @@ class SupabaseDataService {
     }
   }
 
+  Future<void> incrementRoomGifts(String roomId, int giftValue) async {
+    try {
+      if (roomId.isEmpty || giftValue <= 0) return;
+      final room = await getRoom(roomId);
+      if (room != null) {
+        final newTotal = room.totalGifts + giftValue;
+        final newHot = (room.hotValue > 0 ? room.hotValue : 0) + giftValue;
+        await updateRoom(roomId, {
+          'total_gifts': newTotal,
+          'hot_value': newHot,
+        });
+      }
+    } catch (_) {}
+  }
+
   Future<bool> deleteRoom(String roomId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId');
@@ -1207,7 +1222,8 @@ class SupabaseDataService {
 
   Future<List<gm.SentGiftModel>> getSentGifts(String roomId, {int limit = 50}) async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?room_id=eq.$roomId&select=*&order=created_at.desc&limit=$limit');
+      final roomFilter = roomId.isNotEmpty ? 'room_id=eq.$roomId&' : '';
+      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?${roomFilter}select=*&order=created_at.desc&limit=$limit');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);

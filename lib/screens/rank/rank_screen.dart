@@ -175,11 +175,31 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
 
       if (roomsDaily.isEmpty || roomsWeekly.isEmpty || roomsMonthly.isEmpty) {
         try {
-          final topRooms = await sb
+          // 1. حساب الغرف الأعلى استلاماً للهدايا مباشرة من جدول sent_gifts
+          final dailyFromGifts = await FirebaseService().getRoomGlobalRanking(timeframe: 'daily');
+          final weeklyFromGifts = await FirebaseService().getRoomGlobalRanking(timeframe: 'weekly');
+          final monthlyFromGifts = await FirebaseService().getRoomGlobalRanking(timeframe: 'monthly');
+
+          if (roomsDaily.isEmpty && dailyFromGifts.isNotEmpty) roomsDaily = dailyFromGifts;
+          if (roomsWeekly.isEmpty && weeklyFromGifts.isNotEmpty) roomsWeekly = weeklyFromGifts;
+          if (roomsMonthly.isEmpty && monthlyFromGifts.isNotEmpty) roomsMonthly = monthlyFromGifts;
+        } catch (_) {}
+      }
+
+      if (roomsDaily.isEmpty || roomsWeekly.isEmpty || roomsMonthly.isEmpty) {
+        try {
+          var topRooms = await sb
               .from('rooms')
               .select('room_id,id,name,room_photo_url,bg_image,host_uid,host_name,hot_value,total_gifts')
-              .order('hot_value', ascending: false)
+              .order('total_gifts', ascending: false)
               .limit(50);
+          if ((topRooms as List).isEmpty) {
+            topRooms = await sb
+                .from('rooms')
+                .select('room_id,id,name,room_photo_url,bg_image,host_uid,host_name,hot_value,total_gifts')
+                .order('hot_value', ascending: false)
+                .limit(50);
+          }
           final mapped = (topRooms as List).map((r) {
             final m = Map<String, dynamic>.from(r as Map);
             m['room_id'] = m['room_id'] ?? m['id'];
@@ -187,7 +207,9 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                 ? m['room_photo_url']
                 : (m['bg_image'] ?? '');
             m['photoUrl'] = m['photo_url'];
-            m['points'] = (m['hot_value'] as num?)?.toInt() ?? (m['total_gifts'] as num?)?.toInt() ?? 100;
+            final tg = (m['total_gifts'] as num?)?.toInt() ?? 0;
+            final hv = (m['hot_value'] as num?)?.toInt() ?? 0;
+            m['points'] = tg > 0 ? tg : (hv > 0 ? hv : 1);
             m['amount'] = m['points'];
             return m;
           }).toList();
@@ -224,15 +246,22 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
 
     if (type == 'rooms') {
       final list = _cachedRankings[key] ?? [];
-      return list.where((e) => ((e['points'] as num?)?.toInt() ?? 0) > 0).map((e) {
+      final withPoints = list.where((e) {
+        final p = (e['points'] as num?)?.toInt() ?? (e['amount'] as num?)?.toInt() ?? (e['total_gifts'] as num?)?.toInt() ?? 0;
+        return p > 0;
+      }).toList();
+      final targetList = withPoints.isNotEmpty ? withPoints : list;
+      return targetList.map((e) {
         final photo = (e['photoUrl'] ?? e['photo_url'] ?? e['room_photo_url'] ?? e['cover_image'] ?? e['image'] ?? e['bg_image'] ?? '').toString();
-        final roomId = (e['room_id'] ?? e['user_id'] ?? e['id'] ?? '').toString();
+        final roomId = (e['room_id'] ?? e['roomId'] ?? e['user_id'] ?? e['id'] ?? '').toString();
+        final pts = (e['points'] as num?)?.toInt() ?? (e['amount'] as num?)?.toInt() ?? (e['total_gifts'] as num?)?.toInt() ?? 0;
         return {
           'uid': e['id'] ?? e['uid'] ?? roomId,
           'name': (e['name'] ?? e['title'] ?? 'Room').toString(),
           'photoUrl': photo,
           'photo_url': photo,
-          'points': (e['points'] as num?)?.toInt() ?? 0,
+          'points': pts,
+          'amount': pts,
           'level': 1,
           'user_id': roomId,
           'room_id': roomId,
