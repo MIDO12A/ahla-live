@@ -571,7 +571,8 @@ CREATE OR REPLACE VIEW public.active_agencies AS
 SELECT 
     id,
     name,
-    COALESCE(photo_url, '') AS photo_url,
+    COALESCE(logo_url, '') AS photo_url,
+    COALESCE(logo_url, '') AS logo_url,
     COALESCE(tier, 'C') AS tier,
     COALESCE(member_count, 0) AS member_count,
     COALESCE(total_diamonds_monthly, 0) AS total_diamonds_monthly,
