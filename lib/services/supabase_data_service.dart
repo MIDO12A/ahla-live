@@ -925,27 +925,6 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] getGifts Supabase error: $e');
     }
 
-    // 2. Fallback / Merge from Firestore ONLY if Supabase returned nothing
-    if (giftMap.isEmpty) {
-      try {
-        final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-            .collection('gifts')
-            .get();
-        for (final doc in snap.docs) {
-          try {
-            final data = Map<String, dynamic>.from(doc.data());
-            data['id'] ??= doc.id;
-            final g = gm.GiftModel.fromMap(data);
-            if (g.id.isNotEmpty && !giftMap.containsKey(g.id)) {
-              giftMap[g.id] = g;
-            }
-          } catch (_) {}
-        }
-      } catch (e) {
-        debugPrint('[SupabaseDataService] getGifts Firestore fallback notice: $e');
-      }
-    }
-
     final list = giftMap.values.toList();
     list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     return list;
@@ -969,25 +948,6 @@ class SupabaseDataService {
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getGiftCategories Supabase error: $e');
-    }
-
-    // 2. Fallback / Merge from Firestore ONLY if Supabase returned nothing
-    if (catMap.isEmpty) {
-      try {
-        final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-            .collection('gift_categories')
-            .get();
-        for (final doc in snap.docs) {
-          try {
-            final data = Map<String, dynamic>.from(doc.data());
-            data['id'] ??= doc.id;
-            final c = GiftCategory.fromMap(data);
-            if (c.id.isNotEmpty && !catMap.containsKey(c.id)) {
-              catMap[c.id] = c;
-            }
-          } catch (_) {}
-        }
-      } catch (_) {}
     }
 
     final list = catMap.values.toList();

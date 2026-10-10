@@ -82,7 +82,7 @@ class UpdateService {
   Future<AppUpdateInfo?> _checkSupabase(PackageInfo info) async {
     try {
       final dio = Dio();
-      final res = await dio.get<List<dynamic>>(
+      final res = await dio.get<dynamic>(
         'https://pxyqgeitjdsilgfftnyd.supabase.co/rest/v1/app_config?key=eq.app_update&select=*',
         options: Options(
           validateStatus: (status) => status != null && status < 500,
@@ -93,8 +93,15 @@ class UpdateService {
         ),
       ).timeout(const Duration(seconds: 8));
 
-      if (res.statusCode == 200 && res.data != null && res.data!.isNotEmpty) {
-        final row = res.data!.first as Map<String, dynamic>;
+      if (res.statusCode == 200 && res.data != null) {
+        Map<String, dynamic> row;
+        if (res.data is List && (res.data as List).isNotEmpty) {
+          row = Map<String, dynamic>.from((res.data as List).first as Map);
+        } else if (res.data is Map) {
+          row = Map<String, dynamic>.from(res.data as Map);
+        } else {
+          return null;
+        }
         final d = (row['value'] is Map) ? Map<String, dynamic>.from(row['value'] as Map) : row;
         final latestVersion = (d['latest_version'] ?? '').toString().trim();
         final apkUrl = (d['apk_url'] ?? '').toString().trim();
