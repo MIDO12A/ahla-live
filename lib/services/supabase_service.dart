@@ -71,7 +71,9 @@ class SupabaseService {
     return controller.stream;
   }
 
-  Future<void> saveUser(UserModel user) => _ds.saveUser(user);
+  Future<void> saveUser(UserModel user) async {
+    await _ds.updateUser(user.uid, user.toMap());
+  }
 
   Future<bool> updateUser(String uid, Map<String, dynamic> data) => _ds.updateUser(uid, data);
 
@@ -79,11 +81,51 @@ class SupabaseService {
 
   Future<bool> removeGiftedItem(String giftId) => _ds.removeGiftedItem(giftId);
 
-  Future<bool> purchaseItem(String uid, StoreItemModel item) => _ds.purchaseItem(uid, item);
+  Future<bool> purchaseItem(String uid, StoreItemModel item) async {
+    try {
+      final u = await _ds.getUser(uid);
+      if (u == null || u.coins < item.price) return false;
+      final owned = List<String>.from(u.ownedItems);
+      if (!owned.contains(item.itemId)) owned.add(item.itemId);
+      return await _ds.updateUser(uid, {
+        'coins': u.coins - item.price,
+        'owned_items': owned,
+      });
+    } catch (_) {
+      return false;
+    }
+  }
 
-  Future<bool> equipItem(String uid, String itemId, String category) => _ds.equipItem(uid, itemId, category);
+  Future<bool> equipItem(String uid, String itemId, String category) async {
+    final updateMap = <String, dynamic>{};
+    switch (category) {
+      case 'frame':
+        updateMap['active_frame'] = itemId;
+        break;
+      case 'headwear':
+        updateMap['active_headwear'] = itemId;
+        break;
+      case 'bubble':
+        updateMap['active_bubble'] = itemId;
+        break;
+      case 'entrance':
+        updateMap['active_entrance'] = itemId;
+        break;
+      case 'car':
+        updateMap['active_car'] = itemId;
+        break;
+      default:
+        updateMap['active_$category'] = itemId;
+    }
+    return await _ds.updateUser(uid, updateMap);
+  }
 
-  Future<bool> unequipItem(String uid, String category) => _ds.unequipItem(uid, category);
+  Future<bool> unequipItem(String uid, String category) async {
+    final updateMap = <String, dynamic>{
+      'active_$category': '',
+    };
+    return await _ds.updateUser(uid, updateMap);
+  }
 
   // ═══════════════════════════════════════════════════════
   // ROOM & SEATS OPERATIONS (SUPABASE)
@@ -813,9 +855,9 @@ class SupabaseService {
     String emoji,
     String senderUid,
     String senderName,
-    String senderPhotoUrl, [
-    dynamic extraOrSeatIndex,
-  ]) async {
+    String senderPhotoUrl, {
+    int? seatIndex,
+  }) async {
     await _ds.sendMessage(MessageModel(
       msgId: const Uuid().v4(),
       roomId: roomId,
@@ -973,10 +1015,10 @@ class SupabaseService {
     String roomId,
     String uid,
     String name,
-    String photoUrl, [
-    dynamic entranceItem,
-    dynamic carItemNamed,
-  ]) async {
+    String photoUrl,
+    String? entranceItem, {
+    String? carItem,
+  }) async {
     // Entrance logged
   }
 
