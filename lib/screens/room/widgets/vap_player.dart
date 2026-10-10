@@ -94,11 +94,13 @@ class _VapPlayerState extends State<VapPlayer> with SingleTickerProviderStateMix
     _finishedOnce = true;
     _safetyTimer?.cancel();
     _safetyTimer = null;
-    try {
-      _audioPlayer?.stop();
-      _audioPlayer?.dispose();
-      _audioPlayer = null;
-    } catch (_) {}
+    final p = _audioPlayer;
+    _audioPlayer = null;
+    if (p != null) {
+      try {
+        p.dispose();
+      } catch (_) {}
+    }
     if (forceStop) {
       try {
         _controller.stop();
@@ -113,11 +115,13 @@ class _VapPlayerState extends State<VapPlayer> with SingleTickerProviderStateMix
     if (old.url != widget.url) {
       _controller.stop();
       _safetyTimer?.cancel();
-      try {
-        _audioPlayer?.stop();
-        _audioPlayer?.dispose();
-        _audioPlayer = null;
-      } catch (_) {}
+      final p = _audioPlayer;
+      _audioPlayer = null;
+      if (p != null) {
+        try {
+          p.dispose();
+        } catch (_) {}
+      }
       _finishedOnce = false;
       _isViewCreated = false;
       _localPath = null;
@@ -139,11 +143,13 @@ class _VapPlayerState extends State<VapPlayer> with SingleTickerProviderStateMix
   void dispose() {
     _safetyTimer?.cancel();
     _safetyTimer = null;
-    try {
-      _audioPlayer?.stop();
-      _audioPlayer?.dispose();
-      _audioPlayer = null;
-    } catch (_) {}
+    final p = _audioPlayer;
+    _audioPlayer = null;
+    if (p != null) {
+      try {
+        p.dispose();
+      } catch (_) {}
+    }
     if (!_finishedOnce) {
       try {
         _controller.stop();

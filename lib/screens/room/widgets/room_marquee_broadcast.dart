@@ -80,13 +80,15 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
         position: _slideAnim,
         child: GestureDetector(
         onTap: () {
-          if (roomId.isNotEmpty) {
-            navigateToRoom(
-              context,
-              roomName: roomName,
-              hostName: '',
-              roomId: roomId,
-            );
+          if (roomId.isNotEmpty && mounted) {
+            try {
+              navigateToRoom(
+                context,
+                roomName: roomName,
+                hostName: '',
+                roomId: roomId,
+              );
+            } catch (_) {}
           }
         },
         child: SizedBox(

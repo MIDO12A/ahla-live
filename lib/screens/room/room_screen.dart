@@ -177,11 +177,14 @@ Future<void> navigateToRoom(
       wasMicMuted: wasMicMuted,
     ),
   );
-  if (replace) {
-    Navigator.pushReplacement(context, route);
-  } else {
-    Navigator.push(context, route);
-  }
+  if (!context.mounted) return;
+  try {
+    if (replace) {
+      Navigator.pushReplacement(context, route);
+    } else {
+      Navigator.push(context, route);
+    }
+  } catch (_) {}
 }
 
 class _RoomGiftNotice {
@@ -2161,11 +2164,20 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _seatsRefreshTimer?.cancel();
     _presencePingTimer?.cancel();
     _giftAnimWatchdog?.cancel();
-    _giftAudioPlayer?.dispose();
+    final gap = _giftAudioPlayer;
     _giftAudioPlayer = null;
-    _stopEntranceSound();
-    _entranceAudioPlayer?.dispose();
+    if (gap != null) {
+      try {
+        gap.dispose();
+      } catch (_) {}
+    }
+    final eap = _entranceAudioPlayer;
     _entranceAudioPlayer = null;
+    if (eap != null) {
+      try {
+        eap.dispose();
+      } catch (_) {}
+    }
     _roomComboTimer?.cancel();
     _bannerHideTimer?.cancel();
     _roomSub?.cancel();
@@ -6422,7 +6434,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final uid = _currentUserId!;
     final roomId = widget.roomId;
     // Fire-and-forget directly via Supabase
-    SupabaseDataService().sendPresencePing(roomId, uid).catchError((_) {});
+    SupabaseDataService().sendPresencePing(roomId, uid).catchError((_) => false);
   }
 
   /// تنظيف المستخدمين غير النشطين
