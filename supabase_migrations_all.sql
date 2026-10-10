@@ -573,10 +573,10 @@ SELECT
     name,
     COALESCE(logo_url, '') AS photo_url,
     COALESCE(logo_url, '') AS logo_url,
-    COALESCE(tier, 'C') AS tier,
+    'C'::TEXT AS tier,
     COALESCE(member_count, 0) AS member_count,
     COALESCE(total_diamonds_monthly, 0) AS total_diamonds_monthly,
-    COALESCE(is_hall_of_fame, false) AS is_hall_of_fame,
+    false AS is_hall_of_fame,
     owner_uid,
     created_at
 FROM public.host_agencies
