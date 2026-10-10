@@ -2240,8 +2240,8 @@ class SupabaseDataService {
         },
         body: jsonEncode({
           'room_id': roomId.toString(),
-          'user_id': userId,
-          'last_ping': DateTime.now().toUtc().toIso8601String(),
+          'uid': userId,
+          'joined_at': DateTime.now().toUtc().toIso8601String(),
         }),
       );
       return res.statusCode >= 200 && res.statusCode < 300;

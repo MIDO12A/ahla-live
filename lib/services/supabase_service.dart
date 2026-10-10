@@ -877,9 +877,8 @@ class SupabaseService {
     }
   }
 
-  Future<bool> takeSeat([dynamic a1, dynamic a2, dynamic a3]) async {
-    return true;
-  }
+  Future<bool> takeSeat(String roomId, int seatIndex, UserModel user) =>
+      _ds.takeSeat(roomId: roomId, seatIndex: seatIndex, user: user);
 
   Future<bool> leaveSeat(String roomId, int seatIndex) => _ds.leaveSeat(roomId, seatIndex);
 

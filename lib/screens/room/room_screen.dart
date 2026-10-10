@@ -1642,12 +1642,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     });
 
     // Periodic refresh as fallback in case Realtime misses updates
-    _seatsRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+    _seatsRefreshTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
       if (!mounted) return;
       try {
         final seatMap = await SupabaseDataService().getSeats(widget.roomId);
         if (seatMap.isNotEmpty && mounted) {
           _processSeatMap(seatMap);
+        }
+        final members = await SupabaseDataService().getRoomMembers(widget.roomId);
+        if (members.isNotEmpty && mounted) {
+          setState(() {
+            _roomMembers = members;
+            _onlineCount = max(members.length, _seats.where((s) => s.isOccupied).length);
+          });
         }
       } catch (_) {}
     });
