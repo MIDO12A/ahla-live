@@ -44,9 +44,9 @@ class LuckyGiftService {
     _isPlayingAnim = true;
     final nextData = _broadcastQueue.removeAt(0);
 
-    // مهلة أمان قصوى لمنع التعليق
+    // مهلة أمان قصوى 8 ثوانٍ لمنع التعليق
     _queueWatchdog?.cancel();
-    _queueWatchdog = Timer(const Duration(seconds: 10), () {
+    _queueWatchdog = Timer(const Duration(seconds: 8), () {
       if (_isPlayingAnim && !_broadcastQueue.isEmpty) {
         _processNextInQueue(context);
       } else if (_isPlayingAnim) {

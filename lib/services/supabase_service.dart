@@ -288,38 +288,64 @@ class SupabaseService {
     int comboCount = 1,
     List<int>? preDrawnMultipliers,
   }) async {
-    final multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count);
     int totalWonCoins = 0;
-    for (final m in multipliers) {
-      totalWonCoins += (value * m);
-    }
-    final totalCost = value * count;
-    final luckyTargetPct = DynamicConfigService().luckyGiftTargetPercentage;
-    final int recipientDiamonds = math.max(0, ((totalCost * luckyTargetPct) / 100.0).round());
-    final bool isSelfSend = senderId == receiverId;
-    final isBigWin = multipliers.any((m) => m >= 50);
-    final maxMultiplier = multipliers.isEmpty ? 0 : multipliers.reduce((curr, next) => curr > next ? curr : next);
+    int maxMultiplier = 0;
+    bool isBigWin = false;
+    List<int> multipliers = [];
+    int serverNewBalance = 0;
 
     try {
-      // 1. تحديث رصيد المرسل في Supabase فوريًا ومباشرةً (REST PATCH بـ <50ms)
-      final sUser = await _ds.getUser(senderId);
-      final currentCoins = sUser?.coins ?? 0;
-      final newCoins = math.max(0, currentCoins - totalCost + totalWonCoins);
-      await _ds.updateUser(senderId, {
-        'coins': newCoins,
-        'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
-      });
+      // 1. استدعاء المعاملة الذرية من Supabase عبر RPC (process_lucky_gift)
+      final rpcUrl = Uri.parse('$_baseUrl/rest/v1/rpc/process_lucky_gift');
+      final rpcRes = await http.post(
+        rpcUrl,
+        headers: _headers,
+        body: jsonEncode({
+          'p_user_id': senderId,
+          'p_room_id': roomId,
+          'p_receiver_id': receiverId,
+          'p_gift_id': giftId,
+          'p_count': count,
+        }),
+      ).timeout(const Duration(seconds: 8));
 
-      // 2. تحديث رصيد المستلم في Supabase (الماس)
-      if (!isSelfSend) {
-        final rUser = await _ds.getUser(receiverId);
-        if (rUser != null) {
-          await _ds.updateUser(receiverId, {
-            'diamonds': rUser.diamonds + recipientDiamonds,
-            'total_gifts_received': rUser.totalGiftsReceived + totalCost,
-          });
+      if (rpcRes.statusCode >= 200 && rpcRes.statusCode < 300) {
+        final Map<String, dynamic> rpcData = jsonDecode(rpcRes.body) as Map<String, dynamic>;
+        if (rpcData['success'] != true) {
+          debugPrint('[SupabaseService] process_lucky_gift failed: ${rpcData['error']}');
+          return null;
         }
+        totalWonCoins = (rpcData['won_coins'] as num?)?.toInt() ?? 0;
+        maxMultiplier = (rpcData['multiplier'] as num?)?.toInt() ?? 0;
+        isBigWin = rpcData['is_big_win'] == true || maxMultiplier >= 50;
+        serverNewBalance = (rpcData['new_balance'] as num?)?.toInt() ?? 0;
+        final rawMults = rpcData['multipliers'] as List<dynamic>?;
+        if (rawMults != null) {
+          multipliers = rawMults.map((e) => (e as num).toInt()).toList();
+        } else {
+          multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count);
+        }
+      } else {
+        // Fallback في حال لم يتم تنفيذ الـ SQL بعد على السيرفر
+        debugPrint('[SupabaseService] RPC status ${rpcRes.statusCode}, using fallback');
+        multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count);
+        for (final m in multipliers) {
+          totalWonCoins += (value * m);
+        }
+        final sUser = await _ds.getUser(senderId);
+        final currentCoins = sUser?.coins ?? 0;
+        serverNewBalance = math.max(0, currentCoins - (value * count) + totalWonCoins);
+        await _ds.updateUser(senderId, {
+          'coins': serverNewBalance,
+          'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + (value * count),
+        });
       }
+    } catch (e) {
+      debugPrint('[SupabaseService] process_lucky_gift error: $e');
+      return null;
+    }
+
+    final totalCost = value * count;
 
       // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase
       unawaited(_ds.recordSentGift(
@@ -457,6 +483,7 @@ class SupabaseService {
         'multipliers': multipliers,
         'maxMultiplier': maxMultiplier,
         'isBigWin': isBigWin,
+        'newBalance': serverNewBalance,
       };
     } catch (e) {
       debugPrint('[SupabaseService] sendLuckyGift error: $e');

@@ -804,27 +804,6 @@ class _GiftPanelState extends State<GiftPanel> {
     final fb = SupabaseService();
     final stepCount = widget.selectedCount > 0 ? widget.selectedCount : 1;
 
-    // سحب النتائج وحساب صافي الرصيد فوريًا في الذاكرة لتحديث رصيد الواجهة بـ 0ms تأخير ومنع التدبيل
-    final Map<String, List<int>> targetDrawnMultipliers = {};
-    int totalAggregatedWon = 0;
-    if (isLuckyGift) {
-      for (final r in selectedTargets) {
-        final rid = r['id']?.toString() ?? '';
-        final drawn = fb.drawLuckyMultipliers(stepCount);
-        targetDrawnMultipliers[rid] = drawn;
-        totalAggregatedWon += drawn.fold<int>(0, (total, m) => total + (gift.value * m));
-      }
-      final netDelta = totalAggregatedWon - totalCost;
-      if (netDelta < 0) {
-        userProvider.deductCoinsLocally(netDelta.abs());
-      } else if (netDelta > 0) {
-        userProvider.addCoinsLocally(netDelta);
-      }
-    } else {
-      userProvider.deductCoinsLocally(totalCost);
-    }
-
-    // لا نغلق صندوق الهدايا أثناء لعب هدايا الحظ أو الكومبو لتمكين المستخدم من متابعة الرصيد واللعب المتتابع
     if (!isLuckyGift && _comboSeconds <= 0 && widget.onSend != null) {
       widget.onSend!();
     }

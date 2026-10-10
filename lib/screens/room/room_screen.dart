@@ -761,7 +761,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               );
             }
 
-            await fb.sendLuckyGift(
+            final res = await fb.sendLuckyGift(
               roomId: roomId,
               giftId: gift.id,
               giftName: gift.name,
@@ -779,9 +779,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               count: count,
               comboId: comboId,
               comboCount: comboMultiplier,
-              preDrawnMultipliers: drawn,
             );
-            // ✅ تم تحديث الرصيد مسبقاً بالصافي لحظياً، لا نضيف won مجدداً لمنع التدبيل
+
+            // ✅ تحديث الرصيد الحقيقي القادم مباشرة من السيرفر (Server Response Only)
+            if (res != null && res['newBalance'] is int && (res['newBalance'] as int) > 0) {
+              userProvider.updateCoinsImmediately(res['newBalance'] as int);
+            }
           } else {
             final cover = gift.defaultImage ?? gift.iconAsset;
             if (cover.isNotEmpty) {
