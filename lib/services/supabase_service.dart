@@ -949,6 +949,10 @@ class SupabaseService {
 
   Future<bool> isUserBlockedFromRoom(String roomId, String uid) async => false;
 
+  Future<void> followUser(String uid, String targetUid) => _ds.followUser(uid, targetUid);
+
+  Future<void> unfollowUser(String uid, String targetUid) => _ds.unfollowUser(uid, targetUid);
+
   Future<bool> isFollowing(String uid, String targetUid) => _ds.isFollowing(uid, targetUid);
 
   Future<void> recordProfileVisit({
@@ -1136,6 +1140,56 @@ class SupabaseService {
         }
       } catch (_) {}
       await Future.delayed(const Duration(seconds: 5));
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getGlobalRankings({required bool isWealth, required String timeframe}) async {
+    try {
+      final gifts = await _ds.getSentGifts('', limit: 200);
+      final Map<String, int> totals = {};
+      final Map<String, Map<String, dynamic>> userDetails = {};
+      for (final g in gifts) {
+        final uid = isWealth ? g.senderId : g.receiverId;
+        final name = isWealth ? g.senderName : g.receiverName;
+        final cost = g.value * g.count;
+        totals[uid] = (totals[uid] ?? 0) + cost;
+        userDetails[uid] = {'id': uid, 'name': name, 'photoUrl': isWealth ? g.senderPhotoUrl : ''};
+      }
+      final sortedKeys = totals.keys.toList()..sort((a, b) => totals[b]!.compareTo(totals[a]!));
+      return sortedKeys.map((uid) => {
+        'id': uid,
+        'name': userDetails[uid]?['name'] ?? '',
+        'photoUrl': userDetails[uid]?['photoUrl'] ?? '',
+        'amount': totals[uid] ?? 0,
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getRoomGlobalRanking({required String timeframe}) async {
+    try {
+      final gifts = await _ds.getSentGifts('', limit: 200);
+      final Map<String, int> roomTotals = {};
+      for (final g in gifts) {
+        if (g.roomId.isNotEmpty) {
+          roomTotals[g.roomId] = (roomTotals[g.roomId] ?? 0) + (g.value * g.count);
+        }
+      }
+      final sortedKeys = roomTotals.keys.toList()..sort((a, b) => roomTotals[b]!.compareTo(roomTotals[a]!));
+      final List<Map<String, dynamic>> result = [];
+      for (final rid in sortedKeys) {
+        final room = await _ds.getRoom(rid);
+        result.add({
+          'roomId': rid,
+          'name': room?.name ?? 'غرفة #$rid',
+          'photoUrl': room?.roomPhotoUrl ?? '',
+          'amount': roomTotals[rid] ?? 0,
+        });
+      }
+      return result;
+    } catch (_) {
+      return [];
     }
   }
 

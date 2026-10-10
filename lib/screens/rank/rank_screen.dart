@@ -79,7 +79,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
   Future<void> _loadRankings() async {
     setState(() => _loading = true);
     try {
-      final results = await Future.wait([
+      final results = await Future.wait<dynamic>([
         _api.getGlobalRankings(isWealth: true, timeframe: 'daily').catchError((_) => <Map<String, dynamic>>[]),
         _api.getGlobalRankings(isWealth: true, timeframe: 'weekly').catchError((_) => <Map<String, dynamic>>[]),
         _api.getGlobalRankings(isWealth: true, timeframe: 'monthly').catchError((_) => <Map<String, dynamic>>[]),
