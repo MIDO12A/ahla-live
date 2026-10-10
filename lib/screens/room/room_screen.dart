@@ -6409,7 +6409,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   /// تلقائياً بواسطة TTL checker عند دخول أي مستخدم للغرفة.
   void _startPresencePing() {
     _presencePingTimer?.cancel();
-    _presencePingTimer = Timer.periodic(const Duration(seconds: 90), (_) {
+    _presencePingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _updatePresencePing();
     });
     // أول ping فوري عند الدخول
@@ -6427,7 +6427,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   /// تنظيف المستخدمين غير النشطين
   Future<void> _cleanupZombieUsers() async {
-    // Supabase handles presence cleanup automatically or via heartbeat
+    try {
+      final cutoff = DateTime.now().toUtc().subtract(const Duration(minutes: 2)).toIso8601String();
+      await Supabase.instance.client
+          .from('room_members')
+          .delete()
+          .eq('room_id', widget.roomId)
+          .lt('joined_at', cutoff);
+    } catch (_) {}
   }
 
   void _exitRoom() {
