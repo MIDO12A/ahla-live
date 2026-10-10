@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/firebase_service.dart';
+import '../../services/supabase_service.dart';
 import '../../models/banner_config.dart';
 import '../../core/widgets/cached_image.dart';
 import '../../utils/app_action_navigator.dart';

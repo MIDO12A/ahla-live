@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/cloudinary_service.dart';
-import '../../services/firebase_service.dart';
+import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../providers/user_provider.dart';
 import '../../core/ui/in_app_toast.dart';

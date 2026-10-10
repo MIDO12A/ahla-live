@@ -8,7 +8,7 @@ import '../../services/supabase_auth_service.dart';
 import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../../models/user_model.dart';
-import '../../services/firebase_service.dart';
+import '../../services/supabase_service.dart';
 import '../../services/update_service.dart';
 import '../../widgets/app_update_dialog.dart';
 import '../../screens/room/widgets/svga_frame.dart';

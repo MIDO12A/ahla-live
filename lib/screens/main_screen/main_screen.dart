@@ -13,7 +13,7 @@ import '../login/profile_screen.dart';
 import '../room/widgets/svga_player.dart';
 import '../../widgets/app_update_dialog.dart';
 import '../../features/signin/weekly_signin_screen.dart';
-import '../../services/firebase_service.dart';
+import '../../services/supabase_service.dart';
 import '../room/widgets/room_marquee_broadcast.dart';
 import '../../features/lucky_gift/services/lucky_gift_service.dart';
 

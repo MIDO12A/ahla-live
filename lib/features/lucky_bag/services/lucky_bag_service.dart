@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../services/api_service.dart';
-import '../../../services/firebase_service.dart';
+import '../../../services/supabase_service.dart';
 import '../models/lucky_bag_model.dart';
 import '../widgets/lucky_bag_grab_overlay.dart';
 

@@ -7,7 +7,7 @@ import '../room/widgets/vap_player.dart';
 import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../../services/api_service.dart';
-import '../../services/firebase_service.dart';
+import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../services/dynamic_config_service.dart';
 import '../wallet/wallet_main_screen.dart';

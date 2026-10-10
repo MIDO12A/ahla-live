@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/banner_config.dart';
-import '../../../services/firebase_service.dart';
+import '../../../services/supabase_service.dart';
 import '../../../utils/app_action_navigator.dart';
 import '../../../core/widgets/cached_image.dart';
 

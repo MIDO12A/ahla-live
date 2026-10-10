@@ -11,7 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../../services/firebase_service.dart';
+import '../../../../services/supabase_service.dart';
 import '../../../../core/supabase_compat.dart';
 
 import '../../../../core/theme/brand_colors.dart';

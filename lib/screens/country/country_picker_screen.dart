@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
-import '../../services/firebase_service.dart';
+import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../core/ui/in_app_toast.dart';
 

@@ -5,7 +5,7 @@ import '../../../core/supabase_compat.dart';
 import '../../../core/utils/server_time_service.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
-import '../../../services/firebase_service.dart';
+import '../../../services/supabase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyJoinRequestsScreen — طلبات الانضمام (للمالك والمشرف)

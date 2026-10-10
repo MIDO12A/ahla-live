@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../services/firebase_service.dart';
+import '../../../../services/supabase_service.dart';
 import '../../../../services/dynamic_config_service.dart';
 import '../../../../config/r.dart';
 import '../../user_profile/user_profile_screen.dart';

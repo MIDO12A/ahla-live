@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 
 import '../../../providers/user_provider.dart';
-import '../../../services/firebase_service.dart';
+import '../../../services/supabase_service.dart';
 import '../../../core/ui/in_app_toast.dart';
 import '../data/agency_repository.dart';
 import '../data/agency_models.dart';

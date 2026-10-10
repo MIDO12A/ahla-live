@@ -6,7 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../services/firebase_service.dart';
+import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 
 /// CP (Relationships) service backed by Firestore.
