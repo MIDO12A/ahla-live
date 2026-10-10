@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../services/supabase_service.dart';
+import '../../core/supabase_compat.dart';
 import '../../services/supabase_service.dart';
 import '../../services/dynamic_config_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
