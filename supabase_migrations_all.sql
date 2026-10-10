@@ -1,4 +1,4 @@
-﻿-- ============================================================================
+-- ============================================================================
 -- 1. تفعيل الإضافات وإنشاء الجداول الأساسية
 -- ============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -233,6 +233,170 @@ BEGIN
         'multipliers', to_jsonb(v_multipliers),
         'isBigWin', v_is_big_win,
         'isWin', v_is_win
+    );
+END;
+$func$;
+
+-- ============================================================================
+-- 2.1 دالة إرسال الهدية العادية الذرية (send_regular_gift) بـ SECURITY DEFINER
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.send_regular_gift(
+    p_sender_id TEXT,
+    p_room_id TEXT,
+    p_receiver_id TEXT,
+    p_gift_id TEXT,
+    p_count INT DEFAULT 1
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $func$
+DECLARE
+    v_sender_coins BIGINT;
+    v_gift_price BIGINT;
+    v_total_cost BIGINT;
+    v_diamond_reward BIGINT;
+    v_new_sender_coins BIGINT;
+BEGIN
+    IF p_count IS NULL OR p_count <= 0 THEN
+        p_count := 1;
+    END IF;
+
+    -- قفل صف المرسل لمنع Race Conditions
+    SELECT coins INTO v_sender_coins
+    FROM public.users
+    WHERE id = p_sender_id OR uid = p_sender_id
+    LIMIT 1
+    FOR UPDATE;
+
+    IF v_sender_coins IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'المرسل غير موجود');
+    END IF;
+
+    -- جلب سعر الهدية
+    SELECT COALESCE(coin_price, COALESCE(price, COALESCE(value, 0)))
+    INTO v_gift_price
+    FROM public.gifts
+    WHERE id = p_gift_id
+    LIMIT 1;
+
+    IF v_gift_price IS NULL OR v_gift_price <= 0 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'الهدية غير صالحة');
+    END IF;
+
+    v_total_cost := v_gift_price * p_count;
+
+    IF v_sender_coins < v_total_cost THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'رصيد العملات غير كافٍ',
+            'current_balance', v_sender_coins,
+            'required_cost', v_total_cost
+        );
+    END IF;
+
+    v_new_sender_coins := v_sender_coins - v_total_cost;
+
+    -- خصم من المرسل
+    UPDATE public.users
+    SET 
+        coins = v_new_sender_coins,
+        total_gifts_sent = COALESCE(total_gifts_sent, 0) + v_total_cost
+    WHERE id = p_sender_id OR uid = p_sender_id;
+
+    -- إضافة الألماس للمستلم (35%)
+    IF p_sender_id != p_receiver_id THEN
+        v_diamond_reward := ROUND(v_total_cost * 0.35);
+        UPDATE public.users
+        SET 
+            diamonds = COALESCE(diamonds, 0) + v_diamond_reward,
+            total_gifts_received = COALESCE(total_gifts_received, 0) + v_total_cost
+        WHERE id = p_receiver_id OR uid = p_receiver_id;
+
+        UPDATE public.host_agency_members
+        SET 
+            diamonds_earned_monthly = COALESCE(diamonds_earned_monthly, 0) + v_diamond_reward,
+            diamonds_balance = COALESCE(diamonds_balance, 0) + v_diamond_reward
+        WHERE user_id = p_receiver_id;
+    END IF;
+
+    -- تسجيل في جدول sent_gifts
+    INSERT INTO public.sent_gifts (
+        room_id,
+        gift_id,
+        sender_id,
+        receiver_id,
+        value,
+        count
+    ) VALUES (
+        p_room_id,
+        p_gift_id,
+        p_sender_id,
+        p_receiver_id,
+        v_total_cost,
+        p_count
+    );
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'new_balance', v_new_sender_coins,
+        'total_cost', v_total_cost,
+        'diamonds_added', v_diamond_reward
+    );
+END;
+$func$;
+
+-- ============================================================================
+-- 2.2 دالة تحديث رصيد المستخدم الآمنة (update_user_balance) بـ SECURITY DEFINER
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.update_user_balance(
+    p_user_id TEXT,
+    p_coin_delta BIGINT,
+    p_diamond_delta BIGINT DEFAULT 0,
+    p_reason TEXT DEFAULT 'system_adjustment'
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $func$
+DECLARE
+    v_current_coins BIGINT;
+    v_current_diamonds BIGINT;
+    v_new_coins BIGINT;
+    v_new_diamonds BIGINT;
+BEGIN
+    SELECT coins, diamonds 
+    INTO v_current_coins, v_current_diamonds
+    FROM public.users
+    WHERE id = p_user_id OR uid = p_user_id
+    LIMIT 1
+    FOR UPDATE;
+
+    IF v_current_coins IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'المستخدم غير موجود');
+    END IF;
+
+    v_new_coins := v_current_coins + p_coin_delta;
+    v_new_diamonds := v_current_diamonds + p_diamond_delta;
+
+    IF v_new_coins < 0 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'الرصيد لا يسمح بالخصم');
+    END IF;
+
+    UPDATE public.users
+    SET 
+        coins = v_new_coins,
+        diamonds = GREATEST(0, v_new_diamonds)
+    WHERE id = p_user_id OR uid = p_user_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'user_id', p_user_id,
+        'new_coins', v_new_coins,
+        'new_diamonds', GREATEST(0, v_new_diamonds),
+        'reason', p_reason
     );
 END;
 $func$;
