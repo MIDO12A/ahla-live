@@ -380,6 +380,35 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         debugPrint('[AgencyJoinRequests] Firestore accept error: $fsErr');
       }
 
+      // Immediately remove accepted request from pending list locally and add to approved list
+      final acceptedReq = _pending.firstWhere(
+        (m) => m['_req_id'] == reqId || m['id'] == reqId || m['user_id'] == userId,
+        orElse: () => <String, dynamic>{},
+      );
+      if (mounted) {
+        setState(() {
+          _pending.removeWhere((m) => m['_req_id'] == reqId || m['id'] == reqId || m['user_id'] == userId);
+          if (acceptedReq.isNotEmpty) {
+            final activeMember = Map<String, dynamic>.from(acceptedReq);
+            activeMember['status'] = 'active';
+            activeMember['role'] = 'host';
+            activeMember['_source'] = 'member';
+            if (!_approved.any((m) => m['user_id'] == userId)) {
+              _approved.insert(0, activeMember);
+            }
+          }
+        });
+      }
+
+      // Also clean up any pending notifications / Firestore request docs
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        await fs.collection('host_agency_join_requests').doc(reqId).delete();
+        if (userId.isNotEmpty) {
+          await fs.collection('host_agency_join_requests').doc('${widget.agencyId}_$userId').delete();
+        }
+      } catch (_) {}
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('✅ تم قبول العضو في الوكالة بنجاح'), backgroundColor: Color(0xFF2E7D32)),
@@ -431,6 +460,12 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         }
       } catch (fsErr) {
         debugPrint('[AgencyJoinRequests] Firestore reject error: $fsErr');
+      }
+
+      if (mounted) {
+        setState(() {
+          _pending.removeWhere((m) => m['_req_id'] == reqId || m['id'] == reqId || (userId != null && m['user_id'] == userId));
+        });
       }
 
       if (mounted) {

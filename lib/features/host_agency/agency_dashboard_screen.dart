@@ -279,6 +279,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
       ..sort((a, b) => ((b['week_diamonds'] ?? 0) as num)
           .compareTo((a['week_diamonds'] ?? 0) as num));
 
+    final photoUrl      = agency['photo_url'] ?? agency['photoUrl'] ?? agency['logo_url'] ?? agency['avatar'];
     return RefreshIndicator(
       color: _purple,
       backgroundColor: _bgCard,
@@ -294,6 +295,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
             flexibleSpace: FlexibleSpaceBar(
               background: _AgencyHeader(
                 name: name,
+                photoUrl: photoUrl?.toString(),
                 spec: spec,
                 rate: rate,
                 totalDiamonds: totalD,
@@ -462,6 +464,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
 class _AgencyHeader extends StatelessWidget {
   const _AgencyHeader({
     required this.name,
+    this.photoUrl,
     required this.spec,
     required this.rate,
     required this.totalDiamonds,
@@ -470,6 +473,7 @@ class _AgencyHeader extends StatelessWidget {
     this.agencyPublicId,
   });
   final String name;
+  final String? photoUrl;
   final String spec;
   final double rate;
   final dynamic totalDiamonds;
@@ -519,7 +523,14 @@ class _AgencyHeader extends StatelessWidget {
                       color: _purple.withOpacity(.3 + .2 * pulseCtrl.value),
                       blurRadius: 16)],
                 ),
-                child: const Center(child: Text('🎙️', style: TextStyle(fontSize: 24))),
+                clipBehavior: Clip.antiAlias,
+                child: (photoUrl != null && photoUrl!.isNotEmpty)
+                    ? Image.network(
+                        photoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Center(child: Text('🎙️', style: TextStyle(fontSize: 24))),
+                      )
+                    : const Center(child: Text('🎙️', style: TextStyle(fontSize: 24))),
               ),
               const SizedBox(width: 14),
               Expanded(

@@ -853,7 +853,7 @@ class _AgencyRankItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = agency['name'] as String? ?? 'وكالة';
-    final photoUrl = agency['photo_url'] as String?;
+    final photoUrl = agency['photo_url'] as String? ?? agency['photoUrl'] as String? ?? agency['logo_url'] as String? ?? agency['avatar'] as String?;
     final diamonds = (agency['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
     final members = (agency['member_count'] as num?)?.toInt() ?? 0;
     final displayId = formatAgencyNumericId(agency);
@@ -959,7 +959,9 @@ class _AgencyRankItem extends StatelessWidget {
                     clipBehavior: Clip.antiAlias,
                     child: (photoUrl != null && photoUrl.isNotEmpty)
                         ? Image(
-                            image: EncryptedImageProvider(photoUrl),
+                            image: (photoUrl.startsWith('http') && !photoUrl.endsWith('.enc'))
+                                ? R.cachedImage(photoUrl)
+                                : EncryptedImageProvider(photoUrl),
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Center(
                               child: Text(

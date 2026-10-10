@@ -356,7 +356,9 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                               height: 117,
                               child: a.photoUrl != null && a.photoUrl!.isNotEmpty
                                   ? Image(
-                                      image: EncryptedImageProvider(a.photoUrl!),
+                                      image: (a.photoUrl!.startsWith('http') && !a.photoUrl!.endsWith('.enc'))
+                                          ? R.cachedImage(a.photoUrl!)
+                                          : EncryptedImageProvider(a.photoUrl!),
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => _buildAvatarFallback(a.name),
                                     )

@@ -1036,7 +1036,45 @@ class SupabaseDataService {
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
-        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        final members = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        
+        // Enrich members with nickname, headImage, and custom_id from users table
+        final uids = members
+            .map((m) => m['host_uid']?.toString() ?? m['user_id']?.toString() ?? '')
+            .where((u) => u.isNotEmpty)
+            .toSet()
+            .toList();
+        if (uids.isNotEmpty) {
+          try {
+            final filter = uids.map((id) => '"$id"').join(',');
+            final uRes = await http.get(
+              Uri.parse('$_baseUrl/rest/v1/users?uid=in.($filter)&select=uid,name,photo_url,avatar,custom_id,level,country'),
+              headers: _headers,
+            );
+            if (uRes.statusCode == 200) {
+              final List uList = jsonDecode(uRes.body);
+              final uMap = <String, Map<String, dynamic>>{};
+              for (final u in uList) {
+                final uid = u['uid']?.toString() ?? '';
+                if (uid.isNotEmpty) uMap[uid] = Map<String, dynamic>.from(u as Map);
+              }
+              for (final m in members) {
+                final uid = m['host_uid']?.toString() ?? m['user_id']?.toString() ?? '';
+                final uData = uMap[uid];
+                if (uData != null) {
+                  m['nickname'] = uData['name'] ?? m['nickname'] ?? '';
+                  m['name'] = uData['name'] ?? m['name'] ?? '';
+                  m['headImage'] = uData['photo_url'] ?? uData['avatar'] ?? m['headImage'] ?? '';
+                  m['photo_url'] = uData['photo_url'] ?? uData['avatar'] ?? m['photo_url'] ?? '';
+                  m['user_no'] = int.tryParse(uData['custom_id']?.toString() ?? '') ?? m['user_no'] ?? 0;
+                  m['custom_id'] = uData['custom_id'] ?? m['custom_id'] ?? '';
+                  m['level'] = uData['level'] ?? m['level'] ?? 1;
+                }
+              }
+            }
+          } catch (_) {}
+        }
+        return members;
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getHostAgencyMembers error: $e');

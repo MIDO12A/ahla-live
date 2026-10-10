@@ -14,6 +14,7 @@ class AgentInfoModel {
   final String countryFlagUrl;
 
   final String agencyId;
+  final String? agencyPublicId;
   final double commissionRate;
   final String tier;
   final String notice;
@@ -38,6 +39,7 @@ class AgentInfoModel {
     this.avatarUrl = '',
     this.countryFlagUrl = '',
     this.agencyId = '',
+    this.agencyPublicId,
     this.commissionRate = 0.10,
     this.tier = 'bronze',
     this.notice = 'أهلاً بكم في الوكالة الرسمية!',
@@ -50,6 +52,10 @@ class AgentInfoModel {
   });
 
   factory AgentInfoModel.fromJson(Map<String, dynamic> json) {
+    final pubCode = json['agency_code']?.toString() ??
+        json['agency_public_id']?.toString() ??
+        json['code']?.toString() ??
+        json['custom_id']?.toString();
     return AgentInfoModel(
       userId: (json['user_id'] as num?)?.toInt() ?? 0,
       agentBean: (json['agent_bean'] as num?)?.toInt() ?? 0,
@@ -58,16 +64,17 @@ class AgentInfoModel {
       transferBean: (json['transfer_bean'] as num?)?.toInt() ?? 0,
       transferBeanDollar: (json['transfer_bean_dollar'] as num?)?.toInt() ?? 0,
       transferDollar: (json['transfer_dollar'] as num?)?.toInt() ?? 0,
-      transferMoney: (json['transfer_money'] as num?)?.toInt() ?? 0,
+      transferMoney: (json['transfer_money'] as num?)?.toInt() ?? (json['total_diamonds_monthly'] as num?)?.toInt() ?? (json['monthly_diamonds'] as num?)?.toInt() ?? 0,
       transferNumber: (json['transfer_number'] as num?)?.toInt() ?? 0,
-      agencyName: json['agency_name']?.toString() ?? json['nickname']?.toString() ?? '',
-      avatarUrl: json['avatar_url']?.toString() ?? json['headImage']?.toString() ?? '',
-      countryFlagUrl: json['country_flag_url']?.toString() ?? '',
-      agencyId: json['agency_id']?.toString() ?? '',
+      agencyName: json['agency_name']?.toString() ?? json['name']?.toString() ?? json['nickname']?.toString() ?? '',
+      avatarUrl: json['avatar_url']?.toString() ?? json['photo_url']?.toString() ?? json['photoUrl']?.toString() ?? json['headImage']?.toString() ?? json['logo_url']?.toString() ?? '',
+      countryFlagUrl: json['country_flag_url']?.toString() ?? json['flag_url']?.toString() ?? '',
+      agencyId: json['agency_id']?.toString() ?? json['id']?.toString() ?? '',
+      agencyPublicId: pubCode,
       commissionRate: (json['commission_rate'] as num?)?.toDouble() ?? 0.10,
       tier: json['tier']?.toString() ?? 'bronze',
-      notice: json['notice']?.toString() ?? json['description']?.toString() ?? 'أهلاً بكم في الوكالة الرسمية!',
-      targetDiamonds: (json['target_diamonds'] as num?)?.toInt() ?? 1000000,
+      notice: json['notice']?.toString() ?? json['description']?.toString() ?? json['announcement']?.toString() ?? 'أهلاً بكم في الوكالة الرسمية!',
+      targetDiamonds: (json['target_diamonds'] as num?)?.toInt() ?? (json['monthly_target'] as num?)?.toInt() ?? 1000000,
       salaryUsd: (json['salary_usd'] as num?)?.toDouble() ?? 0.0,
       rewardType: json['reward_type']?.toString() ?? 'salary_usd',
       rewardValue: (json['reward_value'] as num?)?.toDouble() ?? 0.0,

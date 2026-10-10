@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../config/r.dart';
@@ -8,6 +9,7 @@ import '../../../../models/user_model.dart';
 import '../../../../providers/user_provider.dart';
 import '../../../../services/supabase_service.dart';
 import '../../../../services/supabase_data_service.dart';
+import '../data/agency_models.dart';
 import '../data/anchor_agent_model.dart';
 import 'agency_exit_screen.dart';
 import 'agency_invite_by_id_screen.dart';
@@ -376,7 +378,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   Widget _buildCollapsingHeader(AgentInfoModel? info, bool isAr) {
     final dc = DynamicConfigService();
     final agencyName = info?.agencyName.isNotEmpty == true ? info!.agencyName : (isAr ? 'وكالتي الرسمية' : 'My Agency');
-    final agencyId = info?.userId.toString() ?? '10001';
+    final displayAgencyId = formatAgencyNumericId(info?.agencyPublicId ?? (info?.agencyId.isNotEmpty == true ? info!.agencyId : widget.agencyId ?? (info?.userId != 0 ? info?.userId.toString() : '100')));
     final memberCount = _anchors.length;
 
     return Stack(
@@ -578,7 +580,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   Image.asset(R.unionIdIc, width: 14, height: 14, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                   const SizedBox(width: 4),
                   Text(
-                    'ID: $agencyId',
+                    'ID: $displayAgencyId',
                     style: const TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
                   ),
                 ],
@@ -1206,13 +1208,19 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
   /// Tab 2: Income & Targets matching union_adapter_agency_detail_item.xml
   Widget _buildIncomeTab(AgentInfoModel? info, bool isAr) {
-    final transferMoney = info?.transferMoney ?? 0;
-    final dollar = info?.transferDollar ?? 0;
+    int totalAnchorsDiamonds = 0;
+    for (final a in _anchors) {
+      totalAnchorsDiamonds += int.tryParse(a.diamonds) ?? int.tryParse(a.totalDiamond) ?? 0;
+    }
+    final rawTransfer = info?.transferMoney ?? 0;
+    final transferMoney = rawTransfer > 0 ? rawTransfer : totalAnchorsDiamonds;
+    final dollar = info?.transferDollar != 0 ? info!.transferDollar : (transferMoney / 1000).toInt();
     final commRatePct = ((info?.commissionRate ?? 0.10) * 100).toInt();
-    final targetDiamonds = info?.targetDiamonds ?? 1000000;
+    final targetDiamonds = (info?.targetDiamonds ?? 0) > 0 ? info!.targetDiamonds : 100000;
     final progress = targetDiamonds > 0 ? (transferMoney / targetDiamonds).clamp(0.0, 1.0) : 0.0;
     final percent = (progress * 100).toStringAsFixed(1);
     final salaryUsd = info?.salaryUsd ?? 0.0;
+    final currentStageLabel = _getAnchorStage(transferMoney.toString(), isAr);
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -1304,7 +1312,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          info?.tier == 'gold' ? 'المرحلة الذهبية' : info?.tier == 'silver' ? 'المرحلة الفضية' : 'المرحلة 1',
+                          currentStageLabel,
                           style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -2052,35 +2060,54 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     });
 
     try {
-      final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-
-      // 1. Add to host_agency_join_requests
-      await db.collection('host_agency_join_requests').add({
-        'agency_id': agencyId,
-        'user_id': targetUid,
-        'agency_name': agencyName,
-        'status': 'invited',
-        'created_at': DateTime.now().toUtc().toIso8601String(),
-      });
-
-      // 2. Send in-app notification to the user
-      await db.collection('notifications').add({
-        'uid': targetUid,
-        'title': isAr ? 'دعوة انضمام لوكالة مضيفين 🎙️' : 'Host Agency Invitation 🎙️',
-        'body': isAr
-            ? 'تمت دعوتك من قِبل وكالة [$agencyName] للانضمام كمضيف رسمي.'
-            : 'You have been invited by agency [$agencyName] to join as an official host.',
-        'type': 'host_invite',
-        'action': 'host_invite',
-        'data': {
+      // 1. Supabase: save directly to host_agency_join_requests
+      final reqId = const Uuid().v4();
+      try {
+        await Supabase.instance.client.from('host_agency_join_requests').insert({
+          'id': reqId,
           'agency_id': agencyId,
-          'agency_name': agencyName,
-        },
-        'is_read': false,
-        'created_at': DateTime.now().toUtc().toIso8601String(),
-      });
+          'user_id': targetUid,
+          'host_uid': targetUid,
+          'applicant_uid': targetUid,
+          'status': 'invited',
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      } catch (sbErr) {
+        debugPrint('[AnchorAgentScreen] Supabase host_agency_join_requests insert error: $sbErr');
+      }
 
-      // 3. Supabase notifications fallback
+      // 2. Add to Firestore host_agency_join_requests
+      try {
+        final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        await db.collection('host_agency_join_requests').add({
+          'agency_id': agencyId,
+          'user_id': targetUid,
+          'agency_name': agencyName,
+          'status': 'invited',
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        });
+
+        // 3. Send in-app notification to the user
+        await db.collection('notifications').add({
+          'uid': targetUid,
+          'title': isAr ? 'دعوة انضمام لوكالة مضيفين 🎙️' : 'Host Agency Invitation 🎙️',
+          'body': isAr
+              ? 'تمت دعوتك من قِبل وكالة [$agencyName] للانضمام كمضيف رسمي.'
+              : 'You have been invited by agency [$agencyName] to join as an official host.',
+          'type': 'host_invite',
+          'action': 'host_invite',
+          'data': {
+            'agency_id': agencyId,
+            'agency_name': agencyName,
+          },
+          'is_read': false,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      } catch (fsErr) {
+        debugPrint('[AnchorAgentScreen] Firestore notification error: $fsErr');
+      }
+
+      // 4. Supabase notifications fallback
       try {
         await SupabaseDataService().sendNotification(
           uid: targetUid,
@@ -2104,6 +2131,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         _inviteSearchCtrl.clear();
       });
     } catch (e) {
+      debugPrint('[AnchorAgentScreen] _sendHostInvite error: $e');
       setState(() {
         _inviteError = isAr ? 'فشل إرسال الدعوة، يرجى المحاولة لاحقاً' : 'Failed to send invite, try again later';
       });
