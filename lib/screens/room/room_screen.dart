@@ -5167,7 +5167,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             },
                             child: Center(
                               child: emojis[idx].startsWith('http')
-                                  ? Image.network(emojis[idx], width: 44, height: 44, fit: BoxFit.contain)
+                                  ? Image.network(emojis[idx], width: 44, height: 44, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.sentiment_satisfied, color: Colors.white70))
                                   : Text(emojis[idx], style: const TextStyle(fontSize: 28)),
                             ),
                           ),

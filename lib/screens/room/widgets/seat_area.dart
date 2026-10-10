@@ -351,7 +351,7 @@ class _NormalSeat extends StatelessWidget {
                   child: IgnorePointer(
                     child: Center(
                       child: emoji!.startsWith('http')
-                          ? Image.network(emoji!, width: 64, height: 64, fit: BoxFit.contain)
+                          ? Image.network(emoji!, width: 64, height: 64, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox.shrink())
                           : Text(
                               emoji!,
                               style: const TextStyle(fontSize: 48),
