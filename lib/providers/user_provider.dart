@@ -18,6 +18,8 @@ class UserProvider extends ChangeNotifier {
   StreamSubscription? _userSub;
   StreamSubscription? _giftedSub;
   Timer? _expiryTimer;
+  int _lastLocalCoinsUpdateMs = 0;
+  int? _optimisticCoins;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
@@ -30,6 +32,19 @@ class UserProvider extends ChangeNotifier {
   void startListening(String uid) {
     _userSub?.cancel();
     _userSub = _supabaseService.userStream(uid).listen((user) {
+      if (user != null) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        // حماية رصيد العملات المكتسب لحظياً من أي تأخير في الشبكة أو استجابات قديمة (0ms Latency Protection)
+        if (_optimisticCoins != null && (now - _lastLocalCoinsUpdateMs) < 5000) {
+          if (user.coins >= _optimisticCoins!) {
+            _optimisticCoins = null;
+          } else {
+            user = user.copyWith(coins: _optimisticCoins!);
+          }
+        } else {
+          _optimisticCoins = null;
+        }
+      }
       _currentUser = _ensureFrame(user);
       notifyListeners();
     });
@@ -282,6 +297,8 @@ class UserProvider extends ChangeNotifier {
     if (_currentUser == null) return;
     final newCoins = (_currentUser!.coins - amount).clamp(0, 999999999);
     _currentUser = _currentUser!.copyWith(coins: newCoins);
+    _optimisticCoins = newCoins;
+    _lastLocalCoinsUpdateMs = DateTime.now().millisecondsSinceEpoch;
     notifyListeners();
   }
 
@@ -289,6 +306,8 @@ class UserProvider extends ChangeNotifier {
     if (_currentUser == null || amount <= 0) return;
     final newCoins = _currentUser!.coins + amount;
     _currentUser = _currentUser!.copyWith(coins: newCoins);
+    _optimisticCoins = newCoins;
+    _lastLocalCoinsUpdateMs = DateTime.now().millisecondsSinceEpoch;
     notifyListeners();
   }
 

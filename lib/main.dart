@@ -11,7 +11,6 @@ import 'l10n/app_localizations.dart';
 import 'services/dynamic_config_service.dart';
 import 'services/error_reporting_service.dart';
 import 'services/level_service.dart';
-import 'services/firebase_service.dart';
 import 'services/media_cache_service.dart'; // ✅ للـ warmup المبكر
 import 'services/room_state_service.dart';
 import 'services/supabase_auth_service.dart';
@@ -56,7 +55,7 @@ void main() async {
   } catch (_) {}
 
   await SupabaseAuthService().init();
-  FirebaseService().init();
+  SupabaseService().init();
   LevelService().init();
   await DynamicConfigService().init();
   ErrorReportingService().init();

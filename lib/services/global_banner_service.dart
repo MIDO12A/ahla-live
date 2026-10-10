@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/gift_banner_config_model.dart';
-import 'firebase_service.dart';
+import 'supabase_service.dart';
 import 'supabase_data_service.dart';
 
 /// خدمة إدارة لافتات الهدايا وبانرات فوز الحظ على مستوى التطبيق بالكامل (GlobalBannerService)

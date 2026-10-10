@@ -2164,5 +2164,106 @@ class SupabaseDataService {
     }
     return [];
   }
+
+  // ═══════════════════════════════════════════════════════
+  // BROADCASTS & GLOBAL ANNOUNCEMENTS (SUPABASE)
+  // ═══════════════════════════════════════════════════════
+
+  Future<bool> recordBroadcast({
+    required String senderUid,
+    required String senderName,
+    String? senderPhotoUrl,
+    required String roomId,
+    String? roomName,
+    required String content,
+    String? giftIcon,
+    int? multiplier,
+    String type = 'lucky_gift',
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/broadcasts');
+      final res = await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'id': const Uuid().v4(),
+          'sender_uid': senderUid,
+          'sender_name': senderName,
+          'sender_photo_url': senderPhotoUrl ?? '',
+          'room_id': roomId,
+          'room_name': roomName ?? '',
+          'content': content,
+          'gift_icon': giftIcon,
+          'multiplier': multiplier,
+          'type': type,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] recordBroadcast error: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getRecentBroadcasts({int limit = 10}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/broadcasts?select=*&order=created_at.desc&limit=$limit');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getRecentBroadcasts error: $e');
+    }
+    return [];
+  }
+
+  Future<bool> recordGlobalAnnouncement({
+    required String type,
+    required String senderName,
+    required String giftName,
+    required String roomId,
+    required int multiplier,
+    required int totalWon,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/global_announcements');
+      final res = await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode({
+          'id': const Uuid().v4(),
+          'type': type,
+          'sender_name': senderName,
+          'gift_name': giftName,
+          'room_id': roomId,
+          'multiplier': multiplier,
+          'total_won': totalWon,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] recordGlobalAnnouncement error: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getRecentGlobalAnnouncements({int limit = 10}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/global_announcements?select=*&order=created_at.desc&limit=$limit');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getRecentGlobalAnnouncements error: $e');
+    }
+    return [];
+  }
 }
+
 

@@ -824,7 +824,8 @@ class _GiftPanelState extends State<GiftPanel> {
       userProvider.deductCoinsLocally(totalCost);
     }
 
-    if (widget.onSend != null) {
+    // لا نغلق صندوق الهدايا أثناء لعب هدايا الحظ أو الكومبو لتمكين المستخدم من متابعة الرصيد واللعب المتتابع
+    if (!isLuckyGift && _comboSeconds <= 0 && widget.onSend != null) {
       widget.onSend!();
     }
     final anim = gift.animationAsset;
