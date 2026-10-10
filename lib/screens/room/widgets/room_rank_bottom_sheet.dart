@@ -290,7 +290,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
     final customId = (rawCid.isNotEmpty && !rawCid.contains('-')) 
         ? rawCid 
         : (rawUid.length > 8 ? rawUid.substring(0, 8) : rawUid);
-    final value = item?['total_value'] ?? item?['points'] ?? item?['score'] ?? 0;
+    final value = item?['total_value'] ?? item?['amount'] ?? item?['points'] ?? item?['score'] ?? 0;
 
     return GestureDetector(
       onTap: () => _openUserProfile(item),
@@ -428,7 +428,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
     final customId = (rawCid.isNotEmpty && !rawCid.contains('-')) 
         ? rawCid 
         : (rawUid.length > 8 ? rawUid.substring(0, 8) : rawUid);
-    final value = item['total_value'] ?? item['points'] ?? item['score'] ?? 0;
+    final value = item['total_value'] ?? item['amount'] ?? item['points'] ?? item['score'] ?? 0;
     final level = item['level'] ?? 1;
 
     return InkWell(

@@ -1029,6 +1029,63 @@ class SupabaseDataService {
     return [];
   }
 
+  Future<bool> creditHostAgencyMemberDiamonds(String hostUid, int diamondsToAdd) async {
+    if (diamondsToAdd <= 0) return true;
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(host_uid.eq.$hostUid,user_id.eq.$hostUid)&select=*&limit=1');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        if (list.isNotEmpty) {
+          final member = Map<String, dynamic>.from(list.first as Map);
+          final memId = member['id'];
+          final agencyId = member['agency_id']?.toString() ?? '';
+          final currentD = (member['diamonds'] as num?)?.toInt() ?? 0;
+          final currentBal = (member['diamonds_balance'] as num?)?.toInt() ?? 0;
+          final currentMonthly = (member['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+          final currentCumul = (member['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
+
+          final updateUrl = Uri.parse('$_baseUrl/rest/v1/host_agency_members?id=eq.$memId');
+          await http.patch(
+            updateUrl,
+            headers: _headers,
+            body: jsonEncode({
+              'diamonds': currentD + diamondsToAdd,
+              'diamonds_balance': currentBal + diamondsToAdd,
+              'diamonds_earned_monthly': currentMonthly + diamondsToAdd,
+              'diamonds_earned_cumulative': currentCumul + diamondsToAdd,
+            }),
+          );
+
+          if (agencyId.isNotEmpty) {
+            final agUrl = Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId&select=total_diamonds_monthly,total_diamonds_cumulative&limit=1');
+            final agRes = await http.get(agUrl, headers: _headers);
+            if (agRes.statusCode == 200) {
+              final List agList = jsonDecode(agRes.body);
+              if (agList.isNotEmpty) {
+                final ag = Map<String, dynamic>.from(agList.first as Map);
+                final agMonthly = (ag['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
+                final agCumul = (ag['total_diamonds_cumulative'] as num?)?.toInt() ?? 0;
+                await http.patch(
+                  Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
+                  headers: _headers,
+                  body: jsonEncode({
+                    'total_diamonds_monthly': agMonthly + diamondsToAdd,
+                    'total_diamonds_cumulative': agCumul + diamondsToAdd,
+                  }),
+                );
+              }
+            }
+          }
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] creditHostAgencyMemberDiamonds error: $e');
+    }
+    return false;
+  }
+
   Future<List<StoreItemModel>> getStoreItems() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/store_items?select=*');
@@ -1561,14 +1618,14 @@ class SupabaseDataService {
         }
       }
 
-      final urlOwner = Uri.parse('$_baseUrl/rest/v1/host_agencies?owner_uid=eq.$uid&select=*&limit=1');
+      final urlOwner = Uri.parse('$_baseUrl/rest/v1/host_agencies?or=(owner_uid.eq.$uid,owner_id.eq.$uid)&select=*&limit=1');
       final resOwner = await http.get(urlOwner, headers: _headers);
       if (resOwner.statusCode == 200) {
         final List list = jsonDecode(resOwner.body);
         if (list.isNotEmpty) return Map<String, dynamic>.from(list[0] as Map);
       }
 
-      final urlMem = Uri.parse('$_baseUrl/rest/v1/host_agency_members?host_uid=eq.$uid&select=agency_id&limit=1');
+      final urlMem = Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(host_uid.eq.$uid,user_id.eq.$uid)&select=agency_id&limit=1');
       final resMem = await http.get(urlMem, headers: _headers);
       if (resMem.statusCode == 200) {
         final List list = jsonDecode(resMem.body);

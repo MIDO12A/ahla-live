@@ -61,18 +61,13 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   void _listenRealtime(String aid) {
     if (aid.isEmpty) return;
     _membersSub?.cancel();
-    _membersSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-        .collection('host_agency_members')
-        .where('agency_id', isEqualTo: aid)
-        .snapshots()
-        .listen((_) => _scheduleReload());
-
     _agencySub?.cancel();
-    _agencySub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-        .collection('host_agencies')
-        .doc(aid)
-        .snapshots()
-        .listen((_) => _scheduleReload());
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) {
+        _loadAgencyData(silent: true);
+      }
+    });
   }
 
   void _scheduleReload() {
@@ -110,16 +105,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
       // فحص ما إذا كان المستخدم الحالي هو مالك الوكالة (الوكيل)
       bool isOwner = false;
-      final aid = infoModel?.agencyId ?? widget.agencyId;
-      if (aid != null && aid.isNotEmpty) {
-        try {
-          final agencyDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-              .collection('host_agencies').doc(aid).get();
-          if (agencyDoc.exists) {
-            final ownerId = agencyDoc.data()?['owner_id']?.toString() ?? '';
-            isOwner = (ownerId.isNotEmpty && ownerId == uid);
-          }
-        } catch (_) {}
+      final ownerUid = infoData?['owner_uid']?.toString() ?? infoData?['owner_id']?.toString() ?? '';
+      if (ownerUid.isNotEmpty && ownerUid == uid) {
+        isOwner = true;
       }
       if (!isOwner) {
         isOwner = loadedAnchors.any((a) => a.uid == uid && a.role == 'owner');

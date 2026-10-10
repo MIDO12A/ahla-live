@@ -96,19 +96,88 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
         sb.from('weekly_rooms_ranking').select('*').limit(50).catchError((_) => []),
         sb.from('monthly_rooms_ranking').select('*').limit(50).catchError((_) => []),
       ]);
+
+      var wealthDaily = List<Map<String, dynamic>>.from(results[0] as List? ?? []);
+      var wealthWeekly = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
+      var wealthMonthly = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
+
+      var charmDaily = List<Map<String, dynamic>>.from(results[3] as List? ?? []);
+      var charmWeekly = List<Map<String, dynamic>>.from(results[4] as List? ?? []);
+      var charmMonthly = List<Map<String, dynamic>>.from(results[5] as List? ?? []);
+
+      var roomsDaily = List<Map<String, dynamic>>.from(results[6] as List? ?? []);
+      var roomsWeekly = List<Map<String, dynamic>>.from(results[7] as List? ?? []);
+      var roomsMonthly = List<Map<String, dynamic>>.from(results[8] as List? ?? []);
+
+      if (wealthDaily.isEmpty || wealthWeekly.isEmpty || wealthMonthly.isEmpty) {
+        try {
+          final topWealthUsers = await sb
+              .from('users')
+              .select('uid,name,custom_id,photo_url,total_gifts_sent,level,wealth_level')
+              .gt('total_gifts_sent', 0)
+              .order('total_gifts_sent', ascending: false)
+              .limit(50);
+          final mapped = (topWealthUsers as List).map((u) {
+            final m = Map<String, dynamic>.from(u as Map);
+            m['points'] = m['total_gifts_sent'] ?? 0;
+            return m;
+          }).toList();
+          if (wealthDaily.isEmpty) wealthDaily = mapped;
+          if (wealthWeekly.isEmpty) wealthWeekly = mapped;
+          if (wealthMonthly.isEmpty) wealthMonthly = mapped;
+        } catch (_) {}
+      }
+
+      if (charmDaily.isEmpty || charmWeekly.isEmpty || charmMonthly.isEmpty) {
+        try {
+          final topCharmUsers = await sb
+              .from('users')
+              .select('uid,name,custom_id,photo_url,total_gifts_received,level,charm')
+              .gt('total_gifts_received', 0)
+              .order('total_gifts_received', ascending: false)
+              .limit(50);
+          final mapped = (topCharmUsers as List).map((u) {
+            final m = Map<String, dynamic>.from(u as Map);
+            m['points'] = m['total_gifts_received'] ?? 0;
+            return m;
+          }).toList();
+          if (charmDaily.isEmpty) charmDaily = mapped;
+          if (charmWeekly.isEmpty) charmWeekly = mapped;
+          if (charmMonthly.isEmpty) charmMonthly = mapped;
+        } catch (_) {}
+      }
+
+      if (roomsDaily.isEmpty || roomsWeekly.isEmpty || roomsMonthly.isEmpty) {
+        try {
+          final topRooms = await sb
+              .from('rooms')
+              .select('room_id,name,room_photo_url,bg_image,host_uid,host_name,hot_value,total_gifts')
+              .order('hot_value', ascending: false)
+              .limit(50);
+          final mapped = (topRooms as List).map((r) {
+            final m = Map<String, dynamic>.from(r as Map);
+            m['points'] = (m['hot_value'] as num?)?.toInt() ?? (m['total_gifts'] as num?)?.toInt() ?? 100;
+            return m;
+          }).toList();
+          if (roomsDaily.isEmpty) roomsDaily = mapped;
+          if (roomsWeekly.isEmpty) roomsWeekly = mapped;
+          if (roomsMonthly.isEmpty) roomsMonthly = mapped;
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
-          _cachedRankings['wealth_daily']   = List<Map<String, dynamic>>.from(results[0] as List? ?? []);
-          _cachedRankings['wealth_weekly']  = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
-          _cachedRankings['wealth_monthly'] = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
+          _cachedRankings['wealth_daily']   = wealthDaily;
+          _cachedRankings['wealth_weekly']  = wealthWeekly;
+          _cachedRankings['wealth_monthly'] = wealthMonthly;
 
-          _cachedRankings['charm_daily']    = List<Map<String, dynamic>>.from(results[3] as List? ?? []);
-          _cachedRankings['charm_weekly']   = List<Map<String, dynamic>>.from(results[4] as List? ?? []);
-          _cachedRankings['charm_monthly']  = List<Map<String, dynamic>>.from(results[5] as List? ?? []);
+          _cachedRankings['charm_daily']    = charmDaily;
+          _cachedRankings['charm_weekly']   = charmWeekly;
+          _cachedRankings['charm_monthly']  = charmMonthly;
 
-          _cachedRankings['rooms_daily']    = List<Map<String, dynamic>>.from(results[6] as List? ?? []);
-          _cachedRankings['rooms_weekly']   = List<Map<String, dynamic>>.from(results[7] as List? ?? []);
-          _cachedRankings['rooms_monthly']  = List<Map<String, dynamic>>.from(results[8] as List? ?? []);
+          _cachedRankings['rooms_daily']    = roomsDaily;
+          _cachedRankings['rooms_weekly']   = roomsWeekly;
+          _cachedRankings['rooms_monthly']  = roomsMonthly;
           _loading = false;
         });
       }

@@ -341,10 +341,13 @@ class SupabaseService {
           'coins': serverNewBalance,
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
         });
+      }
 
-        if (!isSelfSend) {
-          final luckyTargetPct = DynamicConfigService().luckyGiftTargetPercentage;
-          final int recipientDiamonds = math.max(0, ((totalCost * luckyTargetPct) / 100.0).round());
+      // 2. توزيع الماس والتارجت للمستلم لهدايا الحظ حسب نسبة التارجت (تعمل في كل الحالات)
+      if (!isSelfSend) {
+        final luckyTargetPct = DynamicConfigService().luckyGiftTargetPercentage;
+        final int recipientDiamonds = math.max(0, ((totalCost * luckyTargetPct) / 100.0).round());
+        if (recipientDiamonds > 0) {
           final rUser = await _ds.getUser(receiverId);
           if (rUser != null) {
             await _ds.updateUser(receiverId, {
@@ -352,6 +355,7 @@ class SupabaseService {
               'total_gifts_received': rUser.totalGiftsReceived + totalCost,
             });
           }
+          unawaited(_ds.creditHostAgencyMemberDiamonds(receiverId, recipientDiamonds));
         }
       }
 
@@ -540,6 +544,7 @@ class SupabaseService {
             'total_gifts_received': rUser.totalGiftsReceived + totalCost,
           });
         }
+        unawaited(_ds.creditHostAgencyMemberDiamonds(receiverId, totalCost));
       }
 
       // 3. تسجيل الهدية وبثها في الغرفة
@@ -631,7 +636,8 @@ class SupabaseService {
         headers: _headers,
         body: jsonEncode({
           'id': const Uuid().v4(),
-          'user_id': uid,
+          'uid': uid,
+          'target': uid,
           'type': type,
           'actor_uid': actorUid ?? '',
           'title': title,
@@ -1292,7 +1298,7 @@ class SupabaseService {
     while (true) {
       try {
         final filter = uid != null && uid.isNotEmpty
-            ? '?or=(user_id.eq.$uid,uid.eq.$uid,target.eq.$uid,target.eq.all)&order=created_at.desc&limit=50'
+            ? '?or=(uid.eq.$uid,target.eq.$uid,target.eq.all)&order=created_at.desc&limit=50'
             : '?order=created_at.desc&limit=50';
         final url = Uri.parse('$_baseUrl/rest/v1/notifications$filter');
         final res = await http.get(url, headers: _headers);
@@ -1313,7 +1319,7 @@ class SupabaseService {
       for (final g in gifts) {
         final uid = isWealth ? g.senderId : g.receiverId;
         final name = isWealth ? g.senderName : g.receiverName;
-        final cost = g.value * g.count;
+        final cost = (g.value * g.count).toInt();
         totals[uid] = (totals[uid] ?? 0) + cost;
         userDetails[uid] = {'id': uid, 'name': name, 'photoUrl': isWealth ? g.senderPhotoUrl : ''};
       }
@@ -1335,7 +1341,7 @@ class SupabaseService {
       final Map<String, int> roomTotals = {};
       for (final g in gifts) {
         if (g.roomId.isNotEmpty) {
-          roomTotals[g.roomId] = (roomTotals[g.roomId] ?? 0) + (g.value * g.count);
+          roomTotals[g.roomId] = (roomTotals[g.roomId] ?? 0) + (g.value * g.count).toInt();
         }
       }
       final sortedKeys = roomTotals.keys.toList()..sort((a, b) => roomTotals[b]!.compareTo(roomTotals[a]!));
@@ -1355,26 +1361,104 @@ class SupabaseService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getRoomRankings({required String roomId, required bool isWealth, required String timeframe}) async {
+  Future<List<Map<String, dynamic>>> getRoomRankings({
+    required String roomId,
+    required bool isWealth,
+    required String timeframe,
+  }) async {
     try {
-      final gifts = await _ds.getSentGifts(roomId, limit: 100);
+      final allGifts = await _ds.getSentGifts(roomId, limit: 200);
+      if (allGifts.isEmpty) return [];
+
+      // Filter by timeframe if applicable
+      final now = DateTime.now().toUtc();
+      DateTime? cutoff;
+      if (timeframe == 'daily') {
+        cutoff = now.subtract(const Duration(days: 1));
+      } else if (timeframe == 'weekly') {
+        cutoff = now.subtract(const Duration(days: 7));
+      } else if (timeframe == 'monthly') {
+        cutoff = now.subtract(const Duration(days: 30));
+      }
+
+      var filtered = allGifts;
+      if (cutoff != null) {
+        final timeFiltered = allGifts.where((g) {
+          return g.timestamp.isAfter(cutoff!);
+        }).toList();
+        if (timeFiltered.isNotEmpty) {
+          filtered = timeFiltered;
+        }
+      }
+
       final Map<String, int> totals = {};
       final Map<String, Map<String, dynamic>> userDetails = {};
-      for (final g in gifts) {
+      for (final g in filtered) {
         final uid = isWealth ? g.senderId : g.receiverId;
         final name = isWealth ? g.senderName : g.receiverName;
-        final cost = g.value * g.count;
+        final cost = (g.value * g.count).toInt();
+        if (uid.isEmpty) continue;
         totals[uid] = (totals[uid] ?? 0) + cost;
-        userDetails[uid] = {'id': uid, 'name': name, 'photoUrl': isWealth ? g.senderPhotoUrl : ''};
+        userDetails[uid] ??= {
+          'id': uid,
+          'name': name,
+          'photoUrl': isWealth ? (g.senderPhotoUrl ?? '') : '',
+        };
       }
+
       final sortedKeys = totals.keys.toList()..sort((a, b) => totals[b]!.compareTo(totals[a]!));
-      return sortedKeys.map((uid) => {
-        'id': uid,
-        'name': userDetails[uid]?['name'] ?? '',
-        'photoUrl': userDetails[uid]?['photoUrl'] ?? '',
-        'amount': totals[uid] ?? 0,
+      final topKeys = sortedKeys.take(20).toList();
+
+      // Fetch user profile info (photo_url, custom_id, level) for the ranked users
+      final Map<String, Map<String, dynamic>> enrichedUsers = {};
+      if (topKeys.isNotEmpty) {
+        try {
+          final inFilter = topKeys.map((k) => '"$k"').join(',');
+          final uUrl = Uri.parse('$_baseUrl/rest/v1/users?uid=in.($inFilter)&select=uid,name,custom_id,photo_url,level');
+          final uRes = await http.get(uUrl, headers: _headers);
+          if (uRes.statusCode == 200) {
+            final List uList = jsonDecode(uRes.body);
+            for (final u in uList) {
+              final m = Map<String, dynamic>.from(u as Map);
+              enrichedUsers[m['uid']?.toString() ?? ''] = m;
+            }
+          }
+        } catch (_) {}
+      }
+
+      return topKeys.map((uid) {
+        final local = userDetails[uid] ?? {};
+        final enriched = enrichedUsers[uid] ?? {};
+        final name = (enriched['name']?.toString().isNotEmpty == true)
+            ? enriched['name'].toString()
+            : (local['name']?.toString() ?? '');
+        final photo = (enriched['photo_url']?.toString().isNotEmpty == true)
+            ? enriched['photo_url'].toString()
+            : (local['photoUrl']?.toString() ?? '');
+        final customId = enriched['custom_id']?.toString() ?? '';
+        final level = (enriched['level'] as num?)?.toInt() ?? 1;
+        final total = totals[uid] ?? 0;
+
+        return {
+          'id': uid,
+          'uid': uid,
+          'user_id': uid,
+          'name': name.isNotEmpty ? name : 'مستخدم',
+          'user_name': name.isNotEmpty ? name : 'مستخدم',
+          'photoUrl': photo,
+          'photo_url': photo,
+          'user_photo_url': photo,
+          'custom_id': customId,
+          'display_id': customId,
+          'amount': total,
+          'total_value': total,
+          'points': total,
+          'score': total,
+          'level': level,
+        };
       }).toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[SupabaseService] getRoomRankings error: $e');
       return [];
     }
   }
