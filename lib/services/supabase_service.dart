@@ -340,9 +340,6 @@ class SupabaseService {
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + (value * count),
         });
       }
-    } catch (e) {
-      debugPrint('[SupabaseService] process_lucky_gift error: $e');
-      return null;
     }
 
     final isSelfSend = senderId == receiverId;
