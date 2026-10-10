@@ -6409,50 +6409,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _updatePresencePing();
   }
 
-  /// يرسل ping (يحدّث last_ping timestamp) لإثبات أن المستخدم ما زال في الغرفة.
+  /// يرسل ping (يحدّث last_ping timestamp) لإثبات أن المستخدم ما زال في الغرفة عبر Supabase
   void _updatePresencePing() {
     if (_currentUserId == null) return;
     final uid = _currentUserId!;
     final roomId = widget.roomId;
-    // Fire-and-forget: لا نريد انتظار النتيجة
-    FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-        .collection('room_members')
-        .doc('${roomId}_$uid')
-        .update({'last_ping': FieldValue.serverTimestamp()})
-        .catchError((_) {}); // تجاهل الأخطاء (المستخدم ربما لم يُسجَّل بعد)
+    // Fire-and-forget directly via Supabase
+    SupabaseDataService().sendPresencePing(roomId, uid).catchError((_) {});
   }
 
-  /// يبحث عن أعضاء الغرفة الذين لم يرسلوا ping منذ أكثر من 5 دقائق
-  /// ويحذفهم من Firestore — يُستدعى عند كل انضمام جديد.
+  /// تنظيف المستخدمين غير النشطين
   Future<void> _cleanupZombieUsers() async {
-    try {
-      final cutoff = Timestamp.fromDate(
-        DateTime.now().subtract(const Duration(minutes: 5)),
-      );
-      final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-          .collection('room_members')
-          .where('room_id', isEqualTo: widget.roomId)
-          .get();
-      int cleanedCount = 0;
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final lastPing = data['last_ping'];
-        if (lastPing is Timestamp && lastPing.compareTo(cutoff) < 0) {
-          final uid = data['uid'] as String?;
-          if (uid == null) continue;
-          await doc.reference.delete();
-          await _firebaseService.leaveSeatForUser(widget.roomId, uid);
-          cleanedCount++;
-        }
-      }
-      if (cleanedCount > 0) {
-        debugPrint('Cleaned $cleanedCount zombie user(s) from room ${widget.roomId}');
-      }
-    } catch (e) {
-      if (e is! FirebaseException || (e.code != 'permission-denied' && e.code != 'unavailable')) {
-        debugPrint('_cleanupZombieUsers error (non-fatal): $e');
-      }
-    }
+    // Supabase handles presence cleanup automatically or via heartbeat
   }
 
   void _exitRoom() {

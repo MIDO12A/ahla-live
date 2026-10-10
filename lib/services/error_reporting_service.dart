@@ -9,11 +9,6 @@ class ErrorReportingService {
   factory ErrorReportingService() => _instance;
   ErrorReportingService._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
-    app: Firebase.app(),
-    databaseId: 'default',
-  );
-
   void init() {
     // 1. Intercept Flutter UI layout / rendering errors
     FlutterError.onError = (FlutterErrorDetails details) {
@@ -46,26 +41,8 @@ class ErrorReportingService {
     required String type,
   }) async {
     final String os = kIsWeb ? 'Web' : Platform.operatingSystem;
-    final String version = kIsWeb ? 'Browser' : Platform.operatingSystemVersion;
     final cleanStack = stackTrace.substring(0, stackTrace.length > 1500 ? 1500 : stackTrace.length);
-
-    try {
-      await _db.collection('bug_reports').add({
-        'error': error,
-        'stack_trace': cleanStack,
-        'device_info': '$os ($version)',
-        'type': type,
-        'created_at': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      // Prevent infinite loop if logging itself fails
-      if (e is FirebaseException && (e.code == 'permission-denied' || e.code == 'unavailable')) {
-        // Silently skip if Firebase rules restrict writes
-        return;
-      }
-      debugPrint('Failed to log error to Firebase: $e');
-    }
-
+    // Report directly and strictly to Supabase
     try {
       await SupabaseDataService().submitBugReport({
         'error': error,

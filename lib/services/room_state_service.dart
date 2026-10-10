@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
+import '../services/supabase_data_service.dart';
 import '../services/room_audio_service.dart';
 
 /// Global service to track minimized room state and keep audio/seat presence active
@@ -85,12 +84,7 @@ class MinimizedRoomService extends ChangeNotifier {
     final uid = _userId;
     if (rid == null || uid == null || !_isActive) return;
     try {
-      FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-          .collection('room_members')
-          .doc('${rid}_$uid')
-          .set({
-        'last_ping': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      SupabaseDataService().sendPresencePing(rid, uid).catchError((_) {});
     } catch (_) {}
   }
 
