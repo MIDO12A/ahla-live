@@ -13,7 +13,6 @@ import '../models/gift_model.dart' as gm;
 import '../models/gift_category_model.dart';
 import '../models/gift_banner_config_model.dart';
 import '../models/store_item_model.dart';
-import '../models/ranking_frame_config.dart';
 import '../models/gifted_item_model.dart';
 import '../models/banner_config.dart';
 import '../models/notification_model.dart';
@@ -344,19 +343,19 @@ class SupabaseService {
       }
 
       // 2. توزيع الماس والتارجت للمستلم لهدايا الحظ حسب نسبة التارجت (تعمل في كل الحالات)
-      if (!isSelfSend) {
-        final luckyTargetPct = DynamicConfigService().luckyGiftTargetPercentage;
-        final int recipientDiamonds = math.max(0, ((totalCost * luckyTargetPct) / 100.0).round());
-        if (recipientDiamonds > 0) {
-          final rUser = await _ds.getUser(receiverId);
-          if (rUser != null) {
-            await _ds.updateUser(receiverId, {
-              'diamonds': rUser.diamonds + recipientDiamonds,
-              'total_gifts_received': rUser.totalGiftsReceived + totalCost,
-            });
-          }
-          unawaited(_ds.creditHostAgencyMemberDiamonds(receiverId, recipientDiamonds));
+      final luckyTargetPct = DynamicConfigService().luckyGiftTargetPercentage;
+      final int recipientDiamonds = luckyTargetPct > 0
+          ? math.max(1, ((totalCost * luckyTargetPct) / 100.0).round())
+          : 0;
+      if (recipientDiamonds > 0) {
+        final rUser = await _ds.getUser(receiverId);
+        if (rUser != null) {
+          await _ds.updateUser(receiverId, {
+            'diamonds': rUser.diamonds + recipientDiamonds,
+            'total_gifts_received': rUser.totalGiftsReceived + totalCost,
+          });
         }
+        unawaited(_ds.creditHostAgencyMemberDiamonds(receiverId, recipientDiamonds));
       }
 
       // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase
@@ -465,11 +464,10 @@ class SupabaseService {
       }
 
       // 6. تقييم التارجت للوكيل في الخلفية
-      if (!isSelfSend) {
-        unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId).catchError((_) {}));
-      }
+      unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId).catchError((_) {}));
 
       // 7. إشعار الاستلام للمستلم
+      if (!isSelfSend) {
       unawaited(sendNotification(
         uid: receiverId,
         type: 'gift',
@@ -488,6 +486,7 @@ class SupabaseService {
           'is_lucky': true,
         },
       ).catchError((_) {}));
+    }
 
       return {
         'success': true,
@@ -530,13 +529,22 @@ class SupabaseService {
       final currentCoins = sUser?.coins ?? 0;
       if (currentCoins < totalCost) return false;
 
-      await _ds.updateUser(senderId, {
-        'coins': currentCoins - totalCost,
-        'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
-      });
+      // 1. خصم الكوينز من المرسل وإيداع الماس
+      if (isSelfSend) {
+        await _ds.updateUser(senderId, {
+          'coins': currentCoins - totalCost,
+          'diamonds': (sUser?.diamonds ?? 0) + totalCost,
+          'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
+          'total_gifts_received': (sUser?.totalGiftsReceived ?? 0) + totalCost,
+        });
+        unawaited(_ds.creditHostAgencyMemberDiamonds(senderId, totalCost));
+      } else {
+        await _ds.updateUser(senderId, {
+          'coins': currentCoins - totalCost,
+          'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
+        });
 
-      // 2. إيداع الماس للمستلم
-      if (!isSelfSend) {
+        // 2. إيداع الماس للمستلم
         final rUser = await _ds.getUser(receiverId);
         if (rUser != null) {
           await _ds.updateUser(receiverId, {
@@ -589,8 +597,8 @@ class SupabaseService {
       }
 
       // 5. تقييم التارجت للوكيل وإشعار المستلم
+      unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId).catchError((_) {}));
       if (!isSelfSend) {
-        unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId).catchError((_) {}));
         unawaited(sendNotification(
           uid: receiverId,
           type: 'gift',
@@ -1409,18 +1417,21 @@ class SupabaseService {
       final sortedKeys = totals.keys.toList()..sort((a, b) => totals[b]!.compareTo(totals[a]!));
       final topKeys = sortedKeys.take(20).toList();
 
-      // Fetch user profile info (photo_url, custom_id, level) for the ranked users
+      // Fetch user profile info (photo_url, avatar, custom_id, level) for the ranked users
       final Map<String, Map<String, dynamic>> enrichedUsers = {};
       if (topKeys.isNotEmpty) {
         try {
           final inFilter = topKeys.map((k) => '"$k"').join(',');
-          final uUrl = Uri.parse('$_baseUrl/rest/v1/users?uid=in.($inFilter)&select=uid,name,custom_id,photo_url,level');
+          final uUrl = Uri.parse('$_baseUrl/rest/v1/users?or=(uid.in.($inFilter),id.in.($inFilter))&select=uid,id,name,custom_id,photo_url,avatar,level');
           final uRes = await http.get(uUrl, headers: _headers);
           if (uRes.statusCode == 200) {
             final List uList = jsonDecode(uRes.body);
             for (final u in uList) {
               final m = Map<String, dynamic>.from(u as Map);
-              enrichedUsers[m['uid']?.toString() ?? ''] = m;
+              final uidVal = m['uid']?.toString();
+              final idVal = m['id']?.toString();
+              if (uidVal != null && uidVal.isNotEmpty) enrichedUsers[uidVal] = m;
+              if (idVal != null && idVal.isNotEmpty) enrichedUsers[idVal] = m;
             }
           }
         } catch (_) {}
@@ -1431,10 +1442,14 @@ class SupabaseService {
         final enriched = enrichedUsers[uid] ?? {};
         final name = (enriched['name']?.toString().isNotEmpty == true)
             ? enriched['name'].toString()
-            : (local['name']?.toString() ?? '');
-        final photo = (enriched['photo_url']?.toString().isNotEmpty == true)
+            : (local['name']?.toString().isNotEmpty == true
+                ? local['name'].toString()
+                : 'مستخدم');
+        final rawPhoto = (enriched['photo_url']?.toString().isNotEmpty == true)
             ? enriched['photo_url'].toString()
-            : (local['photoUrl']?.toString() ?? '');
+            : ((enriched['avatar']?.toString().isNotEmpty == true)
+                ? enriched['avatar'].toString()
+                : (local['photoUrl']?.toString() ?? ''));
         final customId = enriched['custom_id']?.toString() ?? '';
         final level = (enriched['level'] as num?)?.toInt() ?? 1;
         final total = totals[uid] ?? 0;
@@ -1443,11 +1458,11 @@ class SupabaseService {
           'id': uid,
           'uid': uid,
           'user_id': uid,
-          'name': name.isNotEmpty ? name : 'مستخدم',
-          'user_name': name.isNotEmpty ? name : 'مستخدم',
-          'photoUrl': photo,
-          'photo_url': photo,
-          'user_photo_url': photo,
+          'name': name,
+          'user_name': name,
+          'photoUrl': rawPhoto,
+          'photo_url': rawPhoto,
+          'user_photo_url': rawPhoto,
           'custom_id': customId,
           'display_id': customId,
           'amount': total,

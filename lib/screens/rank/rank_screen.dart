@@ -111,15 +111,28 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
 
       if (wealthDaily.isEmpty || wealthWeekly.isEmpty || wealthMonthly.isEmpty) {
         try {
-          final topWealthUsers = await sb
+          var topWealthUsers = await sb
               .from('users')
-              .select('uid,name,custom_id,photo_url,total_gifts_sent,level,wealth_level')
+              .select('uid,id,name,custom_id,photo_url,avatar,total_gifts_sent,level')
               .gt('total_gifts_sent', 0)
               .order('total_gifts_sent', ascending: false)
               .limit(50);
+          if ((topWealthUsers as List).isEmpty) {
+            topWealthUsers = await sb
+                .from('users')
+                .select('uid,id,name,custom_id,photo_url,avatar,total_gifts_sent,level,coins')
+                .order('coins', ascending: false)
+                .limit(50);
+          }
           final mapped = (topWealthUsers as List).map((u) {
             final m = Map<String, dynamic>.from(u as Map);
-            m['points'] = m['total_gifts_sent'] ?? 0;
+            m['uid'] = m['uid'] ?? m['id'];
+            m['photo_url'] = (m['photo_url']?.toString().isNotEmpty == true)
+                ? m['photo_url']
+                : (m['avatar'] ?? '');
+            m['photoUrl'] = m['photo_url'];
+            m['points'] = (m['total_gifts_sent'] as num?)?.toInt() ?? (m['coins'] as num?)?.toInt() ?? 0;
+            m['amount'] = m['points'];
             return m;
           }).toList();
           if (wealthDaily.isEmpty) wealthDaily = mapped;
@@ -130,15 +143,28 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
 
       if (charmDaily.isEmpty || charmWeekly.isEmpty || charmMonthly.isEmpty) {
         try {
-          final topCharmUsers = await sb
+          var topCharmUsers = await sb
               .from('users')
-              .select('uid,name,custom_id,photo_url,total_gifts_received,level,charm')
+              .select('uid,id,name,custom_id,photo_url,avatar,total_gifts_received,diamonds,level')
               .gt('total_gifts_received', 0)
               .order('total_gifts_received', ascending: false)
               .limit(50);
+          if ((topCharmUsers as List).isEmpty) {
+            topCharmUsers = await sb
+                .from('users')
+                .select('uid,id,name,custom_id,photo_url,avatar,total_gifts_received,diamonds,level')
+                .order('diamonds', ascending: false)
+                .limit(50);
+          }
           final mapped = (topCharmUsers as List).map((u) {
             final m = Map<String, dynamic>.from(u as Map);
-            m['points'] = m['total_gifts_received'] ?? 0;
+            m['uid'] = m['uid'] ?? m['id'];
+            m['photo_url'] = (m['photo_url']?.toString().isNotEmpty == true)
+                ? m['photo_url']
+                : (m['avatar'] ?? '');
+            m['photoUrl'] = m['photo_url'];
+            m['points'] = (m['total_gifts_received'] as num?)?.toInt() ?? (m['diamonds'] as num?)?.toInt() ?? 0;
+            m['amount'] = m['points'];
             return m;
           }).toList();
           if (charmDaily.isEmpty) charmDaily = mapped;
@@ -151,12 +177,18 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
         try {
           final topRooms = await sb
               .from('rooms')
-              .select('room_id,name,room_photo_url,bg_image,host_uid,host_name,hot_value,total_gifts')
+              .select('room_id,id,name,room_photo_url,bg_image,host_uid,host_name,hot_value,total_gifts')
               .order('hot_value', ascending: false)
               .limit(50);
           final mapped = (topRooms as List).map((r) {
             final m = Map<String, dynamic>.from(r as Map);
+            m['room_id'] = m['room_id'] ?? m['id'];
+            m['photo_url'] = (m['room_photo_url']?.toString().isNotEmpty == true)
+                ? m['room_photo_url']
+                : (m['bg_image'] ?? '');
+            m['photoUrl'] = m['photo_url'];
             m['points'] = (m['hot_value'] as num?)?.toInt() ?? (m['total_gifts'] as num?)?.toInt() ?? 100;
+            m['amount'] = m['points'];
             return m;
           }).toList();
           if (roomsDaily.isEmpty) roomsDaily = mapped;

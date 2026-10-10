@@ -79,6 +79,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
   bool   _reloading = false;
   int    _prevMonthDiamonds = 0; // لكشف التغيير والإشعار
 
+  Timer? _periodicTimer;
+
   @override
   void initState() {
     super.initState();
@@ -94,10 +96,15 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     )..repeat();
 
     _loadData();
+
+    _periodicTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted && !_reloading) _loadData();
+    });
   }
 
   @override
   void dispose() {
+    _periodicTimer?.cancel();
     _pulseCtrl.dispose();
     _shimmerCtrl.dispose();
     _debounce?.cancel();
@@ -286,6 +293,10 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
             .select('display_name, avatar_url, level, coins')
             .eq('id', uid)
             .maybeSingle(),
+        _sb.from('users')
+            .select('name, photo_url, level, coins, diamonds, custom_id')
+            .eq('id', uid)
+            .maybeSingle(),
         _sb.from('agency_diamond_ledger')
             .select('amount, direction, created_at')
             .eq('user_id', uid)
@@ -300,35 +311,52 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
 
       final agencyStats = results[0] as HostAgencyStats?;
       final profileRow  = results[1] as Map<String, dynamic>?;
-      final todayRows   = (results[2] as List?)?.cast<Map<String, dynamic>>() ?? [];
-      final weekRows    = (results[3] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final userRow     = results[2] as Map<String, dynamic>?;
+      final todayRows   = (results[3] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final weekRows    = (results[4] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
       final todayD = todayRows.fold<int>(0, (sum, r) => sum + ((r['amount'] as num?)?.toInt() ?? 0));
       final weekD  = weekRows.fold<int>(0,  (sum, r) => sum + ((r['amount'] as num?)?.toInt() ?? 0));
-      final monthD = agencyStats?.member.diamondsEarnedMonthly ?? 0;
+      final monthD = (agencyStats?.member.diamondsEarnedMonthly ?? 0) > 0
+          ? agencyStats!.member.diamondsEarnedMonthly
+          : (agencyStats?.member.diamondsBalance ?? (userRow?['diamonds'] as num?)?.toInt() ?? 0);
 
-      // جلب بيانات ساعات البث والأيام الفعالة من host_agency_members
+      // جلب بيانات ساعات البث والأيام الفعالة من host_agency_members في Supabase أولاً
       int liveHours = 0;
       int validDays = 0;
       try {
-        final memSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-            .collection('host_agency_members')
-            .where('user_id', isEqualTo: uid)
-            .limit(1)
-            .get();
-        if (memSnap.docs.isNotEmpty) {
-          final mdata = memSnap.docs.first.data();
+        final memSb = await _sb.from('host_agency_members')
+            .select('live_hours_monthly, valid_days_monthly, diamonds_earned_monthly, diamonds')
+            .or('user_id.eq.$uid,host_uid.eq.$uid')
+            .limit(1);
+        if (memSb.isNotEmpty) {
+          final mdata = memSb.first;
           liveHours = (mdata['live_hours_monthly'] as num?)?.toInt() ?? 0;
           validDays = (mdata['valid_days_monthly'] as num?)?.toInt() ?? 0;
         }
       } catch (_) {}
 
+      if (liveHours == 0 && validDays == 0) {
+        try {
+          final memSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
+              .collection('host_agency_members')
+              .where('user_id', isEqualTo: uid)
+              .limit(1)
+              .get();
+          if (memSnap.docs.isNotEmpty) {
+            final mdata = memSnap.docs.first.data();
+            liveHours = (mdata['live_hours_monthly'] as num?)?.toInt() ?? 0;
+            validDays = (mdata['valid_days_monthly'] as num?)?.toInt() ?? 0;
+          }
+        } catch (_) {}
+      }
+
       // بناء بيانات لوحة التحكم
       final built = <String, dynamic>{
         'profile': {
-          'display_name': profileRow?['display_name'] ?? '—',
-          'level':        profileRow?['level']        ?? 1,
-          'avatar_url':   profileRow?['avatar_url'],
+          'display_name': profileRow?['display_name'] ?? userRow?['name'] ?? '—',
+          'level':        profileRow?['level']        ?? userRow?['level'] ?? 1,
+          'avatar_url':   profileRow?['avatar_url']   ?? userRow?['photo_url'],
           'is_vip':       false,
         },
         'agency': agencyStats?.agency != null ? {

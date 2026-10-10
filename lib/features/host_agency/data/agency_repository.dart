@@ -244,66 +244,164 @@ abstract final class AgencyRepository {
     final uid = _sb.auth.currentUser?.id;
     if (uid == null) return null;
 
-    final resp = await _sb.rpc('get_host_dashboard_v2', params: {
-      'p_user_id': uid,
-    });
-    if (resp == null) return null;
-    final data = Map<String, dynamic>.from(resp as Map);
-    if (data['status'] != 'ok') return null;
+    try {
+      final resp = await _sb.rpc('get_host_dashboard_v2', params: {
+        'p_user_id': uid,
+      });
+      if (resp != null) {
+        final data = Map<String, dynamic>.from(resp as Map);
+        if (data['status'] == 'ok') {
+          final member = AgencyMemberInfo.fromMap({
+            'member_id':                   data['member_id'],
+            'user_id':                     uid,
+            'agency_id':                   data['agency_id'],
+            'role':                        data['role'],
+            'status':                      'active',
+            'diamonds_balance':            data['diamonds_balance'],
+            'diamonds_available':          data['diamonds_available'],
+            'diamonds_pending_withdrawal': data['diamonds_pending_withdrawal'],
+            'diamonds_earned_monthly':     data['diamonds_earned_monthly'],
+            'diamonds_earned_cumulative':  data['diamonds_earned_cumulative'],
+            'join_date':                   data['join_date'],
+            'is_in_trial':                 data['is_in_trial'],
+            'trial_ends_at':               data['trial_ends_at'],
+          });
 
-    final member = AgencyMemberInfo.fromMap({
-      'member_id':                   data['member_id'],
-      'user_id':                     uid,
-      'agency_id':                   data['agency_id'],
-      'role':                        data['role'],
-      'status':                      'active',
-      'diamonds_balance':            data['diamonds_balance'],
-      'diamonds_available':          data['diamonds_available'],
-      'diamonds_pending_withdrawal': data['diamonds_pending_withdrawal'],
-      'diamonds_earned_monthly':     data['diamonds_earned_monthly'],
-      'diamonds_earned_cumulative':  data['diamonds_earned_cumulative'],
-      'join_date':                   data['join_date'],
-      'is_in_trial':                 data['is_in_trial'],
-      'trial_ends_at':               data['trial_ends_at'],
-    });
+          final targets = ((data['targets'] as List<dynamic>?) ?? [])
+              .map((e) => AgencyTarget.fromDashboardMap(Map<String, dynamic>.from(e as Map)))
+              .toList();
 
-    final targets = ((data['targets'] as List<dynamic>?) ?? [])
-        .map((e) => AgencyTarget.fromDashboardMap(Map<String, dynamic>.from(e as Map)))
-        .toList();
+          final ledger = ((data['recent_ledger'] as List<dynamic>?) ?? [])
+              .map((e) => AgencyLedgerEntry.fromMap(Map<String, dynamic>.from(e as Map)))
+              .toList();
 
-    final ledger = ((data['recent_ledger'] as List<dynamic>?) ?? [])
-        .map((e) => AgencyLedgerEntry.fromMap(Map<String, dynamic>.from(e as Map)))
-        .toList();
+          final engineMap = data['engine'] as Map<String, dynamic>? ?? {};
+          final engine = AgencyEngineSettings.fromMap(engineMap);
 
-    final engineMap = data['engine'] as Map<String, dynamic>? ?? {};
-    final engine = AgencyEngineSettings.fromMap(engineMap);
+          final achievedIds = targets
+              .where((t) => t.isAchieved)
+              .map((t) => t.id)
+              .toList();
 
-    final achievedIds = targets
-        .where((t) => t.isAchieved)
-        .map((t) => t.id)
-        .toList();
+          final agency = data['agency_id'] != null
+              ? AgencyCard(
+                  id: data['agency_id'].toString(),
+                  name: data['agency_name']?.toString() ?? 'الوكالة',
+                  tier: AgencyTier.bronze,
+                  memberCount: 1,
+                  totalDiamondsMonthly: (data['diamonds_earned_monthly'] as num?)?.toInt() ?? 0,
+                  totalDiamondsCumulative: (data['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0,
+                  isHallOfFame: false,
+                  status: 'active',
+                )
+              : null;
 
-    final agency = data['agency_id'] != null
-        ? AgencyCard(
-            id: data['agency_id'].toString(),
-            name: data['agency_name']?.toString() ?? 'الوكالة',
-            tier: AgencyTier.bronze,
-            memberCount: 1,
-            totalDiamondsMonthly: (data['diamonds_earned_monthly'] as num?)?.toInt() ?? 0,
-            totalDiamondsCumulative: (data['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0,
-            isHallOfFame: false,
-            status: 'active',
-          )
-        : null;
+          return HostAgencyStats(
+            member:            member,
+            agency:            agency,
+            targets:           targets,
+            recentLedger:      ledger,
+            engine:            engine,
+            achievedTargetIds: achievedIds,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[AgencyRepository] getHostStats RPC error: $e');
+    }
 
-    return HostAgencyStats(
-      member:            member,
-      agency:            agency,
-      targets:           targets,
-      recentLedger:      ledger,
-      engine:            engine,
-      achievedTargetIds: achievedIds,
-    );
+    // ── Direct Supabase Fallback when RPC fails or is missing ──
+    try {
+      final memList = await _sb.from('host_agency_members')
+          .select('*')
+          .or('user_id.eq.$uid,host_uid.eq.$uid')
+          .limit(1);
+      if (memList.isNotEmpty) {
+        final m = Map<String, dynamic>.from(memList.first as Map);
+        final agencyId = m['agency_id']?.toString() ?? '';
+        final memberId = m['id']?.toString() ?? uid;
+        final diamonds = (m['diamonds'] as num?)?.toInt() ?? 0;
+        final diamondsMonthly = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? diamonds;
+        final diamondsCumulative = (m['diamonds_earned_cumulative'] as num?)?.toInt() ?? diamonds;
+        final diamondsBalance = (m['diamonds_balance'] as num?)?.toInt() ?? (m['diamonds_available'] as num?)?.toInt() ?? diamonds;
+
+        Map<String, dynamic>? agencyRow;
+        if (agencyId.isNotEmpty) {
+          final agList = await _sb.from('host_agencies').select('*').eq('id', agencyId).limit(1);
+          if (agList.isNotEmpty) {
+            agencyRow = Map<String, dynamic>.from(agList.first as Map);
+          }
+        }
+
+        List<AgencyTarget> targets = [];
+        if (agencyId.isNotEmpty) {
+          try {
+            final tgList = await _sb.from('agency_targets').select('*').eq('agency_id', agencyId).order('target_diamonds', ascending: true);
+            targets = (tgList as List).map((t) {
+              final row = Map<String, dynamic>.from(t as Map);
+              final targetDiamonds = (row['target_diamonds'] as num?)?.toInt() ?? 0;
+              final earned = diamondsMonthly;
+              final rem = (targetDiamonds - earned).clamp(0, targetDiamonds);
+              final pct = targetDiamonds > 0 ? (earned / targetDiamonds).clamp(0.0, 1.0) : 0.0;
+              return AgencyTarget(
+                id: row['id']?.toString() ?? '',
+                title: row['title']?.toString() ?? row['name']?.toString() ?? 'المستوى $targetDiamonds',
+                targetDiamonds: targetDiamonds,
+                rewardDiamonds: (row['reward_diamonds'] as num?)?.toInt() ?? 0,
+                rewardCoins: (row['reward_coins'] as num?)?.toInt() ?? 0,
+                rewardType: row['reward_type']?.toString() ?? 'coins',
+                rewardValue: (row['reward_value'] as num?)?.toDouble() ?? 0.0,
+                rewardImageUrl: row['reward_image_url']?.toString(),
+                earnedThisMonth: earned,
+                remaining: rem,
+                progressPct: pct,
+                isAchieved: earned >= targetDiamonds && targetDiamonds > 0,
+              );
+            }).toList();
+          } catch (_) {}
+        }
+
+        final member = AgencyMemberInfo(
+          memberId: memberId,
+          userId: uid,
+          agencyId: agencyId,
+          role: m['role']?.toString() ?? 'host',
+          status: m['status']?.toString() ?? 'active',
+          diamondsBalance: diamondsBalance,
+          diamondsAvailable: diamondsBalance,
+          diamondsPendingWithdrawal: 0,
+          diamondsEarnedMonthly: diamondsMonthly,
+          diamondsEarnedCumulative: diamondsCumulative,
+          joinDate: DateTime.tryParse(m['created_at']?.toString() ?? '') ?? DateTime.now(),
+        );
+
+        final agency = agencyRow != null
+            ? AgencyCard(
+                id: agencyId,
+                name: agencyRow['name']?.toString() ?? agencyRow['agency_name']?.toString() ?? 'الوكالة',
+                tier: AgencyTier.bronze,
+                memberCount: (agencyRow['total_hosts'] as num?)?.toInt() ?? (agencyRow['member_count'] as num?)?.toInt() ?? 1,
+                totalDiamondsMonthly: (agencyRow['total_diamonds_monthly'] as num?)?.toInt() ?? diamondsMonthly,
+                totalDiamondsCumulative: (agencyRow['total_diamonds_cumulative'] as num?)?.toInt() ?? diamondsCumulative,
+                isHallOfFame: false,
+                status: agencyRow['status']?.toString() ?? 'active',
+              )
+            : null;
+
+        return HostAgencyStats(
+          member: member,
+          agency: agency,
+          targets: targets,
+          recentLedger: [],
+          engine: AgencyEngineSettings.fromMap({}),
+          achievedTargetIds: targets.where((t) => t.isAchieved).map((t) => t.id).toList(),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AgencyRepository] getHostStats fallback error: $e');
+    }
+
+    return null;
   }
 
   // ─── طلب الخروج ─────────────────────────────────────────────────

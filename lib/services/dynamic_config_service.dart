@@ -1506,21 +1506,61 @@ class DynamicConfigService extends ChangeNotifier {
   /// نسبة دخول هدايا الحظ في تارجت وماسات المستلم (%)
   /// القيمة الافتراضية 10.0 (أي 10%) ويمكن تعديلها من لوحة الإدارة
   double get luckyGiftTargetPercentage {
-    final direct = _rawConfig['lucky_gift_target_percentage'] ??
-        _rawConfig['luckyGiftTargetPercentage'] ??
-        _rawConfig['lucky_gift_rate'];
-    if (direct != null) {
-      final p = double.tryParse(direct.toString());
-      if (p != null && p >= 0) return p;
-    }
-    final lbc = _rawConfig['lucky_box_config'];
-    if (lbc is Map) {
-      final v = lbc['targetPercentage'] ?? lbc['target_percentage'];
-      if (v != null) {
-        final p = double.tryParse(v.toString());
-        if (p != null && p >= 0) return p;
+    final candidates = [
+      _rawConfig['lucky_gift_target_percentage'],
+      _rawConfig['luckyGiftTargetPercentage'],
+      _rawConfig['lucky_gift_rate'],
+      _rawConfig['lucky_target_percentage'],
+      _rawConfig['lucky_target_percent'],
+      _rawConfig['lucky_target_ratio'],
+      _rawConfig['lucky_target_rate'],
+      _rawConfig['lucky_gift_diamond_percentage'],
+      _rawConfig['lucky_diamond_percentage'],
+      _rawConfig['lucky_diamond_rate'],
+      _rawConfig['lucky_diamonds_rate'],
+      _rawConfig['lucky_box_target_percentage'],
+      _rawConfig['lucky_box_percentage'],
+      _rawConfig['lucky_box_rate'],
+      _rawConfig['luckyGiftRate'],
+    ];
+
+    for (final direct in candidates) {
+      if (direct != null) {
+        final p = double.tryParse(direct.toString());
+        if (p != null && p >= 0) {
+          // إذا كانت القيمة كسرية مثل 0.1 نحولها لنسبة مئوية 10%
+          return (p > 0 && p <= 1.0) ? p * 100.0 : p;
+        }
       }
     }
+
+    final nestedMaps = [
+      _rawConfig['lucky_box_config'],
+      _rawConfig['lucky_gift_config'],
+      _rawConfig['lucky_config'],
+      _rawConfig['luckyGiftConfig'],
+      _rawConfig['lucky_box'],
+      _rawConfig['lucky_gift'],
+    ];
+
+    for (final map in nestedMaps) {
+      if (map is Map) {
+        final v = map['targetPercentage'] ??
+            map['target_percentage'] ??
+            map['targetPercent'] ??
+            map['target_percent'] ??
+            map['rate'] ??
+            map['diamond_percentage'] ??
+            map['target_ratio'];
+        if (v != null) {
+          final p = double.tryParse(v.toString());
+          if (p != null && p >= 0) {
+            return (p > 0 && p <= 1.0) ? p * 100.0 : p;
+          }
+        }
+      }
+    }
+
     return 10.0;
   }
 
