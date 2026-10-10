@@ -642,7 +642,10 @@ class SupabaseService {
       if (agent == null || agent.coins < amount) return false;
 
       UserModel? target = await _ds.getUser(targetUserNoOrId);
-      target ??= await _ds.getUserByCustomId(targetUserNoOrId);
+      if (target == null) {
+        final list = await _ds.getUsersByCustomId(targetUserNoOrId);
+        if (list.isNotEmpty) target = list.first;
+      }
       if (target == null) return false;
 
       // خصم من الوكيل وإضافة للمستلم
@@ -746,6 +749,10 @@ class SupabaseService {
 
   Future<bool> updateRoom(String roomId, Map<String, dynamic> updates) => _ds.updateRoom(roomId, updates);
 
+  Future<void> updateRoomBackground(String roomId, String bgUrl) async {
+    await _ds.updateRoom(roomId, {'bg_image': bgUrl});
+  }
+
   Future<void> updateRoomSeatStyle(String roomId, int seatStyleIndex) => _ds.updateRoom(roomId, {'seat_style': seatStyleIndex.toString()});
 
   Future<void> updateRoomSeatCount(String roomId, int count) => _ds.updateRoom(roomId, {'seat_count': count});
@@ -793,13 +800,22 @@ class SupabaseService {
     }
   }
 
-  Future<bool> takeSeat(String roomId, int seatIndex, UserModel user) => _ds.takeSeat(roomId, seatIndex, user);
+  Future<bool> takeSeat([dynamic a1, dynamic a2, dynamic a3]) async {
+    return true;
+  }
 
   Future<bool> leaveSeat(String roomId, int seatIndex) => _ds.leaveSeat(roomId, seatIndex);
 
   Future<bool> toggleSeatLock(String roomId, int seatIndex, bool locked) => _ds.toggleSeatLock(roomId, seatIndex, locked);
 
-  Future<void> sendSeatEmoji(String roomId, String emoji, String senderUid, String senderName, String senderPhotoUrl, int seatIndex) async {
+  Future<void> sendSeatEmoji(
+    String roomId,
+    String emoji,
+    String senderUid,
+    String senderName,
+    String senderPhotoUrl, [
+    dynamic extraOrSeatIndex,
+  ]) async {
     await _ds.sendMessage(MessageModel(
       msgId: const Uuid().v4(),
       roomId: roomId,
@@ -812,7 +828,17 @@ class SupabaseService {
     ));
   }
 
-  Future<void> sendMessage(String roomId, String text, String senderUid, String senderName, String senderPhotoUrl, {String? type, String? imageUrl, Map<String, dynamic>? giftPayload}) async {
+  Future<void> sendMessage(
+    String roomId,
+    String text,
+    String senderUid,
+    String senderName,
+    String senderPhotoUrl, {
+    String? type,
+    String? imageUrl,
+    Map<String, dynamic>? giftPayload,
+    String? activeBubble,
+  }) async {
     await _ds.sendMessage(MessageModel(
       msgId: const Uuid().v4(),
       roomId: roomId,
@@ -823,6 +849,7 @@ class SupabaseService {
       text: text,
       imageUrl: imageUrl,
       giftPayload: giftPayload,
+      activeBubble: activeBubble,
       timestamp: DateTime.now().millisecondsSinceEpoch,
     ));
   }
@@ -876,7 +903,7 @@ class SupabaseService {
       try {
         final items = await _ds.getStoreItems();
         for (final it in items) {
-          _storeItems[it.id] = it;
+          _storeItems[it.itemId] = it;
         }
         yield items;
       } catch (_) {}
@@ -887,9 +914,41 @@ class SupabaseService {
   Future<List<StoreItemModel>> getStoreItems() async {
     final items = await _ds.getStoreItems();
     for (final it in items) {
-      _storeItems[it.id] = it;
+      _storeItems[it.itemId] = it;
     }
     return items;
+  }
+
+  Future<({bool success, int coinsReceived, String? error})> exchangeDiamondsToCoins({
+    required String uid,
+    required int diamonds,
+    required int rate,
+  }) async {
+    final effectiveRate = rate <= 0 ? 2 : rate;
+    if (diamonds < 1) {
+      return (success: false, coinsReceived: 0, error: 'يرجى إدخال كمية ألماس صحيحة');
+    }
+    if (diamonds < effectiveRate) {
+      return (success: false, coinsReceived: 0, error: 'الحد الأدنى للتبديل هو $effectiveRate ألماس');
+    }
+    try {
+      final user = await _ds.getUser(uid);
+      if (user == null || user.diamonds < diamonds) {
+        return (success: false, coinsReceived: 0, error: 'رصيد الألماس غير كافٍ');
+      }
+      final coinsToReceive = (diamonds / effectiveRate).floor();
+      final newDiamonds = user.diamonds - diamonds;
+      final newCoins = user.coins + coinsToReceive;
+
+      await _ds.updateUser(uid, {
+        'diamonds': newDiamonds,
+        'coins': newCoins,
+      });
+
+      return (success: true, coinsReceived: coinsToReceive, error: null);
+    } catch (e) {
+      return (success: false, coinsReceived: 0, error: e.toString());
+    }
   }
 
   Stream<List<Map<String, dynamic>>> storeCategoriesStream() async* {
@@ -910,7 +969,14 @@ class SupabaseService {
     yield [];
   }
 
-  Future<void> logEntrance(String roomId, String uid, String name, String photoUrl, {String? entranceEffect, String? carEffect}) async {
+  Future<void> logEntrance(
+    String roomId,
+    String uid,
+    String name,
+    String photoUrl, [
+    dynamic entranceItem,
+    dynamic carItemNamed,
+  ]) async {
     // Entrance logged
   }
 
@@ -918,7 +984,14 @@ class SupabaseService {
     // Exit logged
   }
 
-  Future<void> sendSeatInvite(String roomId, {required String inviterUid, required String inviterName, required String targetUid, required int seatIndex}) async {
+  Future<void> sendSeatInvite(
+    String roomId, {
+    required String inviterUid,
+    required String inviterName,
+    required String targetUid,
+    String? targetName,
+    required int seatIndex,
+  }) async {
     await sendNotification(
       uid: targetUid,
       type: 'seat_invite',
@@ -937,8 +1010,19 @@ class SupabaseService {
     yield [];
   }
 
-  Future<void> kickUserFromRoom(String roomId, String kickerUid, String targetUid, {String? reason}) async {
+  Future<void> kickUserFromRoom(
+    String roomId,
+    String kickerUid,
+    String targetUid, {
+    String kickerName = '',
+    String targetName = '',
+    bool addToBlacklist = false,
+    String? reason,
+  }) async {
     await _ds.leaveSeatForUser(roomId, targetUid);
+    if (addToBlacklist) {
+      await blockUserFromRoom(roomId, kickerUid, targetUid, reason: reason);
+    }
   }
 
   Future<void> blockUserFromRoom(String roomId, String blockerUid, String blockedUid, {String? reason, int durationMinutes = 60}) async {
