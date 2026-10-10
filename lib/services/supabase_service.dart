@@ -685,7 +685,40 @@ class SupabaseService {
     }
   }
 
-  Future<bool> createRoom(RoomModel room) => _ds.createRoom(room);
+  Future<String> createRoom({
+    required String name,
+    String description = '',
+    String roomPhotoUrl = '',
+    required String hostUid,
+    required String hostCustomId,
+    required String hostName,
+    String hostPhotoUrl = '',
+    bool isLocked = false,
+    String password = '',
+    String category = '',
+    String country = '',
+  }) async {
+    String resolvedRoomId = (hostCustomId.trim().isNotEmpty && hostCustomId.trim() != 'null')
+        ? hostCustomId.trim()
+        : hostUid;
+    final r = RoomModel(
+      roomId: resolvedRoomId,
+      name: name,
+      description: description,
+      roomPhotoUrl: roomPhotoUrl,
+      hostUid: hostUid,
+      hostName: hostName,
+      hostPhotoUrl: hostPhotoUrl,
+      isLocked: isLocked,
+      password: password,
+      category: category,
+      country: country,
+    );
+    await _ds.createRoom(r);
+    return resolvedRoomId;
+  }
+
+  Future<bool> migrateUserRoomId(String hostUid, String newRoomId) => _ds.migrateUserRoomId(hostUid, newRoomId);
 
   Future<RoomModel?> getRoomByHost(String hostUid) => _ds.getRoomByHostUid(hostUid);
 
@@ -918,7 +951,36 @@ class SupabaseService {
 
   Future<void> unfollowUser(String uid, String targetUid) => _ds.unfollowUser(uid, targetUid);
 
-  Future<List<String>> getFollowing(String uid) => _ds.getFollowing(uid);
+  Future<List<Map<String, dynamic>>> getFollowing(String uid) => _ds.getFollowingUsers(uid);
+
+  Future<List<Map<String, dynamic>>> getFans(String uid) => _ds.getFollowerUsers(uid);
+
+  Future<List<Map<String, dynamic>>> getVisitors(String uid) => _ds.getVisitorUsers(uid);
+
+  Future<List<Map<String, dynamic>>> getReports() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/reports?select=*&order=created_at.desc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<void> resolveReport(String reportId) async {
+    try {
+      await http.patch(
+        Uri.parse('$_baseUrl/rest/v1/reports?id=eq.$reportId'),
+        headers: _headers,
+        body: jsonEncode({
+          'status': 'resolved',
+          'resolved_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+    } catch (_) {}
+  }
 
   Future<void> blockUser(String blockerUid, String blockedUid) async {}
 
@@ -1077,12 +1139,12 @@ class SupabaseService {
     return {};
   }
 
-  Future<bool> updateAgencyNotice(String agencyId, String notice) async {
+  Future<bool> updateAgencyNotice({String? agencyId, String? notice}) async {
     try {
       final res = await http.patch(
         Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
         headers: _headers,
-        body: jsonEncode({'announcement': notice}),
+        body: jsonEncode({'announcement': notice, 'notice': notice, 'description': notice}),
       );
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (_) {
@@ -1090,7 +1152,8 @@ class SupabaseService {
     }
   }
 
-  Future<bool> removeAgencyMember(String agencyId, String userId) => exitAgencyAsMember(agencyId: agencyId, userId: userId);
+  Future<bool> removeAgencyMember({String? agencyId, String? memberUid, String? userId}) =>
+      exitAgencyAsMember(agencyId: agencyId ?? '', userId: memberUid ?? userId ?? '');
 
   Future<Map<String, dynamic>> createAgentDiamondWithdrawalRequest({required String agentUid, required String targetUid, required int diamondsAmount}) async {
     try {
