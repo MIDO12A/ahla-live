@@ -826,8 +826,6 @@ class _GiftPanelState extends State<GiftPanel> {
       'giftCount': widget.selectedCount,
       'categoryId': gift.categoryId,
       'isLucky': isLuckyGift,
-      'targetDrawnMultipliers': targetDrawnMultipliers,
-      'totalWonCoins': totalAggregatedWon,
     });
 
     _startComboTimer();
@@ -842,7 +840,6 @@ class _GiftPanelState extends State<GiftPanel> {
           bool ok;
           if (isLuckyGift) {
             final cover = gift.defaultImage ?? gift.iconAsset;
-            final drawn = targetDrawnMultipliers[receiverId] ?? fb.drawLuckyMultipliers(stepCount);
             final res = await fb.sendLuckyGift(
               roomId: widget.roomId,
               giftId: gift.id,
@@ -861,7 +858,6 @@ class _GiftPanelState extends State<GiftPanel> {
               count: stepCount,
               comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
               comboCount: stepCount,
-              preDrawnMultipliers: drawn,
             );
             ok = res != null;
             // ✅ تم تحديث الرصيد مسبقاً بالصافي لحظياً، لا نضيف won مجدداً لمنع التدبيل
