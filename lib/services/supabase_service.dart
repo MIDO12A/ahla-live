@@ -345,6 +345,7 @@ class SupabaseService {
       return null;
     }
 
+    final isSelfSend = senderId == receiverId;
     final totalCost = value * count;
 
       // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase

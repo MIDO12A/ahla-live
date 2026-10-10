@@ -311,6 +311,14 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateCoinsImmediately(int newBalance) {
+    if (_currentUser == null) return;
+    _currentUser = _currentUser!.copyWith(coins: newBalance);
+    _optimisticCoins = newBalance;
+    _lastLocalCoinsUpdateMs = DateTime.now().millisecondsSinceEpoch;
+    notifyListeners();
+  }
+
   Future<bool> purchaseItem(StoreItemModel item) async {
     if (_currentUser == null) return false;
     final success = await _supabaseService.purchaseItem(_currentUser!.uid, item);
