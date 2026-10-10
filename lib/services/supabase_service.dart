@@ -293,6 +293,8 @@ class SupabaseService {
     bool isBigWin = false;
     List<int> multipliers = [];
     int serverNewBalance = 0;
+    final totalCost = value * count;
+    final bool isSelfSend = senderId == receiverId;
 
     try {
       // 1. استدعاء المعاملة الذرية من Supabase عبر RPC (process_lucky_gift)
@@ -334,16 +336,24 @@ class SupabaseService {
         }
         final sUser = await _ds.getUser(senderId);
         final currentCoins = sUser?.coins ?? 0;
-        serverNewBalance = math.max(0, currentCoins - (value * count) + totalWonCoins);
+        serverNewBalance = math.max(0, currentCoins - totalCost + totalWonCoins);
         await _ds.updateUser(senderId, {
           'coins': serverNewBalance,
-          'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + (value * count),
+          'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
         });
-      }
-    }
 
-    final isSelfSend = senderId == receiverId;
-    final totalCost = value * count;
+        if (!isSelfSend) {
+          final luckyTargetPct = DynamicConfigService().luckyGiftTargetPercentage;
+          final int recipientDiamonds = math.max(0, ((totalCost * luckyTargetPct) / 100.0).round());
+          final rUser = await _ds.getUser(receiverId);
+          if (rUser != null) {
+            await _ds.updateUser(receiverId, {
+              'diamonds': rUser.diamonds + recipientDiamonds,
+              'total_gifts_received': rUser.totalGiftsReceived + totalCost,
+            });
+          }
+        }
+      }
 
       // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase
       unawaited(_ds.recordSentGift(
