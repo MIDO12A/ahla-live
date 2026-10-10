@@ -860,7 +860,12 @@ class _GiftPanelState extends State<GiftPanel> {
               comboCount: stepCount,
             );
             ok = res != null;
-            // ✅ تم تحديث الرصيد مسبقاً بالصافي لحظياً، لا نضيف won مجدداً لمنع التدبيل
+            if (res != null && mounted) {
+              final newBal = (res['newBalance'] as num?)?.toInt();
+              if (newBal != null) {
+                Provider.of<UserProvider>(context, listen: false).updateCoinsImmediately(newBal);
+              }
+            }
           } else {
             final cover = gift.defaultImage ?? gift.iconAsset;
             ok = await fb.sendGift(

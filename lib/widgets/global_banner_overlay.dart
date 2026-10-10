@@ -28,13 +28,28 @@ class GlobalBannerOverlay extends StatelessWidget {
         final hasBigWin = bigWin != null;
         final topPadding = MediaQuery.of(context).padding.top;
 
+        String safeSenderPhoto = 'assets/mipmap-xxhdpi/ic_avatar_default.webp';
+        String safeReceiverPhoto = 'assets/mipmap-xxhdpi/ic_avatar_default.webp';
+        String safeGiftImage = 'assets/mipmap-xxhdpi/common_gold_ic_4.webp';
+
+        if (giftBanner != null) {
+          final s = giftBanner['senderPhotoUrl']?.toString();
+          if (s != null && s.trim().isNotEmpty) safeSenderPhoto = s;
+
+          final r = giftBanner['receiverPhotoUrl']?.toString();
+          if (r != null && r.trim().isNotEmpty) safeReceiverPhoto = r;
+
+          final g = giftBanner['defaultImage']?.toString() ?? giftBanner['giftImageUrl']?.toString();
+          if (g != null && g.trim().isNotEmpty) safeGiftImage = g;
+        }
+
         return Stack(
           textDirection: TextDirection.ltr,
           children: [
             // الشاشة الأصلية
             child,
 
-            // 1. شريط ولافتة الهدية المخصصة SVGA / VAP
+            // 1. شريط ولافتة الهدية المخصصة SVGA / VAP مع Fallback كامل
             if (hasGiftBanner)
               Positioned(
                 top: 0,
@@ -42,9 +57,9 @@ class GlobalBannerOverlay extends StatelessWidget {
                 right: 0,
                 child: GiftBannerOverlay(
                   animationAsset: giftBanner['animationAsset']?.toString(),
-                  senderPhotoUrl: giftBanner['senderPhotoUrl']?.toString(),
-                  receiverPhotoUrl: giftBanner['receiverPhotoUrl']?.toString(),
-                  giftImageUrl: giftBanner['defaultImage']?.toString() ?? giftBanner['giftImageUrl']?.toString(),
+                  senderPhotoUrl: safeSenderPhoto,
+                  receiverPhotoUrl: safeReceiverPhoto,
+                  giftImageUrl: safeGiftImage,
                   giftCount: (giftBanner['giftCount'] as num?)?.toInt() ?? 1,
                   userRKey: giftBanner['userRKey']?.toString() ?? 'user_r',
                   userLKey: giftBanner['userLKey']?.toString() ?? 'user_l',
@@ -61,9 +76,11 @@ class GlobalBannerOverlay extends StatelessWidget {
                 left: 0,
                 right: 0,
                 child: BigWinBanner(
-                  senderName: bigWin['senderName']?.toString() ?? '',
-                  senderAvatar: bigWin['senderAvatar']?.toString() ?? '',
-                  giftName: bigWin['giftName']?.toString() ?? '',
+                  senderName: bigWin['senderName']?.toString() ?? 'مستخدم',
+                  senderAvatar: (bigWin['senderAvatar'] != null && bigWin['senderAvatar'].toString().isNotEmpty)
+                      ? bigWin['senderAvatar'].toString()
+                      : 'assets/mipmap-xxhdpi/ic_avatar_default.webp',
+                  giftName: bigWin['giftName']?.toString() ?? 'هدية الحظ',
                   multiplier: (bigWin['multiplier'] as num?)?.toInt() ?? 100,
                   totalWon: (bigWin['totalWon'] as num?)?.toInt() ?? 0,
                   lang: Localizations.localeOf(context).languageCode == 'ar' ? 'ar' : 'en',

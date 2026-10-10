@@ -1292,15 +1292,17 @@ class SupabaseService {
   Stream<List<NotificationModel>> notificationsStream({String? uid}) async* {
     while (true) {
       try {
-        final query = uid != null ? '?user_id=eq.$uid&order=created_at.desc&limit=50' : '?order=created_at.desc&limit=50';
-        final url = Uri.parse('$_baseUrl/rest/v1/notifications$query');
+        final filter = uid != null && uid.isNotEmpty
+            ? '?or=(user_id.eq.$uid,uid.eq.$uid,target.eq.$uid,target.eq.all)&order=created_at.desc&limit=50'
+            : '?order=created_at.desc&limit=50';
+        final url = Uri.parse('$_baseUrl/rest/v1/notifications$filter');
         final res = await http.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
           yield list.map((e) => NotificationModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
         }
       } catch (_) {}
-      await Future.delayed(const Duration(seconds: 5));
+      await Future.delayed(const Duration(seconds: 4));
     }
   }
 

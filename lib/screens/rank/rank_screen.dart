@@ -78,33 +78,37 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
 
   Future<void> _loadRankings() async {
     setState(() => _loading = true);
+    final sb = Supabase.instance.client;
     try {
       final results = await Future.wait<dynamic>([
-        _api.getGlobalRankings(isWealth: true, timeframe: 'daily').catchError((_) => <Map<String, dynamic>>[]),
-        _api.getGlobalRankings(isWealth: true, timeframe: 'weekly').catchError((_) => <Map<String, dynamic>>[]),
-        _api.getGlobalRankings(isWealth: true, timeframe: 'monthly').catchError((_) => <Map<String, dynamic>>[]),
-        
-        _api.getGlobalRankings(isWealth: false, timeframe: 'daily').catchError((_) => <Map<String, dynamic>>[]),
-        _api.getGlobalRankings(isWealth: false, timeframe: 'weekly').catchError((_) => <Map<String, dynamic>>[]),
-        _api.getGlobalRankings(isWealth: false, timeframe: 'monthly').catchError((_) => <Map<String, dynamic>>[]),
-        
-        _api.getRoomGlobalRanking(timeframe: 'daily').catchError((_) => <Map<String, dynamic>>[]),
-        _api.getRoomGlobalRanking(timeframe: 'weekly').catchError((_) => <Map<String, dynamic>>[]),
-        _api.getRoomGlobalRanking(timeframe: 'monthly').catchError((_) => <Map<String, dynamic>>[]),
+        // 1. الثروة (Daily, Weekly, Monthly)
+        sb.from('daily_wealth_ranking').select('*').limit(50).catchError((_) => []),
+        sb.from('weekly_wealth_ranking').select('*').limit(50).catchError((_) => []),
+        sb.from('monthly_wealth_ranking').select('*').limit(50).catchError((_) => []),
+
+        // 2. السحر والجاذبية (Daily, Weekly, Monthly)
+        sb.from('daily_charm_ranking').select('*').limit(50).catchError((_) => []),
+        sb.from('weekly_charm_ranking').select('*').limit(50).catchError((_) => []),
+        sb.from('monthly_charm_ranking').select('*').limit(50).catchError((_) => []),
+
+        // 3. الغرف (Daily, Weekly, Monthly)
+        sb.from('daily_rooms_ranking').select('*').limit(50).catchError((_) => []),
+        sb.from('weekly_rooms_ranking').select('*').limit(50).catchError((_) => []),
+        sb.from('monthly_rooms_ranking').select('*').limit(50).catchError((_) => []),
       ]);
       if (mounted) {
         setState(() {
-          _cachedRankings['wealth_daily'] = results[0];
-          _cachedRankings['wealth_weekly'] = results[1];
-          _cachedRankings['wealth_monthly'] = results[2];
-          
-          _cachedRankings['charm_daily'] = results[3];
-          _cachedRankings['charm_weekly'] = results[4];
-          _cachedRankings['charm_monthly'] = results[5];
-          
-          _cachedRankings['rooms_daily'] = results[6];
-          _cachedRankings['rooms_weekly'] = results[7];
-          _cachedRankings['rooms_monthly'] = results[8];
+          _cachedRankings['wealth_daily']   = List<Map<String, dynamic>>.from(results[0] as List? ?? []);
+          _cachedRankings['wealth_weekly']  = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
+          _cachedRankings['wealth_monthly'] = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
+
+          _cachedRankings['charm_daily']    = List<Map<String, dynamic>>.from(results[3] as List? ?? []);
+          _cachedRankings['charm_weekly']   = List<Map<String, dynamic>>.from(results[4] as List? ?? []);
+          _cachedRankings['charm_monthly']  = List<Map<String, dynamic>>.from(results[5] as List? ?? []);
+
+          _cachedRankings['rooms_daily']    = List<Map<String, dynamic>>.from(results[6] as List? ?? []);
+          _cachedRankings['rooms_weekly']   = List<Map<String, dynamic>>.from(results[7] as List? ?? []);
+          _cachedRankings['rooms_monthly']  = List<Map<String, dynamic>>.from(results[8] as List? ?? []);
           _loading = false;
         });
       }

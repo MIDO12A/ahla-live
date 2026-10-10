@@ -289,11 +289,10 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
       List rows;
       try {
         rows = await _sb
-            .from('host_agencies')
+            .from('active_agencies')
             .select('id, name, tier, photo_url, total_diamonds_monthly, member_count, is_hall_of_fame')
-            .eq('is_active', true)
             .order('total_diamonds_monthly', ascending: false)
-            .limit(20);
+            .limit(30);
       } catch (_) {
         rows = await _sb.from('host_agencies').select('*').limit(30);
       }

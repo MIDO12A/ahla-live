@@ -688,24 +688,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       // سحب النتائج وحساب صافي الرصيد فوريًا في الذاكرة لتحديث رصيد الواجهة بـ 0ms تأخير ومنع التدبيل واهتزاز الرصيد
       final fb = SupabaseService();
       final isLucky = gift.isLucky || gift.type == 3;
-      final Map<String, List<int>> targetDrawnMultipliers = {};
-      int totalAggregatedWon = 0;
-      if (isLucky) {
-        for (final r in selectedTargets) {
-          final rid = r['id']?.toString() ?? '';
-          final drawn = fb.drawLuckyMultipliers(count);
-          targetDrawnMultipliers[rid] = drawn;
-          totalAggregatedWon += drawn.fold<int>(0, (total, m) => total + (gift.value * m));
-        }
-        final netDelta = totalAggregatedWon - totalCost;
-        if (netDelta < 0) {
-          userProvider.deductCoinsLocally(netDelta.abs());
-        } else if (netDelta > 0) {
-          userProvider.addCoinsLocally(netDelta);
-        }
-      } else {
-        userProvider.deductCoinsLocally(totalCost);
-      }
 
       unawaited(Future.microtask(() async {
         await Future.wait(selectedTargets.map((r) async {
@@ -713,45 +695,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           final receiverName = r['name']?.toString() ?? '';
           if (isLucky) {
             final cover = gift.defaultImage ?? gift.iconAsset;
-            final drawn = targetDrawnMultipliers[receiverId] ?? fb.drawLuckyMultipliers(count);
-            final totalWon = drawn.fold<int>(0, (total, m) => total + (gift.value * m));
-            final maxMult = drawn.isEmpty ? 0 : drawn.reduce((a, b) => a > b ? a : b);
-            final cards = List.generate(drawn.length, (i) => LuckyCardResult(
-              index: i,
-              multiplier: drawn[i],
-              wonCoins: gift.value * drawn[i],
-              giftName: gift.name,
-              giftIcon: gift.iconAsset,
-            ));
-            final luckyModel = LuckyGiftModel(
-              id: gift.id,
-              giftName: gift.name,
-              giftNameAr: gift.name,
-              coinPrice: gift.value,
-              giftIconUrl: gift.iconAsset,
-              giftCoverUrl: cover,
-              giftBgUrl: cover,
-              svgaAnimUrl: gift.animationAsset,
-            );
-            final comboId = 'combo_${DateTime.now().millisecondsSinceEpoch}';
-            final localData = LuckyGiftBroadcastData(
-              roomId: roomId,
-              senderName: user?.name ?? '',
-              senderAvatar: user?.photoUrl ?? '',
-              receiverName: receiverName,
-              gift: luckyModel,
-              cards: cards,
-              totalWonCoins: totalWon,
-              maxMultiplier: maxMult,
-              isBigWin: maxMult >= 50,
-              comboId: comboId,
-              comboCount: comboMultiplier,
-            );
-
-            // عرض فوري لحظي للمرسل بدون أي تأخير في الشبكة (0ms latency)
-            if (mounted) {
-              LuckyGiftService().enqueueLuckyGift(context, localData);
-            }
 
             final flyIcon = gift.defaultImage ?? gift.iconAsset;
             if (flyIcon.isNotEmpty) {
@@ -777,15 +720,63 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               receiverName: receiverName,
               value: gift.value,
               count: count,
-              comboId: comboId,
+              comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
               comboCount: comboMultiplier,
             );
 
-            // ✅ تحديث الرصيد الحقيقي القادم مباشرة من السيرفر (Server Response Only)
-            if (res != null && res['newBalance'] is int && (res['newBalance'] as int) > 0) {
-              userProvider.updateCoinsImmediately(res['newBalance'] as int);
+            // ✅ تحديث الرصيد والنتائج من الخادم حصرياً (Server as Source of Truth)
+            if (res != null) {
+              final newBal = (res['newBalance'] as num?)?.toInt();
+              if (newBal != null) {
+                userProvider.updateCoinsImmediately(newBal);
+              }
+
+              final mult = (res['multiplier'] as num?)?.toInt() ?? 0;
+              final won = (res['won_coins'] as num?)?.toInt() ?? (res['totalWon'] as num?)?.toInt() ?? 0;
+              final multList = (res['multipliers'] as List<dynamic>?) ?? [mult];
+
+              final cards = List.generate(multList.length, (i) {
+                final m = (multList[i] as num).toInt();
+                return LuckyCardResult(
+                  index: i,
+                  multiplier: m,
+                  wonCoins: gift.value * m,
+                  giftName: gift.name,
+                  giftIcon: gift.iconAsset,
+                );
+              });
+
+              final luckyModel = LuckyGiftModel(
+                id: gift.id,
+                giftName: gift.name,
+                giftNameAr: gift.name,
+                coinPrice: gift.value,
+                giftIconUrl: gift.iconAsset,
+                giftCoverUrl: cover,
+                giftBgUrl: cover,
+                svgaAnimUrl: gift.animationAsset,
+              );
+
+              final serverData = LuckyGiftBroadcastData(
+                roomId: roomId,
+                senderName: user?.name ?? '',
+                senderAvatar: user?.photoUrl ?? '',
+                receiverName: receiverName,
+                gift: luckyModel,
+                cards: cards,
+                totalWonCoins: won,
+                maxMultiplier: mult,
+                isBigWin: mult >= 50,
+                comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
+                comboCount: comboMultiplier,
+              );
+
+              if (mounted) {
+                LuckyGiftService().enqueueLuckyGift(context, serverData);
+              }
             }
           } else {
+            userProvider.deductCoinsLocally(gift.value * count);
             final cover = gift.defaultImage ?? gift.iconAsset;
             if (cover.isNotEmpty) {
               _triggerGiftFlight(
