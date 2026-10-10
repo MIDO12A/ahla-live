@@ -299,7 +299,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           final backpackFuture = SupabaseDataService().getUserBackpack(queryUid).catchError((_) => <Map<String, dynamic>>[]);
           final activeRoomFuture = _supabase.getUserCurrentRoomId(queryUid).catchError((_) => null);
 
-        final results = await Future.wait([
+        final results = await Future.wait<dynamic>([
           storeItemsFuture,
           badgesFuture,
           necklacesFuture,

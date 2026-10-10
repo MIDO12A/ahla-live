@@ -678,11 +678,13 @@ class SupabaseService {
     }
   }
 
-  Future<void> deductCoins(String uid, int amount) async {
+  Future<bool> deductCoins(String uid, int amount, [String? reason]) async {
     final u = await _ds.getUser(uid);
-    if (u != null) {
+    if (u != null && u.coins >= amount) {
       await _ds.updateUser(uid, {'coins': math.max(0, u.coins - amount)});
+      return true;
     }
+    return false;
   }
 
   Future<String> createRoom({
@@ -947,9 +949,34 @@ class SupabaseService {
 
   Future<bool> isUserBlockedFromRoom(String roomId, String uid) async => false;
 
-  Future<void> followUser(String uid, String targetUid) => _ds.followUser(uid, targetUid);
+  Future<bool> isFollowing(String uid, String targetUid) => _ds.isFollowing(uid, targetUid);
 
-  Future<void> unfollowUser(String uid, String targetUid) => _ds.unfollowUser(uid, targetUid);
+  Future<void> recordProfileVisit({
+    required String visitedUid,
+    required String visitorUid,
+    String? visitorName,
+    String? visitorPhoto,
+  }) => _ds.logProfileVisit(visitedUid, visitorUid);
+
+  Future<Map<String, gm.GiftModel>> getGiftsCatalog() async {
+    try {
+      final list = await _ds.getGifts();
+      return {for (var g in list) g.id: g};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<List<gm.SentGiftModel>> getReceivedGifts(String uid) => _ds.getReceivedGifts(uid);
+
+  Future<String?> getUserCurrentRoomId(String uid) async {
+    try {
+      final u = await _ds.getUser(uid);
+      return u?.hostedRoomId;
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<List<Map<String, dynamic>>> getFollowing(String uid) => _ds.getFollowingUsers(uid);
 
@@ -1044,8 +1071,29 @@ class SupabaseService {
     }
   }
 
-  Future<void> sendPrivateMessage({required String conversationId, required String senderUid, required String senderName, required String senderPhotoUrl, required String receiverUid, required String text, String type = 'text', String? imageUrl}) async {
+  Future<void> sendPrivateMessage({
+    String? conversationId,
+    String? senderId,
+    String? senderUid,
+    required String senderName,
+    String? senderPhotoUrl,
+    String? receiverId,
+    String? receiverUid,
+    String? receiverName,
+    String? receiverPhotoUrl,
+    required String text,
+    String type = 'text',
+    String? imageUrl,
+  }) async {
     try {
+      final effectiveSenderUid = senderId ?? senderUid ?? '';
+      final effectiveReceiverUid = receiverId ?? receiverUid ?? '';
+      final effectiveConvId = (conversationId != null && conversationId.isNotEmpty)
+          ? conversationId
+          : (effectiveSenderUid.compareTo(effectiveReceiverUid) < 0
+              ? '${effectiveSenderUid}_$effectiveReceiverUid'
+              : '${effectiveReceiverUid}_$effectiveSenderUid');
+
       final msgId = const Uuid().v4();
       final now = DateTime.now().millisecondsSinceEpoch;
       await http.post(
@@ -1053,9 +1101,9 @@ class SupabaseService {
         headers: _headers,
         body: jsonEncode({
           'id': msgId,
-          'conversation_id': conversationId,
-          'sender_uid': senderUid,
-          'receiver_uid': receiverUid,
+          'conversation_id': effectiveConvId,
+          'sender_uid': effectiveSenderUid,
+          'receiver_uid': effectiveReceiverUid,
           'text': text,
           'type': type,
           'image_url': imageUrl,
