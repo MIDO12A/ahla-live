@@ -41,6 +41,7 @@ class ErrorReportingService {
     required String type,
   }) async {
     final String os = kIsWeb ? 'Web' : Platform.operatingSystem;
+    final String version = kIsWeb ? 'Browser' : Platform.operatingSystemVersion;
     final cleanStack = stackTrace.substring(0, stackTrace.length > 1500 ? 1500 : stackTrace.length);
     // Report directly and strictly to Supabase
     try {

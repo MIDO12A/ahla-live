@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../config/supabase_config.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dio/dio.dart';
@@ -72,7 +73,7 @@ class UpdateService {
       if (ghUpdate != null) return ghUpdate;
       final sbUpdate = await _checkSupabase(info);
       if (sbUpdate != null) return sbUpdate;
-      return await _checkFirestore(info);
+      return null;
     } catch (e) {
       if (throwOnError) rethrow;
       return null;
@@ -83,12 +84,12 @@ class UpdateService {
     try {
       final dio = Dio();
       final res = await dio.get<dynamic>(
-        'https://pxyqgeitjdsilgfftnyd.supabase.co/rest/v1/app_config?key=eq.app_update&select=*',
+        '${SupabaseConfig.projectUrl}/rest/v1/app_config?key=eq.app_update&select=*',
         options: Options(
           validateStatus: (status) => status != null && status < 500,
           headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eXFnZWl0amRzaWxnZmZ0bnlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTI1NjMsImV4cCI6MjA2MTYyODU2M30.13Q8w-l8K9NqSsqsR-Lq58j0jM4Kq7h9q08H-x7yY08',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eXFnZWl0amRzaWxnZmZ0bnlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTI1NjMsImV4cCI6MjA2MTYyODU2M30.13Q8w-l8K9NqSsqsR-Lq58j0jM4Kq7h9q08H-x7yY08',
+            'apikey': SupabaseConfig.anonKey,
+            'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
           },
         ),
       ).timeout(const Duration(seconds: 8));

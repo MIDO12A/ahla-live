@@ -2228,6 +2228,27 @@ class SupabaseDataService {
     }
     return [];
   }
+
+  Future<bool> sendPresencePing(dynamic roomId, String userId) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/room_members');
+      final res = await http.post(
+        url,
+        headers: {
+          ..._headers,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: jsonEncode({
+          'room_id': roomId.toString(),
+          'user_id': userId,
+          'last_ping': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      return false;
+    }
+  }
 }
 
 

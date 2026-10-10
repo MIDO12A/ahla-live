@@ -1418,22 +1418,28 @@ class DynamicConfigService extends ChangeNotifier {
       }).catchError((_) {});
     });
 
-    // 3. Listen to Firestore app_config
-    _configSub = _db.collection('app_config').snapshots().listen((snap) {
-      final config = <String, dynamic>{};
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final k = doc.id;
-        final v = data['value'];
-        config[k] = v;
-      }
-      _applyConfig(config);
-    }, onError: (error) {
-      debugPrint('DynamicConfigService: error loading config: $error');
+    // 3. Listen to Firestore app_config (optional fallback)
+    try {
+      _configSub = _db.collection('app_config').snapshots().listen((snap) {
+        final config = <String, dynamic>{};
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final k = doc.id;
+          final v = data['value'];
+          config[k] = v;
+        }
+        _applyConfig(config);
+      }, onError: (error) {
+        // Silently complete without error spam if Firebase is removed / restricted
+        if (_initCompleter != null && !_initCompleter!.isCompleted) {
+          _initCompleter!.complete();
+        }
+      });
+    } catch (_) {
       if (_initCompleter != null && !_initCompleter!.isCompleted) {
         _initCompleter!.complete();
       }
-    });
+    }
   }
 
   List<AppAssetModel> getAssetsByCategory(String category) {
