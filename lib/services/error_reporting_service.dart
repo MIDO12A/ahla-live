@@ -19,6 +19,7 @@ class ErrorReportingService {
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
       debugPrint('*** ORIGINAL ERROR: ${details.exceptionAsString()}');
+      debugPrint('*** STACKTRACE: ${details.stack}');
       _reportError(
         error: details.exceptionAsString(),
         stackTrace: details.stack?.toString() ?? '',
@@ -29,6 +30,7 @@ class ErrorReportingService {
     // 2. Intercept asynchronous / Dart thread exceptions
     PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
       debugPrint('*** ORIGINAL ERROR: $error');
+      debugPrint('*** STACKTRACE: $stack');
       _reportError(
         error: error.toString(),
         stackTrace: stack.toString(),
