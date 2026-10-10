@@ -515,52 +515,52 @@ LIMIT 100;
 
 CREATE OR REPLACE VIEW public.daily_rooms_ranking AS
 SELECT 
-    r.id AS id,
-    r.id AS room_id,
+    COALESCE(r.room_id, g.room_id) AS id,
+    COALESCE(r.room_id, g.room_id) AS room_id,
     COALESCE(r.name, 'غرفة صوتية') AS name,
-    COALESCE(r.room_photo_url, COALESCE(r.cover_image, '')) AS photo_url,
-    COALESCE(r.room_photo_url, COALESCE(r.cover_image, '')) AS "photoUrl",
+    COALESCE(r.room_photo_url, '') AS photo_url,
+    COALESCE(r.room_photo_url, '') AS "photoUrl",
     COALESCE(r.host_name, '') AS host_name,
     COALESCE(r.password, '') AS password,
     SUM(g.cost) AS points
 FROM public.gift_transactions g
-JOIN public.rooms r ON (r.id = g.room_id)
+LEFT JOIN public.rooms r ON (r.room_id = g.room_id)
 WHERE g.created_at >= NOW() - INTERVAL '1 day'
-GROUP BY r.id, r.name, r.room_photo_url, r.cover_image, r.host_name, r.password
+GROUP BY r.room_id, g.room_id, r.name, r.room_photo_url, r.host_name, r.password
 ORDER BY points DESC
 LIMIT 100;
 
 CREATE OR REPLACE VIEW public.weekly_rooms_ranking AS
 SELECT 
-    r.id AS id,
-    r.id AS room_id,
+    COALESCE(r.room_id, g.room_id) AS id,
+    COALESCE(r.room_id, g.room_id) AS room_id,
     COALESCE(r.name, 'غرفة صوتية') AS name,
-    COALESCE(r.room_photo_url, COALESCE(r.cover_image, '')) AS photo_url,
-    COALESCE(r.room_photo_url, COALESCE(r.cover_image, '')) AS "photoUrl",
+    COALESCE(r.room_photo_url, '') AS photo_url,
+    COALESCE(r.room_photo_url, '') AS "photoUrl",
     COALESCE(r.host_name, '') AS host_name,
     COALESCE(r.password, '') AS password,
     SUM(g.cost) AS points
 FROM public.gift_transactions g
-JOIN public.rooms r ON (r.id = g.room_id)
+LEFT JOIN public.rooms r ON (r.room_id = g.room_id)
 WHERE g.created_at >= NOW() - INTERVAL '7 days'
-GROUP BY r.id, r.name, r.room_photo_url, r.cover_image, r.host_name, r.password
+GROUP BY r.room_id, g.room_id, r.name, r.room_photo_url, r.host_name, r.password
 ORDER BY points DESC
 LIMIT 100;
 
 CREATE OR REPLACE VIEW public.monthly_rooms_ranking AS
 SELECT 
-    r.id AS id,
-    r.id AS room_id,
+    COALESCE(r.room_id, g.room_id) AS id,
+    COALESCE(r.room_id, g.room_id) AS room_id,
     COALESCE(r.name, 'غرفة صوتية') AS name,
-    COALESCE(r.room_photo_url, COALESCE(r.cover_image, '')) AS photo_url,
-    COALESCE(r.room_photo_url, COALESCE(r.cover_image, '')) AS "photoUrl",
+    COALESCE(r.room_photo_url, '') AS photo_url,
+    COALESCE(r.room_photo_url, '') AS "photoUrl",
     COALESCE(r.host_name, '') AS host_name,
     COALESCE(r.password, '') AS password,
     SUM(g.cost) AS points
 FROM public.gift_transactions g
-JOIN public.rooms r ON (r.id = g.room_id)
+LEFT JOIN public.rooms r ON (r.room_id = g.room_id)
 WHERE g.created_at >= NOW() - INTERVAL '30 days'
-GROUP BY r.id, r.name, r.room_photo_url, r.cover_image, r.host_name, r.password
+GROUP BY r.room_id, g.room_id, r.name, r.room_photo_url, r.host_name, r.password
 ORDER BY points DESC
 LIMIT 100;
 
