@@ -101,6 +101,11 @@ export async function syncAllAuthUsersToDB() {
     // 3. Create missing users
     let syncedCount = 0
     for (const au of authData.users) {
+      // Never sync synthetic @admin.zero.app accounts into public users table
+      if (au.email && au.email.endsWith('@admin.zero.app')) {
+        continue
+      }
+
       if (!existingUids.has(au.id)) {
         const metadata = au.user_metadata || {}
         const name = metadata.name || metadata.full_name || metadata.display_name || au.email?.split('@')[0] || 'Unknown'

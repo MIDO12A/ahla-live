@@ -162,10 +162,12 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2F5FC),
-      body: SafeArea(
-        child: SingleChildScrollView(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF2F5FC),
+        body: SafeArea(
+          child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -424,6 +426,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
