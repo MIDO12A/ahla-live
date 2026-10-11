@@ -1585,47 +1585,115 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
     const now = new Date().toISOString();
 
     if (app.agency_type === 'host') {
-      // 1. Create Host Agency
-      const agencyData = {
+      // 1. Generate numeric agency code / ID (e.g. 101, 102...)
+      let agencyCode = (app as any).agency_code || (app as any).agency_public_id || '';
+      if (!agencyCode) {
+        try {
+          const { count } = await supabase.from('host_agencies').select('*', { count: 'exact', head: true });
+          agencyCode = (100 + ((count || 0) + 1)).toString();
+        } catch (_) {
+          agencyCode = (100 + (Date.now() % 899)).toString();
+        }
+      }
+
+      const existingAgencyId = (app as any).agency_id;
+      const agencyId = existingAgencyId || `agency_${Date.now()}_${app.user_id}`;
+      const agencyLogo = app.agency_logo || app.user_avatar || null;
+
+      const agencyData: any = {
+        id: agencyId,
         name: app.agency_name || `وكالة ${app.user_name}`,
+        agency_code: agencyCode,
+        agency_public_id: agencyCode,
         owner_id: app.user_id,
+        owner_uid: app.user_id,
         description: app.description || 'وكالة مضيفين معتمدة',
-        photo_url: app.agency_logo || app.user_avatar || null,
+        photo_url: agencyLogo,
         country: app.country || null,
+        whatsapp: app.whatsapp || null,
         commission_rate: 0.1, // 10%
         specialty: 'mixed',
         tier: 'bronze',
         is_active: true,
+        status: 'active',
         member_count: 1,
         total_diamonds_earned: 0,
         monthly_diamonds: 0,
+        total_diamonds_monthly: 0,
         created_at: now,
       };
 
-      const { data: createdAgency, error: agErr } = await supabase.from('host_agencies').insert(agencyData).select('*').single();
-      const agencyId = (createdAgency as any)?.id;
+      // 1. Upsert Host Agency in Supabase
+      try {
+        await supabase.from('host_agencies').upsert(agencyData);
+      } catch (agErr) {
+        console.warn('Supabase host_agencies upsert error:', agErr);
+      }
 
-      if (agencyId) {
-        // 2. Add owner to host_agency_members
+      // 2. Add owner to host_agency_members in Supabase
+      try {
         await supabase.from('host_agency_members').upsert({
+          id: `${agencyId}_${app.user_id}`,
           agency_id: agencyId,
           user_id: app.user_id,
+          host_uid: app.user_id,
           role: 'owner',
           status: 'active',
           joined_at: now,
         });
+      } catch (_) {}
 
-        // 3. Set user's agency_id
-        await supabase.from('users').update({ agency_id: agencyId, is_host_agent: true }).eq('id', app.user_id);
+      // 3. Set user's agency_id & is_host_agent in Supabase
+      try {
+        await supabase.from('users').update({
+          agency_id: agencyId,
+          is_host_agent: true,
+          agency_role: 'owner',
+        }).or(`uid.eq.${app.user_id},id.eq.${app.user_id}`);
+      } catch (_) {}
+
+      // 4. Synchronize to Firestore for full real-time app compatibility
+      try {
+        const { firestoreDb } = await import('./firebase');
+        const { doc, setDoc } = await import('firebase/firestore');
+        if (firestoreDb) {
+          await setDoc(doc(firestoreDb, 'host_agencies', agencyId), agencyData, { merge: true });
+          await setDoc(doc(firestoreDb, 'host_agency_members', `${agencyId}_${app.user_id}`), {
+            agency_id: agencyId,
+            user_id: app.user_id,
+            host_uid: app.user_id,
+            role: 'owner',
+            status: 'active',
+            joined_at: now,
+          }, { merge: true });
+          await setDoc(doc(firestoreDb, 'users', app.user_id), {
+            agency_id: agencyId,
+            host_agency_id: agencyId,
+            is_host_agent: true,
+            agency_role: 'owner',
+            host_agency_name: app.agency_name,
+            host_agency_logo: agencyLogo,
+          }, { merge: true });
+          if (app.id) {
+            await setDoc(doc(firestoreDb, 'agency_applications', app.id), {
+              status: 'approved',
+              agency_id: agencyId,
+              agency_code: agencyCode,
+              reviewed_at: now,
+            }, { merge: true });
+          }
+        }
+      } catch (fsErr) {
+        console.warn('Firestore sync error on approval:', fsErr);
       }
 
       await sendSystemNotification({
         userId: app.user_id,
         title: 'مبروك! تم قبول طلب فتح الوكالة 🎉',
-        body: `مبروك! تم قبول طلبك وفتح وكالة [${app.agency_name}] بنجاح بواسطة المشرف [${adminName}]. يمكنك الآن الدخول لإدارة وكالتك.`,
+        body: `مبروك! تم قبول طلبك وفتح وكالة [${app.agency_name}] (معرف: #${agencyCode}) بنجاح بواسطة [${adminName}]. يمكنك الآن الدخول لإدارة وكالتك ومضيفيك.`,
         type: 'system',
         action: 'agency_approved',
-        extraData: { agency_name: app.agency_name, admin_name: adminName },
+        extraData: { agency_id: agencyId, agency_code: agencyCode, agency_name: app.agency_name, admin_name: adminName },
       });
     } else if (app.agency_type === 'recharge') {
       // Set user as recharge agent
@@ -1634,7 +1702,20 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
         recharge_agency_name: app.agency_name || 'وكالة الشحن المعتمدة',
         recharge_agency_logo: app.agency_logo || null,
         whatsapp_number: app.whatsapp || null,
-      }).eq('id', app.user_id);
+      }).or(`uid.eq.${app.user_id},id.eq.${app.user_id}`);
+
+      try {
+        const { firestoreDb } = await import('./firebase');
+        const { doc, setDoc } = await import('firebase/firestore');
+        if (firestoreDb) {
+          await setDoc(doc(firestoreDb, 'users', app.user_id), {
+            is_recharge_agent: true,
+            recharge_agency_name: app.agency_name || 'وكالة الشحن المعتمدة',
+            recharge_agency_logo: app.agency_logo || null,
+            whatsapp_number: app.whatsapp || null,
+          }, { merge: true });
+        }
+      } catch (_) {}
 
       await sendSystemNotification({
         userId: app.user_id,
@@ -1646,13 +1727,13 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
       });
     }
 
-    // Update application record
+    // Update application record in Supabase
     await supabase.from('agency_applications').update({
       status: 'approved',
       reviewed_at: now,
     }).eq('id', app.id);
 
-    return { success: true, message: `تم قبول طلب فتح الوكالة بنجاح وتم تفعيل الوكالة!` };
+    return { success: true, message: `تم قبول طلب فتح الوكالة وتفعيلها بنجاح مع ربط الصورة ومعرف الوكالة!` };
   } catch (err: any) {
     return { success: false, message: err?.message || 'حدث خطأ أثناء قبول الطلب' };
   }

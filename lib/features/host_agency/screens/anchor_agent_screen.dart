@@ -917,200 +917,568 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       delegate: SliverChildBuilderDelegate(
         (ctx, index) {
           final anchor = _anchors[index];
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF242424),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x1AFFFFFF)),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white12,
-                  backgroundImage: anchor.avatarUrl.isNotEmpty ? R.cachedImage(anchor.avatarUrl) : null,
-                  child: anchor.avatarUrl.isEmpty ? const Icon(Icons.person, color: Colors.white54) : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              anchor.nickname.isNotEmpty ? anchor.nickname : (isAr ? 'مضيف' : 'Host'),
-                              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          if (anchor.role == 'owner') ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFFFFD700), Color(0xFFFF9800)],
-                                ),
-                                borderRadius: BorderRadius.circular(6),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFFFFD700).withOpacity(0.4),
-                                    blurRadius: 4,
-                                  ),
-                                ],
+          return GestureDetector(
+            onTap: () => _showHostDetailsModal(anchor, isAr),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF242424),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x1AFFFFFF)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Colors.white12,
+                    backgroundImage: anchor.avatarUrl.isNotEmpty ? R.cachedImage(anchor.avatarUrl) : null,
+                    child: anchor.avatarUrl.isEmpty ? const Icon(Icons.person, color: Colors.white54) : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                anchor.nickname.isNotEmpty ? anchor.nickname : (isAr ? 'مضيف' : 'Host'),
+                                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.workspace_premium, color: Colors.black, size: 12),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    isAr ? 'ملك الوكالة' : 'Agency Owner',
-                                    style: const TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
+                            ),
+                            const SizedBox(width: 6),
+                            if (anchor.role == 'owner') ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFFFFD700), Color(0xFFFF9800)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(6),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFFD700).withValues(alpha: 0.4),
+                                      blurRadius: 4,
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.workspace_premium, color: Colors.black, size: 12),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      isAr ? 'ملك الوكالة' : 'Agency Owner',
+                                      style: const TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ] else ...[
+                            ] else ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: anchor.role == 'supervisor' ? const Color(0x33FF9800) : const Color(0x22FFFFFF),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  anchor.role == 'supervisor' ? (isAr ? 'مشرف' : 'Admin') : (isAr ? 'مضيف' : 'Host'),
+                                  style: TextStyle(
+                                    color: anchor.role == 'supervisor' ? const Color(0xFFFF9800) : Colors.white70,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(width: 6),
+                            // Stage badge (المرحلة)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(
-                                color: anchor.role == 'supervisor' ? const Color(0x33FF9800) : const Color(0x22FFFFFF),
+                                color: const Color(0x33FFD700),
                                 borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0x55FFD700)),
                               ),
                               child: Text(
-                                anchor.role == 'supervisor' ? (isAr ? 'مشرف' : 'Admin') : (isAr ? 'مضيف' : 'Host'),
-                                style: TextStyle(
-                                  color: anchor.role == 'supervisor' ? const Color(0xFFFF9800) : Colors.white70,
+                                _getAnchorStage(anchor.totalDiamond, isAr),
+                                style: const TextStyle(
+                                  color: Color(0xFFFFD700),
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
                           ],
-                          const SizedBox(width: 6),
-                          // Stage badge (المرحلة)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: const Color(0x33FFD700),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0x55FFD700)),
-                            ),
-                            child: Text(
-                              _getAnchorStage(anchor.totalDiamond, isAr),
-                              style: const TextStyle(
-                                color: Color(0xFFFFD700),
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (anchor.role == 'owner') ...[
+                          Text(
+                            isAr ? '👑 ملك الوكالة' : '👑 Agency Owner',
+                            style: const TextStyle(
+                              color: Color(0xFFFFD700),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
+                          const SizedBox(height: 2),
                         ],
-                      ),
-                      const SizedBox(height: 4),
-                      if (anchor.role == 'owner') ...[
                         Text(
-                          isAr ? '👑 ملك الوكالة' : '👑 Agency Owner',
-                          style: const TextStyle(
-                            color: Color(0xFFFFD700),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          'ID: ${anchor.userNo > 0 ? anchor.userNo : anchor.userId}',
+                          style: const TextStyle(color: Colors.white38, fontSize: 11),
                         ),
-                        const SizedBox(height: 2),
-                      ],
-                      Text(
-                        'ID: ${anchor.userNo > 0 ? anchor.userNo : anchor.userId}',
-                        style: const TextStyle(color: Colors.white38, fontSize: 11),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          // Hours count (عدد الساعات)
-                          const Icon(Icons.access_time_rounded, color: Color(0xFF00D4FF), size: 13),
-                          const SizedBox(width: 3),
-                          Text(
-                            '${(anchor.minute / 60).toStringAsFixed(1)} ${isAr ? 'ساعة' : 'hrs'}',
-                            style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 11, fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(width: 10),
-                          // Diamonds count (عدد الماس)
-                          Image.asset(R.commonDiamondIc, width: 12, height: 12, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                          const SizedBox(width: 3),
-                          Text(
-                            '${anchor.totalDiamond} 💎',
-                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // Direct Kick Button & Management Menu (For Owner Only)
-                if (_isAgencyOwner && anchor.role != 'owner') ...[
-                  ElevatedButton.icon(
-                    onPressed: () => _handleKickMember(anchor, isAr),
-                    icon: const Icon(Icons.person_remove_rounded, size: 13, color: Colors.white),
-                    label: Text(
-                      isAr ? 'طرد' : 'Kick',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF5252),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                      minimumSize: const Size(56, 30),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
-                    color: const Color(0xFF2C2C34),
-                    onSelected: (action) => _handleMemberAction(anchor, action, isAr),
-                    itemBuilder: (ctx) => [
-                      PopupMenuItem(
-                        value: 'role',
-                        child: Row(
+                        const SizedBox(height: 4),
+                        Row(
                           children: [
-                            const Icon(Icons.security, color: Colors.amber, size: 18),
-                            const SizedBox(width: 8),
+                            // Hours count (عدد الساعات)
+                            const Icon(Icons.access_time_rounded, color: Color(0xFF00D4FF), size: 13),
+                            const SizedBox(width: 3),
                             Text(
-                              anchor.role == 'supervisor' ? (isAr ? 'تنزيل إلى مضيف' : 'Demote to Host') : (isAr ? 'ترقية إلى مشرف' : 'Promote to Admin'),
-                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                              '${(anchor.minute / 60).toStringAsFixed(1)} ${isAr ? 'ساعة' : 'hrs'}',
+                              style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 11, fontWeight: FontWeight.w600),
                             ),
+                            const SizedBox(width: 10),
+                            // Diamonds count (عدد الماس)
+                            Image.asset(R.commonDiamondIc, width: 12, height: 12, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${anchor.totalDiamond} 💎',
+                              style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            if (_isAgencyOwner) ...[
+                              const SizedBox(width: 8),
+                              Builder(
+                                builder: (_) {
+                                  final mDiamonds = int.tryParse(anchor.diamonds) ?? int.tryParse(anchor.totalDiamond) ?? 0;
+                                  double cRate = _agentInfo?.commissionRate ?? 0.10;
+                                  if (_agentInfo?.milestones != null && _agentInfo!.milestones.isNotEmpty) {
+                                    for (final m in _agentInfo!.milestones) {
+                                      final t = (m['target_diamonds'] as num?)?.toInt() ?? 0;
+                                      if (mDiamonds >= t && t > 0) {
+                                        cRate = (m['agent_commission_rate'] as num?)?.toDouble() ?? cRate;
+                                      }
+                                    }
+                                  }
+                                  final earnedComm = (mDiamonds * cRate).toInt();
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0x2200E676),
+                                      borderRadius: BorderRadius.circular(5),
+                                      border: Border.all(color: const Color(0x5500E676)),
+                                    ),
+                                    child: Text(
+                                      '${isAr ? 'العمولة' : 'Comm'}: $earnedComm 💎',
+                                      style: const TextStyle(color: Color(0xFF69F0AE), fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ],
                         ),
-                      ),
-                      PopupMenuItem(
-                        value: 'remove',
-                        child: Row(
-                          children: [
-                            const Icon(Icons.person_remove, color: Colors.redAccent, size: 18),
-                            const SizedBox(width: 8),
-                            Text(isAr ? 'طرد من الوكالة' : 'Kick Member', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  // Direct Kick Button & Management Menu (For Owner Only)
+                  if (_isAgencyOwner && anchor.role != 'owner') ...[
+                    ElevatedButton.icon(
+                      onPressed: () => _handleKickMember(anchor, isAr),
+                      icon: const Icon(Icons.person_remove_rounded, size: 13, color: Colors.white),
+                      label: Text(
+                        isAr ? 'طرد' : 'Kick',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF5252),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                        minimumSize: const Size(56, 30),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
+                      color: const Color(0xFF2C2C34),
+                      onSelected: (action) => _handleMemberAction(anchor, action, isAr),
+                      itemBuilder: (ctx) => [
+                        PopupMenuItem(
+                          value: 'role',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.security, color: Colors.amber, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                anchor.role == 'supervisor' ? (isAr ? 'تنزيل إلى مضيف' : 'Demote to Host') : (isAr ? 'ترقية إلى مشرف' : 'Promote to Admin'),
+                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'remove',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.person_remove, color: Colors.redAccent, size: 18),
+                              const SizedBox(width: 8),
+                              Text(isAr ? 'طرد من الوكالة' : 'Kick Member', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           );
         },
         childCount: _anchors.length,
+      ),
+    );
+  }
+
+  /// نافذة تفاصيل المضيف الشاملة لمالك الوكالة (Host Details & Commission Modal)
+  void _showHostDetailsModal(AnchorAgentUserInfoDataModel anchor, bool isAr) {
+    final hostDiamonds = int.tryParse(anchor.totalDiamond) ?? 0;
+    final liveHours = (anchor.minute / 60.0).toStringAsFixed(1);
+    final commRate = _agentInfo?.commissionRate ?? 0.10;
+    final agentEarnedDiamonds = (hostDiamonds * commRate).toInt();
+    final agentEarnedUsd = (agentEarnedDiamonds / 1000).toStringAsFixed(2);
+    final stageName = _getAnchorStage(anchor.totalDiamond, isAr);
+    final targetDiamonds = anchor.targetDiamonds > 0 ? anchor.targetDiamonds : 100000;
+    final progressPct = ((hostDiamonds / targetDiamonds).clamp(0.0, 1.0) * 100).toStringAsFixed(1);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1B1B22),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Header with Host Avatar, Name, ID, and Badges
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white12,
+                    backgroundImage: anchor.avatarUrl.isNotEmpty ? R.cachedImage(anchor.avatarUrl) : null,
+                    child: anchor.avatarUrl.isEmpty ? const Icon(Icons.person, color: Colors.white54, size: 30) : null,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          anchor.nickname.isNotEmpty ? anchor.nickname : (isAr ? 'مضيف' : 'Host'),
+                          style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'ID: ${anchor.userNo > 0 ? anchor.userNo : (anchor.userId > 0 ? anchor.userId : (anchor.uid.length > 8 ? anchor.uid.substring(0, 8) : anchor.uid))}',
+                          style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: anchor.role == 'owner'
+                                    ? const Color(0xFFFFD700)
+                                    : (anchor.role == 'supervisor' ? const Color(0xFFFF9800) : const Color(0x33FFFFFF)),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                anchor.role == 'owner'
+                                    ? (isAr ? '👑 ملك الوكالة' : '👑 Agency Owner')
+                                    : (anchor.role == 'supervisor' ? (isAr ? 'مشرف وكالة' : 'Admin') : (isAr ? 'مضيف رسمي' : 'Host')),
+                                style: TextStyle(
+                                  color: anchor.role == 'owner' ? Colors.black : Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0x22FFD700),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0x44FFD700)),
+                              ),
+                              child: Text(
+                                stageName,
+                                style: const TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // Agent Commission from this Host Banner (عمولة الوكيل المكتسبة من المضيف)
+              if (_isAgencyOwner && anchor.role != 'owner') ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2E2412), Color(0xFF1E190E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0x55FFD700)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          color: Color(0x33FFD700),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isAr ? 'عمولة الوكالة المحتسبة من هذا المضيف ⚡' : 'Agency Commission from Host ⚡',
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$agentEarnedDiamonds 💎  (~\$$agentEarnedUsd USD) • بنسبة ${((commRate) * 100).toInt()}%',
+                              style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.w900),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              // Performance Cards Grid
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF26262F),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Image.asset(R.commonDiamondIc, width: 14, height: 14, errorBuilder: (_, __, ___) => const Icon(Icons.diamond, color: Color(0xFFFFD700), size: 14)),
+                              const SizedBox(width: 5),
+                              Text(isAr ? 'ألماس الشهر' : 'Monthly Diamonds', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text('${anchor.totalDiamond} 💎', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 15, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF26262F),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.access_time_filled, color: Color(0xFF00D4FF), size: 14),
+                              SizedBox(width: 5),
+                              Text('ساعات البث', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text('$liveHours ساعة', style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 15, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF26262F),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.calendar_today, color: Color(0xFF4CAF50), size: 14),
+                              SizedBox(width: 5),
+                              Text('الأيام الفعالة', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text('${anchor.days} يوم', style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 15, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF26262F),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.track_changes, color: Color(0xFFFF9800), size: 14),
+                              SizedBox(width: 5),
+                              Text('إنجاز التارجت', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text('$progressPct%', style: const TextStyle(color: Color(0xFFFF9800), fontSize: 15, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // Target Progress Bar
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF24242C),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(isAr ? 'تقدم التارجت والمرحلة:' : 'Target & Stage:', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        Text('$hostDiamonds / $targetDiamonds 💎', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: targetDiamonds > 0 ? (hostDiamonds / targetDiamonds).clamp(0.0, 1.0) : 0.0,
+                        backgroundColor: Colors.white12,
+                        valueColor: const AlwaysStoppedAnimation(Color(0xFFFFD700)),
+                        minHeight: 8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Action Buttons for Agency Owner
+              if (_isAgencyOwner && anchor.role != 'owner') ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _handleMemberAction(anchor, 'role', isAr);
+                        },
+                        icon: const Icon(Icons.security, size: 18),
+                        label: Text(
+                          anchor.role == 'supervisor' ? (isAr ? 'تنزيل لمضيف' : 'Demote') : (isAr ? 'ترقية لمشرف' : 'Promote'),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF33333F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _handleKickMember(anchor, isAr);
+                        },
+                        icon: const Icon(Icons.person_remove_rounded, size: 18, color: Colors.white),
+                        label: Text(
+                          isAr ? 'طرد من الوكالة' : 'Kick Host',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF5252),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1239,12 +1607,28 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   /// Tab 2: Income & Targets (دخل الوكالة للمالك / مستوى دخلي والمراحل للمضيف)
   Widget _buildIncomeTab(AgentInfoModel? info, bool isAr) {
     int totalAnchorsDiamonds = 0;
+    int totalAgentCommissionDiamonds = 0;
     for (final a in _anchors) {
-      totalAnchorsDiamonds += int.tryParse(a.diamonds) ?? int.tryParse(a.totalDiamond) ?? 0;
+      final hostMonthlyDiamonds = int.tryParse(a.diamonds) ?? int.tryParse(a.totalDiamond) ?? 0;
+      totalAnchorsDiamonds += hostMonthlyDiamonds;
+
+      double hostCommRate = info?.commissionRate ?? 0.10;
+      if (info?.milestones != null && info!.milestones.isNotEmpty) {
+        for (final m in info.milestones) {
+          final t = (m['target_diamonds'] as num?)?.toInt() ?? 0;
+          if (hostMonthlyDiamonds >= t && t > 0) {
+            hostCommRate = (m['agent_commission_rate'] as num?)?.toDouble() ?? hostCommRate;
+          }
+        }
+      }
+      totalAgentCommissionDiamonds += (hostMonthlyDiamonds * hostCommRate).toInt();
     }
     final rawTransfer = info?.transferMoney ?? 0;
     final totalAgencyDiamonds = rawTransfer > 0 ? rawTransfer : totalAnchorsDiamonds;
-    final agencyDollar = info?.transferDollar != 0 ? info!.transferDollar : (totalAgencyDiamonds / 1000).toInt();
+    final ownerCommissionUsd = (totalAgentCommissionDiamonds / 1000).toStringAsFixed(1);
+    final agencyDollar = info?.transferDollar != 0 && info?.transferDollar != null
+        ? info!.transferDollar.toString()
+        : ownerCommissionUsd;
     final commRatePct = ((info?.commissionRate ?? 0.10) * 100).toInt();
 
     // حساب أرقام المضيف الشخصية إذا لم يكن مالكاً
@@ -1305,7 +1689,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     children: [
                       Text(
                         _isAgencyOwner
-                            ? (isAr ? 'أرباح وعمولة الوكالة' : 'Agency Earnings')
+                            ? (isAr ? 'أرباح وعمولة الوكالة المحتسبة' : 'Calculated Agency Earnings')
                             : (isAr ? 'مستوى دخلي وأرباحي' : 'My Host Earnings'),
                         style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
                       ),
@@ -1318,7 +1702,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         ),
                         child: Text(
                           _isAgencyOwner
-                              ? '$commRatePct% ${isAr ? 'عمولة الوكيل' : 'Commission'}'
+                              ? '$commRatePct% ${isAr ? 'متوسط العمولة' : 'Commission'}'
                               : '${hostHours.toStringAsFixed(1)} ${isAr ? 'ساعات البث' : 'Live hrs'}',
                           style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
                         ),
@@ -1337,9 +1721,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   const SizedBox(height: 6),
                   Text(
                     _isAgencyOwner
-                        ? '$totalAgencyDiamonds ${isAr ? 'ماسة محققة هذا الشهر' : 'Diamonds monthly'}'
+                        ? (isAr
+                            ? 'عمولة الوكيل: $totalAgentCommissionDiamonds 💎  |  إنتاج المضيفين: $totalAgencyDiamonds 💎'
+                            : 'Agent Comm: $totalAgentCommissionDiamonds 💎  |  Hosts Total: $totalAgencyDiamonds 💎')
                         : '$hostDiamonds ${isAr ? 'ماسة متاحة في رصيدك' : 'Diamonds in your balance'}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),

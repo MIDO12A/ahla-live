@@ -15,6 +15,7 @@ import '../../services/supabase_auth_service.dart';
 import '../../core/ui/in_app_toast.dart';
 import 'screens/agency_profile_screen.dart';
 import 'screens/anchor_agent_screen.dart';
+import 'screens/agency_pending_approval_screen.dart';
 
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -42,6 +43,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
   bool  _loading = true;
   _UserAgencyRole _role = _UserAgencyRole.none;
   String? _agencyId;
+  Map<String, dynamic>? _pendingApplicationData;
 
   @override
   void initState() {
@@ -76,15 +78,15 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
         }
       } catch (_) {}
 
-      // 2. Check Supabase host_agencies (column is owner_uid)
+      // 2. Check Supabase host_agencies (column is owner_uid) - only if active
       if (row == null) {
         try {
           final ag = await Supabase.instance.client
               .from('host_agencies')
-              .select('id, name')
+              .select('id, name, status, is_active')
               .eq('owner_uid', uid)
               .maybeSingle();
-          if (ag != null && ag['id'] != null) {
+          if (ag != null && ag['id'] != null && (ag['status'] == 'active' || ag['is_active'] == true)) {
             row = {'role': 'owner', 'agency_id': ag['id'].toString()};
           }
         } catch (_) {}
@@ -98,16 +100,16 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
               .select('agency_id, is_host_agent')
               .eq('uid', uid)
               .maybeSingle();
-          if (u != null && u['agency_id'] != null && u['agency_id'].toString().isNotEmpty) {
+          if (u != null && u['agency_id'] != null && u['agency_id'].toString().isNotEmpty && u['is_host_agent'] == true) {
             row = {
-              'role': u['is_host_agent'] == true ? 'owner' : 'host',
+              'role': 'owner',
               'agency_id': u['agency_id'].toString(),
             };
           }
         } catch (_) {}
       }
 
-      // 4. Check Firestore host_agencies (owner_id or owner_uid)
+      // 4. Check Firestore host_agencies (owner_id or owner_uid) - only if active
       if (row == null) {
         try {
           final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
@@ -116,7 +118,10 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
               .limit(1)
               .get();
           if (snap.docs.isNotEmpty) {
-            row = {'role': 'owner', 'agency_id': snap.docs.first.id};
+            final agData = snap.docs.first.data();
+            if (agData['status'] == 'active' || agData['is_active'] == true) {
+              row = {'role': 'owner', 'agency_id': snap.docs.first.id};
+            }
           } else {
             final snap2 = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
                 .collection('host_agencies')
@@ -124,7 +129,10 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
                 .limit(1)
                 .get();
             if (snap2.docs.isNotEmpty) {
-              row = {'role': 'owner', 'agency_id': snap2.docs.first.id};
+              final agData = snap2.docs.first.data();
+              if (agData['status'] == 'active' || agData['is_active'] == true) {
+                row = {'role': 'owner', 'agency_id': snap2.docs.first.id};
+              }
             }
           }
         } catch (_) {}
@@ -141,44 +149,59 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
           if (snap.docs.isNotEmpty) {
             final data = snap.docs.first.data();
             final aid = data['agency_id']?.toString();
-            if (aid != null && aid.isNotEmpty) {
+            if (aid != null && aid.isNotEmpty && data['status'] == 'active') {
               row = {'role': data['role']?.toString() ?? 'host', 'agency_id': aid};
             }
           }
         } catch (_) {}
       }
 
-      // 6. Check Firestore users doc
+      // 6. Check pending agency application if user doesn't have an active agency
       if (row == null) {
+        Map<String, dynamic>? pendingApp;
         try {
-          final userDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-              .collection('users')
-              .doc(uid)
-              .get();
-          final data = userDoc.data() ?? {};
-          final agencyId = data['agency_id']?.toString() ?? data['host_agency_id']?.toString();
-          if (agencyId != null && agencyId.isNotEmpty) {
-            final isHostAgent = data['is_host_agent'] == true || data['agency_role'] == 'owner';
-            row = {
-              'role': isHostAgent ? 'owner' : (data['agency_role']?.toString() ?? 'host'),
-              'agency_id': agencyId,
-            };
+          final pRows = await Supabase.instance.client
+              .from('agency_applications')
+              .select('*')
+              .eq('user_id', uid)
+              .order('created_at', ascending: false)
+              .limit(1);
+          if (pRows.isNotEmpty) {
+            final appRow = Map<String, dynamic>.from(pRows.first as Map);
+            final st = appRow['status']?.toString();
+            if (st == 'pending' || st == 'waiting_approval' || st == 'rejected') {
+              pendingApp = appRow;
+            }
           }
         } catch (_) {}
-      }
 
-      // 7. Fallback: Check if customId was used as owner/member key
-      if (row == null && customId != null && customId.isNotEmpty && customId != uid) {
-        try {
-          final agCid = await Supabase.instance.client
-              .from('host_agencies')
-              .select('id, name')
-              .eq('owner_uid', customId)
-              .maybeSingle();
-          if (agCid != null && agCid['id'] != null) {
-            row = {'role': 'owner', 'agency_id': agCid['id'].toString()};
-          }
-        } catch (_) {}
+        if (pendingApp == null) {
+          try {
+            final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+            final pSnap = await fs.collection('agency_applications')
+                .where('user_id', isEqualTo: uid)
+                .limit(1)
+                .get();
+            if (pSnap.docs.isNotEmpty) {
+              final appRow = pSnap.docs.first.data();
+              final st = appRow['status']?.toString();
+              if (st == 'pending' || st == 'waiting_approval' || st == 'rejected') {
+                pendingApp = appRow;
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (pendingApp != null) {
+          if (!mounted) return;
+          setState(() {
+            _role = _UserAgencyRole.pendingApproval;
+            _pendingApplicationData = pendingApp;
+            _agencyId = pendingApp?['agency_id']?.toString();
+            _loading = false;
+          });
+          return;
+        }
       }
 
       if (!mounted) return;
@@ -222,6 +245,11 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
       case _UserAgencyRole.supervisor:
       case _UserAgencyRole.host:
         return AnchorAgentScreen(agencyId: _agencyId);
+      case _UserAgencyRole.pendingApproval:
+        return AgencyPendingApprovalScreen(
+          applicationData: _pendingApplicationData,
+          agencyId: _agencyId,
+        );
       case _UserAgencyRole.none:
         return _BrowseCreateScreen(
           role: _role,
@@ -232,7 +260,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
 }
 
 // ── role enum ─────────────────────────────────────────────────────────────────
-enum _UserAgencyRole { owner, supervisor, host, none }
+enum _UserAgencyRole { owner, supervisor, host, pendingApproval, none }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Browse + Create Screen  —  matches unions_activity_main.xml
@@ -401,31 +429,39 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
         }
       }
 
-      // 3. Attempt RPC creation first
-      bool rpcSuccess = false;
-      try {
-        await _sb.rpc('agency_create', params: {
-          'p_name':                 name,
-          'p_description':          _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-          'p_photo_url':            photoUrl,
-          'p_phone':                _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-          'p_country':              _selectedCountry,
-          'p_supervisor_uid':       supervisorUid,
-          'p_supervisor_custom_id': supervisorCustomId,
-          'p_supervisor_name':      supervisorName,
-          'p_supervisor_id':        supervisorCustomId,
-        });
-        rpcSuccess = true;
-      } catch (rpcErr) {
-        debugPrint('[host_agency_screen] agency_create RPC error: $rpcErr');
-      }
-
-      // 4. Resilient direct database creation (ensures Supabase & Firestore are always synchronized)
       final now = DateTime.now().toUtc();
       final nowIso = now.toIso8601String();
       final agencyId = 'agency_${now.millisecondsSinceEpoch}_$uid';
       final agencyCode = (100 + (now.millisecondsSinceEpoch % 900)).toString();
+      final finalLogo = photoUrl ?? currentUser?.photoUrl ?? '';
 
+      // 3. Application payload for dashboard & admin review
+      final appId = 'app_${now.millisecondsSinceEpoch}_$uid';
+      final applicationPayload = {
+        'id': appId,
+        'user_id': uid,
+        'user_name': currentUser?.name ?? 'مستخدم',
+        'custom_id': currentUser?.customId ?? '',
+        'user_avatar': finalLogo,
+        'agency_type': 'host',
+        'agency_name': name,
+        'agency_logo': finalLogo,
+        'photo_url': finalLogo,
+        'country': _selectedCountry ?? 'عالمي',
+        'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
+        'description': _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : 'وكالة مضيفين معتمدة',
+        'supervisor_id': supervisorCustomId,
+        'supervisor_uid': supervisorUid,
+        'supervisor_custom_id': supervisorCustomId,
+        'supervisor_name': supervisorName,
+        'agency_id': agencyId,
+        'agency_code': agencyCode,
+        'agency_public_id': agencyCode,
+        'status': 'pending',
+        'created_at': nowIso,
+      };
+
+      // 4. Pre-register agency record as pending
       final agencyPayload = {
         'id': agencyId,
         'agency_code': agencyCode,
@@ -436,81 +472,82 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
         'description': _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : 'وكالة مضيفين معتمدة',
         'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
         'country': _selectedCountry ?? 'عالمي',
-        'photo_url': photoUrl ?? currentUser?.photoUrl,
+        'photo_url': finalLogo,
         'tier': 'bronze',
         'commission_rate': 0.10,
         'member_count': 1,
         'total_diamonds_monthly': 0,
         'total_diamonds_cumulative': 0,
-        'is_active': true,
-        'status': 'active',
+        'is_active': false,
+        'status': 'pending',
         'supervisor_id': supervisorCustomId,
         'supervisor_uid': supervisorUid,
         'supervisor_custom_id': supervisorCustomId,
         'supervisor_name': supervisorName,
         'bd_uid': supervisorUid,
         'bd_id': supervisorCustomId,
-        'data': {
-          'supervisor_id': supervisorCustomId,
-          'supervisor_uid': supervisorUid,
-          'supervisor_custom_id': supervisorCustomId,
-          'supervisor_name': supervisorName,
-          'bd_uid': supervisorUid,
-          'bd_id': supervisorCustomId,
-        },
         'created_at': nowIso,
       };
+
+      // 5. Save to Supabase (agency_applications & host_agencies)
+      try {
+        await _sb.from('agency_applications').insert(applicationPayload);
+      } catch (appErr) {
+        debugPrint('[host_agency_screen] Supabase insert agency_applications error: $appErr');
+      }
 
       try {
         await _sb.from('host_agencies').upsert(agencyPayload);
       } catch (_) {}
 
-      try {
-        await _sb.from('host_agency_members').upsert({
-          'id': '${agencyId}_$uid',
-          'agency_id': agencyId,
-          'user_id': uid,
-          'host_uid': uid,
-          'role': 'owner',
-          'status': 'active',
-          'joined_at': nowIso,
-        });
-      } catch (_) {}
-
-      try {
-        await _sb.from('users').update({
-          'agency_id': agencyId,
-          'is_host_agent': true,
-        }).eq('uid', uid);
-      } catch (_) {}
-
+      // 6. Save to Firestore for real-time synchronization
       try {
         final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        await fs.collection('agency_applications').doc(appId).set(applicationPayload, SetOptions(merge: true));
         await fs.collection('host_agencies').doc(agencyId).set(agencyPayload, SetOptions(merge: true));
-        await fs.collection('host_agency_members').doc('${agencyId}_$uid').set({
+
+        // 7. Send Immediate Notification to Dashboard / Admins
+        final notifBody = 'طلب جديد لفتح وكالة مضيفين باسم [$name] من قِبل ${currentUser?.name ?? "مستخدم"} (ID: #${currentUser?.customId ?? uid}) بإشراف [$supervisorName].';
+        await fs.collection('admin_notifications').add({
+          'title': 'طلب فتح وكالة مضيفين جديد 🎙️',
+          'body': notifBody,
+          'type': 'agency_application',
+          'app_id': appId,
           'agency_id': agencyId,
           'user_id': uid,
-          'host_uid': uid,
-          'role': 'owner',
-          'status': 'active',
-          'joined_at': nowIso,
-        }, SetOptions(merge: true));
-        await fs.collection('users').doc(uid).set({
-          'agency_id': agencyId,
-          'is_host_agent': true,
-          'is_agency_member': true,
-        }, SetOptions(merge: true));
-      } catch (_) {}
+          'user_name': currentUser?.name ?? 'مستخدم',
+          'is_read': false,
+          'created_at': nowIso,
+        });
+
+        // Send to supervisor in Supabase & Firestore
+        if (supervisorUid.isNotEmpty && supervisorUid != uid) {
+          await SupabaseDataService().sendNotification(
+            uid: supervisorUid,
+            type: 'agency_application',
+            title: 'طلب فتح وكالة جديدة تحت إشرافك 🎙️',
+            body: 'قدم المستخدم [${currentUser?.name ?? "مستخدم"}] طلب فتح وكالة [$name] تحت إشرافك.',
+            data: {'agency_id': agencyId, 'app_id': appId},
+          );
+        }
+      } catch (fsErr) {
+        debugPrint('[host_agency_screen] Firestore sync error: $fsErr');
+      }
 
       if (!mounted) return;
-      KayanInAppToast.agency('تم إنشاء الوكالة بنجاح تحت إشراف [$supervisorName]! 🎉');
+      KayanInAppToast.agency('تم إرسال طلب فتح الوكالة بنجاح وهو بانتظار موافقة الإدارة ⏳');
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HostAgencyScreen()),
+        MaterialPageRoute(
+          builder: (_) => AgencyPendingApprovalScreen(
+            applicationData: applicationPayload,
+            agencyId: agencyId,
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      KayanInAppToast.warning('تعذر إنشاء الوكالة: $e');
+      KayanInAppToast.warning('تعذر إرسال طلب الوكالة: $e');
     } finally {
       if (mounted) setState(() => _creating = false);
     }
@@ -1456,7 +1493,7 @@ class _AgencySearchSheetState extends State<_AgencySearchSheet> {
         final rows = await Supabase.instance.client
             .from('host_agencies')
             .select('id, name, photo_url, member_count, total_diamonds_monthly, agency_public_id, agency_code')
-            .or('name.ilike.%$q%,id.ilike.%$q%,agency_public_id.eq.$q,agency_code.eq.$q')
+            .or('name.ilike.%$q%,id.ilike.%$q%,agency_public_id.ilike.%$q%,agency_code.ilike.%$q%')
             .limit(20);
         for (final r in rows) {
           final m = Map<String, dynamic>.from(r as Map);

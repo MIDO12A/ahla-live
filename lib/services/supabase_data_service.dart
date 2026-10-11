@@ -1069,8 +1069,15 @@ class SupabaseDataService {
                   m['user_no'] = int.tryParse(uData['custom_id']?.toString() ?? '') ?? m['user_no'] ?? 0;
                   m['custom_id'] = uData['custom_id'] ?? m['custom_id'] ?? '';
                   m['level'] = uData['level'] ?? m['level'] ?? 1;
-                  m['diamonds'] = uData['diamonds']?.toString() ?? m['diamonds']?.toString() ?? '0';
                 }
+
+                // Enrich live minutes, valid days, and diamonds
+                final sec = (m['live_seconds_monthly'] as num?)?.toDouble() ?? 0.0;
+                final hrs = (m['live_hours_monthly'] as num?)?.toDouble() ?? 0.0;
+                m['minute'] = (m['minute'] as num?)?.toDouble() ?? (sec > 0 ? (sec / 60.0) : (hrs * 60.0));
+                m['days'] = (m['valid_days_monthly'] as num?)?.toInt() ?? (m['valid_days'] as num?)?.toInt() ?? (m['days'] as num?)?.toInt() ?? 0;
+                m['diamonds'] = m['diamonds_earned_monthly']?.toString() ?? uData?['diamonds']?.toString() ?? m['diamonds']?.toString() ?? '0';
+                m['target_diamonds'] = (m['target_diamonds'] as num?)?.toInt() ?? 100000;
               }
             }
           } catch (_) {}
@@ -1080,6 +1087,34 @@ class SupabaseDataService {
     } catch (e) {
       debugPrint('[SupabaseDataService] getHostAgencyMembers error: $e');
     }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getHostMilestones() async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/host_milestones?select=*&order=target_diamonds.asc');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        if (list.isNotEmpty) {
+          return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      }
+    } catch (_) {}
+
+    // Fallback to Firestore
+    try {
+      final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+      final snap = await fs.collection('host_milestones').orderBy('target_diamonds', descending: false).get();
+      if (snap.docs.isNotEmpty) {
+        return snap.docs.map((d) {
+          final m = d.data();
+          m['id'] = d.id;
+          return m;
+        }).toList();
+      }
+    } catch (_) {}
+
     return [];
   }
 

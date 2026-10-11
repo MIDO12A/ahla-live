@@ -52,7 +52,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
       final ok = await fb.transferCoinsToMember(
         agentUid: currentUser.uid,
         targetUserNoOrId: targetId,
-        coinsAmount: amount,
+        amount: amount,
       );
 
       if (mounted) {

@@ -1536,6 +1536,8 @@ class SupabaseService {
       if (ag != null && ag['id'] != null) {
         final aid = ag['id'].toString();
         final members = await _ds.getHostAgencyMembers(aid);
+        final milestones = await _ds.getHostMilestones();
+        ag['milestones'] = milestones;
         return {
           'info': ag,
           'anchors': members,
