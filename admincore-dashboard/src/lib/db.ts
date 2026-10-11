@@ -5362,6 +5362,18 @@ export async function getAppUpdate(): Promise<AppUpdateConfig | null> {
   try {
     const { data } = await supabase.from('app_config').select('*').eq('key', 'app_update').maybeSingle()
     if (!data) return null
+    if (data.value && typeof data.value === 'object') {
+      const val = data.value as any;
+      return {
+        latest_version: val.latest_version || '',
+        build_number: Number(val.build_number) || 1,
+        apk_url: val.apk_url || '',
+        notes_ar: val.notes_ar || val.release_notes || '',
+        notes_en: val.notes_en || '',
+        force_update: !!val.force_update,
+        published_at: val.published_at || val.updated_at,
+      } as AppUpdateConfig
+    }
     return data as unknown as AppUpdateConfig
   } catch {
     return null
@@ -5370,10 +5382,17 @@ export async function getAppUpdate(): Promise<AppUpdateConfig | null> {
 
 export async function publishAppUpdate(cfg: Omit<AppUpdateConfig, 'published_at'>): Promise<string | null> {
   try {
-    await supabase.from('app_config').upsert({ key: 'app_update', ...cfg, published_at: new Date().toISOString() })
-    return null
+    const now = new Date().toISOString();
+    const payload = {
+      ...cfg,
+      release_notes: cfg.notes_ar || cfg.notes_en || '',
+      updated_at: now,
+      published_at: now,
+    };
+    await supabase.from('app_config').upsert({ key: 'app_update', value: payload });
+    return null;
   } catch (e) {
-    return e instanceof Error ? e.message : String(e)
+    return e instanceof Error ? e.message : String(e);
   }
 }
 
