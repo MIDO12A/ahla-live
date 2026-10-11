@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../models/user_model.dart';
 import '../../../core/ui/in_app_toast.dart';
 import '../../../core/localization/app_strings.dart';
+import '../data/agency_models.dart';
+import '../../../config/r.dart';
 
 const Color _bgDeep    = Color(0xFF0A0E21);
 const Color _bgCard    = Color(0xFF141A32);
@@ -88,23 +92,42 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
         }
       } catch (_) {}
 
-      // 2. Fetch agencies linked to this BD
-      final agenciesRes = await _sb
-          .from('host_agencies')
-          .select('id, name, owner_uid, member_count, total_diamonds_monthly, total_diamonds_cumulative, data, created_at, status')
-          .order('created_at', ascending: false);
+      // 2. Fetch agencies linked to this BD / Supervisor
+      final userCustomId = widget.currentUser.customId;
+      List<dynamic>? agenciesRes;
+      try {
+        agenciesRes = await _sb
+            .from('host_agencies')
+            .select('*')
+            .order('created_at', ascending: false);
+      } catch (err) {
+        debugPrint('[BDCenterScreen] host_agencies select error: $err');
+      }
 
       final List<Map<String, dynamic>> matchedAgencies = [];
+      final Set<String> seenIds = {};
       int totalMembers = 0;
       int diamondsSum = 0;
 
       if (agenciesRes != null) {
-        for (final row in (agenciesRes as List)) {
+        for (final row in agenciesRes) {
           final map = Map<String, dynamic>.from(row as Map);
+          final id = map['id']?.toString() ?? '';
           final dataMap = map['data'] is Map ? Map<String, dynamic>.from(map['data'] as Map) : {};
-          final bdUid = dataMap['bd_uid'] ?? dataMap['bdUid'] ?? map['owner_uid'];
+          
+          final bdUid = map['bd_uid']?.toString() ?? dataMap['bd_uid']?.toString() ?? dataMap['bdUid']?.toString();
+          final supUid = map['supervisor_uid']?.toString() ?? dataMap['supervisor_uid']?.toString();
+          final supId = map['supervisor_id']?.toString() ?? dataMap['supervisor_id']?.toString();
+          final supCustomId = map['supervisor_custom_id']?.toString() ?? dataMap['supervisor_custom_id']?.toString();
 
-          if (bdUid == uid) {
+          final isSupervisedByMe = (supUid != null && supUid.isNotEmpty && supUid == uid) ||
+              (supId != null && supId.isNotEmpty && (supId == uid || supId == userCustomId)) ||
+              (supCustomId != null && supCustomId.isNotEmpty && (supCustomId == userCustomId || supCustomId == uid)) ||
+              (bdUid != null && bdUid.isNotEmpty && bdUid == uid) ||
+              (map['owner_uid'] == uid || map['owner_id'] == uid);
+
+          if (isSupervisedByMe && !seenIds.contains(id)) {
+            seenIds.add(id);
             matchedAgencies.add(map);
             totalMembers += (map['member_count'] as num? ?? 1).toInt();
             final monthly = (map['total_diamonds_monthly'] as num? ?? 0).toInt();
@@ -112,6 +135,39 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
             diamondsSum += (monthly > 0 ? monthly : cumulative);
           }
         }
+      }
+
+      // 3. Firestore fallback / sync to ensure newly created agencies are immediately visible
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        final fsSnap = await fs.collection('host_agencies').get();
+        for (final doc in fsSnap.docs) {
+          if (seenIds.contains(doc.id)) continue;
+          final data = doc.data();
+          final supUid = data['supervisor_uid']?.toString();
+          final supId = data['supervisor_id']?.toString();
+          final supCustomId = data['supervisor_custom_id']?.toString();
+          final bdUid = data['bd_uid']?.toString();
+
+          final isSupervised = (supUid != null && supUid == uid) ||
+              (supId != null && (supId == uid || supId == userCustomId)) ||
+              (supCustomId != null && (supCustomId == userCustomId || supCustomId == uid)) ||
+              (bdUid != null && bdUid == uid) ||
+              (data['owner_uid'] == uid || data['owner_id'] == uid);
+
+          if (isSupervised) {
+            seenIds.add(doc.id);
+            final map = Map<String, dynamic>.from(data);
+            map['id'] = doc.id;
+            matchedAgencies.add(map);
+            totalMembers += (map['member_count'] as num? ?? 1).toInt();
+            final monthly = (map['total_diamonds_monthly'] as num? ?? 0).toInt();
+            final cumulative = (map['total_diamonds_cumulative'] as num? ?? 0).toInt();
+            diamondsSum += (monthly > 0 ? monthly : cumulative);
+          }
+        }
+      } catch (fsErr) {
+        debugPrint('[BDCenterScreen] firestore agencies fallback error: $fsErr');
       }
 
       if (mounted) {
@@ -567,83 +623,144 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
     final cumulative = (agency['total_diamonds_cumulative'] as num? ?? 0).toInt();
     final diamonds = monthly > 0 ? monthly : cumulative;
     final status = agency['status']?.toString() ?? 'active';
+    final photoUrl = agency['photo_url']?.toString() ?? agency['photoUrl']?.toString() ?? agency['logo_url']?.toString();
+    final displayId = formatAgencyNumericId(agency);
+    final supName = agency['supervisor_name']?.toString();
+    final supId = agency['supervisor_id']?.toString() ?? agency['supervisor_custom_id']?.toString();
+    final commRate = (agency['commission_rate'] as num?)?.toDouble() ?? 0.10;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _bgCard,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _border),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: _primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.apartment_rounded, color: _primary, size: 24),
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  image: photoUrl != null && photoUrl.isNotEmpty
+                      ? DecorationImage(image: R.cachedImage(photoUrl), fit: BoxFit.cover)
+                      : null,
+                ),
+                child: photoUrl == null || photoUrl.isEmpty
+                    ? const Icon(Icons.apartment_rounded, color: _primary, size: 26)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              color: _textMain,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: (status == 'active' ? _green : _gold).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            status,
+                            style: TextStyle(
+                              color: status == 'active' ? _green : _gold,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ID: $displayId • ${context.tr("عمولة الوكالة", "Commission")}: ${(commRate * 100).toInt()}%',
+                      style: const TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        style: const TextStyle(
-                          color: _textMain,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: (status == 'active' ? _green : _gold).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
-                          color: status == 'active' ? _green : _gold,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Icon(Icons.person_outline_rounded, size: 14, color: _textMuted),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$members ${context.tr("عضو", "Members")}',
-                      style: const TextStyle(color: _textMuted, fontSize: 12),
-                    ),
-                    const SizedBox(width: 14),
-                    const Icon(Icons.diamond_outlined, size: 14, color: _cyan),
-                    const SizedBox(width: 4),
-                    Text(
-                      _formatNumber(diamonds),
-                      style: const TextStyle(color: _cyan, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
+          if (supName != null || supId != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_user_rounded, size: 14, color: _gold),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${context.tr("المشرف المسؤول", "Supervisor")}: ${supName ?? "معتمد"} ${supId != null ? "($supId)" : ""}',
+                    style: const TextStyle(color: _gold, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
             ),
+          ],
+          const SizedBox(height: 10),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.people_alt_rounded, size: 14, color: _textMuted),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$members ${context.tr("عضو", "Members")}',
+                    style: const TextStyle(color: _textMuted, fontSize: 12),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.calendar_month_rounded, size: 14, color: _cyan),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${context.tr("أرباح الشهر", "Monthly")}: ${_formatNumber(monthly)} 💎',
+                    style: const TextStyle(color: _cyan, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.diamond_rounded, size: 14, color: _gold),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${context.tr("الإجمالي", "Total")}: ${_formatNumber(cumulative > 0 ? cumulative : diamonds)} 💎',
+                    style: const TextStyle(color: _gold, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),

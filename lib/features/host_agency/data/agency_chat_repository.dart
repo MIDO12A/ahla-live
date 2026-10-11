@@ -5,11 +5,15 @@
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:uuid/uuid.dart';
 import '../../../core/supabase_compat.dart';
 
 import '../../../core/auth/auth_service.dart';
 import '../../../core/realtime/realtime_subscription.dart';
 import '../../../core/realtime/supabase_realtime_bridge.dart';
+import '../../../services/supabase_data_service.dart';
 import 'agency_chat_models.dart';
 
 abstract final class AgencyChatRepository {
@@ -296,14 +300,94 @@ abstract final class AgencyChatRepository {
     required String agencyId,
     required String kayanId,
   }) async {
+    final cleanId = kayanId.trim();
+
+    // 1. Try Supabase RPC first
     try {
       final resp = await _sb.rpc('agency_invite_by_kayan_id', params: {
         'p_agency_id': agencyId,
-        'p_kayan_id':  kayanId.trim(),
+        'p_kayan_id':  cleanId,
       });
-      return Map<String, dynamic>.from(resp as Map);
+      if (resp != null && resp is Map) {
+        final status = resp['status']?.toString();
+        if (status != null && status != 'error') {
+          return Map<String, dynamic>.from(resp);
+        }
+      }
     } catch (e) {
-      debugPrint('[AgencyChatRepository] inviteByKayanId error: $e');
+      debugPrint('[AgencyChatRepository] inviteByKayanId RPC error: $e');
+    }
+
+    // 2. Resilient fallback: find user and create invitation directly
+    try {
+      final user = await SupabaseDataService().findUserByIdOrCustomId(cleanId);
+      if (user == null) {
+        return {'status': 'not_found'};
+      }
+
+      // Check if already in this agency
+      if (user.agencyId == agencyId) {
+        return {'status': 'already_member'};
+      }
+      if (user.agencyId != null && user.agencyId!.isNotEmpty && user.agencyId != agencyId) {
+        return {'status': 'in_other_agency'};
+      }
+
+      final reqId = const Uuid().v4();
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+
+      // Upsert in Supabase host_agency_join_requests
+      try {
+        await _sb.from('host_agency_join_requests').upsert({
+          'id': reqId,
+          'agency_id': agencyId,
+          'user_id': user.uid,
+          'host_uid': user.uid,
+          'applicant_uid': user.uid,
+          'status': 'invited',
+          'created_at': nowIso,
+        });
+      } catch (sbErr) {
+        debugPrint('[AgencyChatRepository] fallback sb invite error: $sbErr');
+      }
+
+      // Upsert in Firestore host_agency_join_requests
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        await fs.collection('host_agency_join_requests').doc('${agencyId}_${user.uid}').set({
+          'id': reqId,
+          'agency_id': agencyId,
+          'user_id': user.uid,
+          'host_uid': user.uid,
+          'status': 'invited',
+          'created_at': nowIso,
+        }, SetOptions(merge: true));
+
+        await fs.collection('notifications').add({
+          'uid': user.uid,
+          'title': 'دعوة انضمام لوكالة مضيفين 🎙️',
+          'body': 'تمت دعوتك للانضمام كمضيف رسمي في الوكالة.',
+          'type': 'host_invite',
+          'action': 'host_invite',
+          'data': {'agency_id': agencyId},
+          'is_read': false,
+          'created_at': nowIso,
+        });
+      } catch (fsErr) {
+        debugPrint('[AgencyChatRepository] fallback fs invite error: $fsErr');
+      }
+
+      return {
+        'status': 'invited',
+        'user_id': user.uid,
+        'display_name': user.name,
+        'avatar_url': user.photoUrl,
+        'custom_id': user.customId,
+        'level': user.level,
+        'country': user.country,
+      };
+    } catch (fallbackErr) {
+      debugPrint('[AgencyChatRepository] invite fallback error: $fallbackErr');
       return {'status': 'error'};
     }
   }

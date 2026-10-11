@@ -1421,6 +1421,17 @@ class SupabaseClient {
       agencyCode = (100 + (now.millisecondsSinceEpoch % 900)).toString();
     }
 
+    final photoUrl = p?['p_photo_url']?.toString() ??
+        p?['photo_url']?.toString() ??
+        userAvatar;
+    final supervisorUid = p?['p_supervisor_uid']?.toString() ??
+        p?['supervisor_uid']?.toString() ??
+        p?['supervisor_id']?.toString();
+    final supervisorCustomId = p?['p_supervisor_custom_id']?.toString() ??
+        p?['supervisor_custom_id']?.toString();
+    final supervisorName = p?['p_supervisor_name']?.toString() ??
+        p?['supervisor_name']?.toString();
+
     // 3. Create host agency in host_agencies collection
     final agencyData = {
       'id': agencyId,
@@ -1428,18 +1439,68 @@ class SupabaseClient {
       'agency_code': agencyCode,
       'name': name,
       'owner_id': uid,
+      'owner_uid': uid,
       'description': p?['p_description'] ?? 'وكالة مضيفين معتمدة',
       'whatsapp': p?['p_phone'],
       'country': p?['p_country'] ?? 'عالمي',
-      'photo_url': userAvatar,
+      'photo_url': photoUrl,
       'tier': 'bronze',
       'commission_rate': 0.10,
       'is_active': true,
       'member_count': 1,
       'total_diamonds_monthly': 0,
+      'total_diamonds_cumulative': 0,
+      'supervisor_id': supervisorCustomId ?? supervisorUid,
+      'supervisor_uid': supervisorUid,
+      'supervisor_custom_id': supervisorCustomId,
+      'supervisor_name': supervisorName,
+      'bd_uid': supervisorUid,
+      'bd_id': supervisorCustomId,
+      'data': {
+        'supervisor_id': supervisorCustomId ?? supervisorUid,
+        'supervisor_uid': supervisorUid,
+        'supervisor_custom_id': supervisorCustomId,
+        'supervisor_name': supervisorName,
+        'bd_uid': supervisorUid,
+        'bd_id': supervisorCustomId,
+      },
       'created_at': now.toIso8601String(),
     };
     await _db.collection('host_agencies').doc(agencyId).set(agencyData);
+
+    // Also write directly to Supabase host_agencies
+    try {
+      await Supabase.instance.client.from('host_agencies').upsert({
+        'id': agencyId,
+        'agency_code': agencyCode,
+        'agency_public_id': agencyCode,
+        'name': name,
+        'owner_uid': uid,
+        'description': p?['p_description'],
+        'country': p?['p_country'] ?? 'عالمي',
+        'photo_url': photoUrl,
+        'tier': 'bronze',
+        'commission_rate': 0.10,
+        'member_count': 1,
+        'total_diamonds_monthly': 0,
+        'total_diamonds_cumulative': 0,
+        'is_active': true,
+        'status': 'active',
+        'supervisor_id': supervisorCustomId ?? supervisorUid,
+        'supervisor_uid': supervisorUid,
+        'supervisor_custom_id': supervisorCustomId,
+        'supervisor_name': supervisorName,
+        'data': {
+          'supervisor_id': supervisorCustomId ?? supervisorUid,
+          'supervisor_uid': supervisorUid,
+          'supervisor_custom_id': supervisorCustomId,
+          'supervisor_name': supervisorName,
+          'bd_uid': supervisorUid,
+          'bd_id': supervisorCustomId,
+        },
+        'created_at': now.toIso8601String(),
+      });
+    } catch (_) {}
 
     // 4. Add owner to host_agency_members
     await _db.collection('host_agency_members').doc('${agencyId}_$uid').set({
@@ -1450,11 +1511,30 @@ class SupabaseClient {
       'joined_at': now.toIso8601String(),
     });
 
+    try {
+      await Supabase.instance.client.from('host_agency_members').upsert({
+        'id': '${agencyId}_$uid',
+        'agency_id': agencyId,
+        'user_id': uid,
+        'host_uid': uid,
+        'role': 'owner',
+        'status': 'active',
+        'joined_at': now.toIso8601String(),
+      });
+    } catch (_) {}
+
     // 5. Update user document
     await _db.collection('users').doc(uid).update({
       'agency_id': agencyId,
       'is_host_agent': true,
     });
+
+    try {
+      await Supabase.instance.client.from('users').update({
+        'agency_id': agencyId,
+        'is_host_agent': true,
+      }).eq('uid', uid);
+    } catch (_) {}
 
     // 6. Record application in agency_applications (approved)
     await _db.collection('agency_applications').doc(appId).set({
@@ -1463,12 +1543,14 @@ class SupabaseClient {
       'user_id': uid,
       'user_name': userName,
       'custom_id': customId,
-      'user_avatar': userAvatar,
+      'user_avatar': photoUrl,
       'agency_type': 'host',
       'agency_name': name,
       'description': p?['p_description'],
       'whatsapp': p?['p_phone'],
       'country': p?['p_country'],
+      'supervisor_id': supervisorCustomId ?? supervisorUid,
+      'supervisor_name': supervisorName,
       'status': 'approved',
       'created_at': now.toIso8601String(),
     });
@@ -1476,6 +1558,8 @@ class SupabaseClient {
     return {
       'status': 'ok',
       'agency_id': agencyId,
+      'agency_code': agencyCode,
+      'agency_public_id': agencyCode,
       'message': 'تم إنشاء الوكالة بنجاح! 🎉',
     };
   }

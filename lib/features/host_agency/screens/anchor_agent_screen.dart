@@ -12,6 +12,7 @@ import '../../../../services/supabase_service.dart';
 import '../../../../services/supabase_data_service.dart';
 import '../data/agency_models.dart';
 import '../data/anchor_agent_model.dart';
+import '../data/agency_chat_repository.dart';
 import 'agency_exit_screen.dart';
 import 'agency_invite_by_id_screen.dart';
 import 'agency_item_detail_screen.dart';
@@ -1217,7 +1218,26 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final transferMoney = rawTransfer > 0 ? rawTransfer : totalAnchorsDiamonds;
     final dollar = info?.transferDollar != 0 ? info!.transferDollar : (transferMoney / 1000).toInt();
     final commRatePct = ((info?.commissionRate ?? 0.10) * 100).toInt();
-    final targetDiamonds = (info?.targetDiamonds ?? 0) > 0 ? info!.targetDiamonds : 100000;
+
+    int stageTarget = 100000;
+    if (transferMoney >= 5000000) {
+      stageTarget = 10000000;
+    } else if (transferMoney >= 2000000) {
+      stageTarget = 5000000;
+    } else if (transferMoney >= 1000000) {
+      stageTarget = 2000000;
+    } else if (transferMoney >= 500000) {
+      stageTarget = 1000000;
+    } else if (transferMoney >= 300000) {
+      stageTarget = 500000;
+    } else if (transferMoney >= 100000) {
+      stageTarget = 300000;
+    } else {
+      stageTarget = 100000;
+    }
+    final targetDiamonds = (info?.targetDiamonds != null && info!.targetDiamonds > 0 && info.targetDiamonds != 1000000)
+        ? info.targetDiamonds
+        : stageTarget;
     final progress = targetDiamonds > 0 ? (transferMoney / targetDiamonds).clamp(0.0, 1.0) : 0.0;
     final percent = (progress * 100).toStringAsFixed(1);
     final salaryUsd = info?.salaryUsd ?? 0.0;
@@ -2061,34 +2081,57 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     });
 
     try {
-      // 1. Supabase: save directly to host_agency_join_requests
+      // 1. Try AgencyChatRepository invitation flow first
+      if (targetId.isNotEmpty) {
+        try {
+          final res = await AgencyChatRepository.inviteByKayanId(
+            agencyId: agencyId,
+            kayanId: targetId,
+          );
+          if (res['status'] == 'invited' || res['status'] == 'already_invited') {
+            setState(() {
+              _inviteSuccess = isAr
+                  ? 'تم إرسال دعوة الانضمام إلى [$targetName] بنجاح! سينضم لوكالتك فور قبوله للدعوة.'
+                  : 'Invitation sent to [$targetName] successfully! They will join once accepted.';
+              _foundUser = null;
+              _inviteSearchCtrl.clear();
+            });
+            return;
+          }
+        } catch (_) {}
+      }
+
+      // 2. Fallback: Supabase direct upsert to host_agency_join_requests
       final reqId = const Uuid().v4();
+      final nowIso = DateTime.now().toUtc().toIso8601String();
       try {
-        await Supabase.instance.client.from('host_agency_join_requests').insert({
+        await Supabase.instance.client.from('host_agency_join_requests').upsert({
           'id': reqId,
           'agency_id': agencyId,
           'user_id': targetUid,
           'host_uid': targetUid,
           'applicant_uid': targetUid,
           'status': 'invited',
-          'created_at': DateTime.now().toUtc().toIso8601String(),
+          'created_at': nowIso,
         });
       } catch (sbErr) {
         debugPrint('[AnchorAgentScreen] Supabase host_agency_join_requests insert error: $sbErr');
       }
 
-      // 2. Add to Firestore host_agency_join_requests
+      // 3. Add to Firestore host_agency_join_requests
       try {
         final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        await db.collection('host_agency_join_requests').add({
+        await db.collection('host_agency_join_requests').doc('${agencyId}_$targetUid').set({
+          'id': reqId,
           'agency_id': agencyId,
           'user_id': targetUid,
+          'host_uid': targetUid,
           'agency_name': agencyName,
           'status': 'invited',
-          'created_at': DateTime.now().toUtc().toIso8601String(),
-        });
+          'created_at': nowIso,
+        }, SetOptions(merge: true));
 
-        // 3. Send in-app notification to the user
+        // 4. Send in-app notification to the user
         await db.collection('notifications').add({
           'uid': targetUid,
           'title': isAr ? 'دعوة انضمام لوكالة مضيفين 🎙️' : 'Host Agency Invitation 🎙️',
@@ -2102,13 +2145,13 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             'agency_name': agencyName,
           },
           'is_read': false,
-          'created_at': DateTime.now().toUtc().toIso8601String(),
+          'created_at': nowIso,
         });
       } catch (fsErr) {
         debugPrint('[AnchorAgentScreen] Firestore notification error: $fsErr');
       }
 
-      // 4. Supabase notifications fallback
+      // 5. Supabase notifications fallback
       try {
         await SupabaseDataService().sendNotification(
           uid: targetUid,

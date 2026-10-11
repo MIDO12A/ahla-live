@@ -1048,7 +1048,7 @@ class SupabaseDataService {
           try {
             final filter = uids.map((id) => '"$id"').join(',');
             final uRes = await http.get(
-              Uri.parse('$_baseUrl/rest/v1/users?uid=in.($filter)&select=uid,name,photo_url,avatar,custom_id,level,country'),
+              Uri.parse('$_baseUrl/rest/v1/users?uid=in.($filter)&select=uid,name,photo_url,avatar,custom_id,level,country,diamonds'),
               headers: _headers,
             );
             if (uRes.statusCode == 200) {
@@ -1069,6 +1069,7 @@ class SupabaseDataService {
                   m['user_no'] = int.tryParse(uData['custom_id']?.toString() ?? '') ?? m['user_no'] ?? 0;
                   m['custom_id'] = uData['custom_id'] ?? m['custom_id'] ?? '';
                   m['level'] = uData['level'] ?? m['level'] ?? 1;
+                  m['diamonds'] = uData['diamonds']?.toString() ?? m['diamonds']?.toString() ?? '0';
                 }
               }
             }

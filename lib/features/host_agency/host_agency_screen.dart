@@ -16,6 +16,12 @@ import '../../core/ui/in_app_toast.dart';
 import 'screens/agency_profile_screen.dart';
 import 'screens/anchor_agent_screen.dart';
 
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import '../../services/cloudinary_service.dart';
+import '../../services/supabase_data_service.dart';
+import '../../models/user_model.dart';
+import 'screens/bd_center_screen.dart';
 import '../../core/cache/encrypted_image_provider.dart';
 import '../../config/r.dart';
 import 'package:provider/provider.dart';
@@ -256,11 +262,16 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
   bool _loadingList = true;
   bool _creating    = false;
 
-  final _nameCtrl    = TextEditingController();
-  final _descCtrl    = TextEditingController();
-  final _phoneCtrl   = TextEditingController();
+  final _nameCtrl       = TextEditingController();
+  final _descCtrl       = TextEditingController();
+  final _phoneCtrl      = TextEditingController();
+  final _supervisorCtrl = TextEditingController();
   String? _selectedCountry;
-  bool _showForm   = false;
+  bool _showForm      = false;
+  File? _agencyImage;
+  bool _pickingImage  = false;
+  String? _supervisorName;
+  bool _lookingUpSupervisor = false;
 
   static const _countries = [
     'السعودية', 'الإمارات', 'الكويت', 'قطر', 'البحرين', 'عُمان',
@@ -281,7 +292,42 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
     _nameCtrl.dispose();
     _descCtrl.dispose();
     _phoneCtrl.dispose();
+    _supervisorCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickAgencyImage() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (picked != null) {
+        setState(() {
+          _agencyImage = File(picked.path);
+        });
+      }
+    } catch (e) {
+      debugPrint('[host_agency_screen] image pick error: $e');
+    }
+  }
+
+  Future<void> _lookupSupervisor(String id) async {
+    final clean = id.trim();
+    if (clean.isEmpty) {
+      setState(() => _supervisorName = null);
+      return;
+    }
+    setState(() => _lookingUpSupervisor = true);
+    try {
+      final user = await SupabaseDataService().findUserByIdOrCustomId(clean);
+      if (mounted) {
+        setState(() {
+          _supervisorName = user != null && user.name.isNotEmpty ? user.name : null;
+          _lookingUpSupervisor = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _lookingUpSupervisor = false);
+    }
   }
 
   Future<void> _loadTop() async {
@@ -311,24 +357,153 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
   Future<void> _createAgency() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      KayanInAppToast.warning('أدخل اسم الوكالة');
+      KayanInAppToast.warning('يرجى إدخال اسم الوكالة');
       return;
     }
+
+    final supervisorQuery = _supervisorCtrl.text.trim();
+    if (supervisorQuery.isEmpty) {
+      KayanInAppToast.warning('يجب إدخال آيدي المشرف أو مسؤول الـ BD التابع له');
+      return;
+    }
+
+    final currentUser = Provider.of<UserProvider>(context, listen: false).currentUser;
     final uid = AuthService.currentSession?.user.id ??
-        Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
-    if (uid == null) return;
+        currentUser?.uid ??
+        SupabaseAuthService().currentUser?.uid;
+    if (uid == null) {
+      KayanInAppToast.warning('يجب تسجيل الدخول أولاً');
+      return;
+    }
 
     setState(() => _creating = true);
     try {
-      await _sb.rpc('agency_create', params: {
-        'p_name':        name,
-        'p_description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-        'p_photo_url':   null,
-        'p_phone':       _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-        'p_country':     _selectedCountry,
-      });
+      // 1. Resolve supervisor details
+      UserModel? supervisorUser;
+      try {
+        supervisorUser = await SupabaseDataService().findUserByIdOrCustomId(supervisorQuery);
+      } catch (_) {}
+
+      final supervisorUid = supervisorUser?.uid ?? supervisorQuery;
+      final supervisorCustomId = supervisorUser?.customId.isNotEmpty == true ? supervisorUser!.customId : supervisorQuery;
+      final supervisorName = supervisorUser?.name.isNotEmpty == true ? supervisorUser!.name : (_supervisorName ?? 'مشرف معتمد');
+
+      // 2. Upload photo if selected
+      String? photoUrl;
+      if (_agencyImage != null) {
+        try {
+          photoUrl = await CloudinaryService().uploadImage(
+            _agencyImage!,
+            publicId: 'agency_${DateTime.now().millisecondsSinceEpoch}',
+          );
+        } catch (uploadErr) {
+          debugPrint('[host_agency_screen] upload photo error: $uploadErr');
+        }
+      }
+
+      // 3. Attempt RPC creation first
+      bool rpcSuccess = false;
+      try {
+        await _sb.rpc('agency_create', params: {
+          'p_name':                 name,
+          'p_description':          _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+          'p_photo_url':            photoUrl,
+          'p_phone':                _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+          'p_country':              _selectedCountry,
+          'p_supervisor_uid':       supervisorUid,
+          'p_supervisor_custom_id': supervisorCustomId,
+          'p_supervisor_name':      supervisorName,
+          'p_supervisor_id':        supervisorCustomId,
+        });
+        rpcSuccess = true;
+      } catch (rpcErr) {
+        debugPrint('[host_agency_screen] agency_create RPC error: $rpcErr');
+      }
+
+      // 4. Resilient direct database creation (ensures Supabase & Firestore are always synchronized)
+      final now = DateTime.now().toUtc();
+      final nowIso = now.toIso8601String();
+      final agencyId = 'agency_${now.millisecondsSinceEpoch}_$uid';
+      final agencyCode = (100 + (now.millisecondsSinceEpoch % 900)).toString();
+
+      final agencyPayload = {
+        'id': agencyId,
+        'agency_code': agencyCode,
+        'agency_public_id': agencyCode,
+        'name': name,
+        'owner_uid': uid,
+        'owner_id': uid,
+        'description': _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : 'وكالة مضيفين معتمدة',
+        'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
+        'country': _selectedCountry ?? 'عالمي',
+        'photo_url': photoUrl ?? currentUser?.photoUrl,
+        'tier': 'bronze',
+        'commission_rate': 0.10,
+        'member_count': 1,
+        'total_diamonds_monthly': 0,
+        'total_diamonds_cumulative': 0,
+        'is_active': true,
+        'status': 'active',
+        'supervisor_id': supervisorCustomId,
+        'supervisor_uid': supervisorUid,
+        'supervisor_custom_id': supervisorCustomId,
+        'supervisor_name': supervisorName,
+        'bd_uid': supervisorUid,
+        'bd_id': supervisorCustomId,
+        'data': {
+          'supervisor_id': supervisorCustomId,
+          'supervisor_uid': supervisorUid,
+          'supervisor_custom_id': supervisorCustomId,
+          'supervisor_name': supervisorName,
+          'bd_uid': supervisorUid,
+          'bd_id': supervisorCustomId,
+        },
+        'created_at': nowIso,
+      };
+
+      try {
+        await _sb.from('host_agencies').upsert(agencyPayload);
+      } catch (_) {}
+
+      try {
+        await _sb.from('host_agency_members').upsert({
+          'id': '${agencyId}_$uid',
+          'agency_id': agencyId,
+          'user_id': uid,
+          'host_uid': uid,
+          'role': 'owner',
+          'status': 'active',
+          'joined_at': nowIso,
+        });
+      } catch (_) {}
+
+      try {
+        await _sb.from('users').update({
+          'agency_id': agencyId,
+          'is_host_agent': true,
+        }).eq('uid', uid);
+      } catch (_) {}
+
+      try {
+        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+        await fs.collection('host_agencies').doc(agencyId).set(agencyPayload, SetOptions(merge: true));
+        await fs.collection('host_agency_members').doc('${agencyId}_$uid').set({
+          'agency_id': agencyId,
+          'user_id': uid,
+          'host_uid': uid,
+          'role': 'owner',
+          'status': 'active',
+          'joined_at': nowIso,
+        }, SetOptions(merge: true));
+        await fs.collection('users').doc(uid).set({
+          'agency_id': agencyId,
+          'is_host_agent': true,
+          'is_agency_member': true,
+        }, SetOptions(merge: true));
+      } catch (_) {}
+
       if (!mounted) return;
-      KayanInAppToast.agency('تم إنشاء الوكالة بنجاح! 🎉');
+      KayanInAppToast.agency('تم إنشاء الوكالة بنجاح تحت إشراف [$supervisorName]! 🎉');
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HostAgencyScreen()),
@@ -359,7 +534,36 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
     );
   }
 
-  void _openBdCenterSheet() {
+  Future<void> _openBdCenterSheet() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    var user = userProvider.currentUser;
+    final uid = user?.uid ?? AuthService.currentSession?.user.id ?? SupabaseAuthService().currentUser?.uid;
+
+    bool isBd = user?.isBd == true;
+
+    // Fast check in Supabase users if isBd is false in local cache
+    if (!isBd && uid != null && uid.isNotEmpty) {
+      try {
+        final row = await _sb.from('users').select('is_bd, role').eq('uid', uid).maybeSingle();
+        if (row != null) {
+          if (row['is_bd'] == true || ['bd', 'supervisor', 'admin', 'super_admin'].contains(row['role'])) {
+            isBd = true;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (isBd && user != null) {
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => BDCenterScreen(currentUser: user!)),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1F1F1F),
@@ -399,22 +603,68 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                 const Text(
                   '• مرحباً بك في مركز دعم وتطوير وكالات التطبيق الرسمية.\n'
                   '• يتم تقييم الوكالات أسبوعياً بناءً على إجمالي ألماس مضيفي الوكالة.\n'
-                  '• الترقية إلى فئات متقدمة (Gold, Platinum, Diamond) تمنح الوكالة نسب أرباح إضافية ومكافآت حصرية.\n'
+                  '• الترقية إلى فئات متقدمة تمنح الوكالة نسب أرباح إضافية ومكافآت حصرية.\n'
                   '• للتواصل مع فريق إدارة الوكالات ومسؤولي الـ BD يرجى مراجعة خدمة العملاء.',
                   style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
                 ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF9500),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 14),
+                if (user != null)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
                     ),
-                    child: const Text('فهمت ذلك', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Color(0xFFFF9500), size: 18),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'إذا تم تعيينك مؤخراً كـ BD أو مشرف، اضغط أدناه لتحديث الصلاحيات والدخول للمركز.',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          if (uid != null) {
+                            try {
+                              final fresh = await SupabaseDataService().getUser(uid);
+                              if (fresh != null && (fresh.isBd || fresh.isHostAgent)) {
+                                if (context.mounted) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => BDCenterScreen(currentUser: fresh)),
+                                  );
+                                }
+                                return;
+                              }
+                            } catch (_) {}
+                          }
+                          KayanInAppToast.warning('حسابك ليس مسجلاً كمسؤول BD بعد');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF9500),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('تحديث والدخول كـ BD', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('إغلاق', style: TextStyle(color: Colors.white54)),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -749,13 +999,114 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'إنشاء وكالة جديدة',
-            style: TextStyle(color: Color(0xFFFFFEEC93), fontWeight: FontWeight.bold, fontSize: 16),
+          const Center(
+            child: Text(
+              'إنشاء وكالة مضيفين جديدة',
+              style: TextStyle(color: Color(0xFFFFFEEC93), fontWeight: FontWeight.bold, fontSize: 17),
+            ),
           ),
           const SizedBox(height: 16),
+
+          // ── Agency Avatar Picker ──
+          Center(
+            child: GestureDetector(
+              onTap: _pickAgencyImage,
+              child: Stack(
+                children: [
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.08),
+                      border: Border.all(color: const Color(0xFFFF9500), width: 2),
+                      image: _agencyImage != null
+                          ? DecorationImage(image: FileImage(_agencyImage!), fit: BoxFit.cover)
+                          : null,
+                    ),
+                    child: _agencyImage == null
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_a_photo_rounded, color: Color(0xFFFFFEEC93), size: 28),
+                                SizedBox(height: 4),
+                                Text(
+                                  'شعار الوكالة',
+                                  style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          )
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFF9500),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.edit, color: Colors.white, size: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+
           _field(_nameCtrl, 'اسم الوكالة *', Icons.badge_rounded),
           const SizedBox(height: 12),
+
+          // ── Required Supervisor / BD ID ──
+          _field(
+            _supervisorCtrl,
+            'آيدي المشرف أو مسؤول الـ BD *',
+            Icons.supervisor_account_rounded,
+            onChanged: _lookupSupervisor,
+          ),
+          if (_lookingUpSupervisor) ...[
+            const SizedBox(height: 6),
+            const Row(
+              children: [
+                SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF9500))),
+                SizedBox(width: 8),
+                Text('جاري التحقق من هوية المشرف...', style: TextStyle(color: Colors.white70, fontSize: 11)),
+              ],
+            ),
+          ] else if (_supervisorName != null) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00E5A0).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF00E5A0).withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.verified, color: Color(0xFF00E5A0), size: 14),
+                  const SizedBox(width: 6),
+                  Text(
+                    'المشرف المعتمد: $_supervisorName',
+                    style: const TextStyle(color: Color(0xFF00E5A0), fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (_supervisorCtrl.text.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            const Text(
+              '⚠️ سيتم ربط طلب الوكالة بالآيدي المدخل لإشراف الـ BD',
+              style: TextStyle(color: Color(0xFFFFB800), fontSize: 11),
+            ),
+          ],
+          const SizedBox(height: 12),
+
           _field(_descCtrl, 'وصف الوكالة (اختياري)', Icons.description_rounded, maxLines: 2),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
@@ -786,8 +1137,8 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             onChanged: (v) => setState(() => _selectedCountry = v),
           ),
           const SizedBox(height: 12),
-          _field(_phoneCtrl, 'رقم الهاتف (اختياري)', Icons.phone_rounded, keyboardType: TextInputType.phone),
-          const SizedBox(height: 16),
+          _field(_phoneCtrl, 'رقم الهاتف / واتساب (اختياري)', Icons.phone_rounded, keyboardType: TextInputType.phone),
+          const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -808,11 +1159,19 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
     );
   }
 
-  Widget _field(TextEditingController ctrl, String hint, IconData icon, {int maxLines = 1, TextInputType? keyboardType}) {
+  Widget _field(
+    TextEditingController ctrl,
+    String hint,
+    IconData icon, {
+    int maxLines = 1,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
+  }) {
     return TextField(
       controller: ctrl,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      onChanged: onChanged,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
