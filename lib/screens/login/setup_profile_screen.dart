@@ -121,6 +121,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
           phone: widget.phone,
         );
         await SupabaseService().updateUser(widget.uid, deviceInfo.toMap());
+        await DeviceService().saveDeviceRegistration(widget.uid, email: widget.email, info: deviceInfo);
       } catch (_) {}
 
       try {

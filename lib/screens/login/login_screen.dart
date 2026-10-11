@@ -66,10 +66,11 @@ class _LoginScreenState extends State<LoginScreen> {
         phone: user.phoneNumber,
       );
 
-      // 3. Update device info on user profile
+      // 3. Update device info on user profile and persistent registries
       try {
         final deviceInfo = await DeviceService().getDeviceInfo();
         await SupabaseService().updateUser(user.uid, deviceInfo.toMap());
+        await DeviceService().saveDeviceRegistration(user.uid, email: user.email, info: deviceInfo);
       } catch (_) {}
 
       if (user.isNewUser) {

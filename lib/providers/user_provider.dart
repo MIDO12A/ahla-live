@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../services/supabase_service.dart';
 import '../services/supabase_auth_service.dart';
 import '../core/utils/id_generator.dart';
+import '../services/device_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class UserProvider extends ChangeNotifier {
@@ -225,6 +226,11 @@ class UserProvider extends ChangeNotifier {
           final merged = Set<String>.from(_currentUser!.followedRooms)..addAll(spFollowed);
           _currentUser = _currentUser!.copyWith(followedRooms: merged.toList());
         }
+      } catch (_) {}
+
+      // Self-heal and keep device fingerprint up to date in app_config & Firestore
+      try {
+        DeviceService().saveDeviceRegistration(_currentUser!.uid, email: _currentUser!.email);
       } catch (_) {}
     }
     _isLoading = false;

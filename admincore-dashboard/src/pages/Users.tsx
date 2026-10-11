@@ -518,9 +518,15 @@ export default function UsersPage() {
                           <span className="text-xs font-bold text-white flex items-center gap-1.5">
                             👥 عدد الحسابات المسجلة من نفس هذا الهاتف:
                           </span>
-                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${sameDeviceUsers.length >= 2 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
-                            {sameDeviceUsers.length > 0 ? `${sameDeviceUsers.length} / 2 حسابات` : 'حساب واحد فقط'}
-                          </span>
+                          {!dId ? (
+                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-400 border border-slate-500/30">
+                              بانتظار تسجيل البصمة عند فتح التطبيق
+                            </span>
+                          ) : (
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${sameDeviceUsers.length >= 2 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                              {sameDeviceUsers.length > 0 ? `${sameDeviceUsers.length} / 2 حسابات` : 'حساب واحد'}
+                            </span>
+                          )}
                         </div>
                         {sameDeviceUsers.length > 0 ? (
                           <div className="space-y-1.5">

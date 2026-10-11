@@ -173,13 +173,75 @@ export async function getUsers(): Promise<UserModel[]> {
   const adminClient = getAdminSupabase()
   const results: UserModel[] = []
 
-  // 1. Fetch ONLY from public users table (this is our source of truth!)
+  // 1. Fetch from public users table (source of truth)
   try {
     const client = adminClient || supabase
     const { data } = await client.from('users').select('*').order('uid')
     if (data) results.push(...mapList<UserModel>(data))
   } catch (e) {
     console.warn('getUsers: public table failed', e)
+  }
+
+  // 2. Fetch device fingerprints from Supabase app_config (key like 'user_device_%')
+  const deviceMetaMap: Record<string, any> = {}
+  try {
+    const client = adminClient || supabase
+    const { data: configs } = await client.from('app_config').select('key, value').like('key', 'user_device_%')
+    if (configs && Array.isArray(configs)) {
+      for (const row of configs) {
+        const uid = row.key.replace('user_device_', '').trim()
+        let val = row.value
+        if (typeof val === 'string') {
+          try { val = JSON.parse(val) } catch {}
+        }
+        if (uid && val && typeof val === 'object') {
+          deviceMetaMap[uid] = val
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('getUsers: failed to fetch device metadata from app_config', e)
+  }
+
+  // 3. Fallback/merge from Firestore users collection if available
+  try {
+    const { firestoreDb } = await import('./firebase')
+    const { collection, getDocs } = await import('firebase/firestore')
+    if (firestoreDb) {
+      const snap = await getDocs(collection(firestoreDb, 'users'))
+      for (const doc of snap.docs) {
+        const d = doc.data()
+        const uid = doc.id
+        if (d && (d.device_id || d.deviceId)) {
+          if (!deviceMetaMap[uid]) {
+            deviceMetaMap[uid] = {
+              device_id: d.device_id || d.deviceId,
+              device_model: d.device_model || d.deviceModel,
+              mac_address: d.mac_address || d.macAddress,
+              network_id: d.network_id || d.networkId,
+              ip_address: d.ip_address || d.ipAddress,
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Non-blocking Firestore fallback
+  }
+
+  // 4. Merge device metadata into users
+  for (const u of results) {
+    const meta = deviceMetaMap[u.uid]
+    if (meta) {
+      if (!u.deviceId) u.deviceId = meta.device_id || meta.deviceId
+      if (!u.deviceModel) u.deviceModel = meta.device_model || meta.deviceModel
+      if (!u.macAddress) u.macAddress = meta.mac_address || meta.macAddress
+      if (!u.networkId) u.networkId = meta.network_id || meta.networkId
+      if (!u.ipAddress) u.ipAddress = meta.ip_address || meta.ipAddress
+      if (!u.lastIp && (meta.ip_address || meta.ipAddress)) {
+        u.lastIp = meta.ip_address || meta.ipAddress
+      }
+    }
   }
 
   return results.sort((a, b) => (Number(a.customId) || 0) - (Number(b.customId) || 0))
@@ -201,7 +263,28 @@ export async function getUser(uid: string): Promise<UserModel | null> {
   try {
     const client = getAdminSupabase() || supabase
     const { data } = await client.from('users').select('*').eq('uid', uid).maybeSingle()
-    return mapSingle<UserModel>(data)
+    const user = mapSingle<UserModel>(data)
+    if (!user) return null
+
+    // Check device metadata from app_config
+    try {
+      const { data: cfg } = await client.from('app_config').select('value').eq('key', `user_device_${uid}`).maybeSingle()
+      if (cfg && cfg.value) {
+        let val = cfg.value
+        if (typeof val === 'string') {
+          try { val = JSON.parse(val) } catch {}
+        }
+        if (val && typeof val === 'object') {
+          user.deviceId = user.deviceId || val.device_id || val.deviceId
+          user.deviceModel = user.deviceModel || val.device_model || val.deviceModel
+          user.macAddress = user.macAddress || val.mac_address || val.macAddress
+          user.networkId = user.networkId || val.network_id || val.networkId
+          user.ipAddress = user.ipAddress || val.ip_address || val.ipAddress
+        }
+      }
+    } catch {}
+
+    return user
   } catch (e) {
     console.warn('getUser failed:', e)
     return null
