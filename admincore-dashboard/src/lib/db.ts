@@ -407,6 +407,25 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
         console.warn('Error migrating user room to custom ID in Supabase:', rErr);
       }
     }
+
+    // Automatically sync to Firestore users collection
+    try {
+      const { firestoreDb } = await import('./firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+      if (firestoreDb) {
+        const fsUpdate: Record<string, any> = { ...data };
+        if ((data as any).banned !== undefined) {
+          fsUpdate.banned = (data as any).banned;
+          fsUpdate.ban_reason = (data as any).banReason || (data as any).ban_reason || '';
+          fsUpdate.banned_until = (data as any).bannedUntil || (data as any).banned_until || null;
+          fsUpdate.ban_duration_days = (data as any).banDurationDays || (data as any).ban_duration_days || null;
+          fsUpdate.banned_at = (data as any).bannedAt || (data as any).banned_at || new Date().toISOString();
+        }
+        await setDoc(doc(firestoreDb, 'users', uid), cleanFirestoreData(fsUpdate), { merge: true });
+      }
+    } catch (fsErr) {
+      console.warn('updateUser firestore sync error:', fsErr);
+    }
   } catch (e) {
     console.error('updateUser failed:', e)
     throw e
@@ -800,11 +819,29 @@ export async function deleteRoom(id: string) {
 // ---- Unions ----
 
 export async function getUnions(): Promise<UnionModel[]> {
-  return [];
+  try {
+    const list = await getHostAgencies();
+    return list.map(a => ({
+      id: a.id,
+      name: a.name,
+      creatorId: a.owner_id || a.owner_uid || '',
+      creatorName: a.owner_name || 'مالك الوكالة',
+      level: 1,
+      memberCount: a.member_count || 1,
+      logoUrl: a.photo_url || a.logo_url || '',
+      coverUrl: '',
+      announcement: a.description || '',
+      createdAt: a.created_at || new Date().toISOString(),
+      updatedAt: a.created_at || new Date().toISOString(),
+      status: a.is_active ? 'active' : 'inactive',
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export function subscribeUnions(cb: (unions: UnionModel[]) => void) {
-  cb([]);
+  getUnions().then(cb).catch(() => cb([]));
   return () => {};
 }
 
@@ -1091,6 +1128,102 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
       console.warn('getHostAgencies supabase error:', sbErr);
     }
 
+    // 2. Fetch from Firestore host_agencies & unions to catch any agency created before the update
+    try {
+      const { firestoreDb } = await import('./firebase');
+      const { getDocs, collection } = await import('firebase/firestore');
+      if (firestoreDb) {
+        // a) collection 'host_agencies'
+        try {
+          const fsSnap = await getDocs(collection(firestoreDb, 'host_agencies'));
+          for (const docSnap of fsSnap.docs) {
+            const d = docSnap.data();
+            const docId = docSnap.id;
+            const ownerId = d.owner_uid || d.owner_id || '';
+            const agName = d.name || d.agency_name || 'وكالة مضيفين';
+            if (existingIds.has(docId) || (ownerId && existingOwnerIds.has(ownerId))) continue;
+
+            const mapped = {
+              id: docId,
+              name: agName,
+              owner_id: ownerId,
+              owner_uid: ownerId,
+              photo_url: d.photo_url || d.logo_url || d.agency_logo || '',
+              logo_url: d.logo_url || d.photo_url || d.agency_logo || '',
+              description: d.description || '',
+              specialty: d.specialty || 'mixed',
+              tier: d.tier || 'bronze',
+              country: d.country || '',
+              commission_rate: typeof d.commission_rate === 'number' ? d.commission_rate : 0.10,
+              is_active: d.is_active !== false && d.status !== 'inactive',
+              member_count: d.member_count ?? 1,
+              total_diamonds_monthly: d.total_diamonds_monthly ?? 0,
+              monthly_diamonds: d.total_diamonds_monthly ?? 0,
+              total_diamonds_earned: d.total_diamonds_cumulative ?? 0,
+              created_at: d.created_at || new Date().toISOString(),
+              agency_code: d.agency_code || d.agency_public_id || '',
+              agency_public_id: d.agency_public_id || d.agency_code || '',
+            };
+            agencies.push(mapped);
+            existingIds.add(docId);
+            if (ownerId) existingOwnerIds.add(ownerId);
+
+            // Mirror into Supabase so it's permanently synced
+            supabase.from('host_agencies').upsert({
+              id: docId,
+              name: agName,
+              owner_uid: ownerId,
+              owner_id: ownerId,
+              photo_url: mapped.photo_url,
+              agency_code: mapped.agency_code,
+              agency_public_id: mapped.agency_public_id,
+              status: 'active',
+              is_active: true,
+              member_count: mapped.member_count,
+            }).then(() => {}).catch(() => {});
+          }
+        } catch (_) {}
+
+        // b) collection 'unions'
+        try {
+          const unionSnap = await getDocs(collection(firestoreDb, 'unions'));
+          for (const docSnap of unionSnap.docs) {
+            const d = docSnap.data();
+            const docId = docSnap.id;
+            const ownerId = d.creator_id || d.creatorId || d.owner_id || '';
+            const agName = d.name || 'نقابة/وكالة';
+            if (existingIds.has(docId) || (ownerId && existingOwnerIds.has(ownerId))) continue;
+
+            const mapped = {
+              id: docId,
+              name: agName,
+              owner_id: ownerId,
+              owner_uid: ownerId,
+              photo_url: d.logo_url || d.photo_url || d.logoUrl || '',
+              logo_url: d.logo_url || d.photo_url || d.logoUrl || '',
+              description: d.description || '',
+              specialty: 'mixed',
+              tier: 'bronze',
+              country: '',
+              commission_rate: 0.10,
+              is_active: true,
+              member_count: d.member_count || d.memberCount || 1,
+              total_diamonds_monthly: 0,
+              monthly_diamonds: 0,
+              total_diamonds_earned: 0,
+              created_at: d.created_at || d.createdAt || new Date().toISOString(),
+              agency_code: d.agency_code || d.agency_public_id || '',
+              agency_public_id: d.agency_public_id || d.agency_code || '',
+            };
+            agencies.push(mapped);
+            existingIds.add(docId);
+            if (ownerId) existingOwnerIds.add(ownerId);
+          }
+        } catch (_) {}
+      }
+    } catch (fsErr) {
+      console.warn('getHostAgencies firestore fallback error:', fsErr);
+    }
 
     if (agencies.length === 0) return [];
 
@@ -1549,10 +1682,48 @@ export async function getAgencyApplications(statusFilter?: string, typeFilter?: 
         reviewed_at: d.reviewed_at,
       })));
     }
+    // 2. Fetch from Firestore agency_applications for backward compatibility
+    try {
+      const { firestoreDb } = await import('./firebase');
+      const { getDocs, collection } = await import('firebase/firestore');
+      if (firestoreDb) {
+        const fsSnap = await getDocs(collection(firestoreDb, 'agency_applications'));
+        const existingAppIds = new Set(applications.map(a => a.id));
+        for (const docSnap of fsSnap.docs) {
+          const d = docSnap.data();
+          const docId = docSnap.id;
+          if (existingAppIds.has(docId)) continue;
+          if (statusFilter && d.status && d.status !== statusFilter) continue;
+          if (typeFilter && d.agency_type && d.agency_type !== typeFilter) continue;
 
-
-
-    // Fetch user details to enrich with real names and avatars
+          applications.push({
+            id: docId,
+            user_id: d.user_id || '',
+            user_name: d.user_name || d.user_id?.slice(0, 8),
+            custom_id: d.custom_id || '',
+            user_avatar: d.user_avatar || '',
+            agency_type: d.agency_type || 'host',
+            agency_name: d.agency_name || 'وكالة جديدة',
+            agency_logo: d.agency_logo || '',
+            country: d.country || '',
+            whatsapp: d.whatsapp || '',
+            description: d.description || '',
+            doc_type: d.doc_type || '',
+            doc_number: d.doc_number || '',
+            doc_front_url: d.doc_front_url || '',
+            doc_back_url: d.doc_back_url || '',
+            video_url: d.video_url || '',
+            status: d.status || 'pending',
+            rejection_reason: d.rejection_reason || '',
+            created_at: d.created_at || new Date().toISOString(),
+            reviewed_at: d.reviewed_at,
+          });
+          existingAppIds.add(docId);
+        }
+      }
+    } catch (fsAppErr) {
+      console.warn('getAgencyApplications firestore error:', fsAppErr);
+    }
     const userIds = Array.from(new Set(applications.map(a => a.user_id).filter(Boolean)));
     if (userIds.length > 0) {
       const { data: usersData } = await supabase.from('users').select('*');
@@ -4878,5 +5049,286 @@ export async function unpublishAppUpdate(): Promise<string | null> {
   } catch (e) {
     return e instanceof Error ? e.message : String(e)
   }
+}
+
+// ============================================================
+// Recharge Gateways & Requests (مراجعة واعتماد طلبات الشحن وبوابات الدفع)
+// ============================================================
+
+export interface RechargeGatewayConfig {
+  id: string;
+  name: string;
+  name_ar: string;
+  type: 'google_play' | 'vodafone_cash' | 'binance_pay' | 'instapay' | 'custom';
+  enabled: boolean;
+  account_number?: string;
+  account_name?: string;
+  instructions_ar?: string;
+  instructions_en?: string;
+  icon?: string;
+  qr_code_url?: string;
+  min_amount?: number;
+  max_amount?: number;
+}
+
+export async function getRechargeGateways(): Promise<RechargeGatewayConfig[]> {
+  try {
+    const { data } = await supabase.from('app_config').select('value').eq('key', 'recharge_gateways').maybeSingle();
+    if (data && data.value && Array.isArray(data.value)) {
+      return data.value;
+    }
+  } catch (_) {}
+
+  try {
+    const { firestoreDb } = await import('./firebase');
+    const { doc, getDoc } = await import('firebase/firestore');
+    if (firestoreDb) {
+      const snap = await getDoc(doc(firestoreDb, 'app_config', 'recharge_gateways'));
+      if (snap.exists() && snap.data()?.gateways) {
+        return snap.data().gateways;
+      }
+    }
+  } catch (_) {}
+
+  return [
+    {
+      id: 'google_play',
+      name: 'Google Play',
+      name_ar: 'متجر Google Play',
+      type: 'google_play',
+      enabled: false,
+      instructions_ar: 'الشحن المباشر عبر حساب متجر جوجل بلاي الرسمي.',
+    },
+    {
+      id: 'vodafone_cash',
+      name: 'Vodafone Cash',
+      name_ar: 'فودافون كاش',
+      type: 'vodafone_cash',
+      enabled: true,
+      account_number: '01012345678',
+      account_name: 'الإدارة الرسمية',
+      instructions_ar: 'حول المبلغ المطلوب إلى رقم المحفظة، ثم اكتب رقمك ورقم العملية المرجعي لتأكيد الشحن.',
+    },
+    {
+      id: 'binance_pay',
+      name: 'Binance Pay / USDT',
+      name_ar: 'بينانس باي / عملات رقمية',
+      type: 'binance_pay',
+      enabled: true,
+      account_number: '123456789',
+      instructions_ar: 'أرسل المبلغ المطلوب عبر Binance Pay ID أو محفظة USDT TRC-20، واكتب رقم المعاملة TXID.',
+    },
+    {
+      id: 'instapay',
+      name: 'Instapay',
+      name_ar: 'انستاباي / تحويل بنكي',
+      type: 'instapay',
+      enabled: true,
+      account_number: 'example@instapay',
+      account_name: 'شركة أحلى لايف',
+      instructions_ar: 'حول المبلغ المطلوب إلى عنوان انستاباي ثم ادخل الرقم المرجعي للتحويل.',
+    },
+  ];
+}
+
+export async function updateRechargeGateways(gateways: RechargeGatewayConfig[]): Promise<boolean> {
+  try {
+    await supabase.from('app_config').upsert({
+      key: 'recharge_gateways',
+      value: gateways,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn('updateRechargeGateways supabase error:', e);
+  }
+
+  try {
+    const { firestoreDb } = await import('./firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    if (firestoreDb) {
+      await setDoc(doc(firestoreDb, 'app_config', 'recharge_gateways'), {
+        gateways,
+        updated_at: new Date().toISOString(),
+      }, { merge: true });
+    }
+  } catch (e) {
+    console.warn('updateRechargeGateways firestore error:', e);
+  }
+  return true;
+}
+
+export async function getRechargeRequests(statusFilter?: string): Promise<import('../types').RechargeRequestModel[]> {
+  const list: import('../types').RechargeRequestModel[] = [];
+  const seenIds = new Set<string>();
+
+  try {
+    let q = supabase.from('recharge_requests').select('*').order('created_at', { ascending: false });
+    if (statusFilter) q = q.eq('status', statusFilter);
+    const { data } = await q;
+    for (const r of data ?? []) {
+      list.push({
+        id: r.id,
+        userId: r.user_id,
+        userName: r.user_name || r.name || 'مستخدم',
+        userAvatar: r.user_avatar || r.avatar || '',
+        customId: r.custom_id || '',
+        amount: r.amount || 0,
+        price: r.price || 0,
+        currency: r.currency || 'coins',
+        gateway: r.gateway || 'manual',
+        senderPhone: r.sender_phone || r.senderPhone || '',
+        txid: r.txid || r.transaction_id || '',
+        proofUrl: r.proof_url || '',
+        status: r.status || 'pending',
+        rejectionReason: r.rejection_reason || '',
+        createdAt: r.created_at || new Date().toISOString(),
+        reviewedAt: r.reviewed_at,
+        reviewedBy: r.reviewed_by,
+      });
+      seenIds.add(r.id);
+    }
+  } catch (_) {}
+
+  try {
+    const { firestoreDb } = await import('./firebase');
+    const { getDocs, collection } = await import('firebase/firestore');
+    if (firestoreDb) {
+      const snap = await getDocs(collection(firestoreDb, 'recharge_requests'));
+      for (const d of snap.docs) {
+        if (seenIds.has(d.id)) continue;
+        const r = d.data();
+        if (statusFilter && r.status && r.status !== statusFilter) continue;
+        list.push({
+          id: d.id,
+          userId: r.user_id || r.userId || '',
+          userName: r.user_name || r.userName || 'مستخدم',
+          userAvatar: r.user_avatar || r.userAvatar || '',
+          customId: r.custom_id || r.customId || '',
+          amount: r.amount || 0,
+          price: r.price || 0,
+          currency: r.currency || 'coins',
+          gateway: r.gateway || 'manual',
+          senderPhone: r.sender_phone || r.senderPhone || '',
+          txid: r.txid || r.transaction_id || '',
+          proofUrl: r.proof_url || r.proofUrl || '',
+          status: r.status || 'pending',
+          rejectionReason: r.rejection_reason || r.rejectionReason || '',
+          createdAt: r.created_at || r.createdAt || new Date().toISOString(),
+          reviewedAt: r.reviewed_at || r.reviewedAt,
+          reviewedBy: r.reviewed_by || r.reviewedBy,
+        });
+        seenIds.add(d.id);
+      }
+    }
+  } catch (_) {}
+
+  return list;
+}
+
+export async function approveRechargeRequest(req: import('../types').RechargeRequestModel): Promise<boolean> {
+  const adminName = getCurrentAdminName() || 'Admin';
+  const now = new Date().toISOString();
+
+  try {
+    if (req.currency === 'coins') {
+      await supabase.rpc('add_coins_safe', { p_uid: req.userId, p_amount: req.amount });
+    } else {
+      await supabase.rpc('add_diamonds_safe', { p_uid: req.userId, p_amount: req.amount });
+    }
+  } catch (_) {
+    try {
+      const { data: u } = await supabase.from('users').select('coins, diamonds').eq('uid', req.userId).maybeSingle();
+      if (u) {
+        if (req.currency === 'coins') {
+          await supabase.from('users').update({ coins: (u.coins || 0) + req.amount }).eq('uid', req.userId);
+        } else {
+          await supabase.from('users').update({ diamonds: (u.diamonds || 0) + req.amount }).eq('uid', req.userId);
+        }
+      }
+    } catch (_) {}
+  }
+
+  try {
+    const { firestoreDb } = await import('./firebase');
+    const { doc, updateDoc, increment } = await import('firebase/firestore');
+    if (firestoreDb) {
+      if (req.currency === 'coins') {
+        await updateDoc(doc(firestoreDb, 'users', req.userId), { coins: increment(req.amount) });
+      } else {
+        await updateDoc(doc(firestoreDb, 'users', req.userId), { diamonds: increment(req.amount) });
+      }
+    }
+  } catch (_) {}
+
+  try {
+    await supabase.from('recharge_requests').update({
+      status: 'approved',
+      reviewed_at: now,
+      reviewed_by: adminName,
+    }).eq('id', req.id);
+  } catch (_) {}
+
+  try {
+    const { firestoreDb } = await import('./firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    if (firestoreDb) {
+      await setDoc(doc(firestoreDb, 'recharge_requests', req.id), {
+        status: 'approved',
+        reviewed_at: now,
+        reviewed_by: adminName,
+      }, { merge: true });
+    }
+  } catch (_) {}
+
+  try {
+    await sendSystemNotification({
+      targetUid: req.userId,
+      titleAr: 'تم شحن رصيدك بنجاح! 🎉',
+      titleEn: 'Recharge Approved! 🎉',
+      bodyAr: `تمت مراجعة عملية التحويل بنجاح وإضافة ${req.amount.toLocaleString()} ${req.currency === 'coins' ? 'عملة ذهبية' : 'ماسة'} إلى محفظتك!`,
+      bodyEn: `Your recharge of ${req.amount.toLocaleString()} ${req.currency} was approved and added to your balance!`,
+    });
+  } catch (_) {}
+
+  return true;
+}
+
+export async function rejectRechargeRequest(req: import('../types').RechargeRequestModel, reason: string): Promise<boolean> {
+  const adminName = getCurrentAdminName() || 'Admin';
+  const now = new Date().toISOString();
+
+  try {
+    await supabase.from('recharge_requests').update({
+      status: 'rejected',
+      rejection_reason: reason,
+      reviewed_at: now,
+      reviewed_by: adminName,
+    }).eq('id', req.id);
+  } catch (_) {}
+
+  try {
+    const { firestoreDb } = await import('./firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    if (firestoreDb) {
+      await setDoc(doc(firestoreDb, 'recharge_requests', req.id), {
+        status: 'rejected',
+        rejection_reason: reason,
+        reviewed_at: now,
+        reviewed_by: adminName,
+      }, { merge: true });
+    }
+  } catch (_) {}
+
+  try {
+    await sendSystemNotification({
+      targetUid: req.userId,
+      titleAr: 'تم رفض طلب الشحن',
+      titleEn: 'Recharge Request Rejected',
+      bodyAr: `نأسف، تم رفض طلب الشحن الخاص بك بمبلغ $${req.price}. السبب: ${reason || 'بيانات التحويل غير متطابقة'}`,
+      bodyEn: `Sorry, your recharge request for $${req.price} was rejected. Reason: ${reason || 'Invalid transaction details'}`,
+    });
+  } catch (_) {}
+
+  return true;
 }
 

@@ -8,6 +8,9 @@ import '../../services/api_service.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
+import '../../models/user_model.dart';
 import '../../core/supabase_compat.dart';
 import '../../features/events/screens/recharge_event_screen.dart';
 
@@ -388,31 +391,42 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     if (user == null) return;
     final amount = (plan['amount'] as int?) ?? 0;
     final price = plan['price']?.toString() ?? '1.0';
-    final currency = isCoins ? 'coins' : 'diamonds';
+    final currency = isCoins ? 'عملات' : 'ألماس';
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E1D2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(isAr ? 'شحن عبر Google Play' : 'Google Play Billing', style: const TextStyle(color: Colors.white)),
         content: Text(
-          isAr ? 'هل تريد شحن $amount $currency مقابل \$$price عبر Google Play؟' : 'Purchase $amount $currency for \$$price via Google Play?',
-          style: const TextStyle(color: Colors.white70),
+          isAr
+              ? 'هل ترغب في إرسال طلب الشحن لحزمة $amount $currency مقابل \$$price؟\nسيتم التحقق من إشعار الدفع واعتماد الشحن بحسابك.'
+              : 'Submit recharge order for $amount $currency for \$$price via Google Play? Payment will be verified by the admin.',
+          style: const TextStyle(color: Colors.white70, height: 1.4),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDE880F)),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isAr ? 'موافق والدفع' : 'Pay Now', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(isAr ? 'تأكيد الطلب' : 'Submit Order', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
-      await _creditRecharge(user.uid, amount, isCoins);
+      await _submitRechargeRequest(
+        user: user,
+        amount: amount,
+        price: price,
+        isCoins: isCoins,
+        gateway: 'google_play',
+        gatewayName: 'Google Play',
+        referenceNumber: 'GP_${DateTime.now().millisecondsSinceEpoch}',
+      );
     }
   }
 
@@ -520,7 +534,15 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               Navigator.pop(ctx);
               final user = context.read<UserProvider>().currentUser;
               if (user != null) {
-                await _creditRecharge(user.uid, amount, isCoins);
+                await _submitRechargeRequest(
+                  user: user,
+                  amount: amount,
+                  price: price,
+                  isCoins: isCoins,
+                  gateway: 'vodafone_cash',
+                  gatewayName: 'Vodafone Cash',
+                  referenceNumber: ref,
+                );
               }
             },
             child: Text(isAr ? 'تأكيد التحويل' : 'Confirm', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -662,7 +684,15 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               Navigator.pop(ctx);
               final user = context.read<UserProvider>().currentUser;
               if (user != null) {
-                await _creditRecharge(user.uid, amount, isCoins);
+                await _submitRechargeRequest(
+                  user: user,
+                  amount: amount,
+                  price: price,
+                  isCoins: isCoins,
+                  gateway: 'binance_pay',
+                  gatewayName: 'Binance Pay / USDT',
+                  referenceNumber: tx,
+                );
               }
             },
             child: Text(isAr ? 'تأكيد الدفع' : 'Confirm', style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
@@ -672,35 +702,85 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     );
   }
 
-  Future<void> _creditRecharge(String uid, int amount, bool isCoins) async {
+  Future<void> _submitRechargeRequest({
+    required UserModel user,
+    required int amount,
+    required String price,
+    required bool isCoins,
+    required String gateway,
+    required String gatewayName,
+    required String referenceNumber,
+  }) async {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final requestId = const Uuid().v4();
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    final reqMap = {
+      'id': requestId,
+      'user_id': user.uid,
+      'user_name': user.name,
+      'custom_id': user.customId,
+      'user_avatar': user.photoUrl,
+      'gateway': gateway,
+      'gateway_name': gatewayName,
+      'amount': amount,
+      'price': double.tryParse(price) ?? 1.0,
+      'currency': isCoins ? 'coins' : 'diamonds',
+      'reference_number': referenceNumber,
+      'status': 'pending',
+      'created_at': now,
+    };
+
     try {
-      if (isCoins) {
-        await SupabaseService().addCoins(uid, amount);
-      } else {
-        final currentDiamonds = context.read<UserProvider>().currentUser?.diamonds ?? 0;
-        await Supabase.instance.client.from('users').update({
-          'diamonds': currentDiamonds + amount,
-        }).eq('uid', uid);
-      }
-      if (!mounted) return;
-      await context.read<UserProvider>().loadUser(uid);
-      if (mounted) {
-        final isAr = Localizations.localeOf(context).languageCode == 'ar';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isAr ? 'تم شحن +$amount بنجاح!' : '+$amount added successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      // 1. Insert into Supabase recharge_requests
+      await Supabase.instance.client.from('recharge_requests').insert(reqMap);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
-        );
-      }
+      debugPrint('[Wallet] Supabase recharge_requests error: $e');
     }
+
+    try {
+      // 2. Insert into Firestore recharge_requests
+      await FirebaseFirestore.instance.collection('recharge_requests').doc(requestId).set(reqMap);
+    } catch (e) {
+      debugPrint('[Wallet] Firestore recharge_requests error: $e');
+    }
+
+    if (!mounted) return;
+
+    // Show luxury review dialog
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1D2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.hourglass_top_rounded, color: Color(0xFFDE880F)),
+            const SizedBox(width: 8),
+            Text(
+              isAr ? 'طلبك قيد المراجعة' : 'Request Pending',
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          isAr
+              ? 'تم استلام طلب شحن $amount ${isCoins ? "عملة" : "ألماسة"} بنجاح!\nيقوم فريق الإدارة حالياً بالتحقق من عملية الدفع وسيتم إضافة الرصيد لحسابك فور الاعتماد.'
+              : 'Your recharge request for $amount ${isCoins ? "coins" : "diamonds"} has been submitted!\nOur team is reviewing the payment and coins will be added upon approval.',
+          style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDE880F)),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isAr ? 'تم، حسناً' : 'OK', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
+
+
 
   int _exchangeDiamondAmount = 0;
   bool _exchanging = false;

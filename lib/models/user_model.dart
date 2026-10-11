@@ -42,6 +42,14 @@ class UserModel {
   final String? phone;
   final bool banned;
   final String banReason;
+  final DateTime? bannedUntil;
+  final int banDurationDays;
+  final DateTime? bannedAt;
+  final String? deviceId;
+  final String? deviceModel;
+  final String? macAddress;
+  final String? networkId;
+  final String? ipAddress;
   final List<String> ownedLevelFrames;
   final List<String> ownedLevelBadges;
   final List<String> ownedNecklaces;
@@ -108,6 +116,14 @@ class UserModel {
     this.gemsExp = 0,
     this.banned = false,
     this.banReason = '',
+    this.bannedUntil,
+    this.banDurationDays = 0,
+    this.bannedAt,
+    this.deviceId,
+    this.deviceModel,
+    this.macAddress,
+    this.networkId,
+    this.ipAddress,
     this.ownedLevelFrames = const [],
     this.ownedLevelBadges = const [],
     this.ownedNecklaces = const [],
@@ -169,6 +185,14 @@ class UserModel {
     int? gemsExp,
     bool? banned,
     String? banReason,
+    DateTime? bannedUntil,
+    int? banDurationDays,
+    DateTime? bannedAt,
+    String? deviceId,
+    String? deviceModel,
+    String? macAddress,
+    String? networkId,
+    String? ipAddress,
     List<String>? ownedLevelFrames,
     List<String>? ownedLevelBadges,
     List<String>? ownedNecklaces,
@@ -226,6 +250,14 @@ class UserModel {
       gemsExp: gemsExp ?? this.gemsExp,
       banned: banned ?? this.banned,
       banReason: banReason ?? this.banReason,
+      bannedUntil: bannedUntil ?? this.bannedUntil,
+      banDurationDays: banDurationDays ?? this.banDurationDays,
+      bannedAt: bannedAt ?? this.bannedAt,
+      deviceId: deviceId ?? this.deviceId,
+      deviceModel: deviceModel ?? this.deviceModel,
+      macAddress: macAddress ?? this.macAddress,
+      networkId: networkId ?? this.networkId,
+      ipAddress: ipAddress ?? this.ipAddress,
       ownedLevelFrames: ownedLevelFrames ?? this.ownedLevelFrames,
       ownedLevelBadges: ownedLevelBadges ?? this.ownedLevelBadges,
       ownedNecklaces: ownedNecklaces ?? this.ownedNecklaces,
@@ -449,7 +481,19 @@ class UserModel {
       gemsLevel: (map['gems_level'] ?? map['gemsLevel'] ?? 1).toInt(),
       gemsExp: (map['gems_exp'] ?? map['gemsExp'] ?? 0).toInt(),
       banned: map['banned'] == true,
-      banReason: map['ban_reason']?.toString() ?? '',
+      banReason: map['ban_reason']?.toString() ?? map['banReason']?.toString() ?? '',
+      bannedUntil: map['banned_until'] != null
+          ? DateTime.tryParse(map['banned_until'].toString())
+          : (map['bannedUntil'] != null ? DateTime.tryParse(map['bannedUntil'].toString()) : null),
+      banDurationDays: (map['ban_duration_days'] ?? map['banDurationDays'] ?? 0).toInt(),
+      bannedAt: map['banned_at'] != null
+          ? DateTime.tryParse(map['banned_at'].toString())
+          : (map['bannedAt'] != null ? DateTime.tryParse(map['bannedAt'].toString()) : null),
+      deviceId: map['device_id']?.toString() ?? map['deviceId']?.toString(),
+      deviceModel: map['device_model']?.toString() ?? map['deviceModel']?.toString(),
+      macAddress: map['mac_address']?.toString() ?? map['macAddress']?.toString(),
+      networkId: map['network_id']?.toString() ?? map['networkId']?.toString(),
+      ipAddress: map['ip_address']?.toString() ?? map['ipAddress']?.toString(),
       ownedLevelFrames: _extractStringList(map['owned_level_frames'], map['ownedLevelFrames']),
       ownedLevelBadges: _extractStringList(map['owned_level_badges'], map['ownedLevelBadges']),
       ownedNecklaces: _extractStringList(map['owned_necklaces'], map['ownedNecklaces']),
@@ -523,6 +567,14 @@ class UserModel {
         'gems_exp': gemsExp,
         'banned': banned,
         'ban_reason': banReason,
+        'banned_until': bannedUntil?.toIso8601String(),
+        'ban_duration_days': banDurationDays,
+        'banned_at': bannedAt?.toIso8601String(),
+        'device_id': deviceId,
+        'device_model': deviceModel,
+        'mac_address': macAddress,
+        'network_id': networkId,
+        'ip_address': ipAddress,
         'owned_level_frames': ownedLevelFrames,
         'owned_level_badges': ownedLevelBadges,
         'owned_necklaces': ownedNecklaces,
@@ -591,6 +643,14 @@ class UserModel {
         'whatsapp_number': whatsappNumber,
         'banned': banned,
         'ban_reason': banReason,
+        'banned_until': bannedUntil?.toIso8601String(),
+        'ban_duration_days': banDurationDays,
+        'banned_at': bannedAt?.toIso8601String(),
+        'device_id': deviceId,
+        'device_model': deviceModel,
+        'mac_address': macAddress,
+        'network_id': networkId,
+        'ip_address': ipAddress,
         'is_bd': isBd,
         'bd_supervisor_id': bdSupervisorId,
         'bd_salary': bdSalary,

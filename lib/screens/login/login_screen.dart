@@ -7,8 +7,11 @@ import '../../models/user_model.dart';
 import '../../config/r.dart';
 import '../main_screen/main_screen.dart';
 import 'setup_profile_screen.dart';
+import 'banned_screen.dart';
 import 'widgets/phone_login_sheet.dart';
 import '../../services/supabase_auth_service.dart';
+import '../../services/supabase_service.dart';
+import '../../services/device_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,7 +25,39 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleSignIn(AppAuthUser user) async {
     try {
-      // 1. Save local persistent session
+      // 1. Check ban status if existing user
+      if (!user.isNewUser) {
+        final userData = await SupabaseService().getUser(user.uid);
+        if (userData != null && userData.banned) {
+          // Check if ban duration has expired
+          if (userData.bannedUntil != null && DateTime.now().isAfter(userData.bannedUntil!)) {
+            // Unban automatically
+            try {
+              await SupabaseService().updateUser(user.uid, {
+                'banned': false,
+                'ban_reason': '',
+              });
+            } catch (_) {}
+          } else {
+            // Still banned
+            if (mounted) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => BannedScreen(
+                    reason: userData.banReason,
+                    bannedUntil: userData.bannedUntil,
+                  ),
+                ),
+                (route) => false,
+              );
+            }
+            return;
+          }
+        }
+      }
+
+      // 2. Save local persistent session
       await SupabaseAuthService().saveSession(
         uid: user.uid,
         email: user.email,
@@ -30,6 +65,12 @@ class _LoginScreenState extends State<LoginScreen> {
         photoUrl: user.photoUrl,
         phone: user.phoneNumber,
       );
+
+      // 3. Update device info on user profile
+      try {
+        final deviceInfo = await DeviceService().getDeviceInfo();
+        await SupabaseService().updateUser(user.uid, deviceInfo.toMap());
+      } catch (_) {}
 
       if (user.isNewUser) {
         // NEW USER: Go to SetupProfileScreen so the user can enter their name, picture, gender and get a custom ID
@@ -129,6 +170,44 @@ class _LoginScreenState extends State<LoginScreen> {
         isNewUser = false;
         developer.log('[GoogleAuth] Existing user: ${existingUser.name}, uid: $uid, customId: ${existingUser.customId}');
       } else {
+        // Enforce maximum 2 accounts per phone before registering new user
+        final deviceInfo = await DeviceService().getDeviceInfo();
+        final canRegister = await DeviceService().canRegisterAccount(
+          deviceId: deviceInfo.deviceId,
+          currentEmail: account.email,
+        );
+
+        if (!canRegister) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: const Color(0xFF1E1D2A),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
+                    SizedBox(width: 8),
+                    Text('تنبيه الحد الأقصى', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                content: const Text(
+                  'عفواً، لا يمكن تسجيل أكثر من حسابين من نفس الهاتف.\nيرجى تسجيل الدخول بأحد الحسابات المسجلة مسبقاً على هذا الجهاز.',
+                  style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+                ),
+                actions: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDE880F)),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('حسناً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+          return;
+        }
+
         // Brand new user! Authenticate with Supabase Auth
         final authData = await SupabaseAuthService().signInWithGoogleIdToken(idToken: idToken);
         uid = (authData?['user']?['id'] as String?) ?? 'google_${account.id}';

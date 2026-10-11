@@ -37,11 +37,39 @@ export interface UserModel {
   lastIp: string;
   banned: boolean;
   banReason: string;
+  banDurationDays?: number;
+  bannedAt?: string;
+  bannedUntil?: string | null;
+  deviceId?: string;
+  deviceModel?: string;
+  macAddress?: string;
+  networkId?: string;
+  ipAddress?: string;
   originalCustomId?: string;
   isBd?: boolean;
   bdSupervisorId?: string | null;
   bdSalary?: number;
   bdCommissionRate?: number;
+}
+
+export interface RechargeRequestModel {
+  id: string;
+  userId: string;
+  userName?: string;
+  userAvatar?: string;
+  customId?: string;
+  amount: number;
+  price: number;
+  currency: string;
+  gateway: string;
+  senderPhone?: string;
+  txid?: string;
+  proofUrl?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  createdAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
 }
 
 export interface GiftedItemModel {

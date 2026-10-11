@@ -5,12 +5,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../services/supabase_service.dart';
-import '../../services/api_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/supabase_auth_service.dart';
 import '../../providers/user_provider.dart';
 import '../../models/user_model.dart';
 import '../../core/utils/id_generator.dart';
+import '../../services/device_service.dart';
 import '../main_screen/main_screen.dart';
 
 class SetupProfileScreen extends StatefulWidget {
@@ -86,6 +86,8 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
         );
       }
 
+      final deviceInfo = await DeviceService().getDeviceInfo();
+
       // Create user with custom numeric ID
       final user = UserModel(
         uid: widget.uid,
@@ -96,6 +98,11 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
         gender: _selectedGender,
         coins: 10000,
         phone: widget.phone,
+        deviceId: deviceInfo.deviceId,
+        deviceModel: deviceInfo.deviceModel,
+        macAddress: deviceInfo.macAddress,
+        networkId: deviceInfo.networkId,
+        ipAddress: deviceInfo.ipAddress,
         ownedItems: [],
       );
 
@@ -113,6 +120,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
           coins: 10000,
           phone: widget.phone,
         );
+        await SupabaseService().updateUser(widget.uid, deviceInfo.toMap());
       } catch (_) {}
 
       try {

@@ -12,6 +12,7 @@ import '../../providers/user_provider.dart';
 import '../../widgets/app_update_dialog.dart';
 import '../../utils/app_action_navigator.dart';
 import '../room/widgets/svga_frame.dart';
+import '../login/banned_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, required this.onNavigate});
@@ -25,6 +26,7 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   bool _isBanned = false;
   String _banReason = 'تم حظر حسابك من قبل الإدارة لمخالفة الشروط والأحكام.';
+  DateTime? _bannedUntil;
 
   bool _showingAd = false;
   int _adCountdown = 3;
@@ -52,11 +54,23 @@ class _SplashScreenState extends State<SplashScreen> {
       try {
         final userData = await SupabaseService().getUser(uid);
         if (userData != null && userData.banned) {
-          setState(() {
-            _isBanned = true;
-            _banReason = userData.banReason.isNotEmpty ? userData.banReason : _banReason;
-          });
-          return; // Stop here, don't navigate to app
+          // Check if ban duration has passed
+          if (userData.bannedUntil != null && DateTime.now().isAfter(userData.bannedUntil!)) {
+            // Automatically unban
+            try {
+              await SupabaseService().updateUser(uid, {
+                'banned': false,
+                'ban_reason': '',
+              });
+            } catch (_) {}
+          } else {
+            setState(() {
+              _isBanned = true;
+              _banReason = userData.banReason.isNotEmpty ? userData.banReason : _banReason;
+              _bannedUntil = userData.bannedUntil;
+            });
+            return; // Stop here, don't navigate to app
+          }
         }
       } catch (e) {
         debugPrint('Error checking user ban status: $e');
@@ -128,61 +142,9 @@ class _SplashScreenState extends State<SplashScreen> {
     final config = DynamicConfigService();
 
     if (_isBanned) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0C101D),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.gavel_rounded,
-                    size: 80,
-                    color: Color(0xFFEF4444),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'تنبيه الحظر الشامل',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
-                    ),
-                    child: Text(
-                      _banReason,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF9BA1B6),
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'إذا كنت تعتقد أن هذا خطأ، يرجى التواصل مع الإدارة الدعم الفني.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+      return BannedScreen(
+        reason: _banReason,
+        bannedUntil: _bannedUntil,
       );
     }
 

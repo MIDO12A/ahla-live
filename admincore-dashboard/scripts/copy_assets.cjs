@@ -27,3 +27,5 @@ function copyFolderSync(from, to) {
 console.log('Copying Flutter assets to dashboard public/assets...');
 copyFolderSync(srcDir, destDir);
 console.log('Assets copied successfully!');
+
+
