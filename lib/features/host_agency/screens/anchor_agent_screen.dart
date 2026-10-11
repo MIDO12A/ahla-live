@@ -9,8 +9,9 @@ import '../../../../config/r.dart';
 import '../../../../models/user_model.dart';
 import '../../../../providers/user_provider.dart';
 import '../../../../services/supabase_service.dart';
-import '../../../../services/supabase_data_service.dart';
+import 'package:flutter/services.dart';
 import '../data/agency_models.dart';
+import '../data/agency_repository.dart';
 import '../data/anchor_agent_model.dart';
 import '../data/agency_chat_repository.dart';
 import 'agency_exit_screen.dart';
@@ -34,6 +35,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   List<AnchorAgentUserInfoDataModel> _anchors = [];
   bool _loading = true;
   bool _isAgencyOwner = false;
+  AnchorAgentUserInfoDataModel? _myAnchor;
   String? _error;
   StreamSubscription? _membersSub;
   StreamSubscription? _agencySub;
@@ -107,7 +109,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               .toList() ??
           [];
 
-      // فحص ما إذا كان المستخدم الحالي هو مالك الوكالة (الوكيل)
+      // فحص دقيق: المستخدم هو مالك الوكالة فقط إذا كان صاحب الوكالة الفعلي
       bool isOwner = false;
       final ownerUid = infoData?['owner_uid']?.toString() ?? infoData?['owner_id']?.toString() ?? '';
       if (ownerUid.isNotEmpty && ownerUid == uid) {
@@ -116,13 +118,19 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       if (!isOwner) {
         isOwner = loadedAnchors.any((a) => a.uid == uid && a.role == 'owner');
       }
-      if (!isOwner && user?.isHostAgent == true) {
-        isOwner = true;
+
+      // البحث عن سجل المضيف الحالي إن وجد
+      AnchorAgentUserInfoDataModel? currentHostRecord;
+      try {
+        currentHostRecord = loadedAnchors.firstWhere((a) => a.uid == uid);
+      } catch (_) {
+        currentHostRecord = null;
       }
 
       if (mounted) {
         setState(() {
           _isAgencyOwner = isOwner;
+          _myAnchor = currentHostRecord;
           _agentInfo = infoModel ??
               AgentInfoModel(
                 userId: int.tryParse(user?.customId ?? '0') ?? 0,
@@ -185,10 +193,13 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             _buildMembersList(isAr)
           else if (_currentTab == 1)
             _buildIncomeTab(info, isAr)
+          else if (_isAgencyOwner)
+            _buildInviteHostsTab(isAr)
           else
-            _buildInviteHostsTab(isAr),
+            _buildIncomeTab(info, isAr),
 
-          _buildRemoveHostCard(isAr),
+          if (_isAgencyOwner)
+            _buildRemoveHostCard(isAr),
 
           const SliverToBoxAdapter(
             child: SizedBox(height: 60),
@@ -514,39 +525,40 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                     ),
 
-                    // Invite Host Badge: union_sub_agent_invite_bg
-                    Positioned(
-                      bottom: -10,
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() => _currentTab = 2);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            image: const DecorationImage(
-                              image: AssetImage(R.unionSubAgentInviteBg),
-                              fit: BoxFit.fill,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Image.asset(R.unionSubAgentInviteIc, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                              const SizedBox(width: 4),
-                              Text(
-                                isAr ? 'دعوة مضيف' : 'Invite Host',
-                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    // Invite Host Badge: union_sub_agent_invite_bg (For Owner only)
+                    if (_isAgencyOwner)
+                      Positioned(
+                        bottom: -10,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() => _currentTab = 2);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              image: const DecorationImage(
+                                image: AssetImage(R.unionSubAgentInviteBg),
+                                fit: BoxFit.fill,
                               ),
-                            ],
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Image.asset(R.unionSubAgentInviteIc, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isAr ? 'دعوة مضيف' : 'Invite Host',
+                                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -649,31 +661,37 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       ),
                     ),
                     Container(width: 0.5, height: 28, color: Colors.white24),
-                    // Commission %
+                    // Commission % for Owner / My Diamonds for Host
                     Expanded(
                       child: Column(
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.percent, size: 14, color: Color(0xFFFFD700)),
+                              _isAgencyOwner
+                                  ? const Icon(Icons.percent, size: 14, color: Color(0xFFFFD700))
+                                  : Image.asset(R.commonDiamondIc, width: 14, height: 14, errorBuilder: (_, __, ___) => const Icon(Icons.diamond, size: 14, color: Color(0xFFFFD700))),
                               const SizedBox(width: 4),
                               Text(
-                                isAr ? 'العمولة' : 'Comm.',
+                                _isAgencyOwner
+                                    ? (isAr ? 'العمولة' : 'Comm.')
+                                    : (isAr ? 'ألماسي' : 'Diamonds'),
                                 style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 11),
                               ),
                             ],
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${((info?.commissionRate ?? 0.10) * 100).toInt()}%',
-                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold),
+                            _isAgencyOwner
+                                ? '${((info?.commissionRate ?? 0.10) * 100).toInt()}%'
+                                : '${_myAnchor?.diamonds ?? user?.diamonds ?? 0} 💎',
+                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                     ),
                     Container(width: 0.5, height: 28, color: Colors.white24),
-                    // Tier
+                    // Tier / Stage
                     Expanded(
                       child: Column(
                         children: [
@@ -683,22 +701,24 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               const Icon(Icons.shield, size: 14, color: Color(0xFFFFD700)),
                               const SizedBox(width: 4),
                               Text(
-                                isAr ? 'المستوى' : 'Tier',
+                                _isAgencyOwner ? (isAr ? 'المستوى' : 'Tier') : (isAr ? 'مرحلتي' : 'My Stage'),
                                 style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 11),
                               ),
                             ],
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            info?.tier == 'gold'
-                                ? 'ذهبي'
-                                : info?.tier == 'silver'
-                                    ? 'فضي'
-                                    : info?.tier == 'diamond'
-                                        ? 'ألماسي'
-                                        : info?.tier == 'platinum'
-                                            ? 'بلاتيني'
-                                            : 'برونزي',
+                            _isAgencyOwner
+                                ? (info?.tier == 'gold'
+                                    ? 'ذهبي'
+                                    : info?.tier == 'silver'
+                                        ? 'فضي'
+                                        : info?.tier == 'diamond'
+                                            ? 'ألماسي'
+                                            : info?.tier == 'platinum'
+                                                ? 'بلاتيني'
+                                                : 'برونزي')
+                                : _getAnchorStage(_myAnchor?.diamonds ?? user?.diamonds?.toString() ?? '0', isAr),
                             style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 13, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -838,8 +858,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       child: Row(
         children: [
           _buildTabButton(0, isAr ? 'أعضاء الوكالة' : 'Members'),
-          _buildTabButton(1, isAr ? 'دخل الوكالة' : 'Income'),
-          _buildTabButton(2, isAr ? 'دعوات المضيفين' : 'Host Invites'),
+          _buildTabButton(
+            1,
+            _isAgencyOwner
+                ? (isAr ? 'دخل الوكالة' : 'Income')
+                : (isAr ? 'مستوى دخلي ومراحلي' : 'My Income & Stages'),
+          ),
+          if (_isAgencyOwner)
+            _buildTabButton(2, isAr ? 'دعوات المضيفين' : 'Host Invites'),
         ],
       ),
     );
@@ -1028,8 +1054,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     ],
                   ),
                 ),
-                // Direct Kick Button
-                if (anchor.role != 'owner') ...[
+                // Direct Kick Button & Management Menu (For Owner Only)
+                if (_isAgencyOwner && anchor.role != 'owner') ...[
                   ElevatedButton.icon(
                     onPressed: () => _handleKickMember(anchor, isAr),
                     icon: const Icon(Icons.person_remove_rounded, size: 13, color: Colors.white),
@@ -1047,37 +1073,37 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     ),
                   ),
                   const SizedBox(width: 4),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
+                    color: const Color(0xFF2C2C34),
+                    onSelected: (action) => _handleMemberAction(anchor, action, isAr),
+                    itemBuilder: (ctx) => [
+                      PopupMenuItem(
+                        value: 'role',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.security, color: Colors.amber, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              anchor.role == 'supervisor' ? (isAr ? 'تنزيل إلى مضيف' : 'Demote to Host') : (isAr ? 'ترقية إلى مشرف' : 'Promote to Admin'),
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'remove',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.person_remove, color: Colors.redAccent, size: 18),
+                            const SizedBox(width: 8),
+                            Text(isAr ? 'طرد من الوكالة' : 'Kick Member', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
-                  color: const Color(0xFF2C2C34),
-                  onSelected: (action) => _handleMemberAction(anchor, action, isAr),
-                  itemBuilder: (ctx) => [
-                    PopupMenuItem(
-                      value: 'role',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.security, color: Colors.amber, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            anchor.role == 'supervisor' ? (isAr ? 'تنزيل إلى مضيف' : 'Demote to Host') : (isAr ? 'ترقية إلى مشرف' : 'Promote to Admin'),
-                            style: const TextStyle(color: Colors.white, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'remove',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person_remove, color: Colors.redAccent, size: 18),
-                          const SizedBox(width: 8),
-                          Text(isAr ? 'طرد من الوكالة' : 'Kick Member', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           );
@@ -1208,47 +1234,56 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     return isAr ? 'المرحلة 1' : 'Stage 1';
   }
 
-  /// Tab 2: Income & Targets matching union_adapter_agency_detail_item.xml
+  /// Tab 2: Income & Targets (دخل الوكالة للمالك / مستوى دخلي والمراحل للمضيف)
   Widget _buildIncomeTab(AgentInfoModel? info, bool isAr) {
     int totalAnchorsDiamonds = 0;
     for (final a in _anchors) {
       totalAnchorsDiamonds += int.tryParse(a.diamonds) ?? int.tryParse(a.totalDiamond) ?? 0;
     }
     final rawTransfer = info?.transferMoney ?? 0;
-    final transferMoney = rawTransfer > 0 ? rawTransfer : totalAnchorsDiamonds;
-    final dollar = info?.transferDollar != 0 ? info!.transferDollar : (transferMoney / 1000).toInt();
+    final totalAgencyDiamonds = rawTransfer > 0 ? rawTransfer : totalAnchorsDiamonds;
+    final agencyDollar = info?.transferDollar != 0 ? info!.transferDollar : (totalAgencyDiamonds / 1000).toInt();
     final commRatePct = ((info?.commissionRate ?? 0.10) * 100).toInt();
 
+    // حساب أرقام المضيف الشخصية إذا لم يكن مالكاً
+    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+    final hostDiamonds = int.tryParse(_myAnchor?.diamonds ?? '') ?? (user?.diamonds ?? 0);
+    final hostHours = ((_myAnchor?.minute ?? 0.0) / 60.0);
+    final effectiveDiamonds = _isAgencyOwner ? totalAgencyDiamonds : hostDiamonds;
+    final hostDollar = (hostDiamonds / 1000).toStringAsFixed(1);
+
     int stageTarget = 100000;
-    if (transferMoney >= 5000000) {
+    if (effectiveDiamonds >= 5000000) {
       stageTarget = 10000000;
-    } else if (transferMoney >= 2000000) {
+    } else if (effectiveDiamonds >= 2000000) {
       stageTarget = 5000000;
-    } else if (transferMoney >= 1000000) {
+    } else if (effectiveDiamonds >= 1000000) {
       stageTarget = 2000000;
-    } else if (transferMoney >= 500000) {
+    } else if (effectiveDiamonds >= 500000) {
       stageTarget = 1000000;
-    } else if (transferMoney >= 300000) {
+    } else if (effectiveDiamonds >= 300000) {
       stageTarget = 500000;
-    } else if (transferMoney >= 100000) {
+    } else if (effectiveDiamonds >= 100000) {
       stageTarget = 300000;
     } else {
       stageTarget = 100000;
     }
-    final targetDiamonds = (info?.targetDiamonds != null && info!.targetDiamonds > 0 && info.targetDiamonds != 1000000)
-        ? info.targetDiamonds
-        : stageTarget;
-    final progress = targetDiamonds > 0 ? (transferMoney / targetDiamonds).clamp(0.0, 1.0) : 0.0;
+
+    final targetDiamonds = _isAgencyOwner
+        ? ((info?.targetDiamonds != null && info!.targetDiamonds > 0 && info.targetDiamonds != 1000000) ? info.targetDiamonds : stageTarget)
+        : (_myAnchor != null && _myAnchor!.targetDiamonds > 0 ? _myAnchor!.targetDiamonds : stageTarget);
+
+    final progress = targetDiamonds > 0 ? (effectiveDiamonds / targetDiamonds).clamp(0.0, 1.0) : 0.0;
     final percent = (progress * 100).toStringAsFixed(1);
     final salaryUsd = info?.salaryUsd ?? 0.0;
-    final currentStageLabel = _getAnchorStage(transferMoney.toString(), isAr);
+    final currentStageLabel = _getAnchorStage(effectiveDiamonds.toString(), isAr);
 
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // ── Agency Total Income Card ──
+            // ── Primary Earnings Card (دخل الوكالة للمالك / رصيدي ودخلي للمضيف) ──
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -1266,7 +1301,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        isAr ? 'أرباح وعمولة الوكالة' : 'Agency Earnings',
+                        _isAgencyOwner
+                            ? (isAr ? 'أرباح وعمولة الوكالة' : 'Agency Earnings')
+                            : (isAr ? 'مستوى دخلي وأرباحي' : 'My Host Earnings'),
                         style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
                       ),
                       Container(
@@ -1277,7 +1314,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           border: Border.all(color: const Color(0x55FFD700)),
                         ),
                         child: Text(
-                          '$commRatePct% ${isAr ? 'عمولة الوكيل' : 'Commission'}',
+                          _isAgencyOwner
+                              ? '$commRatePct% ${isAr ? 'عمولة الوكيل' : 'Commission'}'
+                              : '${hostHours.toStringAsFixed(1)} ${isAr ? 'ساعات البث' : 'Live hrs'}',
                           style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -1285,7 +1324,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    '\$$dollar USD',
+                    _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostDollar USD',
                     style: const TextStyle(
                       color: Color(0xFFFFD700),
                       fontSize: 30,
@@ -1294,13 +1333,88 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '$transferMoney ${isAr ? 'ماسة محققة هذا الشهر' : 'Diamonds monthly'}',
+                    _isAgencyOwner
+                        ? '$totalAgencyDiamonds ${isAr ? 'ماسة محققة هذا الشهر' : 'Diamonds monthly'}'
+                        : '$hostDiamonds ${isAr ? 'ماسة متاحة في رصيدك' : 'Diamonds in your balance'}',
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
+
+            // ── زر تحويل الراتب إلى وكيل الشحن للمضيف ⚡ ──
+            if (!_isAgencyOwner) ...[
+              GestureDetector(
+                onTap: () => _openTransferSalaryToAgentModal(hostDiamonds, isAr),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF005C8A), Color(0xFF003853)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF00D4FF), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00D4FF).withOpacity(0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00D4FF).withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.send_rounded, color: Color(0xFF00D4FF), size: 24),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isAr ? 'تحويل الراتب إلى وكيل الشحن ⚡' : 'Transfer Salary to Recharge Agent ⚡',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              isAr
+                                  ? 'ابحث عن وكيل الشحن وحوّل راتب المرحلة إلى كوينز فوراً'
+                                  : 'Search recharge agent & transfer stage salary to coins instantly',
+                              style: const TextStyle(color: Colors.white70, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00D4FF),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          isAr ? 'تحويل' : 'Transfer',
+                          style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // ── Target Progress Card ──
             Container(
@@ -1321,7 +1435,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           const Icon(Icons.track_changes, size: 18, color: Color(0xFFFFD700)),
                           const SizedBox(width: 6),
                           Text(
-                            isAr ? 'الهدف الشهري للوكالة' : 'Monthly Target',
+                            _isAgencyOwner
+                                ? (isAr ? 'الهدف الشهري للوكالة' : 'Monthly Target')
+                                : (isAr ? 'مستوى تقدمي في المرحلة والتارجت' : 'My Stage & Target Progress'),
                             style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -1354,7 +1470,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '$transferMoney / $targetDiamonds 💎',
+                        '$effectiveDiamonds / $targetDiamonds 💎',
                         style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold),
                       ),
                       Text(
@@ -2207,13 +2323,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       isAr ? 'إعلان الوكالة' : 'Agency Notice',
                       style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                     ),
-                    IconButton(
-                      icon: Icon(editing ? Icons.close : Icons.edit, color: const Color(0xFFFFD700), size: 20),
-                      tooltip: isAr ? 'تعديل الإعلان' : 'Edit Notice',
-                      onPressed: () {
-                        setDialogState(() => editing = !editing);
-                      },
-                    ),
+                    if (_isAgencyOwner)
+                      IconButton(
+                        icon: Icon(editing ? Icons.close : Icons.edit, color: const Color(0xFFFFD700), size: 20),
+                        tooltip: isAr ? 'تعديل الإعلان' : 'Edit Notice',
+                        onPressed: () {
+                          setDialogState(() => editing = !editing);
+                        },
+                      ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -2316,6 +2433,23 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// نافذة تحويل الراتب إلى وكيل الشحن للمضيف
+  void _openTransferSalaryToAgentModal(int availableDiamonds, bool isAr) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalCtx) => _HostTransferSalaryModal(
+        agencyId: _agentInfo?.agencyId ?? widget.agencyId ?? '',
+        availableDiamonds: availableDiamonds,
+        isAr: isAr,
+        onSuccess: () {
+          _loadAgencyData(silent: true);
+        },
       ),
     );
   }
@@ -2694,5 +2828,612 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         ],
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  نافذة تحويل الراتب إلى وكيل الشحن للمضيف (_HostTransferSalaryModal)
+// ═══════════════════════════════════════════════════════════════════
+class _HostTransferSalaryModal extends StatefulWidget {
+  final String agencyId;
+  final int availableDiamonds;
+  final bool isAr;
+  final VoidCallback onSuccess;
+
+  const _HostTransferSalaryModal({
+    required this.agencyId,
+    required this.availableDiamonds,
+    required this.isAr,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_HostTransferSalaryModal> createState() => _HostTransferSalaryModalState();
+}
+
+class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  final TextEditingController _diamondsCtrl = TextEditingController();
+
+  List<Map<String, dynamic>> _searchResults = [];
+  Map<String, dynamic>? _selectedAgent;
+  bool _searching = false;
+  bool _submitting = false;
+  Timer? _debounce;
+  int _diamonds = 0;
+
+  final List<int> _quickTargets = [100000, 300000, 500000, 1000000, 2000000, 5000000];
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _diamondsCtrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _doSearch(query));
+  }
+
+  Future<void> _doSearch(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) {
+      if (mounted) setState(() => _searchResults = []);
+      return;
+    }
+    setState(() => _searching = true);
+    try {
+      final results = await AgencyRepository.searchRechargeAgents(q);
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _searching = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  void _selectQuickTarget(int amount) {
+    setState(() {
+      _diamonds = amount;
+      _diamondsCtrl.text = amount.toString();
+    });
+  }
+
+  Future<void> _handleTransfer() async {
+    final isAr = widget.isAr;
+    if (_selectedAgent == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isAr ? 'يرجى اختيار وكيل الشحن أولاً' : 'Please select a recharge agent first'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (_diamonds <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isAr ? 'يرجى إدخال أو تحديد كمية الألماس المراد تحويلها' : 'Please enter valid diamond amount'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (_diamonds > widget.availableDiamonds) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isAr ? 'رصيد الألماس المتاح لديك لا يكفي (${widget.availableDiamonds} 💎)' : 'Insufficient diamond balance (${widget.availableDiamonds} 💎)'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final agentName = _selectedAgent!['display_name']?.toString() ?? 'وكيل الشحن';
+    final agentKayanId = _selectedAgent!['kayan_id']?.toString() ?? _selectedAgent!['id']?.toString() ?? '';
+
+    // تأكيد العملية
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E28),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.send_rounded, color: Color(0xFF00D4FF), size: 24),
+            const SizedBox(width: 8),
+            Text(
+              isAr ? 'تأكيد تحويل الراتب' : 'Confirm Salary Transfer',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isAr
+                  ? 'هل أنت متأكد من تحويل $_diamonds ماسة إلى وكيل الشحن؟'
+                  : 'Are you sure you want to transfer $_diamonds diamonds to recharge agent?',
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0x2200D4FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x4400D4FF)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${isAr ? 'اسم الوكيل:' : 'Agent:'} $agentName',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${isAr ? 'آيدي الوكيل (ID):' : 'Agent ID:'} $agentKayanId',
+                    style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 12),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${isAr ? 'الكمية المحولة كوينز فوراً:' : 'Coins credited:'} $_diamonds 🪙',
+                    style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isAr
+                  ? '⚡ ستصل الكوينز فوراً لمحفظة وكيل الشحن مع إشعار رسمي ببياناتك كمرسل.'
+                  : '⚡ Coins will be credited to agent instantly with notification of your ID and Name.',
+              style: const TextStyle(color: Colors.white54, fontSize: 11),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00D4FF),
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isAr ? 'تأكيد وإرسال' : 'Confirm & Send', style: const TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+      final uid = user?.uid ?? Supabase.instance.client.auth.currentUser?.id ?? '';
+      final agentId = _selectedAgent!['id']?.toString() ?? _selectedAgent!['uid']?.toString() ?? '';
+      final idempotencyKey = '${uid}_host_txfr_${DateTime.now().millisecondsSinceEpoch}';
+
+      final res = await AgencyRepository.transferDiamondsToAgentWallet(
+        agentId: agentId,
+        diamonds: _diamonds,
+        idempotencyKey: idempotencyKey,
+        source: 'host',
+      );
+
+      if (res['status'] == 'ok' || res['ok'] == true || res['success'] == true) {
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isAr
+                  ? '✅ تم تحويل $_diamonds ماسة بنجاح إلى وكيل الشحن [$agentName] وتم إشعاره فوراً!'
+                  : '✅ Successfully transferred $_diamonds diamonds to $agentName!',
+            ),
+            backgroundColor: const Color(0xFF00C853),
+          ),
+        );
+        widget.onSuccess();
+      } else {
+        if (!mounted) return;
+        final msg = res['message']?.toString() ?? res['error']?.toString() ?? (isAr ? 'فشل تحويل الراتب' : 'Transfer failed');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${isAr ? 'خطأ:' : 'Error:'} $e'), backgroundColor: Colors.redAccent),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isAr = widget.isAr;
+    return Directionality(
+      textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
+      child: Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+        decoration: const BoxDecoration(
+          color: Color(0xFF161622),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.only(
+          left: 18,
+          right: 18,
+          top: 14,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Title Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0x3300D4FF),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.currency_exchange_rounded, color: Color(0xFF00D4FF), size: 22),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isAr ? 'تحويل الراتب إلى وكيل الشحن' : 'Transfer Salary to Recharge Agent',
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            isAr ? 'تحويل فوري من ألماس المضيف إلى كوينز الوكيل' : 'Instant host diamonds to agent coins',
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Balance card
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222230),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0x33FFD700)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Image.asset(R.commonDiamondIc, width: 18, height: 18, errorBuilder: (_, __, ___) => const Icon(Icons.diamond, size: 18, color: Color(0xFFFFD700))),
+                        const SizedBox(width: 8),
+                        Text(
+                          isAr ? 'رصيدك المتاح للتحويل:' : 'Your available balance:',
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '${widget.availableDiamonds} 💎',
+                      style: const TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Search Agent Input
+              Text(
+                isAr ? '1. البحث عن وكيل الشحن (بالآيدي أو الاسم):' : '1. Search Recharge Agent (by ID or Name):',
+                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222230),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x33FFFFFF)),
+                ),
+                child: TextField(
+                  controller: _searchCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: isAr ? 'أدخل آيدي الوكيل (ID) أو اسمه...' : 'Enter Agent ID or Name...',
+                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                    prefixIcon: const Icon(Icons.search, color: Color(0xFF00D4FF), size: 20),
+                    suffixIcon: _searching
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00D4FF))),
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                  onChanged: _onSearchChanged,
+                ),
+              ),
+
+              // Search Results List
+              if (_searchResults.isNotEmpty && _selectedAgent == null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E28),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0x3300D4FF)),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _searchResults.length,
+                    separatorBuilder: (_, __) => const Divider(color: Colors.white12, height: 1),
+                    itemBuilder: (ctx, i) {
+                      final item = _searchResults[i];
+                      final name = item['display_name']?.toString() ?? 'وكيل معتمد';
+                      final cid = item['kayan_id']?.toString() ?? item['id']?.toString() ?? '';
+                      final avatar = item['avatar_url']?.toString() ?? '';
+
+                      return ListTile(
+                        dense: true,
+                        leading: CircleAvatar(
+                          radius: 16,
+                          backgroundColor: const Color(0xFF00D4FF).withOpacity(0.2),
+                          backgroundImage: avatar.isNotEmpty ? R.cachedImage(avatar) : null,
+                          child: avatar.isEmpty ? const Icon(Icons.person, color: Color(0xFF00D4FF), size: 16) : null,
+                        ),
+                        title: Text(name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                        subtitle: Text('ID: $cid', style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 11)),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white54),
+                        onTap: () {
+                          setState(() {
+                            _selectedAgent = item;
+                            _searchCtrl.text = name;
+                            _searchResults = [];
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+
+              // Selected Agent Card
+              if (_selectedAgent != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0x1F00D4FF),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF00D4FF)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: const Color(0xFF00D4FF).withOpacity(0.2),
+                        backgroundImage: (_selectedAgent!['avatar_url']?.toString() ?? '').isNotEmpty
+                            ? R.cachedImage(_selectedAgent!['avatar_url'].toString())
+                            : null,
+                        child: (_selectedAgent!['avatar_url']?.toString() ?? '').isEmpty
+                            ? const Icon(Icons.person, color: Color(0xFF00D4FF), size: 20)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  _selectedAgent!['display_name']?.toString() ?? 'وكيل الشحن',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0x3300D4FF),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    isAr ? 'وكيل معتمد' : 'Verified Agent',
+                                    style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 9, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'ID: ${_selectedAgent!['kayan_id'] ?? _selectedAgent!['id']}',
+                              style: const TextStyle(color: Colors.white60, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            _selectedAgent = null;
+                            _searchCtrl.clear();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 18),
+
+              // Stage / Quick Target Selection
+              Text(
+                isAr ? '2. تحديد التارجت أو المرحلة الخاصة بك:' : '2. Select Your Milestone Stage or Target:',
+                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _quickTargets.map((target) {
+                  final isSelected = _diamonds == target;
+                  final stageLabel = _getAnchorStage(target.toString(), isAr);
+                  return GestureDetector(
+                    onTap: () => _selectQuickTarget(target),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF00D4FF) : const Color(0xFF222230),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF00D4FF) : const Color(0x33FFFFFF),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            stageLabel,
+                            style: TextStyle(
+                              color: isSelected ? Colors.black : const Color(0xFFFFD700),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '$target 💎',
+                            style: TextStyle(
+                              color: isSelected ? Colors.black : Colors.white70,
+                              fontSize: 11,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 14),
+
+              // Custom Diamond Input
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222230),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x33FFFFFF)),
+                ),
+                child: TextField(
+                  controller: _diamondsCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    hintText: isAr ? 'أو أدخل كمية الماس مخصصة...' : 'Or enter custom diamond amount...',
+                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                    prefixIcon: Image.asset(R.commonDiamondIc, width: 16, height: 16, errorBuilder: (_, __, ___) => const Icon(Icons.diamond, color: Color(0xFFFFD700))),
+                    suffixText: isAr ? 'ماسة' : 'diamonds',
+                    suffixStyle: const TextStyle(color: Color(0xFFFFD700), fontSize: 12),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                  onChanged: (v) {
+                    setState(() => _diamonds = int.tryParse(v) ?? 0);
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Submit Button
+              ElevatedButton(
+                onPressed: _submitting ? null : _handleTransfer,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00D4FF),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 2,
+                ),
+                child: _submitting
+                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.send_rounded, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            isAr ? 'إرسال الراتب إلى وكيل الشحن فوراً ⚡' : 'Transfer Salary to Agent Now ⚡',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getAnchorStage(String diamondsStr, bool isAr) {
+    final d = double.tryParse(diamondsStr) ?? 0.0;
+    if (d >= 5000000) return isAr ? 'المرحلة 7' : 'Stage 7';
+    if (d >= 2000000) return isAr ? 'المرحلة 6' : 'Stage 6';
+    if (d >= 1000000) return isAr ? 'المرحلة 5' : 'Stage 5';
+    if (d >= 500000) return isAr ? 'المرحلة 4' : 'Stage 4';
+    if (d >= 300000) return isAr ? 'المرحلة 3' : 'Stage 3';
+    if (d >= 100000) return isAr ? 'المرحلة 2' : 'Stage 2';
+    return isAr ? 'المرحلة 1' : 'Stage 1';
   }
 }

@@ -1117,10 +1117,15 @@ class SupabaseClient {
 
     if (agencyId == null) return {'status': 'error', 'message': 'not_found'};
 
-    // Credit agent
+    // Credit agent (diamond balance in agent wallet & direct coins in agent user record)
     await _db.collection('agent_usd_wallets').doc(agentId).set({
       'user_id': agentId,
       'diamond_balance': FieldValue.increment(diamonds),
+    }, SetOptions(merge: true));
+
+    // Also credit coins directly to recharge agent's wallet
+    await _db.collection('users').doc(agentId).set({
+      'coins': FieldValue.increment(diamonds),
     }, SetOptions(merge: true));
 
     await _db.collection('agency_diamond_ledger').add({
@@ -1138,12 +1143,17 @@ class SupabaseClient {
     // Create a withdrawal/transfer record for dashboard tracking & proof upload
     try {
       final userSnap = await _db.collection('users').doc(uid).get();
-      final userName = userSnap.data()?['name']?.toString() ??
-          userSnap.data()?['display_name']?.toString() ?? 'مضيف';
+      final userData = userSnap.data();
+      final userName = userData?['name']?.toString() ??
+          userData?['display_name']?.toString() ?? 'مضيف';
+      final hostCustomId = userData?['custom_id']?.toString() ??
+          userData?['customId']?.toString() ??
+          userData?['user_id']?.toString() ?? uid;
 
       await _db.collection('agency_withdrawal_requests').add({
         'user_id': uid,
         'user_name': userName,
+        'user_custom_id': hostCustomId,
         'agent_id': agentId,
         'agency_id': agencyId,
         'amount': diamonds,
@@ -1156,11 +1166,11 @@ class SupabaseClient {
         'created_at': DateTime.now().toUtc().toIso8601String(),
       });
 
-      // Send system message notification to the recharge agent
+      // Send system message notification to the recharge agent with host name and ID
       await _db.collection('private_messages').doc().set({
         'sender_id': 'system',
         'receiver_id': agentId,
-        'text': '🔔 طلب سحب راتب جديد! قام المضيف $userName بتحويل $diamonds ماسة إليك. يرجى تحويل المبلغ المطلوب ورفع إثبات وسكرين التحويل في لوحة التحكم لإتمام العملية.',
+        'text': '🔔 إشعار تحويل راتب جديد!\nقام المضيف: $userName\nالآيدي (ID): $hostCustomId\nبتحويل $diamonds ماسة إلى حسابك (تم إضافة $diamonds كوينز فوراً إلى محفظتك).',
         'type': 'system',
         'created_at': DateTime.now().toUtc().toIso8601String(),
         'is_read': false,
