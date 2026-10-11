@@ -9,6 +9,7 @@ import '../../../../config/r.dart';
 import '../../../../models/user_model.dart';
 import '../../../../providers/user_provider.dart';
 import '../../../../services/supabase_service.dart';
+import '../../../../services/supabase_data_service.dart';
 import 'package:flutter/services.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
@@ -389,6 +390,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
   /// Collapsing Header matching union_activity_my_agency.xml
   Widget _buildCollapsingHeader(AgentInfoModel? info, bool isAr) {
+    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
     final dc = DynamicConfigService();
     final agencyName = info?.agencyName.isNotEmpty == true ? info!.agencyName : (isAr ? 'وكالتي الرسمية' : 'My Agency');
     final displayAgencyId = formatAgencyNumericId(info?.agencyPublicId ?? (info?.agencyId.isNotEmpty == true ? info!.agencyId : widget.agencyId ?? (info?.userId != 0 ? info?.userId.toString() : '100')));
@@ -718,7 +720,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                             : info?.tier == 'platinum'
                                                 ? 'بلاتيني'
                                                 : 'برونزي')
-                                : _getAnchorStage(_myAnchor?.diamonds ?? user?.diamonds?.toString() ?? '0', isAr),
+                                : _getAnchorStage((_myAnchor?.diamonds ?? user?.diamonds ?? 0).toString(), isAr),
                             style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 13, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -1277,6 +1279,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final percent = (progress * 100).toStringAsFixed(1);
     final salaryUsd = info?.salaryUsd ?? 0.0;
     final currentStageLabel = _getAnchorStage(effectiveDiamonds.toString(), isAr);
+    final transferMoney = effectiveDiamonds;
 
     return SliverToBoxAdapter(
       child: Padding(
