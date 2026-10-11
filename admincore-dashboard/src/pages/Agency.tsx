@@ -1934,34 +1934,100 @@ function CommissionTab() {
   };
 
   const descKeyMap: Record<string, string> = {
-    host_rate: 'agency.commission.hostRate',
-    agency_rate: 'agency.commission.agencyRate',
-    platform_rate: 'agency.commission.platformRate',
-    gold_to_diamond: 'agency.commission.goldToDiamond',
-    diamonds_per_usd: 'agency.commission.diamondsPerUsd',
+    host_rate: 'نسبة راتب المضيف من الكوينز المستلمة (افتراضي 68%)',
+    agency_rate: 'نسبة راتب وكيل المضيف من ماس المضيف (افتراضي 10%)',
+    recharge_agent_host_rate: 'عمولة وكيل الشحن من تحويل راتب المضيف (افتراضي 10%)',
+    recharge_agent_agency_rate: 'عمولة وكيل الشحن من تحويل راتب وكيل المضيف (افتراضي 10%)',
+    platform_rate: 'نسبة الإدارة والمتبقي للنظام (افتراضي 17.72%)',
+    coins_per_usd: 'سعر الصرف: عدد الكوينز لكل 1 دولار (15,000 كوينز)',
+    first_target_diamonds: 'قيمة التارجت الأول بالماس (150,000 ماس)',
   };
 
   return (
-    <div>
-      <p className="text-slate-500 text-xs mb-3">{t('agency.commission')}</p>
+    <div className="space-y-6">
+      {/* Financial Policy Guide Card */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-emerald-500/10 border border-amber-500/30 rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-amber-400" />
+          <h3 className="text-sm font-bold text-white">
+            🏦 سياسة توزيع الماس، التارجت، وعمولات وكلاء الشحن المعتمدة
+          </h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          {/* Card 1: Rate Calculation */}
+          <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2">
+            <div className="font-bold text-amber-300 flex items-center gap-1.5">
+              <span>💎</span> معدل التحويل والهدايا:
+            </div>
+            <p className="text-slate-300 leading-relaxed">
+              كل <strong>1 دولار = 15,000 كوينز</strong>.<br/>
+              عند إرسال هدايا بقيمة 15,000 كوينز:
+            </p>
+            <ul className="space-y-1 text-slate-300">
+              <li className="flex justify-between"><span>• المضيف (68%):</span> <strong className="text-emerald-400">10,200 ماس</strong></li>
+              <li className="flex justify-between"><span>• وكيل المضيف (10%):</span> <strong className="text-indigo-400">1,020 ماس</strong></li>
+            </ul>
+            <div className="text-[10px] text-amber-400/90 bg-amber-500/10 p-2 rounded border border-amber-500/20">
+              ⚡ يتم احتساب راتب الوكيل تلقائياً مع أي قيمة هدايا دون خصمها من المضيف.
+            </div>
+          </div>
+
+          {/* Card 2: Target 1 Distribution */}
+          <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2">
+            <div className="font-bold text-indigo-300 flex items-center gap-1.5">
+              <span>🎯</span> التارجت الأول (150,000 ماس):
+            </div>
+            <ul className="space-y-1 text-slate-300">
+              <li className="flex justify-between"><span>1. راتب المضيف (68%):</span> <strong className="text-emerald-400">102,000 ماس</strong></li>
+              <li className="flex justify-between"><span>2. وكيل المضيف (10%):</span> <strong className="text-indigo-400">10,200 ماس</strong></li>
+              <li className="flex justify-between"><span>3. وكيل الشحن من المضيف (10%):</span> <strong className="text-amber-400">10,200 ماس</strong></li>
+              <li className="flex justify-between"><span>4. وكيل الشحن من الوكيل (10%):</span> <strong className="text-amber-400">1,020 ماس</strong></li>
+              <li className="flex justify-between border-t border-white/10 pt-1"><span>5. متبقي الإدارة:</span> <strong className="text-cyan-400">26,580 ماس</strong></li>
+            </ul>
+          </div>
+
+          {/* Card 3: Recharge Agent Conversion */}
+          <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2">
+            <div className="font-bold text-emerald-300 flex items-center gap-1.5">
+              <span>⚡</span> تحويل الرواتب لوكيل الشحن:
+            </div>
+            <p className="text-slate-300 leading-relaxed">
+              • يُحوّل راتب المضيف وراتب وكيل المضيف بالماس لوكيل الشحن بشكل مستقل.<br/>
+              • عمولة وكيل الشحن تُضاف كعمولة إضافية مستقلة ولا تُخصم من المضيفين.<br/>
+              • تتحمل الإدارة عمولة وكيل الشحن من حصة النظام.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-[#141417] rounded-2xl border border-white/5 overflow-hidden">
+        <div className="p-4 border-b border-white/5 flex items-center justify-between">
+          <div>
+            <h4 className="text-white text-xs font-bold">جدول نسب العمولات والتحويلات القابلة للتعديل</h4>
+            <p className="text-slate-500 text-[11px] mt-0.5">يمكنك تعديل أي نسبة بالضغط على "Edit" وسيتم تطبيقها على الفور في الحسابات التلقائية</p>
+          </div>
+          <button onClick={load} className="px-3 py-1 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs flex items-center gap-1">
+            <RefreshCw className="w-3 h-3" /> تحديث
+          </button>
+        </div>
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-white/5">
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">{t('agency.col.key')}</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">{t('agency.col.desc')}</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">{t('agency.col.value')}</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">{t('agency.col.actions')}</th>
+              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">المفتاح (Key)</th>
+              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">الوصف والتفاصيل</th>
+              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">النسبة / القيمة الحالية</th>
+              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">إجراء</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="text-center py-12 text-slate-500">{t('agency.loading')}</td></tr>
+              <tr><td colSpan={4} className="text-center py-12 text-slate-500">جاري التحميل...</td></tr>
             ) : settings.map(s => (
               <tr key={s.id} className="border-b border-white/5 hover:bg-white/5">
                 <td className="p-3 text-white font-mono">{s.key}</td>
-                <td className="p-3 text-slate-400">{t(descKeyMap[s.key] as any) || s.description}</td>
-                <td className="p-3"><span className="text-amber-400 font-semibold">{s.value}</span></td>
+                <td className="p-3 text-slate-300">{descKeyMap[s.key] || s.description || s.key}</td>
+                <td className="p-3"><span className="text-amber-400 font-bold">{s.value}%</span></td>
                 <td className="p-3">
                   <InlineEdit value={s.value} onSave={v => handleUpdate(s.id, v)} />
                 </td>

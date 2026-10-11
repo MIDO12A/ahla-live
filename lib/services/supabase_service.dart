@@ -530,30 +530,32 @@ class SupabaseService {
       final currentCoins = sUser?.coins ?? 0;
       if (currentCoins < totalCost) return false;
 
-      // 1. خصم الكوينز من المرسل وإيداع الماس
+      // 2. توزيع الماس وفق سياسة النظام المعتمدة (68% للمضيف، و 10% لوكيل المضيف دون خصمها من المضيف)
+      final hostDiamonds = (totalCost * 0.68).round();
+
       if (isSelfSend) {
         await _ds.updateUser(senderId, {
           'coins': currentCoins - totalCost,
-          'diamonds': (sUser?.diamonds ?? 0) + totalCost,
+          'diamonds': (sUser?.diamonds ?? 0) + hostDiamonds,
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
-          'total_gifts_received': (sUser?.totalGiftsReceived ?? 0) + totalCost,
+          'total_gifts_received': (sUser?.totalGiftsReceived ?? 0) + hostDiamonds,
         });
-        unawaited(_ds.creditHostAgencyMemberDiamonds(senderId, totalCost));
+        unawaited(_ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds));
       } else {
         await _ds.updateUser(senderId, {
           'coins': currentCoins - totalCost,
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
         });
 
-        // 2. إيداع الماس للمستلم
+        // إيداع الماس للمستلم (المضيف 68%)
         final rUser = await _ds.getUser(receiverId);
         if (rUser != null) {
           await _ds.updateUser(receiverId, {
-            'diamonds': rUser.diamonds + totalCost,
-            'total_gifts_received': rUser.totalGiftsReceived + totalCost,
+            'diamonds': rUser.diamonds + hostDiamonds,
+            'total_gifts_received': rUser.totalGiftsReceived + hostDiamonds,
           });
         }
-        unawaited(_ds.creditHostAgencyMemberDiamonds(receiverId, totalCost));
+        unawaited(_ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds));
       }
 
       // 3. تسجيل الهدية وبثها في الغرفة

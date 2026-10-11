@@ -1609,15 +1609,73 @@ export async function deleteHostAgency(id: string): Promise<boolean> {
 export async function getCommissionSettings(): Promise<CommissionSettingModel[]> {
   try {
     const { data } = await supabase.from('commission_settings').select('*').order('key');
-    return mapList<CommissionSettingModel>(data ?? []);
-  } catch { return []; }
+    if (data && data.length > 0) {
+      return data.map((row: any) => ({
+        id: row.key,
+        key: row.key,
+        value: Number(row.percentage != null ? row.percentage : row.value) || 0,
+        description: row.description || null,
+        updated_at: row.updated_at || new Date().toISOString(),
+        updated_by: row.updated_by || null,
+      }));
+    }
+  } catch { /* ignore */ }
+
+  // Fallback to app_config policy
+  try {
+    const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'agency_financial_policy').maybeSingle();
+    if (cfg && cfg.value) {
+      const pol = typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value;
+      return [
+        { id: 'host_rate', key: 'host_rate', value: pol.host_rate_pct ?? 68, description: 'نسبة راتب المضيف من الكوينز (%)', updated_at: '', updated_by: null },
+        { id: 'agency_rate', key: 'agency_rate', value: pol.agency_rate_pct ?? 10, description: 'نسبة راتب وكيل المضيف من ماس المضيف (%)', updated_at: '', updated_by: null },
+        { id: 'recharge_agent_host_rate', key: 'recharge_agent_host_rate', value: pol.recharge_agent_host_rate_pct ?? 10, description: 'عمولة وكيل الشحن من راتب المضيف (%)', updated_at: '', updated_by: null },
+        { id: 'recharge_agent_agency_rate', key: 'recharge_agent_agency_rate', value: pol.recharge_agent_agency_rate_pct ?? 10, description: 'عمولة وكيل الشحن من راتب وكيل المضيف (%)', updated_at: '', updated_by: null },
+        { id: 'platform_rate', key: 'platform_rate', value: pol.platform_rate_pct ?? 17.72, description: 'نسبة الإدارة المتبقية (%)', updated_at: '', updated_by: null },
+      ];
+    }
+  } catch {}
+
+  return [
+    { id: 'host_rate', key: 'host_rate', value: 68, description: 'نسبة راتب المضيف من الكوينز (%)', updated_at: '', updated_by: null },
+    { id: 'agency_rate', key: 'agency_rate', value: 10, description: 'نسبة راتب وكيل المضيف من ماس المضيف (%)', updated_at: '', updated_by: null },
+    { id: 'recharge_agent_host_rate', key: 'recharge_agent_host_rate', value: 10, description: 'عمولة وكيل الشحن من راتب المضيف (%)', updated_at: '', updated_by: null },
+    { id: 'recharge_agent_agency_rate', key: 'recharge_agent_agency_rate', value: 10, description: 'عمولة وكيل الشحن من راتب وكيل المضيف (%)', updated_at: '', updated_by: null },
+    { id: 'platform_rate', key: 'platform_rate', value: 17.72, description: 'نسبة الإدارة المتبقية (%)', updated_at: '', updated_by: null },
+  ];
 }
 
 export async function updateCommissionSetting(id: string, value: number): Promise<boolean> {
   try {
-    await supabase.from('commission_settings').upsert({
-      key: id, value, updated_at: new Date().toISOString(),
-    });
+    const nowIso = new Date().toISOString();
+    // 1. Update commission_settings table
+    try {
+      await supabase.from('commission_settings').upsert({
+        key: id,
+        percentage: value,
+        updated_at: nowIso,
+      });
+    } catch (_) {}
+
+    // 2. Sync to agency_financial_policy in app_config
+    try {
+      const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'agency_financial_policy').maybeSingle();
+      const current = (cfg && cfg.value) ? (typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value) : {};
+      
+      if (id === 'host_rate') current.host_rate_pct = value;
+      else if (id === 'agency_rate') current.agency_rate_pct = value;
+      else if (id === 'recharge_agent_host_rate') current.recharge_agent_host_rate_pct = value;
+      else if (id === 'recharge_agent_agency_rate') current.recharge_agent_agency_rate_pct = value;
+      else if (id === 'platform_rate') current.platform_rate_pct = value;
+      else if (id === 'coins_per_usd') current.coins_per_usd = value;
+      else if (id === 'first_target_diamonds') current.first_target_diamonds = value;
+
+      await supabase.from('app_config').upsert({
+        key: 'agency_financial_policy',
+        value: current,
+      });
+    } catch (_) {}
+
     return true;
   } catch { return false; }
 }
