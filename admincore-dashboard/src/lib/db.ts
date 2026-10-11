@@ -1833,60 +1833,27 @@ export async function addAgencyMember(agencyId: string, userQuery: string, role:
 export async function getAgencyApplications(statusFilter?: string, typeFilter?: string): Promise<AgencyApplicationModel[]> {
   try {
     const applications: AgencyApplicationModel[] = [];
+    const seenAppIds = new Set<string>();
 
-    // 1. Fetch from agency_applications
-    let appQuery = supabase.from('agency_applications').select('*').order('created_at', { ascending: false });
-    if (statusFilter) appQuery = appQuery.eq('status', statusFilter);
-    if (typeFilter) appQuery = appQuery.eq('agency_type', typeFilter);
-    const { data: appData } = await appQuery;
-
-    if (appData && Array.isArray(appData)) {
-      applications.push(...appData.map((d: any) => ({
-        id: d.id,
-        user_id: d.user_id,
-        user_name: d.user_name || d.user_id?.slice(0, 8),
-        custom_id: d.custom_id || '',
-        user_avatar: d.user_avatar || '',
-        agency_type: d.agency_type || 'host',
-        agency_name: d.agency_name || 'وكالة جديدة',
-        agency_logo: d.agency_logo || '',
-        country: d.country || '',
-        whatsapp: d.whatsapp || '',
-        description: d.description || '',
-        doc_type: d.doc_type || '',
-        doc_number: d.doc_number || '',
-        doc_front_url: d.doc_front_url || '',
-        doc_back_url: d.doc_back_url || '',
-        video_url: d.video_url || '',
-        status: d.status || 'pending',
-        rejection_reason: d.rejection_reason || '',
-        created_at: d.created_at || new Date().toISOString(),
-        reviewed_at: d.reviewed_at,
-      })));
-    }
-    // 2. Fetch from Firestore agency_applications for backward compatibility
+    // 1. Fetch from agency_applications in Supabase
     try {
-      const { firestoreDb } = await import('./firebase');
-      const { getDocs, collection } = await import('firebase/firestore');
-      if (firestoreDb) {
-        const fsSnap = await getDocs(collection(firestoreDb, 'agency_applications'));
-        const existingAppIds = new Set(applications.map(a => a.id));
-        for (const docSnap of fsSnap.docs) {
-          const d = docSnap.data();
-          const docId = docSnap.id;
-          if (existingAppIds.has(docId)) continue;
-          if (statusFilter && d.status && d.status !== statusFilter) continue;
-          if (typeFilter && d.agency_type && d.agency_type !== typeFilter) continue;
+      let appQuery = supabase.from('agency_applications').select('*').order('created_at', { ascending: false });
+      if (statusFilter) appQuery = appQuery.eq('status', statusFilter);
+      const { data: appData, error: appErr } = await appQuery;
+      if (appErr) console.warn('Supabase agency_applications select error:', appErr);
 
+      if (appData && Array.isArray(appData)) {
+        for (const d of appData) {
+          const uid = d.applicant_uid || d.user_id || d.owner_uid || '';
           applications.push({
-            id: docId,
-            user_id: d.user_id || '',
-            user_name: d.user_name || d.user_id?.slice(0, 8),
+            id: d.id,
+            user_id: uid,
+            user_name: d.user_name || uid.slice(0, 8),
             custom_id: d.custom_id || '',
-            user_avatar: d.user_avatar || '',
+            user_avatar: d.user_avatar || d.photo_url || '',
             agency_type: d.agency_type || 'host',
             agency_name: d.agency_name || 'وكالة جديدة',
-            agency_logo: d.agency_logo || '',
+            agency_logo: d.agency_logo || d.logo_url || '',
             country: d.country || '',
             whatsapp: d.whatsapp || '',
             description: d.description || '',
@@ -1900,12 +1867,99 @@ export async function getAgencyApplications(statusFilter?: string, typeFilter?: 
             created_at: d.created_at || new Date().toISOString(),
             reviewed_at: d.reviewed_at,
           });
-          existingAppIds.add(docId);
+          seenAppIds.add(d.id);
+        }
+      }
+    } catch (e) {
+      console.warn('agency_applications fetch error:', e);
+    }
+
+    // 2. Fetch pending host_agencies from Supabase (to cover pending requests created directly or pre-registered)
+    try {
+      let haQuery = supabase.from('host_agencies').select('*').order('created_at', { ascending: false });
+      if (statusFilter) {
+        haQuery = haQuery.eq('status', statusFilter);
+      } else {
+        haQuery = haQuery.eq('status', 'pending');
+      }
+      const { data: haData } = await haQuery;
+      if (haData && Array.isArray(haData)) {
+        for (const ha of haData) {
+          const linkedAppId = ha.data?.app_id || ha.id;
+          if (seenAppIds.has(ha.id) || seenAppIds.has(linkedAppId)) continue;
+          const uid = ha.owner_uid || ha.owner_id || '';
+          applications.push({
+            id: ha.id,
+            user_id: uid,
+            user_name: ha.data?.user_name || ha.name || uid.slice(0, 8),
+            custom_id: ha.data?.custom_id || '',
+            user_avatar: ha.data?.user_avatar || ha.logo_url || '',
+            agency_type: 'host',
+            agency_name: ha.name || 'وكالة جديدة',
+            agency_logo: ha.logo_url || '',
+            country: ha.data?.country || '',
+            whatsapp: ha.data?.whatsapp || '',
+            description: ha.description || '',
+            doc_type: '',
+            doc_number: '',
+            doc_front_url: '',
+            doc_back_url: '',
+            video_url: '',
+            status: ha.status || 'pending',
+            rejection_reason: '',
+            created_at: ha.created_at || new Date().toISOString(),
+            reviewed_at: undefined,
+          });
+          seenAppIds.add(ha.id);
+          seenAppIds.add(linkedAppId);
+        }
+      }
+    } catch (haErr) {
+      console.warn('host_agencies pending fetch error:', haErr);
+    }
+
+    // 3. Fetch from Firestore agency_applications for backward compatibility
+    try {
+      const { firestoreDb } = await import('./firebase');
+      const { getDocs, collection } = await import('firebase/firestore');
+      if (firestoreDb) {
+        const fsSnap = await getDocs(collection(firestoreDb, 'agency_applications'));
+        for (const docSnap of fsSnap.docs) {
+          const d = docSnap.data();
+          const docId = docSnap.id;
+          if (seenAppIds.has(docId)) continue;
+          if (statusFilter && d.status && d.status !== statusFilter) continue;
+
+          applications.push({
+            id: docId,
+            user_id: d.user_id || d.applicant_uid || '',
+            user_name: d.user_name || (d.user_id || '').slice(0, 8),
+            custom_id: d.custom_id || '',
+            user_avatar: d.user_avatar || d.photo_url || '',
+            agency_type: d.agency_type || 'host',
+            agency_name: d.agency_name || 'وكالة جديدة',
+            agency_logo: d.agency_logo || d.photo_url || '',
+            country: d.country || '',
+            whatsapp: d.whatsapp || '',
+            description: d.description || '',
+            doc_type: d.doc_type || '',
+            doc_number: d.doc_number || '',
+            doc_front_url: d.doc_front_url || '',
+            doc_back_url: d.doc_back_url || '',
+            video_url: d.video_url || '',
+            status: d.status || 'pending',
+            rejection_reason: d.rejection_reason || '',
+            created_at: d.created_at || new Date().toISOString(),
+            reviewed_at: d.reviewed_at,
+          });
+          seenAppIds.add(docId);
         }
       }
     } catch (fsAppErr) {
       console.warn('getAgencyApplications firestore error:', fsAppErr);
     }
+
+    // Populate user profile info (name, avatar, custom_id)
     const userIds = Array.from(new Set(applications.map(a => a.user_id).filter(Boolean)));
     if (userIds.length > 0) {
       const { data: usersData } = await supabase.from('users').select('*');
@@ -1927,7 +1981,7 @@ export async function getAgencyApplications(statusFilter?: string, typeFilter?: 
 
     let result = applications;
     if (statusFilter) result = result.filter(a => a.status === statusFilter);
-    if (typeFilter) result = result.filter(a => a.agency_type === typeFilter);
+    if (typeFilter && typeFilter !== 'all') result = result.filter(a => a.agency_type === typeFilter);
 
     return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   } catch { return []; }
@@ -1938,7 +1992,6 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
     const now = new Date().toISOString();
 
     if (app.agency_type === 'host') {
-      // 1. Generate numeric agency code / ID (e.g. 101, 102...)
       let agencyCode = (app as any).agency_code || (app as any).agency_public_id || '';
       if (!agencyCode) {
         try {
@@ -1951,7 +2004,7 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
 
       const existingAgencyId = (app as any).agency_id;
       const agencyId = existingAgencyId || `agency_${Date.now()}_${app.user_id}`;
-      const agencyLogo = app.agency_logo || app.user_avatar || null;
+      const agencyLogo = app.agency_logo || app.user_avatar || '';
 
       const appBdUid = (app as any).bd_uid || (app as any).supervisor_uid || (app as any).supervisor_id || null;
       const appBdId = (app as any).bd_id || (app as any).supervisor_id || null;
@@ -1962,37 +2015,36 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
       const agencyData: any = {
         id: agencyId,
         name: app.agency_name || `وكالة ${app.user_name}`,
-        agency_code: agencyCode,
-        agency_public_id: agencyCode,
+        agency_code: Number(agencyCode) || (100 + (Date.now() % 899)),
         owner_id: app.user_id,
         owner_uid: app.user_id,
         description: app.description || 'وكالة مضيفين معتمدة',
-        photo_url: agencyLogo,
-        country: app.country || null,
-        whatsapp: app.whatsapp || null,
-        commission_rate: 0.1, // 10%
-        specialty: 'mixed',
-        tier: 'bronze',
-        is_active: true,
-        status: 'active',
-        member_count: 1,
-        total_diamonds_earned: 0,
-        monthly_diamonds: 0,
+        logo_url: agencyLogo,
+        background_url: '',
+        announcement: '',
+        level: 1,
+        monthly_exp: 0,
+        total_exp: 0,
         total_diamonds_monthly: 0,
-        bd_uid: appBdUid,
-        bd_id: appBdId,
-        supervisor_uid: appSupUid,
-        supervisor_id: appSupId,
-        supervisor_name: appSupName,
+        total_diamonds_cumulative: 0,
+        monthly_diamonds: 0,
+        member_count: 1,
+        admin_count: 0,
+        status: 'active',
+        is_active: true,
         data: {
+          whatsapp: app.whatsapp || null,
+          country: app.country || null,
+          tier: 'bronze',
+          commission_rate: 0.1,
           bd_uid: appBdUid,
-          bdUid: appBdUid,
           bd_id: appBdId,
           supervisor_uid: appSupUid,
           supervisor_id: appSupId,
           supervisor_name: appSupName,
         },
         created_at: now,
+        updated_at: now,
       };
 
       // 1. Upsert Host Agency in Supabase

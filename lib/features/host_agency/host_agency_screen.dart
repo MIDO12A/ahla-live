@@ -435,58 +435,59 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
       final agencyCode = (100 + (now.millisecondsSinceEpoch % 900)).toString();
       final finalLogo = photoUrl ?? currentUser?.photoUrl ?? '';
 
-      // 3. Application payload for dashboard & admin review
+      // 3. Application payload for Supabase agency_applications table
       final appId = 'app_${now.millisecondsSinceEpoch}_$uid';
       final applicationPayload = {
         'id': appId,
-        'user_id': uid,
-        'user_name': currentUser?.name ?? 'مستخدم',
-        'custom_id': currentUser?.customId ?? '',
-        'user_avatar': finalLogo,
-        'agency_type': 'host',
+        'applicant_uid': uid,
         'agency_name': name,
-        'agency_logo': finalLogo,
-        'photo_url': finalLogo,
-        'country': _selectedCountry ?? 'عالمي',
-        'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
         'description': _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : 'وكالة مضيفين معتمدة',
-        'supervisor_id': supervisorCustomId,
-        'supervisor_uid': supervisorUid,
-        'supervisor_custom_id': supervisorCustomId,
-        'supervisor_name': supervisorName,
-        'agency_id': agencyId,
-        'agency_code': agencyCode,
-        'agency_public_id': agencyCode,
+        'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
         'status': 'pending',
         'created_at': nowIso,
       };
 
-      // 4. Pre-register agency record as pending
+      // 4. Pre-register agency record as pending in Supabase host_agencies
+      final agencyCodeInt = int.tryParse(agencyCode) ?? (100 + (now.millisecondsSinceEpoch % 900));
       final agencyPayload = {
         'id': agencyId,
-        'agency_code': agencyCode,
-        'agency_public_id': agencyCode,
         'name': name,
+        'agency_code': agencyCodeInt,
         'owner_uid': uid,
         'owner_id': uid,
         'description': _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : 'وكالة مضيفين معتمدة',
-        'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
-        'country': _selectedCountry ?? 'عالمي',
-        'photo_url': finalLogo,
-        'tier': 'bronze',
-        'commission_rate': 0.10,
-        'member_count': 1,
+        'logo_url': finalLogo,
+        'background_url': '',
+        'announcement': '',
+        'level': 1,
+        'monthly_exp': 0,
+        'total_exp': 0,
         'total_diamonds_monthly': 0,
         'total_diamonds_cumulative': 0,
+        'monthly_diamonds': 0,
+        'member_count': 1,
+        'admin_count': 0,
         'is_active': false,
         'status': 'pending',
-        'supervisor_id': supervisorCustomId,
-        'supervisor_uid': supervisorUid,
-        'supervisor_custom_id': supervisorCustomId,
-        'supervisor_name': supervisorName,
-        'bd_uid': supervisorUid,
-        'bd_id': supervisorCustomId,
+        'data': {
+          'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
+          'country': _selectedCountry ?? 'عالمي',
+          'tier': 'bronze',
+          'commission_rate': 0.10,
+          'supervisor_id': supervisorCustomId,
+          'supervisor_uid': supervisorUid,
+          'supervisor_custom_id': supervisorCustomId,
+          'supervisor_name': supervisorName,
+          'bd_uid': supervisorUid,
+          'bd_id': supervisorCustomId,
+          'app_id': appId,
+          'agency_code': agencyCode,
+          'user_name': currentUser?.name ?? 'مستخدم',
+          'custom_id': currentUser?.customId ?? '',
+          'user_avatar': finalLogo,
+        },
         'created_at': nowIso,
+        'updated_at': nowIso,
       };
 
       // 5. Save to Supabase (agency_applications & host_agencies)
@@ -498,12 +499,37 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
 
       try {
         await _sb.from('host_agencies').upsert(agencyPayload);
-      } catch (_) {}
+      } catch (agErr) {
+        debugPrint('[host_agency_screen] Supabase upsert host_agencies error: $agErr');
+      }
 
       // 6. Save to Firestore for real-time synchronization
       try {
         final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        await fs.collection('agency_applications').doc(appId).set(applicationPayload, SetOptions(merge: true));
+        final firestoreAppPayload = {
+          'id': appId,
+          'user_id': uid,
+          'applicant_uid': uid,
+          'user_name': currentUser?.name ?? 'مستخدم',
+          'custom_id': currentUser?.customId ?? '',
+          'user_avatar': finalLogo,
+          'agency_type': 'host',
+          'agency_name': name,
+          'agency_logo': finalLogo,
+          'photo_url': finalLogo,
+          'country': _selectedCountry ?? 'عالمي',
+          'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
+          'description': _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : 'وكالة مضيفين معتمدة',
+          'supervisor_id': supervisorCustomId,
+          'supervisor_uid': supervisorUid,
+          'supervisor_custom_id': supervisorCustomId,
+          'supervisor_name': supervisorName,
+          'agency_id': agencyId,
+          'agency_code': agencyCode,
+          'status': 'pending',
+          'created_at': nowIso,
+        };
+        await fs.collection('agency_applications').doc(appId).set(firestoreAppPayload, SetOptions(merge: true));
         await fs.collection('host_agencies').doc(agencyId).set(agencyPayload, SetOptions(merge: true));
 
         // 7. Send Immediate Notification to Dashboard / Admins
