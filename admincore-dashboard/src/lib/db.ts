@@ -2054,10 +2054,25 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
         console.warn('Supabase host_agencies upsert error:', agErr);
       }
 
-      // 2. Add owner to host_agency_members in Supabase
+      // 2. Add owner to host_agency_members in Supabase (id MUST be valid UUID)
       try {
+        const memberUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+              const r = Math.random() * 16 | 0;
+              return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+
+        // Check if member already exists
+        const { data: existingMember } = await supabase
+          .from('host_agency_members')
+          .select('id')
+          .eq('agency_id', agencyId)
+          .eq('host_uid', app.user_id)
+          .maybeSingle();
+
         await supabase.from('host_agency_members').upsert({
-          id: `${agencyId}_${app.user_id}`,
+          id: existingMember?.id || memberUuid,
           agency_id: agencyId,
           user_id: app.user_id,
           host_uid: app.user_id,
@@ -2065,18 +2080,21 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
           status: 'active',
           joined_at: now,
         });
-      } catch (_) {}
+      } catch (memErr) {
+        console.warn('host_agency_members upsert error:', memErr);
+      }
 
       // 3. Set user's agency_id & is_host_agent in Supabase
       try {
         await supabase.from('users').update({
           agency_id: agencyId,
           is_host_agent: true,
-          agency_role: 'owner',
         }).or(`uid.eq.${app.user_id},id.eq.${app.user_id}`);
-      } catch (_) {}
+      } catch (uErr) {
+        console.warn('users agency update error:', uErr);
+      }
 
-      // 4. Synchronize to Firestore for full real-time app compatibility
+      // 4. Synchronize to Firestore for full real-time app compatibility (wrapped to prevent unhandled permission errors)
       try {
         const { firestoreDb } = await import('./firebase');
         const { doc, setDoc } = await import('firebase/firestore');
@@ -2108,25 +2126,29 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
           }
         }
       } catch (fsErr) {
-        console.warn('Firestore sync error on approval:', fsErr);
+        // Non-blocking Firestore error
       }
 
-      await sendSystemNotification({
-        userId: app.user_id,
-        title: 'مبروك! تم قبول طلب فتح الوكالة 🎉',
-        body: `مبروك! تم قبول طلبك وفتح وكالة [${app.agency_name}] (معرف: #${agencyCode}) بنجاح بواسطة [${adminName}]. يمكنك الآن الدخول لإدارة وكالتك ومضيفيك.`,
-        type: 'system',
-        action: 'agency_approved',
-        extraData: { agency_id: agencyId, agency_code: agencyCode, agency_name: app.agency_name, admin_name: adminName },
-      });
+      try {
+        await sendSystemNotification({
+          userId: app.user_id,
+          title: 'مبروك! تم قبول طلب فتح الوكالة 🎉',
+          body: `مبروك! تم قبول طلبك وفتح وكالة [${app.agency_name}] (معرف: #${agencyCode}) بنجاح بواسطة [${adminName}]. يمكنك الآن الدخول لإدارة وكالتك ومضيفيك.`,
+          type: 'system',
+          action: 'agency_approved',
+          extraData: { agency_id: agencyId, agency_code: agencyCode, agency_name: app.agency_name, admin_name: adminName },
+        });
+      } catch (_) {}
     } else if (app.agency_type === 'recharge') {
       // Set user as recharge agent
-      await supabase.from('users').update({
-        is_recharge_agent: true,
-        recharge_agency_name: app.agency_name || 'وكالة الشحن المعتمدة',
-        recharge_agency_logo: app.agency_logo || null,
-        whatsapp_number: app.whatsapp || null,
-      }).or(`uid.eq.${app.user_id},id.eq.${app.user_id}`);
+      try {
+        await supabase.from('users').update({
+          is_recharge_agent: true,
+          recharge_agency_name: app.agency_name || 'وكالة الشحن المعتمدة',
+          recharge_agency_logo: app.agency_logo || null,
+          whatsapp_number: app.whatsapp || null,
+        }).or(`uid.eq.${app.user_id},id.eq.${app.user_id}`);
+      } catch (_) {}
 
       try {
         const { firestoreDb } = await import('./firebase');
@@ -2141,21 +2163,24 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
         }
       } catch (_) {}
 
-      await sendSystemNotification({
-        userId: app.user_id,
-        title: 'مبروك! تم تفعيل وكالة الشحن 🎉',
-        body: `مبروك! تم قبول طلبك واعتمادك كوكيل شحن رسمي [${app.agency_name}] بواسطة المشرف [${adminName}].`,
-        type: 'system',
-        action: 'recharge_agency_approved',
-        extraData: { agency_name: app.agency_name, admin_name: adminName },
-      });
+      try {
+        await sendSystemNotification({
+          userId: app.user_id,
+          title: 'مبروك! تم تفعيل وكالة الشحن 🎉',
+          body: `مبروك! تم قبول طلبك واعتمادك كوكيل شحن رسمي [${app.agency_name}] بواسطة المشرف [${adminName}].`,
+          type: 'system',
+          action: 'recharge_agency_approved',
+          extraData: { agency_name: app.agency_name, admin_name: adminName },
+        });
+      } catch (_) {}
     }
 
-    // Update application record in Supabase
-    await supabase.from('agency_applications').update({
-      status: 'approved',
-      reviewed_at: now,
-    }).eq('id', app.id);
+    // Update application record in Supabase (only existing columns)
+    try {
+      await supabase.from('agency_applications').update({
+        status: 'approved',
+      }).eq('id', app.id);
+    } catch (_) {}
 
     return { success: true, message: `تم قبول طلب فتح الوكالة وتفعيلها بنجاح مع ربط الصورة ومعرف الوكالة!` };
   } catch (err: any) {
@@ -2165,21 +2190,29 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
 
 export async function rejectAgencyApplication(appId: string, userId: string, reason: string = '', adminName: string = 'إدارة التطبيق'): Promise<{ success: boolean; message: string }> {
   try {
-    const now = new Date().toISOString();
-    await supabase.from('agency_applications').update({
-      status: 'rejected',
-      rejection_reason: reason.trim() || 'لم تستوفِ متطلبات فتح الوكالة',
-      reviewed_at: now,
-    }).eq('id', appId);
+    try {
+      await supabase.from('agency_applications').update({
+        status: 'rejected',
+      }).eq('id', appId);
+    } catch (_) {}
 
-    await sendSystemNotification({
-      userId: userId,
-      title: 'إشعار بخصوص طلب فتح الوكالة ⚠️',
-      body: `تم رفض طلب فتح الوكالة من قبل المشرف [${adminName}]. سبب الرفض: ${reason.trim() || 'لم يتم استيفاء الشروط المطلوبة'}.`,
-      type: 'system',
-      action: 'agency_rejected',
-      extraData: { reason, admin_name: adminName },
-    });
+    try {
+      await supabase.from('host_agencies').update({
+        status: 'rejected',
+        is_active: false,
+      }).or(`id.eq.${appId},owner_uid.eq.${userId}`);
+    } catch (_) {}
+
+    try {
+      await sendSystemNotification({
+        userId: userId,
+        title: 'إشعار بخصوص طلب فتح الوكالة ⚠️',
+        body: `تم رفض طلب فتح الوكالة من قبل المشرف [${adminName}]. سبب الرفض: ${reason.trim() || 'لم يتم استيفاء الشروط المطلوبة'}.`,
+        type: 'system',
+        action: 'agency_rejected',
+        extraData: { reason, admin_name: adminName },
+      });
+    } catch (_) {}
 
     return { success: true, message: 'تم رفض الطلب بنجاح' };
   } catch (err: any) {
@@ -2189,20 +2222,13 @@ export async function rejectAgencyApplication(appId: string, userId: string, rea
 
 export async function createAgencyApplication(payload: Partial<AgencyApplicationModel>): Promise<boolean> {
   try {
+    const appId = payload.id || `app_${Date.now()}_${payload.user_id}`;
     await supabase.from('agency_applications').insert({
-      user_id: payload.user_id,
-      user_name: payload.user_name || '',
-      agency_type: payload.agency_type || 'host',
+      id: appId,
+      applicant_uid: payload.user_id,
       agency_name: payload.agency_name || '',
-      agency_logo: payload.agency_logo || '',
-      country: payload.country || '',
       whatsapp: payload.whatsapp || '',
       description: payload.description || '',
-      doc_type: payload.doc_type || '',
-      doc_number: payload.doc_number || '',
-      doc_front_url: payload.doc_front_url || '',
-      doc_back_url: payload.doc_back_url || '',
-      video_url: payload.video_url || '',
       status: 'pending',
       created_at: new Date().toISOString(),
     });
