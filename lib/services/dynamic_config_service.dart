@@ -119,8 +119,11 @@ class DynamicConfigService extends ChangeNotifier {
   // Level config
   int _coinsPerRechargeXp = 10;
 
-  // Diamond-to-coin exchange rate (e.g. 2 means 2 diamonds = 1 coin)
-  int _diamondToCoinRate = 2;
+  // Diamond-to-coin exchange rate (e.g. 1 means 1 diamond = 1 coin, 2 means 1 diamond = 2 coins, or fractional)
+  int _diamondToCoinRate = 1;
+  double _coinsPerDiamond = 1.0;
+  int _minDiamondsToExchange = 10;
+  bool _diamondExchangeEnabled = true;
   int _roomBgPrice = 100;
 
   // Room theme gradients (from app_config.roomGradients)
@@ -561,6 +564,9 @@ class DynamicConfigService extends ChangeNotifier {
   String get vipBuyBtnImgUrl => _vipBuyBtnImgUrl;
   int get coinsPerRechargeXp => _coinsPerRechargeXp;
   int get diamondToCoinRate => _diamondToCoinRate;
+  double get coinsPerDiamond => _coinsPerDiamond;
+  int get minDiamondsToExchange => _minDiamondsToExchange;
+  bool get diamondExchangeEnabled => _diamondExchangeEnabled;
   int get roomBgPrice => _roomBgPrice;
 
   // Room gradient getter (returns gradient if found, null otherwise)
@@ -1301,7 +1307,26 @@ class DynamicConfigService extends ChangeNotifier {
 
     _coinsPerRechargeXp =
         (_rawConfig['coinsPerRechargeXp'] ?? 10).toInt();
-    _diamondToCoinRate = (_rawConfig['diamondToCoinRate'] ?? 2).toInt();
+    _diamondToCoinRate = (_rawConfig['diamondToCoinRate'] ?? 1).toInt();
+    if (_diamondToCoinRate <= 0) _diamondToCoinRate = 1;
+
+    final dec = _rawConfig['diamond_exchange_config'];
+    if (dec is Map) {
+      _coinsPerDiamond = (dec['coinsPerDiamond'] as num?)?.toDouble() ?? 1.0;
+      _minDiamondsToExchange = (dec['minDiamonds'] as num?)?.toInt() ?? 10;
+      _diamondExchangeEnabled = dec['enabled'] != false;
+    } else {
+      // Fallback: 1 diamond gives 1 / _diamondToCoinRate or _diamondToCoinRate coins
+      if (_diamondToCoinRate == 1) {
+        _coinsPerDiamond = 1.0;
+      } else if (_diamondToCoinRate > 1) {
+        _coinsPerDiamond = 1.0 / _diamondToCoinRate;
+      } else {
+        _coinsPerDiamond = 1.0;
+      }
+      _minDiamondsToExchange = 10;
+      _diamondExchangeEnabled = true;
+    }
     _roomBgPrice = (_rawConfig['roomBgPrice'] ?? 100).toInt();
 
     final rc = _rawConfig['rankConfig'];

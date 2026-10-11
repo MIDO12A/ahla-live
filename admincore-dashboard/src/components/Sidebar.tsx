@@ -4,7 +4,7 @@ import {
   Building2, Crown, BarChart3, Award, Handshake,
   TrendingUp, Image, Palette, Bug,
   Bell, Settings, Shield, ChevronLeft, LogOut, SlidersHorizontal, Grid, Gift as GiftIcon,
-  Tag, Sparkles, Eye, ImageIcon, Calendar, Rocket, Phone, CheckSquare, Volume2, Mic, User, Zap, X,
+  Tag, Sparkles, Eye, ImageIcon, Calendar, Rocket, Phone, CheckSquare, Volume2, Mic, User, Zap, X, Coins,
 } from 'lucide-react';
 import { logout, type AppUser } from '../lib/auth';
 import { useContext } from 'react';
@@ -13,6 +13,7 @@ import { canUserAccess } from '../lib/permissions';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'nav.dashboard', end: true, permKey: 'dashboard' },
+  { to: '/recharge-settings', icon: Coins, label: 'nav.rechargeSettings', permKey: 'recharge_settings' },
   { to: '/recharge-event', icon: Zap, label: 'nav.rechargeEvent', permKey: 'recharge_event' },
   { to: '/users', icon: Users, label: 'nav.users', permKey: 'users' },
   { to: '/gifts', icon: Gift, label: 'nav.gifts', permKey: 'gifts' },

@@ -84,6 +84,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     ar: 'الفعاليات والمهام والمكافآت',
     en: 'Events, Tasks & Rewards',
     items: [
+      { key: 'recharge_settings', ar: 'إعدادات الشحن وتحويل الألماس 💎', en: 'Recharge & Diamond Settings' },
       { key: 'recharge_event', ar: 'فعاليات وعروض الشحن', en: 'Recharge Events' },
       { key: 'tasks_manager', ar: 'مركز المهام والمكافآت', en: 'Tasks & Daily Rewards' },
       { key: 'signin_features', ar: 'مكافآت تسجيل الدخول اليومي', en: 'Daily Sign-in Rewards' },

@@ -706,8 +706,19 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   bool _exchanging = false;
 
   Widget _buildExchangeSection(DynamicConfigService dc, int balance) {
-    final rate = dc.diamondToCoinRate;
-    final maxExchange = (balance ~/ rate) * rate;
+    if (!dc.diamondExchangeEnabled) {
+      return const SizedBox.shrink();
+    }
+    final multiplier = dc.coinsPerDiamond;
+    final minDiamonds = dc.minDiamondsToExchange;
+    final rateLabel = multiplier == 1.0
+        ? '1 ألماس = 1 كوين'
+        : (multiplier > 1.0
+            ? '1 ألماس = ${multiplier % 1 == 0 ? multiplier.toInt() : multiplier} كوينز'
+            : '${(1 / multiplier).round()} ألماس = 1 كوين');
+
+    final coinsPreview = (_exchangeDiamondAmount * multiplier).floor();
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
@@ -730,7 +741,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             ],
           ),
           const SizedBox(height: 4),
-          Text('المعدل: $rate ألماس = 1 كوين',
+          Text('المعدل: $rateLabel (الحد الأدنى: $minDiamonds ألماس)',
             style: TextStyle(fontSize: 13, color: dc.walletSubTextColor),
           ),
           const SizedBox(height: 12),
@@ -740,7 +751,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 child: TextField(
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    hintText: 'عدد الألماس',
+                    hintText: 'عدد الألماس (الحد الأدنى $minDiamonds)',
                     hintStyle: TextStyle(color: dc.walletSubTextColor.withValues(alpha: 0.5)),
                     filled: true,
                     fillColor: dc.walletCardBgColor,
@@ -752,8 +763,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 ),
               ),
               const SizedBox(width: 12),
-              if (_exchangeDiamondAmount >= rate)
-                Text('= ${_exchangeDiamondAmount ~/ rate} كوينز',
+              if (_exchangeDiamondAmount >= minDiamonds)
+                Text('= $coinsPreview كوينز',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: dc.goldColor),
                 ),
             ],
@@ -761,8 +772,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
-            children: [rate * 10, rate * 50, rate * 100, rate * 500].map((a) {
-              if (a > maxExchange) return const SizedBox.shrink();
+            children: [minDiamonds, minDiamonds * 5, minDiamonds * 10, minDiamonds * 50].where((a) => a > 0).map((a) {
+              if (a > balance && balance > 0) return const SizedBox.shrink();
               return GestureDetector(
                 onTap: () => setState(() => _exchangeDiamondAmount = a),
                 child: Container(
@@ -781,7 +792,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _exchangeDiamondAmount >= rate && !_exchanging
+              onPressed: _exchangeDiamondAmount >= minDiamonds && !_exchanging
                   ? () => _doExchange(dc)
                   : null,
               style: ElevatedButton.styleFrom(
@@ -810,6 +821,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       final result = await svc.exchangeDiamondsToCoins(
         uid: user.uid,
         diamonds: _exchangeDiamondAmount,
+        coinsPerDiamond: dc.coinsPerDiamond,
+        minDiamonds: dc.minDiamondsToExchange,
         rate: dc.diamondToCoinRate,
       );
       if (result.success) {
@@ -840,7 +853,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       if (mounted) {
         setState(() => _exchanging = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
         );
       }
     }

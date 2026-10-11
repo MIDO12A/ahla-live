@@ -1014,21 +1014,31 @@ class SupabaseService {
   Future<({bool success, int coinsReceived, String? error})> exchangeDiamondsToCoins({
     required String uid,
     required int diamonds,
-    required int rate,
+    int? rate,
+    double? coinsPerDiamond,
+    int? minDiamonds,
   }) async {
-    final effectiveRate = rate <= 0 ? 2 : rate;
+    final effectiveMultiplier = (coinsPerDiamond != null && coinsPerDiamond > 0)
+        ? coinsPerDiamond
+        : (rate != null && rate > 0 ? (rate == 1 ? 1.0 : 1.0 / rate) : 1.0);
+
+    final effectiveMin = minDiamonds ?? (rate != null && rate > 0 ? rate : 1);
+
     if (diamonds < 1) {
       return (success: false, coinsReceived: 0, error: 'يرجى إدخال كمية ألماس صحيحة');
     }
-    if (diamonds < effectiveRate) {
-      return (success: false, coinsReceived: 0, error: 'الحد الأدنى للتبديل هو $effectiveRate ألماس');
+    if (diamonds < effectiveMin) {
+      return (success: false, coinsReceived: 0, error: 'الحد الأدنى للتبديل هو $effectiveMin ألماس');
     }
     try {
       final user = await _ds.getUser(uid);
       if (user == null || user.diamonds < diamonds) {
         return (success: false, coinsReceived: 0, error: 'رصيد الألماس غير كافٍ');
       }
-      final coinsToReceive = (diamonds / effectiveRate).floor();
+      final coinsToReceive = (diamonds * effectiveMultiplier).floor();
+      if (coinsToReceive <= 0) {
+        return (success: false, coinsReceived: 0, error: 'كمية الألماس غير كافية للحصول على كوينز');
+      }
       final newDiamonds = user.diamonds - diamonds;
       final newCoins = user.coins + coinsToReceive;
 
