@@ -1384,6 +1384,63 @@ function MilestonesTab() {
             )}
           </div>
 
+          {/* Quick Preset Buttons */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+            <span className="text-[11px] text-slate-400 font-bold">🎯 قوالب تارجت جاهزة وسريعة:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setTitle('التارجت الأول (150,000 ماس)');
+                setTargetDiamonds('150000');
+                setRewardType('diamonds');
+                setRewardValue('102000');
+                setAgentCommissionRate('10');
+              }}
+              className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-semibold border border-amber-500/20"
+            >
+              التارجت الأول (150 ألف ماس 💎)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTitle('التارجت الثاني (300,000 ماس)');
+                setTargetDiamonds('300000');
+                setRewardType('diamonds');
+                setRewardValue('204000');
+                setAgentCommissionRate('10');
+              }}
+              className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg text-xs font-semibold border border-cyan-500/20"
+            >
+              التارجت الثاني (300 ألف ماس 💎)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTitle('التارجت الثالث (500,000 ماس)');
+                setTargetDiamonds('500000');
+                setRewardType('diamonds');
+                setRewardValue('340000');
+                setAgentCommissionRate('10');
+              }}
+              className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 rounded-lg text-xs font-semibold border border-indigo-500/20"
+            >
+              التارجت الثالث (500 ألف ماس 💎)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTitle('تارجت المليون (1,000,000 ماس)');
+                setTargetDiamonds('1000000');
+                setRewardType('diamonds');
+                setRewardValue('680000');
+                setAgentCommissionRate('10');
+              }}
+              className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-500/20"
+            >
+              تارجت المليون (1 مليون ماس 💎)
+            </button>
+          </div>
+
           {/* Image and Background Upload for the Milestone */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-[#121214] p-3 rounded-xl border border-white/5">
             <div>
@@ -1439,22 +1496,31 @@ function MilestonesTab() {
             const val = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
             return <span className="text-cyan-400 font-bold">{val.toLocaleString()} 💎</span>;
           }},
-          { key: 'reward_type', label: 'نوع المكافأة', sortable: true, render: m => {
-            const rt = (m as any).reward_type ?? (m as any).rewardType;
-            return <span className="text-amber-400 font-semibold">{rt === 'salary_usd' ? '💵 راتب USD' : rt === 'gold' ? '🪙 عملات' : rt === 'diamonds' ? '💎 ألماس' : rt === 'frame' ? '🖼️ إطار' : rt === 'badge' ? '🏅 وسام' : rt === 'entry_effect' ? '🚗 مؤثر دخول' : rt === 'vip_days' ? '👑 أيام VIP' : rt || '—'}</span>;
+          { key: 'host_salary', label: 'راتب المضيف (68%)', render: m => {
+            const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
+            const hostVal = Math.round(tD * 0.68);
+            return <span className="text-emerald-400 font-bold">{hostVal.toLocaleString()} 💎</span>;
           }},
-          { key: 'reward_value', label: 'قيمة الراتب / المكافأة', sortable: true, render: m => {
-            const val = (m as any).reward_value ?? (m as any).rewardValue ?? '';
-            const rt = (m as any).reward_type ?? (m as any).rewardType;
-            return <span className="text-emerald-400 font-bold">{val} {rt === 'salary_usd' ? '$' : rt === 'gold' ? '🪙' : rt === 'diamonds' ? '💎' : rt === 'vip_days' ? 'يوم' : ''}</span>;
+          { key: 'agent_commission_rate', label: 'راتب وكيل المضيف (10%)', sortable: true, render: m => {
+            const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
+            const hostVal = tD * 0.68;
+            const agentVal = Math.round(hostVal * 0.10);
+            return <span className="text-indigo-400 font-bold">{agentVal.toLocaleString()} 💎</span>;
           }},
-          { key: 'agent_commission_rate', label: 'عمولة الوكيل (%)', sortable: true, render: m => {
-            const rate = Number((m as any).agent_commission_rate ?? (m as any).agentCommissionRate ?? 0.1);
-            return <span className="text-amber-400 font-bold">{(rate * 100).toFixed(0)}%</span>;
+          { key: 'recharge_agent', label: 'عمولة وكيل الشحن', render: m => {
+            const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
+            const hostVal = tD * 0.68;
+            const agentVal = hostVal * 0.10;
+            const recVal = Math.round((hostVal * 0.10) + (agentVal * 0.10));
+            return <span className="text-amber-400 font-bold">{recVal.toLocaleString()} 💎</span>;
           }},
-          { key: 'period_type', label: 'الفترة', sortable: true, render: m => {
-            const pt = (m as any).period_type ?? (m as any).periodType;
-            return <span className="text-slate-400">{pt === 'monthly' ? 'شهري' : pt === 'weekly' ? 'أسبوعي' : pt === 'all_time' ? 'تراكمي' : pt === 'daily' ? 'يومي' : pt || '—'}</span>;
+          { key: 'platform_share', label: 'متبقي الإدارة', render: m => {
+            const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
+            const hostVal = tD * 0.68;
+            const agentVal = hostVal * 0.10;
+            const recVal = (hostVal * 0.10) + (agentVal * 0.10);
+            const platVal = Math.round(tD - (hostVal + agentVal + recVal));
+            return <span className="text-cyan-300 font-bold">{platVal.toLocaleString()} 💎</span>;
           }},
           { key: 'is_active', label: 'نشط', sortable: true, render: m => {
             const active = (m as any).is_active !== false && (m as any).isActive !== false;

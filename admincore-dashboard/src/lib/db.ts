@@ -2159,144 +2159,101 @@ export async function createAgencyApplication(payload: Partial<AgencyApplication
 }
 
 export async function getHostMilestones(): Promise<HostMilestoneModel[]> {
+  // 1. Try fetching from app_config 'host_milestones_list'
   try {
-    const { data, error } = await supabase.from('host_milestones').select('*');
-    if (!error && data && data.length > 0) {
-      return (data ?? []).map((m: any) => ({
-        id: m.id,
-        title: m.title ?? '',
-        target_diamonds: Number(m.target_diamonds ?? m.targetDiamonds ?? 0),
-        targetDiamonds: Number(m.target_diamonds ?? m.targetDiamonds ?? 0),
-        reward_type: m.reward_type ?? m.rewardType ?? 'salary_usd',
-        rewardType: m.reward_type ?? m.rewardType ?? 'salary_usd',
-        reward_value: Number(m.reward_value ?? m.rewardValue ?? 0),
-        rewardValue: Number(m.reward_value ?? m.rewardValue ?? 0),
-        reward_item_id: m.reward_item_id ?? m.rewardItemId ?? null,
-        rewardItemId: m.reward_item_id ?? m.rewardItemId ?? null,
-        reward_image_url: m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? m.imageUrl ?? null,
-        rewardImageUrl: m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? m.imageUrl ?? null,
-        background_url: m.background_url ?? m.backgroundUrl ?? null,
-        backgroundUrl: m.background_url ?? m.backgroundUrl ?? null,
-        agent_commission_rate: Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1),
-        agentCommissionRate: Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1),
-        period_type: m.period_type ?? m.periodType ?? 'monthly',
-        periodType: m.period_type ?? m.periodType ?? 'monthly',
-        is_active: m.is_active !== false && m.isActive !== false,
-        isActive: m.is_active !== false && m.isActive !== false,
-        sort_order: Number(m.sort_order ?? m.sortOrder ?? 0),
-        sortOrder: Number(m.sort_order ?? m.sortOrder ?? 0),
-      })) as any;
+    const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'host_milestones_list').maybeSingle();
+    if (cfg && cfg.value) {
+      const list = typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value;
+      if (Array.isArray(list) && list.length > 0) {
+        return list as HostMilestoneModel[];
+      }
     }
   } catch {}
-  return [];
+
+  // 2. Default initial target (150,000 diamonds)
+  const defaultMilestone: HostMilestoneModel = {
+    id: 'hm_target_150k',
+    title: 'التارجت الأول (150,000 ماس)',
+    target_diamonds: 150000,
+    targetDiamonds: 150000,
+    reward_type: 'salary_usd',
+    rewardType: 'salary_usd',
+    reward_value: 10,
+    rewardValue: 10,
+    reward_item_id: null,
+    rewardItemId: null,
+    reward_image_url: 'https://res.cloudinary.com/r5kohqhd/image/upload/v1791072360/config/target_gold.png',
+    rewardImageUrl: 'https://res.cloudinary.com/r5kohqhd/image/upload/v1791072360/config/target_gold.png',
+    background_url: null,
+    backgroundUrl: null,
+    agent_commission_rate: 0.1,
+    agentCommissionRate: 0.1,
+    period_type: 'monthly',
+    periodType: 'monthly',
+    is_active: true,
+    isActive: true,
+    sort_order: 1,
+    sortOrder: 1,
+  };
+
+  try {
+    await supabase.from('app_config').upsert({
+      key: 'host_milestones_list',
+      value: [defaultMilestone],
+    });
+  } catch {}
+
+  return [defaultMilestone];
 }
 
 export async function updateHostMilestone(id: string, updates: Partial<HostMilestoneModel>): Promise<boolean> {
-  const raw: any = updates;
-  const targetDiamonds = Number(raw.target_diamonds ?? raw.targetDiamonds ?? 0);
-  const rewardValue = Number(raw.reward_value ?? raw.rewardValue ?? 0);
-  const agentCommissionRate = Number(raw.agent_commission_rate ?? raw.agentCommissionRate ?? 0.1);
-  const sortOrder = Number(raw.sort_order ?? raw.sortOrder ?? 0);
-  const rewardType = raw.reward_type ?? raw.rewardType ?? 'salary_usd';
-  const periodType = raw.period_type ?? raw.periodType ?? 'monthly';
-  const isActive = raw.is_active !== false && raw.isActive !== false;
-  const rewardItemId = raw.reward_item_id ?? raw.rewardItemId ?? null;
-  const rewardImageUrl = raw.reward_image_url ?? raw.rewardImageUrl ?? null;
-  const backgroundUrl = raw.background_url ?? raw.backgroundUrl ?? null;
-  const title = raw.title ?? '';
-
-  const normalized = {
-    title,
-    target_diamonds: targetDiamonds,
-    targetDiamonds,
-    reward_type: rewardType,
-    rewardType,
-    reward_value: rewardValue,
-    rewardValue,
-    agent_commission_rate: agentCommissionRate,
-    agentCommissionRate,
-    sort_order: sortOrder,
-    sortOrder,
-    period_type: periodType,
-    periodType,
-    is_active: isActive,
-    isActive,
-    reward_item_id: rewardItemId,
-    rewardItemId,
-    reward_image_url: rewardImageUrl,
-    rewardImageUrl,
-    background_url: backgroundUrl,
-    backgroundUrl,
-    updated_at: new Date().toISOString(),
-  };
-
-
-
-  // 2. Write to Supabase
   try {
-    await supabase.from('host_milestones').update(normalized).eq('id', id);
+    const currentList = await getHostMilestones();
+    const updated = currentList.map(m => m.id === id ? { ...m, ...updates, updated_at: new Date().toISOString() } : m);
+    await supabase.from('app_config').upsert({
+      key: 'host_milestones_list',
+      value: updated,
+    });
+    return true;
   } catch (e) {
-    console.warn('updateHostMilestone Supabase warning:', e);
+    console.warn('updateHostMilestone error:', e);
+    return false;
   }
-  return true;
 }
 
 export async function createHostMilestone(milestone: Omit<HostMilestoneModel, 'id'>): Promise<boolean> {
-  const raw: any = milestone;
-  const targetDiamonds = Number(raw.target_diamonds ?? raw.targetDiamonds ?? 0);
-  const rewardValue = Number(raw.reward_value ?? raw.rewardValue ?? 0);
-  const agentCommissionRate = Number(raw.agent_commission_rate ?? raw.agentCommissionRate ?? 0.1);
-  const sortOrder = Number(raw.sort_order ?? raw.sortOrder ?? 0);
-  const rewardType = raw.reward_type ?? raw.rewardType ?? 'salary_usd';
-  const periodType = raw.period_type ?? raw.periodType ?? 'monthly';
-  const isActive = raw.is_active !== false && raw.isActive !== false;
-  const rewardItemId = raw.reward_item_id ?? raw.rewardItemId ?? null;
-  const rewardImageUrl = raw.reward_image_url ?? raw.rewardImageUrl ?? null;
-  const backgroundUrl = raw.background_url ?? raw.backgroundUrl ?? null;
-  const title = raw.title ?? '';
-  const newId = `hm_${Date.now()}`;
-
-  const normalized = {
-    id: newId,
-    title,
-    target_diamonds: targetDiamonds,
-    targetDiamonds,
-    reward_type: rewardType,
-    rewardType,
-    reward_value: rewardValue,
-    rewardValue,
-    agent_commission_rate: agentCommissionRate,
-    agentCommissionRate,
-    sort_order: sortOrder,
-    sortOrder,
-    period_type: periodType,
-    periodType,
-    is_active: isActive,
-    isActive,
-    reward_item_id: rewardItemId,
-    rewardItemId,
-    reward_image_url: rewardImageUrl,
-    rewardImageUrl,
-    background_url: backgroundUrl,
-    backgroundUrl,
-    created_at: new Date().toISOString(),
-  };
-
-
-
-  // 2. Write to Supabase
   try {
-    await supabase.from('host_milestones').insert(normalized);
+    const currentList = await getHostMilestones();
+    const newId = `hm_${Date.now()}`;
+    const newMilestone = {
+      id: newId,
+      ...milestone,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [...currentList, newMilestone];
+    await supabase.from('app_config').upsert({
+      key: 'host_milestones_list',
+      value: updated,
+    });
+    return true;
   } catch (e) {
-    console.warn('createHostMilestone Supabase warning:', e);
+    console.warn('createHostMilestone error:', e);
+    return false;
   }
-  return true;
 }
 
 export async function deleteHostMilestone(id: string): Promise<boolean> {
-
-  try { await supabase.from('host_milestones').delete().eq('id', id) } catch {}
-  return true;
+  try {
+    const currentList = await getHostMilestones();
+    const updated = currentList.filter(m => m.id !== id);
+    await supabase.from('app_config').upsert({
+      key: 'host_milestones_list',
+      value: updated,
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 // ---- Agency Join Requests ----
