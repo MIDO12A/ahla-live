@@ -576,22 +576,58 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
     var user = userProvider.currentUser;
     final uid = user?.uid ?? AuthService.currentSession?.user.id ?? SupabaseAuthService().currentUser?.uid;
 
-    bool isBd = user?.isBd == true;
-
-    // Fast check in Supabase users if isBd is false in local cache
-    if (!isBd && uid != null && uid.isNotEmpty) {
-      try {
-        final row = await _sb.from('users').select('is_bd, role').eq('uid', uid).maybeSingle();
-        if (row != null) {
-          if (row['is_bd'] == true || ['bd', 'supervisor', 'admin', 'super_admin'].contains(row['role'])) {
-            isBd = true;
-          }
-        }
-      } catch (_) {}
+    if (uid == null || uid.isEmpty) {
+      KayanInAppToast.warning('يرجى تسجيل الدخول أولاً');
+      return;
     }
 
-    if (isBd && user != null) {
-      if (mounted) {
+    bool isBd = user?.isBd == true;
+
+    // Comprehensive check across Supabase users, app_config, and Firestore
+    if (!isBd) {
+      // 1. Supabase users table
+      try {
+        final row = await _sb.from('users').select('is_bd, role').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
+        if (row != null && (row['is_bd'] == true || row['role'] == 'bd' || ['supervisor', 'admin', 'super_admin'].contains(row['role']))) {
+          isBd = true;
+        }
+      } catch (_) {}
+
+      // 2. Supabase app_config (bd_meta_$uid)
+      if (!isBd) {
+        try {
+          final cfg = await _sb.from('app_config').select('value').eq('key', 'bd_meta_$uid').maybeSingle();
+          if (cfg != null && cfg['value'] != null) {
+            final val = cfg['value'] as Map?;
+            if (val != null && val['status'] != 'revoked') {
+              isBd = true;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. Firestore users collection
+      if (!isBd) {
+        try {
+          final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+          final fsDoc = await fs.collection('users').doc(uid).get();
+          if (fsDoc.exists) {
+            final data = fsDoc.data();
+            if (data != null && (data['is_bd'] == true || data['role'] == 'bd')) {
+              isBd = true;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (isBd) {
+      await userProvider.loadUser(uid);
+      user = userProvider.currentUser;
+      if (user != null && !user.isBd) {
+        user = user.copyWith(isBd: true);
+      }
+      if (mounted && user != null) {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => BDCenterScreen(currentUser: user!)),
@@ -673,20 +709,52 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                       child: ElevatedButton(
                         onPressed: () async {
                           Navigator.pop(ctx);
-                          if (uid != null) {
+                          bool verified = false;
+
+                          // Refresh and verify BD status
+                          try {
+                            final row = await _sb.from('users').select('is_bd, role').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
+                            if (row != null && (row['is_bd'] == true || row['role'] == 'bd')) {
+                              verified = true;
+                            }
+                          } catch (_) {}
+
+                          if (!verified) {
                             try {
-                              final fresh = await SupabaseDataService().getUser(uid);
-                              if (fresh != null && (fresh.isBd || fresh.isHostAgent)) {
-                                if (context.mounted) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => BDCenterScreen(currentUser: fresh)),
-                                  );
-                                }
-                                return;
+                              final cfg = await _sb.from('app_config').select('value').eq('key', 'bd_meta_$uid').maybeSingle();
+                              if (cfg != null && cfg['value'] != null) {
+                                final val = cfg['value'] as Map?;
+                                if (val != null && val['status'] != 'revoked') verified = true;
                               }
                             } catch (_) {}
                           }
+
+                          if (!verified) {
+                            try {
+                              final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+                              final fsDoc = await fs.collection('users').doc(uid).get();
+                              if (fsDoc.exists && (fsDoc.data()?['is_bd'] == true || fsDoc.data()?['role'] == 'bd')) {
+                                verified = true;
+                              }
+                            } catch (_) {}
+                          }
+
+                          if (verified) {
+                            await userProvider.loadUser(uid);
+                            var fresh = userProvider.currentUser;
+                            if (fresh != null && !fresh.isBd) {
+                              fresh = fresh.copyWith(isBd: true);
+                            }
+                            if (context.mounted && fresh != null) {
+                              KayanInAppToast.success('تم تفعيل صلاحيات الـ BD بنجاح 🎉');
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => BDCenterScreen(currentUser: fresh!)),
+                              );
+                              return;
+                            }
+                          }
+
                           KayanInAppToast.warning('حسابك ليس مسجلاً كمسؤول BD بعد');
                         },
                         style: ElevatedButton.styleFrom(

@@ -1303,6 +1303,9 @@ export async function createHostAgency(name: string, ownerId: string, commission
     const photoUrl = extra?.photo_url || '';
     const nowIso = new Date().toISOString();
 
+    const resolvedBdUid = (extra as any)?.bd_uid || (extra as any)?.bdUid || (extra as any)?.data?.bd_uid || (extra as any)?.supervisor_uid || (extra as any)?.supervisor_id || (u as any)?.bd_supervisor_id || '';
+    const resolvedSupUid = (extra as any)?.supervisor_uid || (extra as any)?.supervisor_id || '';
+
     // 1. Supabase insert into host_agencies
     // Schema columns: id, name, owner_uid, logo_url, description, status, is_active, data
     const sbPayload = {
@@ -1319,6 +1322,10 @@ export async function createHostAgency(name: string, ownerId: string, commission
         specialty: specialty || 'mixed',
         tier: extra?.tier || 'bronze',
         country: extra?.country || '',
+        bd_uid: resolvedBdUid || null,
+        bdUid: resolvedBdUid || null,
+        supervisor_uid: resolvedSupUid || null,
+        supervisor_id: resolvedSupUid || null,
       },
       created_at: nowIso,
       updated_at: nowIso,
@@ -1327,6 +1334,35 @@ export async function createHostAgency(name: string, ownerId: string, commission
     const { error: sbErr } = await supabase.from('host_agencies').upsert(sbPayload);
     if (sbErr) {
       console.warn('createHostAgency supabase host_agencies upsert warning:', sbErr);
+    }
+
+    // Mirror to Firestore host_agencies
+    try {
+      const { firestoreDb } = await import('./firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+      if (firestoreDb) {
+        await setDoc(doc(firestoreDb, 'host_agencies', agencyId), {
+          id: agencyId,
+          name: name.trim(),
+          owner_uid: resolvedUid,
+          owner_id: resolvedUid,
+          logo_url: photoUrl,
+          photo_url: photoUrl,
+          description: extra?.description || '',
+          status: 'active',
+          is_active: true,
+          member_count: 1,
+          bd_uid: resolvedBdUid || null,
+          bdUid: resolvedBdUid || null,
+          supervisor_uid: resolvedSupUid || null,
+          supervisor_id: resolvedSupUid || null,
+          commission_rate: commRate,
+          created_at: nowIso,
+          updated_at: nowIso,
+        }, { merge: true });
+      }
+    } catch (fsErr) {
+      console.warn('createHostAgency firestore mirror warning:', fsErr);
     }
 
     // 2. Add owner to Supabase host_agency_members (column is host_uid, id is UUID)
@@ -1771,6 +1807,12 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
       const agencyId = existingAgencyId || `agency_${Date.now()}_${app.user_id}`;
       const agencyLogo = app.agency_logo || app.user_avatar || null;
 
+      const appBdUid = (app as any).bd_uid || (app as any).supervisor_uid || (app as any).supervisor_id || null;
+      const appBdId = (app as any).bd_id || (app as any).supervisor_id || null;
+      const appSupUid = (app as any).supervisor_uid || (app as any).supervisor_id || null;
+      const appSupId = (app as any).supervisor_id || (app as any).supervisor_uid || null;
+      const appSupName = (app as any).supervisor_name || null;
+
       const agencyData: any = {
         id: agencyId,
         name: app.agency_name || `وكالة ${app.user_name}`,
@@ -1791,6 +1833,19 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
         total_diamonds_earned: 0,
         monthly_diamonds: 0,
         total_diamonds_monthly: 0,
+        bd_uid: appBdUid,
+        bd_id: appBdId,
+        supervisor_uid: appSupUid,
+        supervisor_id: appSupId,
+        supervisor_name: appSupName,
+        data: {
+          bd_uid: appBdUid,
+          bdUid: appBdUid,
+          bd_id: appBdId,
+          supervisor_uid: appSupUid,
+          supervisor_id: appSupId,
+          supervisor_name: appSupName,
+        },
         created_at: now,
       };
 
@@ -2472,6 +2527,7 @@ export async function sendSystemNotification(data: {
 }): Promise<boolean> {
   try {
     const client = getAdminSupabase() || supabase;
+    const nowIso = new Date().toISOString();
     const payload: Record<string, unknown> = {
       title: data.title || 'إشعار من الإدارة',
       body: data.body || '',
@@ -2482,9 +2538,32 @@ export async function sendSystemNotification(data: {
         ...(data.extraData || {}),
         action: data.action || data.type || 'system',
       },
-      sent_at: new Date().toISOString(),
+      sent_at: nowIso,
     };
     await client.from('notifications').insert(payload);
+
+    // Sync to Firestore notifications collection as well
+    try {
+      const { firestoreDb } = await import('./firebase');
+      const { collection, addDoc } = await import('firebase/firestore');
+      if (firestoreDb && data.userId && data.userId !== 'all') {
+        await addDoc(collection(firestoreDb, 'notifications'), {
+          uid: data.userId,
+          target: data.userId,
+          title: data.title,
+          body: data.body,
+          message: data.body,
+          type: data.type || (data.action ? data.action : 'system'),
+          data: payload.data,
+          read: false,
+          sent_at: nowIso,
+          created_at: nowIso,
+        });
+      }
+    } catch (fe) {
+      console.warn('sendSystemNotification firestore error:', fe);
+    }
+
     return true;
   } catch (e) {
     console.warn('sendSystemNotification failed:', e);
@@ -2931,6 +3010,62 @@ export async function getBDManagers(): Promise<BDModel[]> {
       configMap[u] = c.value;
     });
 
+    // 1b. Fallback: Also fetch all users marked as BD in Supabase users table
+    try {
+      const { data: directUsers } = await client
+        .from('users')
+        .select('uid, id, custom_id, name, email, photo_url, created_at, role, is_bd, bd_supervisor_id, bd_salary, bd_commission_rate')
+        .or('is_bd.eq.true,role.eq.bd');
+
+      (directUsers || []).forEach((u: any) => {
+        const uId = u.uid || u.id;
+        if (!uId) return;
+        if (!configMap[uId]) {
+          configMap[uId] = {
+            uid: uId,
+            appId: u.custom_id || '',
+            name: u.name || 'BD Manager',
+            email: u.email || '',
+            photoUrl: u.photo_url || '',
+            supervisorId: u.bd_supervisor_id || '',
+            salary: Number(u.bd_salary || 0),
+            commissionRate: Number(u.bd_commission_rate || 10),
+            status: 'active',
+            createdAt: u.created_at || new Date().toISOString(),
+          };
+        }
+      });
+    } catch (e) {
+      console.warn('getBDManagers directUsers query error:', e);
+    }
+
+    // 1c. Fallback: Also fetch from Firestore users where is_bd == true
+    try {
+      const { firestoreDb } = await import('./firebase');
+      const { collection, getDocs, query, where } = await import('firebase/firestore');
+      if (firestoreDb) {
+        const snap = await getDocs(query(collection(firestoreDb, 'users'), where('is_bd', '==', true)));
+        snap.forEach(d => {
+          const ud = d.data();
+          const uId = d.id;
+          if (!configMap[uId]) {
+            configMap[uId] = {
+              uid: uId,
+              appId: ud.custom_id || ud.customId || '',
+              name: ud.name || ud.displayName || 'BD Manager',
+              email: ud.email || '',
+              photoUrl: ud.photo_url || ud.photoUrl || '',
+              supervisorId: ud.bd_supervisor_id || ud.bdSupervisorId || '',
+              salary: Number(ud.bd_salary || ud.bdSalary || 0),
+              commissionRate: Number(ud.bd_commission_rate || ud.bdCommissionRate || 10),
+              status: 'active',
+              createdAt: ud.created_at || new Date().toISOString(),
+            };
+          }
+        });
+      }
+    } catch (_) {}
+
     const bdUids = Object.keys(configMap).filter(Boolean);
 
     // 2. Fetch corresponding users with safe standard columns only
@@ -2943,10 +3078,8 @@ export async function getBDManagers(): Promise<BDModel[]> {
       if (uData) bdUsers = uData;
     }
 
-    // 3. Fetch all host_agencies to compute statistics
-    const { data: agencies } = await client
-      .from('host_agencies')
-      .select('id, name, owner_uid, member_count, total_diamonds_monthly, total_diamonds_cumulative, data, created_at');
+    // 3. Fetch all host_agencies (from both Supabase and Firestore)
+    const agencies = await getHostAgencies();
 
     // 4. Fetch admin users for supervisor names
     const admins = await getAdminUsers();
@@ -2985,14 +3118,25 @@ export async function getBDManagers(): Promise<BDModel[]> {
       });
     });
 
-    // Aggregate agency statistics for each BD
+    // Aggregate agency statistics for each BD accurately
     (agencies || []).forEach(ag => {
-      const bdUid = ag.data?.bd_uid || ag.data?.bdUid || ag.owner_uid;
+      const bdUid = ag.data?.bd_uid || ag.data?.bdUid || (ag as any).bd_uid || (ag as any).bdUid;
+      const sup = (ag as any).supervisor_uid || (ag as any).supervisor_id;
+      const owner = ag.owner_uid || ag.owner_id;
+
+      let targetBd: BDModel | undefined;
       if (bdUid && allBds.has(bdUid)) {
-        const bd = allBds.get(bdUid)!;
-        bd.agencyCount += 1;
-        bd.totalHosts += Number(ag.member_count || 1);
-        bd.totalEarnings += Number(ag.total_diamonds_monthly || ag.total_diamonds_cumulative || 0);
+        targetBd = allBds.get(bdUid);
+      } else if (sup && allBds.has(sup)) {
+        targetBd = allBds.get(sup);
+      } else if (owner && allBds.has(owner)) {
+        targetBd = allBds.get(owner);
+      }
+
+      if (targetBd) {
+        targetBd.agencyCount += 1;
+        targetBd.totalHosts += Number(ag.member_count || 1);
+        targetBd.totalEarnings += Number(ag.monthly_diamonds || ag.total_diamonds_monthly || ag.total_diamonds_earned || 0);
       }
     });
 
@@ -3020,9 +3164,10 @@ export async function assignBDManager(params: {
   const client = getAdminSupabase() || supabase;
   const { uid, appId, name, supervisorId, salary = 0, commissionRate = 10, specialId, frameId, badgeId, necklaceId } = params;
 
-  // 1. Update public.users
+  // 1. Update public.users in Supabase
   const updates: Record<string, any> = {
     is_bd: true,
+    role: 'bd',
     bd_supervisor_id: supervisorId || null,
     bd_salary: salary,
     bd_commission_rate: commissionRate,
@@ -3032,6 +3177,7 @@ export async function assignBDManager(params: {
   }
   try {
     await client.from('users').update(updates).eq('uid', uid);
+    await client.from('users').update(updates).eq('id', uid);
   } catch (e) {
     console.warn('Update user for BD error:', e);
   }
@@ -3068,6 +3214,40 @@ export async function assignBDManager(params: {
   } catch (e) {
     console.warn('Save bd_meta error:', e);
   }
+
+  // 4. Mirror directly to Firestore users collection
+  try {
+    const { firestoreDb } = await import('./firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    if (firestoreDb) {
+      await setDoc(doc(firestoreDb, 'users', uid), {
+        is_bd: true,
+        role: 'bd',
+        bd_supervisor_id: supervisorId || null,
+        bd_salary: salary,
+        bd_commission_rate: commissionRate,
+        ...(specialId && specialId.trim() ? { custom_id: specialId.trim() } : {}),
+      }, { merge: true });
+    }
+  } catch (fe) {
+    console.warn('Sync assign BD to Firestore error:', fe);
+  }
+
+  // 5. Send official in-app system notification
+  await sendSystemNotification({
+    userId: uid,
+    title: 'تهانينا! تم تعيينك كمسؤول BD رسمي 💼',
+    body: `تم اعتمادك وتفعيل حسابك كمسؤول تطوير أعمال (BD) رسمي${salary > 0 ? ` براتب شهري $${salary}` : ''} ونسبة عمولة ${commissionRate}%. يمكنك الآن الدخول لمركز الـ BD من شاشة الوكالات ومتابعة وكالاتك وأرباحك.`,
+    type: 'bd_assigned',
+    action: 'bd_center',
+    extraData: {
+      role: 'bd',
+      is_bd: true,
+      supervisor_id: supervisorId || '',
+      salary,
+      commission_rate: commissionRate,
+    },
+  });
 }
 
 export async function updateBDManager(params: {
@@ -3087,6 +3267,7 @@ export async function updateBDManager(params: {
   // 1. Update public.users
   const updates: Record<string, any> = {
     is_bd: true,
+    role: 'bd',
     bd_supervisor_id: supervisorId || null,
     bd_salary: salary,
     bd_commission_rate: commissionRate,
@@ -3096,6 +3277,7 @@ export async function updateBDManager(params: {
   }
   try {
     await client.from('users').update(updates).eq('uid', uid);
+    await client.from('users').update(updates).eq('id', uid);
   } catch (e) {
     console.warn('Update user for BD error:', e);
   }
@@ -3136,54 +3318,92 @@ export async function updateBDManager(params: {
   } catch (e) {
     console.warn('Update bd_meta error:', e);
   }
+
+  // 4. Mirror to Firestore users
+  try {
+    const { firestoreDb } = await import('./firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    if (firestoreDb) {
+      await setDoc(doc(firestoreDb, 'users', uid), {
+        is_bd: true,
+        role: 'bd',
+        bd_supervisor_id: supervisorId !== undefined ? (supervisorId || null) : undefined,
+        bd_salary: salary,
+        bd_commission_rate: commissionRate,
+        ...(specialId && specialId.trim() ? { custom_id: specialId.trim() } : {}),
+      }, { merge: true });
+    }
+  } catch (fe) {
+    console.warn('Sync update BD to Firestore error:', fe);
+  }
 }
 
 export async function revokeBDManager(uid: string) {
   const client = getAdminSupabase() || supabase;
-  // 1. Clear is_bd in users
+  // 1. Clear is_bd in users in Supabase
   try {
     await client.from('users').update({
       is_bd: false,
+      role: 'user',
       bd_supervisor_id: null,
       bd_salary: 0,
       bd_commission_rate: 0,
-    }).eq('uid', uid);
+    }).or(`uid.eq.${uid},id.eq.${uid}`);
   } catch (e) {
     console.warn('Revoke user is_bd error:', e);
   }
 
-  // 2. Delete / update meta in app_config
+  // 2. Delete meta in app_config
   try {
     await client.from('app_config').delete().eq('key', 'bd_meta_' + uid);
   } catch (e) {
     console.warn('Delete bd_meta error:', e);
   }
+
+  // 3. Mirror to Firestore users
+  try {
+    const { firestoreDb } = await import('./firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    if (firestoreDb) {
+      await setDoc(doc(firestoreDb, 'users', uid), {
+        is_bd: false,
+        role: 'user',
+        bd_supervisor_id: null,
+        bd_salary: 0,
+        bd_commission_rate: 0,
+      }, { merge: true });
+    }
+  } catch (fe) {
+    console.warn('Sync revoke BD to Firestore error:', fe);
+  }
+
+  // 4. Send official notification
+  await sendSystemNotification({
+    userId: uid,
+    title: 'تنبيه: تم إنهاء مهام مسؤول الـ BD ⚠️',
+    body: 'تم إلغاء صلاحيات مسؤول تطوير الأعمال (BD) الخاصة بحسابك من قِبل الإدارة.',
+    type: 'bd_revoked',
+  });
 }
 
 export async function getBDAgencies(bdUid: string): Promise<BDAgencyDetail[]> {
-  const client = getAdminSupabase() || supabase;
   try {
-    const { data } = await client
-      .from('host_agencies')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!data) return [];
-
-    const filtered = data.filter(a => {
-      const assignedBd = a.data?.bd_uid || a.data?.bdUid;
-      return assignedBd === bdUid || a.owner_uid === bdUid;
+    const allAgencies = await getHostAgencies();
+    const filtered = allAgencies.filter(a => {
+      const assignedBd = a.data?.bd_uid || a.data?.bdUid || (a as any).bd_uid || (a as any).bdUid;
+      const sup = (a as any).supervisor_uid || (a as any).supervisor_id;
+      return assignedBd === bdUid || a.owner_uid === bdUid || a.owner_id === bdUid || sup === bdUid;
     });
 
     return filtered.map(a => ({
       id: a.id,
       name: a.name || 'Agency',
-      ownerUid: a.owner_uid,
-      ownerName: a.name || '',
+      ownerUid: a.owner_uid || a.owner_id,
+      ownerName: (a as any).ownerName || (a as any).owner_name || a.name || '',
       memberCount: a.member_count || 1,
-      monthlyDiamonds: a.total_diamonds_monthly || 0,
-      totalDiamonds: a.total_diamonds_cumulative || 0,
-      status: a.status || 'active',
+      monthlyDiamonds: a.monthly_diamonds || a.total_diamonds_monthly || 0,
+      totalDiamonds: a.total_diamonds_earned || a.total_diamonds_cumulative || 0,
+      status: a.is_active ? 'active' : 'inactive',
       createdAt: a.created_at,
     }));
   } catch (e) {
@@ -3200,6 +3420,18 @@ export async function linkAgencyToBD(agencyId: string, bdUid: string) {
     await client.from('host_agencies').update({
       data: { ...curData, bd_uid: bdUid },
     }).eq('id', agencyId);
+
+    // Sync to Firestore host_agencies
+    try {
+      const { firestoreDb } = await import('./firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+      if (firestoreDb) {
+        await setDoc(doc(firestoreDb, 'host_agencies', agencyId), {
+          bd_uid: bdUid,
+          bdUid: bdUid,
+        }, { merge: true });
+      }
+    } catch (_) {}
   } catch (e) {
     console.error('linkAgencyToBD error:', e);
   }

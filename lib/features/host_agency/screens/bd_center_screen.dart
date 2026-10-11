@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../models/user_model.dart';
-import '../../../core/ui/in_app_toast.dart';
 import '../../../core/localization/app_strings.dart';
 import '../data/agency_models.dart';
 import '../../../config/r.dart';
@@ -79,7 +78,6 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
           }
           if (meta['supervisorId'] != null && meta['supervisorId'].toString().isNotEmpty) {
             final supId = meta['supervisorId'].toString();
-            // Fetch supervisor name
             final supRow = await _sb
                 .from('admin_users')
                 .select('display_name, email')
@@ -91,6 +89,53 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
           }
         }
       } catch (_) {}
+
+      // 1b. Fallback from Supabase users row if salary or supervisor not loaded yet
+      if (_salary == 0.0 || _supervisorName == null) {
+        try {
+          final uRow = await _sb
+              .from('users')
+              .select('bd_salary, bd_commission_rate, bd_supervisor_id')
+              .or('uid.eq.$uid,id.eq.$uid')
+              .maybeSingle();
+          if (uRow != null) {
+            if (_salary == 0.0 && uRow['bd_salary'] != null) {
+              _salary = (uRow['bd_salary'] as num).toDouble();
+            }
+            if (_commissionRate == 10.0 && uRow['bd_commission_rate'] != null) {
+              _commissionRate = (uRow['bd_commission_rate'] as num).toDouble();
+            }
+            if (_supervisorName == null && uRow['bd_supervisor_id'] != null && uRow['bd_supervisor_id'].toString().isNotEmpty) {
+              final supId = uRow['bd_supervisor_id'].toString();
+              final supRow = await _sb
+                  .from('admin_users')
+                  .select('display_name, email')
+                  .eq('uid', supId)
+                  .maybeSingle();
+              if (supRow != null) {
+                _supervisorName = supRow['display_name'] ?? supRow['email'];
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 1c. Fallback from Firestore users doc if still missing
+      if (_salary == 0.0 || _supervisorName == null) {
+        try {
+          final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
+          final doc = await fs.collection('users').doc(uid).get();
+          if (doc.exists && doc.data() != null) {
+            final ud = doc.data()!;
+            if (_salary == 0.0 && ud['bd_salary'] != null) {
+              _salary = (ud['bd_salary'] as num).toDouble();
+            }
+            if (_commissionRate == 10.0 && ud['bd_commission_rate'] != null) {
+              _commissionRate = (ud['bd_commission_rate'] as num).toDouble();
+            }
+          }
+        } catch (_) {}
+      }
 
       // 2. Fetch agencies linked to this BD / Supervisor
       final userCustomId = widget.currentUser.customId;
@@ -116,15 +161,20 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
           final dataMap = map['data'] is Map ? Map<String, dynamic>.from(map['data'] as Map) : {};
           
           final bdUid = map['bd_uid']?.toString() ?? dataMap['bd_uid']?.toString() ?? dataMap['bdUid']?.toString();
+          final bdId = map['bd_id']?.toString() ?? dataMap['bd_id']?.toString();
           final supUid = map['supervisor_uid']?.toString() ?? dataMap['supervisor_uid']?.toString();
           final supId = map['supervisor_id']?.toString() ?? dataMap['supervisor_id']?.toString();
           final supCustomId = map['supervisor_custom_id']?.toString() ?? dataMap['supervisor_custom_id']?.toString();
+          final ownerUid = map['owner_uid']?.toString() ?? map['owner_id']?.toString();
+          final ownerCustomId = map['owner_custom_id']?.toString() ?? dataMap['owner_custom_id']?.toString();
 
           final isSupervisedByMe = (supUid != null && supUid.isNotEmpty && supUid == uid) ||
-              (supId != null && supId.isNotEmpty && (supId == uid || supId == userCustomId)) ||
-              (supCustomId != null && supCustomId.isNotEmpty && (supCustomId == userCustomId || supCustomId == uid)) ||
-              (bdUid != null && bdUid.isNotEmpty && bdUid == uid) ||
-              (map['owner_uid'] == uid || map['owner_id'] == uid);
+              (supId != null && supId.isNotEmpty && (supId == uid || (userCustomId.isNotEmpty && supId == userCustomId))) ||
+              (supCustomId != null && supCustomId.isNotEmpty && ((userCustomId.isNotEmpty && supCustomId == userCustomId) || supCustomId == uid)) ||
+              (bdUid != null && bdUid.isNotEmpty && (bdUid == uid || (userCustomId.isNotEmpty && bdUid == userCustomId))) ||
+              (bdId != null && bdId.isNotEmpty && (bdId == uid || (userCustomId.isNotEmpty && bdId == userCustomId))) ||
+              (ownerUid != null && ownerUid == uid) ||
+              (ownerCustomId != null && userCustomId.isNotEmpty && ownerCustomId == userCustomId);
 
           if (isSupervisedByMe && !seenIds.contains(id)) {
             seenIds.add(id);
@@ -147,13 +197,18 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
           final supUid = data['supervisor_uid']?.toString();
           final supId = data['supervisor_id']?.toString();
           final supCustomId = data['supervisor_custom_id']?.toString();
-          final bdUid = data['bd_uid']?.toString();
+          final bdUid = data['bd_uid']?.toString() ?? data['bdUid']?.toString();
+          final bdId = data['bd_id']?.toString();
+          final ownerUid = data['owner_uid']?.toString() ?? data['owner_id']?.toString();
+          final ownerCustomId = data['owner_custom_id']?.toString();
 
           final isSupervised = (supUid != null && supUid == uid) ||
-              (supId != null && (supId == uid || supId == userCustomId)) ||
-              (supCustomId != null && (supCustomId == userCustomId || supCustomId == uid)) ||
-              (bdUid != null && bdUid == uid) ||
-              (data['owner_uid'] == uid || data['owner_id'] == uid);
+              (supId != null && (supId == uid || (userCustomId.isNotEmpty && supId == userCustomId))) ||
+              (supCustomId != null && ((userCustomId.isNotEmpty && supCustomId == userCustomId) || supCustomId == uid)) ||
+              (bdUid != null && (bdUid == uid || (userCustomId.isNotEmpty && bdUid == userCustomId))) ||
+              (bdId != null && (bdId == uid || (userCustomId.isNotEmpty && bdId == userCustomId))) ||
+              (ownerUid != null && ownerUid == uid) ||
+              (ownerCustomId != null && userCustomId.isNotEmpty && ownerCustomId == userCustomId);
 
           if (isSupervised) {
             seenIds.add(doc.id);

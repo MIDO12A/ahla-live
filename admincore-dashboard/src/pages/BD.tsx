@@ -8,10 +8,10 @@ import {
   CheckCircle, AlertTriangle, RefreshCw, ChevronRight, Layers, Percent, Edit3
 } from 'lucide-react';
 import {
-  getBDManagers, assignBDManager, updateBDManager, revokeBDManager, getBDAgencies,
+  getBDManagers, assignBDManager, updateBDManager, revokeBDManager, getBDAgencies, linkAgencyToBD, getHostAgencies,
   getAdminUsers, getBadges, getNecklaces, getStoreItems, searchUserProfile
 } from '../lib/db';
-import type { BDModel, BDAgencyDetail, AdminUser, BadgeConfig, NecklaceConfig, StoreItemModel } from '../types';
+import type { BDModel, BDAgencyDetail, AdminUser, BadgeConfig, NecklaceConfig, StoreItemModel, HostAgencyModel } from '../types';
 
 export default function BDPage() {
   const { t, lang } = useContext(I18nContext);
@@ -72,9 +72,12 @@ export default function BDPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
 
-  // Viewing Agencies Modal
+  // Viewing Agencies Modal & Linking
   const [activeBdAgencies, setActiveBdAgencies] = useState<{ bd: BDModel; agencies: BDAgencyDetail[] } | null>(null);
   const [loadingAgencies, setLoadingAgencies] = useState(false);
+  const [allHostAgencies, setAllHostAgencies] = useState<HostAgencyModel[]>([]);
+  const [selectedLinkAgencyId, setSelectedLinkAgencyId] = useState('');
+  const [linkingAgency, setLinkingAgency] = useState(false);
 
   // Revoke Dialog
   const [confirmRevoke, setConfirmRevoke] = useState<BDModel | null>(null);
@@ -88,6 +91,7 @@ export default function BDPage() {
 
   const myAdminRecord = admins.find(a =>
     a.uid === currentUser?.id ||
+    a.id === currentUser?.id ||
     (currentUser?.email && a.email.toLowerCase() === currentUser.email.toLowerCase())
   );
 
@@ -133,18 +137,20 @@ export default function BDPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [bdList, adminList, badgeList, necklaceList, storeList] = await Promise.all([
+      const [bdList, adminList, badgeList, necklaceList, storeList, hostAgList] = await Promise.all([
         getBDManagers(),
         getAdminUsers(),
         getBadges().catch(() => []),
         getNecklaces().catch(() => []),
         getStoreItems().catch(() => []),
+        getHostAgencies().catch(() => []),
       ]);
       setBds(bdList);
       setAdmins(adminList);
       setBadges(badgeList || []);
       setNecklaces(necklaceList || []);
       setFrames((storeList || []).filter(item => item.category === 'frame' || (item as any).type === 'frame'));
+      setAllHostAgencies(hostAgList || []);
     } catch (e) {
       console.error('Error loading BD data:', e);
     } finally {
@@ -252,6 +258,7 @@ export default function BDPage() {
   const openAgenciesModal = async (bd: BDModel) => {
     setLoadingAgencies(true);
     setActiveBdAgencies({ bd, agencies: [] });
+    setSelectedLinkAgencyId('');
     try {
       const agencies = await getBDAgencies(bd.uid);
       setActiveBdAgencies({ bd, agencies });
@@ -262,26 +269,55 @@ export default function BDPage() {
     }
   };
 
+  const handleLinkAgency = async (agencyId: string, bdUid: string) => {
+    if (!agencyId || !bdUid) return;
+    setLinkingAgency(true);
+    try {
+      await linkAgencyToBD(agencyId, bdUid);
+      setSelectedLinkAgencyId('');
+      const agencies = await getBDAgencies(bdUid);
+      if (activeBdAgencies) {
+        setActiveBdAgencies({ ...activeBdAgencies, agencies });
+      }
+      await loadData();
+    } catch (e: any) {
+      alert(e?.message || (isAr ? 'فشل ربط الوكالة بالـ BD' : 'Failed to link agency'));
+    } finally {
+      setLinkingAgency(false);
+    }
+  };
+
   const mySupervisorIdentifiers = new Set([
     currentUser?.id,
-    myAdminRecord?.uid,
-    myAdminRecord?.appId,
+    currentUser?.uid,
+    (currentUser as any)?.appId,
+    (currentUser as any)?.custom_id,
     currentUser?.email?.toLowerCase(),
+    currentUser?.displayName?.toLowerCase(),
+    myAdminRecord?.uid,
+    myAdminRecord?.id,
+    myAdminRecord?.appId,
+    (myAdminRecord as any)?.custom_id,
     myAdminRecord?.email?.toLowerCase(),
+    myAdminRecord?.displayName?.toLowerCase(),
   ].filter(Boolean));
 
   // If not owner, filter strictly to this supervisor's BDs!
   const scopedBds = isOwner
     ? bds
-    : bds.filter(b =>
-        (b.supervisorId && mySupervisorIdentifiers.has(b.supervisorId)) ||
-        (b.supervisorName && (
+    : bds.filter(b => {
+        if (!b.supervisorId && !b.supervisorName) return false;
+        if (b.supervisorId && mySupervisorIdentifiers.has(b.supervisorId)) return true;
+        if (b.supervisorId && mySupervisorIdentifiers.has(b.supervisorId.toLowerCase())) return true;
+        if (b.supervisorName && (
+          mySupervisorIdentifiers.has(b.supervisorName.toLowerCase()) ||
           b.supervisorName === currentUser?.displayName ||
           b.supervisorName === myAdminRecord?.displayName ||
-          b.supervisorName === currentUser?.email
-        )) ||
-        (currentUser?.id && b.supervisorId === currentUser.id)
-      );
+          b.supervisorName === currentUser?.email ||
+          b.supervisorName === myAdminRecord?.email
+        )) return true;
+        return false;
+      });
 
   // Filtered BDs
   const filteredBds = scopedBds.filter(b => {
@@ -1026,7 +1062,40 @@ export default function BDPage() {
               </button>
             </div>
 
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 custom-scrollbar">
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 custom-scrollbar space-y-4">
+              {/* Quick Link Agency Bar */}
+              <div className="bg-[#18181C] p-3 rounded-xl border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs text-slate-300 w-full sm:w-auto">
+                  <Building className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="font-semibold whitespace-nowrap">{isAr ? 'ربط وكالة بهذا الـ BD:' : 'Link Agency to BD:'}</span>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto flex-1 max-w-md">
+                  <select
+                    value={selectedLinkAgencyId}
+                    onChange={e => setSelectedLinkAgencyId(e.target.value)}
+                    className="flex-1 bg-[#141417] border border-white/10 rounded-xl py-1.5 px-3 text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">{isAr ? '-- اختر وكالة لربطها بالـ BD --' : '-- Select agency to link --'}</option>
+                    {allHostAgencies
+                      .filter(ha => !activeBdAgencies.agencies.some(a => a.id === ha.id))
+                      .map(ha => (
+                        <option key={ha.id} value={ha.id}>
+                          {ha.name} (ID: {ha.id})
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!selectedLinkAgencyId || linkingAgency}
+                    onClick={() => handleLinkAgency(selectedLinkAgencyId, activeBdAgencies.bd.uid)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-black flex items-center gap-1 shrink-0 transition-colors"
+                  >
+                    {linkingAgency ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    <span>{isAr ? 'ربط الآن' : 'Link'}</span>
+                  </button>
+                </div>
+              </div>
+
               {loadingAgencies ? (
                 <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
                   <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
