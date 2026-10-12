@@ -18,25 +18,25 @@ const navItems = [
   { to: '/users', icon: Users, label: 'nav.users', permKey: 'users' },
   { to: '/gifts', icon: Gift, label: 'nav.gifts', permKey: 'gifts' },
   { to: '/store', icon: Store, label: 'nav.store', permKey: 'store' },
-  { to: '/user-gifting', icon: GiftIcon, label: 'إهداء إلى المستخدمين 🎁', permKey: 'user_gifting' },
+  { to: '/user-gifting', icon: GiftIcon, label: 'nav.userGifting', permKey: 'user_gifting' },
   { to: '/rooms', icon: DoorOpen, label: 'nav.rooms', permKey: 'rooms' },
   { to: '/lucky-gifts', icon: Sparkles, label: 'nav.luckyGifts', permKey: 'lucky_gifts' },
-  { to: '/red-packets', icon: Gift, label: 'المظاريف وصناديق الحظ 🧧', permKey: 'red_packets' },
-  { to: '/tasks-manager', icon: CheckSquare, label: 'مركز المهام والمكافآت', permKey: 'tasks_manager' },
+  { to: '/red-packets', icon: Gift, label: 'nav.redPackets', permKey: 'red_packets' },
+  { to: '/tasks-manager', icon: CheckSquare, label: 'nav.tasksManager', permKey: 'tasks_manager' },
   { to: '/unions', icon: Building2, label: 'nav.unions', permKey: 'unions' },
   { to: '/vip', icon: Crown, label: 'nav.vip', permKey: 'vip' },
   { to: '/vip-gifting', icon: GiftIcon, label: 'nav.vipGifting', permKey: 'vip_gifting' },
   { to: '/levels', icon: BarChart3, label: 'nav.levels', permKey: 'levels' },
   { to: '/badges', icon: Award, label: 'nav.badges', permKey: 'badges' },
   { to: '/necklaces', icon: Crown, label: 'nav.necklaces', permKey: 'necklaces' },
-  { to: '/badge-necklace-gifts', icon: GiftIcon, label: 'Badge & Necklace Gifts', permKey: 'badge_necklace_gifts' },
+  { to: '/badge-necklace-gifts', icon: GiftIcon, label: 'nav.badgeNecklaceGifts', permKey: 'badge_necklace_gifts' },
   { to: '/app-visual-designer', icon: Phone, label: 'nav.appVisualDesigner', permKey: 'app_visual_designer' },
   { to: '/screen-customization', icon: SlidersHorizontal, label: 'nav.screenVisuals', permKey: 'screen_customization' },
   { to: '/app-assets', icon: Image, label: 'nav.appAssets', permKey: 'app_assets' },
   { to: '/app-sounds', icon: Volume2, label: 'nav.appSounds', permKey: 'app_sounds' },
   { to: '/audio-settings', icon: Mic, label: 'nav.audioSettings', permKey: 'audio_settings' },
   { to: '/app-icons', icon: Grid, label: 'nav.appIcons', permKey: 'app_icons' },
-  { to: '/visual-manager', icon: Eye, label: 'المظهر الشامل', permKey: 'visual_manager' },
+  { to: '/visual-manager', icon: Eye, label: 'nav.visualManager', permKey: 'visual_manager' },
   { to: '/image-customize', icon: ImageIcon, label: 'nav.images', permKey: 'image_customize' },
   { to: '/color-customize', icon: Palette, label: 'nav.colors', permKey: 'color_customize' },
   { to: '/gift-items', icon: Gift, label: 'nav.giftItems', permKey: 'gift_items' },
@@ -44,17 +44,17 @@ const navItems = [
   { to: '/gift-banner-configs', icon: Sparkles, label: 'nav.giftBannerConfigs', permKey: 'gift_banners' },
   { to: '/banners', icon: SlidersHorizontal, label: 'nav.banners', permKey: 'banners' },
   { to: '/agency', icon: Handshake, label: 'nav.agency', permKey: 'agency' },
-  { to: '/cp-features', icon: Gift, label: 'CP Features', permKey: 'cp_features' },
+  { to: '/cp-features', icon: Gift, label: 'nav.cpFeatures', permKey: 'cp_features' },
   { to: '/signin-features', icon: Calendar, label: 'nav.signin', permKey: 'signin_features' },
-  { to: '/app-updates', icon: Rocket, label: 'App Updates', permKey: 'app_updates' },
+  { to: '/app-updates', icon: Rocket, label: 'nav.appUpdates', permKey: 'app_updates' },
   { to: '/bd', icon: TrendingUp, label: 'nav.bd', permKey: 'bd' },
   { to: '/profile-customize', icon: User, label: 'nav.profileCustomize', permKey: 'profile_customize' },
   { to: '/error-analysis', icon: Bug, label: 'nav.errors', permKey: 'error_analysis' },
   { to: '/admins', icon: Shield, label: 'nav.admins', permKey: 'admins' },
   { to: '/notifications', icon: Bell, label: 'nav.notifications', permKey: 'notifications' },
-  { to: '/reports', icon: Shield, label: 'البلاغات', permKey: 'reports' },
-  { to: '/emojis', icon: ImageIcon, label: 'الإيموجي', permKey: 'emojis' },
-  { to: '/room-backgrounds', icon: ImageIcon, label: 'خلفيات الغرف', permKey: 'room_backgrounds' },
+  { to: '/reports', icon: Shield, label: 'nav.reports', permKey: 'reports' },
+  { to: '/emojis', icon: ImageIcon, label: 'nav.emojis', permKey: 'emojis' },
+  { to: '/room-backgrounds', icon: ImageIcon, label: 'nav.roomBackgrounds', permKey: 'room_backgrounds' },
   { to: '/settings', icon: Settings, label: 'nav.settings', permKey: 'settings' },
 ];
 
@@ -85,7 +85,7 @@ export default function Sidebar({
       }`}
     >
       <div className="p-4 flex items-center justify-between border-b border-white/5 h-14 shrink-0">
-        <div className={`flex items-center gap-2.5 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+        <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-md shadow-indigo-600/20">Z</div>
           <div>
             <span className="text-white font-bold text-sm block leading-tight" style={{ fontFamily: lang === 'ar' ? 'system-ui' : 'inherit' }}>{t('app.name')}</span>
@@ -106,7 +106,7 @@ export default function Sidebar({
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
                 isActive ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-              } ${lang === 'ar' ? 'flex-row-reverse' : ''}`
+              }`
             }
           >
             <item.icon className="w-4 h-4 shrink-0" />
@@ -115,7 +115,7 @@ export default function Sidebar({
         ))}
       </nav>
       <div className="p-3 border-t border-white/5 shrink-0">
-        <button onClick={() => logout()} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs text-rose-400 hover:bg-rose-500/10 w-full transition-all ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+        <button onClick={() => logout()} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs text-rose-400 hover:bg-rose-500/10 w-full transition-all">
           <LogOut className="w-4 h-4 shrink-0" />
           <span>{t('sign.out')}</span>
         </button>
@@ -125,7 +125,7 @@ export default function Sidebar({
     <aside className={`${collapsed ? 'w-16' : 'w-56'} transition-all duration-300 border-r border-white/5 bg-[#0D0D0E] flex flex-col shrink-0 ${lang === 'ar' ? 'border-l border-r-0' : ''} hidden lg:flex h-screen sticky top-0`}>
       <div className="p-4 flex items-center justify-between border-b border-white/5 h-14 shrink-0">
         {!collapsed && (
-          <div className={`flex items-center gap-2 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+          <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center text-white font-bold text-xs">Z</div>
             <span className="text-white font-semibold text-sm" style={{ fontFamily: lang === 'ar' ? 'system-ui' : 'inherit' }}>{t('app.name')}</span>
           </div>
@@ -145,7 +145,7 @@ export default function Sidebar({
                 isActive
                   ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/10'
                   : 'text-slate-400 border border-transparent hover:bg-white/5 hover:text-white'
-              } ${lang === 'ar' ? 'flex-row-reverse' : ''}`
+              }`
             }
             title={collapsed ? t(item.label) : undefined}
           >
@@ -157,7 +157,7 @@ export default function Sidebar({
       <div className="p-3 border-t border-white/5 shrink-0">
         <button
           onClick={() => logout()}
-          className={`flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 w-full transition-all ${lang === 'ar' ? 'flex-row-reverse' : ''}`}
+          className="flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 w-full transition-all"
           title={t('sign.out')}
         >
           <LogOut className="w-4 h-4 shrink-0" />

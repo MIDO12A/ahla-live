@@ -54,9 +54,9 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
   // ── detect role ─────────────────────────────────────────────────────────────
   Future<void> _detect() async {
     final user = Provider.of<UserProvider>(context, listen: false).currentUser;
-    final uid = SupabaseAuthService().currentUser?.uid ??
-        AuthService.currentSession?.user.id ??
-        user?.uid;
+    final uid = user?.uid ??
+        SupabaseAuthService().currentUser?.uid ??
+        AuthService.currentSession?.user.id;
     final customId = user?.customId;
     if (uid == null) {
       if (mounted) setState(() => _loading = false);
@@ -83,8 +83,8 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
         try {
           final ag = await Supabase.instance.client
               .from('host_agencies')
-              .select('id, name, status, is_active')
-              .eq('owner_uid', uid)
+              .select('id, name, status, is_active, owner_uid, owner_id')
+              .or('owner_uid.eq.$uid,owner_id.eq.$uid')
               .maybeSingle();
           if (ag != null && ag['id'] != null && (ag['status'] == 'active' || ag['is_active'] == true)) {
             row = {'role': 'owner', 'agency_id': ag['id'].toString()};
@@ -92,7 +92,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
         } catch (_) {}
       }
 
-      // 3. Check Supabase users table
+      // 3. Check Supabase users table - verify user is actually the agency owner
       if (row == null) {
         try {
           final u = await Supabase.instance.client
@@ -101,10 +101,18 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
               .eq('uid', uid)
               .maybeSingle();
           if (u != null && u['agency_id'] != null && u['agency_id'].toString().isNotEmpty && u['is_host_agent'] == true) {
-            row = {
-              'role': 'owner',
-              'agency_id': u['agency_id'].toString(),
-            };
+            final agCheck = await Supabase.instance.client
+                .from('host_agencies')
+                .select('owner_uid, owner_id')
+                .eq('id', u['agency_id'].toString())
+                .maybeSingle();
+            final isRealOwner = agCheck != null && (agCheck['owner_uid'] == uid || agCheck['owner_id'] == uid);
+            if (isRealOwner) {
+              row = {
+                'role': 'owner',
+                'agency_id': u['agency_id'].toString(),
+              };
+            }
           }
         } catch (_) {}
       }
@@ -396,9 +404,9 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
     }
 
     final currentUser = Provider.of<UserProvider>(context, listen: false).currentUser;
-    final uid = AuthService.currentSession?.user.id ??
-        currentUser?.uid ??
-        SupabaseAuthService().currentUser?.uid;
+    final uid = currentUser?.uid ??
+        SupabaseAuthService().currentUser?.uid ??
+        AuthService.currentSession?.user.id;
     if (uid == null) {
       KayanInAppToast.warning('يجب تسجيل الدخول أولاً');
       return;
@@ -443,6 +451,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
         'agency_name': name,
         'description': _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : 'وكالة مضيفين معتمدة',
         'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
+        'country': _selectedCountry ?? 'عالمي',
         'status': 'pending',
         'created_at': nowIso,
       };

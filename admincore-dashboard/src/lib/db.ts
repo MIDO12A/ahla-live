@@ -2003,21 +2003,30 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
       }
 
       const existingAgencyId = (app as any).agency_id;
-      const agencyId = existingAgencyId || `agency_${Date.now()}_${app.user_id}`;
+      const ownerUid = (app as any).applicant_uid || app.user_id;
+      const agencyId = existingAgencyId || `agency_${Date.now()}_${ownerUid}`;
       const agencyLogo = app.agency_logo || app.user_avatar || '';
 
-      const appBdUid = (app as any).bd_uid || (app as any).supervisor_uid || (app as any).supervisor_id || null;
-      const appBdId = (app as any).bd_id || (app as any).supervisor_id || null;
-      const appSupUid = (app as any).supervisor_uid || (app as any).supervisor_id || null;
-      const appSupId = (app as any).supervisor_id || (app as any).supervisor_uid || null;
-      const appSupName = (app as any).supervisor_name || null;
+      let existingData: any = {};
+      try {
+        const { data: currentAg } = await supabase.from('host_agencies').select('*').eq('id', agencyId).maybeSingle();
+        if (currentAg?.data) {
+          existingData = typeof currentAg.data === 'string' ? JSON.parse(currentAg.data) : currentAg.data;
+        }
+      } catch (_) {}
+
+      const appBdUid = (app as any).bd_uid || (app as any).supervisor_uid || existingData.bd_uid || existingData.supervisor_uid || null;
+      const appBdId = (app as any).bd_id || (app as any).supervisor_id || existingData.bd_id || existingData.supervisor_id || null;
+      const appSupUid = (app as any).supervisor_uid || existingData.supervisor_uid || (app as any).supervisor_id || existingData.supervisor_id || null;
+      const appSupId = (app as any).supervisor_id || existingData.supervisor_id || (app as any).supervisor_uid || existingData.supervisor_uid || null;
+      const appSupName = (app as any).supervisor_name || existingData.supervisor_name || null;
 
       const agencyData: any = {
         id: agencyId,
         name: app.agency_name || `وكالة ${app.user_name}`,
         agency_code: Number(agencyCode) || (100 + (Date.now() % 899)),
-        owner_id: app.user_id,
-        owner_uid: app.user_id,
+        owner_id: ownerUid,
+        owner_uid: ownerUid,
         description: app.description || 'وكالة مضيفين معتمدة',
         logo_url: agencyLogo,
         background_url: '',
@@ -2033,10 +2042,10 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
         status: 'active',
         is_active: true,
         data: {
-          whatsapp: app.whatsapp || null,
-          country: app.country || null,
-          tier: 'bronze',
-          commission_rate: 0.1,
+          whatsapp: app.whatsapp || existingData.whatsapp || null,
+          country: app.country || existingData.country || null,
+          tier: existingData.tier || 'bronze',
+          commission_rate: existingData.commission_rate || 0.1,
           bd_uid: appBdUid,
           bd_id: appBdId,
           supervisor_uid: appSupUid,
@@ -2068,14 +2077,14 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
           .from('host_agency_members')
           .select('id')
           .eq('agency_id', agencyId)
-          .eq('host_uid', app.user_id)
+          .eq('host_uid', ownerUid)
           .maybeSingle();
 
         await supabase.from('host_agency_members').upsert({
           id: existingMember?.id || memberUuid,
           agency_id: agencyId,
-          user_id: app.user_id,
-          host_uid: app.user_id,
+          user_id: ownerUid,
+          host_uid: ownerUid,
           role: 'owner',
           status: 'active',
           joined_at: now,
@@ -2089,7 +2098,7 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
         await supabase.from('users').update({
           agency_id: agencyId,
           is_host_agent: true,
-        }).or(`uid.eq.${app.user_id},id.eq.${app.user_id}`);
+        }).or(`uid.eq.${ownerUid},id.eq.${ownerUid}`);
       } catch (uErr) {
         console.warn('users agency update error:', uErr);
       }
@@ -2100,15 +2109,15 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
         const { doc, setDoc } = await import('firebase/firestore');
         if (firestoreDb) {
           await setDoc(doc(firestoreDb, 'host_agencies', agencyId), agencyData, { merge: true });
-          await setDoc(doc(firestoreDb, 'host_agency_members', `${agencyId}_${app.user_id}`), {
+          await setDoc(doc(firestoreDb, 'host_agency_members', `${agencyId}_${ownerUid}`), {
             agency_id: agencyId,
-            user_id: app.user_id,
-            host_uid: app.user_id,
+            user_id: ownerUid,
+            host_uid: ownerUid,
             role: 'owner',
             status: 'active',
             joined_at: now,
           }, { merge: true });
-          await setDoc(doc(firestoreDb, 'users', app.user_id), {
+          await setDoc(doc(firestoreDb, 'users', ownerUid), {
             agency_id: agencyId,
             host_agency_id: agencyId,
             is_host_agent: true,

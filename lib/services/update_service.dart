@@ -307,13 +307,50 @@ class UpdateService {
   String downloadedApkPath = '';
   String downloadError = '';
 
+  /// Tracks if the user already dismissed or interacted with an update prompt in this session
+  bool sessionUpdateDismissed = false;
+  int? sessionPromptedBuildNumber;
+
   final StreamController<void> _stateController = StreamController<void>.broadcast();
   Stream<void> get stateStream => _stateController.stream;
 
   CancelToken? _cancelToken;
 
-  Future<void> startDownloadInBackground(String initialUrl) async {
+  /// Checks if an APK for this buildNumber was already downloaded and is valid (> 5MB)
+  Future<File?> getDownloadedApkFile(int buildNumber) async {
+    try {
+      Directory? dir;
+      if (Platform.isAndroid) {
+        dir = await getExternalStorageDirectory();
+      }
+      dir ??= await getTemporaryDirectory();
+      final fileName = 'zero_update_v$buildNumber.apk';
+      final file = File('${dir.path}${Platform.pathSeparator}$fileName');
+      if (await file.exists() && await file.length() > 5 * 1024 * 1024) {
+        return file;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> startDownloadInBackground(String initialUrl, {int buildNumber = 0}) async {
     if (isDownloading) return;
+
+    // Check if the APK was already downloaded on disk
+    if (buildNumber > 0) {
+      final cachedFile = await getDownloadedApkFile(buildNumber);
+      if (cachedFile != null) {
+        debugPrint('Found pre-downloaded APK at: ${cachedFile.path}');
+        isDownloading = false;
+        isDownloaded = true;
+        downloadProgress = 1.0;
+        downloadedApkPath = cachedFile.path;
+        downloadError = '';
+        _stateController.add(null);
+        await installApk(cachedFile.path);
+        return;
+      }
+    }
 
     isDownloading = true;
     isDownloaded = false;
@@ -332,15 +369,15 @@ class UpdateService {
       }
       dir ??= await getTemporaryDirectory();
 
-      final fileName = 'zero_update_${DateTime.now().millisecondsSinceEpoch}.apk';
+      final fileName = buildNumber > 0 ? 'zero_update_v$buildNumber.apk' : 'zero_update_latest.apk';
       final savePath = '${dir.path}${Platform.pathSeparator}$fileName';
 
       // Candidate URLs in priority order
       final urls = <String>{
         initialUrl,
+        'https://github.com/MIDO12A/ahla-live/releases/latest/download/ahla-live.apk',
         'https://github.com/MIDO12A/ahla-live/releases/latest/download/zero-app.apk',
         'https://github.com/MIDO12A/ahla-live/releases/latest/download/app-arm64-v8a-release.apk',
-        'https://github.com/MIDO12A/ahla-live/releases/download/latest/zero-app.apk',
       }.toList();
 
       bool success = false;
@@ -376,7 +413,7 @@ class UpdateService {
           );
 
           final file = File(savePath);
-          if (await file.exists() && await file.length() > 1024 * 1024) {
+          if (await file.exists() && await file.length() > 5 * 1024 * 1024) {
             success = true;
             break;
           }
@@ -398,6 +435,7 @@ class UpdateService {
 
       isDownloading = false;
       isDownloaded = true;
+      downloadProgress = 1.0;
       downloadedApkPath = savePath;
       _stateController.add(null);
 

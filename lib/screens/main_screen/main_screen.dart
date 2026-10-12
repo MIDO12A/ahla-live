@@ -99,7 +99,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _checkUpdate();
+      if (!UpdateService.instance.sessionUpdateDismissed && !UpdateService.instance.isDownloading) {
+        _checkUpdate();
+      }
     }
   }
 

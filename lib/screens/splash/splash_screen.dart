@@ -93,9 +93,7 @@ class _SplashScreenState extends State<SplashScreen> {
           await AppUpdateDialog.show(context, update);
           return;
         }
-        unawaited(AppUpdateDialog.show(context, update));
-        if (mounted) widget.onNavigate();
-        return;
+        // Non-forced updates are displayed smoothly in MainScreen to prevent dialog destruction
       }
     } catch (e) {
       debugPrint('Update flow error: $e');
