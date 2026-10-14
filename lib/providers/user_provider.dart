@@ -169,73 +169,74 @@ class UserProvider extends ChangeNotifier {
   Future<void> loadUser(String uid) async {
     _isLoading = true;
     notifyListeners();
-    _currentUser = await _supabaseService.getUser(uid);
-    if (_currentUser == null) {
-      final supaUser = SupabaseAuthService().currentUser;
-      if (supaUser != null && supaUser.uid == uid) {
-        _currentUser = UserModel(
-          uid: uid,
-          customId: '',
-          name: supaUser.displayName ?? '',
-          email: supaUser.email ?? '',
-          photoUrl: supaUser.photoUrl ?? '',
-          gender: 'male',
-        );
-      }
-    }
-    if (_currentUser != null && _currentUser!.customId.isEmpty) {
-      // FIX: Use secure ID generator with uniqueness check
-      String customId;
-      try {
-        // TODO: Use server-side generation first (preferred)
-        final idResult = await ApiService().generateCustomId();
-        customId = idResult['customId'] as String;
-      } catch (_) {
-        // FIX: Fallback to local secure generator with uniqueness check
-        customId = await UserIdGenerator().generateUniqueId(
-          minDigits: 6,
-          maxDigits: 7,
-        );
-      }
-      await _supabaseService.updateUser(uid, {'custom_id': customId});
+    try {
       _currentUser = await _supabaseService.getUser(uid);
-    }
-    if (_currentUser != null && _currentUser!.photoUrl.isEmpty) {
-      final supaUser = SupabaseAuthService().currentUser;
-      final authPhoto = (supaUser != null && supaUser.uid == uid && supaUser.photoUrl != null && supaUser.photoUrl!.isNotEmpty)
-          ? supaUser.photoUrl
-          : null;
-      if (authPhoto != null && authPhoto.isNotEmpty) {
-        _currentUser = _currentUser!.copyWith(photoUrl: authPhoto);
+      if (_currentUser == null) {
+        final supaUser = SupabaseAuthService().currentUser;
+        if (supaUser != null && supaUser.uid == uid) {
+          _currentUser = UserModel(
+            uid: uid,
+            customId: '',
+            name: supaUser.displayName ?? '',
+            email: supaUser.email ?? '',
+            photoUrl: supaUser.photoUrl ?? '',
+            gender: 'male',
+          );
+        }
+      }
+      if (_currentUser != null && _currentUser!.customId.isEmpty) {
+        String customId;
         try {
-          await _supabaseService.updateUser(uid, {
-            'photo_url': authPhoto,
-            'photoUrl': authPhoto,
-            'avatar': authPhoto,
-            'avatar_url': authPhoto,
-          });
+          final idResult = await ApiService().generateCustomId();
+          customId = idResult['customId'] as String;
+        } catch (_) {
+          customId = await UserIdGenerator().generateUniqueId(
+            minDigits: 6,
+            maxDigits: 7,
+          );
+        }
+        await _supabaseService.updateUser(uid, {'custom_id': customId});
+        _currentUser = await _supabaseService.getUser(uid);
+      }
+      if (_currentUser != null && _currentUser!.photoUrl.isEmpty) {
+        final supaUser = SupabaseAuthService().currentUser;
+        final authPhoto = (supaUser != null && supaUser.uid == uid && supaUser.photoUrl != null && supaUser.photoUrl!.isNotEmpty)
+            ? supaUser.photoUrl
+            : null;
+        if (authPhoto != null && authPhoto.isNotEmpty) {
+          _currentUser = _currentUser!.copyWith(photoUrl: authPhoto);
+          try {
+            await _supabaseService.updateUser(uid, {
+              'photo_url': authPhoto,
+              'photoUrl': authPhoto,
+              'avatar': authPhoto,
+              'avatar_url': authPhoto,
+            });
+          } catch (_) {}
+        }
+      }
+      if (_currentUser != null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final spFollowed = prefs.getStringList('followed_rooms_$uid') ?? [];
+          if (spFollowed.isNotEmpty) {
+            final merged = Set<String>.from(_currentUser!.followedRooms)..addAll(spFollowed);
+            _currentUser = _currentUser!.copyWith(followedRooms: merged.toList());
+          }
+        } catch (_) {}
+
+        try {
+          DeviceService().saveDeviceRegistration(_currentUser!.uid, email: _currentUser!.email);
         } catch (_) {}
       }
+      startListening(uid);
+      _checkExpiredBackpackItems(uid);
+    } catch (e) {
+      debugPrint('[UserProvider] Error loading user $uid: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-    if (_currentUser != null) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final spFollowed = prefs.getStringList('followed_rooms_$uid') ?? [];
-        if (spFollowed.isNotEmpty) {
-          final merged = Set<String>.from(_currentUser!.followedRooms)..addAll(spFollowed);
-          _currentUser = _currentUser!.copyWith(followedRooms: merged.toList());
-        }
-      } catch (_) {}
-
-      // Self-heal and keep device fingerprint up to date in app_config & Firestore
-      try {
-        DeviceService().saveDeviceRegistration(_currentUser!.uid, email: _currentUser!.email);
-      } catch (_) {}
-    }
-    _isLoading = false;
-    notifyListeners();
-    startListening(uid);
-    _checkExpiredBackpackItems(uid);
   }
 
   Future<void> _checkExpiredBackpackItems(String uid) async {
@@ -375,6 +376,8 @@ class UserProvider extends ChangeNotifier {
   void clearUser() {
     stopListening();
     _currentUser = null;
+    _isLoading = false;
+    _optimisticCoins = null;
     notifyListeners();
   }
 }

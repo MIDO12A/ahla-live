@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../core/supabase_compat.dart';
 
@@ -62,16 +63,29 @@ class AgencyTargetEvaluator {
       final liveHours = (md['live_hours_monthly'] as num?)?.toDouble() ?? (liveSeconds / 3600.0);
       final validDays = (md['valid_days_monthly'] as num?)?.toInt() ?? 0;
 
-      // 2. Get global targets config from host_milestones and agency_targets_config
+      // 2. Get global targets config from app_config 'host_milestones_list' & host_milestones
       List<dynamic> milestonesSnap = [];
       try {
-        milestonesSnap = await _sb.from('host_milestones')
-            .select('*')
-            .eq('is_active', true);
-        if (milestonesSnap.isEmpty) {
-          milestonesSnap = await _sb.from('host_milestones').select('*');
+        final cfgRow = await _sb.from('app_config').select('value').eq('key', 'host_milestones_list').maybeSingle();
+        if (cfgRow != null && cfgRow['value'] != null) {
+          final v = cfgRow['value'];
+          if (v is List) {
+            milestonesSnap = v;
+          } else if (v is String) {
+            milestonesSnap = jsonDecode(v);
+          }
         }
       } catch (_) {}
+      if (milestonesSnap.isEmpty) {
+        try {
+          milestonesSnap = await _sb.from('host_milestones')
+              .select('*')
+              .eq('is_active', true);
+          if (milestonesSnap.isEmpty) {
+            milestonesSnap = await _sb.from('host_milestones').select('*');
+          }
+        } catch (_) {}
+      }
 
       List<dynamic> targetsSnap = [];
       try {

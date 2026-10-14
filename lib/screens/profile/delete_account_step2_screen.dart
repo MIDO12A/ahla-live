@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
+import '../../services/account_switch_service.dart';
 import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../utils/app_colors.dart';
@@ -28,6 +31,10 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
       }
 
       await SupabaseDataService().deleteUser(uid);
+      await AccountSwitchService.removeAccount(uid);
+      if (mounted) {
+        Provider.of<UserProvider>(context, listen: false).clearUser();
+      }
       await SupabaseAuthService().signOut();
       if (mounted) _navigateToLogin();
     } catch (e) {

@@ -5,8 +5,10 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../config/supabase_config.dart';
 import '../models/user_model.dart';
+import 'account_switch_service.dart';
 
 class AppAuthUser {
   final String uid;
@@ -113,6 +115,15 @@ class SupabaseAuthService {
       if (photoUrl != null) await prefs.setString('supabase_auth_photo', photoUrl);
       if (phone != null) await prefs.setString('supabase_auth_phone', phone);
       if (token != null) await prefs.setString('supabase_auth_token', token);
+      try {
+        await AccountSwitchService.saveAccount(
+          uid: uid,
+          email: email,
+          name: name,
+          photoUrl: photoUrl,
+          phone: phone,
+        );
+      } catch (_) {}
     } catch (e) {
       debugPrint('[SupabaseAuth] saveSession error: $e');
     }
@@ -130,6 +141,9 @@ class SupabaseAuthService {
       await prefs.remove('supabase_auth_photo');
       await prefs.remove('supabase_auth_phone');
       await prefs.remove('supabase_auth_token');
+    } catch (_) {}
+    try {
+      await GoogleSignIn.instance.signOut();
     } catch (_) {}
     _authController.add(null);
   }

@@ -13,6 +13,7 @@ import 'delete_account_step1_screen.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
 import '../../widgets/user_id_widget.dart';
+import '../../services/account_switch_service.dart';
 
 class AccountManagementScreen extends StatelessWidget {
   const AccountManagementScreen({super.key});
@@ -166,6 +167,17 @@ class AccountManagementScreen extends StatelessWidget {
                               );
                             },
                           ),
+                          // Switch Account
+                          _buildSimpleItem(
+                            title: 'تبديل الحساب',
+                            trailingWidget: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.switch_account_rounded, color: Color(0xFFDE880F), size: 20),
+                              ],
+                            ),
+                            onTap: () => _showAccountSwitchSheet(context),
+                          ),
                         ],
                       ),
                     ),
@@ -296,6 +308,9 @@ class AccountManagementScreen extends StatelessWidget {
           ),
         );
         if (confirmed == true) {
+          if (context.mounted) {
+            Provider.of<UserProvider>(context, listen: false).clearUser();
+          }
           await SupabaseAuthService().signOut();
           if (context.mounted) {
             Navigator.pushAndRemoveUntil(
@@ -329,6 +344,196 @@ class AccountManagementScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showAccountSwitchSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1D2A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            final currentUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid ?? '';
+
+            return FutureBuilder<List<Map<String, dynamic>>>(
+              future: AccountSwitchService.getSavedAccounts(),
+              builder: (context, snapshot) {
+                final accounts = snapshot.data ?? [];
+
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Row(
+                        children: [
+                          Icon(Icons.switch_account_rounded, color: Color(0xFFFFD700), size: 24),
+                          SizedBox(width: 10),
+                          Text(
+                            'تبديل الحساب',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      if (accounts.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Text(
+                            'لا توجد حسابات أخرى محفوظة على هذا الجهاز',
+                            style: TextStyle(color: Colors.white54, fontSize: 13),
+                          ),
+                        )
+                      else
+                        Flexible(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: accounts.length,
+                            separatorBuilder: (_, __) => const Divider(color: Colors.white10),
+                            itemBuilder: (context, index) {
+                              final acc = accounts[index];
+                              final uid = acc['uid'] as String? ?? '';
+                              final isCurrent = uid == currentUid;
+                              final name = (acc['name'] as String?)?.isNotEmpty == true ? acc['name'] as String : 'مستخدم';
+                              final photo = acc['photoUrl'] as String? ?? '';
+                              final customId = acc['customId'] as String? ?? '';
+                              final email = acc['email'] as String? ?? '';
+                              final phone = acc['phone'] as String? ?? '';
+                              final sub = customId.isNotEmpty
+                                  ? 'ID: $customId'
+                                  : (phone.isNotEmpty ? phone : email);
+
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: const Color(0xFF33333F),
+                                  backgroundImage: photo.isNotEmpty && photo.startsWith('http')
+                                      ? NetworkImage(photo)
+                                      : null,
+                                  child: photo.isEmpty || !photo.startsWith('http')
+                                      ? const Icon(Icons.person, color: Colors.white54)
+                                      : null,
+                                ),
+                                title: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        name,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (isCurrent)
+                                      Container(
+                                        margin: const EdgeInsets.only(left: 6),
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0x3300E5A0),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: const Color(0xFF00E5A0)),
+                                        ),
+                                        child: const Text(
+                                          'الحالي',
+                                          style: TextStyle(color: Color(0xFF00E5A0), fontSize: 11, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                subtitle: sub.isNotEmpty
+                                    ? Text(
+                                        sub,
+                                        style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      )
+                                    : null,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (!isCurrent) ...[
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.pop(ctx);
+                                          AccountSwitchService.switchToAccount(context, acc);
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFFFD700),
+                                          foregroundColor: const Color(0xFF1A1A1A),
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                          minimumSize: Size.zero,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                        ),
+                                        child: const Text('تبديل', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.white38, size: 20),
+                                        onPressed: () async {
+                                          await AccountSwitchService.removeAccount(uid);
+                                          setSheetState(() {});
+                                        },
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            );
+                          },
+                          icon: const Icon(Icons.add, color: Color(0xFFFFD700)),
+                          label: const Text(
+                            'تسجيل الدخول بحساب آخر',
+                            style: TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFFFD700)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 

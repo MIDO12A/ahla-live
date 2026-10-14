@@ -451,6 +451,21 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     const Spacer(),
                     if (_isAgencyOwner) ...[
                       IconButton(
+                        icon: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF00E5A0), size: 24),
+                        tooltip: isAr ? 'دعوة عضو' : 'Invite Member',
+                        onPressed: () {
+                          final aid = _agentInfo?.agencyId ?? widget.agencyId ?? '';
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AgencyInviteByIdScreen(
+                                agencyId: aid,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.group_add_rounded, color: Color(0xFFFFD700), size: 24),
                         tooltip: isAr ? 'طلبات الانضمام' : 'Join Requests',
                         onPressed: () {
@@ -1600,7 +1615,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         },
                         icon: const Icon(Icons.person_remove_rounded, size: 18, color: Colors.white),
                         label: Text(
-                          isAr ? 'طرد من الوكالة' : 'Kick Host',
+                          isAr ? 'إزالة من الوكالة' : 'Remove Host',
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         style: ElevatedButton.styleFrom(
@@ -1669,13 +1684,13 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           children: [
             const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 22),
             const SizedBox(width: 8),
-            Text(isAr ? 'طرد من الوكالة' : 'Kick from Agency', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(isAr ? 'إزالة من الوكالة' : 'Remove from Agency', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
         content: Text(
           isAr
-              ? 'هل أنت متأكد من طرد المضيف [${anchor.nickname.isNotEmpty ? anchor.nickname : anchor.userId}] من الوكالة فوراً؟ سيتم فك ارتباطه وحذف عضويته.'
-              : 'Are you sure you want to kick [${anchor.nickname}] from the agency immediately?',
+              ? 'هل أنت متأكد من إزالة المضيف [${anchor.nickname.isNotEmpty ? anchor.nickname : anchor.userId}] من الوكالة فوراً؟ سيتم فك ارتباطه وحذف عضويته.'
+              : 'Are you sure you want to remove [${anchor.nickname}] from the agency immediately?',
           style: const TextStyle(color: Colors.white70, fontSize: 13),
         ),
         actions: [
@@ -1686,7 +1701,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isAr ? 'طرد فوراً' : 'Kick Now', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(isAr ? 'إزالة فوراً' : 'Remove Now', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1705,7 +1720,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isAr ? 'تم طرد المضيف بنجاح وإنهاء عضويته' : 'Host kicked successfully'),
+            content: Text(isAr ? 'تمت إزالة المضيف بنجاح وإنهاء عضويته' : 'Host removed successfully'),
             backgroundColor: const Color(0xFFFF5252),
           ),
         );
@@ -1759,26 +1774,76 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final effectiveDiamonds = _isAgencyOwner ? totalAgencyDiamonds : hostDiamonds;
     final hostDollar = (hostDiamonds / 1000).toStringAsFixed(1);
 
-    int stageTarget = 100000;
-    if (effectiveDiamonds >= 5000000) {
-      stageTarget = 10000000;
-    } else if (effectiveDiamonds >= 2000000) {
-      stageTarget = 5000000;
-    } else if (effectiveDiamonds >= 1000000) {
-      stageTarget = 2000000;
-    } else if (effectiveDiamonds >= 500000) {
-      stageTarget = 1000000;
-    } else if (effectiveDiamonds >= 300000) {
-      stageTarget = 500000;
-    } else if (effectiveDiamonds >= 100000) {
-      stageTarget = 300000;
+    final milestonesList = (info?.milestones ?? []).toList();
+    milestonesList.sort((a, b) {
+      final ta = (a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0;
+      final tb = (b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0;
+      return ta.compareTo(tb);
+    });
+
+    int currentStageTarget = 100000;
+    int nextStageTarget = 200000;
+    double nextStageSalary = 100.0;
+    String currentStageTitle = '';
+    String nextStageTitle = '';
+
+    if (milestonesList.isNotEmpty) {
+      Map<String, dynamic>? activeNext;
+      for (final m in milestonesList) {
+        final t = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
+        if (t > effectiveDiamonds && activeNext == null) {
+          activeNext = m;
+        }
+      }
+
+      if (activeNext != null) {
+        currentStageTarget = (activeNext['target_diamonds'] ?? activeNext['targetDiamonds'] as num?)?.toInt() ?? 100000;
+        nextStageSalary = (activeNext['reward_value'] ?? activeNext['rewardValue'] as num?)?.toDouble() ?? (currentStageTarget / 1000);
+        nextStageTitle = activeNext['title']?.toString() ?? '';
+
+        final nextIdx = milestonesList.indexOf(activeNext);
+        if (nextIdx + 1 < milestonesList.length) {
+          final afterNext = milestonesList[nextIdx + 1];
+          nextStageTarget = (afterNext['target_diamonds'] ?? afterNext['targetDiamonds'] as num?)?.toInt() ?? (currentStageTarget * 2);
+        } else {
+          nextStageTarget = currentStageTarget;
+        }
+      } else {
+        final last = milestonesList.last;
+        currentStageTarget = (last['target_diamonds'] ?? last['targetDiamonds'] as num?)?.toInt() ?? 100000;
+        nextStageTarget = currentStageTarget;
+        nextStageSalary = (last['reward_value'] ?? last['rewardValue'] as num?)?.toDouble() ?? (currentStageTarget / 1000);
+        nextStageTitle = last['title']?.toString() ?? '';
+      }
     } else {
-      stageTarget = 100000;
+      if (effectiveDiamonds >= 5000000) {
+        currentStageTarget = 10000000;
+        nextStageTarget = 20000000;
+      } else if (effectiveDiamonds >= 2000000) {
+        currentStageTarget = 5000000;
+        nextStageTarget = 10000000;
+      } else if (effectiveDiamonds >= 1000000) {
+        currentStageTarget = 2000000;
+        nextStageTarget = 5000000;
+      } else if (effectiveDiamonds >= 500000) {
+        currentStageTarget = 1000000;
+        nextStageTarget = 2000000;
+      } else if (effectiveDiamonds >= 300000) {
+        currentStageTarget = 500000;
+        nextStageTarget = 1000000;
+      } else if (effectiveDiamonds >= 100000) {
+        currentStageTarget = 300000;
+        nextStageTarget = 500000;
+      } else {
+        currentStageTarget = 100000;
+        nextStageTarget = 300000;
+      }
+      nextStageSalary = (nextStageTarget / 1000);
     }
 
     final targetDiamonds = _isAgencyOwner
-        ? ((info?.targetDiamonds != null && info!.targetDiamonds > 0 && info.targetDiamonds != 1000000) ? info.targetDiamonds : stageTarget)
-        : (_myAnchor != null && _myAnchor!.targetDiamonds > 0 ? _myAnchor!.targetDiamonds : stageTarget);
+        ? ((info?.targetDiamonds != null && info!.targetDiamonds > 0 && info.targetDiamonds != 1000000) ? info.targetDiamonds : currentStageTarget)
+        : (_myAnchor != null && _myAnchor!.targetDiamonds > 0 ? _myAnchor!.targetDiamonds : currentStageTarget);
 
     final progress = targetDiamonds > 0 ? (effectiveDiamonds / targetDiamonds).clamp(0.0, 1.0) : 0.0;
     final percent = (progress * 100).toStringAsFixed(1);
@@ -2007,12 +2072,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isAr ? 'المستهدف القادم' : 'Next Target',
+                            nextStageTitle.isNotEmpty
+                                ? (isAr ? 'المستهدف القادم ($nextStageTitle)' : 'Next Target ($nextStageTitle)')
+                                : (isAr ? 'المستهدف القادم' : 'Next Target'),
                             style: const TextStyle(color: Colors.white70, fontSize: 11),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${targetDiamonds * 2} 💎',
+                            '$nextStageTarget 💎',
                             style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -2037,7 +2104,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '\$${((targetDiamonds * 2) / 1000).toStringAsFixed(1)} USD',
+                            '\$${nextStageSalary.toStringAsFixed(1)} USD',
                             style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -2372,90 +2439,51 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             ),
             const SizedBox(height: 16),
 
-            // ── Milestones Ladder Button ──
-            InkWell(
-              onTap: () => _showMilestonesSheet(info, isAr),
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF332A15), Color(0xFF221F1C)],
+            if (_isAgencyOwner) ...[
+              const SizedBox(height: 20),
+              // ── Section Title: تقارير الدخل المفصلة (union_adapter_agency_detail_header.xml) ──
+              Align(
+                alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
+                child: Text(
+                  isAr ? 'تقارير أرباح الوكالة حسب الفترات' : 'Detailed Period Earnings',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
                   ),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0x44FFD700)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.military_tech, color: Color(0xFFFFD700), size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            isAr ? 'سلّم المراحل والتارجت والرواتب' : 'Milestones & Salary Ladder',
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            isAr
-                                ? 'اضغط لعرض كافة المراحل، نسب العمولة، ومكافآت كل مرحلة'
-                                : 'Tap to view all tiers, commission rates & salaries',
-                            style: const TextStyle(color: Colors.white54, fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFFFFD700)),
-                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
-            // ── Section Title: تقارير الدخل المفصلة (union_adapter_agency_detail_header.xml) ──
-            Align(
-              alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
-              child: Text(
-                isAr ? 'تقارير أرباح الوكالة حسب الفترات' : 'Detailed Period Earnings',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+              // بطاقة هذا الشهر
+              _buildPeriodItem(
+                title: isAr ? 'هذا الشهر' : 'This Month',
+                diamonds: transferMoney,
+                rate: commRatePct,
+                isAr: isAr,
               ),
-            ),
-            const SizedBox(height: 10),
-
-            // بطاقة هذا الشهر
-            _buildPeriodItem(
-              title: isAr ? 'هذا الشهر' : 'This Month',
-              diamonds: transferMoney,
-              rate: commRatePct,
-              isAr: isAr,
-            ),
-            // بطاقة هذا الأسبوع
-            _buildPeriodItem(
-              title: isAr ? 'هذا الأسبوع' : 'This Week',
-              diamonds: (transferMoney * 0.35).toInt(),
-              rate: commRatePct,
-              isAr: isAr,
-            ),
-            // بطاقة أمس
-            _buildPeriodItem(
-              title: isAr ? 'أمس' : 'Yesterday',
-              diamonds: (transferMoney * 0.05).toInt(),
-              rate: commRatePct,
-              isAr: isAr,
-            ),
-            // بطاقة اليوم
-            _buildPeriodItem(
-              title: isAr ? 'اليوم' : 'Today',
-              diamonds: (transferMoney * 0.04).toInt(),
-              rate: commRatePct,
-              isAr: isAr,
-            ),
+              // بطاقة هذا الأسبوع
+              _buildPeriodItem(
+                title: isAr ? 'هذا الأسبوع' : 'This Week',
+                diamonds: (transferMoney * 0.35).toInt(),
+                rate: commRatePct,
+                isAr: isAr,
+              ),
+              // بطاقة أمس
+              _buildPeriodItem(
+                title: isAr ? 'أمس' : 'Yesterday',
+                diamonds: (transferMoney * 0.05).toInt(),
+                rate: commRatePct,
+                isAr: isAr,
+              ),
+              // بطاقة اليوم
+              _buildPeriodItem(
+                title: isAr ? 'اليوم' : 'Today',
+                diamonds: (transferMoney * 0.04).toInt(),
+                rate: commRatePct,
+                isAr: isAr,
+              ),
+            ],
           ],
         ),
       ),

@@ -6432,13 +6432,21 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  void _exitRoom() {
-    setState(() => _showExit = false);
+  Future<void> _exitRoom() async {
+    if (mounted) {
+      setState(() => _showExit = false);
+    }
     RoomMusicPlayerService().stop();
-    _leaveRoomSession();
-    _roomAudio.leaveChannel();
-    _roomAudio.dispose();
-    Navigator.of(context).pop();
+    try {
+      _roomAudio.leaveChannel();
+    } catch (_) {}
+    await _leaveRoomSession();
+    try {
+      _roomAudio.dispose();
+    } catch (_) {}
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _checkRoomBan(String uid) {

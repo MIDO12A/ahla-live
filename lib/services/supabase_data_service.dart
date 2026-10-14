@@ -1024,6 +1024,39 @@ class SupabaseDataService {
 
   Future<List<Map<String, dynamic>>> getHostMilestones() async {
     try {
+      // 1. First check app_config 'host_milestones_list' (from dashboard)
+      final cfgUrl = Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.host_milestones_list&select=*');
+      final cfgRes = await http.get(cfgUrl, headers: _headers);
+      if (cfgRes.statusCode == 200) {
+        final List rows = jsonDecode(cfgRes.body);
+        if (rows.isNotEmpty) {
+          final rowVal = rows.first['value'];
+          List list = [];
+          if (rowVal is String) {
+            try {
+              final parsed = jsonDecode(rowVal);
+              if (parsed is List) list = parsed;
+            } catch (_) {}
+          } else if (rowVal is List) {
+            list = rowVal;
+          }
+          if (list.isNotEmpty) {
+            final result = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            result.sort((a, b) {
+              final ta = (a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0;
+              final tb = (b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0;
+              return ta.compareTo(tb);
+            });
+            return result;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getHostMilestones app_config error: $e');
+    }
+
+    try {
+      // 2. Fallback to host_milestones table
       final url = Uri.parse('$_baseUrl/rest/v1/host_milestones?select=*&order=target_diamonds.asc');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
@@ -1038,12 +1071,61 @@ class SupabaseDataService {
   }
 
   Future<bool> deleteUser(String uid) async {
+    return purgeUserAccount(uid);
+  }
+
+  /// Full purge of user account from database and all related tables
+  Future<bool> purgeUserAccount(String uid) async {
     try {
+      // 1. Remove from rooms and seats
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/room_members?uid=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/room_seats?uid=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      // 2. Remove backpack items
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/user_backpack?user_id=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      // 3. Remove recharge event progress
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/recharge_event_progress?user_id=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      // 4. Remove agency membership & join requests
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(user_id.eq.$uid,host_uid.eq.$uid)'), headers: _headers);
+      } catch (_) {}
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/host_agency_join_requests?user_id=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      // 5. Remove CP relationships & requests
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/cp_couples?or=(user1_id.eq.$uid,user2_id.eq.$uid)'), headers: _headers);
+      } catch (_) {}
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/cp_requests?or=(sender_id.eq.$uid,receiver_id.eq.$uid)'), headers: _headers);
+      } catch (_) {}
+      // 6. Remove messages & conversations
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/private_messages?sender_uid=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/conversations?uid=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      // 7. Remove device registrations & notifications
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/device_registrations?uid=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/notifications?target=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      // 8. Delete user row
       final url = Uri.parse('$_baseUrl/rest/v1/users?or=(id.eq.$uid,uid.eq.$uid)');
       final res = await http.delete(url, headers: _headers);
       return res.statusCode == 200 || res.statusCode == 204;
     } catch (e) {
-      debugPrint('[SupabaseDataService] deleteUser error: $e');
+      debugPrint('[SupabaseDataService] purgeUserAccount error: $e');
       return false;
     }
   }

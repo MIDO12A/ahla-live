@@ -101,8 +101,9 @@ class _LoginScreenState extends State<LoginScreen> {
         } catch (_) {}
 
         if (mounted) {
-          await Provider.of<UserProvider>(context, listen: false)
-              .loadUser(user.uid);
+          final up = Provider.of<UserProvider>(context, listen: false);
+          up.clearUser();
+          await up.loadUser(user.uid);
           if (mounted) {
             Navigator.pushAndRemoveUntil(
               context,
