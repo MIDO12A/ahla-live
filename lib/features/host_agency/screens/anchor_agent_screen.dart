@@ -455,11 +455,13 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         tooltip: isAr ? 'دعوة عضو' : 'Invite Member',
                         onPressed: () {
                           final aid = _agentInfo?.agencyId ?? widget.agencyId ?? '';
+                          final aname = _agentInfo?.agencyName.isNotEmpty == true ? _agentInfo!.agencyName : 'الوكالة';
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => AgencyInviteByIdScreen(
                                 agencyId: aid,
+                                agencyName: aname,
                               ),
                             ),
                           );

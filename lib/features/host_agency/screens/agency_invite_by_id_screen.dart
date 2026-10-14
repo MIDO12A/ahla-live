@@ -15,7 +15,7 @@ class AgencyInviteByIdScreen extends StatefulWidget {
   const AgencyInviteByIdScreen({
     super.key,
     required this.agencyId,
-    required this.agencyName,
+    this.agencyName = 'الوكالة',
   });
 
   final String agencyId;
