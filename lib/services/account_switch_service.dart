@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -118,27 +118,34 @@ class AccountSwitchService {
         phone: targetAccount['phone'] as String?,
       );
 
-      // 3. Clear existing UserProvider and load new user
+      // 3. Clear existing UserProvider, load new user, and start real-time sync
       if (context.mounted) {
         final up = Provider.of<UserProvider>(context, listen: false);
         up.clearUser();
         await up.loadUser(uid);
+        up.startListening(uid);
       }
 
-      // 4. Pop loader and navigate to MainScreen
+      // 4. Pop loader dialog and navigate to MainScreen
       if (context.mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (_) {}
+
+        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const MainScreen()),
           (route) => false,
         );
       }
     } catch (e) {
-      debugPrint('[AccountSwitchService] switchToAccount error: ');
+      debugPrint('[AccountSwitchService] switchToAccount error: $e');
       if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (_) {}
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تعذر التبديل إلى الحساب: '),
+            content: Text('تعذر التبديل إلى الحساب: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );

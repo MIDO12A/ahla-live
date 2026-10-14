@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -693,15 +693,59 @@ class SupabaseService {
 
   Future<bool> exitAgencyAsMember({required String agencyId, required String userId}) async {
     try {
-      if (agencyId.isNotEmpty) {
+      // 1. Delete from host_agency_members using user_id, host_uid, and agency_id
+      try {
+        if (agencyId.isNotEmpty) {
+          await http.delete(
+            Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&user_id=eq.$userId'),
+            headers: _headers,
+          );
+          await http.delete(
+            Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&host_uid=eq.$userId'),
+            headers: _headers,
+          );
+        }
         await http.delete(
-          Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&user_id=eq.$userId'),
+          Uri.parse('$_baseUrl/rest/v1/host_agency_members?user_id=eq.$userId'),
           headers: _headers,
         );
+        await http.delete(
+          Uri.parse('$_baseUrl/rest/v1/host_agency_members?host_uid=eq.$userId'),
+          headers: _headers,
+        );
+      } catch (e) {
+        debugPrint('[SupabaseService] delete host_agency_members error: $e');
       }
-      await _ds.updateUser(userId, {
-        'agency_id': null,
-      });
+
+      // 2. Delete any applications from agency_applications
+      try {
+        await http.delete(
+          Uri.parse('$_baseUrl/rest/v1/agency_applications?user_id=eq.$userId'),
+          headers: _headers,
+        );
+        await http.delete(
+          Uri.parse('$_baseUrl/rest/v1/agency_applications?applicant_uid=eq.$userId'),
+          headers: _headers,
+        );
+      } catch (e) {
+        debugPrint('[SupabaseService] delete agency_applications error: $e');
+      }
+
+      // 3. Clear agency in users table completely
+      try {
+        await _ds.updateUser(userId, {
+          'agency_id': null,
+          'is_host_agent': false,
+        });
+        await http.patch(
+          Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$userId'),
+          headers: _headers,
+          body: jsonEncode({'agency_id': null, 'is_host_agent': false}),
+        );
+      } catch (e) {
+        debugPrint('[SupabaseService] updateUser agency_id error: $e');
+      }
+
       return true;
     } catch (e) {
       debugPrint('[SupabaseService] exitAgencyAsMember error: $e');

@@ -152,6 +152,188 @@ class SupabaseAuthService {
     return sha256.convert(utf8.encode('ahla_pin_salt_$pin')).toString();
   }
 
+  /// Generate and send a secure 6-digit OTP to the phone number
+  Future<Map<String, dynamic>> sendPhoneOtp(String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[\s\-]+'), '');
+    if (cleanPhone.isEmpty || cleanPhone.length < 8) {
+      throw Exception('يرجى إدخال رقم هاتف صحيح مع رمز الدولة');
+    }
+
+    // Generate secure 6-digit OTP
+    final rng = Random.secure();
+    final otpCode = (100000 + rng.nextInt(900000)).toString();
+    final expiresAt = DateTime.now().toUtc().add(const Duration(minutes: 5)).millisecondsSinceEpoch;
+
+    // Save OTP to app_config with 5-minute expiry
+    final saveUrl = Uri.parse('$_baseUrl/rest/v1/app_config');
+    final res = await http.post(
+      saveUrl,
+      headers: {
+        ..._headers,
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: jsonEncode({
+        'key': 'otp_$cleanPhone',
+        'value': jsonEncode({
+          'code': otpCode,
+          'expires_at': expiresAt,
+          'attempts': 0,
+        }),
+      }),
+    );
+
+    if (res.statusCode >= 300) {
+      debugPrint('[SupabaseAuth] Warning: Could not save OTP in app_config: ${res.body}');
+    }
+
+    // Try Supabase Auth OTP API (if Twilio / SMS provider is active on Supabase)
+    bool smsDispatched = false;
+    try {
+      final authOtpUrl = Uri.parse('$_baseUrl/auth/v1/otp');
+      final authOtpRes = await http.post(
+        authOtpUrl,
+        headers: _headers,
+        body: jsonEncode({
+          'phone': cleanPhone,
+          'create_user': true,
+        }),
+      );
+      if (authOtpRes.statusCode >= 200 && authOtpRes.statusCode < 300) {
+        smsDispatched = true;
+      }
+    } catch (_) {}
+
+    return {
+      'success': true,
+      'phone': cleanPhone,
+      'smsDispatched': smsDispatched,
+      // If SMS provider not yet connected to Supabase project, provide fallback code
+      'debugCode': smsDispatched ? null : otpCode,
+    };
+  }
+
+  /// Verify 6-digit OTP strictly and complete sign-in or registration
+  Future<AppAuthUser> verifyPhoneOtpAndSignIn({
+    required String phone,
+    required String otp,
+  }) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[\s\-]+'), '');
+    final cleanOtp = otp.trim();
+
+    if (cleanOtp.length != 6) {
+      throw Exception('رمز التحقق (OTP) يجب أن يتكون من 6 أرقام');
+    }
+
+    // 1. Fetch OTP from app_config
+    final fetchUrl = Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone&select=*');
+    final fetchRes = await http.get(fetchUrl, headers: _headers);
+
+    if (fetchRes.statusCode != 200) {
+      throw Exception('تعذر التحقق من الرمز حالياً، يرجى إعادة المحاولة');
+    }
+
+    final list = jsonDecode(fetchRes.body) as List;
+    if (list.isEmpty) {
+      throw Exception('لم يتم إرسال رمز تحقق لهذا الرقم أو انتهت صلاحيته. يرجى طلب رمز جديد');
+    }
+
+    final rawVal = list.first['value'];
+    Map<String, dynamic> otpData = {};
+    if (rawVal is Map) {
+      otpData = Map<String, dynamic>.from(rawVal);
+    } else if (rawVal is String) {
+      try {
+        otpData = Map<String, dynamic>.from(jsonDecode(rawVal) as Map);
+      } catch (_) {}
+    }
+
+    final expectedCode = otpData['code']?.toString() ?? '';
+    final expiresAt = (otpData['expires_at'] as num?)?.toInt() ?? 0;
+    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+
+    // Check expiry
+    if (nowMs > expiresAt) {
+      // Cleanup expired OTP
+      await http.delete(Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'), headers: _headers);
+      throw Exception('انتهت صلاحية رمز التحقق (OTP). يرجى طلب رمز جديد');
+    }
+
+    // Verify OTP code match
+    if (expectedCode.isEmpty || expectedCode != cleanOtp) {
+      final attempts = ((otpData['attempts'] as num?)?.toInt() ?? 0) + 1;
+      if (attempts >= 5) {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'), headers: _headers);
+        throw Exception('تم تجاوز الحد الأقصى للمحاولات الخاطئة. يرجى طلب رمز جديد');
+      } else {
+        await http.patch(
+          Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'),
+          headers: _headers,
+          body: jsonEncode({
+            'value': jsonEncode({
+              ...otpData,
+              'attempts': attempts,
+            }),
+          }),
+        );
+      }
+      throw Exception('رمز التحقق (OTP) غير صحيح. يرجى التأكد وإعادة المحاولة');
+    }
+
+    // 2. OTP is verified! Invalidate immediately to prevent replay attacks
+    try {
+      await http.delete(Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'), headers: _headers);
+    } catch (_) {}
+
+    // 3. Look up user by phone or create new user
+    final queryUrl = Uri.parse('$_baseUrl/rest/v1/users?phone=eq.$cleanPhone&select=*');
+    final queryRes = await http.get(queryUrl, headers: _headers);
+
+    if (queryRes.statusCode == 200) {
+      final usersList = jsonDecode(queryRes.body) as List;
+      if (usersList.isNotEmpty) {
+        final userData = Map<String, dynamic>.from(usersList.first);
+        final uid = userData['uid'] as String;
+
+        final authUser = AppAuthUser(
+          uid: uid,
+          phoneNumber: cleanPhone,
+          displayName: userData['name'] as String?,
+          photoUrl: userData['photo_url'] as String?,
+          email: userData['email'] as String?,
+          isNewUser: false,
+        );
+
+        await saveSession(
+          uid: uid,
+          phone: cleanPhone,
+          name: userData['name'],
+          photoUrl: userData['photo_url'],
+          email: userData['email'],
+        );
+
+        return authUser;
+      }
+    }
+
+    // 4. New user registration
+    final rng = Random();
+    final newUid = 'p_${DateTime.now().millisecondsSinceEpoch}_${(1000 + rng.nextInt(9000))}';
+
+    final authUser = AppAuthUser(
+      uid: newUid,
+      phoneNumber: cleanPhone,
+      displayName: '',
+      isNewUser: true,
+    );
+
+    await saveSession(
+      uid: newUid,
+      phone: cleanPhone,
+    );
+
+    return authUser;
+  }
+
   /// Sign in or register with Phone and PIN directly on Supabase (No Firebase required)
   Future<AppAuthUser> signInOrRegisterWithPhone({
     required String phone,

@@ -12,6 +12,7 @@ import 'widgets/phone_login_sheet.dart';
 import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/device_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -376,14 +377,43 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 34),
-                  // Privacy text
-                  const Text(
-                    'بالاستمرار، أنت توافق على سياسة الخصوصية وشروط الخدمة',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Color(0x80FFFFFF),
+                  const SizedBox(height: 28),
+                  // Privacy text & Terms
+                  InkWell(
+                    onTap: () => _showPrivacyPolicy(context),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: const TextSpan(
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0x99FFFFFF),
+                            height: 1.5,
+                          ),
+                          children: [
+                            TextSpan(text: 'بالاستمرار، أنت توافق على '),
+                            TextSpan(
+                              text: 'سياسة الخصوصية',
+                              style: TextStyle(
+                                color: Color(0xFFFFD700),
+                                fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            TextSpan(text: ' و '),
+                            TextSpan(
+                              text: 'شروط الخدمة',
+                              style: TextStyle(
+                                color: Color(0xFFFFD700),
+                                fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -392,6 +422,98 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showPrivacyPolicy(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E1528),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (_, scrollCtrl) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'سياسة الخصوصية وشروط الاستخدام',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white70),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(color: Colors.white12),
+              Expanded(
+                child: ListView(
+                  controller: scrollCtrl,
+                  children: [
+                    const Text(
+                      'مرحباً بك في تطبيق أحلى لايف (Ahla Live). نحن نحرص بشدة على حماية خصوصيتك وبياناتك الشخصية وتقديم بيئة آمنة لجميع المستخدمين وفقاً لمعايير Google Play الدولية:\n\n'
+                      '1. جمع البيانات:\n'
+                      'نقوم بجمع الحد الأدنى من البيانات الضرورية لتشغيل الحساب (الاسم، البريد الإلكتروني، رقم الهاتف عند التسجيل، ومعرف الجهاز لحماية الحساب من الاحتيال).\n\n'
+                      '2. أذونات التطبيق:\n'
+                      'يطلب التطبيق أذونات التسجيل الصوتي والكاميرا فقط عند فتح غرف البث المباشر أو المحادثة الصوتية بموافقتك الصريحة، ولا يتم تسجيل أو مشاركة محادثاتك مع أطراف ثالثة.\n\n'
+                      '3. حماية البيانات والأمان:\n'
+                      'يتم تشفير وتأمين جميع الاتصالات والبيانات عبر بروتوكولات SSL/TLS مشفرة بأعلى معايير الأمان.\n\n'
+                      '4. سلوك المجتمع والمحتوى المحظور:\n'
+                      'يُحظر تماماً أي محتوى مسيء، خطاب كراهية، مضايقة أو محتوى غير لائق. يحتفظ التطبيق بحق حظر أي حساب يخالف إرشادات المجتمع فوراً.\n\n'
+                      '5. حذف الحساب والبيانات:\n'
+                      'يمكنك في أي وقت طلب حذف حسابك وبياناتك بالكامل من خلال إعدادات الحساب داخل التطبيق.',
+                      style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final uri = Uri.parse('https://ahla-live-api.vercel.app/privacy');
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      icon: const Icon(Icons.open_in_browser, color: Color(0xFF1E1528)),
+                      label: const Text(
+                        'عرض الصفحة الرسمية على الويب',
+                        style: TextStyle(color: Color(0xFF1E1528), fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFD700),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

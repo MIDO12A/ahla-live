@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../config/app_colors.dart';
 import '../../../services/supabase_auth_service.dart';
 
 class PhoneLoginSheet extends StatefulWidget {
@@ -29,6 +29,9 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
   bool _codeSent = false;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _infoMessage;
+  Timer? _resendTimer;
+  int _resendCountdown = 60;
 
   final List<Map<String, String>> _countries = [
     {'name': 'مصر', 'code': '+20', 'flag': '🇪🇬'},
@@ -55,7 +58,25 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
   void dispose() {
     _phoneController.dispose();
     _otpController.dispose();
+    _resendTimer?.cancel();
     super.dispose();
+  }
+
+  void _startResendTimer() {
+    _resendTimer?.cancel();
+    setState(() => _resendCountdown = 60);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendCountdown <= 1) {
+        timer.cancel();
+        setState(() => _resendCountdown = 0);
+      } else {
+        setState(() => _resendCountdown--);
+      }
+    });
   }
 
   String get _fullPhoneNumber {
@@ -66,7 +87,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
     return '$_countryCode$phone';
   }
 
-  void _goToPinStep() {
+  Future<void> _sendOtp() async {
     final phone = _phoneController.text.trim();
     if (phone.isEmpty || phone.length < 6) {
       setState(() {
@@ -76,16 +97,40 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
     }
 
     setState(() {
+      _isLoading = true;
       _errorMessage = null;
-      _codeSent = true;
+      _infoMessage = null;
     });
+
+    try {
+      final res = await SupabaseAuthService().sendPhoneOtp(_fullPhoneNumber);
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _codeSent = true;
+        if (res['debugCode'] != null) {
+          _infoMessage = 'تم إنشاء رمز التحقق (OTP): ${res['debugCode']}';
+        } else {
+          _infoMessage = 'تم إرسال رمز التحقق عبر الرسائل القصيرة (SMS) إلى هاتفك';
+        }
+      });
+      _startResendTimer();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    }
   }
 
   Future<void> _verifyOtp() async {
-    final pin = _otpController.text.trim();
-    if (pin.length < 4) {
+    final code = _otpController.text.trim();
+    if (code.length != 6) {
       setState(() {
-        _errorMessage = 'يرجى إدخال رمز المرور (PIN) المكون من 4 إلى 6 أرقام';
+        _errorMessage = 'يرجى إدخال رمز التحقق (OTP) المكون من 6 أرقام';
       });
       return;
     }
@@ -96,9 +141,9 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
     });
 
     try {
-      final authUser = await SupabaseAuthService().signInOrRegisterWithPhone(
+      final authUser = await SupabaseAuthService().verifyPhoneOtpAndSignIn(
         phone: _fullPhoneNumber,
-        pin: pin,
+        otp: code,
       );
 
       if (mounted) {
@@ -156,7 +201,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
 
           // Title
           Text(
-            _codeSent ? 'رمز الدخول السري (PIN)' : 'تسجيل الدخول برقم الهاتف',
+            _codeSent ? 'رمز التحقق (OTP)' : 'تسجيل الدخول برقم الهاتف',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 20,
@@ -168,15 +213,40 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
 
           Text(
             _codeSent
-                ? 'أدخل رمز المرور السري الخاص بحسابك (4 إلى 6 أرقام) للدخول فوراً'
-                : 'أدخل رقم هاتفك للمتابعة وتسجيل الدخول عبر Supabase',
+                ? 'أدخل رمز التحقق (OTP) المكون من 6 أرقام لتأكيد حسابك ودخول التطبيق'
+                : 'أدخل رقم هاتفك لتلقي رمز التحقق وتفعيل حسابك بأمان',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 13,
               color: Colors.white70,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // Info message box (if present)
+          if (_infoMessage != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: const Color(0x3300E676),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF00E676), width: 1),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, color: Color(0xFF69F0AE), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _infoMessage!,
+                      style: const TextStyle(color: Color(0xFFB9F6CA), fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // Error box
           if (_errorMessage != null) ...[
@@ -262,9 +332,9 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
             ),
             const SizedBox(height: 24),
 
-            // Continue Button
+            // Send OTP Button
             ElevatedButton(
-              onPressed: _isLoading ? null : _goToPinStep,
+              onPressed: _isLoading ? null : _sendOtp,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF9800),
                 foregroundColor: Colors.white,
@@ -279,12 +349,12 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                     )
                   : const Text(
-                      'متابعة',
+                      'إرسال رمز التحقق (OTP)',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
             ),
           ] else ...[
-            // PIN Input field
+            // OTP 6-digit Input field
             Container(
               height: 56,
               decoration: BoxDecoration(
@@ -297,18 +367,18 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
                 maxLength: 6,
-                obscureText: true,
+                obscureText: false,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
-                  letterSpacing: 10,
+                  letterSpacing: 12,
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: const InputDecoration(
                   counterText: '',
-                  hintText: '••••••',
-                  hintStyle: TextStyle(color: Colors.white38, fontSize: 24, letterSpacing: 10),
+                  hintText: '------',
+                  hintStyle: TextStyle(color: Colors.white38, fontSize: 24, letterSpacing: 12),
                   border: InputBorder.none,
                 ),
               ),
@@ -332,23 +402,40 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                     )
                   : const Text(
-                      'تأكيد الدخول',
+                      'تأكيد الرمز والدخول',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
             ),
             const SizedBox(height: 14),
 
-            // Change Number
-            Center(
-              child: TextButton.icon(
-                onPressed: _isLoading ? null : () => setState(() {
-                  _codeSent = false;
-                  _otpController.clear();
-                  _errorMessage = null;
-                }),
-                icon: const Icon(Icons.arrow_back, color: Colors.white70, size: 16),
-                label: const Text('تغيير رقم الهاتف', style: TextStyle(color: Colors.white70, fontSize: 13)),
-              ),
+            // Resend & Change Number Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton.icon(
+                  onPressed: _isLoading ? null : () => setState(() {
+                    _codeSent = false;
+                    _otpController.clear();
+                    _errorMessage = null;
+                    _infoMessage = null;
+                  }),
+                  icon: const Icon(Icons.arrow_back, color: Colors.white70, size: 16),
+                  label: const Text('تغيير الرقم', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                ),
+                TextButton(
+                  onPressed: (_isLoading || _resendCountdown > 0) ? null : _sendOtp,
+                  child: Text(
+                    _resendCountdown > 0
+                        ? 'إعادة الإرسال بعد ($_resendCountdown ث)'
+                        : 'إعادة إرسال الرمز',
+                    style: TextStyle(
+                      color: _resendCountdown > 0 ? Colors.white38 : const Color(0xFFFFD700),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ],

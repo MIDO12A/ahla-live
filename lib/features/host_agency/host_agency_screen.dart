@@ -123,13 +123,14 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
           final pRows = await Supabase.instance.client
               .from('agency_applications')
               .select('*')
-              .eq('user_id', uid)
+              .or('user_id.eq.$uid,applicant_uid.eq.$uid')
               .order('created_at', ascending: false)
               .limit(1);
           if (pRows.isNotEmpty) {
             final appRow = Map<String, dynamic>.from(pRows.first as Map);
-            final st = appRow['status']?.toString();
-            if (st == 'pending' || st == 'waiting_approval' || st == 'rejected') {
+            final st = appRow['status']?.toString().toLowerCase();
+            // Only true pending/waiting applications block the user
+            if (st == 'pending' || st == 'waiting_approval') {
               pendingApp = appRow;
             }
           }
