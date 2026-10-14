@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/utils/server_time_service.dart';
 import 'package:flutter/foundation.dart';
@@ -76,16 +74,16 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
     try {
       final candidateAgencyIds = <String>{widget.agencyId};
       try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final aDoc = await fs.collection('host_agencies').doc(widget.agencyId).get();
-        if (aDoc.exists) {
-          final ad = aDoc.data() ?? {};
-          if (ad['id'] != null) candidateAgencyIds.add(ad['id'].toString());
-          if (ad['agency_id'] != null) candidateAgencyIds.add(ad['agency_id'].toString());
-          if (ad['custom_id'] != null) candidateAgencyIds.add(ad['custom_id'].toString());
-          if (ad['user_id'] != null) candidateAgencyIds.add(ad['user_id'].toString());
-          if (ad['owner_id'] != null) candidateAgencyIds.add(ad['owner_id'].toString());
-          if (ad['owner_uid'] != null) candidateAgencyIds.add(ad['owner_uid'].toString());
+        final aRow = await _sb.from('host_agencies')
+            .select('id, agency_id, custom_id, user_id, owner_id, owner_uid')
+            .eq('id', widget.agencyId)
+            .maybeSingle();
+        if (aRow != null) {
+          for (final k in ['id', 'agency_id', 'custom_id', 'user_id', 'owner_id', 'owner_uid']) {
+            if (aRow[k] != null && aRow[k].toString().isNotEmpty) {
+              candidateAgencyIds.add(aRow[k].toString());
+            }
+          }
         }
       } catch (_) {}
 
@@ -102,64 +100,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         debugPrint('[AgencyJoinRequests] sb reqResp error: $e');
       }
 
-      // 2. Fetch pending requests from Firestore across candidate agency IDs
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final fsReqSnap = await fs.collection('host_agency_join_requests')
-            .where('agency_id', whereIn: candidateAgencyIds.take(10).toList())
-            .get();
-        for (final doc in fsReqSnap.docs) {
-          final data = doc.data();
-          final id = doc.id;
-          final uid = data['user_id']?.toString() ?? data['host_uid']?.toString() ?? data['applicant_uid']?.toString() ?? '';
-          if (uid.isEmpty) continue;
-          final already = reqResp.any((r) => r['id']?.toString() == id || (r['user_id']?.toString() == uid || r['host_uid']?.toString() == uid));
-          if (!already) {
-            reqResp.add({
-              'id': id,
-              'user_id': uid,
-              'host_uid': uid,
-              'status': data['status']?.toString() ?? 'pending',
-              'created_at': data['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String(),
-              '_from_fs': true,
-              '_user_name': data['user_name'],
-              '_user_avatar': data['user_avatar'],
-              '_custom_id': data['custom_id'],
-            });
-          }
-        }
-
-        // Also check if any join request notifications exist for the owner
-        final notifsSnap = await fs.collection('notifications')
-            .where('type', isEqualTo: 'agency_host_request')
-            .limit(50)
-            .get();
-        for (final nDoc in notifsSnap.docs) {
-          final nData = nDoc.data();
-          final notifAgencyId = nData['data']?['agency_id']?.toString() ?? '';
-          final applicantUid = nData['data']?['applicant_uid']?.toString() ?? nData['actor_uid']?.toString() ?? '';
-          if (applicantUid.isNotEmpty && (candidateAgencyIds.contains(notifAgencyId) || candidateAgencyIds.contains(nData['uid']))) {
-            final already = reqResp.any((r) => (r['user_id']?.toString() == applicantUid || r['host_uid']?.toString() == applicantUid));
-            if (!already) {
-              reqResp.add({
-                'id': nDoc.id,
-                'user_id': applicantUid,
-                'host_uid': applicantUid,
-                'status': 'pending',
-                'created_at': nData['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String(),
-                '_from_fs': true,
-                '_user_name': nData['data']?['applicant_name'] ?? nData['title'] ?? 'مستخدم',
-                '_user_avatar': '',
-                '_custom_id': '',
-              });
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('[AgencyJoinRequests] fsReqSnap error: $e');
-      }
-
-      // 3. Fetch members from Supabase
+      // 2. Fetch members from Supabase
       List<dynamic> membResp = [];
       try {
         final res = await _sb.from('host_agency_members')
@@ -171,34 +112,6 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         membResp = List<dynamic>.from(res as List);
       } catch (e) {
         debugPrint('[AgencyJoinRequests] sb membResp error: $e');
-      }
-
-      // 4. Also fetch members from Firestore
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final fsMembSnap = await fs.collection('host_agency_members')
-            .where('agency_id', whereIn: candidateAgencyIds.take(10).toList())
-            .get();
-        for (final doc in fsMembSnap.docs) {
-          final data = doc.data();
-          final uid = data['user_id']?.toString() ?? data['host_uid']?.toString() ?? '';
-          final role = data['role']?.toString() ?? 'host';
-          if (role == 'owner' || uid.isEmpty) continue;
-          final already = membResp.any((m) => m['id']?.toString() == doc.id || (m['user_id']?.toString() == uid || m['host_uid']?.toString() == uid));
-          if (!already) {
-            membResp.add({
-              'id': doc.id,
-              'user_id': uid,
-              'host_uid': uid,
-              'role': role,
-              'status': data['status']?.toString() ?? 'active',
-              'joined_at': data['joined_at']?.toString() ?? DateTime.now().toUtc().toIso8601String(),
-              'kicked_at': data['kicked_at']?.toString(),
-            });
-          }
-        }
-      } catch (e) {
-        debugPrint('[AgencyJoinRequests] fsMembSnap error: $e');
       }
 
       final allUserIds = <String>{};
@@ -229,25 +142,6 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           }
         } catch (e) {
           debugPrint('[AgencyJoinRequests] sb usersData error: $e');
-        }
-
-        // Fallback to Firestore users if missing or incomplete
-        for (final uid in allUserIds) {
-          if (!userProfiles.containsKey(uid) || userProfiles[uid]?['display_name'] == 'مستخدم') {
-            try {
-              final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-              final uDoc = await fs.collection('users').doc(uid).get();
-              if (uDoc.exists) {
-                final d = uDoc.data() ?? {};
-                userProfiles[uid] = {
-                  'display_name': d['name'] ?? d['displayName'] ?? userProfiles[uid]?['display_name'] ?? 'مستخدم',
-                  'avatar_url': d['photo_url'] ?? d['avatar'] ?? d['photoUrl'] ?? userProfiles[uid]?['avatar_url'],
-                  'kayan_id': d['custom_id']?.toString() ?? d['customId']?.toString() ?? userProfiles[uid]?['kayan_id'] ?? '',
-                  'level': (d['level'] as num?)?.toInt() ?? userProfiles[uid]?['level'] ?? 1,
-                };
-              }
-            } catch (_) {}
-          }
         }
       }
 
@@ -337,47 +231,14 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         } catch (_) {}
       }
 
-      // Update Firestore
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        await fs.collection('host_agency_join_requests').doc(reqId).set({
-          'status': 'approved',
-          'resolved_at': DateTime.now().toUtc().toIso8601String(),
-        }, SetOptions(merge: true));
-
-        if (userId.isNotEmpty) {
-          await fs.collection('host_agency_join_requests').doc('${widget.agencyId}_$userId').set({
-            'status': 'approved',
-            'resolved_at': DateTime.now().toUtc().toIso8601String(),
-          }, SetOptions(merge: true));
-
-          await fs.collection('host_agency_members').doc('${widget.agencyId}_$userId').set({
-            'agency_id': widget.agencyId,
-            'user_id': userId,
-            'role': 'host',
-            'status': 'active',
-            'joined_at': DateTime.now().toUtc().toIso8601String(),
-          }, SetOptions(merge: true));
-
-          await fs.collection('users').doc(userId).set({
-            'agency_id': widget.agencyId,
-            'is_agency_member': true,
-          }, SetOptions(merge: true));
-
-          await fs.collection('host_agencies').doc(widget.agencyId).set({
-            'member_count': FieldValue.increment(1),
-          }, SetOptions(merge: true));
-
-          FirebaseService().sendNotification(
-            uid: userId,
-            type: 'agency_host_accepted',
-            title: 'تم قبول انضمامك للوكالة 🎉',
-            body: 'تهانينا! تمت الموافقة على طلب انضمامك إلى الوكالة كمضيف رسمي.',
-            data: {'agency_id': widget.agencyId, 'status': 'accepted'},
-          ).catchError((_) {});
-        }
-      } catch (fsErr) {
-        debugPrint('[AgencyJoinRequests] Firestore accept error: $fsErr');
+      if (userId.isNotEmpty) {
+        SupabaseService().sendNotification(
+          uid: userId,
+          type: 'agency_host_accepted',
+          title: 'تم قبول انضمامك للوكالة 🎉',
+          body: 'تهانينا! تمت الموافقة على طلب انضمامك إلى الوكالة كمضيف رسمي.',
+          data: {'agency_id': widget.agencyId, 'status': 'accepted'},
+        ).catchError((_) {});
       }
 
       // Immediately remove accepted request from pending list locally and add to approved list
@@ -400,15 +261,6 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         });
       }
 
-      // Also clean up any pending notifications / Firestore request docs
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        await fs.collection('host_agency_join_requests').doc(reqId).delete();
-        if (userId.isNotEmpty) {
-          await fs.collection('host_agency_join_requests').doc('${widget.agencyId}_$userId').delete();
-        }
-      } catch (_) {}
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('✅ تم قبول العضو في الوكالة بنجاح'), backgroundColor: Color(0xFF2E7D32)),
@@ -427,7 +279,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
   // userId = host_agency_join_requests.user_id أو host_agency_join_requests.id
   Future<void> _reject(String reqId, [String? userId]) async {
     try {
-      // 1. Supabase
+      // Supabase
       try {
         await _sb.from('host_agency_join_requests')
             .update({'status': 'rejected', 'resolved_at': DateTime.now().toUtc().toIso8601String()})
@@ -435,31 +287,14 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
             .eq('agency_id', widget.agencyId);
       } catch (_) {}
 
-      // 2. Firestore
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        await fs.collection('host_agency_join_requests').doc(reqId).set({
-          'status': 'rejected',
-          'resolved_at': DateTime.now().toUtc().toIso8601String(),
-        }, SetOptions(merge: true));
-
-        if (userId != null && userId.isNotEmpty) {
-          await fs.collection('host_agency_join_requests').doc('${widget.agencyId}_$userId').set({
-            'status': 'rejected',
-            'resolved_at': DateTime.now().toUtc().toIso8601String(),
-          }, SetOptions(merge: true));
-          await fs.collection('host_agency_members').doc('${widget.agencyId}_$userId').delete();
-
-          FirebaseService().sendNotification(
-            uid: userId,
-            type: 'agency_host_rejected',
-            title: 'تم رفض طلب الانضمام للوكالة',
-            body: 'للأسف، تم رفض طلب انضمامك إلى الوكالة.',
-            data: {'agency_id': widget.agencyId, 'status': 'rejected'},
-          ).catchError((_) {});
-        }
-      } catch (fsErr) {
-        debugPrint('[AgencyJoinRequests] Firestore reject error: $fsErr');
+      if (userId != null && userId.isNotEmpty) {
+        SupabaseService().sendNotification(
+          uid: userId,
+          type: 'agency_host_rejected',
+          title: 'تم رفض طلب الانضمام للوكالة',
+          body: 'للأسف، تم رفض طلب انضمامك إلى الوكالة.',
+          data: {'agency_id': widget.agencyId, 'status': 'rejected'},
+        ).catchError((_) {});
       }
 
       if (mounted) {
@@ -559,22 +394,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
         await _sb.from('users').update({'agency_id': null}).or('uid.eq.$memberId,id.eq.$memberId');
       } catch (_) {}
 
-      // Firestore direct fallback
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        await fs.collection('host_agency_members').doc(memberId).set({
-          'status': 'kicked',
-          'kicked_at': nowIso,
-        }, SetOptions(merge: true));
-        await fs.collection('host_agency_members').doc('${widget.agencyId}_$memberId').set({
-          'status': 'kicked',
-          'kicked_at': nowIso,
-        }, SetOptions(merge: true));
-        await fs.collection('users').doc(memberId).set({
-          'agency_id': null,
-          'is_agency_member': false,
-        }, SetOptions(merge: true));
-      } catch (_) {}
+
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

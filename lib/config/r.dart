@@ -133,8 +133,26 @@ class R {
   static const String unionRate1Ic = '$_m/union_rate_1_ic.webp';
   static const String commonDiamondIc = '$_m/common_diamond_ic.webp';
   static const String commonNext3Ic = '$_m/common_next_3_ic.webp';
-  static const String commonNext5 = '$_m/common_next_5.webp';
   static const String backWhite2 = '$_m/back_white_2.webp';
+
+  // Hayuki Original Agency & Recharge assets (100% identical)
+  static const String hykBgNimTransfer = 'assets/images/agency/bg_nim_transfer.png';
+  static const String hykBgNimTransfer1Info = 'assets/images/agency/bg_nim_transfer_1_info.png';
+  static const String hykTxtTransferTitle = 'assets/images/agency/txt_transfer_title.png';
+  static const String hykFrameBgTransferSure = 'assets/images/agency/hyk_frame_bg_transfer_sure_enabled.png';
+  static const String hykIcNimTransfer = 'assets/images/agency/ic_nim_transfer.png';
+  static const String hykIcSalaryPanel1 = 'assets/images/agency/ic_salary_panel_1.png';
+  static const String hykIcSalaryPanel2 = 'assets/images/agency/ic_salary_panel2.png';
+  static const String hykIcTransferTo = 'assets/images/agency/ic_transfer_to.png';
+  static const String hykIcAgencyBroadcast = 'assets/images/agency/ic_agency_broadcast.png';
+  static const String hykIcAgencyLevelBg = 'assets/images/agency/ic_agency_level_bg.png';
+  static const String hykIcFlag = 'assets/images/agency/ic_flag.png';
+  static const String hykIcNameBg = 'assets/images/agency/ic_name_bg.png';
+  static const String hykIcBackDarkRight = 'assets/images/agency/ic_back_dark_right.png';
+  static const String hykIcCommonLineDot = 'assets/images/agency/ic_common_line_dot.png';
+  static const String hykIcRankBannerBg = 'assets/images/agency/ic_rank_banner_bg.png';
+  static const String hykIcEdit = 'assets/images/agency/ic_edit.png';
+  static const String hykIcHelpWhite = 'assets/images/agency/ic_help_white.png';
 
   // Drawable shapes (XML shape drawables – used as widget equivalents in code)
   static const String roomPackageGiftBg = 'assets/drawable/room_package_gift_bg.xml';

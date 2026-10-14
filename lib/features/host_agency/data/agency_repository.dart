@@ -4,8 +4,6 @@ import '../../../core/utils/server_time_service.dart';
 import 'agency_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyRepository v2 — كل عمليات Supabase للوكالات
@@ -713,24 +711,22 @@ abstract final class AgencyRepository {
       }
     } catch (_) {}
 
-    // البحث البديل في Firestore
+    // البحث في جدول users في Supabase
     try {
-      final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-      final intQ = int.tryParse(q);
-
-      final snap = await fs.collection('users').where('is_agent', isEqualTo: true).limit(20).get();
-      for (final doc in snap.docs) {
-        final d = doc.data();
-        final cid = d['custom_id']?.toString() ?? d['customId']?.toString() ?? '';
-        final name = (d['name'] ?? d['display_name'] ?? '').toString();
-        if (cid == q || (intQ != null && cid == intQ.toString()) || name.toLowerCase().contains(q.toLowerCase())) {
-          addAgent({
-            'id': doc.id,
-            'display_name': name,
-            'avatar_url': d['avatar'] ?? d['avatar_url'] ?? '',
-            'kayan_id': cid,
-          });
-        }
+      final uResp = await _sb
+          .from('users')
+          .select('id, uid, name, photo_url, custom_id')
+          .or('is_recharge_agent.eq.true,is_agent.eq.true')
+          .or('name.ilike.%$q%,custom_id.ilike.%$q%')
+          .limit(10);
+      for (final e in (uResp as List<dynamic>)) {
+        final m = Map<String, dynamic>.from(e as Map);
+        addAgent({
+          'id': m['uid'] ?? m['id'],
+          'display_name': m['name'] ?? '',
+          'avatar_url': m['photo_url'] ?? '',
+          'kayan_id': m['custom_id'] ?? '',
+        });
       }
     } catch (_) {}
 

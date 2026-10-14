@@ -4,20 +4,73 @@ import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
+interface MultiplierTierConfig {
+  multiplier: number;
+  weight: number;
+  svgaUrl?: string;
+}
+
+interface LuckyBoxConfig {
+  winRate?: number;
+  oddsTiers?: MultiplierTierConfig[];
+}
+
+let cachedBoxConfig: LuckyBoxConfig | null = null;
+let lastBoxConfigFetch = 0;
+const BOX_CONFIG_CACHE_MS = 10_000; // cache for 10 seconds to avoid firestore read spam
+
+async function getLuckyBoxConfig(): Promise<LuckyBoxConfig | null> {
+  const now = Date.now();
+  if (cachedBoxConfig && now - lastBoxConfigFetch < BOX_CONFIG_CACHE_MS) {
+    return cachedBoxConfig;
+  }
+  try {
+    const snap = await db.collection('app_config').doc('lucky_box_config').get();
+    if (snap.exists) {
+      cachedBoxConfig = snap.data() as LuckyBoxConfig;
+      lastBoxConfigFetch = now;
+      return cachedBoxConfig;
+    }
+  } catch (e) {
+    console.error('Failed to load lucky_box_config:', e);
+  }
+  return null;
+}
+
+interface CalculatedOddsItem {
+  multiplier: number;
+  probability: number;
+  svgaUrl?: string;
+}
+
 /**
- * Build a multiplier distribution whose EXACT expected value equals the
- * configured RTP (Return To Player).
- *
- *   MYSTERY: Σ P(m)·m = RTP             (m = multiplier, "1" = tie, "0" = loss)
- *   P(m) = w_m / Z for winning multis; P(0) = w_0 / Z.
- *
- * Base weights decay as w(m) = m^-1.15 (heavy on small wins, thin on the
- * jackpot). We then solve for w₀ = (Σw·m)/RTP − Σw so the sum hits RTP exactly,
- * and normalize Z = w₀ + Σw. This makes the house edge mathematical — the only
- * thing that matters — instead of a hand-tuned weight table.
+ * Build odds table strictly respecting admin settings.
+ * If oddsTiers is configured in dashboard, probability = weight / sum(weights).
+ * If winRate === 0, returns 100% loss (multiplier 0).
  */
-function buildOdds(maxMultiplier: number, rtpPercent: number) {
-  const rtp = Math.max(0.5, Math.min(1.0, (rtpPercent || 85) / 100));
+function buildOddsFromConfig(
+  boxConfig: LuckyBoxConfig | null,
+  maxMultiplier: number,
+  fallbackRtpPercent: number
+): CalculatedOddsItem[] {
+  // If admin configured custom odds tiers
+  if (boxConfig?.oddsTiers && Array.isArray(boxConfig.oddsTiers) && boxConfig.oddsTiers.length > 0) {
+    const totalWeight = boxConfig.oddsTiers.reduce((sum, tier) => sum + (Number(tier.weight) || 0), 0);
+    if (totalWeight > 0) {
+      return boxConfig.oddsTiers.map((tier) => ({
+        multiplier: Number(tier.multiplier) || 0,
+        probability: (Number(tier.weight) || 0) / totalWeight,
+        svgaUrl: tier.svgaUrl || undefined,
+      }));
+    }
+  }
+
+  // Fallback to RTP-based math if no oddsTiers configured
+  const rtp = Math.max(0, Math.min(1.0, (fallbackRtpPercent || 85) / 100));
+  if (rtp <= 0) {
+    return [{ multiplier: 0, probability: 1.0 }];
+  }
+
   const candidates = [1, 2, 5, 10, 50, 100, 500, 1000];
   const multis = candidates.filter((m) => m <= maxMultiplier);
   if (multis.length === 0) multis.push(1);
@@ -26,13 +79,11 @@ function buildOdds(maxMultiplier: number, rtpPercent: number) {
   const sumW = weights.reduce((s, w) => s + w, 0);
   const sumWM = multis.reduce((s, m, i) => s + m * weights[i], 0);
 
-  // Solve w₀ = sumWM/rtp − sumW ; clamp at 0 so a crazy-high RTP just yields
-  // "near-certain tie" instead of a negative loss bucket.
   let w0 = sumWM / rtp - sumW;
   if (!isFinite(w0) || w0 < 0) w0 = 0;
 
   const Z = w0 + sumW;
-  const odds = multis.map((m, i) => ({
+  const odds: CalculatedOddsItem[] = multis.map((m, i) => ({
     multiplier: m,
     probability: weights[i] / Z,
   }));
@@ -41,19 +92,18 @@ function buildOdds(maxMultiplier: number, rtpPercent: number) {
   return odds;
 }
 
-function drawFromOdds(odds: { multiplier: number; probability: number }[]): number {
+function drawFromOdds(odds: CalculatedOddsItem[]): CalculatedOddsItem {
   const roll = secureRandomInt(1000000) / 1000000;
   let cumulative = 0;
   for (const item of odds) {
     cumulative += item.probability;
-    if (roll < cumulative) return item.multiplier;
+    if (roll < cumulative) return item;
   }
-  return 0;
+  return odds[odds.length - 1] ?? { multiplier: 0, probability: 1 };
 }
 
 function secureRandomInt(max: number): number {
   const bytes = new Uint32Array(1);
-  // Node >= 18 has globalThis.crypto; fall back to Math.random if unavailable.
   if (typeof globalThis !== 'undefined' && (globalThis as any).crypto?.getRandomValues) {
     (globalThis as any).crypto.getRandomValues(bytes);
   } else {
@@ -62,9 +112,9 @@ function secureRandomInt(max: number): number {
   return bytes[0] % max;
 }
 
-function drawMultipliers(count: number, odds: { multiplier: number; probability: number }[]): number[] {
+function drawMultipliers(count: number, odds: CalculatedOddsItem[]): CalculatedOddsItem[] {
   const clamped = count < 4 ? 4 : count > 8 ? 8 : count;
-  const results: number[] = [];
+  const results: CalculatedOddsItem[] = [];
   for (let c = 0; c < clamped; c++) {
     results.push(drawFromOdds(odds));
   }
@@ -127,6 +177,7 @@ router.post('/draw', authenticate, async (req: Request, res: Response) => {
   const comboId = String(rawComboId ?? 'combo_' + String(Date.now()));
 
   try {
+    const boxConfig = await getLuckyBoxConfig();
     const giftRef = db.collection('gifts').doc(String(giftId));
     const senderRef = db.collection('users').doc(senderId);
     const roomRef = db.collection('rooms').doc(String(roomId));
@@ -153,19 +204,26 @@ router.post('/draw', authenticate, async (req: Request, res: Response) => {
       // Per-gift RTP + max multiplier (admin-controlled, defaults 85% / 100X).
       const rtp = asInt(gift.lucky_rtp ?? gift.rtp ?? 85);
       const maxMult = asInt(gift.lucky_max_multiplier ?? gift.max_multiplier ?? 100);
-      const odds = buildOdds(maxMult, rtp);
+      const odds = buildOddsFromConfig(boxConfig, maxMult, rtp);
 
       const totalCost = value * count;
       if (!senderSnap.exists) throw new Error('sender_not_found');
       const coins = asInt(senderSnap.data()?.coins);
       if (coins < totalCost) throw new Error('insufficient_coins');
 
-      const multipliers = drawMultipliers(count, odds);
+      const drawnItems = drawMultipliers(count, odds);
+      const multipliers = drawnItems.map((item) => item.multiplier);
       const totalWonCoins = multipliers.reduce((s, m) => s + value * m, 0);
       const isBigWin = multipliers.some((m) => m >= 50);
       const maxWinner = multipliers.length
         ? multipliers.reduce((a, b) => (a > b ? a : b), 0)
         : 0;
+
+      // Find the highest winning item that may have an SVGA animation
+      const topWinningItem = drawnItems
+        .filter((item) => item.multiplier > 0)
+        .sort((a, b) => b.multiplier - a.multiplier)[0];
+      const customSvgaUrl = topWinningItem?.svgaUrl || '';
 
       const giftName = String(gift.name ?? '');
       const giftNameAr = String(gift.name_ar ?? gift.name ?? '');
@@ -198,6 +256,7 @@ router.post('/draw', authenticate, async (req: Request, res: Response) => {
         won_coins: totalWonCoins,
         multipliers,
         is_big_win: isBigWin,
+        svga_url: customSvgaUrl,
         created_at: new Date().toISOString(),
       });
 
@@ -227,16 +286,18 @@ router.post('/draw', authenticate, async (req: Request, res: Response) => {
         },
         results: {
           multipliers,
-          cards: multipliers.map((m, i) => ({
+          cards: drawnItems.map((item, i) => ({
             index: i,
-            multiplier: m,
-            wonCoins: value * m,
+            multiplier: item.multiplier,
+            wonCoins: value * item.multiplier,
             giftName: giftNameAr,
             giftIcon: giftIconUrl,
+            svgaUrl: item.svgaUrl || undefined,
           })),
           totalWonCoins,
           maxMultiplier: maxWinner,
           isBigWin,
+          svgaUrl: customSvgaUrl || undefined,
         },
       };
       txn.set(db.collection('room_messages').doc(), {
@@ -271,6 +332,7 @@ router.post('/draw', authenticate, async (req: Request, res: Response) => {
         multipliers,
         maxMultiplier: maxWinner,
         isBigWin,
+        svgaUrl: customSvgaUrl || undefined,
       };
     });
 
@@ -282,6 +344,7 @@ router.post('/draw', authenticate, async (req: Request, res: Response) => {
         room_id: String(roomId),
         multiplier: result.maxMultiplier,
         total_won: result.wonCoins,
+        svga_url: result.svgaUrl || '',
         created_at: new Date().toISOString(),
       }).catch(() => {});
     }

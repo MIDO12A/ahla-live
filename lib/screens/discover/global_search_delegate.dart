@@ -1,6 +1,4 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:zero/screens/user_profile/user_profile_screen.dart';
 import 'package:zero/screens/room/room_screen.dart';
 import '../../services/supabase_data_service.dart';
@@ -138,61 +136,7 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
         debugPrint('[GlobalSearchDelegate] Supabase search error: $e');
       }
 
-      // 2. Fallback to Firestore only if nothing found in Supabase
-      if (usersFound.isEmpty && roomsFound.isEmpty) {
-        try {
-          final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-          final isNumeric = int.tryParse(q) != null;
 
-        if (isNumeric) {
-          final uidSnap = await db.collection('users').where('custom_id', isEqualTo: q).limit(5).get();
-          for (var doc in uidSnap.docs) {
-            final d = doc.data();
-            d['docId'] = doc.id;
-            if (!usersFound.any((u) => u['docId'] == doc.id || u['custom_id'] == d['custom_id'])) {
-              usersFound.add(d);
-            }
-          }
-
-          final ridSnap = await db.collection('rooms').where('room_id', isEqualTo: q).limit(5).get();
-          for (var doc in ridSnap.docs) {
-            final d = doc.data();
-            d['docId'] = doc.id;
-            if (!roomsFound.any((r) => r['docId'] == doc.id || r['room_id'] == d['room_id'])) {
-              roomsFound.add(d);
-            }
-          }
-        }
-
-        final uNameSnap = await db.collection('users')
-            .orderBy('name')
-            .startAt([q])
-            .endAt(['$q\uf8ff'])
-            .limit(10)
-            .get();
-        for (var doc in uNameSnap.docs) {
-          if (!usersFound.any((u) => u['docId'] == doc.id)) {
-            final d = doc.data();
-            d['docId'] = doc.id;
-            usersFound.add(d);
-          }
-        }
-
-        final rNameSnap = await db.collection('rooms')
-            .orderBy('title')
-            .startAt([q])
-            .endAt(['$q\uf8ff'])
-            .limit(10)
-            .get();
-        for (var doc in rNameSnap.docs) {
-          if (!roomsFound.any((r) => r['docId'] == doc.id)) {
-            final d = doc.data();
-            d['docId'] = doc.id;
-            roomsFound.add(d);
-          }
-        }
-      } catch (_) {}
-    }
 
       if (mounted) {
         setState(() {

@@ -1,7 +1,6 @@
 import '../../services/supabase_auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/supabase_data_service.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';

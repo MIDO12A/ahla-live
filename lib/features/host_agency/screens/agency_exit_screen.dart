@@ -1,8 +1,6 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import '../../../services/supabase_auth_service.dart';
 
 import '../../../providers/user_provider.dart';
 import '../../../services/supabase_service.dart';
@@ -50,7 +48,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
 
-    final uid = FirebaseAuth.instance.currentUser?.uid ??
+    final uid = SupabaseAuthService().currentUid ??
         Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
 
     if (uid == null) {
@@ -66,59 +64,58 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
       int mcount = 0;
       String tier = 'bronze';
 
-      // أ) البحث بالـ agencyId المحدد
+      // أ) البحث بالـ agencyId المحدد في Supabase
       if (aid != null && aid.isNotEmpty) {
-        final agDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('host_agencies').doc(aid).get();
-        if (agDoc.exists) {
-          final data = agDoc.data() ?? {};
-          if (data['owner_id'] == uid) {
-            isOwner = true;
+        try {
+          final row = await Supabase.instance.client.from('host_agencies').select('*').eq('id', aid).maybeSingle();
+          if (row != null) {
+            if (row['owner_id'] == uid || row['owner_uid'] == uid) {
+              isOwner = true;
+            }
+            aname = row['name']?.toString() ?? 'الوكالة';
+            mcount = (row['member_count'] as num?)?.toInt() ?? 0;
+            tier = row['tier']?.toString() ?? 'bronze';
           }
-          aname = data['name']?.toString() ?? 'الوكالة';
-          mcount = (data['member_count'] as num?)?.toInt() ?? 0;
-          tier = data['tier']?.toString() ?? 'bronze';
-        }
+        } catch (_) {}
       }
 
       // ب) البحث في host_agencies حيث owner_id == uid
       if (!isOwner) {
-        final ownerAgSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-            .collection('host_agencies')
-            .where('owner_id', isEqualTo: uid)
-            .limit(1)
-            .get();
-        if (ownerAgSnap.docs.isNotEmpty) {
-          isOwner = true;
-          final d = ownerAgSnap.docs.first;
-          aid = d.id;
-          final data = d.data();
-          aname = data['name']?.toString() ?? 'الوكالة';
-          mcount = (data['member_count'] as num?)?.toInt() ?? 0;
-          tier = data['tier']?.toString() ?? 'bronze';
-        }
+        try {
+          final rows = await Supabase.instance.client.from('host_agencies').select('*').or('owner_id.eq.$uid,owner_uid.eq.$uid').limit(1);
+          if (rows.isNotEmpty) {
+            isOwner = true;
+            final d = rows.first;
+            aid = d['id']?.toString();
+            aname = d['name']?.toString() ?? 'الوكالة';
+            mcount = (d['member_count'] as num?)?.toInt() ?? 0;
+            tier = d['tier']?.toString() ?? 'bronze';
+          }
+        } catch (_) {}
       }
 
       // ج) فحص host_agency_members حيث role == 'owner'
       if (!isOwner) {
-        final memSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-            .collection('host_agency_members')
-            .where('user_id', isEqualTo: uid)
-            .where('role', isEqualTo: 'owner')
-            .limit(1)
-            .get();
-        if (memSnap.docs.isNotEmpty) {
-          isOwner = true;
-          aid ??= memSnap.docs.first.data()['agency_id']?.toString();
-        }
+        try {
+          final mRows = await Supabase.instance.client.from('host_agency_members').select('*').eq('user_id', uid).eq('role', 'owner').limit(1);
+          if (mRows.isNotEmpty) {
+            isOwner = true;
+            aid ??= mRows.first['agency_id']?.toString();
+          }
+        } catch (_) {}
       }
 
       // د) فحص users/{uid}.is_host_agent
       if (!isOwner) {
-        final uDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
-        if (uDoc.data()?['is_host_agent'] == true) {
-          isOwner = true;
-          aid ??= uDoc.data()?['agency_id']?.toString();
-        }
+        try {
+          final uRow = await Supabase.instance.client.from('users').select('agency_id, host_agency_id, is_host_agent').eq('uid', uid).maybeSingle();
+          if (uRow != null) {
+            if (uRow['is_host_agent'] == true) {
+              isOwner = true;
+              aid ??= uRow['agency_id']?.toString() ?? uRow['host_agency_id']?.toString();
+            }
+          }
+        } catch (_) {}
       }
 
       // 2. إذا كان عضواً عادياً (مضيفاً)
@@ -130,14 +127,18 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
           aid = memberInfo?.agencyId;
         }
         if (aid == null || aid.isEmpty) {
-          final uDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
-          aid = uDoc.data()?['agency_id']?.toString() ?? uDoc.data()?['host_agency_id']?.toString();
+          try {
+            final uRow = await Supabase.instance.client.from('users').select('agency_id, host_agency_id').eq('uid', uid).maybeSingle();
+            aid = uRow?['agency_id']?.toString() ?? uRow?['host_agency_id']?.toString();
+          } catch (_) {}
         }
         if (aname.isEmpty && aid != null && aid.isNotEmpty) {
-          final agDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('host_agencies').doc(aid).get();
-          if (agDoc.exists) {
-            aname = agDoc.data()?['name']?.toString() ?? 'الوكالة';
-          }
+          try {
+            final agRow = await Supabase.instance.client.from('host_agencies').select('name').eq('id', aid).maybeSingle();
+            if (agRow != null) {
+              aname = agRow['name']?.toString() ?? 'الوكالة';
+            }
+          } catch (_) {}
         }
       }
 
@@ -160,7 +161,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
 
   // ─── خروج الوكيل وحذف الوكالة نهائياً ─────────────────────────────
   Future<void> _handleOwnerExitAndDelete() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid ??
+    final uid = SupabaseAuthService().currentUid ??
         Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
     if (uid == null) return;
 
@@ -214,7 +215,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
     setState(() => _processing = true);
 
     try {
-      final success = await FirebaseService().deleteAndExitAgencyByOwner(
+      final success = await SupabaseService().deleteAndExitAgencyByOwner(
         agencyId: _agencyId ?? '',
         ownerUid: uid,
       );
@@ -242,7 +243,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
 
   // ─── خروج العضو (المضيف) من الوكالة ──────────────────────────────
   Future<void> _handleMemberExit() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid ??
+    final uid = SupabaseAuthService().currentUid ??
         Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
     if (uid == null) return;
 
@@ -289,7 +290,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
     setState(() => _processing = true);
 
     try {
-      final success = await FirebaseService().exitAgencyAsMember(
+      final success = await SupabaseService().exitAgencyAsMember(
         agencyId: _agencyId ?? '',
         userId: uid,
       );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../services/supabase_service.dart';
 import '../../../../services/dynamic_config_service.dart';
+import '../../../../services/room_cup_service.dart';
 import '../../../../config/r.dart';
 import '../../user_profile/user_profile_screen.dart';
 
@@ -136,6 +137,46 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.close, color: Colors.white, size: 18),
+              ),
+            ),
+          ),
+
+          // Room Cup Rewards & Rules button (matching Hayuki's rankActEntranceIv)
+          Positioned(
+            top: 16,
+            right: 16,
+            child: GestureDetector(
+              onTap: () => _showRoomCupRewardsDialog(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFD54F), Color(0xFFF57F17)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFFD54F).withOpacity(0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.emoji_events, color: Colors.black, size: 15),
+                    SizedBox(width: 4),
+                    Text(
+                      'كأس ومكافآت',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -667,6 +708,378 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showRoomCupRewardsDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => const _RoomCupRewardsSheet(),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  _RoomCupRewardsSheet — Matching Hayuki's dialog_rank_reward & rule
+// ══════════════════════════════════════════════════════════════════════
+class _RoomCupRewardsSheet extends StatefulWidget {
+  const _RoomCupRewardsSheet({Key? key}) : super(key: key);
+
+  @override
+  State<_RoomCupRewardsSheet> createState() => _RoomCupRewardsSheetState();
+}
+
+class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
+  int _periodTab = 0; // 0 for Daily, 1 for Weekly
+  bool _loading = true;
+  RoomCupConfig? _config;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    final cfg = await RoomCupService().getConfig();
+    if (mounted) {
+      setState(() {
+        _config = cfg;
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    return Container(
+      height: screenHeight * 0.78,
+      decoration: const BoxDecoration(
+        color: Color(0xFF141418),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 8),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white70, size: 16),
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.emoji_events, color: Color(0xFFFFD54F), size: 20),
+                    SizedBox(width: 6),
+                    Text(
+                      'جوائز وقواعد كأس الغرفة',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 28),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // Period Segment Tabs
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(19),
+              border: Border.all(color: const Color(0x33FFD54F)),
+            ),
+            child: Row(
+              children: [
+                _buildTabItem('👑 كأس الغرفة الأسبوعي', 1),
+                _buildTabItem('🥇 كأس الغرفة اليومي', 0),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Content
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD54F)))
+                : _buildTiersList(),
+          ),
+
+          // Bottom "I got it" action button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                width: double.infinity,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(23),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00DEFF), Color(0xFF3AFF92)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00DEFF).withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  'حسناً، فهمت',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabItem(String title, int index) {
+    final active = _periodTab == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _periodTab = index),
+        child: Container(
+          alignment: Alignment.center,
+          decoration: active
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(19),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFD54F), Color(0xFFF57F17)],
+                  ),
+                )
+              : null,
+          child: Text(
+            title,
+            style: TextStyle(
+              color: active ? Colors.black : Colors.white70,
+              fontSize: 12,
+              fontWeight: active ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTiersList() {
+    if (_config == null) return const SizedBox.shrink();
+    final periodConfig = _periodTab == 1 ? _config!.weekly : _config!.daily;
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
+        // Information Note about Room Owner Profits
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1D1B22),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0x33FFD54F)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.stars, color: Color(0xFFFFD54F), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'نظام أرباح وكأس الغرفة لصاحب الغرفة 👑',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _periodTab == 1
+                          ? 'يتم تجميع كافة الكوينز المطلقة داخل الغرفة أسبوعياً، وعند انتهاء الأسبوع (فجر الإثنين) يتم صرف نسبة الأرباح (${periodConfig.basePercentage}%) تلقائياً لحساب صاحب الغرفة مع إطار ووسام الكأس الأسبوعي.'
+                          : 'يتم تجميع كافة الكوينز المطلقة داخل الغرفة يومياً، وعند منتصف الليل (00:00) يتم صرف نسبة الأرباح (${periodConfig.basePercentage}%) تلقائياً لحساب صاحب الغرفة مع إطار ووسام الكأس اليومي.',
+                      style: const TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        // Owner Profit Rate Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                const Color(0xFFFFD54F).withOpacity(0.12),
+                const Color(0xFFF57F17).withOpacity(0.06),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFFFD54F).withOpacity(0.35)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFD54F).withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.monetization_on, color: Color(0xFFFFD54F), size: 22),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'نسبة أرباح مالك الغرفة',
+                            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            _periodTab == 1 ? 'من إجمالي كوينز الأسبوع' : 'من إجمالي كوينز اليوم',
+                            style: const TextStyle(color: Colors.white54, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFD54F), Color(0xFFF57F17)],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${periodConfig.basePercentage}%',
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+              const Divider(color: Colors.white10, height: 1),
+              const SizedBox(height: 12),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('الحد الأدنى لدخل الغرفة للتأهيل:', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  Text(
+                    '${periodConfig.minRoomCoinsToQualify} كوينز',
+                    style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('مدة صلاحية إطار ووسام الكأس:', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  Text(
+                    '${periodConfig.daysValid} ${_periodTab == 1 ? 'أيام' : 'يوم'}',
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // Progressive Milestones (if enabled)
+        if (periodConfig.useMilestones && periodConfig.milestones.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          const Text(
+            'شرائح الدخل التصاعدية لمالك الغرفة:',
+            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          ...periodConfig.milestones.map((m) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B1B20),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(m.label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text('عند ${m.minCoins} كوينز ➔ ${m.percentage}%',
+                    style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 11, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          )),
+        ],
+      ],
     );
   }
 }

@@ -1,6 +1,4 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/supabase_compat.dart';
 import 'package:flutter/material.dart';
@@ -388,50 +386,61 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     );
   }
 
-  /// Collapsing Header matching union_activity_my_agency.xml
+  /// Collapsing Header matching act_union_center_v2.xml & vh_union_center_top_info.xml
   Widget _buildCollapsingHeader(AgentInfoModel? info, bool isAr) {
     final user = Provider.of<UserProvider>(context, listen: false).currentUser;
     final dc = DynamicConfigService();
     final agencyName = info?.agencyName.isNotEmpty == true ? info!.agencyName : (isAr ? 'وكالتي الرسمية' : 'My Agency');
     final displayAgencyId = formatAgencyNumericId(info?.agencyPublicId ?? (info?.agencyId.isNotEmpty == true ? info!.agencyId : widget.agencyId ?? (info?.userId != 0 ? info?.userId.toString() : '100')));
     final memberCount = _anchors.length;
+    final ownerName = user?.name ?? 'المدير';
+    final ownerId = user?.customId ?? user?.uid ?? '1000';
+    final expNeeded = 50000;
+    final currExp = ((info?.agentBean ?? 0) % expNeeded);
 
     return Stack(
       children: [
-        // Background: union_my_agency_bg
+        // ── agencyBlurBg + blackMask (مطابق لـ act_union_center_v2.xml) ──
         Positioned.fill(
-          child: dc.hostAgencyHeaderBgImage.isNotEmpty
-              ? (dc.hostAgencyHeaderBgImage.startsWith('http')
-                  ? Image.network(dc.hostAgencyHeaderBgImage, fit: BoxFit.cover)
-                  : Image.asset(dc.hostAgencyHeaderBgImage, fit: BoxFit.cover))
-              : Image.asset(
-                  R.unionMyAgencyBg,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(color: const Color(0xFF221A1A)),
-                ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              dc.hostAgencyHeaderBgImage.isNotEmpty
+                  ? (dc.hostAgencyHeaderBgImage.startsWith('http')
+                      ? Image.network(dc.hostAgencyHeaderBgImage, fit: BoxFit.cover)
+                      : Image.asset(dc.hostAgencyHeaderBgImage, fit: BoxFit.cover))
+                  : Image.asset(
+                      R.unionMyAgencyBg,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFF141923)),
+                    ),
+              Container(color: Colors.black.withOpacity(0.55)), // blackMask (20% to 55%)
+            ],
+          ),
         ),
 
         SafeArea(
           bottom: false,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Top Action Bar
+              // ── Top Toolbar (toolBar) ──
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 child: Row(
                   children: [
                     IconButton(
                       icon: Image.asset(
                         'assets/mipmap-xxhdpi/back_white_2.webp',
-                        width: 28,
-                        height: 28,
+                        width: 24,
+                        height: 24,
                         errorBuilder: (_, __, ___) => const Icon(Icons.arrow_back, color: Colors.white),
                       ),
                       onPressed: () => Navigator.pop(context),
                     ),
                     const Spacer(),
                     Text(
-                      isAr ? 'وكالتي' : 'My Agency',
+                      _isAgencyOwner ? (isAr ? 'مركز الوكالة' : 'Agency Center') : (isAr ? 'وكالتي الرسمية' : 'My Agency'),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 17,
@@ -441,7 +450,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     const Spacer(),
                     if (_isAgencyOwner) ...[
                       IconButton(
-                        icon: const Icon(Icons.assignment_ind_rounded, color: Color(0xFFFFD700), size: 24),
+                        icon: const Icon(Icons.group_add_rounded, color: Color(0xFFFFD700), size: 24),
                         tooltip: isAr ? 'طلبات الانضمام' : 'Join Requests',
                         onPressed: () {
                           final aid = _agentInfo?.agencyId ?? widget.agencyId ?? '';
@@ -457,12 +466,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         },
                       ),
                     ],
-                    // Rules icon: union_rule_ic
                     IconButton(
                       icon: Image.asset(
                         R.unionRuleIc,
-                        width: 26,
-                        height: 26,
+                        width: 24,
+                        height: 24,
                         errorBuilder: (_, __, ___) => const Icon(Icons.help_outline, color: Colors.white),
                       ),
                       tooltip: isAr ? 'قوانين الوكالة' : 'Rules',
@@ -472,375 +480,499 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
-              // Agency Avatar Stack: union_my_agency_avatar_bg + crown + avatar + border
-              Center(
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    // Avatar base frame: union_my_agency_avatar_bg
-                    Image.asset(
-                      R.unionMyAgencyAvatarBg,
-                      width: 130,
-                      height: 130,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const SizedBox(width: 130, height: 130),
-                    ),
-
-                    // Crown: union_agency_avatar_heder_ic
-                    Positioned(
-                      top: -10,
-                      child: Image.asset(
-                        R.unionAgencyAvatarHeaderIc,
-                        width: 44,
-                        height: 36,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
-                    ),
-
-                    // Agency Avatar
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        width: 84,
-                        height: 84,
-                        color: Colors.white12,
-                        child: (info?.avatarUrl.isNotEmpty == true)
-                            ? Image(
-                                image: R.cachedImage(info!.avatarUrl),
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.shield, color: Colors.white54, size: 40),
-                              )
-                            : const Icon(Icons.shield, color: Colors.white54, size: 40),
-                      ),
-                    ),
-
-                    // Border: union_avatar_border_ic
-                    Image.asset(
-                      R.unionAvatarBorderIc,
-                      width: 90,
-                      height: 90,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                    ),
-
-                    // Invite Host Badge: union_sub_agent_invite_bg (For Owner only)
-                    if (_isAgencyOwner)
-                      Positioned(
-                        bottom: -10,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() => _currentTab = 2);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              // ── vh_union_center_top_info.xml (شاشة مالك الوكالة وشاشة المضيف) ──
+              if (_isAgencyOwner) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Agency Avatar (80dp) + Admin Badge (34dp)
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 76,
+                            height: 76,
                             decoration: BoxDecoration(
-                              image: const DecorationImage(
-                                image: AssetImage(R.unionSubAgentInviteBg),
-                                fit: BoxFit.fill,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
                               boxShadow: [
-                                BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Image.asset(R.unionSubAgentInviteIc, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                                const SizedBox(width: 4),
-                                Text(
-                                  isAr ? 'دعوة مضيف' : 'Invite Host',
-                                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
+                            child: ClipOval(
+                              child: (info?.avatarUrl.isNotEmpty == true)
+                                  ? Image(
+                                      image: R.cachedImage(info!.avatarUrl),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Icon(Icons.shield, color: Colors.white54, size: 38),
+                                    )
+                                  : const Icon(Icons.shield, color: Colors.white54, size: 38),
+                            ),
                           ),
+                          Positioned(
+                            bottom: -2,
+                            right: isAr ? null : -2,
+                            left: isAr ? -2 : null,
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFFFFD700),
+                                border: Border.all(color: Colors.white, width: 1.5),
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.admin_panel_settings_rounded, size: 16, color: Color(0xFF522800)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(width: 16),
+
+                      // Agency Details
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Agency Name + Edit Pencil
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    agencyName,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                GestureDetector(
+                                  onTap: () => _showNoticeDialog(isAr),
+                                  child: dc.buildDynamicImage(
+                                    dc.hostAgencyEditIcon,
+                                    defaultAsset: R.hykIcEdit,
+                                    width: 18,
+                                    height: 18,
+                                    fallbackWidget: const Icon(Icons.edit_note_rounded, color: Colors.white70, size: 20),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            // Agency ID
+                            Text(
+                              'ID: $displayAgencyId',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
+                            const SizedBox(height: 6),
+                            // Gradient Divider Line (divide1 + divide2)
+                            Container(
+                              height: 1.2,
+                              width: 180,
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.transparent, Colors.white70, Colors.transparent],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            // Owner Name & ID in #00b5b3 (hilla_light)
+                            Row(
+                              children: [
+                                Text(
+                                  ownerName,
+                                  style: const TextStyle(
+                                    color: Color(0xFF00B5B3),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '(ID: $ownerId)',
+                                  style: const TextStyle(
+                                    color: Color(0xFF00B5B3),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              // Agency Name + Country
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (info?.countryFlagUrl.isNotEmpty == true)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: Image.network(info!.countryFlagUrl, width: 22, height: 14),
-                    ),
-                  Text(
-                    agencyName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    ],
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 4),
-
-              // Agency ID with union_id_ic
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset(R.unionIdIc, width: 14, height: 14, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                  const SizedBox(width: 4),
-                  Text(
-                    'ID: $displayAgencyId',
-                    style: const TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
+                ),
+              ] else ...[
+                // ── شاشة المضيف (Host Header) ──
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF00B5B3), width: 2),
+                        ),
+                        child: ClipOval(
+                          child: (user?.photoUrl.isNotEmpty == true)
+                              ? Image(
+                                  image: R.cachedImage(user!.photoUrl),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white54, size: 36),
+                                )
+                              : const Icon(Icons.person, color: Colors.white54, size: 36),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user?.name ?? 'المضيف',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'ID: ${user?.customId ?? user?.uid ?? ''}',
+                              style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                'وكالة: $agencyName (ID: $displayAgencyId)',
+                                style: const TextStyle(color: Colors.white70, fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-
-              // ── Stats Bar: cl_rank_detail (union_agency_info_bg) ──
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0x33000000),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0x22FFFFFF)),
                 ),
-                child: Row(
-                  children: [
-                    // Rank
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Image.asset(R.unionAgencyRank1Ic, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                              const SizedBox(width: 4),
-                              Text(
-                                isAr ? 'الترتيب' : 'Rank',
-                                style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 11),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'No.1',
-                            style: TextStyle(color: Color(0xFFFFFFAD), fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(width: 0.5, height: 28, color: Colors.white24),
-                    // Members
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Image.asset(R.unionAgencyMemberIc, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                              const SizedBox(width: 4),
-                              Text(
-                                isAr ? 'الأعضاء' : 'Members',
-                                style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 11),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            memberCount.toString(),
-                            style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(width: 0.5, height: 28, color: Colors.white24),
-                    // Commission % for Owner / My Diamonds for Host
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _isAgencyOwner
-                                  ? const Icon(Icons.percent, size: 14, color: Color(0xFFFFD700))
-                                  : Image.asset(R.commonDiamondIc, width: 14, height: 14, errorBuilder: (_, __, ___) => const Icon(Icons.diamond, size: 14, color: Color(0xFFFFD700))),
-                              const SizedBox(width: 4),
-                              Text(
-                                _isAgencyOwner
-                                    ? (isAr ? 'العمولة' : 'Comm.')
-                                    : (isAr ? 'ألماسي' : 'Diamonds'),
-                                style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 11),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _isAgencyOwner
-                                ? '${((info?.commissionRate ?? 0.10) * 100).toInt()}%'
-                                : '${_myAnchor?.diamonds ?? user?.diamonds ?? 0} 💎',
-                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(width: 0.5, height: 28, color: Colors.white24),
-                    // Tier / Stage
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.shield, size: 14, color: Color(0xFFFFD700)),
-                              const SizedBox(width: 4),
-                              Text(
-                                _isAgencyOwner ? (isAr ? 'المستوى' : 'Tier') : (isAr ? 'مرحلتي' : 'My Stage'),
-                                style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 11),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _isAgencyOwner
-                                ? (info?.tier == 'gold'
-                                    ? 'ذهبي'
-                                    : info?.tier == 'silver'
-                                        ? 'فضي'
-                                        : info?.tier == 'diamond'
-                                            ? 'ألماسي'
-                                            : info?.tier == 'platinum'
-                                                ? 'بلاتيني'
-                                                : 'برونزي')
-                                : _getAnchorStage((_myAnchor?.diamonds ?? user?.diamonds ?? 0).toString(), isAr),
-                            style: const TextStyle(color: Color(0xFFFFFFAD), fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ],
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
 
-              // ── Announcement / Notice Bar: cl_notice (union_dialog_agency_notice.xml) ──
+              // ── Broadcast Notice (agencyIntroIc + agencyIntroTv + arrowIv) ──
               GestureDetector(
                 onTap: () => _showNoticeDialog(isAr),
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0x33000000),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0x22FFFFFF)),
+                    color: const Color(0x3D000000),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.15)),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Image.asset(R.unionNoticeIc, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                          const SizedBox(width: 6),
-                          Text(
-                            isAr ? 'إعلان الوكالة' : 'Agency Notice',
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                          const Spacer(),
-                          const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white54),
-                        ],
+                      dc.buildDynamicImage(
+                        dc.hostAgencyBroadcastIcon,
+                        defaultAsset: R.hykIcAgencyBroadcast,
+                        width: 18,
+                        height: 18,
+                        fallbackWidget: const Icon(Icons.campaign_rounded, color: Color(0xFFFFD700), size: 18),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _noticeText,
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _noticeText,
+                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Image.asset(
+                        R.hykIcBackDarkRight,
+                        width: 14,
+                        height: 14,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 18),
                       ),
                     ],
                   ),
                 ),
               ),
 
+              const SizedBox(height: 12),
+
+              // ── Level Panel (vh_agency_level.xml) for Owner ──
               if (_isAgencyOwner) ...[
-                const SizedBox(height: 10),
-                GestureDetector(
-                  onTap: () {
-                    final aid = _agentInfo?.agencyId ?? widget.agencyId ?? '';
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AgencyJoinRequestsScreen(
-                          agencyId: aid,
-                          canKick: true,
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF382A0F), Color(0xFF231A08)],
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.6)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFFD700).withOpacity(0.12),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    image: dc.getDecorationImage(
+                      dc.hostAgencyLevelBgImage,
+                      defaultAsset: R.hykIcAgencyLevelBg,
+                      fit: BoxFit.fill,
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFD700).withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.group_add_rounded, color: Color(0xFFFFD700), size: 18),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isAr ? 'طلبات الانضمام للوكالة' : 'Agency Join Requests',
-                                style: const TextStyle(
-                                  color: Color(0xFFFFD700),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Progress & EXP
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  '$currExp',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFD700),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isAr ? 'نقطة خبرة للترقية' : 'EXP to next level',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                ),
+                                const SizedBox(width: 4),
+                                dc.buildDynamicImage(
+                                  dc.hostAgencyHelpIcon,
+                                  defaultAsset: R.hykIcHelpWhite,
+                                  width: 14,
+                                  height: 14,
+                                  fallbackWidget: const Icon(Icons.help_outline_rounded, size: 14, color: Colors.white54),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // Gradient Progress Bar (#6a8cf7 to #ff9d3e)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF283D7E),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFF1C40A1), width: 1),
+                                ),
+                                child: FractionallySizedBox(
+                                  alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
+                                  widthFactor: (currExp / expNeeded).clamp(0.05, 1.0),
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [Color(0xFF6A8CF7), Color(0xFFFF9D3E)],
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                isAr ? 'عرض وقبول أو رفض طلبات انضمام المضيفين الجديدة' : 'View, accept or reject incoming join requests',
-                                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
-                              ),
-                            ],
+                            ),
+                            const SizedBox(height: 5),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '$currExp / $expNeeded',
+                                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                                ),
+                                Text(
+                                  isAr ? 'المستوى القادم' : 'Next Level',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(width: 14),
+
+                      // Level Flag / Badge (clFlag)
+                      Container(
+                        width: 76,
+                        height: 70,
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                        decoration: BoxDecoration(
+                          image: dc.getDecorationImage(
+                            dc.hostAgencyFlagImage,
+                            defaultAsset: R.hykIcFlag,
+                            fit: BoxFit.fill,
                           ),
                         ),
-                        const Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFFFFD700)),
-                      ],
-                    ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text('👑', style: TextStyle(fontSize: 18)),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                image: dc.getDecorationImage(
+                                  dc.hostAgencyRankNameBgImage,
+                                  defaultAsset: R.hykIcNameBg,
+                                  fit: BoxFit.fill,
+                                ),
+                              ),
+                              child: Text(
+                                info?.tier?.toUpperCase() ?? 'DIAMOND',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // ── Panels: withdrawalAccountPanel & withdrawRecordPanel ──
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      // حساب السحب
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const AgencyOwnerWalletScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF00B5B3), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    isAr ? 'حساب السحب' : 'Withdraw Account',
+                                    style: const TextStyle(
+                                      color: Color(0xFF222222),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF00E5A0),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.chevron_right_rounded, color: Colors.black38, size: 16),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // سجل السحب
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const AgencyOwnerWalletScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.receipt_long_rounded, color: Color(0xFF00B5B3), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    isAr ? 'سجل السحب' : 'Withdraw Records',
+                                    style: const TextStyle(
+                                      color: Color(0xFF222222),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right_rounded, color: Colors.black38, size: 16),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -1560,24 +1692,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       try {
         await SupabaseService().removeAgencyMember(agencyId: agencyId, memberUid: targetUid);
       } catch (_) {}
-      try {
-        final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final memberDocs = await db.collection('host_agency_members')
-            .where('agency_id', isEqualTo: agencyId)
-            .where('user_id', isEqualTo: targetUid)
-            .get();
-        for (final d in memberDocs.docs) {
-          await d.reference.delete();
-        }
-        await db.collection('users').doc(targetUid).set({
-          'is_host': false,
-          'agency_id': null,
-          'agency_name': null,
-        }, SetOptions(merge: true));
-        if (agencyId.isNotEmpty) {
-          await db.collection('host_agencies').doc(agencyId).update({'member_count': FieldValue.increment(-1)});
-        }
-      } catch (_) {}
+
 
       if (mounted) {
         setState(() {
@@ -1606,6 +1721,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
   /// Tab 2: Income & Targets (دخل الوكالة للمالك / مستوى دخلي والمراحل للمضيف)
   Widget _buildIncomeTab(AgentInfoModel? info, bool isAr) {
+    final dc = DynamicConfigService();
     int totalAnchorsDiamonds = 0;
     int totalAgentCommissionDiamonds = 0;
     for (final a in _anchors) {
@@ -1665,153 +1781,527 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final currentStageLabel = _getAnchorStage(effectiveDiamonds.toString(), isAr);
     final transferMoney = effectiveDiamonds;
 
+    final hostValidDays2h = hostHours >= 2 ? (hostHours / 2).toInt() : 0;
+    final hostValidDays4h = hostHours >= 4 ? (hostHours / 4).toInt() : 0;
+    final hostValidDays6h = hostHours >= 6 ? (hostHours / 6).toInt() : 0;
+
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Primary Earnings Card (دخل الوكالة للمالك / رصيدي ودخلي للمضيف) ──
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2C2415), Color(0xFF1E1A16)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0x33FFD700)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _isAgencyOwner
-                            ? (isAr ? 'أرباح وعمولة الوكالة المحتسبة' : 'Calculated Agency Earnings')
-                            : (isAr ? 'مستوى دخلي وأرباحي' : 'My Host Earnings'),
-                        style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0x33FFD700),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0x55FFD700)),
-                        ),
-                        child: Text(
-                          _isAgencyOwner
-                              ? '$commRatePct% ${isAr ? 'متوسط العمولة' : 'Commission'}'
-                              : '${hostHours.toStringAsFixed(1)} ${isAr ? 'ساعات البث' : 'Live hrs'}',
-                          style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostDollar USD',
-                    style: const TextStyle(
-                      color: Color(0xFFFFD700),
-                      fontSize: 30,
-                      fontWeight: FontWeight.w900,
+            // ══════════════════════════════════════════════════════════
+            //  قسم الألماس (diamondTv) - مطابق لـ layout_union_salary_panel
+            // ══════════════════════════════════════════════════════════
+            // ══════════════════════════════════════════════════════════
+            //  قسم الألماس (diamondTv) - مطابق لـ layout_union_salary_panel
+            // ══════════════════════════════════════════════════════════
+            Row(
+              children: [
+                dc.buildDynamicImage(
+                  dc.hostAgencyLineDotIcon,
+                  defaultAsset: R.hykIcCommonLineDot,
+                  width: 14,
+                  height: 14,
+                  fallbackWidget: Container(
+                    width: 4,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: dc.hostAgencyCardColor,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _isAgencyOwner
-                        ? (isAr
-                            ? 'عمولة الوكيل: $totalAgentCommissionDiamonds 💎  |  إنتاج المضيفين: $totalAgencyDiamonds 💎'
-                            : 'Agent Comm: $totalAgentCommissionDiamonds 💎  |  Hosts Total: $totalAgencyDiamonds 💎')
-                        : '$hostDiamonds ${isAr ? 'ماسة متاحة في رصيدك' : 'Diamonds in your balance'}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isAr ? 'الألماس' : 'Diamonds',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // البطاقتان الفيروزيتان للألماس (#00b5b3) أو المستبدلتان بالصور من اللوحة
+            Row(
+              children: [
+                // البطاقة 1: المستهدف
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      image: dc.getDecorationImage(
+                        dc.hostAgencyDiamondCardBgImage,
+                        fit: BoxFit.cover,
+                      ),
+                      color: dc.hostAgencyDiamondCardBgImage.isNotEmpty ? null : dc.hostAgencyCardColor,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: dc.hostAgencyCardColor.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          bottom: -6,
+                          right: isAr ? null : -6,
+                          left: isAr ? -6 : null,
+                          child: Opacity(
+                            opacity: 0.35,
+                            child: dc.buildDynamicImage(
+                              dc.hostAgencyDiamondWatermark,
+                              defaultAsset: R.hykIcSalaryPanel1,
+                              height: 40,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isAgencyOwner
+                                  ? (isAr ? 'مستهدف ألماس الوكالة' : 'Agency Diamond Target')
+                                  : (isAr ? 'مستهدف ألماسي الحالي' : 'My Diamond Target'),
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Text('💎', style: TextStyle(fontSize: 16)),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    '$targetDiamonds',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // البطاقة 2: الرصيد الفعلي
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      image: dc.getDecorationImage(
+                        dc.hostAgencyDiamondCardBgImage,
+                        fit: BoxFit.cover,
+                      ),
+                      color: dc.hostAgencyDiamondCardBgImage.isNotEmpty ? null : dc.hostAgencyCardColor,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: dc.hostAgencyCardColor.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          bottom: -6,
+                          right: isAr ? null : -6,
+                          left: isAr ? -6 : null,
+                          child: Opacity(
+                            opacity: 0.35,
+                            child: dc.buildDynamicImage(
+                              dc.hostAgencyDiamondWatermark,
+                              defaultAsset: R.hykIcSalaryPanel1,
+                              height: 40,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isAgencyOwner
+                                  ? (isAr ? 'إنتاج ألماس الوكالة' : 'Agency Diamonds')
+                                  : (isAr ? 'رصيدي المحقق حالياً' : 'My Actual Diamonds'),
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Text('💎', style: TextStyle(fontSize: 16)),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    '$effectiveDiamonds',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // للمضيف: معاينة المرحلة القادمة مع سهم التحويل (ic_transfer_to)
+            if (!_isAgencyOwner) ...[
+              const SizedBox(height: 6),
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    dc.buildDynamicImage(dc.hostAgencyTransferArrowIcon, defaultAsset: R.hykIcTransferTo, width: 22, height: 22),
+                    dc.buildDynamicImage(dc.hostAgencyTransferArrowIcon, defaultAsset: R.hykIcTransferTo, width: 22, height: 22),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0x3300B5B3),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0x6600B5B3), width: 1),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isAr ? 'المستهدف القادم' : 'Next Target',
+                            style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${targetDiamonds * 2} 💎',
+                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0x3300B5B3),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0x6600B5B3), width: 1),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isAr ? 'راتب المرحلة القادمة' : 'Next Stage Salary',
+                            style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '\$${((targetDiamonds * 2) / 1000).toStringAsFixed(1)} USD',
+                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            const SizedBox(height: 18),
+
+            // ══════════════════════════════════════════════════════════
+            //  قسم الراتب والسحب (salaryTv) - البطاقة الكبرى الفيروزية
+            // ══════════════════════════════════════════════════════════
+            Row(
+              children: [
+                dc.buildDynamicImage(
+                  dc.hostAgencyLineDotIcon,
+                  defaultAsset: R.hykIcCommonLineDot,
+                  width: 14,
+                  height: 14,
+                  fallbackWidget: Container(
+                    width: 4,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: dc.hostAgencyCardColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isAr ? 'الراتب' : 'Salary',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // ── agentSalaryAndOverdraft / salaryAndOverdraft (#00b5b3) ──
+            Container(
+              decoration: BoxDecoration(
+                image: dc.getDecorationImage(
+                  dc.hostAgencySalaryCardBgImage,
+                  fit: BoxFit.cover,
+                ),
+                color: dc.hostAgencySalaryCardBgImage.isNotEmpty ? null : dc.hostAgencyCardColor,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: dc.hostAgencyCardColor.withOpacity(0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    bottom: 0,
+                    right: isAr ? null : 0,
+                    left: isAr ? 0 : null,
+                    child: Opacity(
+                      opacity: 0.35,
+                      child: dc.buildDynamicImage(
+                        dc.hostAgencySalaryWatermark,
+                        defaultAsset: R.hykIcSalaryPanel2,
+                        height: 75,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // القسم الأيسر: الراتب وزر السحب
+                            Expanded(
+                              flex: 6,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _isAgencyOwner
+                                        ? (isAr ? 'راتب مالك الوكالة المحتسب' : 'Agency Owner Salary')
+                                        : (isAr ? 'راتب المرحلة الحالية' : 'Current Stage Salary'),
+                                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostDollar USD',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  // زر السحب الأبيض البيضاوي (overdraftBtn)
+                                  GestureDetector(
+                                    onTap: () {
+                                      if (_isAgencyOwner) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (_) => const AgencyOwnerWalletScreen()),
+                                        );
+                                      } else {
+                                        _openTransferSalaryToAgentModal(hostDiamonds, isAr);
+                                      }
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                                      decoration: BoxDecoration(
+                                        image: dc.getDecorationImage(
+                                          dc.hostAgencyWithdrawBtnImage,
+                                          fit: BoxFit.fill,
+                                        ),
+                                        color: dc.hostAgencyWithdrawBtnImage.isNotEmpty ? null : Colors.white,
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.15),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Text(
+                                        _isAgencyOwner ? (isAr ? 'السحب' : 'Withdraw') : (isAr ? 'سحب الراتب ككوينز' : 'Withdraw Salary'),
+                                        style: TextStyle(
+                                          color: dc.hostAgencyWithdrawBtnImage.isNotEmpty ? Colors.white : const Color(0xFF00B5B3),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // خط فاصل عمودي (Guideline 72%)
+                            Container(
+                              width: 1,
+                              height: 90,
+                              color: Colors.white.withOpacity(0.35),
+                              margin: const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+
+                            // القسم الأيمن: المسحوب والمتبقي
+                            Expanded(
+                              flex: 4,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isAr ? 'المسحوب' : 'Overdrawn',
+                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '\$${_isAgencyOwner ? (info?.transferDollar ?? 0) : 0} USD',
+                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    isAr ? 'المتبقي' : 'Remaining',
+                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostDollar USD',
+                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
 
-            // ── زر تحويل الراتب إلى وكيل الشحن للمضيف ⚡ ──
+            // للمضيف: شريط ساعات البث الصالحة (vh_agency_member_salary.xml)
             if (!_isAgencyOwner) ...[
-              GestureDetector(
-                onTap: () => _openTransferSalaryToAgentModal(hostDiamonds, isAr),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF005C8A), Color(0xFF003853)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  image: dc.getDecorationImage(
+                    dc.hostsHoursCardBgImage,
+                    fit: BoxFit.cover,
+                  ),
+                  color: dc.hostsHoursCardBgImage.isNotEmpty ? null : dc.hostsCardColor,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
                     ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF00D4FF), width: 1.2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF00D4FF).withOpacity(0.25),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00D4FF).withOpacity(0.2),
-                          shape: BoxShape.circle,
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          '>=2H(day): ',
+                          style: TextStyle(color: Color(0xFF222222), fontSize: 12, fontWeight: FontWeight.bold),
                         ),
-                        child: const Icon(Icons.send_rounded, color: Color(0xFF00D4FF), size: 24),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isAr ? 'تحويل الراتب إلى وكيل الشحن ⚡' : 'Transfer Salary to Recharge Agent ⚡',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              isAr
-                                  ? 'ابحث عن وكيل الشحن وحوّل راتب المرحلة إلى كوينز فوراً'
-                                  : 'Search recharge agent & transfer stage salary to coins instantly',
-                              style: const TextStyle(color: Colors.white70, fontSize: 11),
-                            ),
-                          ],
+                        Text(
+                          '$hostValidDays2h ${isAr ? 'يوم' : 'd'}',
+                          style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 13, fontWeight: FontWeight.w900),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00D4FF),
-                          borderRadius: BorderRadius.circular(10),
+                      ],
+                    ),
+                    Container(width: 1, height: 16, color: Colors.black12),
+                    Row(
+                      children: [
+                        const Text(
+                          '>=4H(day): ',
+                          style: TextStyle(color: Color(0xFF222222), fontSize: 12, fontWeight: FontWeight.bold),
                         ),
-                        child: Text(
-                          isAr ? 'تحويل' : 'Transfer',
-                          style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                        Text(
+                          '$hostValidDays4h ${isAr ? 'يوم' : 'd'}',
+                          style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 13, fontWeight: FontWeight.w900),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                    Container(width: 1, height: 16, color: Colors.black12),
+                    Row(
+                      children: [
+                        const Text(
+                          '>=6H(day): ',
+                          style: TextStyle(color: Color(0xFF222222), fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '$hostValidDays6h ${isAr ? 'يوم' : 'd'}',
+                          style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 13, fontWeight: FontWeight.w900),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
             ],
+
+            const SizedBox(height: 18),
 
             // ── Target Progress Card ──
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF242424),
+                color: const Color(0xFF1B2230),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0x22FFFFFF)),
+                border: Border.all(color: const Color(0x3300B5B3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1821,7 +2311,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.track_changes, size: 18, color: Color(0xFFFFD700)),
+                          const Icon(Icons.track_changes, size: 18, color: Color(0xFF00B5B3)),
                           const SizedBox(width: 6),
                           Text(
                             _isAgencyOwner
@@ -1834,12 +2324,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0x22FFFFFF),
+                          color: const Color(0x3300B5B3),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           currentStageLabel,
-                          style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
@@ -1850,7 +2340,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     child: LinearProgressIndicator(
                       value: progress,
                       backgroundColor: Colors.white12,
-                      valueColor: const AlwaysStoppedAnimation(Color(0xFFFFD700)),
+                      valueColor: const AlwaysStoppedAnimation(Color(0xFF00B5B3)),
                       minHeight: 10,
                     ),
                   ),
@@ -1860,7 +2350,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     children: [
                       Text(
                         '$effectiveDiamonds / $targetDiamonds 💎',
-                        style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 12, fontWeight: FontWeight.bold),
                       ),
                       Text(
                         isAr ? 'تم إنجاز $percent%' : '$percent% done',
@@ -1868,31 +2358,6 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       ),
                     ],
                   ),
-                  if (salaryUsd > 0) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0x1AFFD700),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0x33FFD700)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.card_giftcard, size: 18, color: Color(0xFFFFD700)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              isAr
-                                  ? 'المكافأة / الراتب المستحق عند إكمال المرحلة: \$$salaryUsd USD'
-                                  : 'Reward / Salary upon completion: \$$salaryUsd USD',
-                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -2508,46 +2973,6 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           'level': supaUser.level,
           'country': supaUser.country,
         };
-      } else {
-        // 2. Firestore fallback search
-        final intId = int.tryParse(query);
-        final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-
-        var qSnap = await db.collection('users').where('custom_id', isEqualTo: query).limit(1).get();
-        if (qSnap.docs.isEmpty && intId != null) {
-          qSnap = await db.collection('users').where('custom_id', isEqualTo: intId).limit(1).get();
-        }
-        if (qSnap.docs.isEmpty) {
-          qSnap = await db.collection('users').where('customId', isEqualTo: query).limit(1).get();
-        }
-        if (qSnap.docs.isEmpty && intId != null) {
-          qSnap = await db.collection('users').where('customId', isEqualTo: intId).limit(1).get();
-        }
-        if (qSnap.docs.isEmpty) {
-          final doc = await db.collection('users').doc(query).get();
-          if (doc.exists && doc.data() != null) {
-            final data = doc.data()!;
-            _foundUser = {
-              'uid': doc.id,
-              'name': data['name'] ?? data['displayName'] ?? (isAr ? 'مستخدم' : 'User'),
-              'avatar': data['photoUrl'] ?? data['photo_url'] ?? data['avatar'] ?? '',
-              'custom_id': data['custom_id'] ?? data['customId'] ?? query,
-              'level': data['level'] ?? 1,
-              'country': data['country'] ?? '',
-            };
-          }
-        } else {
-          final doc = qSnap.docs.first;
-          final data = doc.data();
-          _foundUser = {
-            'uid': doc.id,
-            'name': data['name'] ?? data['displayName'] ?? (isAr ? 'مستخدم' : 'User'),
-            'avatar': data['photoUrl'] ?? data['photo_url'] ?? data['avatar'] ?? '',
-            'custom_id': data['custom_id'] ?? data['customId'] ?? query,
-            'level': data['level'] ?? 1,
-            'country': data['country'] ?? '',
-          };
-        }
       }
 
       if (_foundUser == null) {
@@ -2623,38 +3048,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         debugPrint('[AnchorAgentScreen] Supabase host_agency_join_requests insert error: $sbErr');
       }
 
-      // 3. Add to Firestore host_agency_join_requests
-      try {
-        final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        await db.collection('host_agency_join_requests').doc('${agencyId}_$targetUid').set({
-          'id': reqId,
-          'agency_id': agencyId,
-          'user_id': targetUid,
-          'host_uid': targetUid,
-          'agency_name': agencyName,
-          'status': 'invited',
-          'created_at': nowIso,
-        }, SetOptions(merge: true));
 
-        // 4. Send in-app notification to the user
-        await db.collection('notifications').add({
-          'uid': targetUid,
-          'title': isAr ? 'دعوة انضمام لوكالة مضيفين 🎙️' : 'Host Agency Invitation 🎙️',
-          'body': isAr
-              ? 'تمت دعوتك من قِبل وكالة [$agencyName] للانضمام كمضيف رسمي.'
-              : 'You have been invited by agency [$agencyName] to join as an official host.',
-          'type': 'host_invite',
-          'action': 'host_invite',
-          'data': {
-            'agency_id': agencyId,
-            'agency_name': agencyName,
-          },
-          'is_read': false,
-          'created_at': nowIso,
-        });
-      } catch (fsErr) {
-        debugPrint('[AnchorAgentScreen] Firestore notification error: $fsErr');
-      }
 
       // 5. Supabase notifications fallback
       try {

@@ -1,7 +1,5 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/supabase_data_service.dart';
 
 /// خدمة توليد أرقام تعريف المستخدمين (User ID Generator)
@@ -63,19 +61,6 @@ class UserIdGenerator {
       } catch (e) {
         debugPrint('UserIdGenerator: Supabase check error: $e');
       }
-
-      // 2. التحقق من Firestore
-      try {
-        final firestoreCheck = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-            .collection('users')
-            .where('custom_id', isEqualTo: customId)
-            .limit(1)
-            .get();
-        
-        if (firestoreCheck.docs.isNotEmpty) {
-          return false; // الرقم موجود بالفعل
-        }
-      } catch (_) {}
 
       return true; // الرقم فريد
     } catch (e) {

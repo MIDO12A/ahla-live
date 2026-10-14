@@ -12,78 +12,19 @@ import 'app_localizations_en.dart';
 
 /// Callers can lookup localized strings with an instance of AppLocalizations
 /// returned by `AppLocalizations.of(context)`.
-///
-/// Applications need to include `AppLocalizations.delegate()` in their app's
-/// `localizationDelegates` list, and the locales they support in the app's
-/// `supportedLocales` list. For example:
-///
-/// ```dart
-/// import 'l10n/app_localizations.dart';
-///
-/// return MaterialApp(
-///   localizationsDelegates: AppLocalizations.localizationsDelegates,
-///   supportedLocales: AppLocalizations.supportedLocales,
-///   home: MyApplicationHome(),
-/// );
-/// ```
-///
-/// ## Update pubspec.yaml
-///
-/// Please make sure to update your pubspec.yaml to include the following
-/// packages:
-///
-/// ```yaml
-/// dependencies:
-///   # Internationalization support.
-///   flutter_localizations:
-///     sdk: flutter
-///   intl: any # Use the pinned version from flutter_localizations
-///
-///   # Rest of dependencies
-/// ```
-///
-/// ## iOS Applications
-///
-/// iOS applications define key application metadata, including supported
-/// locales, in an Info.plist file that is built into the application bundle.
-/// To configure the locales supported by your app, you’ll need to edit this
-/// file.
-///
-/// First, open your project’s ios/Runner.xcworkspace Xcode workspace file.
-/// Then, in the Project Navigator, open the Info.plist file under the Runner
-/// project’s Runner folder.
-///
-/// Next, select the Information Property List item, select Add Item from the
-/// Editor menu, then select Localizations from the pop-up menu.
-///
-/// Select and expand the newly-created Localizations item then, for each
-/// locale your application supports, add a new item and select the locale
-/// you wish to add from the pop-up menu in the Value field. This list should
-/// be consistent with the languages listed in the AppLocalizations.supportedLocales
-/// property.
 abstract class AppLocalizations {
   AppLocalizations(String locale)
       : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
-  static AppLocalizations? of(BuildContext context) {
-    return Localizations.of<AppLocalizations>(context, AppLocalizations);
+  static AppLocalizations of(BuildContext context) {
+    return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
   static const LocalizationsDelegate<AppLocalizations> delegate =
       _AppLocalizationsDelegate();
 
-  /// A list of this localizations delegate along with the default localizations
-  /// delegates.
-  ///
-  /// Returns a list of localizations delegates containing this delegate along with
-  /// GlobalMaterialLocalizations.delegate, GlobalCupertinoLocalizations.delegate,
-  /// and GlobalWidgetsLocalizations.delegate.
-  ///
-  /// Additional delegates can be added by appending to this list in
-  /// MaterialApp. This list does not have to be used at all if a custom list
-  /// of delegates is preferred or required.
   static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
       <LocalizationsDelegate<dynamic>>[
     delegate,
@@ -92,185 +33,152 @@ abstract class AppLocalizations {
     GlobalWidgetsLocalizations.delegate,
   ];
 
-  /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('ar'),
     Locale('en')
   ];
 
-  /// No description provided for @tabDiscover.
-  ///
-  /// In en, this message translates to:
-  /// **'Discover'**
+  // Legacy compatibility getters
   String get tabDiscover;
-
-  /// No description provided for @tabMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'Message'**
   String get tabMessage;
-
-  /// No description provided for @tabProfile.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile'**
   String get tabProfile;
-
-  /// No description provided for @profileUserName.
-  ///
-  /// In en, this message translates to:
-  /// **'User Name'**
   String get profileUserName;
-
-  /// No description provided for @profileUserId.
-  ///
-  /// In en, this message translates to:
-  /// **'ID:'**
-  String get profileUserId;
-
-  /// No description provided for @profileFollowing.
-  ///
-  /// In en, this message translates to:
-  /// **'Following'**
+  String profileUserId(String id);
   String get profileFollowing;
-
-  /// No description provided for @profileFollowers.
-  ///
-  /// In en, this message translates to:
-  /// **'Followers'**
   String get profileFollowers;
-
-  /// No description provided for @profileVisitors.
-  ///
-  /// In en, this message translates to:
-  /// **'Visitors'**
   String get profileVisitors;
-
-  /// No description provided for @profileWallet.
-  ///
-  /// In en, this message translates to:
-  /// **'Wallet'**
   String get profileWallet;
-
-  /// No description provided for @profileRecharge.
-  ///
-  /// In en, this message translates to:
-  /// **'Recharge now'**
   String get profileRecharge;
-
-  /// No description provided for @profileLevel.
-  ///
-  /// In en, this message translates to:
-  /// **'Level'**
   String get profileLevel;
-
-  /// No description provided for @profileMall.
-  ///
-  /// In en, this message translates to:
-  /// **'Mall'**
   String get profileMall;
-
-  /// No description provided for @profileBackpack.
-  ///
-  /// In en, this message translates to:
-  /// **'Backpack'**
   String get profileBackpack;
-
-  /// No description provided for @profileFeedback.
-  ///
-  /// In en, this message translates to:
-  /// **'Feedback'**
   String get profileFeedback;
-
-  /// No description provided for @profileSetting.
-  ///
-  /// In en, this message translates to:
-  /// **'Setting'**
   String get profileSetting;
-
-  /// No description provided for @profileUnion.
-  ///
-  /// In en, this message translates to:
-  /// **'Union'**
   String get profileUnion;
-
-  /// No description provided for @levelTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Level'**
   String get levelTitle;
-
-  /// No description provided for @levelExperience.
-  ///
-  /// In en, this message translates to:
-  /// **'Experience: {current}/{max}'**
   String levelExperience(int current, int max);
-
-  /// No description provided for @levelNext.
-  ///
-  /// In en, this message translates to:
-  /// **'Next Levels'**
   String get levelNext;
-
-  /// No description provided for @levelUnlockReward.
-  ///
-  /// In en, this message translates to:
-  /// **'Unlock reward'**
   String get levelUnlockReward;
-
-  /// No description provided for @mallTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Mall'**
   String get mallTitle;
-
-  /// No description provided for @mallHeadwear.
-  ///
-  /// In en, this message translates to:
-  /// **'Headwear'**
   String get mallHeadwear;
-
-  /// No description provided for @mallBubble.
-  ///
-  /// In en, this message translates to:
-  /// **'Bubble'**
   String get mallBubble;
-
-  /// No description provided for @mallCar.
-  ///
-  /// In en, this message translates to:
-  /// **'Car'**
   String get mallCar;
-
-  /// No description provided for @mallEntrance.
-  ///
-  /// In en, this message translates to:
-  /// **'Entrance'**
   String get mallEntrance;
-
-  /// No description provided for @mallBuy.
-  ///
-  /// In en, this message translates to:
-  /// **'Buy'**
   String get mallBuy;
-
-  /// No description provided for @walletTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Wallet'**
   String get walletTitle;
-
-  /// No description provided for @walletCoinBalance.
-  ///
-  /// In en, this message translates to:
-  /// **'Coin Balance'**
   String get walletCoinBalance;
-
-  /// No description provided for @walletItems.
-  ///
-  /// In en, this message translates to:
-  /// **'Wallet items'**
   String get walletItems;
+
+  // --- GENERAL ---
+  String get app_name;
+  String get loading;
+  String get error_occurred;
+  String get no_data;
+  String get cancel;
+  String get confirm;
+  String get close;
+  String get search;
+  String get save;
+  String get delete;
+  String get edit;
+
+  // --- AUTH ---
+  String get login;
+  String get register;
+  String get phone_number;
+  String get sms_code;
+  String get send_code;
+  String get password;
+  String get forgot_password;
+  String get agree_to_terms;
+  String get privacy_policy;
+  String get terms_of_service;
+
+  // --- NAVIGATION ---
+  String get tab_discover;
+  String get tab_message;
+  String get tab_profile;
+  String get tab_room;
+  String get tab_agency;
+
+  // --- PROFILE ---
+  String get edit_profile;
+  String get change_avatar;
+  String get change_nickname;
+  String get personal_signature;
+  String get gender;
+  String get birthday;
+
+  // --- WALLET & MALL ---
+  String get wallet_diamond_balance;
+  String get recharge;
+  String get recharge_now;
+  String get recharge_history;
+  String get insufficient_balance;
+  String get transaction_success;
+
+  // --- ROOM & MIC ---
+  String get room_title;
+  String get room_manager;
+  String room_members(int count);
+  String get mic_up;
+  String get mic_down;
+  String get lock_mic_seat;
+  String get unlock_mic_seat;
+  String get kick_user;
+  String get mute_user;
+  String get unmute_user;
+  String get room_settings;
+  String get room_password;
+  String get enter_room;
+  String get room_is_full;
+  String get apply_for_mic;
+  String get mic_application;
+  String get turn_off_mic;
+  String get room_black_list;
+
+  // --- GIFTS ---
+  String get send_gift;
+  String gift_sent_success(String name);
+  String get lucky_bag;
+  String get treasure_box;
+  String get open_box;
+
+  // --- VIP & AGENCY ---
+  String get vip;
+  String get svip;
+  String get vip_privileges;
+  String get svip_privileges;
+  String get activate_vip;
+  String get renew_vip;
+  String vip_level(int level);
+  String get exclusive_reward;
+  String get union;
+  String get agency;
+  String get join_agency;
+  String get create_agency;
+  String get agency_leader;
+  String get agency_members;
+  String get agency_rules;
+
+  // --- SETTINGS ---
+  String get change_language;
+  String get arabic;
+  String get english;
+  String get clear_cache;
+  String get logout;
+  String get delete_account;
+  String get block_user;
+  String get unblock_user;
+  String get report_user;
+  String get blacklist;
+
+  // --- CHAT ---
+  String get chat;
+  String get send_message;
+  String get type_message;
+  String get voice_message;
+  String get no_messages_yet;
 }
 
 class _AppLocalizationsDelegate
@@ -291,7 +199,6 @@ class _AppLocalizationsDelegate
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
-  // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'ar':
       return AppLocalizationsAr();
@@ -300,8 +207,5 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
   }
 
   throw FlutterError(
-      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
-      'an issue with the localizations generation tool. Please file an issue '
-      'on GitHub with a reproducible sample app and the gen-l10n configuration '
-      'that was used.');
+      'AppLocalizations.delegate failed to load unsupported locale "$locale".');
 }

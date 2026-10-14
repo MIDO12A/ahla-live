@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../../screens/room/widgets/svga_player.dart';
 
 /// بانر الفوز الأسطوري العالمي عبر SVGA (Global Big Win Broadcast)
@@ -12,6 +12,7 @@ class BigWinBanner extends StatefulWidget {
   final int multiplier;
   final int totalWon;
   final String lang; // 'ar' أو 'en'
+  final String? customSvgaUrl;
   final VoidCallback onDismiss;
 
   const BigWinBanner({
@@ -22,11 +23,15 @@ class BigWinBanner extends StatefulWidget {
     required this.multiplier,
     required this.totalWon,
     this.lang = 'ar',
+    this.customSvgaUrl,
     required this.onDismiss,
   }) : super(key: key);
 
-  /// تحديد ملف الـ SVGA المناسب بناءً على المضاعف واللغة
-  static String getSvgaAssetPath(int multiplier, String lang) {
+  /// تحديد ملف الـ SVGA المناسب بناءً على المضاعف واللغة أو الرابط المخصص
+  static String getSvgaAssetPath(int multiplier, String lang, {String? customUrl}) {
+    if (customUrl != null && customUrl.isNotEmpty) {
+      return customUrl;
+    }
     final prefix = lang == 'en' ? 'en' : 'ar';
     if (multiplier >= 1000) {
       return 'assets/svga/${prefix}1000.svga';
@@ -78,7 +83,11 @@ class _BigWinBannerState extends State<BigWinBanner>
 
   @override
   Widget build(BuildContext context) {
-    final svgaPath = BigWinBanner.getSvgaAssetPath(widget.multiplier, widget.lang);
+    final svgaPath = BigWinBanner.getSvgaAssetPath(
+      widget.multiplier,
+      widget.lang,
+      customUrl: widget.customSvgaUrl,
+    );
     
     // نص الاستبدال لمفتاح 'test'
     final displayText = widget.lang == 'ar'

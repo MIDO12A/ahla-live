@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/supabase_compat.dart';
@@ -13,11 +11,6 @@ class TaskService {
   static final TaskService _instance = TaskService._internal();
   factory TaskService() => _instance;
   TaskService._internal();
-
-  final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
-    app: Firebase.app(),
-    databaseId: 'default',
-  );
 
   String _getTodayKey() {
     final now = DateTime.now();
@@ -59,32 +52,6 @@ class TaskService {
       }
     } catch (e) {
       debugPrint('[TaskService] Supabase tasks_config fetch: $e');
-    }
-
-    if (rawTasks.isEmpty) {
-      try {
-        final doc = await _db.collection('app_config').doc('tasks_config').get();
-        if (doc.exists && doc.data()?['value'] != null) {
-          final val = doc.data()!['value'];
-          final parsed = val is String ? jsonDecode(val) : val;
-          if (parsed is List) {
-            rawTasks = List<Map<String, dynamic>>.from(parsed.map((e) => Map<String, dynamic>.from(e)));
-          }
-        }
-      } catch (_) {}
-    }
-
-    if (rawTasks.isEmpty) {
-      try {
-        final snapshot = await _db.collection('tasks_config').get();
-        if (snapshot.docs.isNotEmpty) {
-          rawTasks = snapshot.docs.map((d) {
-            final data = d.data();
-            data['id'] = d.id;
-            return data;
-          }).toList();
-        }
-      } catch (_) {}
     }
 
     if (rawTasks.isEmpty) {
@@ -158,9 +125,6 @@ class TaskService {
       }
       if (supaUpdates.isNotEmpty) {
         await SupabaseDataService().updateUser(userId, supaUpdates);
-        try {
-          await _db.collection('users').doc(userId).set(supaUpdates, SetOptions(merge: true));
-        } catch (_) {}
         await userProvider.loadUser(userId);
       }
 
@@ -211,23 +175,6 @@ class TaskService {
         if (parsed is Map && parsed['banner_url'] != null) {
           final b = parsed['banner_url'].toString();
           if (b.isNotEmpty) return b;
-        }
-      }
-    } catch (_) {}
-
-    try {
-      final doc = await _db.collection('settings').doc('tasks_event_config').get();
-      if (doc.exists && doc.data() != null) {
-        return doc.data()?['banner_url']?.toString();
-      }
-    } catch (_) {}
-
-    try {
-      final doc = await _db.collection('app_config').doc('tasks_event_config').get();
-      if (doc.exists && doc.data() != null) {
-        final val = doc.data()!['value'] ?? doc.data();
-        if (val is Map && val['banner_url'] != null) {
-          return val['banner_url'].toString();
         }
       }
     } catch (_) {}

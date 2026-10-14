@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -6,7 +5,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'widgets/nine_patch_image.dart';
 import 'package:provider/provider.dart';
@@ -2993,17 +2991,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     });
 
     final updated = List<String>.from(_moderators);
-    // 1. Sync Supabase rooms.moderators
+    // Sync Supabase rooms.moderators
     unawaited(SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated}));
-    // 2. Sync Firestore rooms.moderators
-    try {
-      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-          .collection('rooms')
-          .doc(widget.roomId)
-          .update({
-        'moderators': isAdmin ? FieldValue.arrayUnion([targetUid]) : FieldValue.arrayRemove([targetUid]),
-      });
-    } catch (_) {}
 
     if (!mounted) return;
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
@@ -3337,7 +3326,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       setState(() {
                         _showCharmValues = !_showCharmValues;
                       });
-                      FirebaseService().updateRoom(widget.roomId, {
+                      _firebaseService.updateRoom(widget.roomId, {
                         'charm_enabled': _showCharmValues,
                       });
                     },
@@ -3910,9 +3899,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       setState(() => _moderators.remove(targetUid));
                       final updated = List<String>.from(_moderators);
                       unawaited(SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated}));
-                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
-                        'moderators': FieldValue.arrayRemove([targetUid]),
-                      });
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('تم إلغاء إشراف ${_selectedUser?.name}')),
                       );
@@ -3920,9 +3906,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       setState(() => _moderators.add(targetUid));
                       final updated = List<String>.from(_moderators);
                       unawaited(SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated}));
-                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
-                        'moderators': FieldValue.arrayUnion([targetUid]),
-                      });
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('تم تعيين ${_selectedUser?.name} كمشرف في الغرفة 👑')),
                       );
@@ -4424,9 +4407,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       roomId: widget.roomId,
       onGameSelect: (gameKey, gameName) {
         if (_isOwner) {
-          FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
+          unawaited(SupabaseDataService().updateRoom(widget.roomId, {
             'game_desc': gameName,
-          }).catchError((_) {});
+          }));
         }
       },
     );

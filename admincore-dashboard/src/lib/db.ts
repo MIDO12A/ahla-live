@@ -208,31 +208,7 @@ export async function getUsers(): Promise<UserModel[]> {
     console.warn('getUsers: failed to fetch device metadata from app_config', e)
   }
 
-  // 3. Fallback/merge from Firestore users collection if available
-  try {
-    const { firestoreDb } = await import('./firebase')
-    const { collection, getDocs } = await import('firebase/firestore')
-    if (firestoreDb) {
-      const snap = await getDocs(collection(firestoreDb, 'users'))
-      for (const doc of snap.docs) {
-        const d = doc.data()
-        const uid = doc.id
-        if (d && (d.device_id || d.deviceId)) {
-          if (!deviceMetaMap[uid]) {
-            deviceMetaMap[uid] = {
-              device_id: d.device_id || d.deviceId,
-              device_model: d.device_model || d.deviceModel,
-              mac_address: d.mac_address || d.macAddress,
-              network_id: d.network_id || d.networkId,
-              ip_address: d.ip_address || d.ipAddress,
-            }
-          }
-        }
-      }
-    }
-  } catch (e) {
-    // Non-blocking Firestore fallback
-  }
+
 
   // 4. Merge device metadata into users
   for (const u of results) {
@@ -496,24 +472,7 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
       }
     }
 
-    // Automatically sync to Firestore users collection
-    try {
-      const { firestoreDb } = await import('./firebase');
-      const { doc, setDoc } = await import('firebase/firestore');
-      if (firestoreDb) {
-        const fsUpdate: Record<string, any> = { ...data };
-        if ((data as any).banned !== undefined) {
-          fsUpdate.banned = (data as any).banned;
-          fsUpdate.ban_reason = (data as any).banReason || (data as any).ban_reason || '';
-          fsUpdate.banned_until = (data as any).bannedUntil || (data as any).banned_until || null;
-          fsUpdate.ban_duration_days = (data as any).banDurationDays || (data as any).ban_duration_days || null;
-          fsUpdate.banned_at = (data as any).bannedAt || (data as any).banned_at || new Date().toISOString();
-        }
-        await setDoc(doc(firestoreDb, 'users', uid), cleanFirestoreData(fsUpdate), { merge: true });
-      }
-    } catch (fsErr) {
-      console.warn('updateUser firestore sync error:', fsErr);
-    }
+
   } catch (e) {
     console.error('updateUser failed:', e)
     throw e
@@ -1216,102 +1175,7 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
       console.warn('getHostAgencies supabase error:', sbErr);
     }
 
-    // 2. Fetch from Firestore host_agencies & unions to catch any agency created before the update
-    try {
-      const { firestoreDb } = await import('./firebase');
-      const { getDocs, collection } = await import('firebase/firestore');
-      if (firestoreDb) {
-        // a) collection 'host_agencies'
-        try {
-          const fsSnap = await getDocs(collection(firestoreDb, 'host_agencies'));
-          for (const docSnap of fsSnap.docs) {
-            const d = docSnap.data();
-            const docId = docSnap.id;
-            const ownerId = d.owner_uid || d.owner_id || '';
-            const agName = d.name || d.agency_name || 'وكالة مضيفين';
-            if (existingIds.has(docId) || (ownerId && existingOwnerIds.has(ownerId))) continue;
 
-            const mapped = {
-              id: docId,
-              name: agName,
-              owner_id: ownerId,
-              owner_uid: ownerId,
-              photo_url: d.photo_url || d.logo_url || d.agency_logo || '',
-              logo_url: d.logo_url || d.photo_url || d.agency_logo || '',
-              description: d.description || '',
-              specialty: d.specialty || 'mixed',
-              tier: d.tier || 'bronze',
-              country: d.country || '',
-              commission_rate: typeof d.commission_rate === 'number' ? d.commission_rate : 0.10,
-              is_active: d.is_active !== false && d.status !== 'inactive',
-              member_count: d.member_count ?? 1,
-              total_diamonds_monthly: d.total_diamonds_monthly ?? 0,
-              monthly_diamonds: d.total_diamonds_monthly ?? 0,
-              total_diamonds_earned: d.total_diamonds_cumulative ?? 0,
-              created_at: d.created_at || new Date().toISOString(),
-              agency_code: d.agency_code || d.agency_public_id || '',
-              agency_public_id: d.agency_public_id || d.agency_code || '',
-            };
-            agencies.push(mapped);
-            existingIds.add(docId);
-            if (ownerId) existingOwnerIds.add(ownerId);
-
-            // Mirror into Supabase so it's permanently synced
-            supabase.from('host_agencies').upsert({
-              id: docId,
-              name: agName,
-              owner_uid: ownerId,
-              owner_id: ownerId,
-              photo_url: mapped.photo_url,
-              agency_code: mapped.agency_code,
-              agency_public_id: mapped.agency_public_id,
-              status: 'active',
-              is_active: true,
-              member_count: mapped.member_count,
-            }).then(() => {}).catch(() => {});
-          }
-        } catch (_) {}
-
-        // b) collection 'unions'
-        try {
-          const unionSnap = await getDocs(collection(firestoreDb, 'unions'));
-          for (const docSnap of unionSnap.docs) {
-            const d = docSnap.data();
-            const docId = docSnap.id;
-            const ownerId = d.creator_id || d.creatorId || d.owner_id || '';
-            const agName = d.name || 'نقابة/وكالة';
-            if (existingIds.has(docId) || (ownerId && existingOwnerIds.has(ownerId))) continue;
-
-            const mapped = {
-              id: docId,
-              name: agName,
-              owner_id: ownerId,
-              owner_uid: ownerId,
-              photo_url: d.logo_url || d.photo_url || d.logoUrl || '',
-              logo_url: d.logo_url || d.photo_url || d.logoUrl || '',
-              description: d.description || '',
-              specialty: 'mixed',
-              tier: 'bronze',
-              country: '',
-              commission_rate: 0.10,
-              is_active: true,
-              member_count: d.member_count || d.memberCount || 1,
-              total_diamonds_monthly: 0,
-              monthly_diamonds: 0,
-              total_diamonds_earned: 0,
-              created_at: d.created_at || d.createdAt || new Date().toISOString(),
-              agency_code: d.agency_code || d.agency_public_id || '',
-              agency_public_id: d.agency_public_id || d.agency_code || '',
-            };
-            agencies.push(mapped);
-            existingIds.add(docId);
-            if (ownerId) existingOwnerIds.add(ownerId);
-          }
-        } catch (_) {}
-      }
-    } catch (fsErr) {
-      console.warn('getHostAgencies firestore fallback error:', fsErr);
-    }
 
     if (agencies.length === 0) return [];
 
@@ -1424,34 +1288,6 @@ export async function createHostAgency(name: string, ownerId: string, commission
       console.warn('createHostAgency supabase host_agencies upsert warning:', sbErr);
     }
 
-    // Mirror to Firestore host_agencies
-    try {
-      const { firestoreDb } = await import('./firebase');
-      const { doc, setDoc } = await import('firebase/firestore');
-      if (firestoreDb) {
-        await setDoc(doc(firestoreDb, 'host_agencies', agencyId), {
-          id: agencyId,
-          name: name.trim(),
-          owner_uid: resolvedUid,
-          owner_id: resolvedUid,
-          logo_url: photoUrl,
-          photo_url: photoUrl,
-          description: extra?.description || '',
-          status: 'active',
-          is_active: true,
-          member_count: 1,
-          bd_uid: resolvedBdUid || null,
-          bdUid: resolvedBdUid || null,
-          supervisor_uid: resolvedSupUid || null,
-          supervisor_id: resolvedSupUid || null,
-          commission_rate: commRate,
-          created_at: nowIso,
-          updated_at: nowIso,
-        }, { merge: true });
-      }
-    } catch (fsErr) {
-      console.warn('createHostAgency firestore mirror warning:', fsErr);
-    }
 
     // 2. Add owner to Supabase host_agency_members (column is host_uid, id is UUID)
     try {
@@ -1918,46 +1754,7 @@ export async function getAgencyApplications(statusFilter?: string, typeFilter?: 
       console.warn('host_agencies pending fetch error:', haErr);
     }
 
-    // 3. Fetch from Firestore agency_applications for backward compatibility
-    try {
-      const { firestoreDb } = await import('./firebase');
-      const { getDocs, collection } = await import('firebase/firestore');
-      if (firestoreDb) {
-        const fsSnap = await getDocs(collection(firestoreDb, 'agency_applications'));
-        for (const docSnap of fsSnap.docs) {
-          const d = docSnap.data();
-          const docId = docSnap.id;
-          if (seenAppIds.has(docId)) continue;
-          if (statusFilter && d.status && d.status !== statusFilter) continue;
 
-          applications.push({
-            id: docId,
-            user_id: d.user_id || d.applicant_uid || '',
-            user_name: d.user_name || (d.user_id || '').slice(0, 8),
-            custom_id: d.custom_id || '',
-            user_avatar: d.user_avatar || d.photo_url || '',
-            agency_type: d.agency_type || 'host',
-            agency_name: d.agency_name || 'وكالة جديدة',
-            agency_logo: d.agency_logo || d.photo_url || '',
-            country: d.country || '',
-            whatsapp: d.whatsapp || '',
-            description: d.description || '',
-            doc_type: d.doc_type || '',
-            doc_number: d.doc_number || '',
-            doc_front_url: d.doc_front_url || '',
-            doc_back_url: d.doc_back_url || '',
-            video_url: d.video_url || '',
-            status: d.status || 'pending',
-            rejection_reason: d.rejection_reason || '',
-            created_at: d.created_at || new Date().toISOString(),
-            reviewed_at: d.reviewed_at,
-          });
-          seenAppIds.add(docId);
-        }
-      }
-    } catch (fsAppErr) {
-      console.warn('getAgencyApplications firestore error:', fsAppErr);
-    }
 
     // Populate user profile info (name, avatar, custom_id)
     const userIds = Array.from(new Set(applications.map(a => a.user_id).filter(Boolean)));
@@ -2103,74 +1900,7 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
         console.warn('users agency update error:', uErr);
       }
 
-      // 4. Synchronize to Firestore for full real-time app compatibility (wrapped to prevent unhandled permission errors)
-      try {
-        const { firestoreDb } = await import('./firebase');
-        const { doc, setDoc } = await import('firebase/firestore');
-        if (firestoreDb) {
-          await setDoc(doc(firestoreDb, 'host_agencies', agencyId), agencyData, { merge: true });
-          await setDoc(doc(firestoreDb, 'host_agency_members', `${agencyId}_${ownerUid}`), {
-            agency_id: agencyId,
-            user_id: ownerUid,
-            host_uid: ownerUid,
-            role: 'owner',
-            status: 'active',
-            joined_at: now,
-          }, { merge: true });
-          await setDoc(doc(firestoreDb, 'users', ownerUid), {
-            agency_id: agencyId,
-            host_agency_id: agencyId,
-            is_host_agent: true,
-            agency_role: 'owner',
-            host_agency_name: app.agency_name,
-            host_agency_logo: agencyLogo,
-          }, { merge: true });
-          if (app.id) {
-            await setDoc(doc(firestoreDb, 'agency_applications', app.id), {
-              status: 'approved',
-              agency_id: agencyId,
-              agency_code: agencyCode,
-              reviewed_at: now,
-            }, { merge: true });
-          }
-        }
-      } catch (fsErr) {
-        // Non-blocking Firestore error
-      }
 
-      try {
-        await sendSystemNotification({
-          userId: app.user_id,
-          title: 'مبروك! تم قبول طلب فتح الوكالة 🎉',
-          body: `مبروك! تم قبول طلبك وفتح وكالة [${app.agency_name}] (معرف: #${agencyCode}) بنجاح بواسطة [${adminName}]. يمكنك الآن الدخول لإدارة وكالتك ومضيفيك.`,
-          type: 'system',
-          action: 'agency_approved',
-          extraData: { agency_id: agencyId, agency_code: agencyCode, agency_name: app.agency_name, admin_name: adminName },
-        });
-      } catch (_) {}
-    } else if (app.agency_type === 'recharge') {
-      // Set user as recharge agent
-      try {
-        await supabase.from('users').update({
-          is_recharge_agent: true,
-          recharge_agency_name: app.agency_name || 'وكالة الشحن المعتمدة',
-          recharge_agency_logo: app.agency_logo || null,
-          whatsapp_number: app.whatsapp || null,
-        }).or(`uid.eq.${app.user_id},id.eq.${app.user_id}`);
-      } catch (_) {}
-
-      try {
-        const { firestoreDb } = await import('./firebase');
-        const { doc, setDoc } = await import('firebase/firestore');
-        if (firestoreDb) {
-          await setDoc(doc(firestoreDb, 'users', app.user_id), {
-            is_recharge_agent: true,
-            recharge_agency_name: app.agency_name || 'وكالة الشحن المعتمدة',
-            recharge_agency_logo: app.agency_logo || null,
-            whatsapp_number: app.whatsapp || null,
-          }, { merge: true });
-        }
-      } catch (_) {}
 
       try {
         await sendSystemNotification({
@@ -2732,27 +2462,7 @@ export async function sendSystemNotification(data: {
     };
     await client.from('notifications').insert(payload);
 
-    // Sync to Firestore notifications collection as well
-    try {
-      const { firestoreDb } = await import('./firebase');
-      const { collection, addDoc } = await import('firebase/firestore');
-      if (firestoreDb && data.userId && data.userId !== 'all') {
-        await addDoc(collection(firestoreDb, 'notifications'), {
-          uid: data.userId,
-          target: data.userId,
-          title: data.title,
-          body: data.body,
-          message: data.body,
-          type: data.type || (data.action ? data.action : 'system'),
-          data: payload.data,
-          read: false,
-          sent_at: nowIso,
-          created_at: nowIso,
-        });
-      }
-    } catch (fe) {
-      console.warn('sendSystemNotification firestore error:', fe);
-    }
+
 
     return true;
   } catch (e) {
@@ -3229,32 +2939,7 @@ export async function getBDManagers(): Promise<BDModel[]> {
       console.warn('getBDManagers directUsers query error:', e);
     }
 
-    // 1c. Fallback: Also fetch from Firestore users where is_bd == true
-    try {
-      const { firestoreDb } = await import('./firebase');
-      const { collection, getDocs, query, where } = await import('firebase/firestore');
-      if (firestoreDb) {
-        const snap = await getDocs(query(collection(firestoreDb, 'users'), where('is_bd', '==', true)));
-        snap.forEach(d => {
-          const ud = d.data();
-          const uId = d.id;
-          if (!configMap[uId]) {
-            configMap[uId] = {
-              uid: uId,
-              appId: ud.custom_id || ud.customId || '',
-              name: ud.name || ud.displayName || 'BD Manager',
-              email: ud.email || '',
-              photoUrl: ud.photo_url || ud.photoUrl || '',
-              supervisorId: ud.bd_supervisor_id || ud.bdSupervisorId || '',
-              salary: Number(ud.bd_salary || ud.bdSalary || 0),
-              commissionRate: Number(ud.bd_commission_rate || ud.bdCommissionRate || 10),
-              status: 'active',
-              createdAt: ud.created_at || new Date().toISOString(),
-            };
-          }
-        });
-      }
-    } catch (_) {}
+
 
     const bdUids = Object.keys(configMap).filter(Boolean);
 
@@ -3405,23 +3090,6 @@ export async function assignBDManager(params: {
     console.warn('Save bd_meta error:', e);
   }
 
-  // 4. Mirror directly to Firestore users collection
-  try {
-    const { firestoreDb } = await import('./firebase');
-    const { doc, setDoc } = await import('firebase/firestore');
-    if (firestoreDb) {
-      await setDoc(doc(firestoreDb, 'users', uid), {
-        is_bd: true,
-        role: 'bd',
-        bd_supervisor_id: supervisorId || null,
-        bd_salary: salary,
-        bd_commission_rate: commissionRate,
-        ...(specialId && specialId.trim() ? { custom_id: specialId.trim() } : {}),
-      }, { merge: true });
-    }
-  } catch (fe) {
-    console.warn('Sync assign BD to Firestore error:', fe);
-  }
 
   // 5. Send official in-app system notification
   await sendSystemNotification({
@@ -3509,23 +3177,7 @@ export async function updateBDManager(params: {
     console.warn('Update bd_meta error:', e);
   }
 
-  // 4. Mirror to Firestore users
-  try {
-    const { firestoreDb } = await import('./firebase');
-    const { doc, setDoc } = await import('firebase/firestore');
-    if (firestoreDb) {
-      await setDoc(doc(firestoreDb, 'users', uid), {
-        is_bd: true,
-        role: 'bd',
-        bd_supervisor_id: supervisorId !== undefined ? (supervisorId || null) : undefined,
-        bd_salary: salary,
-        bd_commission_rate: commissionRate,
-        ...(specialId && specialId.trim() ? { custom_id: specialId.trim() } : {}),
-      }, { merge: true });
-    }
-  } catch (fe) {
-    console.warn('Sync update BD to Firestore error:', fe);
-  }
+
 }
 
 export async function revokeBDManager(uid: string) {
@@ -3550,22 +3202,7 @@ export async function revokeBDManager(uid: string) {
     console.warn('Delete bd_meta error:', e);
   }
 
-  // 3. Mirror to Firestore users
-  try {
-    const { firestoreDb } = await import('./firebase');
-    const { doc, setDoc } = await import('firebase/firestore');
-    if (firestoreDb) {
-      await setDoc(doc(firestoreDb, 'users', uid), {
-        is_bd: false,
-        role: 'user',
-        bd_supervisor_id: null,
-        bd_salary: 0,
-        bd_commission_rate: 0,
-      }, { merge: true });
-    }
-  } catch (fe) {
-    console.warn('Sync revoke BD to Firestore error:', fe);
-  }
+
 
   // 4. Send official notification
   await sendSystemNotification({
@@ -3611,17 +3248,7 @@ export async function linkAgencyToBD(agencyId: string, bdUid: string) {
       data: { ...curData, bd_uid: bdUid },
     }).eq('id', agencyId);
 
-    // Sync to Firestore host_agencies
-    try {
-      const { firestoreDb } = await import('./firebase');
-      const { doc, setDoc } = await import('firebase/firestore');
-      if (firestoreDb) {
-        await setDoc(doc(firestoreDb, 'host_agencies', agencyId), {
-          bd_uid: bdUid,
-          bdUid: bdUid,
-        }, { merge: true });
-      }
-    } catch (_) {}
+
   } catch (e) {
     console.error('linkAgencyToBD error:', e);
   }
@@ -5520,17 +5147,6 @@ export async function getRechargeGateways(): Promise<RechargeGatewayConfig[]> {
     }
   } catch (_) {}
 
-  try {
-    const { firestoreDb } = await import('./firebase');
-    const { doc, getDoc } = await import('firebase/firestore');
-    if (firestoreDb) {
-      const snap = await getDoc(doc(firestoreDb, 'app_config', 'recharge_gateways'));
-      if (snap.exists() && snap.data()?.gateways) {
-        return snap.data().gateways;
-      }
-    }
-  } catch (_) {}
-
   return [
     {
       id: 'google_play',
@@ -5582,19 +5198,6 @@ export async function updateRechargeGateways(gateways: RechargeGatewayConfig[]):
   } catch (e) {
     console.warn('updateRechargeGateways supabase error:', e);
   }
-
-  try {
-    const { firestoreDb } = await import('./firebase');
-    const { doc, setDoc } = await import('firebase/firestore');
-    if (firestoreDb) {
-      await setDoc(doc(firestoreDb, 'app_config', 'recharge_gateways'), {
-        gateways,
-        updated_at: new Date().toISOString(),
-      }, { merge: true });
-    }
-  } catch (e) {
-    console.warn('updateRechargeGateways firestore error:', e);
-  }
   return true;
 }
 
@@ -5630,39 +5233,6 @@ export async function getRechargeRequests(statusFilter?: string): Promise<import
     }
   } catch (_) {}
 
-  try {
-    const { firestoreDb } = await import('./firebase');
-    const { getDocs, collection } = await import('firebase/firestore');
-    if (firestoreDb) {
-      const snap = await getDocs(collection(firestoreDb, 'recharge_requests'));
-      for (const d of snap.docs) {
-        if (seenIds.has(d.id)) continue;
-        const r = d.data();
-        if (statusFilter && r.status && r.status !== statusFilter) continue;
-        list.push({
-          id: d.id,
-          userId: r.user_id || r.userId || '',
-          userName: r.user_name || r.userName || 'مستخدم',
-          userAvatar: r.user_avatar || r.userAvatar || '',
-          customId: r.custom_id || r.customId || '',
-          amount: r.amount || 0,
-          price: r.price || 0,
-          currency: r.currency || 'coins',
-          gateway: r.gateway || 'manual',
-          senderPhone: r.sender_phone || r.senderPhone || '',
-          txid: r.txid || r.transaction_id || '',
-          proofUrl: r.proof_url || r.proofUrl || '',
-          status: r.status || 'pending',
-          rejectionReason: r.rejection_reason || r.rejectionReason || '',
-          createdAt: r.created_at || r.createdAt || new Date().toISOString(),
-          reviewedAt: r.reviewed_at || r.reviewedAt,
-          reviewedBy: r.reviewed_by || r.reviewedBy,
-        });
-        seenIds.add(d.id);
-      }
-    }
-  } catch (_) {}
-
   return list;
 }
 
@@ -5690,35 +5260,11 @@ export async function approveRechargeRequest(req: import('../types').RechargeReq
   }
 
   try {
-    const { firestoreDb } = await import('./firebase');
-    const { doc, updateDoc, increment } = await import('firebase/firestore');
-    if (firestoreDb) {
-      if (req.currency === 'coins') {
-        await updateDoc(doc(firestoreDb, 'users', req.userId), { coins: increment(req.amount) });
-      } else {
-        await updateDoc(doc(firestoreDb, 'users', req.userId), { diamonds: increment(req.amount) });
-      }
-    }
-  } catch (_) {}
-
-  try {
     await supabase.from('recharge_requests').update({
       status: 'approved',
       reviewed_at: now,
       reviewed_by: adminName,
     }).eq('id', req.id);
-  } catch (_) {}
-
-  try {
-    const { firestoreDb } = await import('./firebase');
-    const { doc, setDoc } = await import('firebase/firestore');
-    if (firestoreDb) {
-      await setDoc(doc(firestoreDb, 'recharge_requests', req.id), {
-        status: 'approved',
-        reviewed_at: now,
-        reviewed_by: adminName,
-      }, { merge: true });
-    }
   } catch (_) {}
 
   try {
@@ -5747,18 +5293,6 @@ export async function rejectRechargeRequest(req: import('../types').RechargeRequ
     }).eq('id', req.id);
   } catch (_) {}
 
-  try {
-    const { firestoreDb } = await import('./firebase');
-    const { doc, setDoc } = await import('firebase/firestore');
-    if (firestoreDb) {
-      await setDoc(doc(firestoreDb, 'recharge_requests', req.id), {
-        status: 'rejected',
-        rejection_reason: reason,
-        reviewed_at: now,
-        reviewed_by: adminName,
-      }, { merge: true });
-    }
-  } catch (_) {}
 
   try {
     await sendSystemNotification({

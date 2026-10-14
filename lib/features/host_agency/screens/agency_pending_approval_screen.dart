@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/supabase_compat.dart';
 import '../../../../providers/user_provider.dart';
@@ -34,7 +32,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
   Map<String, dynamic>? _currentData;
   String _status = 'pending';
   String? _rejectionReason;
-  StreamSubscription? _statusSubscription;
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -49,38 +47,15 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
   @override
   void dispose() {
     _pulseController.dispose();
-    _statusSubscription?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
   void _startRealtimeCheck() {
-    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
-    final uid = user?.uid;
-    if (uid == null || uid.isEmpty) return;
-
-    try {
-      final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-      _statusSubscription = fs
-          .collection('agency_applications')
-          .where('user_id', isEqualTo: uid)
-          .snapshots()
-          .listen((snap) {
-        if (snap.docs.isNotEmpty) {
-          final data = snap.docs.first.data();
-          final st = data['status']?.toString() ?? 'pending';
-          if (mounted) {
-            setState(() {
-              _status = st;
-              _rejectionReason = data['rejection_reason']?.toString();
-              _currentData = data;
-            });
-            if (st == 'approved') {
-              _onApproved();
-            }
-          }
-        }
-      });
-    } catch (_) {}
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) _checkStatus(silent: true);
+    });
   }
 
   Future<void> _checkStatus({bool silent = false}) async {
@@ -110,20 +85,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
         }
       } catch (_) {}
 
-      // 2. Fallback to Firestore
-      if (freshApp == null) {
-        try {
-          final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-          final snap = await fs
-              .collection('agency_applications')
-              .where('user_id', isEqualTo: uid)
-              .limit(1)
-              .get();
-          if (snap.docs.isNotEmpty) {
-            freshApp = snap.docs.first.data();
-          }
-        } catch (_) {}
-      }
+
 
       // 3. Also check if host_agencies is directly active for this owner
       bool isDirectlyActive = false;
@@ -214,14 +176,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
         await Supabase.instance.client.from('host_agencies').delete().eq('owner_uid', uid).eq('status', 'pending');
       } catch (_) {}
 
-      // Delete from Firestore
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final snap = await fs.collection('agency_applications').where('user_id', isEqualTo: uid).get();
-        for (final doc in snap.docs) {
-          await doc.reference.delete();
-        }
-      } catch (_) {}
+
 
       if (mounted) {
         KayanInAppToast.agency('تم إلغاء الطلب بنجاح');

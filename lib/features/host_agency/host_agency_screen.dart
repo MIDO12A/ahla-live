@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 // lib/features/host_agency/host_agency_screen.dart
 // ─────────────────────────────────────────────────────────────────────────────
 // Smart Agency Gateway Screen & Unions Hub
@@ -26,7 +25,6 @@ import 'screens/bd_center_screen.dart';
 import '../../core/cache/encrypted_image_provider.dart';
 import '../../config/r.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/user_provider.dart';
 import '../../services/dynamic_config_service.dart';
 import 'data/agency_models.dart';
@@ -65,12 +63,12 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
     try {
       Map<String, dynamic>? row;
 
-      // 1. Check Supabase host_agency_members (column is host_uid)
+      // 1. Check Supabase host_agency_members (column is host_uid or user_id)
       try {
         final m = await Supabase.instance.client
             .from('host_agency_members')
             .select('role, agency_id')
-            .eq('host_uid', uid)
+            .or('host_uid.eq.$uid,user_id.eq.$uid')
             .eq('status', 'active')
             .maybeSingle();
         if (m != null && m['agency_id'] != null) {
@@ -117,54 +115,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
         } catch (_) {}
       }
 
-      // 4. Check Firestore host_agencies (owner_id or owner_uid) - only if active
-      if (row == null) {
-        try {
-          final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-              .collection('host_agencies')
-              .where('owner_id', isEqualTo: uid)
-              .limit(1)
-              .get();
-          if (snap.docs.isNotEmpty) {
-            final agData = snap.docs.first.data();
-            if (agData['status'] == 'active' || agData['is_active'] == true) {
-              row = {'role': 'owner', 'agency_id': snap.docs.first.id};
-            }
-          } else {
-            final snap2 = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                .collection('host_agencies')
-                .where('owner_uid', isEqualTo: uid)
-                .limit(1)
-                .get();
-            if (snap2.docs.isNotEmpty) {
-              final agData = snap2.docs.first.data();
-              if (agData['status'] == 'active' || agData['is_active'] == true) {
-                row = {'role': 'owner', 'agency_id': snap2.docs.first.id};
-              }
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 5. Check Firestore host_agency_members (user_id or host_uid)
-      if (row == null) {
-        try {
-          final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-              .collection('host_agency_members')
-              .where('user_id', isEqualTo: uid)
-              .limit(1)
-              .get();
-          if (snap.docs.isNotEmpty) {
-            final data = snap.docs.first.data();
-            final aid = data['agency_id']?.toString();
-            if (aid != null && aid.isNotEmpty && data['status'] == 'active') {
-              row = {'role': data['role']?.toString() ?? 'host', 'agency_id': aid};
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 6. Check pending agency application if user doesn't have an active agency
+      // 4. Check pending agency application if user doesn't have an active agency
       if (row == null) {
         Map<String, dynamic>? pendingApp;
         try {
@@ -182,23 +133,6 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
             }
           }
         } catch (_) {}
-
-        if (pendingApp == null) {
-          try {
-            final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-            final pSnap = await fs.collection('agency_applications')
-                .where('user_id', isEqualTo: uid)
-                .limit(1)
-                .get();
-            if (pSnap.docs.isNotEmpty) {
-              final appRow = pSnap.docs.first.data();
-              final st = appRow['status']?.toString();
-              if (st == 'pending' || st == 'waiting_approval' || st == 'rejected') {
-                pendingApp = appRow;
-              }
-            }
-          } catch (_) {}
-        }
 
         if (pendingApp != null) {
           if (!mounted) return;
@@ -512,51 +446,9 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
         debugPrint('[host_agency_screen] Supabase upsert host_agencies error: $agErr');
       }
 
-      // 6. Save to Firestore for real-time synchronization
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final firestoreAppPayload = {
-          'id': appId,
-          'user_id': uid,
-          'applicant_uid': uid,
-          'user_name': currentUser?.name ?? 'مستخدم',
-          'custom_id': currentUser?.customId ?? '',
-          'user_avatar': finalLogo,
-          'agency_type': 'host',
-          'agency_name': name,
-          'agency_logo': finalLogo,
-          'photo_url': finalLogo,
-          'country': _selectedCountry ?? 'عالمي',
-          'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
-          'description': _descCtrl.text.trim().isNotEmpty ? _descCtrl.text.trim() : 'وكالة مضيفين معتمدة',
-          'supervisor_id': supervisorCustomId,
-          'supervisor_uid': supervisorUid,
-          'supervisor_custom_id': supervisorCustomId,
-          'supervisor_name': supervisorName,
-          'agency_id': agencyId,
-          'agency_code': agencyCode,
-          'status': 'pending',
-          'created_at': nowIso,
-        };
-        await fs.collection('agency_applications').doc(appId).set(firestoreAppPayload, SetOptions(merge: true));
-        await fs.collection('host_agencies').doc(agencyId).set(agencyPayload, SetOptions(merge: true));
-
-        // 7. Send Immediate Notification to Dashboard / Admins
-        final notifBody = 'طلب جديد لفتح وكالة مضيفين باسم [$name] من قِبل ${currentUser?.name ?? "مستخدم"} (ID: #${currentUser?.customId ?? uid}) بإشراف [$supervisorName].';
-        await fs.collection('admin_notifications').add({
-          'title': 'طلب فتح وكالة مضيفين جديد 🎙️',
-          'body': notifBody,
-          'type': 'agency_application',
-          'app_id': appId,
-          'agency_id': agencyId,
-          'user_id': uid,
-          'user_name': currentUser?.name ?? 'مستخدم',
-          'is_read': false,
-          'created_at': nowIso,
-        });
-
-        // Send to supervisor in Supabase & Firestore
-        if (supervisorUid.isNotEmpty && supervisorUid != uid) {
+      // 6. Send notification to supervisor via Supabase
+      if (supervisorUid.isNotEmpty && supervisorUid != uid) {
+        try {
           await SupabaseDataService().sendNotification(
             uid: supervisorUid,
             type: 'agency_application',
@@ -564,9 +456,9 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             body: 'قدم المستخدم [${currentUser?.name ?? "مستخدم"}] طلب فتح وكالة [$name] تحت إشرافك.',
             data: {'agency_id': agencyId, 'app_id': appId},
           );
+        } catch (e) {
+          debugPrint('[host_agency_screen] supervisor notification error: $e');
         }
-      } catch (fsErr) {
-        debugPrint('[host_agency_screen] Firestore sync error: $fsErr');
       }
 
       if (!mounted) return;
@@ -618,7 +510,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
 
     bool isBd = user?.isBd == true;
 
-    // Comprehensive check across Supabase users, app_config, and Firestore
+    // Comprehensive check across Supabase users and app_config
     if (!isBd) {
       // 1. Supabase users table
       try {
@@ -641,19 +533,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
         } catch (_) {}
       }
 
-      // 3. Firestore users collection
-      if (!isBd) {
-        try {
-          final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-          final fsDoc = await fs.collection('users').doc(uid).get();
-          if (fsDoc.exists) {
-            final data = fsDoc.data();
-            if (data != null && (data['is_bd'] == true || data['role'] == 'bd')) {
-              isBd = true;
-            }
-          }
-        } catch (_) {}
-      }
+
     }
 
     if (isBd) {
@@ -764,15 +644,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                             } catch (_) {}
                           }
 
-                          if (!verified) {
-                            try {
-                              final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-                              final fsDoc = await fs.collection('users').doc(uid).get();
-                              if (fsDoc.exists && (fsDoc.data()?['is_bd'] == true || fsDoc.data()?['role'] == 'bd')) {
-                                verified = true;
-                              }
-                            } catch (_) {}
-                          }
+
 
                           if (verified) {
                             await userProvider.loadUser(uid);
@@ -1608,35 +1480,7 @@ class _AgencySearchSheetState extends State<_AgencySearchSheet> {
         }
       } catch (_) {}
 
-      // 2. Firestore search
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final snap = await fs.collection('host_agencies').limit(50).get();
-        for (final doc in snap.docs) {
-          final d = doc.data();
-          final id = doc.id;
-          final name = (d['name'] ?? '').toString();
-          final pubId = (d['agency_public_id'] ?? d['agency_code'] ?? '').toString();
-          final numericId = formatAgencyNumericId(d);
 
-          if (id.toLowerCase().contains(q.toLowerCase()) ||
-              name.toLowerCase().contains(q.toLowerCase()) ||
-              pubId.contains(q) ||
-              numericId == q) {
-            if (!seenIds.contains(id)) {
-              seenIds.add(id);
-              combined.add({
-                'id': id,
-                'name': name,
-                'photo_url': d['photo_url'],
-                'member_count': d['member_count'] ?? 1,
-                'total_diamonds_monthly': d['total_diamonds_monthly'] ?? 0,
-                'agency_public_id': pubId.isNotEmpty ? pubId : numericId,
-              });
-            }
-          }
-        }
-      } catch (_) {}
 
       // If user typed 3-digit number (e.g. 100, 200), prioritize matches where formatAgencyNumericId == q
       combined.sort((a, b) {

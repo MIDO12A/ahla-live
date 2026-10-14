@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../config/app_colors.dart';

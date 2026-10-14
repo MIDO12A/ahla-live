@@ -5,8 +5,6 @@
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/supabase_compat.dart';
 
@@ -351,30 +349,17 @@ abstract final class AgencyChatRepository {
         debugPrint('[AgencyChatRepository] fallback sb invite error: $sbErr');
       }
 
-      // Upsert in Firestore host_agency_join_requests
+      // Send invitation notification via Supabase
       try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        await fs.collection('host_agency_join_requests').doc('${agencyId}_${user.uid}').set({
-          'id': reqId,
-          'agency_id': agencyId,
-          'user_id': user.uid,
-          'host_uid': user.uid,
-          'status': 'invited',
-          'created_at': nowIso,
-        }, SetOptions(merge: true));
-
-        await fs.collection('notifications').add({
-          'uid': user.uid,
-          'title': 'دعوة انضمام لوكالة مضيفين 🎙️',
-          'body': 'تمت دعوتك للانضمام كمضيف رسمي في الوكالة.',
-          'type': 'host_invite',
-          'action': 'host_invite',
-          'data': {'agency_id': agencyId},
-          'is_read': false,
-          'created_at': nowIso,
-        });
-      } catch (fsErr) {
-        debugPrint('[AgencyChatRepository] fallback fs invite error: $fsErr');
+        await SupabaseDataService().sendNotification(
+          uid: user.uid,
+          title: 'دعوة انضمام لوكالة مضيفين 🎙️',
+          body: 'تمت دعوتك للانضمام كمضيف رسمي في الوكالة.',
+          type: 'host_invite',
+          data: {'agency_id': agencyId, 'action': 'host_invite'},
+        );
+      } catch (notifErr) {
+        debugPrint('[AgencyChatRepository] notification error: $notifErr');
       }
 
       return {

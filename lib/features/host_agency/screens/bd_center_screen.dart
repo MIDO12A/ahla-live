@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../models/user_model.dart';
 import '../../../core/localization/app_strings.dart';
@@ -120,22 +118,6 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
         } catch (_) {}
       }
 
-      // 1c. Fallback from Firestore users doc if still missing
-      if (_salary == 0.0 || _supervisorName == null) {
-        try {
-          final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-          final doc = await fs.collection('users').doc(uid).get();
-          if (doc.exists && doc.data() != null) {
-            final ud = doc.data()!;
-            if (_salary == 0.0 && ud['bd_salary'] != null) {
-              _salary = (ud['bd_salary'] as num).toDouble();
-            }
-            if (_commissionRate == 10.0 && ud['bd_commission_rate'] != null) {
-              _commissionRate = (ud['bd_commission_rate'] as num).toDouble();
-            }
-          }
-        } catch (_) {}
-      }
 
       // 2. Fetch agencies linked to this BD / Supervisor
       final userCustomId = widget.currentUser.customId;
@@ -187,43 +169,6 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
         }
       }
 
-      // 3. Firestore fallback / sync to ensure newly created agencies are immediately visible
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final fsSnap = await fs.collection('host_agencies').get();
-        for (final doc in fsSnap.docs) {
-          if (seenIds.contains(doc.id)) continue;
-          final data = doc.data();
-          final supUid = data['supervisor_uid']?.toString();
-          final supId = data['supervisor_id']?.toString();
-          final supCustomId = data['supervisor_custom_id']?.toString();
-          final bdUid = data['bd_uid']?.toString() ?? data['bdUid']?.toString();
-          final bdId = data['bd_id']?.toString();
-          final ownerUid = data['owner_uid']?.toString() ?? data['owner_id']?.toString();
-          final ownerCustomId = data['owner_custom_id']?.toString();
-
-          final isSupervised = (supUid != null && supUid == uid) ||
-              (supId != null && (supId == uid || (userCustomId.isNotEmpty && supId == userCustomId))) ||
-              (supCustomId != null && ((userCustomId.isNotEmpty && supCustomId == userCustomId) || supCustomId == uid)) ||
-              (bdUid != null && (bdUid == uid || (userCustomId.isNotEmpty && bdUid == userCustomId))) ||
-              (bdId != null && (bdId == uid || (userCustomId.isNotEmpty && bdId == userCustomId))) ||
-              (ownerUid != null && ownerUid == uid) ||
-              (ownerCustomId != null && userCustomId.isNotEmpty && ownerCustomId == userCustomId);
-
-          if (isSupervised) {
-            seenIds.add(doc.id);
-            final map = Map<String, dynamic>.from(data);
-            map['id'] = doc.id;
-            matchedAgencies.add(map);
-            totalMembers += (map['member_count'] as num? ?? 1).toInt();
-            final monthly = (map['total_diamonds_monthly'] as num? ?? 0).toInt();
-            final cumulative = (map['total_diamonds_cumulative'] as num? ?? 0).toInt();
-            diamondsSum += (monthly > 0 ? monthly : cumulative);
-          }
-        }
-      } catch (fsErr) {
-        debugPrint('[BDCenterScreen] firestore agencies fallback error: $fsErr');
-      }
 
       if (mounted) {
         setState(() {

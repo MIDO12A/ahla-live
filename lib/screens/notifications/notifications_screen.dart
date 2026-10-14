@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
@@ -6,7 +5,6 @@ import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../models/notification_model.dart';
 import '../../providers/user_provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../features/cp/cp_service.dart';
 import '../../features/cp/cp_detail_full_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
@@ -77,16 +75,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 try {
                   await SupabaseDataService().markAllNotificationsRead(uid);
                 } catch (_) {}
-                try {
-                  final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                      .collection('notifications')
-                      .where('uid', isEqualTo: uid)
-                      .where('is_read', isEqualTo: false)
-                      .get();
-                  for (final doc in snap.docs) {
-                    await doc.reference.update({'is_read': true});
-                  }
-                } catch (_) {}
+
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -387,12 +376,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                         try {
                                           await SupabaseDataService().deleteNotification(notif.id);
                                         } catch (_) {}
-                                        try {
-                                          await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                              .collection('notifications')
-                                              .doc(notif.id)
-                                              .delete();
-                                        } catch (_) {}
                                       }
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(context).showSnackBar(
@@ -444,12 +427,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     try {
                                       await SupabaseDataService().deleteNotification(notif.id);
                                     } catch (_) {}
-                                    try {
-                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                          .collection('notifications')
-                                          .doc(notif.id)
-                                          .delete();
-                                    } catch (_) {}
                                   }
 
                                   if (context.mounted) {
@@ -500,35 +477,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       });
                                     } catch (_) {}
 
-                                    try {
-                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                          .collection('host_agency_members')
-                                          .doc('${agId}_$currentUid')
-                                          .set({
-                                        'agency_id': agId,
-                                        'user_id': currentUid,
-                                        'role': 'host',
-                                        'status': 'active',
-                                        'joined_at': DateTime.now().toUtc().toIso8601String(),
-                                        'minute': 0.0,
-                                        'days': 1,
-                                        'diamonds': '0',
-                                      }, SetOptions(merge: true));
-
-                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                          .collection('users')
-                                          .doc(currentUid)
-                                          .set({
-                                        'agency_id': agId,
-                                        'agency_name': agencyName,
-                                        'is_host': true,
-                                      }, SetOptions(merge: true));
-
-                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                          .collection('host_agencies')
-                                          .doc(agId)
-                                          .update({'member_count': FieldValue.increment(1)});
-                                    } catch (_) {}
 
                                     try {
                                       final uProv = Provider.of<UserProvider>(context, listen: false);
@@ -539,12 +487,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       await SupabaseDataService().deleteNotification(notif.id);
                                     } catch (_) {}
                                     if (notif.id.isNotEmpty) {
-                                      try {
-                                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                            .collection('notifications')
-                                            .doc(notif.id)
-                                            .delete();
-                                      } catch (_) {}
                                     }
 
                                     if (context.mounted) {
@@ -567,12 +509,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     await SupabaseDataService().deleteNotification(notif.id);
                                   } catch (_) {}
                                   if (notif.id.isNotEmpty) {
-                                    try {
-                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                          .collection('notifications')
-                                          .doc(notif.id)
-                                          .delete();
-                                    } catch (_) {}
                                   }
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -621,16 +557,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           'recharge_agency_name': agencyName,
                                         });
                                       } catch (_) {}
-                                      try {
-                                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                            .collection('users')
-                                            .doc(currentUid)
-                                            .set({
-                                          'is_recharge_agent': true,
-                                          'isRechargeAgent': true,
-                                          'recharge_agency_name': agencyName,
-                                        }, SetOptions(merge: true));
-                                      } catch (_) {}
                                     } else {
                                       final rawAid = notif.data?['agency_id']?.toString() ?? '';
                                       final agId = rawAid.isNotEmpty ? rawAid : const Uuid().v4();
@@ -661,47 +587,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                         await uProv.loadUser(currentUid);
                                       } catch (_) {}
 
-                                      try {
-                                        final agDoc = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                            .collection('host_agencies')
-                                            .doc(agId);
-                                        await agDoc.set({
-                                          'name': agencyName,
-                                          'owner_id': currentUid,
-                                          'is_active': true,
-                                          'member_count': 1,
-                                          'created_at': DateTime.now().toUtc().toIso8601String(),
-                                        });
-                                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                            .collection('host_agency_members')
-                                            .doc('${agId}_$currentUid')
-                                            .set({
-                                          'agency_id': agId,
-                                          'user_id': currentUid,
-                                          'role': 'owner',
-                                          'status': 'active',
-                                          'joined_at': DateTime.now().toUtc().toIso8601String(),
-                                        });
-                                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                            .collection('users')
-                                            .doc(currentUid)
-                                            .set({
-                                          'agency_id': agId,
-                                        }, SetOptions(merge: true));
-                                      } catch (_) {}
                                     }
 
-                                    try {
-                                      await SupabaseDataService().deleteNotification(notif.id);
-                                    } catch (_) {}
-                                    try {
-                                      if (notif.id.isNotEmpty) {
-                                        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                            .collection('notifications')
-                                            .doc(notif.id)
-                                            .delete();
-                                      }
-                                    } catch (_) {}
+                                    if (notif.id.isNotEmpty) {
+                                      try {
+                                        await SupabaseDataService().deleteNotification(notif.id);
+                                      } catch (_) {}
+                                    }
 
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
@@ -723,12 +615,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     await SupabaseDataService().deleteNotification(notif.id);
                                   } catch (_) {}
                                   if (notif.id.isNotEmpty) {
-                                    try {
-                                      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                          .collection('notifications')
-                                          .doc(notif.id)
-                                          .delete();
-                                    } catch (_) {}
                                   }
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -780,10 +666,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     await CpService.respondRequest(reqId, true);
                                   }
                                   if (notif.id.isNotEmpty) {
-                                    await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                        .collection('notifications')
-                                        .doc(notif.id)
-                                        .delete();
+                                    await SupabaseDataService().deleteNotification(notif.id);
                                   }
                                   if (mounted) {
                                     Navigator.push(
@@ -802,10 +685,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 color: const Color(0xFF9BA1B6),
                                 onTap: () async {
                                   if (notif.id.isNotEmpty) {
-                                    await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                        .collection('notifications')
-                                        .doc(notif.id)
-                                        .delete();
+                                    await SupabaseDataService().deleteNotification(notif.id);
                                   }
                                 },
                               ),

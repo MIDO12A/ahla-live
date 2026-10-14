@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/banner_config.dart';
 import '../../../services/supabase_service.dart';

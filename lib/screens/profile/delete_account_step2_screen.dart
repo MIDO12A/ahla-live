@@ -1,7 +1,6 @@
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../services/supabase_auth_service.dart';
+import '../../services/supabase_data_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_strings.dart';
 import '../../screens/login/login_screen.dart';
@@ -22,16 +21,14 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
+      final uid = SupabaseAuthService().currentUid;
+      if (uid == null || uid.isEmpty) {
         if (mounted) _navigateToLogin();
         return;
       }
 
-      // Delete the user document (and profile visits/sub-docs via security rules cascade)
-      await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(user.uid).delete();
-
-      await FirebaseAuth.instance.currentUser?.delete();
+      await SupabaseDataService().deleteUser(uid);
+      await SupabaseAuthService().signOut();
       if (mounted) _navigateToLogin();
     } catch (e) {
       if (mounted) {

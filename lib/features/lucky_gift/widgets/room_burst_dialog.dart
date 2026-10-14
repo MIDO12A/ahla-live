@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../models/lucky_gift_model.dart';

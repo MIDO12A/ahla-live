@@ -4,7 +4,7 @@ import {
   Building2, Crown, BarChart3, Award, Handshake,
   TrendingUp, Image, Palette, Bug,
   Bell, Settings, Shield, ChevronLeft, LogOut, SlidersHorizontal, Grid, Gift as GiftIcon,
-  Tag, Sparkles, Eye, ImageIcon, Calendar, Rocket, Phone, CheckSquare, Volume2, Mic, User, Zap, X, Coins,
+  Tag, Sparkles, Eye, ImageIcon, Calendar, Rocket, Phone, CheckSquare, Volume2, Mic, User, Zap, X, Coins, Trophy,
 } from 'lucide-react';
 import { logout, type AppUser } from '../lib/auth';
 import { useContext } from 'react';
@@ -20,6 +20,7 @@ const navItems = [
   { to: '/store', icon: Store, label: 'nav.store', permKey: 'store' },
   { to: '/user-gifting', icon: GiftIcon, label: 'nav.userGifting', permKey: 'user_gifting' },
   { to: '/rooms', icon: DoorOpen, label: 'nav.rooms', permKey: 'rooms' },
+  { to: '/room-cup', icon: Trophy, label: 'nav.roomCup', permKey: 'rooms' },
   { to: '/lucky-gifts', icon: Sparkles, label: 'nav.luckyGifts', permKey: 'lucky_gifts' },
   { to: '/red-packets', icon: Gift, label: 'nav.redPackets', permKey: 'red_packets' },
   { to: '/tasks-manager', icon: CheckSquare, label: 'nav.tasksManager', permKey: 'tasks_manager' },

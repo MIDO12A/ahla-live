@@ -1,10 +1,8 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import '../config/supabase_config.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -40,7 +38,6 @@ class UpdateService {
   UpdateService._();
   static final UpdateService instance = UpdateService._();
 
-  static const _docPath = 'app_config/app_update';
   static const _buildInfoUrl =
       'https://github.com/MIDO12A/ahla-live/releases/latest/download/build_info.json';
   static const _apkUrlArm64 =
@@ -219,51 +216,7 @@ class UpdateService {
     }
   }
 
-  Future<AppUpdateInfo?> _checkFirestore(
-    PackageInfo info, {
-    bool throwOnError = false,
-  }) async {
-    try {
-      final snap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-          .doc(_docPath)
-          .get(const GetOptions(source: Source.server))
-          .timeout(const Duration(seconds: 8));
-      if (!snap.exists) return null;
-      final d = snap.data();
-      if (d == null) return null;
 
-      final latestVersion = (d['latest_version'] ?? '').toString().trim();
-      final apkUrl = (d['apk_url'] ?? '').toString().trim();
-      if (latestVersion.isEmpty || apkUrl.isEmpty) return null;
-
-      final latestBuild = int.tryParse('${d['build_number'] ?? ''}') ?? 0;
-      final currentBuild = int.tryParse(info.buildNumber) ?? 0;
-
-      if (!_isNewer(
-        remoteVersion: latestVersion,
-        remoteBuild: latestBuild,
-        currentVersion: info.version,
-        currentBuild: currentBuild,
-      )) {
-        return null;
-      }
-
-      return AppUpdateInfo(
-        latestVersion: latestVersion,
-        buildNumber: latestBuild,
-        apkUrl: apkUrl,
-        notesAr: (d['notes_ar'] ?? '').toString(),
-        notesEn: (d['notes_en'] ?? '').toString(),
-        forceUpdate: d['force_update'] == true,
-        currentVersion: info.version,
-        currentBuild: currentBuild,
-      );
-    } catch (e) {
-      if (throwOnError) rethrow;
-      return null;
-    }
-
-  }
 
   /// Strictly determines if an update should be offered.
   /// Prevents any accidental downgrade to an older version.

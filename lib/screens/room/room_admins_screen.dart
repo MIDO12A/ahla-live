@@ -1,7 +1,5 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../config/r.dart';
 import '../../config/app_colors.dart';
 import '../../services/supabase_service.dart';
@@ -19,11 +17,11 @@ class RoomAdminsScreen extends StatefulWidget {
 }
 
 class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
-  final SupabaseService _firebaseService = SupabaseService();
+  final SupabaseService _supabaseService = SupabaseService();
   List<String> _moderatorUids = [];
   final Map<String, UserModel> _adminProfiles = {};
   bool _isLoading = true;
-  StreamSubscription? _roomSub;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -32,7 +30,11 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
   }
 
   void _listenToModerators() async {
-    // 1. Initial fetch from Supabase
+    _fetchModerators();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) => _fetchModerators());
+  }
+
+  Future<void> _fetchModerators() async {
     try {
       final room = await SupabaseDataService().getRoom(widget.roomId);
       if (room != null && mounted) {
@@ -41,37 +43,18 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
           _isLoading = false;
         });
         _loadProfiles(room.moderators);
+      } else if (mounted) {
+        setState(() => _isLoading = false);
       }
-    } catch (_) {}
-
-    // 2. Stream from Firestore
-    try {
-      _roomSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-          .collection('rooms')
-          .doc(widget.roomId)
-          .snapshots()
-          .listen((snap) async {
-        if (!mounted) return;
-        if (!snap.exists) {
-          setState(() => _isLoading = false);
-          return;
-        }
-        final data = snap.data() ?? {};
-        final mods = (data['moderators'] as List?)?.map((e) => e.toString()).toList() ?? [];
-        
-        setState(() {
-          _moderatorUids = mods;
-          _isLoading = false;
-        });
-        _loadProfiles(mods);
-      });
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadProfiles(List<String> uids) async {
     for (final uid in uids) {
       if (!_adminProfiles.containsKey(uid)) {
-        final u = await _firebaseService.getUser(uid);
+        final u = await _supabaseService.getUser(uid);
         if (u != null && mounted) {
           setState(() {
             _adminProfiles[uid] = u;
@@ -83,7 +66,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
 
   @override
   void dispose() {
-    _roomSub?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
@@ -94,13 +77,6 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
 
       // Sync Supabase
       await SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated});
-
-      // Sync Firestore
-      try {
-        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
-          'moderators': FieldValue.arrayRemove([uid]),
-        });
-      } catch (_) {}
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -193,27 +169,6 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                         } catch (_) {}
 
                         if (targetUid == null) {
-                          // Try Firestore fallback
-                          try {
-                            final userSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                                .collection('users')
-                                .where('custom_id', isEqualTo: input)
-                                .limit(1)
-                                .get();
-                            if (userSnap.docs.isNotEmpty) {
-                              targetUid = userSnap.docs.first.id;
-                              targetName = userSnap.docs.first.data()['name']?.toString() ?? 'User';
-                            } else {
-                              final doc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(input).get();
-                              if (doc.exists) {
-                                targetUid = doc.id;
-                                targetName = doc.data()?['name']?.toString() ?? 'User';
-                              }
-                            }
-                          } catch (_) {}
-                        }
-
-                        if (targetUid == null) {
                           setDlgState(() {
                             isSearching = false;
                             errorText = 'المستخدم غير موجود';
@@ -234,13 +189,6 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
 
                         // Sync Supabase
                         await SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated});
-
-                        // Sync Firestore
-                        try {
-                          await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('rooms').doc(widget.roomId).update({
-                            'moderators': FieldValue.arrayUnion([targetUid]),
-                          });
-                        } catch (_) {}
 
                         Navigator.pop(ctx);
 

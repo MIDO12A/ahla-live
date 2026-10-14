@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../models/lucky_gift_model.dart';
 
 /// نافذة تسوية أرباح الانفجار والكومبو (RoomBurstSettlementDialog)

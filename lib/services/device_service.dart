@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -190,30 +189,6 @@ class DeviceService {
         }),
       );
 
-      // 3. Sync to Firestore (both users and device_registrations)
-      try {
-        await FirebaseFirestore.instance.collection('users').doc(cleanUid).set({
-          'device_id': dev.deviceId,
-          'device_model': dev.deviceModel,
-          'mac_address': dev.macAddress,
-          'network_id': dev.networkId,
-          'ip_address': dev.ipAddress,
-          'device_updated_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        await FirebaseFirestore.instance.collection('device_registrations').doc(dev.deviceId).set({
-          'device_id': dev.deviceId,
-          'device_model': dev.deviceModel,
-          'mac_address': dev.macAddress,
-          'network_id': dev.networkId,
-          'uids': FieldValue.arrayUnion([cleanUid]),
-          'emails': cleanEmail.isNotEmpty ? FieldValue.arrayUnion([cleanEmail]) : FieldValue.arrayUnion([]),
-          'updated_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      } catch (fsErr) {
-        debugPrint('[DeviceService] Firestore device sync error: $fsErr');
-      }
-
       debugPrint('[DeviceService] Successfully registered device ${dev.deviceId} for user $cleanUid');
     } catch (e) {
       debugPrint('[DeviceService] saveDeviceRegistration error: $e');
@@ -265,50 +240,26 @@ class DeviceService {
       debugPrint('[DeviceService] Supabase app_config check error: $e');
     }
 
-    // 2. Check Firestore device_registrations
+    // 2. Query Supabase users table by device_id
     try {
-      final devDoc = await FirebaseFirestore.instance
-          .collection('device_registrations')
-          .doc(cleanDevice)
-          .get();
-
-      if (devDoc.exists) {
-        final data = devDoc.data() ?? {};
-        final uids = data['uids'];
-        final emails = data['emails'];
-        if (uids is List) {
-          for (final u in uids) {
-            final s = u.toString().trim();
-            if (s.isNotEmpty) registeredUids.add(s);
-          }
-        }
-        if (emails is List) {
-          for (final em in emails) {
-            final s = em.toString().trim().toLowerCase();
-            if (s.isNotEmpty) registeredEmails.add(s);
-          }
+      final encDev = Uri.encodeComponent(cleanDevice);
+      final url = Uri.parse('${SupabaseConfig.projectUrl}/rest/v1/users?device_id=eq.$encDev&select=id,uid,email');
+      final res = await http.get(url, headers: {
+        'apikey': SupabaseConfig.anonKey,
+        'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+      });
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        for (final item in list) {
+          final data = Map<String, dynamic>.from(item as Map);
+          final email = (data['email'] ?? '').toString().trim().toLowerCase();
+          final uid = (data['uid'] ?? data['id'] ?? '').toString().trim();
+          if (email.isNotEmpty) registeredEmails.add(email);
+          if (uid.isNotEmpty) registeredUids.add(uid);
         }
       }
     } catch (e) {
-      debugPrint('[DeviceService] Firestore device_registrations check error: $e');
-    }
-
-    // 3. Fallback Firestore users query
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('device_id', isEqualTo: cleanDevice)
-          .get();
-
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final email = (data['email'] ?? '').toString().trim().toLowerCase();
-        final uid = (data['uid'] ?? doc.id).toString().trim();
-        if (email.isNotEmpty) registeredEmails.add(email);
-        if (uid.isNotEmpty) registeredUids.add(uid);
-      }
-    } catch (e) {
-      debugPrint('[DeviceService] Firestore limit check error: $e');
+      debugPrint('[DeviceService] Supabase users device check error: $e');
     }
 
     final normalizedCurrentEmail = currentEmail.trim().toLowerCase();

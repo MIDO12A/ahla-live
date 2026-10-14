@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/lucky_gift_model.dart';
 import '../widgets/lucky_card_flip_layout.dart';
@@ -54,8 +54,8 @@ class LuckyGiftService {
       }
     });
 
-    // 1. إذا كان هناك فوز بمضاعف (5X فما فوق)، نشغل أنيميشن مكسب الحظ في الروم فقط لمنع تشغيل اثنين SVGA معاً
-    final bool hasWin = LuckyRoomWinSvgaOverlay.hasWinSvga(nextData.maxMultiplier);
+    // 1. إذا كان هناك فوز بمضاعف (5X فما فوق) أو SVGA مخصص، نشغل أنيميشن مكسب الحظ في الروم فقط لمنع تشغيل اثنين SVGA معاً
+    final bool hasWin = LuckyRoomWinSvgaOverlay.hasWinSvga(nextData.maxMultiplier, customUrl: nextData.customSvgaUrl);
     if (hasWin) {
       showRoomWinSvgaOverlay(
         context,
@@ -64,6 +64,7 @@ class LuckyGiftService {
         giftName: nextData.gift.giftNameAr.isNotEmpty ? nextData.gift.giftNameAr : nextData.gift.giftName,
         senderName: nextData.senderName,
         senderAvatar: nextData.senderAvatar,
+        customSvgaUrl: nextData.customSvgaUrl,
       );
     } else if (LuckyComboSvgaOverlay.hasSvgaForCount(nextData.comboCount)) {
       // نشغل أنيميشن رقم الكومبو فقط إذا لم يكن هناك فوز مضاعف تجنباً لتشنج الـ GPU
@@ -79,6 +80,7 @@ class LuckyGiftService {
         giftName: nextData.gift.giftNameAr,
         multiplier: nextData.maxMultiplier,
         totalWon: nextData.totalWonCoins,
+        customSvgaUrl: nextData.customSvgaUrl,
       );
     }
 
@@ -115,6 +117,7 @@ class LuckyGiftService {
     required String giftName,
     required String senderName,
     String senderAvatar = '',
+    String? customSvgaUrl,
   }) {
     _roomWinOverlay?.remove();
     if (!context.mounted) return; // FIX: لا تُنشئ overlay فوق context مفصول
@@ -126,6 +129,7 @@ class LuckyGiftService {
         giftName: giftName,
         senderName: senderName,
         senderAvatar: senderAvatar,
+        customSvgaUrl: customSvgaUrl,
         onFinished: () {
           _roomWinOverlay?.remove();
           _roomWinOverlay = null;
@@ -181,6 +185,7 @@ class LuckyGiftService {
     required String giftName,
     required int multiplier,
     required int totalWon,
+    String? customSvgaUrl,
   }) {
     if (multiplier < 100) return; // حصراً 100X فما فوق
     _bannerOverlay?.remove();
@@ -193,6 +198,7 @@ class LuckyGiftService {
         giftName: giftName,
         multiplier: multiplier,
         totalWon: totalWon,
+        customSvgaUrl: customSvgaUrl,
         onDismiss: () {
           _bannerOverlay?.remove();
           _bannerOverlay = null;
@@ -210,6 +216,7 @@ class LuckyGiftService {
     _globalSub = globalStream.listen((data) {
       final mult = data['multiplier'] is int ? data['multiplier'] as int : int.tryParse(data['multiplier']?.toString() ?? '0') ?? 0;
       if (mult < 100) return; // البانر العام يظهر فقط لـ 100X فما فوق
+      final customUrl = data['svga_url']?.toString() ?? data['svgaUrl']?.toString();
       if (context.mounted) {
         showBigWinBanner(
           context,
@@ -218,6 +225,7 @@ class LuckyGiftService {
           giftName: data['gift_name'] ?? '',
           multiplier: mult,
           totalWon: data['total_won'] ?? 0,
+          customSvgaUrl: (customUrl != null && customUrl.isNotEmpty) ? customUrl : null,
         );
       }
     });

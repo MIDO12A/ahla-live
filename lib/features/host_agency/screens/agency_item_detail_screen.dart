@@ -1,14 +1,7 @@
-import 'package:firebase_core/firebase_core.dart';
-// lib/features/host_agency/screens/agency_item_detail_screen.dart
-// ─────────────────────────────────────────────────────────────────────────────
-// 100% Match for union_activity_agency_item_detail.xml,
-// union_adapter_agency_detail_header.xml & union_adapter_agency_detail_item.xml
-// ─────────────────────────────────────────────────────────────────────────────
-
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../config/r.dart';
 import '../../../../services/dynamic_config_service.dart';
+import '../../../../services/supabase_data_service.dart';
 import 'package:provider/provider.dart';
 
 class AgencyItemDetailScreen extends StatefulWidget {
@@ -34,7 +27,6 @@ class AgencyItemDetailScreen extends StatefulWidget {
 }
 
 class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
-  final _db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
   List<Map<String, dynamic>> _liveMembers = [];
   bool _loading = true;
 
@@ -51,20 +43,9 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
         if (mounted) setState(() => _loading = false);
         return;
       }
-      final snap = await _db
-          .collection('host_agency_members')
-          .where('agency_id', isEqualTo: widget.agencyId)
-          .where('status', isEqualTo: 'active')
-          .get();
-
-      if (snap.docs.isNotEmpty) {
-        final list = snap.docs.map((d) {
-          final m = d.data();
-          m['id'] = d.id;
-          return m;
-        }).toList();
-
-        // Sort descending by diamonds
+      final members = await SupabaseDataService().getHostAgencyMembers(widget.agencyId);
+      if (members.isNotEmpty) {
+        final list = List<Map<String, dynamic>>.from(members);
         list.sort((a, b) {
           final da = (a['diamonds_earned_monthly'] as num?)?.toInt() ??
               (a['diamonds_balance'] as num?)?.toInt() ??
@@ -80,6 +61,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
             _liveMembers = list;
             _loading = false;
           });
+          return;
         }
       } else {
         if (mounted) setState(() => _loading = false);

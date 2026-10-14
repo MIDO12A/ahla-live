@@ -59,28 +59,6 @@ const authAdmin = {
       }
     } catch {}
 
-    // Fallback to Firestore users collection
-    try {
-      const { getDoc, doc } = await import('firebase/firestore')
-      const { firestoreDb } = await import('./firebase')
-      const snap = await getDoc(doc(firestoreDb, 'users', uid))
-      if (snap.exists()) {
-        const d = snap.data()
-        const user = {
-          id: snap.id,
-          email: d.email || '',
-          phone: d.phone || '',
-          user_metadata: {
-            name: d.name || d.displayName || '',
-            full_name: d.name || d.displayName || '',
-            avatar_url: d.photo_url || d.photoUrl || '',
-          },
-          created_at: d.created_at || null,
-        }
-        return { data: { user }, error: null }
-      }
-    } catch {}
-
     return { data: { user: null }, error: null }
   },
   async updateUserById(uid: string, params: { password?: string }) {

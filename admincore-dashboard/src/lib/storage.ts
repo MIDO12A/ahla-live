@@ -1,5 +1,4 @@
-// Uploads go to Cloudinary (same account + preset as the Flutter app), because
-// Firebase Storage is not enabled on this project (no billing account linked).
+// Uploads go to Cloudinary (same account + preset as the Flutter app).
 // The returned URL is a secure_url that the app reads normally via R.cachedImage().
 
 const CLOUD_NAME = 'r5kohqhd';

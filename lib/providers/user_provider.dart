@@ -1,5 +1,4 @@
 import '../services/supabase_data_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
@@ -205,7 +204,7 @@ class UserProvider extends ChangeNotifier {
       final supaUser = SupabaseAuthService().currentUser;
       final authPhoto = (supaUser != null && supaUser.uid == uid && supaUser.photoUrl != null && supaUser.photoUrl!.isNotEmpty)
           ? supaUser.photoUrl
-          : FirebaseAuth.instance.currentUser?.photoURL;
+          : null;
       if (authPhoto != null && authPhoto.isNotEmpty) {
         _currentUser = _currentUser!.copyWith(photoUrl: authPhoto);
         try {

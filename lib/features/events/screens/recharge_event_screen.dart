@@ -1,11 +1,12 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../../../screens/room/widgets/svga_player.dart';
 import '../../../screens/rank/rank_screen.dart';
+import '../../../services/supabase_data_service.dart';
+import '../../../services/supabase_auth_service.dart';
+import '../../../config/supabase_config.dart';
 
 /// بيانات المكافأة الفردية داخل مستوى الشحن
 class TierRewardItemData {
@@ -184,9 +185,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   Timer? _timer;
   Duration _timeLeft = Duration.zero;
 
-  StreamSubscription? _configSub;
-  StreamSubscription? _userSub;
-  StreamSubscription? _progressSub;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -194,16 +193,14 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     _calculateTimeLeft();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _calculateTimeLeft());
     _loadUserProgress();
-    _listenToUserProgress();
-    _listenToDynamicConfig();
+    _loadDynamicConfig();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadUserProgress());
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _configSub?.cancel();
-    _userSub?.cancel();
-    _progressSub?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
@@ -218,46 +215,50 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     }
   }
 
-  void _listenToDynamicConfig() {
-    _configSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-        .collection('app_config')
-        .doc('general')
-        .snapshots()
-        .listen((doc) {
-      if (!doc.exists) return;
-      final data = doc.data();
-      if (data == null) return;
+  Future<void> _loadDynamicConfig() async {
+    try {
+      final res = await SupabaseConfig.client
+          .from('app_config')
+          .select('value')
+          .eq('key', 'general')
+          .maybeSingle();
+      if (res != null && res['value'] != null) {
+        final dynamic val = res['value'];
+        final Map<String, dynamic> data = val is Map
+            ? Map<String, dynamic>.from(val)
+            : (val is String ? Map<String, dynamic>.from(jsonDecode(val)) : {});
 
-      // مستويات الشحن
-      if (data['recharge_event_tiers'] is List && (data['recharge_event_tiers'] as List).isNotEmpty) {
-        final list = (data['recharge_event_tiers'] as List).asMap().entries.map((e) {
-          return RechargeEventTierData.fromMap(Map<String, dynamic>.from(e.value), e.key + 1);
-        }).toList();
-        if (mounted) setState(() => _tiers = list);
-      }
+        // مستويات الشحن
+        if (data['recharge_event_tiers'] is List && (data['recharge_event_tiers'] as List).isNotEmpty) {
+          final list = (data['recharge_event_tiers'] as List).asMap().entries.map((e) {
+            return RechargeEventTierData.fromMap(Map<String, dynamic>.from(e.value), e.key + 1);
+          }).toList();
+          if (mounted) setState(() => _tiers = list);
+        }
 
-      // إعدادات التصميم والنصوص والألوان
-      if (data['recharge_event_settings'] is Map) {
-        final s = Map<String, dynamic>.from(data['recharge_event_settings']);
-        if (mounted) {
-          setState(() {
-            if (s['title'] != null) _titleText = s['title'].toString();
-            if (s['titleColor'] != null) _titleColor = _parseColor(s['titleColor'], Colors.white);
-            _headerTextImage = s['headerTextImage']?.toString().isNotEmpty == true ? s['headerTextImage'].toString() : null;
-            if (s['dialogBgImage']?.toString().isNotEmpty == true) _dialogBgAsset = s['dialogBgImage'].toString();
-            if (s['itemBgImage']?.toString().isNotEmpty == true) _itemBgAsset = s['itemBgImage'].toString();
-            if (s['tagImage']?.toString().isNotEmpty == true) _tagAsset = s['tagImage'].toString();
-            if (s['coinsImage']?.toString().isNotEmpty == true) _coinsAsset = s['coinsImage'].toString();
-            if (s['btnImage']?.toString().isNotEmpty == true) _btnAsset = s['btnImage'].toString();
-            if (s['closeBtnImage']?.toString().isNotEmpty == true) _closeBtnAsset = s['closeBtnImage'].toString();
-            if (s['btnText'] != null) _btnText = s['btnText'].toString();
-            if (s['btnTextColor'] != null) _btnTextColor = _parseColor(s['btnTextColor'], const Color(0xFF441200));
-            if (s['tagTextColor'] != null) _tagTextColor = _parseColor(s['tagTextColor'], const Color(0xFFFFE957));
-            if (s['itemLabelColor'] != null) _itemLabelColor = _parseColor(s['itemLabelColor'], const Color(0xFFFFE957));
-          });
+        // إعدادات التصميم والنصوص والألوان
+        if (data['recharge_event_settings'] is Map) {
+          final s = Map<String, dynamic>.from(data['recharge_event_settings']);
+          if (mounted) {
+            setState(() {
+              if (s['title'] != null) _titleText = s['title'].toString();
+              if (s['titleColor'] != null) _titleColor = _parseColor(s['titleColor'], Colors.white);
+              _headerTextImage = s['headerTextImage']?.toString().isNotEmpty == true ? s['headerTextImage'].toString() : null;
+              if (s['dialogBgImage']?.toString().isNotEmpty == true) _dialogBgAsset = s['dialogBgImage'].toString();
+              if (s['itemBgImage']?.toString().isNotEmpty == true) _itemBgAsset = s['itemBgImage'].toString();
+              if (s['tagImage']?.toString().isNotEmpty == true) _tagAsset = s['tagImage'].toString();
+              if (s['coinsImage']?.toString().isNotEmpty == true) _coinsAsset = s['coinsImage'].toString();
+              if (s['btnImage']?.toString().isNotEmpty == true) _btnAsset = s['btnImage'].toString();
+              if (s['closeBtnImage']?.toString().isNotEmpty == true) _closeBtnAsset = s['closeBtnImage'].toString();
+              if (s['btnText'] != null) _btnText = s['btnText'].toString();
+              if (s['btnTextColor'] != null) _btnTextColor = _parseColor(s['btnTextColor'], const Color(0xFF441200));
+              if (s['tagTextColor'] != null) _tagTextColor = _parseColor(s['tagTextColor'], const Color(0xFFFFE957));
+              if (s['itemLabelColor'] != null) _itemLabelColor = _parseColor(s['itemLabelColor'], const Color(0xFFFFE957));
+            });
+          }
         }
       }
-    }, onError: (_) {});
+    } catch (_) {}
   }
 
   Color _parseColor(dynamic hex, Color fallback) {
@@ -272,27 +273,31 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   }
 
   Future<void> _loadUserProgress() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = SupabaseAuthService().currentUser?.uid;
     if (uid == null) return;
 
     try {
-      final userDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).get();
-      final rechargedCoins = (userDoc.data()?['recharged_coins'] as num?)?.toInt() ?? 
-                            (userDoc.data()?['total_recharge'] as num?)?.toInt() ?? 
-                            (userDoc.data()?['total_recharged_coins'] as num?)?.toInt() ?? 0;
+      final user = await SupabaseDataService().getUser(uid);
+      final rechargedCoins = user?.rechargeExp ?? user?.coins ?? 0;
 
       final now = DateTime.now();
       final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
-      final progressDoc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-          .collection('recharge_event_progress')
-          .doc('${eventId}_$uid')
-          .get();
+      final progressRes = await SupabaseConfig.client
+          .from('recharge_event_progress')
+          .select()
+          .eq('user_id', uid)
+          .eq('event_id', eventId)
+          .maybeSingle();
 
       if (mounted) {
         setState(() {
           _userTotalRecharge = rechargedCoins;
-          if (progressDoc.exists) {
-            final data = progressDoc.data() ?? {};
+          if (progressRes != null) {
+            final data = Map<String, dynamic>.from(progressRes);
+            final eventCoins = (data['total_recharged_coins'] as num?)?.toInt() ?? 0;
+            if (eventCoins > _userTotalRecharge) {
+              _userTotalRecharge = eventCoins;
+            }
             _claimedTiers = List<String>.from(data['claimed_tiers'] ?? []);
             if (data['claimed_counts'] is Map) {
               _claimedCounts = Map<String, int>.from(
@@ -305,57 +310,6 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
         });
       }
     } catch (_) {}
-  }
-
-  void _listenToUserProgress() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    final now = DateTime.now();
-    final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
-
-    // 1. مراقبة شحن المستخدم المباشر فورياً (عند التحويل من الوكيل أو أداة الإدارة)
-    _userSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).snapshots().listen((doc) {
-      if (!doc.exists) return;
-      final data = doc.data() ?? {};
-      final c1 = (data['recharged_coins'] as num?)?.toInt() ?? 0;
-      final c2 = (data['total_recharged_coins'] as num?)?.toInt() ?? 0;
-      final c3 = (data['total_recharge'] as num?)?.toInt() ?? 0;
-      final maxCoins = [c1, c2, c3, _userTotalRecharge].reduce((curr, next) => curr > next ? curr : next);
-      if (mounted && maxCoins != _userTotalRecharge) {
-        setState(() => _userTotalRecharge = maxCoins);
-      }
-    }, onError: (_) {});
-
-    // 2. مراقبة وثيقة تقدم حدث الشحن
-    _progressSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-        .collection('recharge_event_progress')
-        .doc('${eventId}_$uid')
-        .snapshots()
-        .listen((doc) {
-      if (!doc.exists) return;
-      final data = doc.data() ?? {};
-      final eventCoins = (data['total_recharged_coins'] as num?)?.toInt() ?? 0;
-      final claimedList = List<String>.from(data['claimed_tiers'] ?? []);
-      Map<String, int> counts = {};
-      if (data['claimed_counts'] is Map) {
-        counts = Map<String, int>.from(
-          (data['claimed_counts'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
-        );
-      } else {
-        counts = {for (final id in claimedList) id: 1};
-      }
-
-      if (mounted) {
-        setState(() {
-          if (eventCoins > _userTotalRecharge) {
-            _userTotalRecharge = eventCoins;
-          }
-          _claimedTiers = claimedList;
-          _claimedCounts = counts;
-        });
-      }
-    }, onError: (_) {});
   }
 
   int _getTimesEarned(RechargeEventTierData tier) {
@@ -625,7 +579,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   }
 
   Future<void> _claimTierReward(RechargeEventTierData tier) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = SupabaseAuthService().currentUser?.uid;
     if (uid == null) return;
 
     final remaining = _getRemainingClaims(tier);
@@ -640,26 +594,24 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
 
     try {
-      final docRef = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('recharge_event_progress').doc('${eventId}_$uid');
       final currentClaimed = _getTimesClaimed(tier);
       final newCount = currentClaimed + 1;
       final updatedCounts = Map<String, int>.from(_claimedCounts);
       updatedCounts[tier.id] = newCount;
       final newClaimedTiers = Set<String>.from(_claimedTiers)..add(tier.id);
 
-      await docRef.set({
+      await SupabaseConfig.client.from('recharge_event_progress').upsert({
         'user_id': uid,
         'event_id': eventId,
         'total_recharged_coins': _userTotalRecharge,
         'claimed_tiers': newClaimedTiers.toList(),
         'claimed_counts': updatedCounts,
         'updated_at': now.toIso8601String(),
-      }, SetOptions(merge: true));
+      });
 
       // إضافة جميع المكافآت في حزمة المستوى إلى حقيبة المستخدم
-      final backpack = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('user_backpack');
       for (final item in tier.rewardsList) {
-        await backpack.add({
+        await SupabaseConfig.client.from('user_backpack').insert({
           'user_id': uid,
           'item_id': item.id,
           'name': item.name,
@@ -676,9 +628,10 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
       // إضافة مجموع الكوينز البونص لهذا المستوى
       final totalBonus = tier.totalBonusCoins;
       if (totalBonus > 0) {
-        await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(uid).update({
-          'coins': FieldValue.increment(totalBonus),
-        });
+        final u = await SupabaseDataService().getUser(uid);
+        if (u != null) {
+          await SupabaseDataService().updateUser(uid, {'coins': u.coins + totalBonus});
+        }
       }
 
       if (mounted) {
@@ -711,7 +664,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
   void _showRankingDialog() {
     final now = DateTime.now();
     final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';
-    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final currentUid = SupabaseAuthService().currentUser?.uid;
 
     showModalBottomSheet(
       context: context,
@@ -799,18 +752,18 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
 
             // قائمة المتصدرين الحية
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-                    .collection('recharge_event_progress')
-                    .where('event_id', isEqualTo: eventId)
-                    .orderBy('total_recharged_coins', descending: true)
-                    .limit(30)
-                    .snapshots(),
+              child: FutureBuilder<List<dynamic>>(
+                future: SupabaseConfig.client
+                    .from('recharge_event_progress')
+                    .select()
+                    .eq('event_id', eventId)
+                    .order('total_recharged_coins', ascending: false)
+                    .limit(30),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
                   }
-                  final docs = snapshot.data?.docs ?? [];
+                  final docs = (snapshot.data ?? []) as List<dynamic>;
                   if (docs.isEmpty) {
                     return Center(
                       child: Column(
@@ -831,7 +784,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     itemCount: docs.length,
                     itemBuilder: (context, index) {
-                      final docData = docs[index].data() as Map<String, dynamic>;
+                      final docData = docs[index] as Map<String, dynamic>;
                       final targetUid = docData['user_id']?.toString() ?? '';
                       final coins = (docData['total_recharged_coins'] as num?)?.toInt() ?? 0;
                       final isMe = targetUid == currentUid;
@@ -851,10 +804,14 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         rankColor = Colors.white54;
                       }
 
-                      return FutureBuilder<DocumentSnapshot>(
-                        future: FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('users').doc(targetUid).get(),
+                      return FutureBuilder<Map<String, dynamic>?>(
+                        future: SupabaseConfig.client
+                            .from('users')
+                            .select()
+                            .eq('uid', targetUid)
+                            .maybeSingle(),
                         builder: (context, userSnap) {
-                          final userData = userSnap.data?.data() as Map<String, dynamic>?;
+                          final userData = userSnap.data;
                           final name = userData?['name']?.toString() ?? 'مستخدم';
                           final photoUrl = userData?['photo_url']?.toString() ?? userData?['photoUrl']?.toString();
                           final customId = userData?['custom_id']?.toString() ?? userData?['customId']?.toString() ?? '';

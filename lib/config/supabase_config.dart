@@ -1,3 +1,5 @@
+import '../core/supabase_compat.dart';
+
 class SupabaseConfig {
   static const String projectUrl = 'https://pxyqgeitjdsilgfftnyd.supabase.co';
   
@@ -6,4 +8,6 @@ class SupabaseConfig {
 
   static const String publishableKey =
       'sb_publishable_q1Vtqddl7IZazMfLLbYuAw_Qi6NMFrv';
+
+  static SupabaseClient get client => Supabase.instance.client;
 }

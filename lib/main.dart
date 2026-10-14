@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'dart:async';
-import 'dart:developer' as developer;
-import 'firebase_options.dart';
+
 import 'l10n/app_localizations.dart';
 import 'services/dynamic_config_service.dart';
 import 'services/error_reporting_service.dart';
@@ -21,9 +18,9 @@ import 'screens/splash/splash_screen.dart';
 import 'screens/login/login_screen.dart';
 import 'screens/login/setup_profile_screen.dart';
 import 'screens/main_screen/main_screen.dart';
-import 'screens/room/room_screen.dart';
+import 'screens/room/room_screen.dart' hide Positioned;
 import 'config/r.dart';
-import 'config/app_colors.dart';
+
 import 'core/ui/in_app_toast.dart';
 import 'features/host_agency/widgets/agency_notification_handler.dart';
 import 'services/global_banner_service.dart';
@@ -34,27 +31,7 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Guard against [core/duplicate-app]: on Android the google-services plugin
-  // may already have created the [DEFAULT] app before Dart runs.
-  try {
-    Firebase.app();
-  } catch (_) {
-    // No default app exists yet — initialize it
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    } catch (e) {
-      debugPrint('Firebase.initializeApp: $e');
-    }
-  }
-  try {
-    FirebaseAuth.instance.authStateChanges().listen((data) {
-      developer.log('AUTH STATE CHANGE: ${data?.uid ?? 'none'}');
-    });
-  } catch (_) {}
-
-  await SupabaseAuthService().init();
+await SupabaseAuthService().init();
   SupabaseService().init();
   LevelService().init();
   await DynamicConfigService().init();
@@ -165,7 +142,7 @@ class _AuthGateState extends State<_AuthGate> {
   @override
   void initState() {
     super.initState();
-    _uid = SupabaseAuthService().currentUid ?? FirebaseAuth.instance.currentUser?.uid;
+    _uid = SupabaseAuthService().currentUid;
     if (_uid != null) _loadExistingUser();
 
     SupabaseAuthService().authStateChanges.listen((uid) {
@@ -177,15 +154,7 @@ class _AuthGateState extends State<_AuthGate> {
       }
     });
 
-    try {
-      FirebaseAuth.instance.authStateChanges().listen((u) {
-        if (!mounted) return;
-        if (u != null && _uid == null) {
-          _handleNewSignIn(u.uid);
-        }
-      });
-    } catch (_) {}
-  }
+}
 
   Future<void> _loadExistingUser() async {
     final uid = _uid;
@@ -198,8 +167,8 @@ class _AuthGateState extends State<_AuthGate> {
         MaterialPageRoute(
           builder: (_) => SetupProfileScreen(
             uid: uid,
-            email: supaAuthUser?.email ?? FirebaseAuth.instance.currentUser?.email ?? '',
-            photoUrl: supaAuthUser?.photoUrl ?? FirebaseAuth.instance.currentUser?.photoURL ?? '',
+            email: supaAuthUser?.email ?? '',
+            photoUrl: supaAuthUser?.photoUrl ?? '',
             phone: supaAuthUser?.phoneNumber ?? '',
           ),
         ),
@@ -220,8 +189,8 @@ class _AuthGateState extends State<_AuthGate> {
         MaterialPageRoute(
           builder: (_) => SetupProfileScreen(
             uid: uid,
-            email: supaAuthUser?.email ?? FirebaseAuth.instance.currentUser?.email ?? '',
-            photoUrl: supaAuthUser?.photoUrl ?? FirebaseAuth.instance.currentUser?.photoURL ?? '',
+            email: supaAuthUser?.email ?? '',
+            photoUrl: supaAuthUser?.photoUrl ?? '',
             phone: supaAuthUser?.phoneNumber ?? '',
           ),
         ),
@@ -311,7 +280,7 @@ class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
         uid = userProvider.currentUser?.uid;
       } catch (_) {}
     }
-    uid ??= svc.userId ?? SupabaseAuthService().currentUid ?? FirebaseAuth.instance.currentUser?.uid;
+    uid ??= svc.userId ?? SupabaseAuthService().currentUid;
     if (uid != null) {
       await svc.exitRoom(uid);
     } else {

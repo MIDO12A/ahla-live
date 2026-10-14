@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../utils/app_colors.dart';
 import '../../providers/locale_provider.dart';
+import '../../l10n/app_localizations.dart';
 
 class LanguageSelectionScreen extends StatefulWidget {
   const LanguageSelectionScreen({super.key});
@@ -83,9 +84,9 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: const Text(
-                    'حفظ',
-                    style: TextStyle(
+                  child: Text(
+                    AppLocalizations.of(context).save,
+                    style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,

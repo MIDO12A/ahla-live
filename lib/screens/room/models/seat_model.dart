@@ -1,4 +1,4 @@
-// seat_model.dart
+﻿// seat_model.dart
 // Data models for room seats and users
 
 enum SeatState { empty, occupied, locked, muted }

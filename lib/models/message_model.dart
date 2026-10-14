@@ -1,4 +1,4 @@
-class MessageModel {
+﻿class MessageModel {
   final String msgId;
   final String roomId;
   final String senderUid;

@@ -1,18 +1,7 @@
-import 'package:firebase_core/firebase_core.dart';
-// lib/features/host_agency/host_dashboard_screen.dart
-// ─────────────────────────────────────────────────────────────────────────────
-// Glassmorphic 2035 Host Dashboard
-// • Real-time diamond earnings (today / week / month)
-// • Neon progress bars for monthly milestones
-// • Agency membership card
-// • Auto-refresh via StreamBuilder + periodic timer
-// ─────────────────────────────────────────────────────────────────────────────
-
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/supabase_compat.dart';
 
 import '../../core/realtime/realtime_subscription.dart';
@@ -69,8 +58,6 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
   late final AnimationController _shimmerCtrl;
 
   // Realtime بديل Timer.periodic
-  StreamSubscription? _fsMemberSub;
-  StreamSubscription? _fsLedgerSub;
   RealtimeSubscription? _rtDiamonds;
   RealtimeSubscription? _rtMilestones;
   RealtimeSubscription? _rtProgress;   // v3: monthly progress
@@ -109,8 +96,6 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     _shimmerCtrl.dispose();
     _debounce?.cancel();
     _countdownTimer?.cancel();
-    _fsMemberSub?.cancel();
-    _fsLedgerSub?.cancel();
     _rtDiamonds?.dispose();
     _rtMilestones?.dispose();
     _rtProgress?.dispose();
@@ -128,53 +113,9 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
 
   // ── subscribe realtime (Firestore Live Stream for Gifts & Targets) ────────
   void _bindRealtime(String uid) {
-    _fsMemberSub?.cancel();
-    _fsLedgerSub?.cancel();
     _rtDiamonds?.dispose();
     _rtMilestones?.dispose();
     _rtV2Diamonds?.dispose();
-
-    // ⚡ 1. استماع لحظي مباشر في Firestore لعضوية المضيف وألماسه عند استلام أي هدية
-    _fsMemberSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-        .collection('host_agency_members')
-        .where('user_id', isEqualTo: uid)
-        .snapshots()
-        .listen((snapshot) {
-      if (snapshot.docs.isNotEmpty) {
-        final data = snapshot.docs.first.data();
-        final currentDiamonds = (data['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-        if (_prevMonthDiamonds > 0 && currentDiamonds > _prevMonthDiamonds) {
-          final diff = currentDiamonds - _prevMonthDiamonds;
-          KayanInAppToast.diamond('🎁 استلمت هدية جديدة! +${_fmtN(diff)} 💎');
-          HapticFeedback.mediumImpact();
-        }
-        _prevMonthDiamonds = currentDiamonds;
-        _scheduleReload();
-      }
-    }, onError: (e) => debugPrint('[HostDashboard] fsMemberSub error: $e'));
-
-    // ⚡ 2. استماع لحظي لسجل هدايا المضيف في agency_diamond_ledger
-    _fsLedgerSub = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-        .collection('agency_diamond_ledger')
-        .where('user_id', isEqualTo: uid)
-        .snapshots()
-        .listen((snapshot) {
-      for (final change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.added) {
-          final data = change.doc.data();
-          final amount = (data?['amount'] as num?)?.toInt() ?? 0;
-          final giftName = data?['gift_name']?.toString() ?? '';
-          if (amount > 0 && change.newIndex == 0) {
-            final title = giftName.isNotEmpty
-                ? '🎁 هدية "$giftName" (+${_fmtN(amount)} 💎)'
-                : '💎 هدية جديدة +${_fmtN(amount)} 💎';
-            KayanInAppToast.diamond(title);
-            HapticFeedback.lightImpact();
-          }
-          _scheduleReload();
-        }
-      }
-    }, onError: (e) => debugPrint('[HostDashboard] fsLedgerSub error: $e'));
 
     // ✅ اشتراك بدفتر الألماس (المحرك القديم للتوافق)
     _rtDiamonds = SupabaseRealtimeBridge.subscribePostgres(
@@ -336,20 +277,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         }
       } catch (_) {}
 
-      if (liveHours == 0 && validDays == 0) {
-        try {
-          final memSnap = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default')
-              .collection('host_agency_members')
-              .where('user_id', isEqualTo: uid)
-              .limit(1)
-              .get();
-          if (memSnap.docs.isNotEmpty) {
-            final mdata = memSnap.docs.first.data();
-            liveHours = (mdata['live_hours_monthly'] as num?)?.toInt() ?? 0;
-            validDays = (mdata['valid_days_monthly'] as num?)?.toInt() ?? 0;
-          }
-        } catch (_) {}
-      }
+
 
       // بناء بيانات لوحة التحكم
       final built = <String, dynamic>{

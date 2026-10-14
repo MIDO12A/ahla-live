@@ -1,8 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:restart_app/restart_app.dart' show Restart;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -10,19 +7,13 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../models/app_asset_model.dart';
 import '../config/app_config.dart';
 import 'supabase_data_service.dart';
+import 'supabase_auth_service.dart';
 
 class DynamicConfigService extends ChangeNotifier {
   static final DynamicConfigService _instance = DynamicConfigService._();
   static DynamicConfigService get instance => _instance;
   factory DynamicConfigService() => _instance;
   DynamicConfigService._();
-
-  final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
-    app: Firebase.app(),
-    databaseId: 'default',
-  );
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  StreamSubscription? _authSub;
   
   // App Configurations
   String _appName = 'Ahla Live';
@@ -439,10 +430,16 @@ class DynamicConfigService extends ChangeNotifier {
   String get agentRechargeSubtitle => _screenStr('agentRecharge', 'subtitle', 'وكيل معتمد');
   String get agentRechargeBgImage => _screenStr('agentRecharge', 'backgroundImage', '');
   String get agentRechargeHeaderBgImage => _screenStr('agentRecharge', 'headerBgImage', '');
+  String get agentRechargeTransferTitleImage => _screenStr('agentRecharge', 'transferTitleImage', '');
+  String get agentRechargeTransferCardBgImage => _screenStr('agentRecharge', 'transferCardBgImage', '');
+  String get agentRechargeConfirmBtnImage => _screenStr('agentRecharge', 'confirmButtonImage', '');
+  String get agentRechargeCoinIcon => _screenStr('agentRecharge', 'coinIconImage', '');
+  Color get agentRechargeCoinsTextColor => _screenColor('agentRecharge', 'coinsTextColor', const Color(0xFFFDE638));
+  Color get agentRechargeCardBorderColor => _screenColor('agentRecharge', 'cardBorderColor', const Color(0x803ED78A));
   Color get agentRechargeHeaderColor => _screenColor('agentRecharge', 'headerColor', const Color(0xFF16151A));
   Color get agentRechargeTextColor => _screenColor('agentRecharge', 'textColor', Colors.white);
-  Color get agentRechargeCardColor => _screenColor('agentRecharge', 'cardColor', Colors.white);
-  Color get agentRechargeAccentColor => _screenColor('agentRecharge', 'accentColor', const Color(0xFFFFD700));
+  Color get agentRechargeCardColor => _screenColor('agentRecharge', 'cardColor', const Color(0xFF141C24));
+  Color get agentRechargeAccentColor => _screenColor('agentRecharge', 'accentColor', const Color(0xFF3ED78A));
   Color get agentRechargeTabBarColor => _screenColor('agentRecharge', 'tabBarColor', const Color(0xFF1E1D24));
   String get agentRechargeBannerImage => _screenStr('agentRecharge', 'bannerImage', '');
   String get agentRechargeTabDashboard => _screenStr('agentRecharge', 'tabDashboard', '📊 لوحة التحكم');
@@ -456,14 +453,100 @@ class DynamicConfigService extends ChangeNotifier {
   // ── Host Agency & Hosts Screens Customization (من لوحة التحكم) ──
   String get hostAgencyBgImage => _screenStr('hostAgency', 'backgroundImage', '');
   String get hostAgencyHeaderBgImage => _screenStr('hostAgency', 'headerBgImage', '');
+  String get hostAgencyLevelBgImage => _screenStr('hostAgency', 'levelCardBgImage', '');
+  String get hostAgencyFlagImage => _screenStr('hostAgency', 'flagImage', '');
+  String get hostAgencyRankNameBgImage => _screenStr('hostAgency', 'rankNameBgImage', '');
+  String get hostAgencyBroadcastIcon => _screenStr('hostAgency', 'broadcastIconImage', '');
+  String get hostAgencyEditIcon => _screenStr('hostAgency', 'editIconImage', '');
+  String get hostAgencyHelpIcon => _screenStr('hostAgency', 'helpIconImage', '');
+  String get hostAgencyLineDotIcon => _screenStr('hostAgency', 'lineDotIconImage', '');
+  String get hostAgencyDiamondCardBgImage => _screenStr('hostAgency', 'diamondCardBgImage', '');
+  String get hostAgencyDiamondWatermark => _screenStr('hostAgency', 'diamondWatermarkImage', '');
+  String get hostAgencySalaryCardBgImage => _screenStr('hostAgency', 'salaryCardBgImage', '');
+  String get hostAgencySalaryWatermark => _screenStr('hostAgency', 'salaryWatermarkImage', '');
+  String get hostAgencyTransferArrowIcon => _screenStr('hostAgency', 'transferArrowIconImage', '');
+  String get hostAgencyWithdrawBtnImage => _screenStr('hostAgency', 'withdrawButtonImage', '');
   Color get hostAgencyHeaderColor => _screenColor('hostAgency', 'headerColor', const Color(0xFF16151A));
   Color get hostAgencyTextColor => _screenColor('hostAgency', 'textColor', Colors.white);
-  Color get hostAgencyCardColor => _screenColor('hostAgency', 'cardColor', Colors.white);
+  Color get hostAgencyCardColor => _screenColor('hostAgency', 'cardColor', const Color(0xFF00B5B3));
   String get hostAgencyBannerImage => _screenStr('hostAgency', 'bannerImage', '');
 
   String get hostsBgImage => _screenStr('hosts', 'backgroundImage', hostAgencyBgImage);
+  String get hostsHoursCardBgImage => _screenStr('hosts', 'hoursCardBgImage', '');
+  Color get hostsCardColor => _screenColor('hosts', 'cardColor', Colors.white);
   Color get hostsHeaderColor => _screenColor('hosts', 'headerColor', hostAgencyHeaderColor);
   Color get hostsTextColor => _screenColor('hosts', 'textColor', hostAgencyTextColor);
+
+  /// Returns a decoration image from either a network URL or local asset.
+  DecorationImage? getDecorationImage(
+    String? urlOrPath, {
+    String? defaultAsset,
+    BoxFit fit = BoxFit.cover,
+    ColorFilter? colorFilter,
+  }) {
+    final effective = (urlOrPath != null && urlOrPath.trim().isNotEmpty)
+        ? urlOrPath.trim()
+        : (defaultAsset != null && defaultAsset.trim().isNotEmpty ? defaultAsset.trim() : null);
+    if (effective == null || effective.isEmpty) return null;
+    final provider = getImageProvider(effective);
+    if (provider == null) return null;
+    return DecorationImage(
+      image: provider,
+      fit: fit,
+      colorFilter: colorFilter,
+    );
+  }
+
+  /// Returns an [ImageProvider] for a network URL or local asset.
+  ImageProvider? getImageProvider(String? urlOrPath, {String? defaultAsset}) {
+    final effective = (urlOrPath != null && urlOrPath.trim().isNotEmpty)
+        ? urlOrPath.trim()
+        : (defaultAsset != null && defaultAsset.trim().isNotEmpty ? defaultAsset.trim() : null);
+    if (effective == null || effective.isEmpty) return null;
+    if (effective.startsWith('http://') || effective.startsWith('https://')) {
+      return CachedNetworkImageProvider(effective);
+    }
+    return AssetImage(effective);
+  }
+
+  /// Builds a dynamic image widget from [customUrl] with fallback to [defaultAsset] or [fallbackWidget].
+  Widget buildDynamicImage(
+    String? customUrl, {
+    String? defaultAsset,
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.contain,
+    Color? color,
+    Widget? fallbackWidget,
+  }) {
+    final effective = (customUrl != null && customUrl.trim().isNotEmpty)
+        ? customUrl.trim()
+        : (defaultAsset != null && defaultAsset.trim().isNotEmpty ? defaultAsset.trim() : null);
+    if (effective == null || effective.isEmpty) {
+      return fallbackWidget ?? const SizedBox.shrink();
+    }
+    if (effective.startsWith('http://') || effective.startsWith('https://')) {
+      return CachedNetworkImage(
+        imageUrl: effective,
+        width: width,
+        height: height,
+        fit: fit,
+        color: color,
+        placeholder: (_, __) => fallbackWidget ?? const SizedBox.shrink(),
+        errorWidget: (_, __, ___) => (defaultAsset != null && defaultAsset.isNotEmpty)
+            ? Image.asset(defaultAsset, width: width, height: height, fit: fit, color: color)
+            : (fallbackWidget ?? const SizedBox.shrink()),
+      );
+    }
+    return Image.asset(
+      effective,
+      width: width,
+      height: height,
+      fit: fit,
+      color: color,
+      errorBuilder: (_, __, ___) => fallbackWidget ?? const SizedBox.shrink(),
+    );
+  }
 
   // ── CP Space Screen Customization (من لوحة التحكم) ──
   String get cpSpaceBgImage => _screenStr('cp', 'backgroundImage', _screenStr('cpSpace', 'backgroundImage', ''));
@@ -1068,58 +1151,23 @@ class DynamicConfigService extends ChangeNotifier {
   int _assetVersion = 0;
   int get assetVersion => _assetVersion;
 
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _configSub;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _appAssetsSub;
   Completer<void>? _initCompleter;
   Completer<void>? _initAssetsCompleter;
 
-  bool get hasValidSession => _auth.currentUser != null;
+  bool get hasValidSession => SupabaseAuthService().currentUid != null;
 
   // Initialize and listen to app_config
   Future<void> init() async {
     _initCompleter = Completer<void>();
-    // Cancel any existing subscriptions (safety for hot restart)
-    _configSub?.cancel();
-    _appAssetsSub?.cancel();
-    _authSub?.cancel();
-    // Re-subscribe when auth state changes (Firestore streams handle their own auth)
-    _authSub = _auth.authStateChanges().listen((user) {
-      if (user == null) {
-        debugPrint('DynamicConfigService: signed out, cancelling subscriptions');
-        _configSub?.cancel();
-        _appAssetsSub?.cancel();
-      } else {
-        debugPrint('DynamicConfigService: signed in, reconnecting subscriptions...');
-        _configSub?.cancel();
-        _appAssetsSub?.cancel();
-        _setupConfigStream();
-        _setupAppAssetsStream();
-      }
-    });
+    _initAssetsCompleter = Completer<void>();
 
     _setupConfigStream();
-    _initAssetsCompleter = Completer<void>();
     _setupAppAssetsStream();
 
-    // Load Supabase config and assets unconditionally.
-    // If not signed in to Firebase, complete completers quickly so app startup is never blocked.
-    if (!hasValidSession) {
-      Future.delayed(const Duration(milliseconds: 1500), () {
-        if (_initCompleter != null && !_initCompleter!.isCompleted) {
-          _initCompleter!.complete();
-        }
-        if (_initAssetsCompleter != null && !_initAssetsCompleter!.isCompleted) {
-          _initAssetsCompleter!.complete();
-        }
-      });
-    }
-
-    // Wait for both config and assets first data, or timeout after 5s.
-    // Never throw here: a timeout (offline / signed-out) must not block startup.
     try {
       await Future.any([
-        _initCompleter!.future.timeout(const Duration(seconds: 5)),
-        _initAssetsCompleter!.future.timeout(const Duration(seconds: 5)),
+        _initCompleter!.future.timeout(const Duration(seconds: 4)),
+        _initAssetsCompleter!.future.timeout(const Duration(seconds: 4)),
       ]);
     } catch (e) {
       debugPrint('DynamicConfigService: init timed out, continuing with defaults: $e');
@@ -1137,36 +1185,13 @@ class DynamicConfigService extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('DynamicConfigService: supabase app_assets error: $e');
+    } finally {
+      if (_initAssetsCompleter != null && !_initAssetsCompleter!.isCompleted) {
+        _initAssetsCompleter!.complete();
+      }
     }
 
-    // 2. Real-time Firestore stream on app_assets for instant zero-delay updates
-    _appAssetsSub?.cancel();
-    _appAssetsSub = _db.collection('app_assets').snapshots().listen((snap) {
-      for (final doc in snap.docs) {
-        final row = doc.data();
-        if (row['is_active'] != false) {
-          final asset = AppAssetModel.fromJson(row);
-          if (asset.key.isNotEmpty) {
-            _appAssets[asset.key] = asset;
-            if (asset.localPath != null && asset.localPath!.isNotEmpty) {
-              _appAssets[asset.localPath!] = asset;
-            }
-          }
-        }
-      }
-      _assetVersion++;
-      if (_initAssetsCompleter != null && !_initAssetsCompleter!.isCompleted) {
-        _initAssetsCompleter!.complete();
-      }
-      notifyListeners();
-    }, onError: (error) {
-      debugPrint('DynamicConfigService: app_assets stream error: $error');
-      if (_initAssetsCompleter != null && !_initAssetsCompleter!.isCompleted) {
-        _initAssetsCompleter!.complete();
-      }
-    });
-
-    // 3. Periodic refresh from Supabase for any newly uploaded dashboard assets
+    // 2. Periodic refresh from Supabase for any newly uploaded dashboard assets
     Timer.periodic(const Duration(seconds: 15), (_) async {
       try {
         final freshAssets = await SupabaseDataService().getAppAssets();
@@ -1413,7 +1438,7 @@ class DynamicConfigService extends ChangeNotifier {
     final restartFlag = _rawConfig['restartApp'];
     if (restartFlag == true || restartFlag == 'true') {
       debugPrint('DynamicConfigService: restartApp flag detected, restarting...');
-      _db.collection('app_config').doc('restartApp').set({'value': false}, SetOptions(merge: true));
+      SupabaseDataService().setAppConfig('restartApp', false);
       Restart.restartApp();
     }
 
@@ -1432,6 +1457,10 @@ class DynamicConfigService extends ChangeNotifier {
       }
     }).catchError((e) {
       debugPrint('DynamicConfigService: supabase getAppConfig error: $e');
+    }).whenComplete(() {
+      if (_initCompleter != null && !_initCompleter!.isCompleted) {
+        _initCompleter!.complete();
+      }
     });
 
     // 2. Periodic poll Supabase app_config every 10s
@@ -1442,29 +1471,6 @@ class DynamicConfigService extends ChangeNotifier {
         }
       }).catchError((_) {});
     });
-
-    // 3. Listen to Firestore app_config (optional fallback)
-    try {
-      _configSub = _db.collection('app_config').snapshots().listen((snap) {
-        final config = <String, dynamic>{};
-        for (final doc in snap.docs) {
-          final data = doc.data();
-          final k = doc.id;
-          final v = data['value'];
-          config[k] = v;
-        }
-        _applyConfig(config);
-      }, onError: (error) {
-        // Silently complete without error spam if Firebase is removed / restricted
-        if (_initCompleter != null && !_initCompleter!.isCompleted) {
-          _initCompleter!.complete();
-        }
-      });
-    } catch (_) {
-      if (_initCompleter != null && !_initCompleter!.isCompleted) {
-        _initCompleter!.complete();
-      }
-    }
   }
 
   List<AppAssetModel> getAssetsByCategory(String category) {
@@ -1614,7 +1620,7 @@ class DynamicConfigService extends ChangeNotifier {
     return 0; // 0 = Default, 1 = StandardVoiceCall, 2 = HighQualityChatroom
   }
 
-  /// Update Zego & Audio configurations in Firestore dynamically
+  /// Update Zego & Audio configurations in Supabase dynamically
   Future<void> updateAudioConfig({
     required int appId,
     required String appSign,
@@ -1622,19 +1628,17 @@ class DynamicConfigService extends ChangeNotifier {
     bool? audioEnabled,
     int? scenario,
   }) async {
-    final batch = _db.batch();
-    batch.set(_db.collection('app_config').doc('zego_app_id'), {'value': appId}, SetOptions(merge: true));
-    batch.set(_db.collection('app_config').doc('zego_app_sign'), {'value': appSign.trim()}, SetOptions(merge: true));
+    await SupabaseDataService().setAppConfig('zego_app_id', appId);
+    await SupabaseDataService().setAppConfig('zego_app_sign', appSign.trim());
     if (provider != null) {
-      batch.set(_db.collection('app_config').doc('audio_provider'), {'value': provider}, SetOptions(merge: true));
+      await SupabaseDataService().setAppConfig('audio_provider', provider);
     }
     if (audioEnabled != null) {
-      batch.set(_db.collection('app_config').doc('zego_audio_enabled'), {'value': audioEnabled}, SetOptions(merge: true));
+      await SupabaseDataService().setAppConfig('zego_audio_enabled', audioEnabled);
     }
     if (scenario != null) {
-      batch.set(_db.collection('app_config').doc('zego_scenario'), {'value': scenario}, SetOptions(merge: true));
+      await SupabaseDataService().setAppConfig('zego_scenario', scenario);
     }
-    await batch.commit();
 
     _rawConfig['zego_app_id'] = appId;
     _rawConfig['zego_app_sign'] = appSign.trim();

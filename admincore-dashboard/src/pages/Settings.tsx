@@ -165,7 +165,7 @@ export default function Settings() {
               </button>
             </div>
             <p className="text-[10px] text-slate-500">
-              يتم حفظ المفاتيح سحابياً في Firebase Firestore ليتم تطبيقها فورياً على جميع مستخدمي التطبيق.
+              يتم حفظ المفاتيح سحابياً في Supabase ليتم تطبيقها فورياً على جميع مستخدمي التطبيق.
             </p>
           </div>
         </div>

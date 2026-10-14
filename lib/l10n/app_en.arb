@@ -1,16 +1,24 @@
 {
   "@@locale": "en",
-  
+
   "tabDiscover": "Discover",
   "tabMessage": "Message",
   "tabProfile": "Profile",
-  
+
   "profileUserName": "User Name",
-  "profileUserId": "ID:",
+  "profileUserId": "ID: {id}",
+  "@profileUserId": {
+    "placeholders": {
+      "id": {
+        "type": "String",
+        "example": "100234"
+      }
+    }
+  },
   "profileFollowing": "Following",
   "profileFollowers": "Followers",
   "profileVisitors": "Visitors",
-  
+
   "profileWallet": "Wallet",
   "profileRecharge": "Recharge now",
   "profileLevel": "Level",
@@ -19,7 +27,7 @@
   "profileFeedback": "Feedback",
   "profileSetting": "Setting",
   "profileUnion": "Union",
-  
+
   "levelTitle": "Level",
   "levelExperience": "Experience: {current}/{max}",
   "@levelExperience": {
@@ -34,15 +42,490 @@
   },
   "levelNext": "Next Levels",
   "levelUnlockReward": "Unlock reward",
-  
+
   "mallTitle": "Mall",
   "mallHeadwear": "Headwear",
   "mallBubble": "Bubble",
   "mallCar": "Car",
   "mallEntrance": "Entrance",
   "mallBuy": "Buy",
-  
+
   "walletTitle": "Wallet",
   "walletCoinBalance": "Coin Balance",
-  "walletItems": "Wallet items"
+  "walletItems": "Wallet items",
+
+  "@_GENERAL": {
+    "description": "--- GENERAL ---"
+  },
+  "app_name": "Ahla Live",
+  "@app_name": {
+    "description": "Application display name"
+  },
+  "loading": "Loading...",
+  "@loading": {
+    "description": "General loading indicator text"
+  },
+  "error_occurred": "An error occurred, please try again",
+  "@error_occurred": {
+    "description": "General error notification"
+  },
+  "no_data": "No data available",
+  "@no_data": {
+    "description": "Placeholder when lists or views are empty"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button label"
+  },
+  "confirm": "Confirm",
+  "@confirm": {
+    "description": "Confirm button label"
+  },
+  "close": "Close",
+  "@close": {
+    "description": "Close button label"
+  },
+  "search": "Search",
+  "@search": {
+    "description": "Search input label"
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Save button label"
+  },
+  "delete": "Delete",
+  "@delete": {
+    "description": "Delete button label"
+  },
+  "edit": "Edit",
+  "@edit": {
+    "description": "Edit button label"
+  },
+
+  "@_AUTH": {
+    "description": "--- AUTH ---"
+  },
+  "login": "Login",
+  "@login": {
+    "description": "Login button/screen title"
+  },
+  "register": "Register",
+  "@register": {
+    "description": "Register button/screen title"
+  },
+  "phone_number": "Phone Number",
+  "@phone_number": {
+    "description": "Phone number field label"
+  },
+  "sms_code": "SMS Code",
+  "@sms_code": {
+    "description": "Verification SMS code field label"
+  },
+  "send_code": "Send Code",
+  "@send_code": {
+    "description": "Button to trigger SMS code dispatch"
+  },
+  "password": "Password",
+  "@password": {
+    "description": "Password field label"
+  },
+  "forgot_password": "Forgot Password?",
+  "@forgot_password": {
+    "description": "Password recovery prompt"
+  },
+  "agree_to_terms": "I agree to the Terms of Service and Privacy Policy",
+  "@agree_to_terms": {
+    "description": "Terms checkbox agreement prompt"
+  },
+  "privacy_policy": "Privacy Policy",
+  "@privacy_policy": {
+    "description": "Privacy policy title/link"
+  },
+  "terms_of_service": "Terms of Service",
+  "@terms_of_service": {
+    "description": "Terms of service title/link"
+  },
+
+  "@_NAVIGATION": {
+    "description": "--- NAVIGATION ---"
+  },
+  "tab_discover": "Discover",
+  "@tab_discover": {
+    "description": "Discover bottom navigation tab"
+  },
+  "tab_message": "Messages",
+  "@tab_message": {
+    "description": "Messages bottom navigation tab"
+  },
+  "tab_profile": "Profile",
+  "@tab_profile": {
+    "description": "Profile bottom navigation tab"
+  },
+  "tab_room": "Rooms",
+  "@tab_room": {
+    "description": "Voice rooms bottom navigation tab"
+  },
+  "tab_agency": "Agency",
+  "@tab_agency": {
+    "description": "Agency bottom navigation tab"
+  },
+
+  "@_PROFILE": {
+    "description": "--- PROFILE ---"
+  },
+  "profile_user_name": "Username",
+  "@profile_user_name": {
+    "description": "Profile user display name label"
+  },
+  "profile_user_id": "ID: {id}",
+  "profile_following": "Following",
+  "@profile_following": {
+    "description": "Number of users followed"
+  },
+  "profile_followers": "Followers",
+  "@profile_followers": {
+    "description": "Number of users following current user"
+  },
+  "profile_visitors": "Visitors",
+  "@profile_visitors": {
+    "description": "Recent profile visitors count/title"
+  },
+  "edit_profile": "Edit Profile",
+  "@edit_profile": {
+    "description": "Edit profile button/screen title"
+  },
+  "change_avatar": "Change Avatar",
+  "@change_avatar": {
+    "description": "Change user avatar action"
+  },
+  "change_nickname": "Change Nickname",
+  "@change_nickname": {
+    "description": "Change user nickname action"
+  },
+  "personal_signature": "Bio",
+  "@personal_signature": {
+    "description": "User bio or signature"
+  },
+  "gender": "Gender",
+  "@gender": {
+    "description": "User gender label"
+  },
+  "birthday": "Birthday",
+  "@birthday": {
+    "description": "User birthday label"
+  },
+
+  "@_WALLET_AND_MALL": {
+    "description": "--- WALLET & MALL ---"
+  },
+  "wallet_title": "Wallet",
+  "@wallet_title": {
+    "description": "Wallet screen title"
+  },
+  "wallet_coin_balance": "Coins Balance",
+  "@wallet_coin_balance": {
+    "description": "Current coins balance label"
+  },
+  "wallet_diamond_balance": "Diamonds Balance",
+  "@wallet_diamond_balance": {
+    "description": "Current diamonds balance label"
+  },
+  "recharge": "Recharge",
+  "@recharge": {
+    "description": "Recharge title"
+  },
+  "recharge_now": "Recharge Now",
+  "@recharge_now": {
+    "description": "Recharge action button"
+  },
+  "recharge_history": "Recharge History",
+  "@recharge_history": {
+    "description": "Recharge ledger/history title"
+  },
+  "insufficient_balance": "Insufficient balance, please recharge",
+  "@insufficient_balance": {
+    "description": "Alert displayed when user has insufficient balance"
+  },
+  "transaction_success": "Transaction completed successfully",
+  "@transaction_success": {
+    "description": "Alert displayed upon successful purchase or transaction"
+  },
+  "mall_title": "Mall",
+  "@mall_title": {
+    "description": "Virtual items mall title"
+  },
+  "mall_headwear": "Headwear",
+  "@mall_headwear": {
+    "description": "Avatar headwear accessories category"
+  },
+  "mall_bubble": "Chat Bubbles",
+  "@mall_bubble": {
+    "description": "Chat bubble frames category"
+  },
+  "mall_car": "Entrance Rides",
+  "@mall_car": {
+    "description": "Virtual car/mount rides category"
+  },
+  "mall_entrance": "Entrance Effects",
+  "@mall_entrance": {
+    "description": "Special entrance animation effects category"
+  },
+  "mall_buy": "Buy",
+  "@mall_buy": {
+    "description": "Purchase item button label"
+  },
+
+  "@_ROOM_AND_MIC": {
+    "description": "--- ROOM & MIC ---"
+  },
+  "room_title": "Voice Room",
+  "@room_title": {
+    "description": "Room screen default title"
+  },
+  "room_manager": "Room Admin",
+  "@room_manager": {
+    "description": "Room admin/manager role label"
+  },
+  "room_members": "Audience ({count})",
+  "@room_members": {
+    "description": "Audience member count in room",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "12"
+      }
+    }
+  },
+  "mic_up": "Take Mic",
+  "@mic_up": {
+    "description": "Action to occupy a microphone seat"
+  },
+  "mic_down": "Leave Mic",
+  "@mic_down": {
+    "description": "Action to step down from a microphone seat"
+  },
+  "lock_mic_seat": "Lock Mic Seat",
+  "@lock_mic_seat": {
+    "description": "Lock mic seat action"
+  },
+  "unlock_mic_seat": "Unlock Mic Seat",
+  "@unlock_mic_seat": {
+    "description": "Unlock mic seat action"
+  },
+  "kick_user": "Kick Out",
+  "@kick_user": {
+    "description": "Kick user out of room"
+  },
+  "mute_user": "Mute User",
+  "@mute_user": {
+    "description": "Mute user mic"
+  },
+  "unmute_user": "Unmute User",
+  "@unmute_user": {
+    "description": "Unmute user mic"
+  },
+  "room_settings": "Room Settings",
+  "@room_settings": {
+    "description": "Room configuration menu title"
+  },
+  "room_password": "Room Password",
+  "@room_password": {
+    "description": "Room entry password"
+  },
+  "enter_room": "Join Room",
+  "@enter_room": {
+    "description": "Action to join a voice room"
+  },
+  "room_is_full": "The room is full",
+  "@room_is_full": {
+    "description": "Notice when room reaches maximum capacity"
+  },
+  "apply_for_mic": "Request Mic",
+  "@apply_for_mic": {
+    "description": "Request to speak on mic queue"
+  },
+  "mic_application": "Mic Requests",
+  "@mic_application": {
+    "description": "Queue list of pending mic requests"
+  },
+  "turn_off_mic": "Mute My Mic",
+  "@turn_off_mic": {
+    "description": "Locally mute user mic"
+  },
+  "room_black_list": "Room Blacklist",
+  "@room_black_list": {
+    "description": "List of users banned from entering this room"
+  },
+
+  "@_GIFTS": {
+    "description": "--- GIFTS ---"
+  },
+  "send_gift": "Send Gift",
+  "@send_gift": {
+    "description": "Send gift action button"
+  },
+  "gift_sent_success": "Gift sent successfully to {name}",
+  "@gift_sent_success": {
+    "description": "Confirmation when gift is sent",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Sarah"
+      }
+    }
+  },
+  "lucky_bag": "Lucky Bag",
+  "@lucky_bag": {
+    "description": "Room lucky coin bag feature"
+  },
+  "treasure_box": "Treasure Box",
+  "@treasure_box": {
+    "description": "Interactive mystery treasure box"
+  },
+  "open_box": "Open Box",
+  "@open_box": {
+    "description": "Action to open treasure box"
+  },
+
+  "@_VIP_AND_AGENCY": {
+    "description": "--- VIP & AGENCY ---"
+  },
+  "vip": "VIP",
+  "@vip": {
+    "description": "VIP badge/title"
+  },
+  "svip": "SVIP",
+  "@svip": {
+    "description": "Super VIP badge/title"
+  },
+  "vip_privileges": "VIP Privileges",
+  "@vip_privileges": {
+    "description": "List of VIP privileges"
+  },
+  "svip_privileges": "SVIP Privileges",
+  "@svip_privileges": {
+    "description": "List of Super VIP privileges"
+  },
+  "activate_vip": "Activate VIP",
+  "@activate_vip": {
+    "description": "Action to activate VIP membership"
+  },
+  "renew_vip": "Renew VIP",
+  "@renew_vip": {
+    "description": "Action to extend VIP membership"
+  },
+  "vip_level": "VIP Level {level}",
+  "@vip_level": {
+    "description": "Current VIP tier level",
+    "placeholders": {
+      "level": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+  "exclusive_reward": "Exclusive Reward",
+  "@exclusive_reward": {
+    "description": "Exclusive VIP tier reward"
+  },
+  "union": "Union",
+  "@union": {
+    "description": "Union / Guild organization title"
+  },
+  "agency": "Agency",
+  "@agency": {
+    "description": "Agency organization title"
+  },
+  "join_agency": "Join Agency",
+  "@join_agency": {
+    "description": "Action to apply to an agency"
+  },
+  "create_agency": "Create Agency",
+  "@create_agency": {
+    "description": "Action to register a new agency"
+  },
+  "agency_leader": "Agency Owner",
+  "@agency_leader": {
+    "description": "Agency leader / owner label"
+  },
+  "agency_members": "Agency Hosts",
+  "@agency_members": {
+    "description": "List of hosts in an agency"
+  },
+  "agency_rules": "Agency Rules",
+  "@agency_rules": {
+    "description": "Policy and commission guidelines for agencies"
+  },
+
+  "@_SETTINGS": {
+    "description": "--- SETTINGS ---"
+  },
+  "profile_setting": "Settings",
+  "@profile_setting": {
+    "description": "Settings menu title"
+  },
+  "change_language": "Language",
+  "@change_language": {
+    "description": "Language selection item"
+  },
+  "arabic": "العربية",
+  "@arabic": {
+    "description": "Arabic language option"
+  },
+  "english": "English",
+  "@english": {
+    "description": "English language option"
+  },
+  "clear_cache": "Clear Cache",
+  "@clear_cache": {
+    "description": "Action to clean cached files"
+  },
+  "logout": "Log Out",
+  "@logout": {
+    "description": "Log out account action"
+  },
+  "delete_account": "Delete Account",
+  "@delete_account": {
+    "description": "Permanent account deletion option"
+  },
+  "block_user": "Block User",
+  "@block_user": {
+    "description": "Block user action"
+  },
+  "unblock_user": "Unblock User",
+  "@unblock_user": {
+    "description": "Unblock user action"
+  },
+  "report_user": "Report User",
+  "@report_user": {
+    "description": "Report abusive user action"
+  },
+  "blacklist": "Blocked Accounts",
+  "@blacklist": {
+    "description": "General blacklist of blocked accounts"
+  },
+
+  "@_CHAT": {
+    "description": "--- CHAT ---"
+  },
+  "chat": "Chat",
+  "@chat": {
+    "description": "Chat tab/title"
+  },
+  "send_message": "Send",
+  "@send_message": {
+    "description": "Send message button label"
+  },
+  "type_message": "Say something...",
+  "@type_message": {
+    "description": "Chat input placeholder hint"
+  },
+  "voice_message": "Voice Message",
+  "@voice_message": {
+    "description": "Audio message title/tag"
+  },
+  "no_messages_yet": "No messages yet, start chatting!",
+  "@no_messages_yet": {
+    "description": "Empty state message for chat screen"
+  }
 }

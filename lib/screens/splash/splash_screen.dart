@@ -1,6 +1,5 @@
-import 'dart:async';
+﻿import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
@@ -49,7 +48,7 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
 
     // Check if user is logged in and check ban status
-    final uid = SupabaseAuthService().currentUid ?? FirebaseAuth.instance.currentUser?.uid;
+    final uid = SupabaseAuthService().currentUid;
     if (uid != null) {
       try {
         final userData = await SupabaseService().getUser(uid);

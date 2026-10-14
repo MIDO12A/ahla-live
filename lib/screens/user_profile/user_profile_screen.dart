@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -170,7 +168,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final currentUser = userProvider.currentUser;
-      String? resolvedCurrentUid = currentUser?.uid ?? SupabaseAuthService().currentUid ?? FirebaseAuth.instance.currentUser?.uid;
+      String? resolvedCurrentUid = currentUser?.uid ?? SupabaseAuthService().currentUid;
       if (resolvedCurrentUid == null || resolvedCurrentUid.isEmpty) {
         try {
           final prefs = await SharedPreferences.getInstance();
@@ -205,17 +203,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         }
         if (targetUser == null) {
           try {
-            final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-            if (doc.exists && doc.data() != null) {
-              targetUser = UserModel.fromMap({...doc.data()!, 'uid': uid});
-            }
-          } catch (_) {}
-        }
-        if (targetUser == null) {
-          try {
-            final snap = await FirebaseFirestore.instance.collection('users').where('custom_id', isEqualTo: uid).limit(1).get();
-            if (snap.docs.isNotEmpty) {
-              targetUser = UserModel.fromMap({...snap.docs.first.data(), 'uid': snap.docs.first.id});
+            final res = await SupabaseConfig.client
+                .from('users')
+                .select()
+                .eq('custom_id', uid)
+                .maybeSingle();
+            if (res != null) {
+              targetUser = UserModel.fromMap(Map<String, dynamic>.from(res));
             }
           } catch (_) {}
         }
@@ -683,7 +677,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   bool get _isMe {
     final currentUser = Provider.of<UserProvider>(context, listen: false).currentUser;
-    final myUid = currentUser?.uid ?? SupabaseAuthService().currentUid ?? FirebaseAuth.instance.currentUser?.uid;
+    final myUid = currentUser?.uid ?? SupabaseAuthService().currentUid;
     final myCustomId = currentUser?.customId;
 
     // إذا تم تمرير targetUid وكان لمعرف مستخدم آخر، فإنه ليس ملفي قطعياً
@@ -1250,11 +1244,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       photos.add(user.profileBgUrl!);
     }
     final supaUid = SupabaseAuthService().currentUid;
-    final isMe = user.uid == supaUid || user.uid == FirebaseAuth.instance.currentUser?.uid;
+    final isMe = user.uid == supaUid;
     final supaPhoto = SupabaseAuthService().currentUser?.photoUrl;
     final effectivePhoto = user.photoUrl.isNotEmpty
         ? user.photoUrl
-        : (isMe ? (supaPhoto?.isNotEmpty == true ? supaPhoto! : (FirebaseAuth.instance.currentUser?.photoURL ?? '')) : '');
+        : (isMe ? (supaPhoto?.isNotEmpty == true ? supaPhoto! : '') : '');
     if (effectivePhoto.isNotEmpty && !photos.contains(effectivePhoto)) {
       photos.add(effectivePhoto);
     }
@@ -1788,11 +1782,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final frame = _resolvedFramePath ?? user.activeFrame;
     final hasFrame = frame != null && frame.isNotEmpty;
     final supaUid = SupabaseAuthService().currentUid;
-    final isMe = user.uid == supaUid || user.uid == FirebaseAuth.instance.currentUser?.uid;
+    final isMe = user.uid == supaUid;
     final supaPhoto = SupabaseAuthService().currentUser?.photoUrl;
     final effectivePhoto = user.photoUrl.isNotEmpty
         ? user.photoUrl
-        : (isMe ? (supaPhoto?.isNotEmpty == true ? supaPhoto! : (FirebaseAuth.instance.currentUser?.photoURL ?? '')) : '');
+        : (isMe ? (supaPhoto?.isNotEmpty == true ? supaPhoto! : '') : '');
     final isMale = user.gender != 'female';
 
     return SizedBox(

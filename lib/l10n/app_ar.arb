@@ -1,16 +1,16 @@
 {
   "@@locale": "ar",
-  
+
   "tabDiscover": "استكشاف",
   "tabMessage": "الرسائل",
   "tabProfile": "حسابي",
-  
+
   "profileUserName": "اسم المستخدم",
-  "profileUserId": "رقم:",
+  "profileUserId": "الآيدي: {id}",
   "profileFollowing": "متابع",
   "profileFollowers": "المتابعين",
   "profileVisitors": "الزوار",
-  
+
   "profileWallet": "الحقيبة",
   "profileRecharge": "اشحن الآن",
   "profileLevel": "المستوى",
@@ -19,30 +19,165 @@
   "profileFeedback": "الملاحظات",
   "profileSetting": "الإعدادات",
   "profileUnion": "النقابة",
-  
+
   "levelTitle": "المستوى",
   "levelExperience": "الخبرة: {current}/{max}",
-  "@levelExperience": {
-    "placeholders": {
-      "current": {
-        "type": "int"
-      },
-      "max": {
-        "type": "int"
-      }
-    }
-  },
   "levelNext": "المستويات القادمة",
   "levelUnlockReward": "فتح الجائزة",
-  
+
   "mallTitle": "المتجر",
   "mallHeadwear": "القبعات",
   "mallBubble": "الفقاعات",
   "mallCar": "السيارات",
   "mallEntrance": "المدخل",
   "mallBuy": "شراء",
-  
+
   "walletTitle": "الحقيبة",
   "walletCoinBalance": "رصيد العملات",
-  "walletItems": "عناصر الحقيبة"
+  "walletItems": "عناصر الحقيبة",
+
+  "@_GENERAL": {
+    "description": "--- عام ---"
+  },
+  "app_name": "أحلى لايف",
+  "loading": "جاري التحميل...",
+  "error_occurred": "حدث خطأ، يرجى المحاولة مرة أخرى",
+  "no_data": "لا توجد بيانات متاحة",
+  "cancel": "إلغاء",
+  "confirm": "تأكيد",
+  "close": "إغلاق",
+  "search": "بحث",
+  "save": "حفظ",
+  "delete": "حذف",
+  "edit": "تعديل",
+
+  "@_AUTH": {
+    "description": "--- تسجيل الدخول والحساب ---"
+  },
+  "login": "تسجيل الدخول",
+  "register": "إنشاء حساب جديد",
+  "phone_number": "رقم الهاتف",
+  "sms_code": "رمز التحقق",
+  "send_code": "إرسال الرمز",
+  "password": "كلمة المرور",
+  "forgot_password": "نسيت كلمة المرور؟",
+  "agree_to_terms": "أوافق على شروط الخدمة وسياسة الخصوصية",
+  "privacy_policy": "سياسة الخصوصية",
+  "terms_of_service": "شروط الخدمة",
+
+  "@_NAVIGATION": {
+    "description": "--- شريط التنقل ---"
+  },
+  "tab_discover": "استكشاف",
+  "tab_message": "الرسائل",
+  "tab_profile": "حسابي",
+  "tab_room": "الغرف",
+  "tab_agency": "الوكالة",
+
+  "@_PROFILE": {
+    "description": "--- الملف الشخصي ---"
+  },
+  "profile_user_name": "اسم المستخدم",
+  "profile_user_id": "الآيدي: {id}",
+  "profile_following": "متابع",
+  "profile_followers": "المتابعين",
+  "profile_visitors": "الزوار",
+  "edit_profile": "تعديل الملف الشخصي",
+  "change_avatar": "تغيير الصورة الشخصية",
+  "change_nickname": "تعديل الاسم المستعار",
+  "personal_signature": "النبذة الشخصية",
+  "gender": "الجنس",
+  "birthday": "تاريخ الميلاد",
+
+  "@_WALLET_AND_MALL": {
+    "description": "--- المحفظة والمتجر ---"
+  },
+  "wallet_title": "المحفظة",
+  "wallet_coin_balance": "رصيد الكوينز",
+  "wallet_diamond_balance": "رصيد الألماس",
+  "recharge": "شحن الرصيد",
+  "recharge_now": "اشحن الآن",
+  "recharge_history": "سجل الشحن",
+  "insufficient_balance": "الرصيد غير كافٍ، يرجى الشحن أولاً",
+  "transaction_success": "تمت العملية بنجاح",
+  "mall_title": "المتجر",
+  "mall_headwear": "إطارات الرأس",
+  "mall_bubble": "فقاعات الدردشة",
+  "mall_car": "مركبات الدخول",
+  "mall_entrance": "مؤثرات الدخول الفاخرة",
+  "mall_buy": "شراء",
+
+  "@_ROOM_AND_MIC": {
+    "description": "--- الغرف الصوتية والمايك ---"
+  },
+  "room_title": "غرفة صوتية",
+  "room_manager": "مدير الغرفة",
+  "room_members": "المستمعين ({count})",
+  "mic_up": "صعود المايك",
+  "mic_down": "إنزال من المايك",
+  "lock_mic_seat": "قفل المقعد",
+  "unlock_mic_seat": "فتح المقعد",
+  "kick_user": "طرد من الغرفة",
+  "mute_user": "كتم المايك",
+  "unmute_user": "إلغاء كتم المايك",
+  "room_settings": "إعدادات الغرفة",
+  "room_password": "كلمة مرور الغرفة",
+  "enter_room": "دخول الغرفة",
+  "room_is_full": "الغرفة ممتلئة بالكامل",
+  "apply_for_mic": "طلب صعود المايك",
+  "mic_application": "طلبات المايك",
+  "turn_off_mic": "إغلاق مايكي",
+  "room_black_list": "القائمة السوداء للغرفة",
+
+  "@_GIFTS": {
+    "description": "--- الهدايا والجوائز ---"
+  },
+  "send_gift": "إرسال هدية",
+  "gift_sent_success": "تم إرسال الهدية بنجاح إلى {name}",
+  "lucky_bag": "حقيبة الحظ",
+  "treasure_box": "صندوق الكنز",
+  "open_box": "فتح الصندوق",
+
+  "@_VIP_AND_AGENCY": {
+    "description": "--- كبار الشخصيات والوكالات ---"
+  },
+  "vip": "VIP",
+  "svip": "SVIP",
+  "vip_privileges": "مميزات VIP",
+  "svip_privileges": "مميزات SVIP الخارقة",
+  "activate_vip": "تفعيل VIP",
+  "renew_vip": "تجديد اشتراك VIP",
+  "vip_level": "مستوى VIP {level}",
+  "exclusive_reward": "مكافأة حصرية",
+  "union": "النقابة",
+  "agency": "الوكالة",
+  "join_agency": "الانضمام لوكالة",
+  "create_agency": "تأسيس وكالة",
+  "agency_leader": "صاحب الوكالة",
+  "agency_members": "مضيفو الوكالة",
+  "agency_rules": "قوانين وتارجت الوكالة",
+
+  "@_SETTINGS": {
+    "description": "--- الإعدادات والخصوصية ---"
+  },
+  "profile_setting": "الإعدادات",
+  "change_language": "لغة التطبيق",
+  "arabic": "العربية",
+  "english": "English",
+  "clear_cache": "مسح الذاكرة المؤقتة",
+  "logout": "تسجيل الخروج",
+  "delete_account": "حذف الحساب نهائياً",
+  "block_user": "حظر المستخدم",
+  "unblock_user": "إلغاء الحظر",
+  "report_user": "إبلاغ عن إساءة",
+  "blacklist": "قائمة الحظر العامة",
+
+  "@_CHAT": {
+    "description": "--- المحادثة والرسائل ---"
+  },
+  "chat": "الدردشة",
+  "send_message": "إرسال",
+  "type_message": "اكتب رسالة هنا...",
+  "voice_message": "رسالة صوتية",
+  "no_messages_yet": "لا توجد رسائل بعد، ابدأ المحادثة الآن!"
 }

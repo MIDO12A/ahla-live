@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../core/widgets/cached_image.dart';
 import '../../screens/room/widgets/svga_frame.dart';
 import '../../services/dynamic_config_service.dart';

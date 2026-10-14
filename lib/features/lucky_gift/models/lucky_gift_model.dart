@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 
 /// كائن بيانات هدية الحظ
 class LuckyGiftModel {
@@ -68,6 +68,7 @@ class LuckyCardResult {
   final int wonCoins;
   final String giftName;
   final String giftIcon;
+  final String? svgaUrl;
   bool isFlipped;
 
   LuckyCardResult({
@@ -76,6 +77,7 @@ class LuckyCardResult {
     required this.wonCoins,
     required this.giftName,
     required this.giftIcon,
+    this.svgaUrl,
     this.isFlipped = false,
   });
 
@@ -86,6 +88,7 @@ class LuckyCardResult {
       wonCoins: (json['wonCoins'] as num?)?.toInt() ?? (json['won_coins'] as num?)?.toInt() ?? 0,
       giftName: json['giftName']?.toString() ?? json['gift_name']?.toString() ?? '',
       giftIcon: json['giftIcon']?.toString() ?? json['gift_icon']?.toString() ?? '',
+      svgaUrl: json['svgaUrl']?.toString() ?? json['svga_url']?.toString(),
     );
   }
 }
@@ -101,6 +104,7 @@ class LuckyGiftBroadcastData {
   final int totalWonCoins;
   final int maxMultiplier;
   final bool isBigWin;
+  final String? customSvgaUrl;
   final String comboId;
   final int comboCount;
 
@@ -114,6 +118,7 @@ class LuckyGiftBroadcastData {
     required this.totalWonCoins,
     required this.maxMultiplier,
     required this.isBigWin,
+    this.customSvgaUrl,
     required this.comboId,
     required this.comboCount,
   });
@@ -140,6 +145,11 @@ class LuckyGiftBroadcastData {
         (json['won_coins'] as num?)?.toInt() ??
         0;
 
+    final parsedSvga = results['svgaUrl']?.toString() ??
+        results['svga_url']?.toString() ??
+        json['svga_url']?.toString() ??
+        json['svgaUrl']?.toString();
+
     return LuckyGiftBroadcastData(
       roomId: json['roomId']?.toString() ?? json['room_id']?.toString() ?? '',
       senderName: sender['nickname']?.toString() ?? json['sender_name']?.toString() ?? '',
@@ -157,6 +167,7 @@ class LuckyGiftBroadcastData {
       totalWonCoins: wonCoins,
       maxMultiplier: maxMult,
       isBigWin: results['isBigWin'] == true || maxMult >= 50,
+      customSvgaUrl: (parsedSvga != null && parsedSvga.isNotEmpty) ? parsedSvga : null,
       comboId: combo['comboId']?.toString() ?? json['combo_id']?.toString() ?? '',
       comboCount: (combo['comboCount'] as num?)?.toInt() ?? 1,
     );

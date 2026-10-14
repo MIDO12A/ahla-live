@@ -1,11 +1,12 @@
 import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../../services/dynamic_config_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/supabase_config.dart';
 
 
 class CpWebViewScreen extends StatefulWidget {
@@ -115,10 +116,10 @@ class _CpWebViewScreenState extends State<CpWebViewScreen> {
 
   Future<String?> _getSessionToken() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      return await user?.getIdToken();
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('supabase_auth_token') ?? SupabaseConfig.anonKey;
     } catch (_) {
-      return null;
+      return SupabaseConfig.anonKey;
     }
   }
 

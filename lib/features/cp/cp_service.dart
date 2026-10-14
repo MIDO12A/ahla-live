@@ -1,28 +1,16 @@
 import '../../services/supabase_auth_service.dart';
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../../core/supabase_compat.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 
-/// CP (Relationships) service backed by Firestore.
-///
-/// Collections mirror the original Postgres tables:
-///   cp_couples, cp_requests, cp_themes, cp_settings,
-///   cp_gifts, cp_cars, cp_gift_logs, cp_rank_rewards
-///
-/// Response shapes match the original RPC output so screens are unchanged.
 class CpService {
-  static FirebaseFirestore get _db => FirebaseFirestore.instanceFor(
-        app: Firebase.app(),
-        databaseId: 'default',
-      );
+  static SupabaseClient get _sb => Supabase.instance.client;
 
-  static String? get _uid => SupabaseAuthService().currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+  static String? get _uid => SupabaseAuthService().currentUser?.uid;
 
   // ═══════════════════════════════════════════════════════
   // My Data
@@ -58,7 +46,7 @@ class CpService {
       final partnerUid = couple['user1_uid'] == uid
           ? couple['user2_uid'] as String
           : couple['user1_uid'] as String;
-      final partner = await FirebaseService().getUser(partnerUid);
+      final partner = await SupabaseDataService().getUser(partnerUid);
 
       final startedRaw = couple['started_at'];
       final startedAt = _parseDate(startedRaw);
@@ -101,23 +89,28 @@ class CpService {
       _ => 'total_score',
     };
 
-    final snap = await _db.collection('cp_couples').orderBy(scoreField, descending: true).get();
+    List<dynamic> snap = [];
+    try {
+      snap = await _sb.from('cp_couples').select('*').order(scoreField, ascending: false).limit(limit * 2);
+    } catch (_) {}
     final rows = <Map<String, dynamic>>[];
     final seenPairs = <String>{};
     final seenUsers = <String>{};
     final now = DateTime.now();
 
-    for (final doc in snap.docs) {
+    for (final doc in snap) {
       if (rows.length >= limit) break;
-      final d = doc.data();
+      final d = Map<String, dynamic>.from(doc as Map);
       if (d['ended_at'] != null) continue;
 
       final exp = _parseDate(d['expires_at'] ?? d['countdown_end']);
       if (exp != null && exp.isBefore(now)) {
-        doc.reference.update(<String, dynamic>{
-          'ended_at': _now(),
-          'updated_at': _now(),
-        }).catchError((_) {});
+        if (d['id'] != null) {
+          _sb.from('cp_couples').update(<String, dynamic>{
+            'ended_at': _now(),
+            'updated_at': _now(),
+          }).eq('id', d['id']).catchError((_) {});
+        }
         continue;
       }
 
@@ -133,14 +126,12 @@ class CpService {
       seenUsers.add(u1Uid);
       seenUsers.add(u2Uid);
 
-      final u1 = await FirebaseService().getUser(u1Uid);
-      final u2 = await FirebaseService().getUser(u2Uid);
+      final u1 = await SupabaseDataService().getUser(u1Uid);
+      final u2 = await SupabaseDataService().getUser(u2Uid);
 
       int days = 1;
       try {
-        if (d['created_at'] is Timestamp) {
-          days = DateTime.now().difference((d['created_at'] as Timestamp).toDate()).inDays + 1;
-        } else if (d['created_at'] is String) {
+        if (d['created_at'] is String) {
           days = DateTime.now().difference(DateTime.parse(d['created_at'])).inDays + 1;
         } else if (d['created_at'] is int) {
           days = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(d['created_at'])).inDays + 1;
@@ -169,26 +160,35 @@ class CpService {
   // Themes & Settings
   // ═══════════════════════════════════════════════════════
 
+
   static Future<List<Map<String, dynamic>>> getThemes() async {
-    final snap = await _db.collection('cp_themes').orderBy('sort_order').get();
-    final list = snap.docs
-        .where((e) => e.data()['is_active'] != false)
-        .map((e) {
-          final d = e.data();
-          d['id'] = e.id;
-          return d;
-        })
-        .toList();
-    return list;
+    try {
+      final snap = await _sb.from('cp_themes').select('*').order('sort_order', ascending: true);
+      final list = (snap as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .where((e) => e['is_active'] != false)
+          .toList();
+      return list;
+    } catch (_) {
+      return [];
+    }
   }
 
   static Future<Map<String, dynamic>> getSettings() async {
-    final snap = await _db.collection('cp_settings').get();
-    final map = <String, dynamic>{};
-    for (final doc in snap.docs) {
-      map[doc.id] = doc.data()['value'];
+    try {
+      final snap = await _sb.from('cp_settings').select('*');
+      final map = <String, dynamic>{};
+      for (final doc in (snap as List<dynamic>)) {
+        final d = Map<String, dynamic>.from(doc as Map);
+        final k = d['id'] ?? d['key'];
+        if (k != null) {
+          map[k.toString()] = d['value'];
+        }
+      }
+      return map;
+    } catch (_) {
+      return {};
     }
-    return map;
   }
 
   // ═══════════════════════════════════════════════════════
@@ -221,7 +221,7 @@ class CpService {
       }
     }
 
-    final doc = await _db.collection('cp_requests').add(<String, dynamic>{
+    final resp = await _sb.from('cp_requests').insert(<String, dynamic>{
       'sender_uid': sender,
       'receiver_uid': receiverId,
       'message': message,
@@ -229,9 +229,9 @@ class CpService {
       'duration_hours': durationHours,
       'status': 'pending',
       'created_at': _now(),
-    });
+    }).select('id').maybeSingle();
 
-    return <String, dynamic>{'success': true, 'id': doc.id};
+    return <String, dynamic>{'success': true, 'id': resp?['id']?.toString()};
   }
 
   static Future<Map<String, dynamic>> respondRequest(
@@ -241,17 +241,17 @@ class CpService {
     final receiver = _uid;
     if (receiver == null) return <String, dynamic>{'error': 'Not authenticated'};
 
-    final reqDoc = await _db.collection('cp_requests').doc(requestId).get();
-    if (!reqDoc.exists) return <String, dynamic>{'error': 'Request not found'};
-    final req = reqDoc.data()!;
+    final reqDoc = await _sb.from('cp_requests').select('*').eq('id', requestId).maybeSingle();
+    if (reqDoc == null) return <String, dynamic>{'error': 'Request not found'};
+    final req = Map<String, dynamic>.from(reqDoc as Map);
     if (req['receiver_uid'] != receiver) {
       return <String, dynamic>{'error': 'Not your request'};
     }
 
-    await reqDoc.reference.update(<String, dynamic>{
+    await _sb.from('cp_requests').update(<String, dynamic>{
       'status': accept ? 'accepted' : 'rejected',
       'responded_at': _now(),
-    });
+    }).eq('id', requestId);
 
     if (accept) {
       final senderUid = req['sender_uid'] as String;
@@ -260,7 +260,7 @@ class CpService {
       await _endActiveCouplesFor(senderUid);
       await _endActiveCouplesFor(receiver);
 
-      await _db.collection('cp_couples').add(<String, dynamic>{
+      await _sb.from('cp_couples').insert(<String, dynamic>{
         'user1_uid': senderUid,
         'user2_uid': receiver,
         'started_at': _now(),
@@ -294,17 +294,17 @@ class CpService {
     required String receiverUid,
     String? giftId,
   }) async {
-    final u1 = await FirebaseService().getUser(senderUid);
-    final u2 = await FirebaseService().getUser(receiverUid);
+    final u1 = await SupabaseDataService().getUser(senderUid);
+    final u2 = await SupabaseDataService().getUser(receiverUid);
 
     Map<String, dynamic>? giftData;
     if (giftId != null && giftId.isNotEmpty) {
-      final snap = await _db.collection('cp_gifts').doc(giftId).get();
-      if (snap.exists) {
-        giftData = snap.data();
+      final snap = await _sb.from('cp_gifts').select('*').eq('id', giftId).maybeSingle();
+      if (snap != null) {
+        giftData = Map<String, dynamic>.from(snap as Map);
       } else {
-        final gSnap = await _db.collection('gifts').doc(giftId).get();
-        if (gSnap.exists) giftData = gSnap.data();
+        final gSnap = await _sb.from('gifts').select('*').eq('id', giftId).maybeSingle();
+        if (gSnap != null) giftData = Map<String, dynamic>.from(gSnap as Map);
       }
     }
 
@@ -357,10 +357,10 @@ class CpService {
 
     // Deliver to male backpack & coins
     if (maleName.isNotEmpty || maleSvga.isNotEmpty || maleIcon.isNotEmpty) {
-      await _db.collection('user_backpack').add(<String, dynamic>{
+      await _sb.from('user_backpack').insert(<String, dynamic>{
         'user_id': maleUid,
         'item_id': 'cp_reward_male_${DateTime.now().millisecondsSinceEpoch}',
-        'item_name': maleName.isNotEmpty ? maleName : 'مكافأة ارتباط CP (شاب)',
+        'item_name': maleName.isNotEmpty ? maleName : 'مكافأة ارتباط CP',
         'item_type': maleType,
         'item_icon': maleIcon,
         'item_svga': maleSvga,
@@ -371,11 +371,11 @@ class CpService {
         'source': 'cp_link',
       });
       if (maleCoins > 0) {
-        await _db.collection('users').doc(maleUid).update({
-          'coins': FieldValue.increment(maleCoins),
-        });
+        final u = await _sb.from('users').select('coins').or('uid.eq.$maleUid,id.eq.$maleUid').maybeSingle();
+        final cur = (u?['coins'] as num?)?.toInt() ?? 0;
+        await _sb.from('users').update({'coins': cur + maleCoins}).or('uid.eq.$maleUid,id.eq.$maleUid');
       }
-      await FirebaseService().sendNotification(
+      await SupabaseDataService().sendNotification(
         uid: maleUid,
         type: 'cp_link_reward',
         actorUid: femaleUid,
@@ -386,10 +386,10 @@ class CpService {
 
     // Deliver to female backpack & coins
     if (femaleName.isNotEmpty || femaleSvga.isNotEmpty || femaleIcon.isNotEmpty) {
-      await _db.collection('user_backpack').add(<String, dynamic>{
+      await _sb.from('user_backpack').insert(<String, dynamic>{
         'user_id': femaleUid,
         'item_id': 'cp_reward_female_${DateTime.now().millisecondsSinceEpoch}',
-        'item_name': femaleName.isNotEmpty ? femaleName : 'مكافأة ارتباط CP (فتاة)',
+        'item_name': femaleName.isNotEmpty ? femaleName : 'مكافأة ارتباط CP',
         'item_type': femaleType,
         'item_icon': femaleIcon,
         'item_svga': femaleSvga,
@@ -400,11 +400,11 @@ class CpService {
         'source': 'cp_link',
       });
       if (femaleCoins > 0) {
-        await _db.collection('users').doc(femaleUid).update({
-          'coins': FieldValue.increment(femaleCoins),
-        });
+        final u = await _sb.from('users').select('coins').or('uid.eq.$femaleUid,id.eq.$femaleUid').maybeSingle();
+        final cur = (u?['coins'] as num?)?.toInt() ?? 0;
+        await _sb.from('users').update({'coins': cur + femaleCoins}).or('uid.eq.$femaleUid,id.eq.$femaleUid');
       }
-      await FirebaseService().sendNotification(
+      await SupabaseDataService().sendNotification(
         uid: femaleUid,
         type: 'cp_link_reward',
         actorUid: maleUid,
@@ -419,10 +419,10 @@ class CpService {
     if (uid == null) return false;
     final couple = await _findActiveCoupleFor(uid);
     if (couple == null) return false;
-    await _db.collection('cp_couples').doc(couple['id']).update(<String, dynamic>{
+    await _sb.from('cp_couples').update(<String, dynamic>{
       'active_theme_id': themeId,
       'updated_at': _now(),
-    });
+    }).eq('id', couple['id']);
     return true;
   }
 
@@ -431,10 +431,10 @@ class CpService {
     if (uid == null) return false;
     final couple = await _findActiveCoupleFor(uid);
     if (couple == null) return false;
-    await _db.collection('cp_couples').doc(couple['id']).update(<String, dynamic>{
+    await _sb.from('cp_couples').update(<String, dynamic>{
       'ended_at': _now(),
       'updated_at': _now(),
-    });
+    }).eq('id', couple['id']);
     return true;
   }
 
@@ -443,29 +443,27 @@ class CpService {
   // ═══════════════════════════════════════════════════════
 
   static Future<List<Map<String, dynamic>>> getCpGifts() async {
-    final snap = await _db.collection('cp_gifts').orderBy('sort_order').get();
-    final list = snap.docs
-        .where((e) => e.data()['is_active'] != false)
-        .map((e) {
-          final d = e.data();
-          d['id'] = e.id;
-          return d;
-        })
-        .toList();
-    return list;
+    try {
+      final snap = await _sb.from('cp_gifts').select('*').order('sort_order', ascending: true);
+      return (snap as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .where((e) => e['is_active'] != false)
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getCpCars() async {
-    final snap = await _db.collection('cp_cars').orderBy('sort_order').get();
-    final list = snap.docs
-        .where((e) => e.data()['is_active'] != false)
-        .map((e) {
-          final d = e.data();
-          d['id'] = e.id;
-          return d;
-        })
-        .toList();
-    return list;
+    try {
+      final snap = await _sb.from('cp_cars').select('*').order('sort_order', ascending: true);
+      return (snap as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .where((e) => e['is_active'] != false)
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   static Future<Map<String, dynamic>> sendCpGift({
@@ -475,11 +473,11 @@ class CpService {
     final sender = _uid;
     if (sender == null) return <String, dynamic>{'error': 'Not authenticated'};
 
-    final giftSnap = await _db.collection('cp_gifts').doc(giftId).get();
-    if (!giftSnap.exists || giftSnap.data()?['is_active'] == false) {
+    final giftSnap = await _sb.from('cp_gifts').select('*').eq('id', giftId).maybeSingle();
+    if (giftSnap == null || giftSnap['is_active'] == false) {
       return <String, dynamic>{'error': 'Gift not found'};
     }
-    final gift = giftSnap.data()!;
+    final gift = Map<String, dynamic>.from(giftSnap as Map);
     final giftValue = (gift['value'] as num?)?.toInt() ?? 0;
     final giftName = gift['name_ar']?.toString() ?? gift['name']?.toString() ?? '';
 
@@ -493,8 +491,8 @@ class CpService {
       return <String, dynamic>{'error': 'Receiver is not your CP partner'};
     }
 
-    final senderDoc = await _db.collection('users').doc(sender).get();
-    final balance = (senderDoc.data()?['coins'] as num?)?.toInt() ?? 0;
+    final senderDoc = await _sb.from('users').select('coins').or('uid.eq.$sender,id.eq.$sender').maybeSingle();
+    final balance = (senderDoc?['coins'] as num?)?.toInt() ?? 0;
     if (balance < giftValue) {
       return <String, dynamic>{
         'error': 'Insufficient coins',
@@ -517,15 +515,17 @@ class CpService {
               : ((gift['cp_gift_duration_hours'] as num?)?.toInt() ?? 0));
     }
 
-    final batch = _db.batch();
-    batch.update(_db.collection('users').doc(sender), <String, dynamic>{
-      'coins': FieldValue.increment(-giftValue),
-    });
+    await _sb.from('users').update({
+      'coins': balance - giftValue,
+    }).or('uid.eq.$sender,id.eq.$sender');
 
+    final curTotal = (couple['total_score'] as num?)?.toInt() ?? 0;
+    final curWeek = (couple['week_score'] as num?)?.toInt() ?? 0;
+    final curMonth = (couple['month_score'] as num?)?.toInt() ?? 0;
     final coupleUpdates = <String, dynamic>{
-      'total_score': FieldValue.increment(giftValue),
-      'week_score': FieldValue.increment(giftValue),
-      'month_score': FieldValue.increment(giftValue),
+      'total_score': curTotal + giftValue,
+      'week_score': curWeek + giftValue,
+      'month_score': curMonth + giftValue,
       'updated_at': _now(),
     };
 
@@ -537,10 +537,9 @@ class CpService {
       coupleUpdates['expires_at'] = newExp;
     }
 
-    batch.update(_db.collection('cp_couples').doc(couple['id']), coupleUpdates);
-    await batch.commit();
+    await _sb.from('cp_couples').update(coupleUpdates).eq('id', couple['id']);
 
-    await _db.collection('cp_gift_logs').add(<String, dynamic>{
+    await _sb.from('cp_gift_logs').insert(<String, dynamic>{
       'couple_id': couple['id'],
       'sender_uid': sender,
       'receiver_uid': receiverId,
@@ -550,7 +549,7 @@ class CpService {
       'created_at': _now(),
     });
 
-    await FirebaseService().sendNotification(
+    await SupabaseDataService().sendNotification(
       uid: receiverId,
       type: 'cp_gift',
       actorUid: sender,
@@ -566,7 +565,7 @@ class CpService {
     return <String, dynamic>{
       'success': true,
       'gift_value': giftValue,
-      'new_score': ((couple['total_score'] as num?)?.toInt() ?? 0) + giftValue,
+      'new_score': curTotal + giftValue,
     };
   }
 
@@ -593,7 +592,6 @@ class CpService {
           try {
             return await sendCpGift(giftId: giftId, receiverId: receiverId);
           } catch (_) {
-            // If the gift is not a CP gift, just send a notification
             await sendCpGiftNotification(
               senderId: senderId,
               senderName: senderName,
@@ -620,13 +618,13 @@ class CpService {
       } catch (_) {}
 
       try {
-        final gSnap = await _db.collection('cp_gifts').doc(giftId).get();
+        final gSnap = await _sb.from('cp_gifts').select('*').eq('id', giftId).maybeSingle();
         Map<String, dynamic>? gData;
-        if (gSnap.exists) {
-          gData = gSnap.data();
+        if (gSnap != null) {
+          gData = Map<String, dynamic>.from(gSnap as Map);
         } else {
-          final regSnap = await _db.collection('gifts').doc(giftId).get();
-          if (regSnap.exists) gData = regSnap.data();
+          final regSnap = await _sb.from('gifts').select('*').eq('id', giftId).maybeSingle();
+          if (regSnap != null) gData = Map<String, dynamic>.from(regSnap as Map);
         }
 
         if (gData != null) {
@@ -652,7 +650,7 @@ class CpService {
       try {
         await _endActiveCouplesFor(senderId);
         await _endActiveCouplesFor(receiverId);
-        await _db.collection('cp_couples').add(<String, dynamic>{
+        await _sb.from('cp_couples').insert(<String, dynamic>{
           'user1_uid': senderId,
           'user2_uid': receiverId,
           'started_at': _now(),
@@ -711,7 +709,7 @@ class CpService {
     int? giftValue,
     String? requestId,
   }) async {
-    await FirebaseService().sendNotification(
+    await SupabaseDataService().sendNotification(
       uid: receiverId,
       type: 'cp_gift',
       actorUid: senderId,
@@ -739,28 +737,31 @@ class CpService {
     final couple = await _findLatestCoupleFor(uid);
     if (couple == null) return <Map<String, dynamic>>[];
 
-    final snap = await _db
-        .collection('cp_gift_logs')
-        .where('couple_id', isEqualTo: couple['id'])
-        .get();
+    try {
+      final snap = await _sb
+          .from('cp_gift_logs')
+          .select('*')
+          .eq('couple_id', couple['id'])
+          .order('created_at', ascending: false)
+          .limit(limit);
 
-    final logs = snap.docs.map((e) => e.data()).toList();
-    logs.sort((a, b) =>
-        (b['created_at']?.toString() ?? '').compareTo(a['created_at']?.toString() ?? ''));
-
-    final result = <Map<String, dynamic>>[];
-    for (final log in logs.take(limit)) {
-      final sender = await FirebaseService().getUser(log['sender_uid'] as String? ?? '');
-      result.add(<String, dynamic>{
-        'id': log['id'],
-        'action': 'gift',
-        'user_name': sender?.name ?? '',
-        'gift_name': log['gift_name'] ?? '',
-        'gift_value': (log['gift_value'] as num?)?.toInt() ?? 0,
-        'timestamp': log['created_at'],
-      });
+      final result = <Map<String, dynamic>>[];
+      for (final doc in (snap as List<dynamic>)) {
+        final log = Map<String, dynamic>.from(doc as Map);
+        final sender = await SupabaseDataService().getUser(log['sender_uid'] as String? ?? '');
+        result.add(<String, dynamic>{
+          'id': log['id'],
+          'action': 'gift',
+          'user_name': sender?.name ?? '',
+          'gift_name': log['gift_name'] ?? '',
+          'gift_value': (log['gift_value'] as num?)?.toInt() ?? 0,
+          'timestamp': log['created_at'],
+        });
+      }
+      return result;
+    } catch (_) {
+      return [];
     }
-    return result;
   }
 
   static Future<List<Map<String, dynamic>>> getCpAchievements({String? coupleId}) async {
@@ -769,23 +770,25 @@ class CpService {
 
     Map<String, dynamic>? couple;
     if (coupleId != null && coupleId.isNotEmpty) {
-      final doc = await _db.collection('cp_couples').doc(coupleId).get();
-      if (doc.exists) couple = doc.data()!;
+      final doc = await _sb.from('cp_couples').select('*').eq('id', coupleId).maybeSingle();
+      if (doc != null) couple = Map<String, dynamic>.from(doc as Map);
     } else {
       couple = await _findActiveCoupleFor(uid);
     }
     if (couple == null) return <Map<String, dynamic>>[];
 
-    final logs = await _db
-        .collection('cp_gift_logs')
-        .where('couple_id', isEqualTo: couple['id'])
-        .get();
-
-    final giftCount = logs.docs.length;
-    var totalGiftValue = 0;
-    for (final log in logs.docs) {
-      totalGiftValue += (log.data()['gift_value'] as num?)?.toInt() ?? 0;
-    }
+    int giftCount = 0;
+    int totalGiftValue = 0;
+    try {
+      final logs = await _sb
+          .from('cp_gift_logs')
+          .select('gift_value')
+          .eq('couple_id', couple['id']);
+      giftCount = logs.length;
+      for (final log in logs) {
+        totalGiftValue += (log['gift_value'] as num?)?.toInt() ?? 0;
+      }
+    } catch (_) {}
 
     final startedRaw = couple['started_at'];
     final endedRaw = couple['ended_at'];
@@ -806,13 +809,13 @@ class CpService {
   /// Get the total CP gift value sent by a specific user (individual, not couple).
   static Future<int> getUserCpGiftTotal(String uid) async {
     try {
-      final snap = await _db
-          .collection('cp_gift_logs')
-          .where('sender_uid', isEqualTo: uid)
-          .get();
+      final snap = await _sb
+          .from('cp_gift_logs')
+          .select('gift_value')
+          .eq('sender_uid', uid);
       var total = 0;
-      for (final doc in snap.docs) {
-        total += (doc.data()['gift_value'] as num?)?.toInt() ?? 0;
+      for (final doc in snap) {
+        total += (doc['gift_value'] as num?)?.toInt() ?? 0;
       }
       return total;
     } catch (e) {
@@ -827,15 +830,13 @@ class CpService {
 
   static Future<List<Map<String, dynamic>>> getRankRewards({String period = 'weekly'}) async {
     try {
-      final snap = await _db
-          .collection('cp_rank_rewards')
-          .where('period', isEqualTo: period)
-          .get();
-      final list = snap.docs.map((e) {
-        final d = e.data();
-        d['id'] = e.id;
-        return d;
-      }).where((d) => d['isActive'] != false).toList();
+      final snap = await _sb
+          .from('cp_rank_rewards')
+          .select('*')
+          .eq('period', period);
+      final list = (snap as List<dynamic>).map((e) {
+        return Map<String, dynamic>.from(e as Map);
+      }).where((d) => d['isActive'] != false && d['is_active'] != false).toList();
       list.sort((a, b) {
         final rankCmp = ((a['rank_position'] as num?)?.toInt() ?? 0)
             .compareTo((b['rank_position'] as num?)?.toInt() ?? 0);
@@ -866,24 +867,22 @@ class CpService {
   }
 
   /// Realtime stream of rank rewards for a period (cp_rank_rewards collection).
-  /// يُحدَّث فورياً عند أي تعديل من لوحة التحكم (سيّدة على isActive والفرز).
   static Stream<List<Map<String, dynamic>>> rewardsStream({
     String period = 'weekly',
   }) {
-    return _db.collection('cp_rank_rewards').snapshots().map((snap) {
-      final list = snap.docs.map((e) {
-        final d = e.data();
-        d['id'] = e.id;
-        return d;
-      }).where((d) => d['period'] == period && d['isActive'] != false).toList();
-      list.sort((a, b) {
+    return _sb.from('cp_rank_rewards').stream(primaryKey: ['id']).map((list) {
+      final res = list
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((d) => d['period'] == period && d['is_active'] != false && d['isActive'] != false)
+          .toList();
+      res.sort((a, b) {
         final rankCmp = ((a['rank_position'] as num?)?.toInt() ?? 0)
             .compareTo((b['rank_position'] as num?)?.toInt() ?? 0);
         if (rankCmp != 0) return rankCmp;
         return ((a['slot_index'] as num?)?.toInt() ?? 0)
             .compareTo((b['slot_index'] as num?)?.toInt() ?? 0);
       });
-      return list;
+      return res;
     });
   }
 
@@ -900,109 +899,104 @@ class CpService {
 
   /// Active couple (ended_at is null and not expired) where [uid] is a member.
   static Future<Map<String, dynamic>?> _findActiveCoupleFor(String uid) async {
-    final results = await Future.wait([
-      _db.collection('cp_couples').where('user1_uid', isEqualTo: uid).limit(10).get(),
-      _db.collection('cp_couples').where('user2_uid', isEqualTo: uid).limit(10).get(),
-    ]);
-    final now = DateTime.now();
-    for (final snap in results) {
-      for (final doc in snap.docs) {
-        final d = doc.data();
-        if (d['ended_at'] == null) {
-          final exp = _parseDate(d['expires_at'] ?? d['countdown_end']);
-          if (exp != null && exp.isBefore(now)) {
-            doc.reference.update(<String, dynamic>{
+    try {
+      final res = await _sb.from('cp_couples')
+          .select('*')
+          .or('user1_uid.eq.$uid,user2_uid.eq.$uid')
+          .isFilter('ended_at', null)
+          .limit(10);
+      final now = DateTime.now();
+      for (final doc in res) {
+        final d = Map<String, dynamic>.from(doc as Map);
+        final exp = _parseDate(d['expires_at'] ?? d['countdown_end']);
+        if (exp != null && exp.isBefore(now)) {
+          if (d['id'] != null) {
+            _sb.from('cp_couples').update(<String, dynamic>{
               'ended_at': _now(),
               'updated_at': _now(),
-            }).catchError((_) {});
-            continue;
+            }).eq('id', d['id']).catchError((_) {});
           }
-          d['id'] = doc.id;
-          return d;
+          continue;
         }
+        return d;
       }
-    }
+    } catch (_) {}
     return null;
   }
 
   /// Most recent couple (active or ended) for [uid].
   static Future<Map<String, dynamic>?> _findLatestCoupleFor(String uid) async {
-    final results = await Future.wait([
-      _db.collection('cp_couples').where('user1_uid', isEqualTo: uid).limit(50).get(),
-      _db.collection('cp_couples').where('user2_uid', isEqualTo: uid).limit(50).get(),
-    ]);
-    Map<String, dynamic>? latest;
-    String? latestDocId;
-    String? latestKey;
-    for (final snap in results) {
-      for (final doc in snap.docs) {
-        final d = doc.data();
-        final key = d['ended_at']?.toString() ?? d['created_at']?.toString() ?? '';
-        if (latest == null || key.compareTo(latestKey ?? '') > 0) {
-          latest = d;
-          latestDocId = doc.id;
-          latestKey = key;
-        }
+    try {
+      final res = await _sb.from('cp_couples')
+          .select('*')
+          .or('user1_uid.eq.$uid,user2_uid.eq.$uid')
+          .order('created_at', ascending: false)
+          .limit(1);
+      if (res.isNotEmpty) {
+        return Map<String, dynamic>.from(res.first as Map);
       }
-    }
-    if (latest != null) latest['id'] = latestDocId;
-    return latest;
+    } catch (_) {}
+    return null;
   }
 
   static Future<void> _endActiveCouplesFor(String uid) async {
     final couple = await _findActiveCoupleFor(uid);
     if (couple == null) return;
-    await _db.collection('cp_couples').doc(couple['id']).update(<String, dynamic>{
+    await _sb.from('cp_couples').update(<String, dynamic>{
       'ended_at': _now(),
       'updated_at': _now(),
-    });
+    }).eq('id', couple['id']);
   }
 
   static Future<Map<String, dynamic>?> _getTheme(String themeId) async {
-    final doc = await _db.collection('cp_themes').doc(themeId).get();
-    if (!doc.exists) return null;
-    final d = doc.data()!;
-    d['id'] = doc.id;
-    return d;
+    try {
+      final doc = await _sb.from('cp_themes').select('*').eq('id', themeId).maybeSingle();
+      if (doc != null) return Map<String, dynamic>.from(doc as Map);
+    } catch (_) {}
+    return null;
   }
 
   static Future<List<Map<String, dynamic>>> _findRequestsFor(String uid,
       {String? status}) async {
-    final snap = await _db
-        .collection('cp_requests')
-        .where('receiver_uid', isEqualTo: uid)
-        .get();
-    final list = <Map<String, dynamic>>[];
-    for (final doc in snap.docs) {
-      final d = doc.data();
-      if (status != null && d['status'] != status) continue;
-      final sender = await FirebaseService().getUser(d['sender_uid'] as String? ?? '');
-      list.add(<String, dynamic>{
-        'id': doc.id,
-        'sender_uid': d['sender_uid'],
-        'receiver_uid': d['receiver_uid'],
-        'status': d['status'],
-        'message': d['message'],
-        'sender_name': sender?.name ?? '',
-        'sender_avatar': sender?.photoUrl ?? '',
-      });
+    try {
+      var query = _sb.from('cp_requests').select('*').eq('receiver_uid', uid);
+      if (status != null) {
+        query = query.eq('status', status);
+      }
+      final res = await query;
+      final list = <Map<String, dynamic>>[];
+      for (final doc in res) {
+        final d = Map<String, dynamic>.from(doc as Map);
+        final sender = await SupabaseDataService().getUser(d['sender_uid'] as String? ?? '');
+        list.add(<String, dynamic>{
+          'id': d['id'],
+          'sender_uid': d['sender_uid'],
+          'receiver_uid': d['receiver_uid'],
+          'status': d['status'],
+          'message': d['message'],
+          'sender_name': sender?.name ?? '',
+          'sender_avatar': sender?.photoUrl ?? '',
+        });
+      }
+      return list;
+    } catch (_) {
+      return [];
     }
-    return list;
   }
 
   static Future<List<Map<String, dynamic>>> _findHistoryFor(String uid) async {
-    final results = await Future.wait([
-      _db.collection('cp_couples').where('user1_uid', isEqualTo: uid).get(),
-      _db.collection('cp_couples').where('user2_uid', isEqualTo: uid).get(),
-    ]);
-    final ended = <Map<String, dynamic>>[];
-    for (final snap in results) {
-      for (final doc in snap.docs) {
-        final d = doc.data();
-        if (d['ended_at'] == null) continue;
+    try {
+      final res = await _sb.from('cp_couples')
+          .select('*')
+          .or('user1_uid.eq.$uid,user2_uid.eq.$uid')
+          .not('ended_at', 'is', null)
+          .order('ended_at', ascending: false);
+      final ended = <Map<String, dynamic>>[];
+      for (final doc in res) {
+        final d = Map<String, dynamic>.from(doc as Map);
         final isUser1 = d['user1_uid'] == uid;
         final partnerUid = isUser1 ? d['user2_uid'] as String : d['user1_uid'] as String;
-        final partner = await FirebaseService().getUser(partnerUid);
+        final partner = await SupabaseDataService().getUser(partnerUid);
         ended.add(<String, dynamic>{
           'partner_name': partner?.name ?? '',
           'partner_avatar': partner?.photoUrl ?? '',
@@ -1011,9 +1005,9 @@ class CpService {
           'ended_at': d['ended_at'],
         });
       }
+      return ended;
+    } catch (_) {
+      return [];
     }
-    ended.sort((a, b) =>
-        (b['ended_at']?.toString() ?? '').compareTo(a['ended_at']?.toString() ?? ''));
-    return ended;
   }
 }

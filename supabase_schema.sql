@@ -1117,3 +1117,164 @@ BEGIN
   WHERE status = 'active' AND expires_at <= NOW();
 END;
 $$;
+
+-- ============================================================
+-- 11. RECHARGE REQUESTS & PORTAL
+-- ============================================================
+CREATE TABLE IF NOT EXISTS recharge_requests (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+  user_custom_id TEXT,
+  user_name TEXT,
+  amount_usd NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  coins BIGINT NOT NULL DEFAULT 0,
+  method TEXT NOT NULL,
+  receipt_url TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  reviewed_at TIMESTAMPTZ,
+  reviewer_id TEXT,
+  rejection_reason TEXT
+);
+ALTER TABLE recharge_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "recharge_requests_all" ON recharge_requests FOR ALL USING (true);
+
+-- ============================================================
+-- 12. CP (COUPLES) SYSTEM TABLES
+-- ============================================================
+CREATE TABLE IF NOT EXISTS cp_couples (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user1_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+  user2_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+  points BIGINT NOT NULL DEFAULT 0,
+  level INT NOT NULL DEFAULT 1,
+  theme_id TEXT DEFAULT 'default',
+  ring_id TEXT,
+  title TEXT DEFAULT 'CP',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE cp_couples ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cp_couples_all" ON cp_couples FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS cp_requests (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  sender_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+  receiver_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+  ring_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')),
+  message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE cp_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cp_requests_all" ON cp_requests FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS cp_themes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  bg_url TEXT,
+  level_required INT DEFAULT 1,
+  price BIGINT DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE cp_themes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cp_themes_all" ON cp_themes FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS cp_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  base_level_points BIGINT DEFAULT 1000,
+  level_multiplier NUMERIC(5,2) DEFAULT 1.20,
+  max_level INT DEFAULT 100,
+  features_enabled BOOLEAN DEFAULT true,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE cp_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cp_settings_all" ON cp_settings FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS cp_gifts (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  name TEXT NOT NULL,
+  icon_url TEXT,
+  svga_url TEXT,
+  price BIGINT NOT NULL DEFAULT 0,
+  cp_points BIGINT NOT NULL DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE cp_gifts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cp_gifts_all" ON cp_gifts FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS cp_cars (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  name TEXT NOT NULL,
+  icon_url TEXT,
+  svga_url TEXT,
+  min_cp_level INT NOT NULL DEFAULT 1,
+  duration_days INT NOT NULL DEFAULT 30,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE cp_cars ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cp_cars_all" ON cp_cars FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS cp_gift_logs (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  cp_id TEXT NOT NULL REFERENCES cp_couples(id) ON DELETE CASCADE,
+  sender_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+  gift_id TEXT,
+  gift_name TEXT,
+  coins BIGINT DEFAULT 0,
+  points_added BIGINT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE cp_gift_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cp_gift_logs_all" ON cp_gift_logs FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS cp_rank_rewards (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  rank_type TEXT NOT NULL,
+  rank_position INT NOT NULL,
+  reward_coins BIGINT DEFAULT 0,
+  reward_badge TEXT,
+  reward_car TEXT,
+  reward_frame TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE cp_rank_rewards ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cp_rank_rewards_all" ON cp_rank_rewards FOR ALL USING (true);
+
+-- ============================================================
+-- 13. RECHARGE EVENT PROGRESS & USER BACKPACK
+-- ============================================================
+CREATE TABLE IF NOT EXISTS recharge_event_progress (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+  event_id TEXT NOT NULL,
+  total_recharged_coins BIGINT NOT NULL DEFAULT 0,
+  claimed_tiers JSONB DEFAULT '[]',
+  claimed_counts JSONB DEFAULT '{}',
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, event_id)
+);
+ALTER TABLE recharge_event_progress ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "recharge_event_progress_all" ON recharge_event_progress FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS user_backpack (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+  item_id TEXT NOT NULL,
+  name TEXT,
+  type TEXT,
+  icon_url TEXT,
+  svga_url TEXT,
+  is_equipped BOOLEAN DEFAULT false,
+  claim_round INT DEFAULT 1,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ
+);
+ALTER TABLE user_backpack ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "user_backpack_all" ON user_backpack FOR ALL USING (true);
+

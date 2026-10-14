@@ -93,95 +93,150 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
     final currentCoins = user?.coins ?? 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: const Color(0xFF10161D),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF333333)),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'تحويل الرصيد للمضيفين',
-          style: TextStyle(color: Color(0xFF333333), fontSize: 16, fontWeight: FontWeight.bold),
+          'تحويل كوينز الوكالة للمضيفين',
+          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // بطاقة الرصيد
+          // ── بطاقة رصيد الوكالة (نمط هاكوي الزمردي) ──
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFDE880F), Color(0xFFF7B733)],
-              ),
-              borderRadius: BorderRadius.circular(16),
+              color: const Color(0x66000000),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0x803ED78A), width: 1.2),
               boxShadow: [
-                BoxShadow(color: const Color(0xFFDE880F).withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
+                BoxShadow(
+                  color: const Color(0xFF3ED78A).withOpacity(0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                const Text('رصيد الكوينز المتاح للتحويل', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Text(
-                      R.formatCoins(currentCoins),
-                      style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.monetization_on, color: Colors.white, size: 24),
-                  ],
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3ED78A).withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Text('🪙', style: TextStyle(fontSize: 22)),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'رصيدك المتاح للتحويل:',
+                        style: TextStyle(color: Color(0xFFC1EFD3), fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        R.formatCoins(currentCoins),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFDB442), width: 1),
+                  ),
+                  child: const Text(
+                    'رصيد كوينز',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFFCD3E)),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
-          // نموذج التحويل
+          // ── نموذج التحويل (مطابق لـ hyk_frame_dialog_trransfer.xml) ──
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: const Color(0xFF141C24),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0x663ED78A), width: 1),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
+                BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 14, offset: const Offset(0, 6)),
               ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('معرف المضيف (User ID / No)', style: TextStyle(color: Color(0xFF333333), fontSize: 13, fontWeight: FontWeight.bold)),
+                const Text(
+                  'معرف المضيف المستلم (User ID / No):',
+                  style: TextStyle(color: Color(0xFFFEFEFD), fontSize: 13, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _targetIdCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    hintText: 'أدخل رقم المعرف الخاص بالمضيف',
-                    hintStyle: const TextStyle(fontSize: 12, color: Colors.black38),
-                    filled: true,
-                    fillColor: const Color(0xFFF9F9FB),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0x66000000),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0x803ED78A), width: 1),
+                  ),
+                  child: TextField(
+                    controller: _targetIdCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(fontSize: 15, color: Colors.white, fontWeight: FontWeight.bold),
+                    decoration: const InputDecoration(
+                      hintText: 'أدخل رقم المعرف ID الخاص بالمضيف',
+                      hintStyle: TextStyle(fontSize: 12, color: Color(0xFFA1A1A1)),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('عدد الكوينز المراد تحويلها', style: TextStyle(color: Color(0xFF333333), fontSize: 13, fontWeight: FontWeight.bold)),
+                const Text(
+                  'عدد الكوينز المراد تحويلها:',
+                  style: TextStyle(color: Color(0xFFFEFEFD), fontSize: 13, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _amountCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    hintText: 'مثال: 50000',
-                    hintStyle: const TextStyle(fontSize: 12, color: Colors.black38),
-                    filled: true,
-                    fillColor: const Color(0xFFF9F9FB),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0x66000000),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0x803ED78A), width: 1),
+                  ),
+                  child: TextField(
+                    controller: _amountCtrl,
+                    keyboardType: TextInputType.number,
+                    textDirection: TextDirection.ltr,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFFDE638), // Hayuki gold yellow
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'أدخل عدد الكوينز',
+                      hintStyle: TextStyle(fontSize: 13, color: Color(0xFFA1A1A1)),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -190,30 +245,75 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
                     padding: const EdgeInsets.all(10),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: _isSuccess ? Colors.green.shade50 : Colors.red.shade50,
+                      color: _isSuccess ? const Color(0x223ED78A) : const Color(0x22FF5757),
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _isSuccess ? const Color(0xFF3ED78A) : const Color(0xFFFF5757),
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(_isSuccess ? Icons.check_circle : Icons.error, color: _isSuccess ? Colors.green : Colors.red, size: 18),
+                        Icon(
+                          _isSuccess ? Icons.check_circle : Icons.error,
+                          color: _isSuccess ? const Color(0xFF3ED78A) : const Color(0xFFFF5757),
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
-                        Expanded(child: Text(_message!, style: TextStyle(color: _isSuccess ? Colors.green.shade800 : Colors.red.shade800, fontSize: 12))),
+                        Expanded(
+                          child: Text(
+                            _message!,
+                            style: TextStyle(
+                              color: _isSuccess ? const Color(0xFFC1EFD3) : const Color(0xFFFF8585),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 SizedBox(
                   width: double.infinity,
-                  height: 46,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _executeTransfer,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFDE880F),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
+                  height: 48,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      image: !_loading
+                          ? const DecorationImage(
+                              image: AssetImage(R.hykFrameBgTransferSure),
+                              fit: BoxFit.fill,
+                            )
+                          : null,
+                      gradient: _loading
+                          ? LinearGradient(
+                              colors: [Colors.grey.shade600, Colors.grey.shade700],
+                            )
+                          : null,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF3ED78A).withOpacity(0.35),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    child: _loading
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('تأكيد التحويل الفوري', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                    child: TextButton(
+                      onPressed: _loading ? null : _executeTransfer,
+                      style: TextButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                      ),
+                      child: _loading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            )
+                          : const Text(
+                              'تأكيد التحويل الفوري 🚀',
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                    ),
                   ),
                 ),
               ],

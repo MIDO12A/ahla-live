@@ -1,51 +1,59 @@
 import 'package:flutter/foundation.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AgencyTargetEvaluator {
-  static FirebaseFirestore get _db => FirebaseFirestore.instanceFor(
-        app: Firebase.app(),
-        databaseId: 'default',
-      );
+  static SupabaseClient get _sb => Supabase.instance.client;
 
   static Future<void> evaluateHostTargets(String hostUserId) async {
     try {
       // 1. Get host's agency_member doc
-      final memberQs = await _db.collection('host_agency_members')
-          .where('user_id', isEqualTo: hostUserId)
-          .get();
+      final memberQs = await _sb.from('host_agency_members')
+          .select('*')
+          .or('user_id.eq.$hostUserId,host_uid.eq.$hostUserId');
 
-      DocumentSnapshot<Map<String, dynamic>>? memberDoc;
-      if (memberQs.docs.isNotEmpty) {
-        for (final doc in memberQs.docs) {
-          final st = doc.data()['status']?.toString();
+      Map<String, dynamic>? memberDoc;
+      if (memberQs.isNotEmpty) {
+        for (final doc in memberQs) {
+          final m = Map<String, dynamic>.from(doc as Map);
+          final st = m['status']?.toString();
           if (st == 'active') {
-            memberDoc = doc;
+            memberDoc = m;
             break;
           }
         }
-        memberDoc ??= memberQs.docs.firstWhere(
-          (doc) {
-            final st = doc.data()['status']?.toString();
-            return st != 'pending' && st != 'rejected' && st != 'left' && st != 'kicked';
-          },
-          orElse: () => memberQs.docs.first,
-        );
+        if (memberDoc == null) {
+          for (final doc in memberQs) {
+            final m = Map<String, dynamic>.from(doc as Map);
+            final st = m['status']?.toString();
+            if (st != 'pending' && st != 'rejected' && st != 'left' && st != 'kicked') {
+              memberDoc = m;
+              break;
+            }
+          }
+          memberDoc ??= Map<String, dynamic>.from(memberQs.first as Map);
+        }
       }
 
-      String agencyId = memberDoc?.data()?['agency_id']?.toString() ?? '';
+      String agencyId = memberDoc?['agency_id']?.toString() ?? '';
       if (agencyId.isEmpty) {
-        final uSnap = await _db.collection('users').doc(hostUserId).get();
-        agencyId = uSnap.data()?['agency_id']?.toString() ?? '';
+        final uSnap = await _sb.from('users')
+            .select('agency_id')
+            .or('uid.eq.$hostUserId,id.eq.$hostUserId')
+            .maybeSingle();
+        agencyId = uSnap?['agency_id']?.toString() ?? '';
         if (agencyId.isNotEmpty && memberDoc == null) {
-          final mDirect = await _db.collection('host_agency_members').doc('${agencyId}_$hostUserId').get();
-          if (mDirect.exists) memberDoc = mDirect;
+          final mDirect = await _sb.from('host_agency_members')
+              .select('*')
+              .eq('agency_id', agencyId)
+              .or('user_id.eq.$hostUserId,host_uid.eq.$hostUserId')
+              .maybeSingle();
+          if (mDirect != null) memberDoc = Map<String, dynamic>.from(mDirect as Map);
         }
       }
 
       if (agencyId.isEmpty) return;
 
-      final md = memberDoc?.data() ?? {};
+      final md = memberDoc ?? {};
       final d1 = (md['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
       final d2 = (md['diamonds_balance'] as num?)?.toInt() ?? 0;
       final d3 = (md['diamonds'] as num?)?.toInt() ?? 0;
@@ -55,27 +63,29 @@ class AgencyTargetEvaluator {
       final validDays = (md['valid_days_monthly'] as num?)?.toInt() ?? 0;
 
       // 2. Get global targets config from host_milestones and agency_targets_config
-      var milestonesSnap = await _db.collection('host_milestones')
-          .where('is_active', isEqualTo: true)
-          .get();
-      if (milestonesSnap.docs.isEmpty) {
-        milestonesSnap = await _db.collection('host_milestones').get();
-      }
+      List<dynamic> milestonesSnap = [];
+      try {
+        milestonesSnap = await _sb.from('host_milestones')
+            .select('*')
+            .eq('is_active', true);
+        if (milestonesSnap.isEmpty) {
+          milestonesSnap = await _sb.from('host_milestones').select('*');
+        }
+      } catch (_) {}
 
-      final targetsSnap = await _db.collection('agency_targets_config')
-          .orderBy('target_diamonds', descending: false)
-          .get();
+      List<dynamic> targetsSnap = [];
+      try {
+        targetsSnap = await _sb.from('agency_targets_config')
+            .select('*')
+            .order('target_diamonds', ascending: true);
+      } catch (_) {}
 
       final List<Map<String, dynamic>> allTargets = [];
-      for (final doc in milestonesSnap.docs) {
-        final d = doc.data();
-        d['id'] = doc.id;
-        allTargets.add(d);
+      for (final doc in milestonesSnap) {
+        allTargets.add(Map<String, dynamic>.from(doc as Map));
       }
-      for (final doc in targetsSnap.docs) {
-        final d = doc.data();
-        d['id'] = doc.id;
-        allTargets.add(d);
+      for (final doc in targetsSnap) {
+        allTargets.add(Map<String, dynamic>.from(doc as Map));
       }
       if (allTargets.isEmpty) return;
 
@@ -95,20 +105,24 @@ class AgencyTargetEvaluator {
 
           // Did they already achieve this target this month?
           final achievedId = '${hostUserId}_${targetId}_$currentMonth';
-          final achievedRef = _db.collection('agency_achieved_targets').doc(achievedId);
+          try {
+            final achievedSnap = await _sb.from('agency_achieved_targets')
+                .select('id')
+                .eq('id', achievedId)
+                .maybeSingle();
 
-          final achievedSnap = await achievedRef.get();
-          if (!achievedSnap.exists) {
-            // HIT TARGET!
-            await _awardTarget(
-              hostUserId: hostUserId,
-              agencyId: agencyId,
-              targetId: targetId,
-              targetData: td,
-              achievedRef: achievedRef,
-              currentMonth: currentMonth,
-            );
-          }
+            if (achievedSnap == null) {
+              // HIT TARGET!
+              await _awardTarget(
+                hostUserId: hostUserId,
+                agencyId: agencyId,
+                targetId: targetId,
+                targetData: td,
+                achievedId: achievedId,
+                currentMonth: currentMonth,
+              );
+            }
+          } catch (_) {}
         }
       }
     } catch (e) {
@@ -119,15 +133,15 @@ class AgencyTargetEvaluator {
   /// Records active mic time for the host and updates monthly hours + valid days.
   static Future<void> recordLiveMinutes(String hostUserId, int minutes) async {
     try {
-      final memberQs = await _db.collection('host_agency_members')
-          .where('user_id', isEqualTo: hostUserId)
-          .where('status', isEqualTo: 'active')
-          .limit(1)
-          .get();
-      if (memberQs.docs.isEmpty) return;
+      final memberQs = await _sb.from('host_agency_members')
+          .select('*')
+          .or('user_id.eq.$hostUserId,host_uid.eq.$hostUserId')
+          .eq('status', 'active')
+          .limit(1);
+      if (memberQs.isEmpty) return;
 
-      final doc = memberQs.docs.first;
-      final data = doc.data();
+      final data = Map<String, dynamic>.from(memberQs.first as Map);
+      final memberDocId = data['id']?.toString() ?? '';
       final now = DateTime.now();
       final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
@@ -146,7 +160,7 @@ class AgencyTargetEvaluator {
         validDays += 1;
       }
 
-      await doc.reference.update({
+      final updatePayload = <String, dynamic>{
         'live_seconds_monthly': totalSec,
         'live_hours_monthly': double.parse(totalHours.toStringAsFixed(2)),
         'today_live_seconds': todaySec,
@@ -154,7 +168,13 @@ class AgencyTargetEvaluator {
         'last_live_at': now.toIso8601String(),
         'valid_days_monthly': validDays,
         if (reachedDay && lastCounted != todayStr) 'last_counted_valid_day': todayStr,
-      });
+      };
+
+      if (memberDocId.isNotEmpty) {
+        await _sb.from('host_agency_members').update(updatePayload).eq('id', memberDocId);
+      } else {
+        await _sb.from('host_agency_members').update(updatePayload).or('user_id.eq.$hostUserId,host_uid.eq.$hostUserId');
+      }
 
       await evaluateHostTargets(hostUserId);
     } catch (e) {
@@ -167,7 +187,7 @@ class AgencyTargetEvaluator {
     required String agencyId,
     required String targetId,
     required Map<String, dynamic> targetData,
-    required DocumentReference achievedRef,
+    required String achievedId,
     required String currentMonth,
   }) async {
     final targetDiamonds = (targetData['target_diamonds'] as num?)?.toInt() ?? 0;
@@ -183,33 +203,44 @@ class AgencyTargetEvaluator {
     final rewardDurationDays = (targetData['reward_duration_days'] as num?)?.toInt() ?? 30;
 
     // 1. Mark as achieved
-    await achievedRef.set({
-      'user_id': hostUserId,
-      'agency_id': agencyId,
-      'target_id': targetId,
-      'month': currentMonth,
-      'reward_type': rewardType,
-      'reward_value': rewardValue,
-      'reward_item_id': rewardItemId,
-      'achieved_at': DateTime.now().toIso8601String(),
-    });
+    try {
+      await _sb.from('agency_achieved_targets').upsert({
+        'id': achievedId,
+        'user_id': hostUserId,
+        'agency_id': agencyId,
+        'target_id': targetId,
+        'month': currentMonth,
+        'reward_type': rewardType,
+        'reward_value': rewardValue,
+        'reward_item_id': rewardItemId,
+        'achieved_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('[AgencyTargetEvaluator] error upserting achieved target: $e');
+    }
 
     // 2. Give agent commission to Agency Owner
     if (agentCommissionRate > 0 && agencyId.isNotEmpty) {
-      final agencySnap = await _db.collection('host_agencies').doc(agencyId).get();
-      if (agencySnap.exists) {
-        final ownerId = agencySnap.data()?['owner_id']?.toString() ?? '';
+      try {
+        final agencySnap = await _sb.from('host_agencies')
+            .select('owner_id, owner_uid')
+            .eq('id', agencyId)
+            .maybeSingle();
+        final ownerId = agencySnap?['owner_id']?.toString() ?? agencySnap?['owner_uid']?.toString() ?? '';
         if (ownerId.isNotEmpty) {
           final profit = (targetDiamonds * agentCommissionRate).toInt();
 
-          final agencyWalletRef = _db.collection('agency_wallets').doc(agencyId);
-          final awSnap = await agencyWalletRef.get();
-          if (awSnap.exists) {
-            await agencyWalletRef.update({
-              'diamond_balance': FieldValue.increment(profit),
-            });
+          final awSnap = await _sb.from('agency_wallets')
+              .select('*')
+              .eq('agency_id', agencyId)
+              .maybeSingle();
+          if (awSnap != null) {
+            final currentDiamondBalance = (awSnap['diamond_balance'] as num?)?.toInt() ?? 0;
+            await _sb.from('agency_wallets').update({
+              'diamond_balance': currentDiamondBalance + profit,
+            }).eq('agency_id', agencyId);
           } else {
-            await agencyWalletRef.set({
+            await _sb.from('agency_wallets').insert({
               'agency_id': agencyId,
               'diamond_balance': profit,
               'gold_balance': 0,
@@ -218,115 +249,135 @@ class AgencyTargetEvaluator {
 
           // Also update owner agency member diamonds balance
           try {
-            final ownerMemQs = await _db.collection('host_agency_members')
-                .where('agency_id', isEqualTo: agencyId)
-                .where('user_id', isEqualTo: ownerId)
-                .limit(1)
-                .get();
-            if (ownerMemQs.docs.isNotEmpty) {
-              await ownerMemQs.docs.first.reference.update({
-                'diamonds': FieldValue.increment(profit),
-                'diamonds_balance': FieldValue.increment(profit),
-                'diamonds_available': FieldValue.increment(profit),
-              });
+            final ownerMemSnap = await _sb.from('host_agency_members')
+                .select('id, diamonds, diamonds_balance, diamonds_available')
+                .eq('agency_id', agencyId)
+                .or('user_id.eq.$ownerId,host_uid.eq.$ownerId')
+                .maybeSingle();
+            if (ownerMemSnap != null) {
+              final d1 = (ownerMemSnap['diamonds'] as num?)?.toInt() ?? 0;
+              final d2 = (ownerMemSnap['diamonds_balance'] as num?)?.toInt() ?? 0;
+              final d3 = (ownerMemSnap['diamonds_available'] as num?)?.toInt() ?? 0;
+              await _sb.from('host_agency_members').update({
+                'diamonds': d1 + profit,
+                'diamonds_balance': d2 + profit,
+                'diamonds_available': d3 + profit,
+              }).eq('id', ownerMemSnap['id']);
             }
           } catch (_) {}
 
           // Notify owner
           await _sendSystemMessage(ownerId, 'مبروك! تمت إضافة عمولة بقيمة $profit ماسة (بنسبة ${(agentCommissionRate * 100).toStringAsFixed(1)}%) إلى محفظة وكالتك، لنجاح مضيفك في تحقيق تارجت $targetDiamonds 💎.');
         }
+      } catch (e) {
+        debugPrint('[AgencyTargetEvaluator] error awarding commission: $e');
       }
     }
 
     // 3. Give rewards to Host automatically
     final expiresAt = DateTime.now().add(Duration(days: rewardDurationDays)).toIso8601String();
 
-    if (rewardType == 'gold' && rewardValue > 0) {
-      await _db.collection('users').doc(hostUserId).update({
-        'coins': FieldValue.increment(rewardValue.toInt()),
-      });
-    } else if (rewardType == 'diamonds' && rewardValue > 0) {
-      await _db.collection('users').doc(hostUserId).update({
-        'diamonds': FieldValue.increment(rewardValue.toInt()),
-      });
-      // Also update host_agency_members
-      try {
-        final mRef = _db.collection('host_agency_members')
-            .where('user_id', isEqualTo: hostUserId)
-            .limit(1);
-        final mSnap = await mRef.get();
-        if (mSnap.docs.isNotEmpty) {
-          await mSnap.docs.first.reference.update({
-            'diamonds': FieldValue.increment(rewardValue.toInt()),
-            'diamonds_balance': FieldValue.increment(rewardValue.toInt()),
-            'diamonds_available': FieldValue.increment(rewardValue.toInt()),
-          });
-        }
-      } catch (_) {}
-    } else if (rewardType == 'salary_usd' && rewardValue > 0) {
-      await _db.collection('host_salaries').doc().set({
-        'user_id': hostUserId,
-        'agency_id': agencyId,
-        'target_id': targetId,
-        'amount_usd': rewardValue,
-        'target_diamonds': targetDiamonds,
-        'month': currentMonth,
-        'status': 'pending_payout',
-        'created_at': DateTime.now().toIso8601String(),
-      });
+    try {
+      if (rewardType == 'gold' && rewardValue > 0) {
+        final u = await _sb.from('users').select('coins').or('uid.eq.$hostUserId,id.eq.$hostUserId').maybeSingle();
+        final cur = (u?['coins'] as num?)?.toInt() ?? 0;
+        await _sb.from('users').update({
+          'coins': cur + rewardValue.toInt(),
+        }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
+      } else if (rewardType == 'diamonds' && rewardValue > 0) {
+        final u = await _sb.from('users').select('diamonds').or('uid.eq.$hostUserId,id.eq.$hostUserId').maybeSingle();
+        final cur = (u?['diamonds'] as num?)?.toInt() ?? 0;
+        await _sb.from('users').update({
+          'diamonds': cur + rewardValue.toInt(),
+        }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
 
-      // Update host_usd_wallets
-      try {
-        final usdWalletRef = _db.collection('host_usd_wallets').doc(hostUserId);
-        final uwSnap = await usdWalletRef.get();
-        if (uwSnap.exists) {
-          await usdWalletRef.update({
-            'usd_balance': FieldValue.increment(rewardValue),
-          });
-        } else {
-          await usdWalletRef.set({
-            'user_id': hostUserId,
-            'usd_balance': rewardValue,
-            'created_at': DateTime.now().toIso8601String(),
-          });
-        }
-      } catch (_) {}
-    }
-    
-    // Backpack rewards (frames, badges, store items)
-    if (rewardFrameId != null && rewardFrameId.isNotEmpty) {
-       await _db.collection('user_backpack').doc().set({
-         'user_id': hostUserId,
-         'item_type': 'frame',
-         'item_id': rewardFrameId,
-         'expires_at': expiresAt,
-         'created_at': DateTime.now().toIso8601String(),
-       });
-       await _db.collection('users').doc(hostUserId).update({
-         'active_frame': rewardFrameId,
-       });
-    }
-    
-    if (rewardBadgeId != null && rewardBadgeId.isNotEmpty) {
-       await _db.collection('user_backpack').doc().set({
-         'user_id': hostUserId,
-         'item_type': 'badge',
-         'item_id': rewardBadgeId,
-         'expires_at': expiresAt,
-         'created_at': DateTime.now().toIso8601String(),
-       });
+        // Also update host_agency_members
+        try {
+          final mSnap = await _sb.from('host_agency_members')
+              .select('id, diamonds, diamonds_balance, diamonds_available')
+              .or('user_id.eq.$hostUserId,host_uid.eq.$hostUserId')
+              .maybeSingle();
+          if (mSnap != null) {
+            final d1 = (mSnap['diamonds'] as num?)?.toInt() ?? 0;
+            final d2 = (mSnap['diamonds_balance'] as num?)?.toInt() ?? 0;
+            final d3 = (mSnap['diamonds_available'] as num?)?.toInt() ?? 0;
+            await _sb.from('host_agency_members').update({
+              'diamonds': d1 + rewardValue.toInt(),
+              'diamonds_balance': d2 + rewardValue.toInt(),
+              'diamonds_available': d3 + rewardValue.toInt(),
+            }).eq('id', mSnap['id']);
+          }
+        } catch (_) {}
+      } else if (rewardType == 'salary_usd' && rewardValue > 0) {
+        await _sb.from('host_salaries').insert({
+          'user_id': hostUserId,
+          'agency_id': agencyId,
+          'target_id': targetId,
+          'amount_usd': rewardValue,
+          'target_diamonds': targetDiamonds,
+          'month': currentMonth,
+          'status': 'pending_payout',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+
+        // Update host_usd_wallets
+        try {
+          final uwSnap = await _sb.from('host_usd_wallets')
+              .select('usd_balance')
+              .eq('user_id', hostUserId)
+              .maybeSingle();
+          if (uwSnap != null) {
+            final curUsd = (uwSnap['usd_balance'] as num?)?.toDouble() ?? 0.0;
+            await _sb.from('host_usd_wallets').update({
+              'usd_balance': curUsd + rewardValue,
+            }).eq('user_id', hostUserId);
+          } else {
+            await _sb.from('host_usd_wallets').insert({
+              'user_id': hostUserId,
+              'usd_balance': rewardValue,
+              'created_at': DateTime.now().toIso8601String(),
+            });
+          }
+        } catch (_) {}
+      }
+
+      // Backpack rewards (frames, badges, store items)
+      if (rewardFrameId != null && rewardFrameId.isNotEmpty) {
+        await _sb.from('user_backpack').insert({
+          'user_id': hostUserId,
+          'item_type': 'frame',
+          'item_id': rewardFrameId,
+          'expires_at': expiresAt,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+        await _sb.from('users').update({
+          'active_frame': rewardFrameId,
+        }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
+      }
+
+      if (rewardBadgeId != null && rewardBadgeId.isNotEmpty) {
+        await _sb.from('user_backpack').insert({
+          'user_id': hostUserId,
+          'item_type': 'badge',
+          'item_id': rewardBadgeId,
+          'expires_at': expiresAt,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      }
+
+      if (rewardItemId.isNotEmpty && rewardType == 'gift_item') {
+        await _sb.from('user_backpack').insert({
+          'user_id': hostUserId,
+          'item_type': 'gift',
+          'item_id': rewardItemId,
+          'count': (rewardValue > 0 ? rewardValue.toInt() : 1),
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      }
+    } catch (e) {
+      debugPrint('[AgencyTargetEvaluator] error awarding items: $e');
     }
 
-    if (rewardItemId.isNotEmpty && rewardType == 'gift_item') {
-      await _db.collection('user_backpack').doc().set({
-        'user_id': hostUserId,
-        'item_type': 'gift',
-        'item_id': rewardItemId,
-        'count': (rewardValue > 0 ? rewardValue.toInt() : 1),
-        'created_at': DateTime.now().toIso8601String(),
-      });
-    }
-    
     // 4. Send System Message to Host with celebration
     String rewardDesc = rewardType == 'salary_usd' ? '$rewardValue\$' :
                         rewardType == 'gold' ? '${rewardValue.toInt()} عملة ذهبية' :
@@ -334,9 +385,10 @@ class AgencyTargetEvaluator {
     String msg = '🎉 تهانينا! لقد حققت هدف $targetDiamonds 💎 وحصلت على $rewardDesc وجوائزك التلقائية.';
     await _sendSystemMessage(hostUserId, msg, imageUrl: targetData['reward_image_url']?.toString());
   }
-  
+
   static Future<void> _sendSystemMessage(String userId, String text, {String? imageUrl}) async {
-     await _db.collection('private_messages').doc().set({
+    try {
+      await _sb.from('private_messages').insert({
         'sender_id': 'system',
         'receiver_id': userId,
         'text': text,
@@ -344,18 +396,26 @@ class AgencyTargetEvaluator {
         'type': 'system',
         'created_at': DateTime.now().toIso8601String(),
         'is_read': false,
-        'conversationId': 'system_$userId',
-     });
-     
-     // Update conversation
-     await _db.collection('conversations').doc('system_$userId').set({
+        'conversation_id': 'system_$userId',
+      });
+
+      // Update conversation
+      final conv = await _sb.from('conversations')
+          .select('id, unread_count2')
+          .eq('id', 'system_$userId')
+          .maybeSingle();
+      final unread = (conv?['unread_count2'] as num?)?.toInt() ?? 0;
+      await _sb.from('conversations').upsert({
         'id': 'system_$userId',
-        'user1Id': 'system',
-        'user2Id': userId,
-        'lastMessage': text,
-        'lastMessageTime': DateTime.now().toIso8601String(),
-        'unreadCount1': 0,
-        'unreadCount2': FieldValue.increment(1),
-     }, SetOptions(merge: true));
+        'user1_id': 'system',
+        'user2_id': userId,
+        'last_message': text,
+        'last_message_time': DateTime.now().toIso8601String(),
+        'unread_count1': 0,
+        'unread_count2': unread + 1,
+      });
+    } catch (e) {
+      debugPrint('[AgencyTargetEvaluator] _sendSystemMessage error: $e');
+    }
   }
 }

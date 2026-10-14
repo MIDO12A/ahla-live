@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:firebase_auth/firebase_auth.dart';
+import 'supabase_auth_service.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._();
@@ -16,9 +16,7 @@ class ApiService {
   String get baseUrl => _baseUrl;
 
   Future<String?> _getToken() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
-    return await user.getIdToken();
+    return SupabaseAuthService().currentUid;
   }
 
   Future<Map<String, String>> _headers() async {

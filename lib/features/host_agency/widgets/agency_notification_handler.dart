@@ -1,9 +1,8 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/ui/in_app_toast.dart';
+import '../../../services/supabase_auth_service.dart';
+import '../../../services/supabase_data_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyNotificationHandler — يستمع لإشعارات الوكالة في الوقت الفعلي
@@ -26,7 +25,8 @@ class AgencyNotificationHandler extends StatefulWidget {
 }
 
 class _AgencyNotificationHandlerState extends State<AgencyNotificationHandler> {
-  StreamSubscription? _sub;
+  Timer? _pollTimer;
+  final Set<String> _seenNotificationIds = {};
   final DateTime _startedAt = DateTime.now();
 
   @override
@@ -37,64 +37,73 @@ class _AgencyNotificationHandlerState extends State<AgencyNotificationHandler> {
 
   @override
   void dispose() {
-    _sub?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
   void _subscribe() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = SupabaseAuthService().currentUid;
     if (uid == null) return;
 
-    _sub?.cancel();
-    final col = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default').collection('notifications');
-    _sub = col.where('uid', isEqualTo: uid).snapshots().listen((snap) {
-      for (final change in snap.docChanges) {
-        if (change.type == DocumentChangeType.added) {
-          final data = change.doc.data() ?? {};
-          final createdAtStr = data['created_at']?.toString() ?? data['sent_at']?.toString();
-          final createdAt = createdAtStr != null ? DateTime.tryParse(createdAtStr) : null;
-          // Only show toast for fresh notifications (received since started or within 30s)
-          if (createdAt != null && createdAt.isBefore(_startedAt.subtract(const Duration(seconds: 30)))) {
-            continue;
-          }
+    _pollTimer?.cancel();
+    _checkNotifications(uid, isFirstRun: true);
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _checkNotifications(uid);
+    });
+  }
 
-          final type = data['type'] as String? ?? '';
-          final title = data['title'] as String? ?? '';
-          final body = data['body'] as String? ?? data['message'] as String? ?? '';
+  Future<void> _checkNotifications(String uid, {bool isFirstRun = false}) async {
+    try {
+      final list = await SupabaseDataService().getNotifications(uid: uid);
+      for (final n in list) {
+        if (_seenNotificationIds.contains(n.id)) continue;
+        _seenNotificationIds.add(n.id);
 
-          if (title.isEmpty && body.isEmpty) continue;
+        if (isFirstRun) {
+          // On first run, ignore notifications created before app launch
+          continue;
+        }
 
-          switch (type) {
-            case 'agency_recharge_approved':
-            case 'recharge_agency_approved':
-              KayanInAppToast.agency('🎉 $title\n$body');
-              break;
-            case 'agency_target_80pct':
-            case 'agency_host_target_80pct':
-              KayanInAppToast.agency('🎯 $title\n$body');
-              break;
-            case 'agency_target_achieved':
-              KayanInAppToast.agency('🎉 $title\n$body');
-              break;
-            case 'agency_month_host':
-              KayanInAppToast.agency('🏆 $title\n$body');
-              break;
-            case 'agency_war_won':
-              KayanInAppToast.agency('⚔️ $title\n$body');
-              break;
-            case 'agency_month_host_announce':
-              KayanInAppToast.agency('🎖️ $title\n$body');
-              break;
-            default:
-              if (type.startsWith('agency_') || type == 'system') {
-                KayanInAppToast.agency('🔔 $title\n$body');
-              }
-          }
+        if (n.sentAt.isBefore(_startedAt.subtract(const Duration(seconds: 30)))) {
+          continue;
+        }
+
+        final type = n.type;
+        final title = n.title;
+        final body = n.body;
+
+        if (title.isEmpty && body.isEmpty) continue;
+
+        switch (type) {
+          case 'agency_recharge_approved':
+          case 'recharge_agency_approved':
+            KayanInAppToast.agency('🎉 $title\n$body');
+            break;
+          case 'agency_target_80pct':
+          case 'agency_host_target_80pct':
+            KayanInAppToast.agency('🎯 $title\n$body');
+            break;
+          case 'agency_target_achieved':
+            KayanInAppToast.agency('🎉 $title\n$body');
+            break;
+          case 'agency_month_host':
+            KayanInAppToast.agency('🏆 $title\n$body');
+            break;
+          case 'agency_war_won':
+            KayanInAppToast.agency('⚔️ $title\n$body');
+            break;
+          case 'agency_month_host_announce':
+            KayanInAppToast.agency('🎖️ $title\n$body');
+            break;
+          default:
+            if (type.startsWith('agency_') || type == 'system') {
+              KayanInAppToast.agency('🔔 $title\n$body');
+            }
         }
       }
-    }, onError: (e) {
-      debugPrint('[AgencyNotificationHandler] snapshot error: $e');
-    });
+    } catch (e) {
+      debugPrint('[AgencyNotificationHandler] check error: $e');
+    }
   }
 
   @override

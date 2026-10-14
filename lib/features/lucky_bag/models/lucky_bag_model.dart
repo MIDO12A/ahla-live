@@ -1,4 +1,4 @@
-/// المظروف الأحمر / أكياس الحظ (Red Envelope / Lucky Bag) — نموذج البيانات
+﻿/// المظروف الأحمر / أكياس الحظ (Red Envelope / Lucky Bag) — نموذج البيانات
 class LuckyBagModel {
   final String bagId;
   final String roomId;

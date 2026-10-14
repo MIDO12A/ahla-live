@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../../screens/room/widgets/svga_player.dart';
 
 /// عارض أنيميشن مكسب الحظ الداخلي في الغرفة بصيغة SVGA (In-Room Win Animation)
@@ -12,6 +12,7 @@ class LuckyRoomWinSvgaOverlay extends StatefulWidget {
   final String giftName;
   final String senderName;
   final String senderAvatar;
+  final String? customSvgaUrl;
   final VoidCallback onFinished;
 
   const LuckyRoomWinSvgaOverlay({
@@ -21,16 +22,20 @@ class LuckyRoomWinSvgaOverlay extends StatefulWidget {
     required this.giftName,
     required this.senderName,
     this.senderAvatar = '',
+    this.customSvgaUrl,
     required this.onFinished,
   }) : super(key: key);
 
   /// فحص ما إذا كان المضاعف يستحق تشغيل أنيميشن الـ SVGA في الروم
-  static bool hasWinSvga(int multiplier) {
-    return multiplier >= 5;
+  static bool hasWinSvga(int multiplier, {String? customUrl}) {
+    return (customUrl != null && customUrl.isNotEmpty) || multiplier >= 5;
   }
 
   /// إرجاع مسار الـ SVGA الأنسب لقيمة المضاعف
-  static String? getWinSvgaPath(int multiplier, {bool isArabic = true}) {
+  static String? getWinSvgaPath(int multiplier, {bool isArabic = true, String? customUrl}) {
+    if (customUrl != null && customUrl.isNotEmpty) {
+      return customUrl;
+    }
     if (multiplier >= 1000) {
       return 'assets/svga/gift_1000.svga';
     } else if (multiplier >= 500) {
@@ -91,7 +96,11 @@ class _LuckyRoomWinSvgaOverlayState extends State<LuckyRoomWinSvgaOverlay>
   @override
   Widget build(BuildContext context) {
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
-    final svgaPath = LuckyRoomWinSvgaOverlay.getWinSvgaPath(widget.multiplier, isArabic: isAr);
+    final svgaPath = LuckyRoomWinSvgaOverlay.getWinSvgaPath(
+      widget.multiplier,
+      isArabic: isAr,
+      customUrl: widget.customSvgaUrl,
+    );
 
     if (svgaPath == null) {
       return const SizedBox.shrink();

@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import '../config/supabase_config.dart';
 import '../models/room_model.dart';
 import '../models/message_model.dart';
@@ -741,42 +739,18 @@ class SupabaseDataService {
         debugPrint('[SupabaseDataService] searchUsers supabase error: $e');
       }
 
-      // 2. Firestore fallback search (خصوصاً للـ IDs المميزة المكونة من رقم واحد مثل 1..9)
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-        final intQ = int.tryParse(q);
-
-        // A. البحث بواسطة custom_id نصي أو رقمي
-        var qSnap = await fs.collection('users').where('custom_id', isEqualTo: q).limit(5).get();
-        for (final doc in qSnap.docs) {
-          addResult({'id': doc.id, 'uid': doc.id, ...doc.data()});
-        }
-        if (intQ != null) {
-          qSnap = await fs.collection('users').where('custom_id', isEqualTo: intQ).limit(5).get();
-          for (final doc in qSnap.docs) {
-            addResult({'id': doc.id, 'uid': doc.id, ...doc.data()});
+      if (int.tryParse(q) != null) {
+        try {
+          final intVal = int.parse(q);
+          final url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$intVal&select=*&limit=5');
+          final res = await http.get(url, headers: _headers);
+          if (res.statusCode == 200) {
+            final List list = jsonDecode(res.body);
+            for (final e in list) {
+              addResult(Map<String, dynamic>.from(e as Map));
+            }
           }
-        }
-
-        // B. البحث بواسطة customId نصي أو رقمي
-        qSnap = await fs.collection('users').where('customId', isEqualTo: q).limit(5).get();
-        for (final doc in qSnap.docs) {
-          addResult({'id': doc.id, 'uid': doc.id, ...doc.data()});
-        }
-        if (intQ != null) {
-          qSnap = await fs.collection('users').where('customId', isEqualTo: intQ).limit(5).get();
-          for (final doc in qSnap.docs) {
-            addResult({'id': doc.id, 'uid': doc.id, ...doc.data()});
-          }
-        }
-
-        // C. البحث بواسطة doc ID
-        final directDoc = await fs.collection('users').doc(q).get();
-        if (directDoc.exists && directDoc.data() != null) {
-          addResult({'id': directDoc.id, 'uid': directDoc.id, ...directDoc.data()!});
-        }
-      } catch (e) {
-        debugPrint('[SupabaseDataService] searchUsers firestore error: $e');
+        } catch (_) {}
       }
 
       return results;
@@ -822,60 +796,18 @@ class SupabaseDataService {
         }
       } catch (_) {}
 
-      // 2. Firestore fallback search (خصوصاً للـ IDs المميزة المكونة من رقم واحد)
-      try {
-        final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-
-        // custom_id كـ String
-        var qSnap = await fs.collection('users').where('custom_id', isEqualTo: cleanId).limit(1).get();
-        if (qSnap.docs.isNotEmpty) {
-          final d = qSnap.docs.first.data();
-          d['uid'] ??= qSnap.docs.first.id;
-          d['id'] ??= qSnap.docs.first.id;
-          return UserModel.fromMap(d);
-        }
-
-        // custom_id كـ int
-        if (intId != null) {
-          qSnap = await fs.collection('users').where('custom_id', isEqualTo: intId).limit(1).get();
-          if (qSnap.docs.isNotEmpty) {
-            final d = qSnap.docs.first.data();
-            d['uid'] ??= qSnap.docs.first.id;
-            d['id'] ??= qSnap.docs.first.id;
-            return UserModel.fromMap(d);
+      // 2. Numeric custom_id search on Supabase
+      if (intId != null) {
+        try {
+          final url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$intId&select=*&limit=1');
+          final res = await http.get(url, headers: _headers);
+          if (res.statusCode == 200) {
+            final List list = jsonDecode(res.body);
+            if (list.isNotEmpty) {
+              return UserModel.fromMap(Map<String, dynamic>.from(list.first as Map));
+            }
           }
-        }
-
-        // customId كـ String
-        qSnap = await fs.collection('users').where('customId', isEqualTo: cleanId).limit(1).get();
-        if (qSnap.docs.isNotEmpty) {
-          final d = qSnap.docs.first.data();
-          d['uid'] ??= qSnap.docs.first.id;
-          d['id'] ??= qSnap.docs.first.id;
-          return UserModel.fromMap(d);
-        }
-
-        // customId كـ int
-        if (intId != null) {
-          qSnap = await fs.collection('users').where('customId', isEqualTo: intId).limit(1).get();
-          if (qSnap.docs.isNotEmpty) {
-            final d = qSnap.docs.first.data();
-            d['uid'] ??= qSnap.docs.first.id;
-            d['id'] ??= qSnap.docs.first.id;
-            return UserModel.fromMap(d);
-          }
-        }
-
-        // Document ID مباشر
-        final doc = await fs.collection('users').doc(cleanId).get();
-        if (doc.exists && doc.data() != null) {
-          final d = doc.data()!;
-          d['uid'] ??= doc.id;
-          d['id'] ??= doc.id;
-          return UserModel.fromMap(d);
-        }
-      } catch (e) {
-        debugPrint('[SupabaseDataService] findUserByIdOrCustomId firestore error: $e');
+        } catch (_) {}
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] findUserByIdOrCustomId error: $e');
@@ -1102,20 +1034,18 @@ class SupabaseDataService {
       }
     } catch (_) {}
 
-    // Fallback to Firestore
-    try {
-      final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-      final snap = await fs.collection('host_milestones').orderBy('target_diamonds', descending: false).get();
-      if (snap.docs.isNotEmpty) {
-        return snap.docs.map((d) {
-          final m = d.data();
-          m['id'] = d.id;
-          return m;
-        }).toList();
-      }
-    } catch (_) {}
-
     return [];
+  }
+
+  Future<bool> deleteUser(String uid) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/users?or=(id.eq.$uid,uid.eq.$uid)');
+      final res = await http.delete(url, headers: _headers);
+      return res.statusCode == 200 || res.statusCode == 204;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] deleteUser error: $e');
+      return false;
+    }
   }
 
   Future<bool> creditHostAgencyMemberDiamonds(String hostUid, int diamondsToAdd) async {
@@ -1299,6 +1229,27 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] getAppConfig error: $e');
     }
     return {};
+  }
+
+  Future<bool> setAppConfig(String key, dynamic value) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/app_config?on_conflict=key');
+      final res = await http.post(
+        url,
+        headers: {
+          ..._headers,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: jsonEncode({
+          'key': key,
+          'value': value,
+        }),
+      );
+      return res.statusCode == 200 || res.statusCode == 201;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] setAppConfig error: $e');
+      return false;
+    }
   }
 
   Future<bool> recordSentGift({

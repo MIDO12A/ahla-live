@@ -3,16 +3,15 @@ import '../../../../services/supabase_auth_service.dart';
 import 'package:provider/provider.dart';
 import '../../../../providers/user_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../services/supabase_service.dart';
 import '../../../../core/supabase_compat.dart';
+import '../../../../config/r.dart';
+import '../../../../services/dynamic_config_service.dart';
 
 import '../../../../core/theme/brand_colors.dart';
 import '../../agent_recharge_widgets.dart';
@@ -60,8 +59,7 @@ class _AgentPinSetupScreenState extends State<AgentPinSetupScreen> {
     setState(() => _busy = true);
     try {
       final uid = SupabaseAuthService().currentUser?.uid ??
-          Provider.of<UserProvider>(context, listen: false).currentUser?.uid ??
-          FirebaseAuth.instance.currentUser?.uid;
+          Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
 
       if (uid != null) {
         try {
@@ -71,14 +69,10 @@ class _AgentPinSetupScreenState extends State<AgentPinSetupScreen> {
         } catch (_) {}
 
         try {
-          final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-          await fs.collection('users').doc(uid).set({
+          await SupabaseDataService().updateUser(uid, {
             'recharge_password': pass,
             'agent_pin': pass,
-          }, SetOptions(merge: true));
-          await fs.collection('agent_usd_wallets').doc(uid).set({
-            'password': pass,
-          }, SetOptions(merge: true));
+          });
         } catch (_) {}
       }
 
@@ -249,8 +243,7 @@ class _AgentPinVerifyDialogState extends State<_AgentPinVerifyDialog> {
 
     try {
       final uid = SupabaseAuthService().currentUser?.uid ??
-          Provider.of<UserProvider>(context, listen: false).currentUser?.uid ??
-          FirebaseAuth.instance.currentUser?.uid;
+          Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
 
       // 1. التحقق المحلي السريع من SharedPreferences
       String? savedPass;
@@ -261,12 +254,11 @@ class _AgentPinVerifyDialogState extends State<_AgentPinVerifyDialog> {
         } catch (_) {}
       }
 
-      // 2. إذا لم توجد محلياً، التحقق من Firestore
+      // 2. إذا لم توجد محلياً، التحقق من Supabase
       if ((savedPass == null || savedPass.isEmpty) && uid != null) {
         try {
-          final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-          final doc = await fs.collection('users').doc(uid).get();
-          savedPass = doc.data()?['recharge_password']?.toString() ?? doc.data()?['agent_pin']?.toString();
+          final u = await SupabaseDataService().getUser(uid);
+          // if saved in prefs or db
           if (savedPass != null && savedPass.isNotEmpty) {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('agent_password_$uid', savedPass);
@@ -481,8 +473,7 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
 
     try {
       final uid = SupabaseAuthService().currentUser?.uid ??
-          Provider.of<UserProvider>(context, listen: false).currentUser?.uid ??
-          FirebaseAuth.instance.currentUser?.uid;
+          Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
 
       if (uid != null) {
         try {
@@ -492,14 +483,10 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
         } catch (_) {}
 
         try {
-          final fs = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
-          await fs.collection('users').doc(uid).set({
+          await SupabaseDataService().updateUser(uid, {
             'recharge_password': pass,
             'agent_pin': pass,
-          }, SetOptions(merge: true));
-          await fs.collection('agent_usd_wallets').doc(uid).set({
-            'password': pass,
-          }, SetOptions(merge: true));
+          });
         } catch (_) {}
       }
 
@@ -673,6 +660,7 @@ class AgentRechargeTab extends StatefulWidget {
 class _AgentRechargeTabState extends State<AgentRechargeTab> {
   final _searchCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
+  final _confirmAmountCtrl = TextEditingController();
   final _searchFocus = FocusNode();
   Timer? _debounce;
   bool _searching = false;
@@ -686,8 +674,31 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     _debounce?.cancel();
     _searchCtrl.dispose();
     _amountCtrl.dispose();
+    _confirmAmountCtrl.dispose();
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  String _fmtAmt(dynamic val) {
+    if (val == null) return '0';
+    final n = num.tryParse(val.toString()) ?? 0;
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
+
+  Future<void> _openEditQuickAmounts(List<int> amounts) async {
+    final res = await showModalBottomSheet<List<int>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AgentEditQuickAmountsSheet(
+        current: amounts,
+      ),
+    );
+    if (res != null && mounted) {
+      widget.onQuickAmountsChanged(res);
+    }
   }
 
   void _onSearchChanged(String val) {
@@ -771,6 +782,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
       _results = const [];
       _searchCtrl.clear();
       _amountCtrl.clear();
+      _confirmAmountCtrl.clear();
     });
   }
 
@@ -787,6 +799,11 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     final amount = int.tryParse(_amountCtrl.text.trim());
     if (amount == null || amount < 1) {
       _showSnack('أدخل عدد الكوينز');
+      return;
+    }
+    final confirmAmount = int.tryParse(_confirmAmountCtrl.text.trim());
+    if (confirmAmount != amount) {
+      _showSnack('تأكيد عدد الكوينز غير متطابق مع المبلغ المدخل');
       return;
     }
     if (amount > 10000000) {
@@ -841,8 +858,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     setState(() => _busy = true);
     final targetUid = user['id']?.toString() ?? user['uid']?.toString() ?? '';
     final agentUid = SupabaseAuthService().currentUser?.uid ??
-        Provider.of<UserProvider>(context, listen: false).currentUser?.uid ??
-        FirebaseAuth.instance.currentUser?.uid;
+        Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
     if (agentUid == null || targetUid.isEmpty) {
       setState(() => _busy = false);
       _showSnack('خطأ: تعذر التعرف على بيانات الحساب');
@@ -920,8 +936,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     setState(() => _busy = true);
     final targetUid = user['id']?.toString() ?? user['uid']?.toString() ?? '';
     final agentUid = SupabaseAuthService().currentUser?.uid ??
-        Provider.of<UserProvider>(context, listen: false).currentUser?.uid ??
-        FirebaseAuth.instance.currentUser?.uid;
+        Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
     if (agentUid == null || targetUid.isEmpty) {
       setState(() => _busy = false);
       _showSnack('خطأ: تعذر التعرف على بيانات الحساب');
@@ -980,15 +995,9 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
             ),
           if (!_searching && _results.isNotEmpty) _buildResultsList(),
           if (_selected != null) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             _buildModeSelector(),
             _buildSelectedCard(),
-            const SizedBox(height: 20),
-            _buildQuickAmounts(),
-            const SizedBox(height: 12),
-            _buildAmountField(),
-            const SizedBox(height: 16),
-            _buildSendButton(),
           ],
           if (_selected == null &&
               !_searching &&
@@ -1215,114 +1224,298 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     final user = _selected!;
     final coins = (user['coins'] as num?)?.toInt() ?? 0;
     final diamonds = (user['diamonds'] as num?)?.toInt() ?? 0;
-    final primaryColor = _isWithdrawMode ? Colors.redAccent : KayanBrandColors.logoPrimary;
+    final hasMismatch = _amountCtrl.text.isNotEmpty &&
+        _confirmAmountCtrl.text.isNotEmpty &&
+        _amountCtrl.text.trim() != _confirmAmountCtrl.text.trim();
+    final dc = DynamicConfigService();
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: dc.agentRechargeCardColor,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: primaryColor.withValues(alpha: 0.35), width: 1.5),
+        border: Border.all(color: dc.agentRechargeCardBorderColor, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(children: [
-            AgentAvatar(url: user['avatar_url']?.toString(), size: 56),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_isWithdrawMode ? 'المستخدم المطلوب سحب الألماس منه' : 'المستخدم المطلوب شحن رصيده',
-                        style: GoogleFonts.tajawal(
-                            fontSize: 11,
-                            color: primaryColor,
-                            fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 3),
-                    Text(user['display_name']?.toString() ?? 'مستخدم',
-                        style: GoogleFonts.tajawal(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFF1a1a2e))),
-                    if (user['kayan_id'] != null)
-                      Text('# ${user['kayan_id']}',
-                          style: GoogleFonts.tajawal(
-                              fontSize: 12,
-                              color: primaryColor,
-                              fontWeight: FontWeight.w700)),
-                  ]),
-            ),
-            GestureDetector(
-              onTap: _clearSelected,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.close_rounded,
-                    size: 18, color: Colors.red),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: Colors.black12),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFB800).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
+          // ── Hayuki Title Image (txt_transfer_title.png) أو من لوحة التحكم ──
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: dc.buildDynamicImage(
+                dc.agentRechargeTransferTitleImage,
+                defaultAsset: R.hykTxtTransferTitle,
+                height: 24,
+                fit: BoxFit.contain,
+                fallbackWidget: Text(
+                  _isWithdrawMode ? 'سحب رصيد الألماس' : 'تحويل كوينز الوكالة',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFEFEFD),
                   ),
-                  child: Row(children: [
-                    const Text('🪙', style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('رصيد الكوينز', style: GoogleFonts.tajawal(fontSize: 10, color: Colors.black45)),
-                          Text(_fmtAmt(coins), style: GoogleFonts.tajawal(fontSize: 13, fontWeight: FontWeight.w900, color: const Color(0xFFB78103))),
-                        ],
-                      ),
-                    ),
-                  ]),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+          ),
+
+          // ── boxUserInfo (bg_nim_transfer_1_info) أو من لوحة التحكم ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              image: dc.getDecorationImage(
+                dc.agentRechargeTransferCardBgImage,
+                defaultAsset: R.hykBgNimTransfer1Info,
+                fit: BoxFit.fill,
+              ),
+              color: const Color(0xFF1C2732),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: dc.agentRechargeCardBorderColor, width: 1),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFF3ED78A), width: 1.5),
                   ),
-                  child: Row(children: [
-                    const Text('💎', style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  child: AgentAvatar(url: user['avatar_url']?.toString(), size: 44),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user['display_name']?.toString() ?? 'مستخدم',
+                        style: GoogleFonts.tajawal(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFFFEFEFD),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('رصيد الماس', style: GoogleFonts.tajawal(fontSize: 10, color: Colors.black45)),
-                          Text(_fmtAmt(diamonds), style: GoogleFonts.tajawal(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.blue.shade800)),
+                          const Text(
+                            'ID :',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFFC1EFD3),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0x8C000000),
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: Text(
+                              user['kayan_id']?.toString() ?? user['id']?.toString() ?? '',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFC1EFD3),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _clearSelected,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ]),
+                    child: const Icon(Icons.close_rounded, size: 16, color: Colors.white70),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── bocMiddle: رصيد وكالتك (tvRuuiofkioBalance) ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _isWithdrawMode ? 'رصيد ألماس المستخدم المتاح للسحب:' : 'رصيد وكالتك الحالي:',
+                style: GoogleFonts.tajawal(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFFEFEFD),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFDB442), width: 1),
+                ),
+                child: Text(
+                  _isWithdrawMode ? 'سحب الراتب' : 'تعبئة وشحن',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFFCD3E),
+                  ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: const Color(0x66000000),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0x803ED78A), width: 1),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  _isWithdrawMode ? '💎' : '🪙',
+                  style: const TextStyle(fontSize: 18),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _isWithdrawMode ? _fmtAmt(diamonds) : _fmtAmt(widget.agencyGold),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _isWithdrawMode ? 'ماسة متوفرة' : 'كوين في الوكالة',
+                  style: GoogleFonts.tajawal(fontSize: 11, color: Colors.white54),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // ── Quick Amounts (أزرار مبالغ سريعة بنمط هاكوي) ──
+          _buildQuickAmounts(),
+
+          const SizedBox(height: 14),
+
+          // ── textViewRuuiofkio5 + etCoins (حقل إدخال الكوينز الأول) ──
+          Text(
+            _isWithdrawMode ? 'عدد الماسات المراد سحبها كراتب:' : 'عدد الكوينز المراد شحنها:',
+            style: GoogleFonts.tajawal(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFFFEFEFD),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0x66000000),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0x803ED78A), width: 1),
+            ),
+            child: TextField(
+              controller: _amountCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: dc.agentRechargeCoinsTextColor,
+              ),
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                hintText: 'أدخل عدد الكوينز',
+                hintStyle: TextStyle(fontSize: 13, color: Color(0xFFA1A1A1)),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── textViewRuuiofkio6 + etCoins2 (حقل تأكيد عدد الكوينز) ──
+          Text(
+            _isWithdrawMode ? 'تأكيد عدد الماسات المراد سحبها:' : 'تأكيد عدد الكوينز المراد شحنها:',
+            style: GoogleFonts.tajawal(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFFFEFEFD),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0x66000000),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: hasMismatch ? const Color(0xFFFF5757) : dc.agentRechargeCardBorderColor,
+                width: 1,
+              ),
+            ),
+            child: TextField(
+              controller: _confirmAmountCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: hasMismatch ? const Color(0xFFFF5757) : dc.agentRechargeCoinsTextColor,
+              ),
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                hintText: 'تأكيد عدد الكوينز المدخل',
+                hintStyle: TextStyle(fontSize: 13, color: Color(0xFFA1A1A1)),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+          ),
+
+          // ── tvNotEnough2: رسالة عدم تطابق المبالغ ──
+          if (hasMismatch) ...[
+            const SizedBox(height: 5),
+            const Text(
+              '⚠️ المبالغ غير متطابقة، يرجى كتابة نفس المبلغ للتأكيد',
+              style: TextStyle(fontSize: 11, color: Color(0xFFFF5757), fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ],
+
+          const SizedBox(height: 18),
+
+          // ── hyk_frame_btn_confirm (زر التأكيد المتطابق مع هاكوي) ──
+          _buildSendButton(),
         ],
       ),
     );
@@ -1332,33 +1525,35 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     final amounts = widget.quickAmounts;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Text('مبالغ سريعة',
-            style: GoogleFonts.tajawal(
-                fontSize: 12,
-                color: Colors.black45,
-                fontWeight: FontWeight.w700)),
+        Text(
+          'مبالغ سريعة:',
+          style: GoogleFonts.tajawal(
+            fontSize: 11,
+            color: Colors.white70,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         const Spacer(),
         GestureDetector(
           onTap: () => _openEditQuickAmounts(amounts),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: KayanBrandColors.logoPrimary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: KayanBrandColors.logoPrimary
-                      .withValues(alpha: 0.25)),
+              color: const Color(0xFF3ED78A).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF3ED78A).withOpacity(0.3)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.tune_rounded,
-                  size: 14, color: KayanBrandColors.logoPrimary),
+              const Icon(Icons.tune_rounded, size: 12, color: Color(0xFF3ED78A)),
               const SizedBox(width: 4),
-              Text('تخصيص',
-                  style: GoogleFonts.tajawal(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: KayanBrandColors.logoPrimary)),
+              Text(
+                'تخصيص',
+                style: GoogleFonts.tajawal(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF3ED78A),
+                ),
+              ),
             ]),
           ),
         ),
@@ -1370,32 +1565,37 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     child: GestureDetector(
-                      onTap: () =>
-                          setState(() => _amountCtrl.text = amt.toString()),
+                      onTap: () {
+                        setState(() {
+                          _amountCtrl.text = amt.toString();
+                          _confirmAmountCtrl.text = amt.toString();
+                        });
+                      },
                       child: Container(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 10),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFB800)
-                              .withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(12),
+                          color: _amountCtrl.text == amt.toString()
+                              ? const Color(0x403ED78A)
+                              : const Color(0x33000000),
+                          borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: _amountCtrl.text == amt.toString()
-                                ? const Color(0xFFFFB800)
-                                : const Color(0xFFFFB800)
-                                    .withValues(alpha: 0.3),
-                            width:
-                                _amountCtrl.text == amt.toString() ? 2 : 1,
+                                ? const Color(0xFF3ED78A)
+                                : const Color(0x4D3ED78A),
+                            width: _amountCtrl.text == amt.toString() ? 1.5 : 1,
                           ),
                         ),
                         child: Column(children: [
-                          const Text('🪙',
-                              style: TextStyle(fontSize: 16)),
-                          Text(_fmtAmt(amt),
-                              style: GoogleFonts.tajawal(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w900,
-                                  color: const Color(0xFFFFB800))),
+                          const Text('🪙', style: TextStyle(fontSize: 13)),
+                          const SizedBox(height: 2),
+                          Text(
+                            _fmtAmt(amt),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFFDE638),
+                            ),
+                          ),
                         ]),
                       ),
                     ),
@@ -1406,125 +1606,66 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     ]);
   }
 
-  String _fmtAmt(int n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(n % 1000 == 0 ? 0 : 1)}K';
-    return n.toString();
-  }
+  Widget _buildAmountField() => const SizedBox.shrink(); // Integrated into _buildSelectedCard
 
-  Future<void> _openEditQuickAmounts(List<int> current) async {
-    final result = await showModalBottomSheet<List<int>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => AgentEditQuickAmountsSheet(current: current),
-    );
-    if (result != null) {
-      try {
-        final res = await Supabase.instance.client
-            .rpc('agent_set_quick_amounts', params: {'p_amounts': result});
-        if (!mounted) return;
-        if (res is Map && res['ok'] == true) {
-          widget.onQuickAmountsChanged(result);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('✅ تم حفظ المبالغ السريعة',
-                  style: GoogleFonts.tajawal(fontWeight: FontWeight.w700)),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Colors.green.shade700));
-        } else {
-          _showSnack(res?['error']?.toString() ?? 'خطأ في الحفظ');
-        }
-      } catch (e) {
-        debugPrint('[quick_amounts] $e');
-        if (mounted) _showSnack('خطأ في الاتصال');
-      }
-    }
-  }
-
-  Widget _buildAmountField() => Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 12),
-          ],
-        ),
-        child: TextField(
-          controller: _amountCtrl,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          textDirection: TextDirection.rtl,
-          style: GoogleFonts.tajawal(
-              fontSize: 18, fontWeight: FontWeight.w800),
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            hintText: _isWithdrawMode ? 'أدخل عدد الألماس المراد سحبه كراتب' : 'أدخل عدد الكوينز المراد شحنها',
-            hintStyle:
-                GoogleFonts.tajawal(fontSize: 15, color: Colors.black38),
-            prefixIcon: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Text(_isWithdrawMode ? '💎' : '🪙', style: const TextStyle(fontSize: 22))),
-            suffixText: _isWithdrawMode ? 'ماسة' : 'كوين',
-            suffixStyle: GoogleFonts.tajawal(
-                fontSize: 13,
-                color: Colors.black45,
-                fontWeight: FontWeight.w600),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          ),
-        ),
-      );
-
-  Widget _buildSendButton() => SizedBox(
+  Widget _buildSendButton() {
+    final dc = DynamicConfigService();
+    return SizedBox(
         width: double.infinity,
-        height: 54,
+        height: 48,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: _busy
-                  ? [Colors.grey.shade300, Colors.grey.shade300]
-                  : _isWithdrawMode
-                      ? [const Color(0xFFC62828), const Color(0xFFEF5350)]
-                      : [KayanBrandColors.logoPrimary, const Color(0xFFFF6B00)],
-            ),
-            borderRadius: BorderRadius.circular(16),
+            image: (!_busy && !_isWithdrawMode)
+                ? dc.getDecorationImage(
+                    dc.agentRechargeConfirmBtnImage,
+                    defaultAsset: R.hykFrameBgTransferSure,
+                    fit: BoxFit.fill,
+                  )
+                : null,
+            gradient: _busy
+                ? LinearGradient(
+                    colors: [Colors.grey.shade600, Colors.grey.shade700],
+                  )
+                : _isWithdrawMode
+                    ? const LinearGradient(
+                        colors: [Color(0xFFD32F2F), Color(0xFFEF5350)],
+                      )
+                    : null,
+            borderRadius: BorderRadius.circular(24),
             boxShadow: _busy
                 ? []
                 : [
                     BoxShadow(
-                        color: (_isWithdrawMode ? Colors.red : KayanBrandColors.logoPrimary)
-                            .withValues(alpha: 0.4),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6)),
+                      color: (_isWithdrawMode ? Colors.red : const Color(0xFF3ED78A))
+                          .withOpacity(0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
           ),
           child: TextButton(
             onPressed: _busy ? null : _confirmAndSend,
             style: TextButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16))),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            ),
             child: _busy
                 ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2.5))
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  )
                 : Text(
-                    _isWithdrawMode ? 'إرسال طلب سحب الألماس 💎' : 'شحن الكوينز الآن 🚀',
+                    _isWithdrawMode ? 'تأكيد سحب الألماس 💎' : dc.agentRechargeConfirmText,
                     style: GoogleFonts.tajawal(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white)),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
           ),
         ),
       );
+  }
 
   Widget _buildGuide() => Padding(
         padding: const EdgeInsets.only(top: 60),

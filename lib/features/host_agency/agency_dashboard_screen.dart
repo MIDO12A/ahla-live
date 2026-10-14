@@ -1,4 +1,4 @@
-// lib/features/host_agency/agency_dashboard_screen.dart
+﻿// lib/features/host_agency/agency_dashboard_screen.dart
 // ─────────────────────────────────────────────────────────────────────────────
 // Glassmorphic 2035 Agency Dashboard
 // • Team aggregation: total diamonds, top earner

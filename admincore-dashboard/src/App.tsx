@@ -49,6 +49,7 @@ import AppSounds from './pages/AppSounds';
 import ZegoAudioSettings from './pages/ZegoAudioSettings';
 import RechargeEventManager from './pages/RechargeEventManager';
 import RechargeSettings from './pages/RechargeSettings';
+import RoomCupManager from './pages/RoomCupManager';
 import t from './lib/i18n';
 
 export default function App() {
@@ -103,6 +104,7 @@ export default function App() {
             <Route path="/store" element={<Store />} />
             <Route path="/user-gifting" element={<UserGifting />} />
             <Route path="/rooms" element={<Rooms />} />
+            <Route path="/room-cup" element={<RoomCupManager />} />
             <Route path="/lucky-gifts" element={<LuckyGiftsManager />} />
             <Route path="/red-packets" element={<RedPacketsManager />} />
             <Route path="/tasks-manager" element={<TasksManager />} />

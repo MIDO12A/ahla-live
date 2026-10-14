@@ -8,7 +8,6 @@ import '../../services/api_service.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/user_model.dart';
 import '../../core/supabase_compat.dart';
@@ -738,12 +737,6 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       debugPrint('[Wallet] Supabase recharge_requests error: $e');
     }
 
-    try {
-      // 2. Insert into Firestore recharge_requests
-      await FirebaseFirestore.instance.collection('recharge_requests').doc(requestId).set(reqMap);
-    } catch (e) {
-      debugPrint('[Wallet] Firestore recharge_requests error: $e');
-    }
 
     if (!mounted) return;
 
