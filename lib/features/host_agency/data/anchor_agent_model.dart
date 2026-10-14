@@ -83,6 +83,58 @@ class AgentInfoModel {
     );
   }
 
+  AgentInfoModel copyWith({
+    int? userId,
+    int? agentBean,
+    int? agentGold,
+    int? beanNumber,
+    int? transferBean,
+    int? transferBeanDollar,
+    int? transferDollar,
+    int? transferMoney,
+    int? transferNumber,
+    String? agencyName,
+    String? avatarUrl,
+    String? countryFlagUrl,
+    String? agencyId,
+    String? agencyPublicId,
+    double? commissionRate,
+    String? tier,
+    String? notice,
+    int? targetDiamonds,
+    double? salaryUsd,
+    String? rewardType,
+    double? rewardValue,
+    String? periodType,
+    List<Map<String, dynamic>>? milestones,
+  }) {
+    return AgentInfoModel(
+      userId: userId ?? this.userId,
+      agentBean: agentBean ?? this.agentBean,
+      agentGold: agentGold ?? this.agentGold,
+      beanNumber: beanNumber ?? this.beanNumber,
+      transferBean: transferBean ?? this.transferBean,
+      transferBeanDollar: transferBeanDollar ?? this.transferBeanDollar,
+      transferDollar: transferDollar ?? this.transferDollar,
+      transferMoney: transferMoney ?? this.transferMoney,
+      transferNumber: transferNumber ?? this.transferNumber,
+      agencyName: agencyName ?? this.agencyName,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      countryFlagUrl: countryFlagUrl ?? this.countryFlagUrl,
+      agencyId: agencyId ?? this.agencyId,
+      agencyPublicId: agencyPublicId ?? this.agencyPublicId,
+      commissionRate: commissionRate ?? this.commissionRate,
+      tier: tier ?? this.tier,
+      notice: notice ?? this.notice,
+      targetDiamonds: targetDiamonds ?? this.targetDiamonds,
+      salaryUsd: salaryUsd ?? this.salaryUsd,
+      rewardType: rewardType ?? this.rewardType,
+      rewardValue: rewardValue ?? this.rewardValue,
+      periodType: periodType ?? this.periodType,
+      milestones: milestones ?? this.milestones,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'user_id': userId,
         'agent_bean': agentBean,
@@ -148,7 +200,7 @@ class AnchorAgentUserInfoDataModel {
     this.rechargeValue = 0,
     this.sex = 1,
     this.vip = 0,
-    this.targetDiamonds = 100000,
+    this.targetDiamonds = 0,
   });
 
   String get formattedTime {
@@ -184,7 +236,7 @@ class AnchorAgentUserInfoDataModel {
       rechargeValue: (json['recharge_value'] as num?)?.toInt() ?? 0,
       sex: (json['sex'] as num?)?.toInt() ?? 1,
       vip: (json['vip'] as num?)?.toInt() ?? 0,
-      targetDiamonds: (json['target_diamonds'] as num?)?.toInt() ?? 100000,
+      targetDiamonds: (json['target_diamonds'] as num?)?.toInt() ?? 0,
     );
   }
 

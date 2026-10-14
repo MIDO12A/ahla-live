@@ -1795,7 +1795,7 @@ class SupabaseDataService {
         if (list.isNotEmpty) return Map<String, dynamic>.from(list[0] as Map);
       }
 
-      final urlMem = Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(host_uid.eq.$uid,user_id.eq.$uid)&select=agency_id&limit=1');
+      final urlMem = Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(host_uid.eq.$uid,user_id.eq.$uid)&status=eq.active&select=agency_id&limit=1');
       final resMem = await http.get(urlMem, headers: _headers);
       if (resMem.statusCode == 200) {
         final List list = jsonDecode(resMem.body);

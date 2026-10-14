@@ -41,6 +41,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
   bool  _loading = true;
   _UserAgencyRole _role = _UserAgencyRole.none;
   String? _agencyId;
+  String? _agencyName;
   Map<String, dynamic>? _pendingApplicationData;
 
   @override
@@ -55,7 +56,6 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
     final uid = user?.uid ??
         SupabaseAuthService().currentUser?.uid ??
         AuthService.currentSession?.user.id;
-    final customId = user?.customId;
     if (uid == null) {
       if (mounted) setState(() => _loading = false);
       return;
@@ -71,7 +71,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
             .or('host_uid.eq.$uid,user_id.eq.$uid')
             .eq('status', 'active')
             .maybeSingle();
-        if (m != null && m['agency_id'] != null) {
+        if (m != null && m['agency_id'] != null && m['agency_id'].toString().isNotEmpty && m['agency_id'].toString() != 'null') {
           row = {'role': m['role'] ?? 'host', 'agency_id': m['agency_id'].toString()};
         }
       } catch (_) {}
@@ -85,7 +85,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
               .or('owner_uid.eq.$uid,owner_id.eq.$uid')
               .maybeSingle();
           if (ag != null && ag['id'] != null && (ag['status'] == 'active' || ag['is_active'] == true)) {
-            row = {'role': 'owner', 'agency_id': ag['id'].toString()};
+            row = {'role': 'owner', 'agency_id': ag['id'].toString(), 'name': ag['name']?.toString()};
           }
         } catch (_) {}
       }
@@ -98,10 +98,10 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
               .select('agency_id, is_host_agent')
               .eq('uid', uid)
               .maybeSingle();
-          if (u != null && u['agency_id'] != null && u['agency_id'].toString().isNotEmpty && u['is_host_agent'] == true) {
+          if (u != null && u['agency_id'] != null && u['agency_id'].toString().isNotEmpty && u['agency_id'].toString() != 'null' && u['is_host_agent'] == true) {
             final agCheck = await Supabase.instance.client
                 .from('host_agencies')
-                .select('owner_uid, owner_id')
+                .select('owner_uid, owner_id, name')
                 .eq('id', u['agency_id'].toString())
                 .maybeSingle();
             final isRealOwner = agCheck != null && (agCheck['owner_uid'] == uid || agCheck['owner_id'] == uid);
@@ -109,6 +109,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
               row = {
                 'role': 'owner',
                 'agency_id': u['agency_id'].toString(),
+                'name': agCheck['name']?.toString(),
               };
             }
           }
@@ -140,6 +141,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
             _role = _UserAgencyRole.pendingApproval;
             _pendingApplicationData = pendingApp;
             _agencyId = pendingApp?['agency_id']?.toString();
+            _agencyName = null;
             _loading = false;
           });
           return;
@@ -148,10 +150,30 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
 
       if (!mounted) return;
       if (row == null) {
-        setState(() { _role = _UserAgencyRole.none; _loading = false; });
+        setState(() {
+          _role = _UserAgencyRole.none;
+          _agencyId = null;
+          _agencyName = null;
+          _loading = false;
+        });
       } else {
         final roleStr = row['role'] as String? ?? 'host';
         final aid     = row['agency_id'] as String?;
+        String? agName = row['name'] as String?;
+
+        if (agName == null && aid != null && aid.isNotEmpty) {
+          try {
+            final agInfo = await Supabase.instance.client
+                .from('host_agencies')
+                .select('name')
+                .eq('id', aid)
+                .maybeSingle();
+            if (agInfo != null && agInfo['name'] != null) {
+              agName = agInfo['name'].toString();
+            }
+          } catch (_) {}
+        }
+
         _UserAgencyRole role;
         if (roleStr == 'owner') {
           role = _UserAgencyRole.owner;
@@ -160,7 +182,12 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
         } else {
           role = _UserAgencyRole.host;
         }
-        setState(() { _role = role; _agencyId = aid; _loading = false; });
+        setState(() {
+          _role = role;
+          _agencyId = aid;
+          _agencyName = agName;
+          _loading = false;
+        });
       }
     } catch (e) {
       debugPrint('[host_agency_screen] error: $e');
@@ -181,23 +208,13 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
       );
     }
 
-    // Route to the right dashboard immediately
-    switch (_role) {
-      case _UserAgencyRole.owner:
-      case _UserAgencyRole.supervisor:
-      case _UserAgencyRole.host:
-        return AnchorAgentScreen(agencyId: _agencyId);
-      case _UserAgencyRole.pendingApproval:
-        return AgencyPendingApprovalScreen(
-          applicationData: _pendingApplicationData,
-          agencyId: _agencyId,
-        );
-      case _UserAgencyRole.none:
-        return _BrowseCreateScreen(
-          role: _role,
-          agencyId: _agencyId,
-        );
-    }
+    // Always open browse and create screen by default for full agency access
+    return _BrowseCreateScreen(
+      role: _role,
+      agencyId: _agencyId,
+      agencyName: _agencyName,
+      pendingApplication: _pendingApplicationData,
+    );
   }
 }
 
@@ -210,10 +227,14 @@ enum _UserAgencyRole { owner, supervisor, host, pendingApproval, none }
 class _BrowseCreateScreen extends StatefulWidget {
   final _UserAgencyRole role;
   final String? agencyId;
+  final String? agencyName;
+  final Map<String, dynamic>? pendingApplication;
 
   const _BrowseCreateScreen({
     this.role = _UserAgencyRole.none,
     this.agencyId,
+    this.agencyName,
+    this.pendingApplication,
   });
 
   @override
@@ -302,15 +323,23 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
 
   Future<void> _loadTop() async {
     try {
-      List rows;
+      List rows = [];
       try {
         rows = await _sb
             .from('active_agencies')
             .select('id, name, tier, photo_url, total_diamonds_monthly, member_count, is_hall_of_fame')
             .order('total_diamonds_monthly', ascending: false)
-            .limit(30);
-      } catch (_) {
-        rows = await _sb.from('host_agencies').select('*').limit(30);
+            .limit(50);
+      } catch (_) {}
+
+      if (rows.isEmpty) {
+        try {
+          rows = await _sb
+              .from('host_agencies')
+              .select('*')
+              .order('created_at', ascending: false)
+              .limit(50);
+        } catch (_) {}
       }
       if (mounted) {
         setState(() {
@@ -708,6 +737,10 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             ),
           ),
         SliverToBoxAdapter(child: _buildUnionRankHeader(cfg)),
+        if (widget.agencyId != null && widget.agencyId!.isNotEmpty && widget.role != _UserAgencyRole.none)
+          SliverToBoxAdapter(child: _buildMyAgencyCard(cfg)),
+        if (widget.role == _UserAgencyRole.pendingApproval)
+          SliverToBoxAdapter(child: _buildPendingApprovalCard()),
         if (_showForm) ...[
           SliverToBoxAdapter(child: const SizedBox(height: 16)),
           SliverToBoxAdapter(child: _buildCreateForm(cfg)),
@@ -737,6 +770,179 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                 )
               : scrollView,
         ),
+      ),
+    );
+  }
+
+  // ── My Agency Quick Entry Banner ──
+  Widget _buildMyAgencyCard(DynamicConfigService cfg) {
+    final roleText = widget.role == _UserAgencyRole.owner
+        ? 'مالك الوكالة'
+        : widget.role == _UserAgencyRole.supervisor
+            ? 'مشرف الوكالة'
+            : 'مضيف رسمي بالوكالة';
+
+    final agencyDisplayName = widget.agencyName != null && widget.agencyName!.isNotEmpty
+        ? widget.agencyName!
+        : 'وكالتي الرسمية';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2E1A47), Color(0xFF1E1E2E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+            ),
+            child: const Icon(Icons.shield_rounded, color: Color(0xFFFFD700), size: 26),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF9500).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFFF9500), width: 0.8),
+                      ),
+                      child: Text(
+                        roleText,
+                        style: const TextStyle(
+                          color: Color(0xFFFF9500),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  agencyDisplayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'اضغط للدخول إلى لوحة التحكم والتارجت والأرباح',
+                  style: TextStyle(
+                    color: Colors.white60,
+                    fontSize: 11,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AnchorAgentScreen(agencyId: widget.agencyId),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF9500),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              minimumSize: Size.zero,
+              elevation: 4,
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('دخول', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                SizedBox(width: 4),
+                Icon(Icons.arrow_forward_ios_rounded, size: 12),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Pending Approval Banner ──
+  Widget _buildPendingApprovalCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2416),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFF9500).withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.hourglass_top_rounded, color: Color(0xFFFF9500), size: 28),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'طلب الانضمام قيد المراجعة',
+                  style: TextStyle(color: Color(0xFFFFFEEC93), fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'تم إرسال طلبك إلى إدارة الوكالة وهو قيد التدقيق حالياً.',
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AgencyPendingApprovalScreen(
+                    applicationData: widget.pendingApplication,
+                    agencyId: widget.agencyId,
+                  ),
+                ),
+              );
+            },
+            child: const Text('متابعة', style: TextStyle(color: Color(0xFFFF9500), fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
@@ -836,13 +1042,13 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                   iconAsset: 'assets/mipmap-xxhdpi/union_my_agency.webp',
                   title: 'وكالتي',
                   onTap: () {
-                    if (widget.role != _UserAgencyRole.none && widget.agencyId != null) {
+                    if (widget.role != _UserAgencyRole.none && widget.agencyId != null && widget.agencyId!.isNotEmpty) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => AgencyProfileScreen(agencyId: widget.agencyId!)),
+                        MaterialPageRoute(builder: (_) => AnchorAgentScreen(agencyId: widget.agencyId)),
                       );
                     } else {
-                      KayanInAppToast.warning('لست منضماً لأي وكالة حالياً');
+                      KayanInAppToast.warning('لست منضماً لأي وكالة حالياً - يمكنك تصفح قائمة الوكالات أدناه لتقديم طلب انضمام');
                     }
                   },
                 ),

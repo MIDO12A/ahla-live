@@ -102,7 +102,25 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       final data = await fb.getAnchorAgencyData(agencyId: widget.agencyId, agentUid: uid);
 
       final infoData = data['info'] as Map<String, dynamic>?;
-      final infoModel = infoData != null ? AgentInfoModel.fromJson(infoData) : null;
+      var infoModel = infoData != null ? AgentInfoModel.fromJson(infoData) : null;
+
+      // جلب مراحل ومستهدفات لوحة التحكم دائماً
+      final globalMilestones = await SupabaseDataService().getHostMilestones();
+      if (infoModel != null) {
+        if (infoModel.milestones.isEmpty && globalMilestones.isNotEmpty) {
+          infoModel = infoModel.copyWith(milestones: globalMilestones);
+        }
+      } else {
+        infoModel = AgentInfoModel(
+          userId: int.tryParse(user?.customId ?? '0') ?? 0,
+          agencyName: user?.name ?? 'وكالتي الرسمية',
+          avatarUrl: user?.photoUrl ?? '',
+          agentBean: user?.coins ?? 0,
+          transferMoney: user?.diamonds ?? 0,
+          transferDollar: ((user?.diamonds ?? 0) / 1000).toInt(),
+          milestones: globalMilestones,
+        );
+      }
 
       final loadedAnchors = (data['anchors'] as List<dynamic>?)
               ?.map((e) => AnchorAgentUserInfoDataModel.fromJson(e as Map<String, dynamic>))
@@ -131,15 +149,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         setState(() {
           _isAgencyOwner = isOwner;
           _myAnchor = currentHostRecord;
-          _agentInfo = infoModel ??
-              AgentInfoModel(
-                userId: int.tryParse(user?.customId ?? '0') ?? 0,
-                agencyName: user?.name ?? 'وكالتي الرسمية',
-                avatarUrl: user?.photoUrl ?? '',
-                agentBean: user?.coins ?? 0,
-                transferMoney: user?.diamonds ?? 0,
-                transferDollar: ((user?.diamonds ?? 0) / 1000).toInt(),
-              );
+          _agentInfo = infoModel;
           if (_agentInfo?.notice.isNotEmpty == true) {
             _noticeText = _agentInfo!.notice;
           }
@@ -1310,7 +1320,10 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final agentEarnedDiamonds = (hostDiamonds * commRate).toInt();
     final agentEarnedUsd = (agentEarnedDiamonds / 1000).toStringAsFixed(2);
     final stageName = _getAnchorStage(anchor.totalDiamond, isAr);
-    final targetDiamonds = anchor.targetDiamonds > 0 ? anchor.targetDiamonds : 100000;
+    final defaultTarget = (_agentInfo?.milestones.isNotEmpty == true)
+        ? ((_agentInfo!.milestones.first['target_diamonds'] ?? _agentInfo!.milestones.first['targetDiamonds'] as num?)?.toInt() ?? 150000)
+        : 150000;
+    final targetDiamonds = anchor.targetDiamonds > 0 ? anchor.targetDiamonds : defaultTarget;
     final progressPct = ((hostDiamonds / targetDiamonds).clamp(0.0, 1.0) * 100).toStringAsFixed(1);
 
     showModalBottomSheet(
@@ -1843,9 +1856,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       nextStageSalary = (nextStageTarget / 1000);
     }
 
-    final targetDiamonds = _isAgencyOwner
-        ? ((info?.targetDiamonds != null && info!.targetDiamonds > 0 && info.targetDiamonds != 1000000) ? info.targetDiamonds : currentStageTarget)
-        : (_myAnchor != null && _myAnchor!.targetDiamonds > 0 ? _myAnchor!.targetDiamonds : currentStageTarget);
+    final targetDiamonds = milestonesList.isNotEmpty
+        ? currentStageTarget
+        : (_isAgencyOwner
+            ? ((info?.targetDiamonds != null && info!.targetDiamonds > 0 && info.targetDiamonds != 1000000) ? info.targetDiamonds : currentStageTarget)
+            : (_myAnchor != null && _myAnchor!.targetDiamonds > 0 ? _myAnchor!.targetDiamonds : currentStageTarget));
 
     final progress = targetDiamonds > 0 ? (effectiveDiamonds / targetDiamonds).clamp(0.0, 1.0) : 0.0;
     final percent = (progress * 100).toStringAsFixed(1);
