@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../services/supabase_auth_service.dart';
+import '../../../core/supabase_compat.dart';
 
 import '../../../providers/user_provider.dart';
 import '../../../services/supabase_service.dart';

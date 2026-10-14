@@ -14,6 +14,7 @@ import '../data/agency_repository.dart';
 import '../data/anchor_agent_model.dart';
 import '../data/agency_chat_repository.dart';
 import 'agency_exit_screen.dart';
+import 'agency_owner_wallet_screen.dart';
 import 'agency_invite_by_id_screen.dart';
 import 'agency_item_detail_screen.dart';
 import 'agency_join_requests_screen.dart';
@@ -874,7 +875,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const AgencyOwnerWalletScreen(),
+                                builder: (_) => AgencyOwnerWalletScreen(
+                                  agencyId: _agentInfo?.agencyId ?? widget.agencyId ?? '',
+                                ),
                               ),
                             );
                           },
@@ -929,7 +932,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const AgencyOwnerWalletScreen(),
+                                builder: (_) => AgencyOwnerWalletScreen(
+                                  agencyId: _agentInfo?.agencyId ?? widget.agencyId ?? '',
+                                ),
                               ),
                             );
                           },
@@ -2145,7 +2150,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                       if (_isAgencyOwner) {
                                         Navigator.push(
                                           context,
-                                          MaterialPageRoute(builder: (_) => const AgencyOwnerWalletScreen()),
+                                          MaterialPageRoute(
+                                            builder: (_) => AgencyOwnerWalletScreen(
+                                              agencyId: _agentInfo?.agencyId ?? widget.agencyId ?? '',
+                                            ),
+                                          ),
                                         );
                                       } else {
                                         _openTransferSalaryToAgentModal(hostDiamonds, isAr);

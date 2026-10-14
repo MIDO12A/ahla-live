@@ -94,6 +94,8 @@ class RoomOwnerCupConfig {
   }
 }
 
+typedef RoomCupConfig = RoomOwnerCupConfig;
+
 class RoomCupService {
   static final RoomCupService _instance = RoomCupService._internal();
   factory RoomCupService() => _instance;
@@ -109,7 +111,7 @@ class RoomCupService {
     }
 
     try {
-      final raw = await FirebaseService().getAppConfig('room_cup_rewards');
+      final raw = await SupabaseService().getAppConfig('room_cup_rewards');
       if (raw != null) {
         Map<String, dynamic> map;
         if (raw is String) {

@@ -85,7 +85,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                     ),
                   ),
                   child: Text(
-                    AppLocalizations.of(context).save,
+                    AppLocalizations.of(context)?.save ?? 'حفظ',
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,

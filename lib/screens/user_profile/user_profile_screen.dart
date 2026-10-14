@@ -10,6 +10,7 @@ import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../config/r.dart';
 import '../../core/supabase_compat.dart';
+import '../../config/supabase_config.dart';
 import '../../core/widgets/cached_image.dart';
 import '../../models/gift_model.dart' as gm;
 import '../../models/message_model.dart';

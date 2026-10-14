@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/supabase_compat.dart';
 
 class AgencyTargetEvaluator {
   static SupabaseClient get _sb => Supabase.instance.client;

@@ -219,7 +219,7 @@ class AppStrings {
 }
 
 extension AppLocalizationExtension on BuildContext {
-  AppLocalizations get l10n => AppLocalizations.of(this);
+  AppLocalizations get l10n => AppLocalizations.of(this)!;
   bool get isAr => AppStrings.isArabic(this);
   String tr(String ar, String en) => AppStrings.tr(this, ar, en);
   String trAuto(String text) => AppStrings.auto(this, text);
