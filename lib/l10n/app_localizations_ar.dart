@@ -21,7 +21,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get profileUserName => 'اسم المستخدم';
 
   @override
-  String profileUserId(String id) => 'الآيدي: $id';
+  String profileUserId(String id) {
+    return 'الآيدي: $id';
+  }
 
   @override
   String get profileFollowing => 'متابع';
@@ -60,7 +62,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get levelTitle => 'المستوى';
 
   @override
-  String levelExperience(int current, int max) => 'الخبرة: $current/$max';
+  String levelExperience(int current, int max) {
+    return 'الخبرة: $current/$max';
+  }
 
   @override
   String get levelNext => 'المستويات القادمة';
@@ -95,7 +99,6 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get walletItems => 'عناصر الحقيبة';
 
-  // --- GENERAL ---
   @override
   String get app_name => 'أحلى لايف';
 
@@ -129,7 +132,6 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get edit => 'تعديل';
 
-  // --- AUTH ---
   @override
   String get login => 'تسجيل الدخول';
 
@@ -160,7 +162,6 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get terms_of_service => 'شروط الخدمة';
 
-  // --- NAVIGATION ---
   @override
   String get tab_discover => 'استكشاف';
 
@@ -176,7 +177,23 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get tab_agency => 'الوكالة';
 
-  // --- PROFILE ---
+  @override
+  String get profile_user_name => 'اسم المستخدم';
+
+  @override
+  String profile_user_id(Object id) {
+    return 'الآيدي: $id';
+  }
+
+  @override
+  String get profile_following => 'متابع';
+
+  @override
+  String get profile_followers => 'المتابعين';
+
+  @override
+  String get profile_visitors => 'الزوار';
+
   @override
   String get edit_profile => 'تعديل الملف الشخصي';
 
@@ -195,7 +212,12 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get birthday => 'تاريخ الميلاد';
 
-  // --- WALLET & MALL ---
+  @override
+  String get wallet_title => 'المحفظة';
+
+  @override
+  String get wallet_coin_balance => 'رصيد الكوينز';
+
   @override
   String get wallet_diamond_balance => 'رصيد الألماس';
 
@@ -214,7 +236,24 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get transaction_success => 'تمت العملية بنجاح';
 
-  // --- ROOM & MIC ---
+  @override
+  String get mall_title => 'المتجر';
+
+  @override
+  String get mall_headwear => 'إطارات الرأس';
+
+  @override
+  String get mall_bubble => 'فقاعات الدردشة';
+
+  @override
+  String get mall_car => 'مركبات الدخول';
+
+  @override
+  String get mall_entrance => 'مؤثرات الدخول الفاخرة';
+
+  @override
+  String get mall_buy => 'شراء';
+
   @override
   String get room_title => 'غرفة صوتية';
 
@@ -222,7 +261,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get room_manager => 'مدير الغرفة';
 
   @override
-  String room_members(int count) => 'المستمعين ($count)';
+  String room_members(int count) {
+    return 'المستمعين ($count)';
+  }
 
   @override
   String get mic_up => 'صعود المايك';
@@ -269,12 +310,13 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get room_black_list => 'القائمة السوداء للغرفة';
 
-  // --- GIFTS ---
   @override
   String get send_gift => 'إرسال هدية';
 
   @override
-  String gift_sent_success(String name) => 'تم إرسال الهدية بنجاح إلى $name';
+  String gift_sent_success(String name) {
+    return 'تم إرسال الهدية بنجاح إلى $name';
+  }
 
   @override
   String get lucky_bag => 'حقيبة الحظ';
@@ -285,7 +327,6 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get open_box => 'فتح الصندوق';
 
-  // --- VIP & AGENCY ---
   @override
   String get vip => 'VIP';
 
@@ -305,7 +346,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get renew_vip => 'تجديد اشتراك VIP';
 
   @override
-  String vip_level(int level) => 'مستوى VIP $level';
+  String vip_level(int level) {
+    return 'مستوى VIP $level';
+  }
 
   @override
   String get exclusive_reward => 'مكافأة حصرية';
@@ -331,7 +374,9 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get agency_rules => 'قوانين وتارجت الوكالة';
 
-  // --- SETTINGS ---
+  @override
+  String get profile_setting => 'الإعدادات';
+
   @override
   String get change_language => 'لغة التطبيق';
 
@@ -362,7 +407,6 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get blacklist => 'قائمة الحظر العامة';
 
-  // --- CHAT ---
   @override
   String get chat => 'الدردشة';
 

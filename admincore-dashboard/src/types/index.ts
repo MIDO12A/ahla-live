@@ -559,6 +559,7 @@ export interface AgencyModel {
 export interface HostAgencyModel {
   id: string;
   name: string;
+  agency_code?: string | number;
   owner_id: string;
   commission_rate: number;
   specialty: 'singing' | 'gaming' | 'talk' | 'mixed';

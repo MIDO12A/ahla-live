@@ -21,7 +21,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileUserName => 'User Name';
 
   @override
-  String profileUserId(String id) => 'ID: $id';
+  String profileUserId(String id) {
+    return 'ID: $id';
+  }
 
   @override
   String get profileFollowing => 'Following';
@@ -60,7 +62,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get levelTitle => 'Level';
 
   @override
-  String levelExperience(int current, int max) => 'Experience: $current/$max';
+  String levelExperience(int current, int max) {
+    return 'Experience: $current/$max';
+  }
 
   @override
   String get levelNext => 'Next Levels';
@@ -95,7 +99,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get walletItems => 'Wallet items';
 
-  // --- GENERAL ---
   @override
   String get app_name => 'Ahla Live';
 
@@ -129,7 +132,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get edit => 'Edit';
 
-  // --- AUTH ---
   @override
   String get login => 'Login';
 
@@ -152,7 +154,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get forgot_password => 'Forgot Password?';
 
   @override
-  String get agree_to_terms => 'I agree to the Terms of Service and Privacy Policy';
+  String get agree_to_terms =>
+      'I agree to the Terms of Service and Privacy Policy';
 
   @override
   String get privacy_policy => 'Privacy Policy';
@@ -160,7 +163,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get terms_of_service => 'Terms of Service';
 
-  // --- NAVIGATION ---
   @override
   String get tab_discover => 'Discover';
 
@@ -176,7 +178,23 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tab_agency => 'Agency';
 
-  // --- PROFILE ---
+  @override
+  String get profile_user_name => 'Username';
+
+  @override
+  String profile_user_id(Object id) {
+    return 'ID: $id';
+  }
+
+  @override
+  String get profile_following => 'Following';
+
+  @override
+  String get profile_followers => 'Followers';
+
+  @override
+  String get profile_visitors => 'Visitors';
+
   @override
   String get edit_profile => 'Edit Profile';
 
@@ -195,7 +213,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get birthday => 'Birthday';
 
-  // --- WALLET & MALL ---
+  @override
+  String get wallet_title => 'Wallet';
+
+  @override
+  String get wallet_coin_balance => 'Coins Balance';
+
   @override
   String get wallet_diamond_balance => 'Diamonds Balance';
 
@@ -214,7 +237,24 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get transaction_success => 'Transaction completed successfully';
 
-  // --- ROOM & MIC ---
+  @override
+  String get mall_title => 'Mall';
+
+  @override
+  String get mall_headwear => 'Headwear';
+
+  @override
+  String get mall_bubble => 'Chat Bubbles';
+
+  @override
+  String get mall_car => 'Entrance Rides';
+
+  @override
+  String get mall_entrance => 'Entrance Effects';
+
+  @override
+  String get mall_buy => 'Buy';
+
   @override
   String get room_title => 'Voice Room';
 
@@ -222,7 +262,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get room_manager => 'Room Admin';
 
   @override
-  String room_members(int count) => 'Audience ($count)';
+  String room_members(int count) {
+    return 'Audience ($count)';
+  }
 
   @override
   String get mic_up => 'Take Mic';
@@ -269,12 +311,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get room_black_list => 'Room Blacklist';
 
-  // --- GIFTS ---
   @override
   String get send_gift => 'Send Gift';
 
   @override
-  String gift_sent_success(String name) => 'Gift sent successfully to $name';
+  String gift_sent_success(String name) {
+    return 'Gift sent successfully to $name';
+  }
 
   @override
   String get lucky_bag => 'Lucky Bag';
@@ -285,7 +328,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get open_box => 'Open Box';
 
-  // --- VIP & AGENCY ---
   @override
   String get vip => 'VIP';
 
@@ -305,7 +347,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get renew_vip => 'Renew VIP';
 
   @override
-  String vip_level(int level) => 'VIP Level $level';
+  String vip_level(int level) {
+    return 'VIP Level $level';
+  }
 
   @override
   String get exclusive_reward => 'Exclusive Reward';
@@ -331,7 +375,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get agency_rules => 'Agency Rules';
 
-  // --- SETTINGS ---
+  @override
+  String get profile_setting => 'Settings';
+
   @override
   String get change_language => 'Language';
 
@@ -362,7 +408,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get blacklist => 'Blocked Accounts';
 
-  // --- CHAT ---
   @override
   String get chat => 'Chat';
 

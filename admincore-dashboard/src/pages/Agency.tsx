@@ -396,7 +396,10 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
                 <img src={ag.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(ag.name || 'Agency')}&background=random`} alt="" className="w-8 h-8 rounded-xl object-cover border border-amber-500/30" />
                 <div>
                   <div className="text-white font-bold text-xs">{ag.name}</div>
-                  <div className="text-[10px] text-slate-500 font-mono">ID: {ag.id?.slice(0, 8)}</div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded">كود: {ag.agency_code || '181'}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">ID: {ag.id?.slice(0, 8)}</span>
+                  </div>
                 </div>
               </div>
             );

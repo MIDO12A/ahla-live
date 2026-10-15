@@ -77,7 +77,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
         final rows = await Supabase.instance.client
             .from('agency_applications')
             .select('*')
-            .eq('user_id', uid)
+            .eq('applicant_uid', uid)
             .order('created_at', ascending: false)
             .limit(1);
         if (rows.isNotEmpty) {

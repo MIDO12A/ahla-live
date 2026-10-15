@@ -1149,6 +1149,7 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
         const mapped = {
           ...a,
           id: a.id,
+          agency_code: a.agency_code || a.data?.agency_code || '',
           name: a.name || 'وكالة مضيفين',
           owner_id: ownerId,
           owner_uid: ownerId,

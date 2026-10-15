@@ -123,7 +123,7 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
           final pRows = await Supabase.instance.client
               .from('agency_applications')
               .select('*')
-              .or('user_id.eq.$uid,applicant_uid.eq.$uid')
+              .eq('applicant_uid', uid)
               .order('created_at', ascending: false)
               .limit(1);
           if (pRows.isNotEmpty) {
