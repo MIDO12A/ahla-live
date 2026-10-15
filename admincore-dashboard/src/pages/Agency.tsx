@@ -1164,7 +1164,7 @@ function MilestonesTab() {
   const [rewardItemId, setRewardItemId] = useState('');
   const [rewardImageUrl, setRewardImageUrl] = useState('');
   const [backgroundUrl, setBackgroundUrl] = useState('');
-  const [agentCommissionRate, setAgentCommissionRate] = useState('10');
+  const [generalCommissionRate, setGeneralCommissionRate] = useState<number>(15);
   const [periodType, setPeriodType] = useState('monthly');
   const [sortOrder, setSortOrder] = useState('0');
   const [isActive, setIsActive] = useState(true);
@@ -1173,6 +1173,10 @@ function MilestonesTab() {
   const load = () => {
     setLoading(true);
     getHostMilestones().then(d => { setMilestones(d); setLoading(false); });
+    getCommissionSettings().then(cs => {
+      const ar = cs.find(c => c.key === 'agency_rate')?.value;
+      if (ar != null) setGeneralCommissionRate(ar);
+    });
     supabase.from('store_items').select('*').then(({ data }) => {
       if (data) setStoreItems(data);
     });
@@ -1183,7 +1187,7 @@ function MilestonesTab() {
   const resetForm = () => {
     setTitle(''); setTargetDiamonds('1000000'); setRewardType('salary_usd');
     setRewardValue('100'); setRewardItemId(''); setRewardImageUrl(''); setBackgroundUrl('');
-    setAgentCommissionRate('10'); setPeriodType('monthly'); setSortOrder('0'); setIsActive(true);
+    setPeriodType('monthly'); setSortOrder('0'); setIsActive(true);
     setEditId(null); setShowItemPicker(false);
   };
 
@@ -1196,8 +1200,6 @@ function MilestonesTab() {
     setRewardItemId(m.reward_item_id ?? m.rewardItemId ?? '');
     setRewardImageUrl(m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? '');
     setBackgroundUrl(m.background_url ?? m.backgroundUrl ?? '');
-    const rate = Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1);
-    setAgentCommissionRate(String((rate * 100).toFixed(0)));
     setPeriodType(m.period_type ?? m.periodType ?? 'monthly');
     setSortOrder(String(m.sort_order ?? m.sortOrder ?? 0));
     setIsActive(m.is_active !== false && m.isActive !== false);
@@ -1214,7 +1216,7 @@ function MilestonesTab() {
       reward_item_id: rewardItemId.trim() || null,
       reward_image_url: rewardImageUrl.trim() || null,
       background_url: backgroundUrl.trim() || null,
-      agent_commission_rate: (parseFloat(agentCommissionRate) || 0) / 100,
+      agent_commission_rate: (generalCommissionRate || 15) / 100,
       period_type: periodType as any,
       is_active: isActive,
       sort_order: parseInt(sortOrder) || 0,
@@ -1255,7 +1257,7 @@ function MilestonesTab() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">اسم المرحلة / التارجت *</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="مثال: الهدف الفضي (1M)"
@@ -1266,17 +1268,15 @@ function MilestonesTab() {
               <input type="number" value={targetDiamonds} onChange={e => setTargetDiamonds(e.target.value)} placeholder="1000000"
                 className="w-full bg-[#121214] border border-cyan-500/30 rounded-xl py-2 px-3 text-xs text-cyan-300 font-bold focus:outline-none focus:border-cyan-400" />
             </div>
-            <div>
-              <label className="text-[11px] text-amber-400 block mb-1">عمولة الوكيل من أرباح المضيف (%) *</label>
-              <div className="flex items-center gap-1.5">
-                <input type="number" step="0.5" value={agentCommissionRate} onChange={e => setAgentCommissionRate(e.target.value)} placeholder="10"
-                  className="w-full bg-[#121214] border border-amber-500/30 rounded-xl py-2 px-3 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400" />
-                <span className="text-xs text-amber-400 font-bold">%</span>
-                <button type="button" onClick={() => setAgentCommissionRate('5')} className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded text-[10px]">5%</button>
-                <button type="button" onClick={() => setAgentCommissionRate('10')} className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded text-[10px]">10%</button>
-                <button type="button" onClick={() => setAgentCommissionRate('20')} className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded text-[10px]">20%</button>
-              </div>
-            </div>
+          </div>
+
+          <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl px-3 py-2 text-xs flex items-center justify-between">
+            <span className="text-indigo-300 flex items-center gap-1.5 font-medium">
+              <span>🏦</span> يتم احتساب عمولة الوكيل تلقائياً بناءً على إعدادات العمولات العامة المعتمدة:
+            </span>
+            <span className="font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+              عمولة الوكيل الحالية: {generalCommissionRate}%
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1395,52 +1395,48 @@ function MilestonesTab() {
               onClick={() => {
                 setTitle('التارجت الأول (150,000 ماس)');
                 setTargetDiamonds('150000');
-                setRewardType('diamonds');
-                setRewardValue('102000');
-                setAgentCommissionRate('10');
+                setRewardType('salary_usd');
+                setRewardValue('10');
               }}
               className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-semibold border border-amber-500/20"
             >
-              التارجت الأول (150 ألف ماس 💎)
+              التارجت الأول (150 ألف ماس 💎 - $10)
             </button>
             <button
               type="button"
               onClick={() => {
                 setTitle('التارجت الثاني (300,000 ماس)');
                 setTargetDiamonds('300000');
-                setRewardType('diamonds');
-                setRewardValue('204000');
-                setAgentCommissionRate('10');
+                setRewardType('salary_usd');
+                setRewardValue('20');
               }}
               className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg text-xs font-semibold border border-cyan-500/20"
             >
-              التارجت الثاني (300 ألف ماس 💎)
+              التارجت الثاني (300 ألف ماس 💎 - $20)
             </button>
             <button
               type="button"
               onClick={() => {
                 setTitle('التارجت الثالث (500,000 ماس)');
                 setTargetDiamonds('500000');
-                setRewardType('diamonds');
-                setRewardValue('340000');
-                setAgentCommissionRate('10');
+                setRewardType('salary_usd');
+                setRewardValue('35');
               }}
               className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 rounded-lg text-xs font-semibold border border-indigo-500/20"
             >
-              التارجت الثالث (500 ألف ماس 💎)
+              التارجت الثالث (500 ألف ماس 💎 - $35)
             </button>
             <button
               type="button"
               onClick={() => {
                 setTitle('تارجت المليون (1,000,000 ماس)');
                 setTargetDiamonds('1000000');
-                setRewardType('diamonds');
-                setRewardValue('680000');
-                setAgentCommissionRate('10');
+                setRewardType('salary_usd');
+                setRewardValue('70');
               }}
               className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-500/20"
             >
-              تارجت المليون (1 مليون ماس 💎)
+              تارجت المليون (1 مليون ماس 💎 - $70)
             </button>
           </div>
 
@@ -1499,31 +1495,24 @@ function MilestonesTab() {
             const val = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
             return <span className="text-cyan-400 font-bold">{val.toLocaleString()} 💎</span>;
           }},
-          { key: 'host_salary', label: 'راتب المضيف (68%)', render: m => {
-            const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
-            const hostVal = Math.round(tD * 0.68);
-            return <span className="text-emerald-400 font-bold">{hostVal.toLocaleString()} 💎</span>;
+          { key: 'reward_value', label: 'الراتب / المكافأة المحددة', render: m => {
+            const rType = (m as any).reward_type || (m as any).rewardType || 'salary_usd';
+            const rVal = (m as any).reward_value ?? (m as any).rewardValue ?? 0;
+            if (rType === 'salary_usd') return <span className="text-emerald-400 font-bold">${rVal} USD 💵</span>;
+            if (rType === 'diamonds') return <span className="text-cyan-400 font-bold">{Number(rVal).toLocaleString()} 💎</span>;
+            if (rType === 'gold') return <span className="text-amber-400 font-bold">{Number(rVal).toLocaleString()} 🪙</span>;
+            if (rType === 'vip_days') return <span className="text-purple-400 font-bold">{rVal} يوم VIP 👑</span>;
+            return <span className="text-indigo-400 font-bold">{rVal} ({rType})</span>;
           }},
-          { key: 'agent_commission_rate', label: 'راتب وكيل المضيف (10%)', sortable: true, render: m => {
+          { key: 'agent_commission_rate', label: `عمولة الوكيل (${generalCommissionRate}%)`, sortable: true, render: m => {
             const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
-            const hostVal = tD * 0.68;
-            const agentVal = Math.round(hostVal * 0.10);
-            return <span className="text-indigo-400 font-bold">{agentVal.toLocaleString()} 💎</span>;
-          }},
-          { key: 'recharge_agent', label: 'عمولة وكيل الشحن', render: m => {
-            const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
-            const hostVal = tD * 0.68;
-            const agentVal = hostVal * 0.10;
-            const recVal = Math.round((hostVal * 0.10) + (agentVal * 0.10));
-            return <span className="text-amber-400 font-bold">{recVal.toLocaleString()} 💎</span>;
-          }},
-          { key: 'platform_share', label: 'متبقي الإدارة', render: m => {
-            const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
-            const hostVal = tD * 0.68;
-            const agentVal = hostVal * 0.10;
-            const recVal = (hostVal * 0.10) + (agentVal * 0.10);
-            const platVal = Math.round(tD - (hostVal + agentVal + recVal));
-            return <span className="text-cyan-300 font-bold">{platVal.toLocaleString()} 💎</span>;
+            const commVal = Math.round(tD * ((generalCommissionRate || 15) / 100));
+            return (
+              <div className="flex flex-col">
+                <span className="text-amber-400 font-bold">{commVal.toLocaleString()} 💎</span>
+                <span className="text-[10px] text-slate-500">حسب العمولات العامة ({generalCommissionRate}%)</span>
+              </div>
+            );
           }},
           { key: 'is_active', label: 'نشط', sortable: true, render: m => {
             const active = (m as any).is_active !== false && (m as any).isActive !== false;

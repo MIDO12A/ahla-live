@@ -2795,20 +2795,47 @@ export async function getAgencyLedger(agencyId?: string, limit = 100): Promise<A
 
 export async function getWithdrawalRequests(status?: string): Promise<AgencyWithdrawalRequestModel[]> {
   try {
-    let query = supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false })
-    if (status) query = query.eq('status', status)
-    const { data, error } = await query
+    let query = supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false });
+    if (status) query = query.eq('status', status);
+    const { data, error } = await query;
     if (!error && data && data.length > 0) {
+      // Fetch user and agency names for display
+      const userIds = Array.from(new Set(data.map((w: any) => w.user_id).filter(Boolean)));
+      const agencyIds = Array.from(new Set(data.map((w: any) => w.agency_id).filter(Boolean)));
+      
+      const userMap: Record<string, string> = {};
+      const agencyMap: Record<string, string> = {};
+      
+      if (userIds.length > 0) {
+        try {
+          const { data: users } = await supabase.from('users').select('id, uid, name, custom_id');
+          (users || []).forEach((u: any) => {
+            const label = u.name ? `${u.name} (${u.custom_id || ''})` : (u.custom_id || u.id);
+            if (u.id) userMap[u.id] = label;
+            if (u.uid) userMap[u.uid] = label;
+          });
+        } catch (_) {}
+      }
+      
+      if (agencyIds.length > 0) {
+        try {
+          const { data: ags } = await supabase.from('host_agencies').select('id, name');
+          (ags || []).forEach((a: any) => {
+            if (a.id) agencyMap[a.id] = a.name;
+          });
+        } catch (_) {}
+      }
+
       return mapList<AgencyWithdrawalRequestModel>((data ?? []).map((w: any) => ({
         ...w,
-        user_name: w.user_id?.slice(0, 8),
-        agency_name: w.agency_name ?? w.agency_id?.slice(0, 8),
-      })))
+        user_name: userMap[w.user_id] || w.user_name || w.user_id?.slice(0, 8),
+        agency_name: agencyMap[w.agency_id] || w.agency_name || w.agency_id?.slice(0, 8),
+      })));
     }
   } catch (e) {
-    console.warn('getWithdrawalRequests supabase error, trying firestore fallback:', e)
+    console.warn('getWithdrawalRequests supabase error:', e);
   }
-  return []
+  return [];
 }
 
 export async function approveWithdrawal(id: string): Promise<boolean> {

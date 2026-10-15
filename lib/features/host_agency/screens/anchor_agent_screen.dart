@@ -1757,21 +1757,28 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     int currentStageTarget = 100000;
     int nextStageTarget = 200000;
     double nextStageSalary = 100.0;
+    double currentStageSalary = 0.0;
     String currentStageTitle = '';
     String nextStageTitle = '';
 
     if (milestonesList.isNotEmpty) {
+      Map<String, dynamic>? completedMilestone;
       Map<String, dynamic>? activeNext;
       for (final m in milestonesList) {
         final t = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
-        if (t > effectiveDiamonds && activeNext == null) {
+        if (effectiveDiamonds >= t) {
+          completedMilestone = m;
+        } else if (activeNext == null) {
           activeNext = m;
         }
       }
 
+      final currentMilestone = completedMilestone ?? activeNext ?? milestonesList.first;
+      currentStageSalary = (currentMilestone['reward_value'] ?? currentMilestone['rewardValue'] ?? currentMilestone['reward'] as num?)?.toDouble() ?? 10.0;
+
       if (activeNext != null) {
         currentStageTarget = (activeNext['target_diamonds'] ?? activeNext['targetDiamonds'] as num?)?.toInt() ?? 100000;
-        nextStageSalary = (activeNext['reward_value'] ?? activeNext['rewardValue'] as num?)?.toDouble() ?? (currentStageTarget / 1000);
+        nextStageSalary = (activeNext['reward_value'] ?? activeNext['rewardValue'] ?? activeNext['reward'] as num?)?.toDouble() ?? 10.0;
         nextStageTitle = activeNext['title']?.toString() ?? '';
 
         final nextIdx = milestonesList.indexOf(activeNext);
@@ -1785,10 +1792,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         final last = milestonesList.last;
         currentStageTarget = (last['target_diamonds'] ?? last['targetDiamonds'] as num?)?.toInt() ?? 100000;
         nextStageTarget = currentStageTarget;
-        nextStageSalary = (last['reward_value'] ?? last['rewardValue'] as num?)?.toDouble() ?? (currentStageTarget / 1000);
+        nextStageSalary = (last['reward_value'] ?? last['rewardValue'] ?? last['reward'] as num?)?.toDouble() ?? 10.0;
         nextStageTitle = last['title']?.toString() ?? '';
       }
     } else {
+      currentStageSalary = 10.0;
       if (effectiveDiamonds >= 5000000) {
         currentStageTarget = 10000000;
         nextStageTarget = 20000000;
@@ -1813,6 +1821,10 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       }
       nextStageSalary = (nextStageTarget / 1000);
     }
+
+    final hostSalaryStr = currentStageSalary > 0
+        ? (currentStageSalary % 1 == 0 ? currentStageSalary.toInt().toString() : currentStageSalary.toStringAsFixed(1))
+        : (milestonesList.isNotEmpty ? ((milestonesList.first['reward_value'] ?? milestonesList.first['rewardValue'] ?? 10).toString()) : '10');
 
     final targetDiamonds = milestonesList.isNotEmpty
         ? currentStageTarget
@@ -2178,7 +2190,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostDollar USD',
+                                    _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostSalaryStr USD',
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 24,
@@ -2263,7 +2275,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostDollar USD',
+                                    _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostSalaryStr USD',
                                     style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                   ),
                                 ],

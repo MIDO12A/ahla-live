@@ -19,6 +19,8 @@ import '../../../../providers/user_provider.dart';
 import '../../../../services/dynamic_config_service.dart';
 import '../../../../services/supabase_data_service.dart';
 import '../../../../services/supabase_service.dart';
+import '../data/agency_models.dart';
+import '../data/agency_repository.dart';
 import '../data/anchor_agent_model.dart';
 
 class AgencyHostScreen extends StatefulWidget {
@@ -184,9 +186,9 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
     final currentHours = (member.minute / 60.0).round();
 
     if (_milestones.isEmpty) {
-      final s1Dia = 50000;
+      final s1Dia = 150000;
       final s1Days = 10;
-      final s2Dia = 100000;
+      final s2Dia = 300000;
       final s2Days = 15;
 
       if (currentDiamonds >= s2Dia && currentDays >= s2Days) {
@@ -199,7 +201,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           'remainingDiamonds': 0,
           'remainingDays': 0,
           'remainingHours': 0,
-          'salary': '250',
+          'salary': '20',
         };
       } else if (currentDiamonds >= s1Dia && currentDays >= s1Days) {
         return {
@@ -211,7 +213,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           'remainingDiamonds': (s2Dia - currentDiamonds).clamp(0, s2Dia),
           'remainingDays': (s2Days - currentDays).clamp(0, s2Days),
           'remainingHours': 0,
-          'salary': '100',
+          'salary': '10',
         };
       } else {
         return {
@@ -223,20 +225,20 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           'remainingDiamonds': (s1Dia - currentDiamonds).clamp(0, s1Dia),
           'remainingDays': (s1Days - currentDays).clamp(0, s1Days),
           'remainingHours': 0,
-          'salary': '0',
+          'salary': '10',
         };
       }
     }
 
     final sorted = List<Map<String, dynamic>>.from(_milestones)
-      ..sort((a, b) => ((a['target_diamonds'] as num?)?.toInt() ?? 0)
-          .compareTo((b['target_diamonds'] as num?)?.toInt() ?? 0));
+      ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
+          .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
 
     int completedIdx = -1;
     for (int i = 0; i < sorted.length; i++) {
-      final tDia = (sorted[i]['target_diamonds'] as num?)?.toInt() ?? 0;
-      final tDays = (sorted[i]['target_days'] as num?)?.toInt() ?? 0;
-      final tHours = (sorted[i]['target_hours'] as num?)?.toInt() ?? 0;
+      final tDia = (sorted[i]['target_diamonds'] ?? sorted[i]['targetDiamonds'] as num?)?.toInt() ?? 0;
+      final tDays = (sorted[i]['target_days'] ?? sorted[i]['targetDays'] as num?)?.toInt() ?? 0;
+      final tHours = (sorted[i]['target_hours'] ?? sorted[i]['targetHours'] as num?)?.toInt() ?? 0;
 
       final diaOk = currentDiamonds >= tDia;
       final daysOk = tDays > 0 ? (currentDays >= tDays) : true;
@@ -249,53 +251,65 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
 
     if (completedIdx == -1) {
       final first = sorted.first;
-      final tDia = (first['target_diamonds'] as num?)?.toInt() ?? 100000;
-      final tDays = (first['target_days'] as num?)?.toInt() ?? 10;
-      final tHours = (first['target_hours'] as num?)?.toInt() ?? 20;
+      final tDia = (first['target_diamonds'] ?? first['targetDiamonds'] as num?)?.toInt() ?? 150000;
+      final tDays = (first['target_days'] ?? first['targetDays'] as num?)?.toInt() ?? 0;
+      final tHours = (first['target_hours'] ?? first['targetHours'] as num?)?.toInt() ?? 0;
+      final firstSalary = (first['reward_value'] ?? first['rewardValue'] ?? first['reward'] ?? 10).toString();
 
       return {
         'currentStage': 1,
-        'currentStageName': first['name']?.toString() ?? 'المرحلة 1',
+        'currentStageName': first['title']?.toString() ?? first['name']?.toString() ?? 'المرحلة 1',
         'isCompleted': false,
         'targetDiamonds': tDia,
-        'nextTargetDiamonds': sorted.length > 1 ? ((sorted[1]['target_diamonds'] as num?)?.toInt() ?? 200000) : tDia,
+        'nextTargetDiamonds': sorted.length > 1 ? ((sorted[1]['target_diamonds'] ?? sorted[1]['targetDiamonds'] as num?)?.toInt() ?? (tDia * 2)) : tDia,
         'remainingDiamonds': (tDia - currentDiamonds).clamp(0, tDia),
         'remainingDays': (tDays - currentDays).clamp(0, tDays),
         'remainingHours': (tHours - currentHours).clamp(0, tHours),
-        'salary': '0',
+        'salary': firstSalary,
       };
     } else if (completedIdx < sorted.length - 1) {
       final cur = sorted[completedIdx];
       final next = sorted[completedIdx + 1];
-      final nextDia = (next['target_diamonds'] as num?)?.toInt() ?? 200000;
-      final nextDays = (next['target_days'] as num?)?.toInt() ?? 15;
-      final nextHours = (next['target_hours'] as num?)?.toInt() ?? 30;
+      final nextDia = (next['target_diamonds'] ?? next['targetDiamonds'] as num?)?.toInt() ?? 300000;
+      final nextDays = (next['target_days'] ?? next['targetDays'] as num?)?.toInt() ?? 0;
+      final nextHours = (next['target_hours'] ?? next['targetHours'] as num?)?.toInt() ?? 0;
+      final curSalary = (cur['reward_value'] ?? cur['rewardValue'] ?? cur['reward'] ?? 10).toString();
 
       return {
         'currentStage': completedIdx + 1,
-        'currentStageName': cur['name']?.toString() ?? 'المرحلة ${completedIdx + 1}',
+        'currentStageName': cur['title']?.toString() ?? cur['name']?.toString() ?? 'المرحلة ${completedIdx + 1}',
         'isCompleted': true,
-        'targetDiamonds': (cur['target_diamonds'] as num?)?.toInt() ?? 100000,
+        'targetDiamonds': (cur['target_diamonds'] ?? cur['targetDiamonds'] as num?)?.toInt() ?? 150000,
         'nextTargetDiamonds': nextDia,
         'remainingDiamonds': (nextDia - currentDiamonds).clamp(0, nextDia),
         'remainingDays': (nextDays - currentDays).clamp(0, nextDays),
         'remainingHours': (nextHours - currentHours).clamp(0, nextHours),
-        'salary': cur['reward']?.toString() ?? '${(completedIdx + 1) * 80}',
+        'salary': curSalary,
       };
     } else {
       final cur = sorted.last;
+      final curSalary = (cur['reward_value'] ?? cur['rewardValue'] ?? cur['reward'] ?? 10).toString();
       return {
         'currentStage': sorted.length,
-        'currentStageName': cur['name']?.toString() ?? 'المرحلة ${sorted.length}',
+        'currentStageName': cur['title']?.toString() ?? cur['name']?.toString() ?? 'المرحلة ${sorted.length}',
         'isCompleted': true,
-        'targetDiamonds': (cur['target_diamonds'] as num?)?.toInt() ?? 500000,
-        'nextTargetDiamonds': (cur['target_diamonds'] as num?)?.toInt() ?? 500000,
+        'targetDiamonds': (cur['target_diamonds'] ?? cur['targetDiamonds'] as num?)?.toInt() ?? 500000,
+        'nextTargetDiamonds': (cur['target_diamonds'] ?? cur['targetDiamonds'] as num?)?.toInt() ?? 500000,
         'remainingDiamonds': 0,
         'remainingDays': 0,
         'remainingHours': 0,
-        'salary': cur['reward']?.toString() ?? '500',
+        'salary': curSalary,
       };
     }
+  }
+
+  String _formatNumber(int num) {
+    if (num >= 1000000) {
+      return '${(num / 1000000).toStringAsFixed(1)}M';
+    } else if (num >= 1000) {
+      return '${(num / 1000).toStringAsFixed(1)}K';
+    }
+    return num.toString();
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -796,7 +810,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'أرباح الألماسات المحققة: ${(currentDiamonds / 1000).toStringAsFixed(1)} USD',
+                        'الألماسات المحققة: ${_formatNumber(currentDiamonds)} 💎',
                         style: const TextStyle(color: Colors.white70, fontSize: 11),
                       ),
                     ],
@@ -804,7 +818,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    KayanInAppToast.info('يتم تحويل الراتب تلقائياً إلى محفظتك في نهاية كل دورة شهرية');
+                    _openWithdrawModal(currentDiamonds);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
@@ -818,6 +832,25 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openWithdrawModal(int availableDiamonds) {
+    if (availableDiamonds <= 0) {
+      KayanInAppToast.warning('ليس لديك رصيد ألماسات متاح للسحب حالياً');
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _HostDirectWithdrawModal(
+        agencyId: widget.agencyId ?? _agencyInfo?.agencyId ?? '',
+        availableDiamonds: availableDiamonds,
+        onSuccess: () {
+          _loadHostData(silent: true);
+        },
       ),
     );
   }
@@ -971,5 +1004,387 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
     ];
     if (month >= 1 && month <= 12) return months[month - 1];
     return '';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  نافذة السحب الفعلي للمضيف (_HostDirectWithdrawModal)
+// ═══════════════════════════════════════════════════════════════════
+class _HostDirectWithdrawModal extends StatefulWidget {
+  final String agencyId;
+  final int availableDiamonds;
+  final VoidCallback onSuccess;
+
+  const _HostDirectWithdrawModal({
+    required this.agencyId,
+    required this.availableDiamonds,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_HostDirectWithdrawModal> createState() => _HostDirectWithdrawModalState();
+}
+
+class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  final TextEditingController _diamondsCtrl = TextEditingController();
+
+  List<Map<String, dynamic>> _searchResults = [];
+  Map<String, dynamic>? _selectedAgent;
+  bool _searching = false;
+  bool _submitting = false;
+  Timer? _debounce;
+  int _diamonds = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _diamonds = widget.availableDiamonds;
+    _diamondsCtrl.text = _diamonds.toString();
+    _loadInitialAgents();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _diamondsCtrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadInitialAgents() async {
+    setState(() => _searching = true);
+    try {
+      final results = await AgencyRepository.searchRechargeAgents('');
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          if (results.isNotEmpty) _selectedAgent = results.first;
+          _searching = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  void _onSearchChanged(String query) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () => _doSearch(query));
+  }
+
+  Future<void> _doSearch(String query) async {
+    setState(() => _searching = true);
+    try {
+      final results = await AgencyRepository.searchRechargeAgents(query.trim());
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _searching = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _handleWithdrawal() async {
+    if (_selectedAgent == null) {
+      KayanInAppToast.warning('يرجى اختيار وكيل الشحن المحول إليه أولاً');
+      return;
+    }
+    if (_diamonds <= 0) {
+      KayanInAppToast.warning('يرجى إدخال كمية ألماسات صحيحة للسحب');
+      return;
+    }
+    if (_diamonds > widget.availableDiamonds) {
+      KayanInAppToast.warning('رصيدك المتاح لا يكفي (${widget.availableDiamonds} 💎)');
+      return;
+    }
+
+    final agentName = _selectedAgent!['display_name']?.toString() ?? 'وكيل الشحن';
+    final agentKayanId = _selectedAgent!['kayan_id']?.toString() ?? _selectedAgent!['id']?.toString() ?? '';
+
+    // تأكيد السحب الفعلي
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E28),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.currency_exchange, color: Color(0xFF00B5B3), size: 24),
+            SizedBox(width: 8),
+            Text(
+              'تأكيد سحب الراتب الفوري',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'سيتم سحب $_diamonds ماسة وتحويلها إلى كوينزات فوراً في محفظة وكالة الشحن وتصفير راتبك للشهر الحالي.',
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0x2200B5B3),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x4400B5B3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('وكيل الشحن: $agentName', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  Text('المعرف (ID): $agentKayanId', style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text('الكوينزات المحولة: $_diamonds 🪙', style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  const Text('عمولة الوكيل: تُحتسب وتُضاف تلقائياً لحساب الوكيل في السجلات.', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء', style: TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00B5B3),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('تأكيد وسحب الآن ⚡', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+      final uid = user?.uid ?? Supabase.instance.client.auth.currentUser?.id ?? '';
+      final agentId = _selectedAgent!['id']?.toString() ?? _selectedAgent!['uid']?.toString() ?? '';
+      final idempotencyKey = '${uid}_host_wd_${DateTime.now().millisecondsSinceEpoch}';
+
+      final res = await AgencyRepository.transferDiamondsToAgentWallet(
+        agentId: agentId,
+        diamonds: _diamonds,
+        idempotencyKey: idempotencyKey,
+        source: 'host',
+      );
+
+      if (res['status'] == 'ok' || res['ok'] == true || res['success'] == true) {
+        if (!mounted) return;
+        Navigator.pop(context);
+        KayanInAppToast.success('✅ تم سحب الراتب بنجاح وتحويل $_diamonds كوينز لوكالة الشحن واحتساب عمولة الوكيل!');
+        widget.onSuccess();
+      } else {
+        if (!mounted) return;
+        final msg = res['message']?.toString() ?? 'فشل طلب السحب';
+        KayanInAppToast.error(msg);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      KayanInAppToast.error('خطأ أثناء السحب: $e');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+        decoration: const BoxDecoration(
+          color: Color(0xFF161622),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.only(
+          left: 18,
+          right: 18,
+          top: 14,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Icon(Icons.account_balance_wallet, color: Color(0xFF00B5B3), size: 22),
+                const SizedBox(width: 8),
+                const Text(
+                  'طلب سحب الراتب الفعلي وتحويله كوينزات',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF222230),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('رصيد الألماس المتاح للسحب:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text(
+                    '${widget.availableDiamonds} 💎',
+                    style: const TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('الكمية المراد سحبها:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _diamondsCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      hintText: 'أدخل عدد الألماسات...',
+                      hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                      filled: true,
+                      fillColor: const Color(0xFF222230),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    onChanged: (v) {
+                      setState(() {
+                        _diamonds = int.tryParse(v) ?? 0;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _diamonds = widget.availableDiamonds;
+                      _diamondsCtrl.text = _diamonds.toString();
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0x3300B5B3),
+                    foregroundColor: const Color(0xFF00B5B3),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  child: const Text('سحب الكل', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Text('اختر وكيل الشحن المعتمد لتحويل الكوينز إليه:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _searchCtrl,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
+                hintText: 'ابحث باسم أو ID وكيل الشحن...',
+                hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                filled: true,
+                fillColor: const Color(0xFF222230),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+              onChanged: _onSearchChanged,
+            ),
+            const SizedBox(height: 8),
+            if (_searching)
+              const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(color: Color(0xFF00B5B3), strokeWidth: 2)))
+            else if (_searchResults.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Center(child: Text('لم يتم العثور على وكلاء شحن', style: TextStyle(color: Colors.white38, fontSize: 12))),
+              )
+            else
+              Container(
+                constraints: const BoxConstraints(maxHeight: 140),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _searchResults.length,
+                  separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1),
+                  itemBuilder: (_, idx) {
+                    final agent = _searchResults[idx];
+                    final isSel = _selectedAgent?['id'] == agent['id'];
+                    final aName = agent['display_name'] ?? 'وكيل معتمد';
+                    final aId = agent['kayan_id'] ?? agent['id'] ?? '';
+                    return ListTile(
+                      dense: true,
+                      selected: isSel,
+                      selectedTileColor: const Color(0x2200B5B3),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      leading: const CircleAvatar(
+                        backgroundColor: Color(0x3300B5B3),
+                        child: Icon(Icons.person, color: Color(0xFF00B5B3), size: 18),
+                      ),
+                      title: Text(aName, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                      subtitle: Text('ID: $aId', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                      trailing: isSel ? const Icon(Icons.check_circle, color: Color(0xFF00B5B3), size: 20) : null,
+                      onTap: () => setState(() => _selectedAgent = agent),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _submitting ? null : _handleWithdrawal,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00B5B3),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _submitting
+                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text(
+                        'تأكيد السحب والتحويل فوراً ⚡',
+                        style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
