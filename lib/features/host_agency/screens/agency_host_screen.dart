@@ -80,21 +80,20 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
               .toList() ??
           [];
 
-      // Locate host record for current user
+      // Locate host record for current user from server data
       AnchorAgentUserInfoDataModel? hostRecord;
       try {
-        hostRecord = rawAnchors.firstWhere((a) => a.uid == uid);
+        hostRecord = rawAnchors.firstWhere((a) => (a.uid.isNotEmpty && a.uid == uid) || (a.userNo > 0 && a.userNo.toString() == user?.customId));
       } catch (_) {
-        // Fallback: construct host record from current user
-        hostRecord = AnchorAgentUserInfoDataModel(
-          uid: uid,
-          userNo: int.tryParse(user?.customId ?? '0') ?? 0,
-          nickname: user?.name ?? 'مضيف',
-          headImage: user?.photoUrl ?? '',
-          diamonds: (user?.diamonds ?? 0).toString(),
-          days: 12,
-          minute: 1800,
-        );
+        hostRecord = null;
+      }
+
+      if (hostRecord == null) {
+        if (mounted) {
+          KayanInAppToast.warning('لست مسجلاً كمضيف في هذه الوكالة');
+          Navigator.pop(context);
+        }
+        return;
       }
 
       // Fetch live room stream logs if available

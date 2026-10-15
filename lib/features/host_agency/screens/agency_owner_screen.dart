@@ -128,6 +128,24 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
               .toList() ??
           [];
 
+      // Verify authorization: only the actual owner or supervisor can manage this agency
+      bool isAuthorized = false;
+      final ownerUid = infoData?['owner_uid']?.toString() ?? infoData?['owner_id']?.toString() ?? '';
+      if (ownerUid.isNotEmpty && ownerUid == uid) {
+        isAuthorized = true;
+      }
+      if (!isAuthorized) {
+        isAuthorized = rawAnchors.any((a) => (a.uid == uid || a.userNo.toString() == user?.customId) && (a.role == 'owner' || a.role == 'supervisor'));
+      }
+
+      if (!isAuthorized) {
+        if (mounted) {
+          KayanInAppToast.warning('ليس لديك صلاحية مالك لهذه الوكالة');
+          Navigator.pop(context);
+        }
+        return;
+      }
+
       // Count pending join applications
       final aid = infoModel.agencyId.isNotEmpty ? infoModel.agencyId : (widget.agencyId ?? '');
       int pendingCount = 0;

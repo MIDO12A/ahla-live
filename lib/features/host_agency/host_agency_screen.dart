@@ -67,27 +67,35 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
 
       // 1. Check Supabase host_agency_members (column is host_uid or user_id)
       try {
-        final m = await Supabase.instance.client
+        final mList = await Supabase.instance.client
             .from('host_agency_members')
-            .select('role, agency_id')
+            .select('role, agency_id, host_uid, user_id')
             .or('host_uid.eq.$uid,user_id.eq.$uid')
             .eq('status', 'active')
-            .maybeSingle();
-        if (m != null && m['agency_id'] != null && m['agency_id'].toString().isNotEmpty && m['agency_id'].toString() != 'null') {
-          row = {'role': m['role'] ?? 'host', 'agency_id': m['agency_id'].toString()};
+            .limit(1);
+        if (mList.isNotEmpty) {
+          final m = mList.first;
+          final mUid = m['host_uid']?.toString() ?? m['user_id']?.toString() ?? '';
+          if (mUid == uid && m['agency_id'] != null && m['agency_id'].toString().isNotEmpty && m['agency_id'].toString() != 'null') {
+            row = {'role': m['role'] ?? 'host', 'agency_id': m['agency_id'].toString()};
+          }
         }
       } catch (_) {}
 
-      // 2. Check Supabase host_agencies (column is owner_uid) - only if active
+      // 2. Check Supabase host_agencies (column is owner_uid or owner_id) - only if active
       if (row == null) {
         try {
-          final ag = await Supabase.instance.client
+          final agList = await Supabase.instance.client
               .from('host_agencies')
               .select('id, name, status, is_active, owner_uid, owner_id')
               .or('owner_uid.eq.$uid,owner_id.eq.$uid')
-              .maybeSingle();
-          if (ag != null && ag['id'] != null && (ag['status'] == 'active' || ag['is_active'] == true)) {
-            row = {'role': 'owner', 'agency_id': ag['id'].toString(), 'name': ag['name']?.toString()};
+              .limit(1);
+          if (agList.isNotEmpty) {
+            final ag = agList.first;
+            final oUid = ag['owner_uid']?.toString() ?? ag['owner_id']?.toString() ?? '';
+            if (oUid == uid && ag['id'] != null && (ag['status'] == 'active' || ag['is_active'] == true)) {
+              row = {'role': 'owner', 'agency_id': ag['id'].toString(), 'name': ag['name']?.toString()};
+            }
           }
         } catch (_) {}
       }
@@ -95,24 +103,30 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
       // 3. Check Supabase users table - verify user is actually the agency owner
       if (row == null) {
         try {
-          final u = await Supabase.instance.client
+          final uList = await Supabase.instance.client
               .from('users')
               .select('agency_id, is_host_agent')
               .eq('uid', uid)
-              .maybeSingle();
-          if (u != null && u['agency_id'] != null && u['agency_id'].toString().isNotEmpty && u['agency_id'].toString() != 'null' && u['is_host_agent'] == true) {
-            final agCheck = await Supabase.instance.client
-                .from('host_agencies')
-                .select('owner_uid, owner_id, name')
-                .eq('id', u['agency_id'].toString())
-                .maybeSingle();
-            final isRealOwner = agCheck != null && (agCheck['owner_uid'] == uid || agCheck['owner_id'] == uid);
-            if (isRealOwner) {
-              row = {
-                'role': 'owner',
-                'agency_id': u['agency_id'].toString(),
-                'name': agCheck['name']?.toString(),
-              };
+              .limit(1);
+          if (uList.isNotEmpty) {
+            final u = uList.first;
+            if (u['agency_id'] != null && u['agency_id'].toString().isNotEmpty && u['agency_id'].toString() != 'null' && u['is_host_agent'] == true) {
+              final agList = await Supabase.instance.client
+                  .from('host_agencies')
+                  .select('owner_uid, owner_id, name')
+                  .eq('id', u['agency_id'].toString())
+                  .limit(1);
+              if (agList.isNotEmpty) {
+                final agCheck = agList.first;
+                final oUid = agCheck['owner_uid']?.toString() ?? agCheck['owner_id']?.toString() ?? '';
+                if (oUid == uid) {
+                  row = {
+                    'role': 'owner',
+                    'agency_id': u['agency_id'].toString(),
+                    'name': agCheck['name']?.toString(),
+                  };
+                }
+              }
             }
           }
         } catch (_) {}
@@ -211,7 +225,17 @@ class _HostAgencyScreenState extends State<HostAgencyScreen> {
       );
     }
 
-    // Always open browse and create screen by default for full agency access
+    if (_role == _UserAgencyRole.owner || _role == _UserAgencyRole.supervisor) {
+      return AgencyOwnerScreen(agencyId: _agencyId);
+    } else if (_role == _UserAgencyRole.host) {
+      return AgencyHostScreen(agencyId: _agencyId);
+    } else if (_role == _UserAgencyRole.pendingApproval) {
+      return AgencyPendingApprovalScreen(
+        applicationData: _pendingApplicationData,
+        onRefresh: _detect,
+      );
+    }
+
     return _BrowseCreateScreen(
       role: _role,
       agencyId: _agencyId,
@@ -872,6 +896,10 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
+              if (widget.role == _UserAgencyRole.none || widget.agencyId == null || widget.agencyId!.isEmpty) {
+                KayanInAppToast.warning('أنت لست منضماً لأي وكالة حالياً - يرجى تقديم طلب انضمام أولاً');
+                return;
+              }
               final isOwner = widget.role == _UserAgencyRole.owner || widget.role == _UserAgencyRole.supervisor;
               Navigator.push(
                 context,
@@ -1059,7 +1087,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                         ),
                       );
                     } else {
-                      KayanInAppToast.warning('لست منضماً لأي وكالة حالياً - يمكنك تصفح قائمة الوكالات أدناه لتقديم طلب انضمام');
+                      KayanInAppToast.warning('أنت لست منضماً لأي وكالة حالياً - يرجى تقديم طلب انضمام أولاً');
                     }
                   },
                 ),

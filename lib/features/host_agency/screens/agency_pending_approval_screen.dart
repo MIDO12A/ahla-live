@@ -11,11 +11,13 @@ import '../host_agency_screen.dart';
 class AgencyPendingApprovalScreen extends StatefulWidget {
   final Map<String, dynamic>? applicationData;
   final String? agencyId;
+  final VoidCallback? onRefresh;
 
   const AgencyPendingApprovalScreen({
     super.key,
     this.applicationData,
     this.agencyId,
+    this.onRefresh,
   });
 
   @override

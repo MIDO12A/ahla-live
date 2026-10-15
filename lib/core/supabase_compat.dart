@@ -257,6 +257,7 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
   final String _table;
   final List<(String, String, dynamic)> _wheres = [];
   final List<List<(String, String, dynamic)>> _orGroups = [];
+  final List<String> _orRawStrings = [];
   String? _orderCol;
   bool _orderAsc = true;
   int? _limit;
@@ -346,6 +347,9 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
   }
 
   SupabaseQueryBuilder or(String filters) {
+    if (filters.trim().isNotEmpty) {
+      _orRawStrings.add(filters.trim());
+    }
     final groups = filters.split(',');
     final parsed = <(String, String, dynamic)>[];
     for (final raw in groups) {
@@ -448,6 +452,10 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
                 queryParams.add('$col=eq.$val');
               }
           }
+        }
+
+        for (final raw in _orRawStrings) {
+          queryParams.add('or=($raw)');
         }
 
         if (_orderCol != null) {
