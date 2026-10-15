@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -94,7 +94,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
         .onPostgresChanges(
           event:  PostgresChangeEvent.insert,
           schema: 'public',
-          table:  'agency_owner_ledger',
+          table:  'agency_diamond_ledger',
           filter: PostgresChangeFilter(
             type:  PostgresChangeFilterType.eq,
             column: 'agency_id',

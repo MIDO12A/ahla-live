@@ -1528,6 +1528,53 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     ),
                   ],
                 ),
+
+                const SizedBox(height: 6),
+
+                // Host Commission Banner (عمولة الوكيل المكتسبة من هذا المضيف)
+                Builder(
+                  builder: (_) {
+                    final hDia = int.tryParse(member.diamonds) ?? 0;
+                    final cRate = _agencyInfo?.commissionRate ?? 0.15;
+                    final commDia = (hDia * cRate).round();
+                    final commUsd = (commDia / 1000.0).toStringAsFixed(1);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.monetization_on, size: 14, color: Color(0xFFD97706)),
+                              SizedBox(width: 4),
+                              Text(
+                                'عمولة الوكيل من هذا المضيف:',
+                                style: TextStyle(
+                                  color: Color(0xFF92400E),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            '$commDia 💎 (\$$commUsd USD)',
+                            style: const TextStyle(
+                              color: Color(0xFFB45309),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -1556,11 +1603,63 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   Widget _buildAgencySalaryTab(AgentInfoModel info, DynamicConfigService cfg) {
     int totalMembersDiamonds = 0;
     for (final m in _members) {
-      totalMembersDiamonds += int.tryParse(m.diamonds) ?? 0;
+      if (m.role != 'owner') {
+        totalMembersDiamonds += int.tryParse(m.diamonds) ?? 0;
+      }
     }
     final agencyTarget = info.targetDiamonds > 0 ? info.targetDiamonds : 1000000;
-    final totalSalary = ((totalMembersDiamonds / 1000) * 0.20).toStringAsFixed(1);
-    final commission = ((totalMembersDiamonds / 1000) * info.commissionRate).toStringAsFixed(1);
+
+    double totalDueSalaries = 0.0;
+    double totalCommissionDiamonds = 0.0;
+    int completedHostsCount = 0;
+
+    final sortedMilestones = List<Map<String, dynamic>>.from(_milestones)
+      ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
+          .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
+
+    final agencyCommRate = info.commissionRate > 0 ? info.commissionRate : 0.15;
+
+    for (final m in _members) {
+      if (m.role == 'owner') continue;
+      final hostDia = int.tryParse(m.diamonds) ?? 0;
+      final hostDays = m.days;
+      final hostHours = (m.minute / 60.0);
+
+      Map<String, dynamic>? highestAchievedMilestone;
+      for (final ms in sortedMilestones) {
+        final tDia = (ms['target_diamonds'] ?? ms['targetDiamonds'] as num?)?.toInt() ?? 0;
+        final tDays = (ms['target_days'] ?? ms['targetDays'] as num?)?.toInt() ?? 0;
+        final tHours = (ms['target_hours'] ?? ms['targetHours'] as num?)?.toInt() ?? 0;
+
+        final diaOk = hostDia >= tDia;
+        final daysOk = tDays > 0 ? (hostDays >= tDays) : true;
+        final hoursOk = tHours > 0 ? (hostHours >= tHours) : true;
+
+        if (diaOk && (daysOk || hoursOk) && tDia > 0) {
+          highestAchievedMilestone = ms;
+        }
+      }
+
+      if (highestAchievedMilestone != null) {
+        completedHostsCount++;
+        final rewardVal = (highestAchievedMilestone['reward_value'] ?? 
+                           highestAchievedMilestone['rewardValue'] ?? 
+                           highestAchievedMilestone['reward'] as num?)?.toDouble() ?? 
+                          (((highestAchievedMilestone['target_diamonds'] as num?)?.toDouble() ?? 100000) / 1000.0);
+        totalDueSalaries += rewardVal;
+
+        final targetDia = (highestAchievedMilestone['target_diamonds'] ?? highestAchievedMilestone['targetDiamonds'] as num?)?.toInt() ?? hostDia;
+        totalCommissionDiamonds += (targetDia * agencyCommRate);
+      }
+    }
+
+    final totalSalary = totalDueSalaries > 0 
+        ? (totalDueSalaries % 1 == 0 ? totalDueSalaries.toInt().toString() : totalDueSalaries.toStringAsFixed(1))
+        : '0';
+    final commissionUsd = (totalCommissionDiamonds / 1000.0);
+    final commission = commissionUsd > 0
+        ? (commissionUsd % 1 == 0 ? commissionUsd.toInt().toString() : commissionUsd.toStringAsFixed(1))
+        : '0';
 
     return Container(
       color: Colors.white,
@@ -1724,7 +1823,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'إجمالي رواتب المضيفين المستحقة: \$$totalSalary USD',
+                        'إجمالي رواتب المضيفين المستحقة: \$$totalSalary USD (المقفلين للتارجت: $completedHostsCount)',
                         style: const TextStyle(color: Colors.white70, fontSize: 11),
                       ),
                     ],
@@ -2624,6 +2723,15 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
               _buildDataRow('حالة المرحلة:', stageInfo['stageName'] ?? 'المرحلة 1'),
               _buildDataRow('اكتمال التارجت:', stageInfo['isCompleted'] == true ? 'مكتمل ✅' : 'قيد التقدم ⏳'),
               _buildDataRow('الماس المحقق:', '${member.diamonds} 💎'),
+              Builder(
+                builder: (_) {
+                  final hDia = int.tryParse(member.diamonds) ?? 0;
+                  final cRate = _agencyInfo?.commissionRate ?? 0.15;
+                  final commDia = (hDia * cRate).round();
+                  final commUsd = (commDia / 1000.0).toStringAsFixed(1);
+                  return _buildDataRow('عمولة الوكيل من المضيف:', '$commDia 💎 (\$$commUsd USD)');
+                },
+              ),
               _buildDataRow('متبقي للمرحلة التالية:', '${stageInfo['remainingDiamonds']} 💎'),
               const Divider(),
               _buildDataRow('أيام البث الصالحة:', '${member.days} يوم'),
