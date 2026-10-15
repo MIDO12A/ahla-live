@@ -1,10 +1,12 @@
 // lib/screens/room/widgets/sugarrush_game_dialog.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../../../config/supabase_config.dart';
 import '../../../providers/user_provider.dart';
-import '../../../core/network/supabase_service.dart';
+import '../../../services/supabase_data_service.dart';
 
 class SugarRushGameDialog extends StatefulWidget {
   final String roomId;
@@ -32,6 +34,15 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
   bool _isLoading = true;
   double _poolWinRate = 75.0;
 
+  static const String _baseUrl = SupabaseConfig.projectUrl;
+  static const String _anonKey = SupabaseConfig.anonKey;
+
+  static Map<String, String> get _headers => {
+        'apikey': _anonKey,
+        'Authorization': 'Bearer $_anonKey',
+        'Content-Type': 'application/json',
+      };
+
   @override
   void initState() {
     super.initState();
@@ -41,18 +52,19 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
 
   Future<void> _loadPoolConfig() async {
     try {
-      final res = await SupabaseService.client
-          .from('game_jackpot_pool')
-          .select('win_rate, is_active')
-          .eq('id', 'sugarrush')
-          .maybeSingle();
+      final url = Uri.parse('$_baseUrl/rest/v1/game_jackpot_pool?id=eq.sugarrush&select=win_rate,is_active');
+      final res = await http.get(url, headers: _headers);
 
-      if (res != null && mounted) {
-        final winRate = res['win_rate'];
-        if (winRate != null) {
-          setState(() {
-            _poolWinRate = (winRate as num).toDouble();
-          });
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body) as List<dynamic>;
+        if (list.isNotEmpty && mounted) {
+          final first = list.first as Map<String, dynamic>;
+          final winRate = first['win_rate'];
+          if (winRate != null) {
+            setState(() {
+              _poolWinRate = (winRate as num).toDouble();
+            });
+          }
         }
       }
     } catch (e) {
@@ -77,7 +89,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
             }
           },
           onWebResourceError: (error) {
-            debugPrint('[SugarRush] WebResourceError: ' + error.description);
+            debugPrint('[SugarRush] WebResourceError: ${error.description}');
           },
         ),
       )
@@ -86,15 +98,16 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
 
   void _injectUserData() {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final user = userProvider.user;
+    final user = userProvider.currentUser;
 
-    final userId = user?.id ?? '10001';
-    final userName = user?.displayName ?? user?.name ?? 'Player';
-    final userAvatar = user?.photoUrl ?? user?.avatar ?? '';
+    final userId = user?.uid ?? '10001';
+    final userName = (user?.name.isNotEmpty ?? false) ? user!.name : 'Player';
+    final userAvatar = user?.photoUrl ?? '';
     final coins = user?.coins ?? 50000;
 
-    final safeName = userName.replaceAll('"', '\\\"');
-    final js = 'if (window.__sugarGame) { window.__sugarGame.initUser("' + userId + '", "' + safeName + '", "' + userAvatar + '", ' + coins.toString() + ', "' + widget.roomId + '", ' + _poolWinRate.toString() + '); }';
+    final safeName = userName.replaceAll('"', '\\"');
+    final js =
+        'if (window.__sugarGame) { window.__sugarGame.initUser("$userId", "$safeName", "$userAvatar", $coins, "${widget.roomId}", $_poolWinRate); }';
 
     _controller.runJavaScript(js);
   }
@@ -126,29 +139,33 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
   Future<void> _processBetDeduction(int betAmount) async {
     if (betAmount <= 0) return;
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final user = userProvider.user;
+    final user = userProvider.currentUser;
     if (user == null) return;
 
     try {
-      final currentCoins = user.coins ?? 0;
-      final newCoins = (currentCoins - betAmount).clamp(0, double.infinity).toInt();
+      userProvider.deductCoinsLocally(betAmount);
+      final newCoins = (user.coins - betAmount).clamp(0, 999999999);
 
-      await SupabaseService.client
-          .from('users')
-          .update({'coins': newCoins})
-          .eq('id', user.id);
+      await SupabaseDataService().updateUser(user.uid, {'coins': newCoins});
 
-      userProvider.updateUser(user.copyWith(coins: newCoins));
+      final rpcUrl = Uri.parse('$_baseUrl/rest/v1/rpc/increment_game_pool_balance');
+      final rpcRes = await http.post(
+        rpcUrl,
+        headers: _headers,
+        body: jsonEncode({
+          'p_game_id': 'sugarrush',
+          'p_amount': betAmount,
+        }),
+      );
 
-      await SupabaseService.client.rpc('increment_game_pool_balance', params: {
-        'p_game_id': 'sugarrush',
-        'p_amount': betAmount,
-      }).catchError((_) {
-        return SupabaseService.client
-            .from('game_jackpot_pool')
-            .update({'updated_at': DateTime.now().toIso8601String()})
-            .eq('id', 'sugarrush');
-      });
+      if (rpcRes.statusCode != 200 && rpcRes.statusCode != 204) {
+        final patchUrl = Uri.parse('$_baseUrl/rest/v1/game_jackpot_pool?id=eq.sugarrush');
+        await http.patch(
+          patchUrl,
+          headers: _headers,
+          body: jsonEncode({'updated_at': DateTime.now().toIso8601String()}),
+        );
+      }
     } catch (e) {
       debugPrint('[SugarRush] Process bet deduction error: $e');
     }
@@ -156,38 +173,43 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
 
   Future<void> _processSpinOutcome(int betAmount, int winAmount, bool isWin) async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final user = userProvider.user;
+    final user = userProvider.currentUser;
     if (user == null) return;
 
     try {
       if (winAmount > 0) {
-        final currentCoins = user.coins ?? 0;
-        final newCoins = currentCoins + winAmount;
+        userProvider.addCoinsLocally(winAmount);
+        final newCoins = user.coins + winAmount;
 
-        await SupabaseService.client
-            .from('users')
-            .update({'coins': newCoins})
-            .eq('id', user.id);
+        await SupabaseDataService().updateUser(user.uid, {'coins': newCoins});
 
-        userProvider.updateUser(user.copyWith(coins: newCoins));
-
-        await SupabaseService.client.rpc('increment_game_pool_balance', params: {
-          'p_game_id': 'sugarrush',
-          'p_amount': -winAmount,
-        }).catchError((_) => null);
+        final rpcUrl = Uri.parse('$_baseUrl/rest/v1/rpc/increment_game_pool_balance');
+        await http.post(
+          rpcUrl,
+          headers: _headers,
+          body: jsonEncode({
+            'p_game_id': 'sugarrush',
+            'p_amount': -winAmount,
+          }),
+        );
       }
 
-      await SupabaseService.client.from('game_bet_records').insert({
-        'game_id': 'sugarrush',
-        'user_id': user.id,
-        'room_id': widget.roomId,
-        'user_name': user.displayName ?? user.name ?? 'Player',
-        'bet_amount': betAmount,
-        'win_amount': winAmount,
-        'net_result': winAmount - betAmount,
-        'is_win': isWin,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      final betRecordUrl = Uri.parse('$_baseUrl/rest/v1/game_bet_records');
+      await http.post(
+        betRecordUrl,
+        headers: _headers,
+        body: jsonEncode({
+          'game_id': 'sugarrush',
+          'user_id': user.uid,
+          'room_id': widget.roomId,
+          'user_name': user.name.isNotEmpty ? user.name : 'Player',
+          'bet_amount': betAmount,
+          'win_amount': winAmount,
+          'net_result': winAmount - betAmount,
+          'is_win': isWin,
+          'created_at': DateTime.now().toIso8601String(),
+        }),
+      );
     } catch (e) {
       debugPrint('[SugarRush] Process spin outcome error: $e');
     }
@@ -196,7 +218,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black.withOpacity(0.85),
+      backgroundColor: Colors.black.withValues(alpha: 0.85),
       body: SafeArea(
         child: Stack(
           children: [
@@ -235,7 +257,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
               right: 16,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
+                  color: Colors.black.withValues(alpha: 0.6),
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(

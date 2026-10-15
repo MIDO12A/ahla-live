@@ -1,15 +1,6 @@
-import 'sugarrush_game_dialog.dart';
-﻿// lib/screens/room/widgets/room_game_bottom_sheet.dart
-// ─────────────────────────────────────────────────────────────────────────────
-// Room Game Bottom Sheet — matches room_fragment_game.xml & room_adapter_game_item.xml
-// • iv_game_bg / iv_top_bg / iv_close / room_game_title_ic
-// • ll_broad_cast: room_game_broadcast_bg + room_game_broadcast_ic + marquee text
-// • recyclerview_game: grid with iv_game (1:1 rounded) + tv_game_name marquee
-// ─────────────────────────────────────────────────────────────────────────────
-
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../config/r.dart';
+import 'sugarrush_game_dialog.dart';
 import '../../game/game_teaming_screen.dart';
 
 class RoomGameBottomSheet extends StatefulWidget {
@@ -137,9 +128,6 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
       SugarRushGameDialog.show(context, roomId: widget.roomId);
       return;
     }
-    Navigator.pop(context);
-    final gameName = isAr ? game['name_ar']! : game['name_en']!;
-    widget.onGameSelect?.call(game['key']!, gameName);
 
     // Launch Teaming screen or game lobby
     Navigator.push(
