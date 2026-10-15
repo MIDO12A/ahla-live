@@ -18,6 +18,8 @@ import 'agency_owner_wallet_screen.dart';
 import 'agency_invite_by_id_screen.dart';
 import 'agency_item_detail_screen.dart';
 import 'agency_join_requests_screen.dart';
+import 'agency_owner_screen.dart';
+import 'agency_host_screen.dart';
 import '../../../../services/dynamic_config_service.dart';
 
 /// شاشة وكيل المضيفين وإدارة الوكالة (AnchorAgentActivity)
@@ -177,65 +179,21 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isAr = Localizations.localeOf(context).languageCode == 'ar';
-    final info = _agentInfo;
-    final dc = DynamicConfigService();
-    final bgImg = dc.hostsBgImage;
-    final headerColor = dc.hostsHeaderColor;
+    if (_loading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF16151A),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFFFF9D3E)),
+        ),
+      );
+    }
 
-    final scrollWidget = RefreshIndicator(
-      color: const Color(0xFFFFD700),
-      onRefresh: _loadAgencyData,
-      child: CustomScrollView(
-        slivers: [
-          // ── CollapsingToolbar / App Bar matching union_activity_my_agency.xml ──
-          SliverToBoxAdapter(
-            child: _buildCollapsingHeader(info, isAr),
-          ),
-
-          // ── Tab Bar with union_tab_bg ──
-          SliverToBoxAdapter(
-            child: _buildTabBar(isAr),
-          ),
-
-          // ── Tab Content ──
-          if (_currentTab == 0)
-            _buildMembersList(isAr)
-          else if (_currentTab == 1)
-            _buildIncomeTab(info, isAr)
-          else if (_isAgencyOwner)
-            _buildInviteHostsTab(isAr)
-          else
-            _buildIncomeTab(info, isAr),
-
-          if (_isAgencyOwner)
-            _buildRemoveHostCard(isAr),
-
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 60),
-          ),
-        ],
-      ),
-    );
-
-    return Directionality(
-      textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
-      child: Scaffold(
-        backgroundColor: headerColor,
-        body: _loading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)))
-            : (bgImg.isNotEmpty
-                ? Container(
-                    decoration: BoxDecoration(
-                      image: bgImg.startsWith('http')
-                          ? DecorationImage(image: NetworkImage(bgImg), fit: BoxFit.cover)
-                          : DecorationImage(image: AssetImage(bgImg), fit: BoxFit.cover),
-                    ),
-                    child: scrollWidget,
-                  )
-                : scrollWidget),
-      ),
-    );
+    final aid = widget.agencyId ?? _agentInfo?.agencyId;
+    if (_isAgencyOwner) {
+      return AgencyOwnerScreen(agencyId: aid);
+    } else {
+      return AgencyHostScreen(agencyId: aid);
+    }
   }
 
   Widget _buildRemoveHostCard(bool isAr) {

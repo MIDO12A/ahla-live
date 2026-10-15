@@ -477,6 +477,17 @@ class DynamicConfigService extends ChangeNotifier {
   Color get hostsHeaderColor => _screenColor('hosts', 'headerColor', hostAgencyHeaderColor);
   Color get hostsTextColor => _screenColor('hosts', 'textColor', hostAgencyTextColor);
 
+  // Agency Owner & Host Screen Custom Assets
+  String get hostAgencyAddMemberBtnImage => _screenStr('hostAgency', 'addMemberButtonImage', '');
+  String get hostAgencyAddMemberBtnText => _screenStr('hostAgency', 'addMemberButtonText', 'إضافة عضو');
+  String get hostAgencyAdminSettingIcon => _screenStr('hostAgency', 'adminSettingIconImage', '');
+  String get hostAgencyMemberDetailIcon => _screenStr('hostAgency', 'memberDetailIconImage', '');
+  String get hostAgencyMemberDeleteIcon => _screenStr('hostAgency', 'memberDeleteIconImage', '');
+  String get hostAgencyMemberMoreIcon => _screenStr('hostAgency', 'memberMoreIconImage', '');
+  String get hostAgencyTagHostIcon => _screenStr('hostAgency', 'tagHostIconImage', '');
+  String get hostsStageCompletedBadge => _screenStr('hosts', 'stageCompletedBadgeImage', '');
+  String get hostsStageNextBadge => _screenStr('hosts', 'stageNextBadgeImage', '');
+
   /// Returns a decoration image from either a network URL or local asset.
   DecorationImage? getDecorationImage(
     String? urlOrPath, {

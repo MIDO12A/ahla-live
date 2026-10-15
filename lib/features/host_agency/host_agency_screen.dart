@@ -14,6 +14,8 @@ import '../../services/supabase_auth_service.dart';
 import '../../core/ui/in_app_toast.dart';
 import 'screens/agency_profile_screen.dart';
 import 'screens/anchor_agent_screen.dart';
+import 'screens/agency_owner_screen.dart';
+import 'screens/agency_host_screen.dart';
 import 'screens/agency_pending_approval_screen.dart';
 
 import 'dart:io';
@@ -870,10 +872,13 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
+              final isOwner = widget.role == _UserAgencyRole.owner || widget.role == _UserAgencyRole.supervisor;
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => AnchorAgentScreen(agencyId: widget.agencyId),
+                  builder: (_) => isOwner
+                      ? AgencyOwnerScreen(agencyId: widget.agencyId)
+                      : AgencyHostScreen(agencyId: widget.agencyId),
                 ),
               );
             },
@@ -1031,7 +1036,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                     if (widget.role == _UserAgencyRole.owner || widget.role == _UserAgencyRole.supervisor) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => AnchorAgentScreen(agencyId: widget.agencyId)),
+                        MaterialPageRoute(builder: (_) => AgencyOwnerScreen(agencyId: widget.agencyId)),
                       );
                     } else {
                       KayanInAppToast.warning('هذا المركز مخصص لمدراء الوكالات فقط');
@@ -1044,9 +1049,14 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                   title: 'وكالتي',
                   onTap: () {
                     if (widget.role != _UserAgencyRole.none && widget.agencyId != null && widget.agencyId!.isNotEmpty) {
+                      final isOwner = widget.role == _UserAgencyRole.owner || widget.role == _UserAgencyRole.supervisor;
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => AnchorAgentScreen(agencyId: widget.agencyId)),
+                        MaterialPageRoute(
+                          builder: (_) => isOwner
+                              ? AgencyOwnerScreen(agencyId: widget.agencyId)
+                              : AgencyHostScreen(agencyId: widget.agencyId),
+                        ),
                       );
                     } else {
                       KayanInAppToast.warning('لست منضماً لأي وكالة حالياً - يمكنك تصفح قائمة الوكالات أدناه لتقديم طلب انضمام');
