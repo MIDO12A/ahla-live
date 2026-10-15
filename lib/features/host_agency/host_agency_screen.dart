@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/supabase_compat.dart';
@@ -353,8 +354,9 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
       List rows = [];
       try {
         rows = await _sb
-            .from('active_agencies')
-            .select('id, name, tier, photo_url, total_diamonds_monthly, member_count, is_hall_of_fame')
+            .from('host_agencies')
+            .select('*')
+            .eq('status', 'active')
             .order('total_diamonds_monthly', ascending: false)
             .limit(50);
       } catch (_) {}
@@ -430,7 +432,8 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
       final now = DateTime.now().toUtc();
       final nowIso = now.toIso8601String();
       final agencyId = 'agency_${now.millisecondsSinceEpoch}_$uid';
-      final agencyCode = (100 + (now.millisecondsSinceEpoch % 900)).toString();
+      final agencyCodeInt = 100 + Random().nextInt(900);
+      final agencyCode = agencyCodeInt.toString();
       final finalLogo = photoUrl ?? currentUser?.photoUrl ?? '';
 
       // 3. Application payload for Supabase agency_applications table
@@ -447,7 +450,6 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
       };
 
       // 4. Pre-register agency record as pending in Supabase host_agencies
-      final agencyCodeInt = int.tryParse(agencyCode) ?? (100 + (now.millisecondsSinceEpoch % 900));
       final agencyPayload = {
         'id': agencyId,
         'name': name,

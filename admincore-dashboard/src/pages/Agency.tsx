@@ -397,7 +397,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
                 <div>
                   <div className="text-white font-bold text-xs">{ag.name}</div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded">كود: {ag.agency_code || '181'}</span>
+                    <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded">كود: {ag.agency_code || (ag.id ? (100 + (Math.abs(ag.id.split('').reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0)) % 900)) : '---')}</span>
                     <span className="text-[10px] text-slate-500 font-mono">ID: {ag.id?.slice(0, 8)}</span>
                   </div>
                 </div>

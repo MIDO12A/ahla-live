@@ -1259,11 +1259,14 @@ export async function createHostAgency(name: string, ownerId: string, commission
     const resolvedBdUid = (extra as any)?.bd_uid || (extra as any)?.bdUid || (extra as any)?.data?.bd_uid || (extra as any)?.supervisor_uid || (extra as any)?.supervisor_id || (u as any)?.bd_supervisor_id || '';
     const resolvedSupUid = (extra as any)?.supervisor_uid || (extra as any)?.supervisor_id || '';
 
+    const agencyCode = (extra?.agency_code ? Number(extra.agency_code) : (100 + Math.floor(Math.random() * 900)));
+
     // 1. Supabase insert into host_agencies
-    // Schema columns: id, name, owner_uid, logo_url, description, status, is_active, data
+    // Schema columns: id, name, owner_uid, logo_url, description, status, is_active, data, agency_code
     const sbPayload = {
       id: agencyId,
       name: name.trim(),
+      agency_code: agencyCode,
       owner_uid: resolvedUid,
       logo_url: photoUrl,
       description: extra?.description || '',
