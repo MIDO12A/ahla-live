@@ -772,15 +772,40 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
 
     setState(() => _processing = true);
     try {
-      final myUid = Supabase.instance.client.auth.currentUser?.id ?? widget.member.memberId;
+      final myUid = Supabase.instance.client.auth.currentUser?.id ?? widget.member.userId;
+      String hostName = 'مضيف';
+      String hostCustomId = '';
+      String agencyName = '';
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('display_name, kayan_id, custom_id')
+            .eq('id', myUid)
+            .maybeSingle();
+        if (profile != null) {
+          hostName = (profile['display_name'] ?? 'مضيف').toString();
+          hostCustomId = (profile['custom_id'] ?? profile['kayan_id'] ?? '').toString();
+        }
+        if (widget.member.agencyId.isNotEmpty) {
+          final agency = await Supabase.instance.client
+              .from('agency_profiles')
+              .select('name')
+              .eq('id', widget.member.agencyId)
+              .maybeSingle();
+          if (agency != null) {
+            agencyName = (agency['name'] ?? '').toString();
+          }
+        }
+      } catch (_) {}
+
       final res = await AgencyRepository.requestHostWithdrawalToAgent(
         agent: _selectedAgent!,
         diamonds: _diamonds,
         hostUid: myUid,
-        hostName: widget.member.name,
-        hostCustomId: widget.member.customId,
+        hostName: hostName,
+        hostCustomId: hostCustomId,
         agencyId: widget.member.agencyId,
-        agencyName: widget.member.agencyName,
+        agencyName: agencyName,
       );
 
       if (res['success'] != true) {

@@ -1424,7 +1424,7 @@ abstract final class AgencyRepository {
           .select('*')
           .eq('agent_id', agentUid)
           .eq('status', 'pending')
-          .order('created_at', { ascending: false });
+          .order('created_at', ascending: false);
 
       final List<Map<String, dynamic>> list = [];
       for (final r in (res as List<dynamic>)) {
