@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../../core/supabase_compat.dart';
+import '../../../../core/cache/encrypted_image_provider.dart';
+import '../../../host_agency/data/agency_repository.dart';
 
 import '../../agent_recharge_widgets.dart';
 
@@ -20,6 +22,8 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
   int _received = 0;
   int _withdrawn = 0;
   List<Map<String, dynamic>> _txns = [];
+  List<Map<String, dynamic>> _pendingWithdrawals = [];
+  bool _actionLoading = false;
 
   RealtimeChannel? _rt;
 
@@ -37,6 +41,16 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
   }
 
   Future<void> _load() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid != null) {
+      try {
+        final pending = await AgencyRepository.getAgentPendingWithdrawals(uid);
+        if (mounted) setState(() => _pendingWithdrawals = pending);
+      } catch (e) {
+        debugPrint('[DiamondWalletTab] pending withdrawals error: $e');
+      }
+    }
+
     try {
       final res =
           await Supabase.instance.client.rpc('agent_get_diamond_wallet');
@@ -59,6 +73,96 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
     } catch (e) {
       debugPrint('[DiamondWalletTab] load error: $e');
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _handleWithdrawalAction(String requestId, bool approve) async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+
+    if (!approve) {
+      final reason = await showDialog<String>(
+        context: context,
+        builder: (ctx) {
+          final ctrl = TextEditingController(text: 'الرصيد غير متطابق');
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1A1A2E),
+            title: const Text('سبب الرفض', style: TextStyle(color: Colors.white, fontSize: 16)),
+            content: TextField(
+              controller: ctrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'اكتب سبب رفض طلب السحب...',
+                hintStyle: TextStyle(color: Colors.white30),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                child: const Text('تأكيد الرفض'),
+              ),
+            ],
+          );
+        },
+      );
+      if (reason == null) return;
+
+      setState(() => _actionLoading = true);
+      final res = await AgencyRepository.handleAgentWithdrawalAction(
+        requestId: requestId,
+        agentUid: uid,
+        approve: false,
+        rejectReason: reason,
+      );
+      setState(() => _actionLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? '')));
+        _load();
+      }
+      return;
+    }
+
+    // تأكيد الموافقة
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('تأكيد قبول طلب السحب', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'هل أنت متأكد من قبول الطلب؟ سيتم خصم الألماس من المضيف وتحويله إلى محفظتك بنجاح.',
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5A0), foregroundColor: Colors.black),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('موافقة وقبول', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    setState(() => _actionLoading = true);
+    final res = await AgencyRepository.handleAgentWithdrawalAction(
+      requestId: requestId,
+      agentUid: uid,
+      approve: true,
+    );
+    setState(() => _actionLoading = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? '')));
+      _load();
     }
   }
 
@@ -195,6 +299,37 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
             ),
           ),
           const SizedBox(height: 20),
+
+          // ── قسم طلبات السحب المعلقة الواردة من المضيفين ──────────
+          if (_pendingWithdrawals.isNotEmpty) ...[
+            Row(
+              children: [
+                const Icon(Icons.mark_email_unread_rounded, color: Color(0xFFFFB800), size: 20),
+                const SizedBox(width: 8),
+                Text('طلبات سحب الألماس الواردة',
+                    style: GoogleFonts.tajawal(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF1A1A2E))),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_pendingWithdrawals.length} جديد',
+                    style: GoogleFonts.tajawal(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ..._pendingWithdrawals.map((req) => _buildPendingCard(req)),
+            const SizedBox(height: 14),
+          ],
+
           Text('سجل العمليات',
               style: GoogleFonts.tajawal(
                   fontSize: 16,
@@ -213,6 +348,107 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
             )
           else
             ..._txns.map((t) => _buildTxnRow(t)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingCard(Map<String, dynamic> req) {
+    final hostName = req['host_name'] ?? 'مضيف';
+    final hostKid = req['host_custom_id'] ?? '';
+    final hostAvatar = req['host_avatar']?.toString() ?? '';
+    final diamonds = (req['diamonds'] as num?)?.toInt() ?? 0;
+    final requestId = req['id']?.toString() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFB800).withValues(alpha: 0.6), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFFB800).withValues(alpha: 0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFFFB800), width: 1.5),
+                  image: hostAvatar.isNotEmpty
+                      ? DecorationImage(image: EncryptedImageProvider(hostAvatar), fit: BoxFit.cover)
+                      : null,
+                ),
+                child: hostAvatar.isEmpty ? const Icon(Icons.person, color: Color(0xFFFFB800)) : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(hostName, style: GoogleFonts.tajawal(fontWeight: FontWeight.w800, fontSize: 14)),
+                    if (hostKid.isNotEmpty)
+                      Text('ID: #$hostKid', style: GoogleFonts.tajawal(color: Colors.black54, fontSize: 11)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3F51B5).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF3F51B5).withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  '💎 $diamonds ماسة',
+                  style: GoogleFonts.tajawal(color: const Color(0xFF1A237E), fontWeight: FontWeight.w900, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: Colors.black12),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _actionLoading ? null : () => _handleWithdrawalAction(requestId, false),
+                  icon: const Icon(Icons.close_rounded, size: 16, color: Colors.redAccent),
+                  label: Text('رفض', style: GoogleFonts.tajawal(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.redAccent),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _actionLoading ? null : () => _handleWithdrawalAction(requestId, true),
+                  icon: const Icon(Icons.check_rounded, size: 16, color: Colors.black),
+                  label: Text('موافقة وقبول', style: GoogleFonts.tajawal(color: Colors.black, fontWeight: FontWeight.w900)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00E5A0),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

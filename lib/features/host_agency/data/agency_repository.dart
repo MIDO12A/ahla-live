@@ -1258,9 +1258,9 @@ abstract final class AgencyRepository {
   }
 
   // ─── البحث عن وكلاء الشحن ────────────────────────────────────────
+  // ─── البحث عن وكلاء الشحن المعتمدين وعرض وكالاتهم ─────────────────────────
   static Future<List<Map<String, dynamic>>> searchRechargeAgents(String query) async {
-    final q = query.trim();
-    if (q.isEmpty) return [];
+    final q = query.trim().replaceFirst('#', '').trim();
     final List<Map<String, dynamic>> results = [];
     final Set<String> seenIds = {};
 
@@ -1272,38 +1272,321 @@ abstract final class AgencyRepository {
       }
     }
 
+    // 1. البحث في جدول users
     try {
-      final resp = await _sb
-          .from('profiles')
-          .select('id, display_name, avatar_url, kayan_id')
-          .eq('is_recharge_agent', true)
-          .or('display_name.ilike.%$q%,kayan_id.ilike.%$q%,kayan_id.eq.$q')
-          .limit(10);
-      for (final e in (resp as List<dynamic>)) {
-        addAgent(Map<String, dynamic>.from(e as Map));
-      }
-    } catch (_) {}
-
-    // البحث في جدول users في Supabase
-    try {
-      final uResp = await _sb
+      dynamic queryBuilder = _sb
           .from('users')
-          .select('id, uid, name, photo_url, custom_id')
-          .or('is_recharge_agent.eq.true,is_agent.eq.true')
-          .or('name.ilike.%$q%,custom_id.ilike.%$q%')
-          .limit(10);
+          .select('id, uid, name, photo_url, custom_id, is_recharge_agent, is_agent, recharge_agency_name, recharge_agency_logo, whatsapp_number, agency_id')
+          .or('is_recharge_agent.eq.true,is_agent.eq.true');
+
+      if (q.isNotEmpty) {
+        queryBuilder = queryBuilder.or('name.ilike.%$q%,custom_id.ilike.%$q%,recharge_agency_name.ilike.%$q%,id.ilike.%$q%');
+      }
+
+      final uResp = await queryBuilder.limit(20);
       for (final e in (uResp as List<dynamic>)) {
         final m = Map<String, dynamic>.from(e as Map);
+        final agentName = m['name']?.toString() ?? 'وكيل شحن معتمد';
+        final agencyName = (m['recharge_agency_name'] != null && m['recharge_agency_name'].toString().trim().isNotEmpty)
+            ? m['recharge_agency_name'].toString().trim()
+            : 'وكالة $agentName';
+
         addAgent({
           'id': m['uid'] ?? m['id'],
-          'display_name': m['name'] ?? '',
+          'display_name': agentName,
           'avatar_url': m['photo_url'] ?? '',
-          'kayan_id': m['custom_id'] ?? '',
+          'kayan_id': m['custom_id'] ?? (m['uid']?.toString().substring(0, 8) ?? ''),
+          'recharge_agency_name': agencyName,
+          'recharge_agency_logo': m['recharge_agency_logo'] ?? m['photo_url'] ?? '',
+          'whatsapp_number': m['whatsapp_number'] ?? '',
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[AgencyRepository] search users error: $e');
+    }
+
+    // 2. البحث في جدول profiles
+    try {
+      dynamic pQuery = _sb
+          .from('profiles')
+          .select('id, display_name, avatar_url, kayan_id, is_recharge_agent')
+          .eq('is_recharge_agent', true);
+
+      if (q.isNotEmpty) {
+        pQuery = pQuery.or('display_name.ilike.%$q%,kayan_id.ilike.%$q%');
+      }
+
+      final resp = await pQuery.limit(20);
+      for (final e in (resp as List<dynamic>)) {
+        final m = Map<String, dynamic>.from(e as Map);
+        final name = m['display_name']?.toString() ?? 'وكيل شحن';
+        addAgent({
+          'id': m['id'],
+          'display_name': name,
+          'avatar_url': m['avatar_url'] ?? '',
+          'kayan_id': m['kayan_id'] ?? '',
+          'recharge_agency_name': 'وكالة $name',
+          'recharge_agency_logo': m['avatar_url'] ?? '',
+          'whatsapp_number': '',
+        });
+      }
+    } catch (e) {
+      debugPrint('[AgencyRepository] search profiles error: $e');
+    }
 
     return results;
+  }
+
+  // ─── إرسال طلب سحب ألماس من المضيف إلى وكيل الشحن (مع إشعار تفاعلي موافقة/رفض) ──
+  static Future<Map<String, dynamic>> requestHostWithdrawalToAgent({
+    required Map<String, dynamic> agent,
+    required int diamonds,
+    required String hostUid,
+    required String hostName,
+    String? hostCustomId,
+    String? hostAvatar,
+    String? agencyId,
+    String? agencyName,
+  }) async {
+    try {
+      final agentId = agent['id']?.toString() ?? agent['uid']?.toString() ?? '';
+      if (agentId.isEmpty) {
+        return {'success': false, 'message': 'بيانات وكيل الشحن غير صحيحة'};
+      }
+      if (diamonds <= 0) {
+        return {'success': false, 'message': 'كمية الألماس غير صالحة'};
+      }
+
+      final requestId = 'host_wdr_${DateTime.now().millisecondsSinceEpoch}_${hostUid.substring(0, 4)}';
+      final approxUsd = diamonds / 100.0; // معدل تقريبي
+
+      final accountDetails = {
+        'request_type': 'host_diamonds_withdrawal',
+        'host_uid': hostUid,
+        'host_name': hostName,
+        'host_custom_id': hostCustomId ?? '',
+        'host_avatar': hostAvatar ?? '',
+        'diamonds': diamonds,
+        'agency_id': agencyId ?? '',
+        'agency_name': agencyName ?? 'وكالة المضيف',
+        'agent_custom_id': agent['kayan_id']?.toString() ?? '',
+        'recharge_agency_name': agent['recharge_agency_name']?.toString() ?? '',
+      };
+
+      // 1. تسجيل الطلب في جدول agent_withdrawal_requests بحالة pending
+      await _sb.from('agent_withdrawal_requests').insert({
+        'id': requestId,
+        'agent_id': agentId,
+        'agent_name': agent['display_name'] ?? 'وكيل شحن',
+        'amount_usd': approxUsd,
+        'payment_method': 'host_diamonds',
+        'account_details': accountDetails,
+        'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      // 2. إرسال إشعار فوري وتفاعلي لوكيل الشحن
+      try {
+        await _sb.from('notifications').insert({
+          'uid': agentId,
+          'target': agentId,
+          'title': 'طلب سحب ألماس جديد 💎',
+          'body': 'طلب المضيف $hostName سحب $diamonds ماسة عبر وكالتك. يرجى الدخول لبوابة الشحن للموافقة أو الرفض.',
+          'type': 'agent_host_withdrawal_request',
+          'actor_uid': hostUid,
+          'data': {
+            'request_id': requestId,
+            'host_uid': hostUid,
+            'host_name': hostName,
+            'diamonds': diamonds,
+            'action_required': true,
+          },
+          'sent_at': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toIso8601String(),
+          'is_read': false,
+        });
+      } catch (ne) {
+        debugPrint('[AgencyRepository] send notification error: $ne');
+      }
+
+      return {'success': true, 'requestId': requestId};
+    } catch (e) {
+      debugPrint('[AgencyRepository] requestHostWithdrawalToAgent error: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // ─── جلب طلبات السحب الواردة لوكيل الشحن (Pending Host Withdrawals) ───────────
+  static Future<List<Map<String, dynamic>>> getAgentPendingWithdrawals(String agentUid) async {
+    try {
+      final res = await _sb
+          .from('agent_withdrawal_requests')
+          .select('*')
+          .eq('agent_id', agentUid)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+
+      final List<Map<String, dynamic>> list = [];
+      for (final r in (res as List<dynamic>)) {
+        final m = Map<String, dynamic>.from(r as Map);
+        final details = m['account_details'] is Map ? Map<String, dynamic>.from(m['account_details']) : {};
+        if (details['request_type'] == 'host_diamonds_withdrawal') {
+          list.add({
+            'id': m['id'],
+            'agent_id': m['agent_id'],
+            'host_uid': details['host_uid'] ?? '',
+            'host_name': details['host_name'] ?? 'مضيف',
+            'host_custom_id': details['host_custom_id'] ?? '',
+            'host_avatar': details['host_avatar'] ?? '',
+            'diamonds': (details['diamonds'] as num?)?.toInt() ?? ((m['amount_usd'] as num?)?.toInt() ?? 0) * 100,
+            'agency_name': details['agency_name'] ?? '',
+            'created_at': m['created_at'],
+            'status': m['status'],
+          });
+        }
+      }
+      return list;
+    } catch (e) {
+      debugPrint('[AgencyRepository] getAgentPendingWithdrawals error: $e');
+      return [];
+    }
+  }
+
+  // ─── موافقة أو رفض طلب سحب الألماس من قبل وكيل الشحن ─────────────────────────
+  static Future<Map<String, dynamic>> handleAgentWithdrawalAction({
+    required String requestId,
+    required String agentUid,
+    required bool approve,
+    String? rejectReason,
+  }) async {
+    try {
+      // 1. جلب بيانات الطلب
+      final reqRow = await _sb
+          .from('agent_withdrawal_requests')
+          .select('*')
+          .eq('id', requestId)
+          .maybeSingle();
+
+      if (reqRow == null) {
+        return {'success': false, 'message': 'لم يتم العثور على طلب السحب'};
+      }
+
+      final status = reqRow['status']?.toString();
+      if (status != 'pending') {
+        return {'success': false, 'message': 'تم التعامل مع هذا الطلب مسبقاً ($status)'};
+      }
+
+      final details = reqRow['account_details'] is Map ? Map<String, dynamic>.from(reqRow['account_details']) : {};
+      final hostUid = details['host_uid']?.toString() ?? '';
+      final diamonds = (details['diamonds'] as num?)?.toInt() ?? 0;
+      final hostName = details['host_name']?.toString() ?? 'المضيف';
+
+      if (approve) {
+        // تنفيذ التحويل الفعلي للألماس
+        final key = '${hostUid}_acc_${DateTime.now().millisecondsSinceEpoch}';
+        final txRes = await transferDiamondsToAgentWallet(
+          agentId: agentUid,
+          diamonds: diamonds,
+          idempotencyKey: key,
+          source: 'host',
+        );
+
+        if (txRes['status'] != 'ok' && txRes['success'] != true) {
+          return {'success': false, 'message': txRes['message'] ?? 'فشل تحويل الألماس'};
+        }
+
+        // تحديث حالة الطلب إلى approved
+        await _sb.from('agent_withdrawal_requests').update({
+          'status': 'approved',
+          'reviewed_at': DateTime.now().toIso8601String(),
+          'reviewed_by': agentUid,
+        }).eq('id', requestId);
+
+        // إشعار المضيف بنجاح العملية
+        try {
+          await _sb.from('notifications').insert({
+            'uid': hostUid,
+            'target': hostUid,
+            'title': 'تمت الموافقة على سحب الألماس! 🎉',
+            'body': 'وافق وكيل الشحن على طلب سحب $diamonds ماسة وتحويلها لمحفظة الوكالة بنجاح.',
+            'type': 'agent_withdrawal_approved',
+            'data': {'diamonds': diamonds, 'agent_id': agentUid, 'request_id': requestId},
+            'sent_at': DateTime.now().toIso8601String(),
+            'created_at': DateTime.now().toIso8601String(),
+            'is_read': false,
+          });
+        } catch (_) {}
+
+        return {'success': true, 'message': 'تمت الموافقة على الطلب بنجاح وتحويل الألماس'};
+      } else {
+        // رفض الطلب
+        await _sb.from('agent_withdrawal_requests').update({
+          'status': 'rejected',
+          'reviewed_at': DateTime.now().toIso8601String(),
+          'reviewed_by': agentUid,
+        }).eq('id', requestId);
+
+        // إشعار المضيف بالرفض
+        try {
+          await _sb.from('notifications').insert({
+            'uid': hostUid,
+            'target': hostUid,
+            'title': 'تم رفض طلب سحب الألماس',
+            'body': 'اعتذر وكيل الشحن عن قبول طلب سحب $diamonds ماسة. السبب: ${rejectReason ?? "لم يحدد سبب"}',
+            'type': 'agent_withdrawal_rejected',
+            'data': {'diamonds': diamonds, 'agent_id': agentUid, 'request_id': requestId},
+            'sent_at': DateTime.now().toIso8601String(),
+            'created_at': DateTime.now().toIso8601String(),
+            'is_read': false,
+          });
+        } catch (_) {}
+
+        return {'success': true, 'message': 'تم رفض طلب السحب وإشعار المضيف'};
+      }
+    } catch (e) {
+      debugPrint('[AgencyRepository] handleAgentWithdrawalAction error: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // ─── تقديم طلب تعبئة رصيد الوكالة (Agency Top-Up Request) ─────────────────────
+  static Future<Map<String, dynamic>> submitAgentTopupRequest({
+    required String agentUid,
+    required String agentName,
+    required double amountUsd,
+    required int coins,
+    required String paymentMethod,
+    required String proofImageUrl,
+    String? txid,
+    String? senderName,
+    String? senderPhone,
+  }) async {
+    try {
+      final reqId = 'topup_${DateTime.now().millisecondsSinceEpoch}_${agentUid.substring(0, 4)}';
+
+      await _sb.from('agent_withdrawal_requests').insert({
+        'id': reqId,
+        'agent_id': agentUid,
+        'agent_name': agentName,
+        'amount_usd': amountUsd,
+        'payment_method': paymentMethod,
+        'account_details': {
+          'request_type': 'agent_topup',
+          'coins': coins,
+          'proof_url': proofImageUrl,
+          'txid': txid ?? '',
+          'sender_name': senderName ?? '',
+          'sender_phone': senderPhone ?? '',
+        },
+        'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      return {'success': true, 'requestId': reqId};
+    } catch (e) {
+      debugPrint('[AgencyRepository] submitAgentTopupRequest error: $e');
+      return {'success': false, 'message': e.toString()};
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════

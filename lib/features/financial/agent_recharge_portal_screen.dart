@@ -175,6 +175,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
         agentPublicId: dash.agentPublicId,
         onBack: () => Navigator.of(context).pop(),
         onResetPin: () => AgentResetPinDialog.show(context),
+        onTopup: () => AgentTopupDialog.show(context, onSuccess: _loadDashboard),
       ),
       if (dc.agentRechargeBannerImage.isNotEmpty)
         Padding(

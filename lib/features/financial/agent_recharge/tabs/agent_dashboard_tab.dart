@@ -458,7 +458,16 @@ class AgentDashboardTab extends StatelessWidget {
           onTap: onGoRecharge,
         ),
       ),
-      const SizedBox(width: 10),
+      const SizedBox(width: 8),
+      Expanded(
+        child: AgentQuickActionBtn(
+          icon: '🪙',
+          label: 'تعبئة الرصيد',
+          color: const Color(0xFFFFB800),
+          onTap: () => AgentTopupDialog.show(context, onSuccess: onRefresh),
+        ),
+      ),
+      const SizedBox(width: 8),
       Expanded(
         child: AgentQuickActionBtn(
           icon: '🔄',

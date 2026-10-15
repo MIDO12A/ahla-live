@@ -2,11 +2,16 @@ import { useState, useEffect } from 'react';
 import { 
   Coins, Diamond, CreditCard, Save, RefreshCw, Plus, Trash2, 
   CheckCircle2, ArrowRightLeft, Sparkles, Smartphone, Globe, 
-  ShieldCheck, Clock, Check, X, Building2, User, ExternalLink
+  ShieldCheck, Clock, Check, X, Building2, User, ExternalLink,
+  RotateCcw, Search, Eye, AlertTriangle
 } from 'lucide-react';
 import { 
   getAppConfig, updateAppConfig, getRechargeRequests, 
-  approveRechargeRequest, rejectRechargeRequest 
+  approveRechargeRequest, rejectRechargeRequest,
+  getAllAgentRechargeTransactions, AllAgentRechargeTx,
+  getAgentTopupRequests, AgentTopupRequestItem,
+  approveAgentTopupRequest, rejectAgentTopupRequest,
+  refundAgentRechargeTransaction
 } from '../lib/db';
 import type { RechargeRequestModel } from '../types';
 
@@ -49,7 +54,7 @@ interface RechargeGateways {
 }
 
 export default function RechargeSettings() {
-  const [activeTab, setActiveTab] = useState<'exchange' | 'plans' | 'gateways' | 'requests'>('exchange');
+  const [activeTab, setActiveTab] = useState<'exchange' | 'plans' | 'gateways' | 'requests' | 'agents'>('exchange');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -93,6 +98,15 @@ export default function RechargeSettings() {
   const [requests, setRequests] = useState<RechargeRequestModel[]>([]);
   const [reqFilter, setReqFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
   const [reqProcessingId, setReqProcessingId] = useState<string | null>(null);
+
+  // 5. Recharge Agents & Transactions State
+  const [agentTxs, setAgentTxs] = useState<AllAgentRechargeTx[]>([]);
+  const [agentTopups, setAgentTopups] = useState<AgentTopupRequestItem[]>([]);
+  const [agentSubTab, setAgentSubTab] = useState<'txs' | 'topups' | 'deposit_accounts'>('txs');
+  const [agentTxSearch, setAgentTxSearch] = useState('');
+  const [refundingTxId, setRefundingTxId] = useState<string | null>(null);
+  const [topupProcessingId, setTopupProcessingId] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     loadConfig();
@@ -150,11 +164,81 @@ export default function RechargeSettings() {
         const reqs = await getRechargeRequests();
         setRequests(reqs);
       } catch (_) {}
+
+      // Load agent recharge transactions & topup requests
+      try {
+        const [txs, topups] = await Promise.all([
+          getAllAgentRechargeTransactions(),
+          getAgentTopupRequests(),
+        ]);
+        setAgentTxs(txs);
+        setAgentTopups(topups);
+      } catch (err) {
+        console.warn('Agent data load error:', err);
+      }
     } catch (e) {
       console.error('Failed to load recharge config:', e);
       setDefaultFallbackPlans();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefundAgentTx = async (tx: AllAgentRechargeTx) => {
+    if (tx.is_refunded) {
+      alert('هذه العملية مسترجعة بالفعل مسبقاً!');
+      return;
+    }
+    const ok = confirm(`هل أنت متأكد من استرجاع ${tx.amount_coins.toLocaleString()} كوينز من المستخدم (${tx.target_name} - #${tx.target_custom_id}) وإعادتها لمحفظة وكيل الشحن (${tx.agent_name})؟`);
+    if (!ok) return;
+
+    setRefundingTxId(tx.id);
+    try {
+      const res = await refundAgentRechargeTransaction(
+        tx.id,
+        tx.agent_id,
+        tx.target_uid,
+        tx.amount_coins,
+        tx.target_custom_id,
+        tx.agent_custom_id
+      );
+      alert(res.message);
+      if (res.success) {
+        setAgentTxs(prev => prev.map(t => t.id === tx.id ? { ...t, is_refunded: true, refunded_by: 'الإدارة' } : t));
+      }
+    } catch (e: any) {
+      alert(`حدث خطأ أثناء استرجاع الشحن: ${e.message}`);
+    } finally {
+      setRefundingTxId(null);
+    }
+  };
+
+  const handleApproveTopup = async (req: AgentTopupRequestItem) => {
+    if (!confirm(`هل أنت متأكد من اعتماد طلب تعبئة الرصيد وإضافة ${req.coins.toLocaleString()} كوينز لمحفظة الوكيل ${req.agentName}؟`)) return;
+    setTopupProcessingId(req.id);
+    try {
+      await approveAgentTopupRequest(req);
+      setAgentTopups(prev => prev.map(r => r.id === req.id ? { ...r, status: 'approved' } : r));
+      alert('تم اعتماد شحن رصيد الوكالة وإضافة الكوينز بنجاح!');
+    } catch (e: any) {
+      alert(`حدث خطأ: ${e.message}`);
+    } finally {
+      setTopupProcessingId(null);
+    }
+  };
+
+  const handleRejectTopup = async (req: AgentTopupRequestItem) => {
+    const reason = prompt('يرجى كتابة سبب رفض طلب التعبئة:', 'بيانات التحويل غير متطابقة مع الحساب');
+    if (reason === null) return;
+    setTopupProcessingId(req.id);
+    try {
+      await rejectAgentTopupRequest(req, reason);
+      setAgentTopups(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', rejectionReason: reason } : r));
+      alert('تم رفض طلب تعبئة الرصيد وإشعار الوكيل');
+    } catch (e: any) {
+      alert(`حدث خطأ: ${e.message}`);
+    } finally {
+      setTopupProcessingId(null);
     }
   };
 
@@ -367,6 +451,23 @@ export default function RechargeSettings() {
           {requests.filter(r => r.status === 'pending').length > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
               {requests.filter(r => r.status === 'pending').length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('agents')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === 'agents'
+              ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-lg shadow-purple-500/10'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>وكلاء الشحن والمعاملات</span>
+          {agentTopups.filter(r => r.status === 'pending').length > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
+              {agentTopups.filter(r => r.status === 'pending').length}
             </span>
           )}
         </button>
@@ -1037,6 +1138,552 @@ export default function RechargeSettings() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'agents' && (
+        <div className="space-y-6">
+          {/* Sub Navigation */}
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-white/5">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAgentSubTab('txs')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  agentSubTab === 'txs'
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
+                    : 'bg-white/5 hover:bg-white/10 text-slate-300'
+                }`}
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>سجل شحن وكلاء الشحن للمستخدمين</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-[10px]">
+                  {agentTxs.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setAgentSubTab('topups')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  agentSubTab === 'topups'
+                    ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20'
+                    : 'bg-white/5 hover:bg-white/10 text-slate-300'
+                }`}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>طلبات تعبئة رصيد الوكالات</span>
+                {agentTopups.filter(r => r.status === 'pending').length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                    {agentTopups.filter(r => r.status === 'pending').length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setAgentSubTab('deposit_accounts')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  agentSubTab === 'deposit_accounts'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                    : 'bg-white/5 hover:bg-white/10 text-slate-300'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>حسابات الإيداع المعتمدة للوكلاء</span>
+              </button>
+            </div>
+
+            <button
+              onClick={loadConfig}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>تحديث البيانات</span>
+            </button>
+          </div>
+
+          {/* SubTab 1: Transactions Log */}
+          {agentSubTab === 'txs' && (
+            <div className="space-y-4">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-slate-900/60 p-4 rounded-xl border border-white/5 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold">
+                    <ArrowRightLeft className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">إجمالي شحنات الوكلاء</div>
+                    <div className="text-lg font-bold text-white">{agentTxs.length.toLocaleString()} عملية</div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/60 p-4 rounded-xl border border-white/5 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">
+                    <Coins className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">إجمالي الكوينز المشحونة الفعلية</div>
+                    <div className="text-lg font-bold text-amber-400">
+                      {agentTxs.filter(t => !t.is_refunded).reduce((s, t) => s + (t.amount_coins || 0), 0).toLocaleString()} 🪙
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/60 p-4 rounded-xl border border-white/5 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center font-bold">
+                    <RotateCcw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">العمليات المسترجعة (Refunded)</div>
+                    <div className="text-lg font-bold text-rose-400">
+                      {agentTxs.filter(t => t.is_refunded).length.toLocaleString()} عملية
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Search Bar */}
+              <div className="bg-slate-900/60 p-3 rounded-xl border border-white/5 flex items-center gap-3">
+                <Search className="w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="بحث عن عملية شحن عبر آيدي المستخدم، اسمه، أو آيدي وكيل الشحن..."
+                  value={agentTxSearch}
+                  onChange={(e) => setAgentTxSearch(e.target.value)}
+                  className="bg-transparent border-0 outline-none text-white text-xs w-full placeholder:text-slate-500"
+                />
+                {agentTxSearch && (
+                  <button onClick={() => setAgentTxSearch('')} className="text-slate-400 hover:text-white text-xs">
+                    مسح
+                  </button>
+                )}
+              </div>
+
+              {/* Transactions Table */}
+              <div className="bg-slate-900/60 rounded-2xl border border-white/5 overflow-hidden">
+                <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-purple-400" />
+                    <span>سجل كافة عمليات شحن وكلاء الشحن للمستخدمين في التطبيق</span>
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    يمكن للإدارة استرجاع أي شحنة بالخطأ وإعادة الرصيد للوكيل فوراً
+                  </span>
+                </div>
+
+                {agentTxs.length === 0 ? (
+                  <div className="p-12 text-center text-slate-500 text-xs">
+                    لا توجد أي عمليات شحن مسجلة لوكلاء الشحن حتى الآن.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right text-xs">
+                      <thead className="bg-white/[0.02] text-slate-400 border-b border-white/5">
+                        <tr>
+                          <th className="py-3 px-3">رقم العملية</th>
+                          <th className="py-3 px-3">وكيل الشحن</th>
+                          <th className="py-3 px-3">المستخدم المستلم</th>
+                          <th className="py-3 px-3">الكوينز المشحونة</th>
+                          <th className="py-3 px-3">التاريخ والوقت</th>
+                          <th className="py-3 px-3">الحالة</th>
+                          <th className="py-3 px-3 text-center">إجراء الإدارة</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 text-slate-300">
+                        {agentTxs
+                          .filter(t => {
+                            if (!agentTxSearch) return true;
+                            const q = agentTxSearch.toLowerCase();
+                            return (
+                              (t.target_name || '').toLowerCase().includes(q) ||
+                              (t.target_custom_id || '').toLowerCase().includes(q) ||
+                              (t.agent_name || '').toLowerCase().includes(q) ||
+                              (t.agent_custom_id || '').toLowerCase().includes(q) ||
+                              t.id.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((t) => (
+                            <tr key={t.id} className={`hover:bg-white/[0.02] transition-colors ${t.is_refunded ? 'opacity-60 bg-rose-500/[0.02]' : ''}`}>
+                              <td className="py-3 px-3 font-mono text-[11px] text-slate-400">
+                                #{t.id.slice(0, 8)}
+                              </td>
+
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-2">
+                                  {t.agent_avatar ? (
+                                    <img src={t.agent_avatar} alt="" className="w-7 h-7 rounded-full object-cover border border-white/10" />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-[10px]">
+                                      {t.agent_name ? t.agent_name[0] : 'A'}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div className="font-bold text-white text-xs">{t.agent_name || 'وكيل شحن'}</div>
+                                    <div className="text-[10px] text-purple-400 font-mono">ID: {t.agent_custom_id || '-'}</div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-2">
+                                  {t.target_avatar ? (
+                                    <img src={t.target_avatar} alt="" className="w-7 h-7 rounded-full object-cover border border-white/10" />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-[10px]">
+                                      {t.target_name ? t.target_name[0] : 'U'}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div className="font-bold text-white text-xs">{t.target_name || 'مستخدم'}</div>
+                                    <div className="text-[10px] text-indigo-400 font-mono">ID: {t.target_custom_id || '-'}</div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-3 font-bold text-amber-400">
+                                <div className="flex items-center gap-1">
+                                  <Coins className="w-3.5 h-3.5" />
+                                  <span>{t.amount_coins.toLocaleString()}</span>
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-3 text-slate-400 text-[11px]">
+                                {new Date(t.created_at).toLocaleDateString('ar-EG', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </td>
+
+                              <td className="py-3 px-3">
+                                {t.is_refunded ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1 w-fit">
+                                    <RotateCcw className="w-3 h-3" />
+                                    <span>مسترجعة</span>
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 w-fit">
+                                    <Check className="w-3 h-3" />
+                                    <span>مكتملة ومؤكدة</span>
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-3 text-center">
+                                {t.is_refunded ? (
+                                  <span className="text-[10px] text-slate-500">تم الاسترجاع ↩️</span>
+                                ) : (
+                                  <button
+                                    onClick={() => handleRefundAgentTx(t)}
+                                    disabled={refundingTxId === t.id}
+                                    className="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 font-bold text-[11px] flex items-center gap-1 mx-auto transition-all"
+                                    title="خصم الكوينز من المستخدم وإرجاعها لمحفظة الوكيل"
+                                  >
+                                    {refundingTxId === t.id ? (
+                                      <RefreshCw className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <RotateCcw className="w-3 h-3" />
+                                    )}
+                                    <span>استرجاع الشحن</span>
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* SubTab 2: Agent Top-Up Requests */}
+          {agentSubTab === 'topups' && (
+            <div className="space-y-4">
+              <div className="bg-slate-900/60 rounded-2xl border border-white/5 overflow-hidden">
+                <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-amber-400" />
+                    <span>طلبات تعبئة رصيد الوكالات (إيداعات الوكلاء الرسمية)</span>
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    مراجعة إيصالات الإيداع واعتماد الكوينز لمحفظة الوكيل
+                  </span>
+                </div>
+
+                {agentTopups.length === 0 ? (
+                  <div className="p-12 text-center text-slate-500 text-xs">
+                    لا توجد أي طلبات تعبئة رصيد وكالة حالياً.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right text-xs">
+                      <thead className="bg-white/[0.02] text-slate-400 border-b border-white/5">
+                        <tr>
+                          <th className="py-3 px-3">التاريخ والوقت</th>
+                          <th className="py-3 px-3">وكيل الشحن</th>
+                          <th className="py-3 px-3">المبلغ والكوينز</th>
+                          <th className="py-3 px-3">طريقة الدفع</th>
+                          <th className="py-3 px-3">رقم التحويل / TXID</th>
+                          <th className="py-3 px-3">إشعار التحويل</th>
+                          <th className="py-3 px-3">الحالة</th>
+                          <th className="py-3 px-3 text-center">الإجراء</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 text-slate-300">
+                        {agentTopups.map((r) => (
+                          <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="py-3 px-3 text-slate-400 text-[11px]">
+                              {new Date(r.createdAt).toLocaleDateString('ar-EG', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <div className="font-bold text-white text-xs">{r.agentName || 'وكيل شحن'}</div>
+                              <div className="text-[10px] text-purple-400 font-mono">ID: {r.agentCustomId || '-'}</div>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <div className="font-bold text-amber-400 flex items-center gap-1">
+                                <Coins className="w-3.5 h-3.5" />
+                                <span>{r.coins.toLocaleString()} كوينز</span>
+                              </div>
+                              <div className="text-[11px] text-emerald-400 font-bold">${r.amountUsd} USD</div>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <span className="px-2 py-0.5 rounded-md bg-white/5 text-slate-300 font-medium">
+                                {r.paymentMethod === 'vodafone_cash'
+                                  ? 'فودافون كاش'
+                                  : r.paymentMethod === 'binance_pay'
+                                  ? 'Binance USDT (TRC-20)'
+                                  : r.paymentMethod === 'instapay'
+                                  ? 'انستاباي'
+                                  : r.paymentMethod}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-3 font-mono text-[11px] text-slate-300">
+                              {r.senderAccount && <div>المرسل: {r.senderAccount}</div>}
+                              {r.txid && <div className="text-indigo-400">TXID: {r.txid}</div>}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              {r.proofUrl ? (
+                                <button
+                                  onClick={() => setPreviewImage(r.proofUrl)}
+                                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 text-[11px] transition-colors"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>معاينة الإشعار</span>
+                                </button>
+                              ) : (
+                                <span className="text-slate-500 text-[11px]">بدون إشعار</span>
+                              )}
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                r.status === 'approved'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : r.status === 'rejected'
+                                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              }`}>
+                                {r.status === 'approved' ? 'معتمد' : r.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'}
+                              </span>
+                              {r.rejectionReason && (
+                                <div className="text-[10px] text-rose-400 mt-1 max-w-[120px] truncate" title={r.rejectionReason}>
+                                  {r.rejectionReason}
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="py-3 px-3 text-center">
+                              {r.status === 'pending' ? (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => handleApproveTopup(r)}
+                                    disabled={topupProcessingId === r.id}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1 transition-all"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>اعتماد وشحن</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectTopup(r)}
+                                    disabled={topupProcessingId === r.id}
+                                    className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] flex items-center gap-1 transition-all"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                    <span>رفض</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-500">
+                                  {r.reviewedBy ? `بواسطة: ${r.reviewedBy}` : 'مكتمل'}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* SubTab 3: Deposit Payment Accounts Settings */}
+          {agentSubTab === 'deposit_accounts' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Vodafone Cash */}
+              <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 space-y-4">
+                <div className="flex items-center gap-2 pb-3 border-b border-white/5">
+                  <Smartphone className="w-5 h-5 text-rose-400" />
+                  <h4 className="font-bold text-white text-sm">فودافون كاش (Vodafone Cash)</h4>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">رقم المحفظة لاستقبال التحويلات:</label>
+                    <input
+                      type="text"
+                      value={gateways.vodafoneCashNumber}
+                      onChange={(e) => setGateways({ ...gateways, vodafoneCashNumber: e.target.value })}
+                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-rose-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">اسم صاحب الحساب:</label>
+                    <input
+                      type="text"
+                      value={gateways.vodafoneCashName}
+                      onChange={(e) => setGateways({ ...gateways, vodafoneCashName: e.target.value })}
+                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Binance Pay / USDT TRC-20 */}
+              <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 space-y-4">
+                <div className="flex items-center gap-2 pb-3 border-b border-white/5">
+                  <Globe className="w-5 h-5 text-amber-400" />
+                  <h4 className="font-bold text-white text-sm">باينانس Binance (USDT TRC-20)</h4>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Binance Pay ID:</label>
+                    <input
+                      type="text"
+                      value={gateways.binanceId}
+                      onChange={(e) => setGateways({ ...gateways, binanceId: e.target.value })}
+                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">عنوان محفظة USDT (TRC-20):</label>
+                    <input
+                      type="text"
+                      value={gateways.binanceAddress}
+                      onChange={(e) => setGateways({ ...gateways, binanceAddress: e.target.value })}
+                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* InstaPay */}
+              <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 space-y-4">
+                <div className="flex items-center gap-2 pb-3 border-b border-white/5">
+                  <CreditCard className="w-5 h-5 text-purple-400" />
+                  <h4 className="font-bold text-white text-sm">انستاباي InstaPay</h4>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">عنوان الدفع (InstaPay IPA):</label>
+                    <input
+                      type="text"
+                      value={gateways.instapayAddress}
+                      onChange={(e) => setGateways({ ...gateways, instapayAddress: e.target.value })}
+                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-purple-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">اسم الحساب:</label>
+                    <input
+                      type="text"
+                      value={gateways.instapayAccountName}
+                      onChange={(e) => setGateways({ ...gateways, instapayAccountName: e.target.value })}
+                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="md:col-span-3 flex justify-end">
+                <button
+                  onClick={handleSaveAll}
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center gap-2 transition-all"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>حفظ حسابات الإيداع</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div 
+            className="relative max-w-2xl w-full bg-slate-900 rounded-2xl border border-white/10 p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+              <span className="text-xs font-bold text-white flex items-center gap-2">
+                <Eye className="w-4 h-4 text-cyan-400" />
+                <span>إشعار التحويل المرفوع</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewImage}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+                  title="فتح في نافذة جديدة"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+                <button
+                  onClick={() => setPreviewImage(null)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="max-h-[75vh] overflow-auto flex items-center justify-center rounded-xl bg-black/40 p-2">
+              <img 
+                src={previewImage} 
+                alt="إشعار التحويل" 
+                className="max-h-[70vh] w-auto object-contain rounded-lg shadow-md" 
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

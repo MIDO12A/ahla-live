@@ -920,7 +920,19 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
         data: {'amount': amount, 'agent_id': agentUid},
       );
 
-      _showSnack('✅ تم شحن $amount كوين للمستخدم بنجاح');
+      final orderId = 'ORD${DateTime.now().millisecondsSinceEpoch.toString().substring(4)}';
+      final now = DateTime.now();
+      final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+      AgentRechargeSuccessDialog.show(
+        context: context,
+        orderId: orderId,
+        userId: user['kayan_id']?.toString() ?? targetUser.customId,
+        userName: targetUser.name,
+        goldNum: amount,
+        dateStr: dateStr,
+      );
+
       _clearSelected();
       widget.onSuccess();
     } catch (e) {

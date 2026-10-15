@@ -2438,6 +2438,227 @@ export async function refundAgentRechargeTransaction(
   }
 }
 
+export interface AllAgentRechargeTx {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  agent_custom_id: string;
+  agent_avatar: string;
+  target_uid: string;
+  target_name: string;
+  target_custom_id: string;
+  target_avatar: string;
+  amount_coins: number;
+  amount_usd?: number;
+  created_at: string;
+  is_refunded: boolean;
+  refunded_at?: string;
+  refunded_by?: string;
+}
+
+export async function getAllAgentRechargeTransactions(): Promise<AllAgentRechargeTx[]> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const { data: txs, error } = await client
+      .from('agent_recharge_transactions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(300);
+
+    if (error || !txs) return [];
+
+    const uids = Array.from(new Set([
+      ...txs.map((t: any) => t.agent_id),
+      ...txs.map((t: any) => t.target_uid)
+    ].filter(Boolean)));
+
+    const usersMap: Record<string, any> = {};
+    if (uids.length > 0) {
+      const { data: users } = await client.from('users').select('id, uid, name, displayName, photo_url, avatar, custom_id');
+      (users ?? []).forEach((u: any) => {
+        const id = u.id || u.uid;
+        usersMap[id] = u;
+        if (u.uid) usersMap[u.uid] = u;
+        if (u.custom_id) usersMap[u.custom_id] = u;
+      });
+    }
+
+    const { data: refundedConfigs } = await client
+      .from('app_config')
+      .select('key, value')
+      .ilike('key', 'refunded_agent_tx_%');
+
+    const refundedMap: Record<string, any> = {};
+    (refundedConfigs ?? []).forEach((c: any) => {
+      const txId = c.key.replace('refunded_agent_tx_', '');
+      refundedMap[txId] = c.value;
+    });
+
+    return txs.map((t: any) => {
+      const agent = usersMap[t.agent_id] || {};
+      const target = usersMap[t.target_uid] || {};
+      const isRefunded = Boolean(t.is_refunded || refundedMap[t.id]?.is_refunded);
+      const refInfo = refundedMap[t.id] || {};
+
+      return {
+        id: t.id,
+        agent_id: t.agent_id,
+        agent_name: agent.name || agent.displayName || 'وكيل شحن',
+        agent_custom_id: agent.custom_id || '',
+        agent_avatar: agent.photo_url || agent.avatar || '',
+        target_uid: t.target_uid,
+        target_name: target.name || target.displayName || 'مستخدم',
+        target_custom_id: t.target_custom_id || target.custom_id || '',
+        target_avatar: target.photo_url || target.avatar || '',
+        amount_coins: Number(t.amount_coins || 0),
+        amount_usd: t.amount_usd ? Number(t.amount_usd) : undefined,
+        created_at: t.created_at || new Date().toISOString(),
+        is_refunded: isRefunded,
+        refunded_at: refInfo.refunded_at || t.refunded_at,
+        refunded_by: refInfo.refunded_by || t.refunded_by,
+      };
+    });
+  } catch (e) {
+    console.warn('getAllAgentRechargeTransactions error:', e);
+    return [];
+  }
+}
+
+export interface AgentTopupRequestItem {
+  id: string;
+  agentId: string;
+  agentName: string;
+  amountUsd: number;
+  coins: number;
+  paymentMethod: string;
+  proofUrl: string;
+  txid: string;
+  senderName: string;
+  senderPhone: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  createdAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+}
+
+export async function getAgentTopupRequests(): Promise<AgentTopupRequestItem[]> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const { data, error } = await client
+      .from('agent_withdrawal_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+
+    const list: AgentTopupRequestItem[] = [];
+    for (const r of data) {
+      const details = r.account_details || {};
+      if (details.request_type === 'agent_topup') {
+        list.push({
+          id: r.id,
+          agentId: r.agent_id,
+          agentName: r.agent_name || details.sender_name || 'وكيل شحن',
+          amountUsd: Number(r.amount_usd || 0),
+          coins: Number(details.coins || (r.amount_usd * 1000)),
+          paymentMethod: r.payment_method || 'manual',
+          proofUrl: details.proof_url || '',
+          txid: details.txid || '',
+          senderName: details.sender_name || '',
+          senderPhone: details.sender_phone || '',
+          status: r.status || 'pending',
+          rejectionReason: r.rejection_reason || '',
+          createdAt: r.created_at || new Date().toISOString(),
+          reviewedAt: r.reviewed_at,
+          reviewedBy: r.reviewed_by,
+        });
+      }
+    }
+    return list;
+  } catch (e) {
+    console.warn('getAgentTopupRequests error:', e);
+    return [];
+  }
+}
+
+export async function approveAgentTopupRequest(req: AgentTopupRequestItem): Promise<boolean> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const adminName = getCurrentAdminName() || 'Admin';
+    const now = new Date().toISOString();
+
+    const { data: agentUser } = await client
+      .from('users')
+      .select('coins')
+      .or(`id.eq.${req.agentId},uid.eq.${req.agentId}`)
+      .maybeSingle();
+
+    const currentCoins = Number(agentUser?.coins || 0);
+    const newCoins = currentCoins + req.coins;
+
+    await client
+      .from('users')
+      .update({ coins: newCoins })
+      .or(`id.eq.${req.agentId},uid.eq.${req.agentId}`);
+
+    await client
+      .from('agent_withdrawal_requests')
+      .update({
+        status: 'approved',
+        reviewed_at: now,
+        reviewed_by: adminName,
+      })
+      .eq('id', req.id);
+
+    await sendSystemNotification({
+      userId: req.agentId,
+      title: '🎉 تم اعتماد شحن رصيد وكالتك بنجاح!',
+      body: `تمت مراجعة عملية التحويل وإضافة ${req.coins.toLocaleString()} كوينز إلى محفظة وكالتك بنجاح. رصيدك الآن: ${newCoins.toLocaleString()} عملة.`,
+      type: 'system',
+      action: 'agent_topup_approved',
+      extraData: { amount_usd: req.amountUsd, coins: req.coins, request_id: req.id },
+    });
+
+    return true;
+  } catch (e) {
+    console.error('approveAgentTopupRequest error:', e);
+    throw e;
+  }
+}
+
+export async function rejectAgentTopupRequest(req: AgentTopupRequestItem, reason: string): Promise<boolean> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const adminName = getCurrentAdminName() || 'Admin';
+    const now = new Date().toISOString();
+
+    await client
+      .from('agent_withdrawal_requests')
+      .update({
+        status: 'rejected',
+        rejection_reason: reason,
+        reviewed_at: now,
+        reviewed_by: adminName,
+      })
+      .eq('id', req.id);
+
+    await sendSystemNotification({
+      userId: req.agentId,
+      title: '❌ تم رفض طلب تعبئة رصيد الوكالة',
+      body: `نأسف، تم رفض طلب تعبئة الرصيد بمبلغ $${req.amountUsd}. السبب: ${reason || 'بيانات التحويل غير متطابقة'}`,
+      type: 'system',
+      action: 'agent_topup_rejected',
+      extraData: { request_id: req.id },
+    });
+
+    return true;
+  } catch (e) {
+    console.error('rejectAgentTopupRequest error:', e);
+    throw e;
+  }
+}
+
 export async function sendSystemNotification(data: {
   userId: string;
   title: string;
