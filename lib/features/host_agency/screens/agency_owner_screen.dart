@@ -153,8 +153,14 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
     } catch (e) {
       debugPrint('[AgencyOwnerScreen] _loadAllData error: $e');
       if (mounted) {
+        final user = Provider.of<UserProvider>(context, listen: false).currentUser;
         setState(() {
-          if (!silent) _error = 'حدث خطأ في تحميل بيانات الوكالة';
+          _agencyInfo ??= AgentInfoModel(
+            userId: int.tryParse(user?.customId ?? '0') ?? 0,
+            agencyName: user?.name ?? 'وكالتي الرسمية',
+            avatarUrl: user?.photoUrl ?? '',
+            agencyId: widget.agencyId ?? '',
+          );
           _loading = false;
         });
       }
@@ -322,7 +328,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       );
     }
 
-    final info = _agencyInfo!;
+    final info = _agencyInfo ?? const AgentInfoModel();
     final coverBg = cfg.hostAgencyHeaderBgImage.isNotEmpty
         ? cfg.hostAgencyHeaderBgImage
         : (info.avatarUrl.isNotEmpty ? info.avatarUrl : '');

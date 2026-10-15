@@ -146,8 +146,15 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
     } catch (e) {
       debugPrint('[AgencyHostScreen] _loadHostData error: $e');
       if (mounted) {
+        final user = Provider.of<UserProvider>(context, listen: false).currentUser;
         setState(() {
-          if (!silent) _error = 'حدث خطأ في تحميل بيانات المضيف';
+          _agencyInfo ??= const AgentInfoModel();
+          _hostData ??= AnchorAgentUserInfoDataModel(
+            uid: user?.uid ?? '',
+            userNo: int.tryParse(user?.customId ?? '0') ?? 0,
+            nickname: user?.name ?? 'مضيف',
+            headImage: user?.photoUrl ?? '',
+          );
           _loading = false;
         });
       }

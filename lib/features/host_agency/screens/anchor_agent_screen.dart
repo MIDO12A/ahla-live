@@ -165,9 +165,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         }
       }
     } catch (e) {
+      debugPrint('[AnchorAgentScreen] _loadAgencyData error: $e');
       if (mounted) {
         setState(() {
-          if (!silent) _error = 'حدث خطأ في تحميل بيانات الوكالة';
           _loading = false;
         });
       }

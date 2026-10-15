@@ -1,3 +1,15 @@
+int _safeInt(dynamic val, [int def = 0]) {
+  if (val == null) return def;
+  if (val is num) return val.toInt();
+  return int.tryParse(val.toString()) ?? def;
+}
+
+double _safeDouble(dynamic val, [double def = 0.0]) {
+  if (val == null) return def;
+  if (val is num) return val.toDouble();
+  return double.tryParse(val.toString()) ?? def;
+}
+
 /// نموذج بيانات وكيل المضيفين (AgentInfoBean)
 class AgentInfoModel {
   final int userId;
@@ -56,28 +68,29 @@ class AgentInfoModel {
         json['agency_public_id']?.toString() ??
         json['code']?.toString() ??
         json['custom_id']?.toString();
+    final dataMap = json['data'] is Map ? Map<String, dynamic>.from(json['data'] as Map) : const <String, dynamic>{};
     return AgentInfoModel(
-      userId: (json['user_id'] as num?)?.toInt() ?? 0,
-      agentBean: (json['agent_bean'] as num?)?.toInt() ?? 0,
-      agentGold: (json['agent_gold'] as num?)?.toInt() ?? 0,
-      beanNumber: (json['bean_number'] as num?)?.toInt() ?? 0,
-      transferBean: (json['transfer_bean'] as num?)?.toInt() ?? 0,
-      transferBeanDollar: (json['transfer_bean_dollar'] as num?)?.toInt() ?? 0,
-      transferDollar: (json['transfer_dollar'] as num?)?.toInt() ?? 0,
-      transferMoney: (json['transfer_money'] as num?)?.toInt() ?? (json['total_diamonds_monthly'] as num?)?.toInt() ?? (json['monthly_diamonds'] as num?)?.toInt() ?? 0,
-      transferNumber: (json['transfer_number'] as num?)?.toInt() ?? 0,
+      userId: _safeInt(json['user_id'] ?? json['owner_id'] ?? json['owner_uid']),
+      agentBean: _safeInt(json['agent_bean']),
+      agentGold: _safeInt(json['agent_gold']),
+      beanNumber: _safeInt(json['bean_number']),
+      transferBean: _safeInt(json['transfer_bean']),
+      transferBeanDollar: _safeInt(json['transfer_bean_dollar']),
+      transferDollar: _safeInt(json['transfer_dollar']),
+      transferMoney: _safeInt(json['transfer_money'] ?? json['total_diamonds_monthly'] ?? json['monthly_diamonds']),
+      transferNumber: _safeInt(json['transfer_number']),
       agencyName: json['agency_name']?.toString() ?? json['name']?.toString() ?? json['nickname']?.toString() ?? '',
       avatarUrl: json['avatar_url']?.toString() ?? json['photo_url']?.toString() ?? json['photoUrl']?.toString() ?? json['headImage']?.toString() ?? json['logo_url']?.toString() ?? '',
       countryFlagUrl: json['country_flag_url']?.toString() ?? json['flag_url']?.toString() ?? '',
       agencyId: json['agency_id']?.toString() ?? json['id']?.toString() ?? '',
       agencyPublicId: pubCode,
-      commissionRate: (json['commission_rate'] as num?)?.toDouble() ?? 0.10,
-      tier: json['tier']?.toString() ?? 'bronze',
+      commissionRate: _safeDouble(json['commission_rate'] ?? dataMap['commission_rate'], 0.10),
+      tier: json['tier']?.toString() ?? dataMap['tier']?.toString() ?? 'bronze',
       notice: json['notice']?.toString() ?? json['description']?.toString() ?? json['announcement']?.toString() ?? 'أهلاً بكم في الوكالة الرسمية!',
-      targetDiamonds: (json['target_diamonds'] as num?)?.toInt() ?? (json['monthly_target'] as num?)?.toInt() ?? 1000000,
-      salaryUsd: (json['salary_usd'] as num?)?.toDouble() ?? 0.0,
+      targetDiamonds: _safeInt(json['target_diamonds'] ?? json['monthly_target'], 1000000),
+      salaryUsd: _safeDouble(json['salary_usd']),
       rewardType: json['reward_type']?.toString() ?? 'salary_usd',
-      rewardValue: (json['reward_value'] as num?)?.toDouble() ?? 0.0,
+      rewardValue: _safeDouble(json['reward_value']),
       periodType: json['period_type']?.toString() ?? 'monthly',
       milestones: (json['milestones'] as List<dynamic>?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? const [],
     );
@@ -218,25 +231,29 @@ class AnchorAgentUserInfoDataModel {
   }
 
   factory AnchorAgentUserInfoDataModel.fromJson(Map<String, dynamic> json) {
+    final uidStr = json['uid']?.toString() ??
+        json['host_uid']?.toString() ??
+        json['user_id']?.toString() ??
+        '';
     return AnchorAgentUserInfoDataModel(
-      userId: (json['user_id'] as num?)?.toInt() ?? (json['uid'] != null ? int.tryParse(json['uid'].toString()) ?? 0 : 0),
-      userNo: (json['user_no'] as num?)?.toInt() ?? (json['custom_id'] != null ? int.tryParse(json['custom_id'].toString()) ?? 0 : 0),
-      uid: json['uid']?.toString() ?? '',
+      userId: _safeInt(json['user_no'] ?? json['custom_id'] ?? json['user_id']),
+      userNo: _safeInt(json['user_no'] ?? json['custom_id']),
+      uid: uidStr,
       role: json['role']?.toString() ?? 'host',
       nickname: json['nickname']?.toString() ?? json['name']?.toString() ?? '',
       headImage: json['headImage']?.toString() ?? json['photo_url']?.toString() ?? json['avatar']?.toString() ?? '',
-      country: (json['country'] as num?)?.toInt() ?? 0,
+      country: _safeInt(json['country'], 0),
       countryFlagUrl: json['country_flag_url']?.toString() ?? '',
-      days: (json['days'] as num?)?.toInt() ?? 0,
-      minute: (json['minute'] as num?)?.toDouble() ?? 0.0,
-      diamonds: json['diamonds']?.toString() ?? json['earnings']?.toString() ?? '0',
-      experience: (json['experience'] as num?)?.toInt() ?? 0,
-      level: (json['level'] as num?)?.toInt() ?? 1,
-      recgLevel: (json['recg_level'] as num?)?.toInt() ?? 0,
-      rechargeValue: (json['recharge_value'] as num?)?.toInt() ?? 0,
-      sex: (json['sex'] as num?)?.toInt() ?? 1,
-      vip: (json['vip'] as num?)?.toInt() ?? 0,
-      targetDiamonds: (json['target_diamonds'] as num?)?.toInt() ?? 0,
+      days: _safeInt(json['days'] ?? json['valid_days_monthly'] ?? json['valid_days']),
+      minute: _safeDouble(json['minute'] ?? (json['live_seconds_monthly'] != null ? _safeDouble(json['live_seconds_monthly']) / 60.0 : null)),
+      diamonds: json['diamonds']?.toString() ?? json['diamonds_earned_monthly']?.toString() ?? json['earnings']?.toString() ?? '0',
+      experience: _safeInt(json['experience']),
+      level: _safeInt(json['level'], 1),
+      recgLevel: _safeInt(json['recg_level']),
+      rechargeValue: _safeInt(json['recharge_value']),
+      sex: _safeInt(json['sex'], 1),
+      vip: _safeInt(json['vip']),
+      targetDiamonds: _safeInt(json['target_diamonds'] ?? json['monthly_target']),
     );
   }
 
