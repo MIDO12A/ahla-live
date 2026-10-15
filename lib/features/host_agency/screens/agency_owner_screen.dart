@@ -15,6 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -882,7 +883,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => AgencyLeaderboardScreen(agencyId: _agencyInfo?.agencyId),
+            builder: (_) => const AgencyLeaderboardScreen(),
           ),
         );
       },
@@ -1047,7 +1048,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                   context,
                   MaterialPageRoute(
                     builder: (_) => AgencyOwnerWalletScreen(
-                      agencyId: _agencyInfo?.agencyId,
+                      agencyId: _agencyInfo?.agencyId ?? '',
                     ),
                   ),
                 );
@@ -2128,8 +2129,8 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                         if (img != null) {
                           setDialogState(() => saving = true);
                           try {
-                            final upUrl = await CloudinaryService().uploadImage(img.path);
-                            if (upUrl != null && upUrl.isNotEmpty) {
+                            final upUrl = await CloudinaryService().uploadImage(File(img.path));
+                            if (upUrl.isNotEmpty) {
                               setDialogState(() {
                                 currentAvatar = upUrl;
                                 saving = false;
