@@ -83,11 +83,19 @@ window.boot = function () {
                     if (cc.sys.isBrowser) {
                         // show canvas
                         var canvas = document.getElementById('GameCanvas');
-                        canvas.style.visibility = '';
+                        if (canvas) canvas.style.visibility = '';
                         var div = document.getElementById('GameDiv');
                         if (div) {
                             div.style.backgroundImage = '';
                         }
+                    }
+                    var splash = document.getElementById('splash');
+                    if (splash) {
+                        splash.style.display = 'none';
+                    }
+                    var logContainer = document.getElementById('log-container');
+                    if (logContainer) {
+                        logContainer.style.display = 'none';
                     }
                 }
             }

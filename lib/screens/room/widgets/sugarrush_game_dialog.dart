@@ -1,6 +1,8 @@
 // lib/screens/room/widgets/sugarrush_game_dialog.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -31,6 +33,8 @@ class SugarRushGameDialog extends StatefulWidget {
 
 class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
   late final WebViewController _controller;
+  HttpServer? _localServer;
+  int? _localPort;
   bool _isLoading = true;
   double _poolWinRate = 75.0;
 
@@ -48,6 +52,13 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
     super.initState();
     _loadPoolConfig();
     _initWebViewController();
+    _startLocalServer();
+  }
+
+  @override
+  void dispose() {
+    _localServer?.close(force: true);
+    super.dispose();
   }
 
   Future<void> _loadPoolConfig() async {
@@ -72,10 +83,85 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
     }
   }
 
+  Future<void> _startLocalServer() async {
+    try {
+      _localServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      _localPort = _localServer!.port;
+      debugPrint('[SugarRush] Local asset server listening on port: $_localPort');
+
+      _localServer!.listen((HttpRequest request) async {
+        try {
+          var path = request.uri.path;
+          if (path.isEmpty || path == '/') {
+            path = '/index.html';
+          }
+          if (path.startsWith('/')) {
+            path = path.substring(1);
+          }
+
+          final assetKey = 'assets/games/sugarrush/$path';
+          ByteData byteData;
+          try {
+            byteData = await rootBundle.load(assetKey);
+          } catch (_) {
+            request.response.statusCode = HttpStatus.notFound;
+            await request.response.close();
+            return;
+          }
+
+          final bytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+
+          final ext = path.contains('.') ? path.split('.').last.toLowerCase() : '';
+          final contentType = switch (ext) {
+            'html' => ContentType.html,
+            'js' => ContentType('application', 'javascript', charset: 'utf-8'),
+            'json' => ContentType.json,
+            'css' => ContentType('text', 'css', charset: 'utf-8'),
+            'png' => ContentType('image', 'png'),
+            'jpg' || 'jpeg' => ContentType('image', 'jpeg'),
+            'webp' => ContentType('image', 'webp'),
+            'gif' => ContentType('image', 'gif'),
+            'mp3' => ContentType('audio', 'mpeg'),
+            'ogg' => ContentType('audio', 'ogg'),
+            'wav' => ContentType('audio', 'wav'),
+            'wasm' => ContentType('application', 'wasm'),
+            _ => ContentType.binary,
+          };
+
+          request.response.headers.contentType = contentType;
+          request.response.headers.add('Access-Control-Allow-Origin', '*');
+          request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          request.response.headers.add('Access-Control-Allow-Headers', '*');
+          request.response.add(bytes);
+          await request.response.close();
+        } catch (e) {
+          try {
+            request.response.statusCode = HttpStatus.internalServerError;
+            await request.response.close();
+          } catch (_) {}
+        }
+      });
+
+      if (mounted) {
+        final localUrl = 'http://127.0.0.1:$_localPort/index.html';
+        debugPrint('[SugarRush] Loading game from: $localUrl');
+        _controller.loadRequest(Uri.parse(localUrl));
+      }
+    } catch (e) {
+      debugPrint('[SugarRush] Error starting local server, fallback to asset: $e');
+      if (mounted) {
+        _controller.loadFlutterAsset('assets/games/sugarrush/index.html');
+      }
+    }
+  }
+
   void _initWebViewController() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
+      ..setOnConsoleMessage((message) {
+        debugPrint('[SugarRush Console] ${message.message}');
+      })
       ..addJavaScriptChannel(
         'FlutterBridge',
         onMessageReceived: _handleBridgeMessage,
@@ -92,8 +178,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
             debugPrint('[SugarRush] WebResourceError: ${error.description}');
           },
         ),
-      )
-      ..loadFlutterAsset('assets/games/sugarrush/index.html');
+      );
   }
 
   void _injectUserData() {
