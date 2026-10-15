@@ -1,0 +1,144 @@
+html {
+  -ms-touch-action: none;
+}
+
+body, canvas, div {
+  display: block;
+  outline: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+
+  user-select: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  -khtml-user-select: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+/* Remove spin of input type number */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  /* display: none; <- Crashes Chrome on hover */
+  -webkit-appearance: none;
+  margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
+}
+
+
+body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  cursor: default;
+  color: #888;
+  background-color: transparent;
+  text-align: center;
+  font-family: Helvetica, Verdana, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#Cocos2dGameContainer {
+  position: absolute;
+  margin: 0;
+  left: 0px;
+  top: 0px;
+  display: -webkit-box;
+  -webkit-box-orient: horizontal;
+  -webkit-box-align: center;
+  -webkit-box-pack: center;
+}
+
+canvas {
+  background-color: transparent
+}
+
+a:link, a:visited {
+  color: #666;
+}
+
+a:active, a:hover {
+  color: #666;
+}
+
+p.header {
+  font-size: small;
+}
+
+p.footer {
+  font-size: x-small;
+}
+
+#splash {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  aspect-ratio: 750 / 900; /* 根据图片的实际宽高比来调整 */
+  background: rgba(255, 255, 255, 0) url(./splash.3cd4d.webp) no-repeat center;
+  background-size: cover;
+  pointer-events: none; 
+  opacity: 1;
+  transition: opacity 0.5s ease-out;
+}
+
+#log-container {
+  position: fixed;
+  bottom: 5%;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  background-color: transparent;
+  padding: 8px;
+  white-space: nowrap; /* 禁止换行 */
+  overflow: hidden; /* 如果内容溢出，可以隐藏 */
+  text-overflow: ellipsis; /* 如果内容溢出，显示省略号 */
+  font-size: 1.6%; /* 设置字体大小 */
+}
+
+.progress-bar {
+  position: fixed;
+  left: 15%;
+  bottom: 10%;
+  height: 2.5%;
+  padding: 2px;
+  width: 70%;
+  border-radius: 80px;
+  border: 3px solid #FBCC36;
+  background-color: #000;
+  background-size: cover;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.5s ease-out;
+  display: flex;
+  align-items: center;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 20px;
+  transition: width .4s ease-in-out;
+  background-size: 30px 30px;
+  background: linear-gradient(to bottom, #FFD580, #FFEDB2, #C99940,#D29109);
+}
+
+.stripes span {
+  /* 添加动画效果 */
+  /* background: linear-gradient(to bottom, rgba(35, 210, 0, 0.5), rgba(78, 255, 31, 0.5), rgba(67, 173, 14, 0.8), rgba(230, 184, 0, 0.3), rgba(251, 204, 54, 0.5), rgba(230, 184, 0, 0.3)),
+              linear-gradient(135deg, #23D200 25%, #DEB512 25%,#FDDF47 50%, #4EFF1F 50%,#43AD0E 75%, #FFF75B 75%,#FBCC36);
+  background-size: 100% 100%, 30px 30px;
+  animation: animate-stripes 1s linear infinite, pulse 3s ease-in-out infinite; */
+  animation: animate-stripes 1s linear infinite;             
+}
+
+
+@keyframes animate-stripes {
+    0% {background-position: 0 0;} 100% {background-position: 60px 0;}
+}
+

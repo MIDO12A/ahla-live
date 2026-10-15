@@ -1,0 +1,125 @@
+
+gc-sensational.png
+size: 1644,463
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+FREE SPINS
+  rotate: false
+  xy: 934, 249
+  size: 288, 41
+  orig: 288, 41
+  offset: 0, 0
+  index: -1
+PRESS ANYWHERE To CO
+  rotate: false
+  xy: 511, 204
+  size: 539, 25
+  orig: 539, 25
+  offset: 0, 0
+  index: -1
+SUPERB
+  rotate: false
+  xy: 511, 274
+  size: 412, 187
+  orig: 412, 187
+  offset: 0, 0
+  index: -1
+YOU HAVE WON
+  rotate: false
+  xy: 511, 231
+  size: 421, 41
+  orig: 421, 41
+  offset: 0, 0
+  index: -1
+quan
+  rotate: true
+  xy: 1224, 3
+  size: 300, 299
+  orig: 300, 299
+  offset: 0, 0
+  index: -1
+quan2
+  rotate: false
+  xy: 653, 2
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+xx
+  rotate: false
+  xy: 1550, 370
+  size: 92, 91
+  orig: 92, 91
+  offset: 0, 0
+  index: -1
+右特效1
+  rotate: true
+  xy: 1525, 168
+  size: 151, 111
+  orig: 157, 125
+  offset: 5, 4
+  index: -1
+右特效2
+  rotate: false
+  xy: 424, 6
+  size: 227, 174
+  orig: 235, 190
+  offset: 6, 8
+  index: -1
+右装饰1
+  rotate: true
+  xy: 1153, 305
+  size: 156, 203
+  orig: 156, 203
+  offset: 0, 0
+  index: -1
+右装饰2
+  rotate: false
+  xy: 1358, 321
+  size: 190, 140
+  orig: 190, 140
+  offset: 0, 0
+  index: -1
+左特效1
+  rotate: true
+  xy: 1525, 17
+  size: 149, 111
+  orig: 157, 125
+  offset: 1, 4
+  index: -1
+左特效2
+  rotate: false
+  xy: 925, 292
+  size: 226, 169
+  orig: 235, 190
+  offset: 1, 10
+  index: -1
+左装饰1
+  rotate: false
+  xy: 1052, 44
+  size: 156, 203
+  orig: 156, 203
+  offset: 0, 0
+  index: -1
+左装饰2
+  rotate: false
+  xy: 855, 62
+  size: 190, 140
+  orig: 190, 140
+  offset: 0, 0
+  index: -1
+承接框
+  rotate: false
+  xy: 2, 10
+  size: 420, 170
+  orig: 420, 170
+  offset: 0, 0
+  index: -1
+承接框的光
+  rotate: false
+  xy: 2, 182
+  size: 507, 279
+  orig: 512, 283
+  offset: 3, 2
+  index: -1

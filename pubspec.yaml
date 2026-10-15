@@ -101,6 +101,72 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/games/sugarrush/src/assets/game/protos/
+    - assets/games/sugarrush/src/assets/game/
+    - assets/games/sugarrush/src/assets/begin/protos/
+    - assets/games/sugarrush/src/assets/begin/net/
+    - assets/games/sugarrush/src/assets/begin/
+    - assets/games/sugarrush/src/assets/
+    - assets/games/sugarrush/src/
+    - assets/games/sugarrush/assets/main/import/74/
+    - assets/games/sugarrush/assets/main/import/
+    - assets/games/sugarrush/assets/main/
+    - assets/games/sugarrush/assets/internal/native/02/
+    - assets/games/sugarrush/assets/internal/native/
+    - assets/games/sugarrush/assets/internal/import/09/
+    - assets/games/sugarrush/assets/internal/import/
+    - assets/games/sugarrush/assets/internal/
+    - assets/games/sugarrush/assets/game/native/fa/
+    - assets/games/sugarrush/assets/game/native/f7/
+    - assets/games/sugarrush/assets/game/native/ee/
+    - assets/games/sugarrush/assets/game/native/ed/
+    - assets/games/sugarrush/assets/game/native/e8/
+    - assets/games/sugarrush/assets/game/native/d6/
+    - assets/games/sugarrush/assets/game/native/ce/
+    - assets/games/sugarrush/assets/game/native/cd/cd2438d8-f73c-4cff-9522-b6623cc66dbe.d80b7/
+    - assets/games/sugarrush/assets/game/native/cd/
+    - assets/games/sugarrush/assets/game/native/cc/
+    - assets/games/sugarrush/assets/game/native/cb/
+    - assets/games/sugarrush/assets/game/native/c0/
+    - assets/games/sugarrush/assets/game/native/bc/
+    - assets/games/sugarrush/assets/game/native/bb/
+    - assets/games/sugarrush/assets/game/native/ba/
+    - assets/games/sugarrush/assets/game/native/9f/
+    - assets/games/sugarrush/assets/game/native/99/
+    - assets/games/sugarrush/assets/game/native/90/
+    - assets/games/sugarrush/assets/game/native/6e/
+    - assets/games/sugarrush/assets/game/native/6a/
+    - assets/games/sugarrush/assets/game/native/65/
+    - assets/games/sugarrush/assets/game/native/64/
+    - assets/games/sugarrush/assets/game/native/61/
+    - assets/games/sugarrush/assets/game/native/60/
+    - assets/games/sugarrush/assets/game/native/45/
+    - assets/games/sugarrush/assets/game/native/36/
+    - assets/games/sugarrush/assets/game/native/31/
+    - assets/games/sugarrush/assets/game/native/1f/
+    - assets/games/sugarrush/assets/game/native/1b/
+    - assets/games/sugarrush/assets/game/native/1a/
+    - assets/games/sugarrush/assets/game/native/19/
+    - assets/games/sugarrush/assets/game/native/13/
+    - assets/games/sugarrush/assets/game/native/06/
+    - assets/games/sugarrush/assets/game/native/
+    - assets/games/sugarrush/assets/game/import/0a/
+    - assets/games/sugarrush/assets/game/import/
+    - assets/games/sugarrush/assets/game/
+    - assets/games/sugarrush/assets/begin/native/fa/
+    - assets/games/sugarrush/assets/begin/native/e8/
+    - assets/games/sugarrush/assets/begin/native/dd/
+    - assets/games/sugarrush/assets/begin/native/53/
+    - assets/games/sugarrush/assets/begin/native/44/
+    - assets/games/sugarrush/assets/begin/native/31/
+    - assets/games/sugarrush/assets/begin/native/1f/
+    - assets/games/sugarrush/assets/begin/native/1e/
+    - assets/games/sugarrush/assets/begin/native/
+    - assets/games/sugarrush/assets/begin/import/01/
+    - assets/games/sugarrush/assets/begin/import/
+    - assets/games/sugarrush/assets/begin/
+    - assets/games/sugarrush/assets/
+    - assets/games/sugarrush/
     - assets/images/
     - assets/images/profile/
     - assets/images/agency/

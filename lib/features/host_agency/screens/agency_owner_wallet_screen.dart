@@ -331,23 +331,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
             value: '${_fmt(w.earnedTotal)} 💎',
             color: Colors.purple.shade700,
           ),
-          const SizedBox(height: 20),
-
-          if (r != null) ...[
-            const Text('معدلات المحرك الحالية',
-                style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal',
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            _rateRow('ألماس → كوينز',
-                '1 ألماس = ${r.diamondToCoinRate} كوينز'),
-            _rateRow('ألماس → دولار',
-                '1000 ألماس = \$${(r.diamondToUsdRate * 1000).toStringAsFixed(2)}'),
-            _rateRow('رسوم السحب', '${r.withdrawalFeePct.toStringAsFixed(0)}%'),
-            _rateRow('الحد الأدنى للسحب', '${_fmt(r.minDiamondsToWithdraw)} ألماس'),
-            _rateRow('حصتك من الهدايا', '${r.agencySharePct}% (وكالة) + ${r.hostSharePct}% (مضيف)'),
-          ],
-
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
           // أزرار سريعة
           Row(children: [
             Expanded(child: _quickBtn('تبادل بكوينز', Icons.currency_exchange,

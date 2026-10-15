@@ -2477,7 +2477,7 @@ export async function getAllAgentRechargeTransactions(): Promise<AllAgentRecharg
 
     const usersMap: Record<string, any> = {};
     if (uids.length > 0) {
-      const { data: users } = await client.from('users').select('id, uid, name, displayName, photo_url, avatar, custom_id');
+      const { data: users } = await client.from('users').select('id, uid, name, avatar, custom_id');
       (users ?? []).forEach((u: any) => {
         const id = u.id || u.uid;
         usersMap[id] = u;
@@ -2506,13 +2506,13 @@ export async function getAllAgentRechargeTransactions(): Promise<AllAgentRecharg
       return {
         id: t.id,
         agent_id: t.agent_id,
-        agent_name: agent.name || agent.displayName || 'وكيل شحن',
+        agent_name: agent.name || 'وكيل شحن',
         agent_custom_id: agent.custom_id || '',
-        agent_avatar: agent.photo_url || agent.avatar || '',
+        agent_avatar: agent.avatar || '',
         target_uid: t.target_uid,
-        target_name: target.name || target.displayName || 'مستخدم',
+        target_name: target.name || 'مستخدم',
         target_custom_id: t.target_custom_id || target.custom_id || '',
-        target_avatar: target.photo_url || target.avatar || '',
+        target_avatar: target.avatar || '',
         amount_coins: Number(t.amount_coins || 0),
         amount_usd: t.amount_usd ? Number(t.amount_usd) : undefined,
         created_at: t.created_at || new Date().toISOString(),
@@ -2531,6 +2531,9 @@ export interface AgentTopupRequestItem {
   id: string;
   agentId: string;
   agentName: string;
+  agentCustomId?: string;
+  agencyName?: string;
+  agencyLogo?: string;
   amountUsd: number;
   coins: number;
   paymentMethod: string;
@@ -2555,14 +2558,39 @@ export async function getAgentTopupRequests(): Promise<AgentTopupRequestItem[]> 
 
     if (error || !data) return [];
 
+    // Collect agent UIDs to fetch their profile/agency info
+    const agentUids = Array.from(new Set(data.map((r: any) => r.agent_id).filter(Boolean)));
+    const agentMap: Record<string, any> = {};
+
+    if (agentUids.length > 0) {
+      try {
+        const { data: uList } = await client
+          .from('users')
+          .select('id, uid, name, avatar, custom_id, recharge_agency_name, recharge_agency_logo');
+        (uList ?? []).forEach((u: any) => {
+          if (u.id) agentMap[u.id] = u;
+          if (u.uid) agentMap[u.uid] = u;
+        });
+      } catch (_) {}
+    }
+
     const list: AgentTopupRequestItem[] = [];
     for (const r of data) {
       const details = r.account_details || {};
       if (details.request_type === 'agent_topup') {
+        const agInfo = agentMap[r.agent_id] || {};
+        const agentCustomId = agInfo.custom_id || details.agent_custom_id || '';
+        const agencyName = agInfo.recharge_agency_name || details.agency_name || details.recharge_agency_name || 'وكالة الشحن';
+        const agencyLogo = agInfo.recharge_agency_logo || details.agency_logo || agInfo.avatar || '';
+        const agentName = agInfo.name || r.agent_name || details.sender_name || 'وكيل شحن';
+
         list.push({
           id: r.id,
           agentId: r.agent_id,
-          agentName: r.agent_name || details.sender_name || 'وكيل شحن',
+          agentName,
+          agentCustomId,
+          agencyName,
+          agencyLogo,
           amountUsd: Number(r.amount_usd || 0),
           coins: Number(details.coins || (r.amount_usd * 1000)),
           paymentMethod: r.payment_method || 'manual',
@@ -2585,11 +2613,13 @@ export async function getAgentTopupRequests(): Promise<AgentTopupRequestItem[]> 
   }
 }
 
-export async function approveAgentTopupRequest(req: AgentTopupRequestItem): Promise<boolean> {
+export async function approveAgentTopupRequest(req: AgentTopupRequestItem, coinsToAdd?: number): Promise<boolean> {
   try {
     const client = getAdminSupabase() || supabase;
     const adminName = getCurrentAdminName() || 'Admin';
     const now = new Date().toISOString();
+
+    const actualCoins = (coinsToAdd !== undefined && coinsToAdd > 0) ? coinsToAdd : req.coins;
 
     const { data: agentUser } = await client
       .from('users')
@@ -2598,7 +2628,7 @@ export async function approveAgentTopupRequest(req: AgentTopupRequestItem): Prom
       .maybeSingle();
 
     const currentCoins = Number(agentUser?.coins || 0);
-    const newCoins = currentCoins + req.coins;
+    const newCoins = currentCoins + actualCoins;
 
     await client
       .from('users')
@@ -2617,10 +2647,10 @@ export async function approveAgentTopupRequest(req: AgentTopupRequestItem): Prom
     await sendSystemNotification({
       userId: req.agentId,
       title: '🎉 تم اعتماد شحن رصيد وكالتك بنجاح!',
-      body: `تمت مراجعة عملية التحويل وإضافة ${req.coins.toLocaleString()} كوينز إلى محفظة وكالتك بنجاح. رصيدك الآن: ${newCoins.toLocaleString()} عملة.`,
+      body: `تمت مراجعة عملية التحويل وإضافة ${actualCoins.toLocaleString()} كوينز إلى محفظة وكالتك بنجاح. رصيدك الآن: ${newCoins.toLocaleString()} عملة.`,
       type: 'system',
       action: 'agent_topup_approved',
-      extraData: { amount_usd: req.amountUsd, coins: req.coins, request_id: req.id },
+      extraData: { amount_usd: req.amountUsd, coins: actualCoins, request_id: req.id },
     });
 
     return true;
@@ -5458,10 +5488,10 @@ export async function getRechargeRequests(statusFilter?: string): Promise<import
   const seenIds = new Set<string>();
 
   try {
-    let q = supabase.from('recharge_requests').select('*').order('created_at', { ascending: false });
-    if (statusFilter) q = q.eq('status', statusFilter);
-    const { data } = await q;
+    const { data, error } = await supabase.from('recharge_requests').select('*').order('created_at', { ascending: false });
+    if (error) return [];
     for (const r of data ?? []) {
+      if (statusFilter && r.status !== statusFilter) continue;
       list.push({
         id: r.id,
         userId: r.user_id,
@@ -5559,3 +5589,118 @@ export async function rejectRechargeRequest(req: import('../types').RechargeRequ
   return true;
 }
 
+
+
+// ─── Sugar Rush / Game Jackpot Pool Management ──────────────────────────────
+
+export interface GamePoolConfig {
+  id: string;
+  game_name: string;
+  pool_balance: number;
+  win_rate: number;
+  min_bet: number;
+  max_bet: number;
+  max_multiplier: number;
+  is_active: boolean;
+  total_in: number;
+  total_out: number;
+  updated_at?: string;
+}
+
+export interface GameBetRecord {
+  id: string;
+  game_id: string;
+  user_id: string;
+  user_name?: string;
+  room_id?: string;
+  bet_amount: number;
+  win_amount: number;
+  net_result: number;
+  is_win: boolean;
+  created_at: string;
+}
+
+export async function getGamePoolConfig(gameId: string = 'sugarrush'): Promise<GamePoolConfig> {
+  try {
+    const { data, error } = await supabase
+      .from('game_jackpot_pool')
+      .select('*')
+      .eq('id', gameId)
+      .maybeSingle();
+
+    if (error || !data) {
+      // Default fallback initial config
+      return {
+        id: gameId,
+        game_name: 'Sugar Rush',
+        pool_balance: 5000000,
+        win_rate: 75,
+        min_bet: 100,
+        max_bet: 50000,
+        max_multiplier: 10,
+        is_active: true,
+        total_in: 0,
+        total_out: 0,
+      };
+    }
+    return data as GamePoolConfig;
+  } catch (e) {
+    console.error('getGamePoolConfig error:', e);
+    return {
+      id: gameId,
+      game_name: 'Sugar Rush',
+      pool_balance: 5000000,
+      win_rate: 75,
+      min_bet: 100,
+      max_bet: 50000,
+      max_multiplier: 10,
+      is_active: true,
+      total_in: 0,
+      total_out: 0,
+    };
+  }
+}
+
+export async function updateGamePoolConfig(gameId: string, updates: Partial<GamePoolConfig>): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('game_jackpot_pool')
+      .upsert({
+        id: gameId,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      });
+    return !error;
+  } catch (e) {
+    console.error('updateGamePoolConfig error:', e);
+    return false;
+  }
+}
+
+export async function topupGamePool(gameId: string, amount: number): Promise<boolean> {
+  try {
+    const current = await getGamePoolConfig(gameId);
+    const newBal = (current.pool_balance || 0) + amount;
+    return await updateGamePoolConfig(gameId, { pool_balance: newBal });
+  } catch (e) {
+    console.error('topupGamePool error:', e);
+    return false;
+  }
+}
+
+export async function getGameBetRecords(gameId: string = 'sugarrush', limit: number = 50): Promise<GameBetRecord[]> {
+  try {
+    const { data, error } = await supabase
+      .from('game_bet_records')
+      .select('*')
+      .eq('game_id', gameId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return [];
+    return data as GameBetRecord[];
+  } catch (e) {
+    console.error('getGameBetRecords error:', e);
+    return [];
+  }
+}

@@ -214,12 +214,23 @@ export default function RechargeSettings() {
   };
 
   const handleApproveTopup = async (req: AgentTopupRequestItem) => {
-    if (!confirm(`هل أنت متأكد من اعتماد طلب تعبئة الرصيد وإضافة ${req.coins.toLocaleString()} كوينز لمحفظة الوكيل ${req.agentName}؟`)) return;
+    const defaultCoins = req.coins || (req.amountUsd * 1000);
+    const input = prompt(
+      `اعتماد طلب تعبئة رصيد الوكالة:\nالوكيل: ${req.agentName} (#${req.agentCustomId || '-'})\nالمبلغ المحول: $${req.amountUsd} USD\n\nأدخل كمية الكوينز المراد إضافتها لمحفظة الوكيل:`,
+      String(defaultCoins)
+    );
+    if (input === null) return;
+    const coinsToAdd = parseInt(input.replace(/,/g, ''), 10);
+    if (isNaN(coinsToAdd) || coinsToAdd <= 0) {
+      alert('يرجى إدخال عدد كوينز صحيح وموجب');
+      return;
+    }
+
     setTopupProcessingId(req.id);
     try {
-      await approveAgentTopupRequest(req);
-      setAgentTopups(prev => prev.map(r => r.id === req.id ? { ...r, status: 'approved' } : r));
-      alert('تم اعتماد شحن رصيد الوكالة وإضافة الكوينز بنجاح!');
+      await approveAgentTopupRequest(req, coinsToAdd);
+      setAgentTopups(prev => prev.map(r => r.id === req.id ? { ...r, status: 'approved', coins: coinsToAdd } : r));
+      alert(`تم اعتماد شحن رصيد الوكالة وإضافة ${coinsToAdd.toLocaleString()} كوينز بنجاح!`);
     } catch (e: any) {
       alert(`حدث خطأ: ${e.message}`);
     } finally {
@@ -1445,8 +1456,20 @@ export default function RechargeSettings() {
                             </td>
 
                             <td className="py-3 px-3">
-                              <div className="font-bold text-white text-xs">{r.agentName || 'وكيل شحن'}</div>
-                              <div className="text-[10px] text-purple-400 font-mono">ID: {r.agentCustomId || '-'}</div>
+                              <div className="flex items-center gap-2.5">
+                                {r.agencyLogo ? (
+                                  <img src={r.agencyLogo} alt="" className="w-8 h-8 rounded-full object-cover border border-purple-500/30" />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xs">
+                                    {r.agencyName ? r.agencyName[0] : (r.agentName ? r.agentName[0] : 'A')}
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="font-bold text-white text-xs">{r.agencyName || 'وكالة الشحن'}</div>
+                                  <div className="text-[10px] text-slate-300 font-medium">{r.agentName || 'الوكيل'}</div>
+                                  <div className="text-[10px] text-purple-400 font-mono">ID: #{r.agentCustomId || '-'}</div>
+                                </div>
+                              </div>
                             </td>
 
                             <td className="py-3 px-3">

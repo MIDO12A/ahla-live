@@ -124,12 +124,57 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
 
     setState(() => _inviting = true);
     try {
-      // الـ RPC أرسل الدعوة أثناء البحث إذا كان status=invited
-      // هنا نعرض فقط رسالة النجاح
-      await Future.delayed(const Duration(milliseconds: 300));
+      final reqId = 'invite_${DateTime.now().millisecondsSinceEpoch}_${_foundUserId!.length >= 4 ? _foundUserId!.substring(0, 4) : _foundUserId!}';
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final myUid = SupabaseDataService().currentUserId ?? '';
+
+      // 1. تسجيل الدعوة في جدول host_agency_join_requests
+      try {
+        await SupabaseDataService().client.from('host_agency_join_requests').upsert({
+          'id': reqId,
+          'agency_id': widget.agencyId,
+          'user_id': _foundUserId,
+          'host_uid': _foundUserId,
+          'applicant_uid': _foundUserId,
+          'status': 'invited',
+          'created_at': nowIso,
+        });
+      } catch (e) {
+        debugPrint('[AgencyInviteById] insert request error: $e');
+      }
+
+      // 2. إرسال إشعار مباشر للمستخدم المدعو
+      try {
+        await SupabaseDataService().client.from('notifications').insert({
+          'uid': _foundUserId,
+          'target': _foundUserId,
+          'title': 'دعوة انضمام إلى وكالة [${widget.agencyName}] 🎙️',
+          'body': 'قام مالك وكالة [${widget.agencyName}] بدعوتك لتصبح مضيفاً رسمياً لديهم بالوكالة.',
+          'type': 'host_agency_invite',
+          'actor_uid': myUid,
+          'data': {
+            'agency_id': widget.agencyId,
+            'agency_name': widget.agencyName,
+            'request_id': reqId,
+            'action': 'host_invite',
+          },
+          'sent_at': nowIso,
+          'created_at': nowIso,
+          'is_read': false,
+        });
+      } catch (ne) {
+        debugPrint('[AgencyInviteById] notification error: $ne');
+      }
+
       if (!mounted) return;
       _showSuccessSnack();
       Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ أثناء إرسال الدعوة: $e'), backgroundColor: Colors.red),
+        );
+      }
     } finally {
       if (mounted) setState(() => _inviting = false);
     }

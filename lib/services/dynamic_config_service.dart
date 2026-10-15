@@ -442,6 +442,9 @@ class DynamicConfigService extends ChangeNotifier {
   Color get agentRechargeAccentColor => _screenColor('agentRecharge', 'accentColor', const Color(0xFF3ED78A));
   Color get agentRechargeTabBarColor => _screenColor('agentRecharge', 'tabBarColor', const Color(0xFF1E1D24));
   String get agentRechargeBannerImage => _screenStr('agentRecharge', 'bannerImage', '');
+  String get agentRechargeDataPanelBgImage => _screenStr('agentRecharge', 'dataPanelBgImage', '');
+  String get agentRechargeCoinsBgImage => _screenStr('agentRecharge', 'coinsBgImage', '');
+  String get agentRechargeDiamondsBgImage => _screenStr('agentRecharge', 'diamondsBgImage', '');
   String get agentRechargeTabDashboard => _screenStr('agentRecharge', 'tabDashboard', '📊 لوحة التحكم');
   String get agentRechargeTabRecharge => _screenStr('agentRecharge', 'tabRecharge', '💸 شحن');
   String get agentRechargeTabHistory => _screenStr('agentRecharge', 'tabHistory', '📋 السجل');
@@ -577,7 +580,7 @@ class DynamicConfigService extends ChangeNotifier {
       _assetsOverride['assets/images/profile/ic_coinseller_entrance.png'] ??
       _assetsOverride['ic_coinseller_entrance'] ??
       'assets/images/profile/ic_coinseller_entrance.png');
-  String get profileRechargeAgentTitle => _screenStr('profile', 'rechargeAgentTitle', 'بوابة شحن الوكلاء والرواتب');
+  String get profileRechargeAgentTitle => _screenStr('profile', 'rechargeAgentTitle', 'وكالة الشحن');
 
   String get profileHostAgencyIcon => _screenStr('profile', 'hostAgencyIcon',
       _assetsOverride['assets/mipmap-xxhdpi/mine_union_ic.webp'] ??

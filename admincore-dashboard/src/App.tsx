@@ -1,3 +1,4 @@
+import GamePoolManager from './pages/GamePoolManager';
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthChange, type AppUser } from './lib/auth';
@@ -144,6 +145,7 @@ export default function App() {
             <Route path="/zego-audio" element={<ZegoAudioSettings />} />
             <Route path="/recharge-event" element={<RechargeEventManager />} />
             <Route path="/recharge-settings" element={<RechargeSettings />} />
+            <Route path="/game-pool" element={<GamePoolManager />} />
           </Route>
         </Routes>
       </BrowserRouter>

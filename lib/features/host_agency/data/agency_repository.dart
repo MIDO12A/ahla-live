@@ -151,11 +151,16 @@ abstract final class AgencyRepository {
 
   // ─── طلب انضمام ─────────────────────────────────────────────────
   static Future<void> requestJoin(String agencyId) async {
+    final uid = _sb.auth.currentUser?.id;
+    if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
+
+    bool rpcSuccess = false;
     try {
       final resp = await _sb.rpc('agency_request_join', params: {'p_agency_id': agencyId});
       if (resp is Map && resp['status'] == 'error') {
         throw Exception(resp['message'] ?? 'تعذر تقديم طلب الانضمام');
       }
+      rpcSuccess = true;
     } catch (e) {
       if (e is Exception &&
           (e.toString().contains('عضو بالفعل') ||
@@ -164,8 +169,6 @@ abstract final class AgencyRepository {
         rethrow;
       }
       // Fallback: insert directly into host_agency_join_requests and host_agency_members
-      final uid = _sb.auth.currentUser?.id;
-      if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
       final reqId = const Uuid().v4();
       try {
         await _sb.from('host_agency_join_requests').insert({
@@ -193,30 +196,38 @@ abstract final class AgencyRepository {
           });
         } catch (_) {}
       }
-      try {
-        final agRow = await _sb.from('host_agencies').select('owner_uid, name').eq('id', agencyId).maybeSingle();
-        final ownerId = agRow?['owner_uid']?.toString() ?? agRow?['owner_id']?.toString() ?? '';
-        final agName = agRow?['name']?.toString() ?? 'وكالتك';
-        if (ownerId.isNotEmpty && ownerId != uid) {
-          final uRow = await _sb.from('users').select('name, custom_id').eq('id', uid).maybeSingle();
-          final uName = uRow?['name']?.toString() ?? 'مستخدم';
-          final cId = uRow?['custom_id']?.toString() ?? '';
-          await _sb.from('notifications').insert({
-            'uid': ownerId,
-            'target': ownerId,
-            'type': 'agency_host_request',
-            'actor_uid': uid,
-            'title': 'طلب انضمام مضيف جديد إلى وكالتك 📝',
-            'body': 'قدم المضيف [$uName] (معرف: $cId) طلباً للانضمام إلى وكالتك [$agName].',
-            'data': {
-              'action': 'host_join_request',
-              'agency_id': agencyId,
-              'applicant_uid': uid,
-              'applicant_name': uName,
-            },
-          });
-        }
-      } catch (_) {}
+    }
+
+    // Always notify the agency owner about the new host join request
+    try {
+      final agRow = await _sb.from('host_agencies').select('owner_uid, owner_id, name').eq('id', agencyId).maybeSingle();
+      final ownerId = agRow?['owner_uid']?.toString() ?? agRow?['owner_id']?.toString() ?? '';
+      final agName = agRow?['name']?.toString() ?? 'وكالتك';
+      if (ownerId.isNotEmpty && ownerId != uid) {
+        final uRow = await _sb.from('users').select('name, custom_id').or('id.eq.$uid,uid.eq.$uid').maybeSingle();
+        final uName = uRow?['name']?.toString() ?? 'مستخدم';
+        final cId = uRow?['custom_id']?.toString() ?? '';
+        final nowIso = DateTime.now().toUtc().toIso8601String();
+        await _sb.from('notifications').insert({
+          'uid': ownerId,
+          'target': ownerId,
+          'type': 'agency_host_request',
+          'actor_uid': uid,
+          'title': 'طلب انضمام مضيف جديد إلى وكالتك 📝',
+          'body': 'قدم المضيف [$uName] (معرف: $cId) طلباً للانضمام إلى وكالتك [$agName]. يرجى فتح شاشة طلبات الانضمام للموافقة أو الرفض.',
+          'data': {
+            'action': 'host_join_request',
+            'agency_id': agencyId,
+            'applicant_uid': uid,
+            'applicant_name': uName,
+          },
+          'sent_at': nowIso,
+          'created_at': nowIso,
+          'is_read': false,
+        });
+      }
+    } catch (ne) {
+      debugPrint('[AgencyRepository] send join notification error: $ne');
     }
   }
 
@@ -1272,32 +1283,42 @@ abstract final class AgencyRepository {
       }
     }
 
-    // 1. البحث في جدول users
+    // 1. البحث في جدول users عن كافة وكلاء الشحن المعتمدين
     try {
-      dynamic queryBuilder = _sb
+      final uResp = await _sb
           .from('users')
-          .select('id, uid, name, photo_url, custom_id, is_recharge_agent, is_agent, recharge_agency_name, recharge_agency_logo, whatsapp_number, agency_id')
-          .or('is_recharge_agent.eq.true,is_agent.eq.true');
+          .select('id, uid, name, avatar, custom_id, is_recharge_agent, is_agent, recharge_agency_name, recharge_agency_logo, whatsapp_number')
+          .or('is_recharge_agent.eq.true,is_agent.eq.true')
+          .limit(100);
 
-      if (q.isNotEmpty) {
-        queryBuilder = queryBuilder.or('name.ilike.%$q%,custom_id.ilike.%$q%,recharge_agency_name.ilike.%$q%,id.ilike.%$q%');
-      }
-
-      final uResp = await queryBuilder.limit(20);
       for (final e in (uResp as List<dynamic>)) {
         final m = Map<String, dynamic>.from(e as Map);
         final agentName = m['name']?.toString() ?? 'وكيل شحن معتمد';
+        final customId = m['custom_id']?.toString() ?? (m['uid']?.toString().length >= 8 ? m['uid'].toString().substring(0, 8) : (m['id']?.toString() ?? ''));
         final agencyName = (m['recharge_agency_name'] != null && m['recharge_agency_name'].toString().trim().isNotEmpty)
             ? m['recharge_agency_name'].toString().trim()
-            : 'وكالة $agentName';
+            : 'وكالة $agentName للشحن';
+        final logo = (m['recharge_agency_logo'] != null && m['recharge_agency_logo'].toString().isNotEmpty)
+            ? m['recharge_agency_logo'].toString()
+            : (m['avatar']?.toString() ?? '');
+
+        // إذا كان هناك نص بحث، نفلتر بالآيدي أو الاسم أو اسم الوكالة
+        if (q.isNotEmpty) {
+          final match = customId.toLowerCase().contains(q.toLowerCase()) ||
+              agentName.toLowerCase().contains(q.toLowerCase()) ||
+              agencyName.toLowerCase().contains(q.toLowerCase()) ||
+              (m['id']?.toString().toLowerCase().contains(q.toLowerCase()) ?? false) ||
+              (m['uid']?.toString().toLowerCase().contains(q.toLowerCase()) ?? false);
+          if (!match) continue;
+        }
 
         addAgent({
           'id': m['uid'] ?? m['id'],
           'display_name': agentName,
-          'avatar_url': m['photo_url'] ?? '',
-          'kayan_id': m['custom_id'] ?? (m['uid']?.toString().substring(0, 8) ?? ''),
+          'avatar_url': m['avatar'] ?? '',
+          'kayan_id': customId,
           'recharge_agency_name': agencyName,
-          'recharge_agency_logo': m['recharge_agency_logo'] ?? m['photo_url'] ?? '',
+          'recharge_agency_logo': logo,
           'whatsapp_number': m['whatsapp_number'] ?? '',
         });
       }
@@ -1305,27 +1326,31 @@ abstract final class AgencyRepository {
       debugPrint('[AgencyRepository] search users error: $e');
     }
 
-    // 2. البحث في جدول profiles
+    // 2. البحث في جدول profiles للتوافق
     try {
-      dynamic pQuery = _sb
+      final resp = await _sb
           .from('profiles')
           .select('id, display_name, avatar_url, kayan_id, is_recharge_agent')
-          .eq('is_recharge_agent', true);
+          .eq('is_recharge_agent', true)
+          .limit(100);
 
-      if (q.isNotEmpty) {
-        pQuery = pQuery.or('display_name.ilike.%$q%,kayan_id.ilike.%$q%');
-      }
-
-      final resp = await pQuery.limit(20);
       for (final e in (resp as List<dynamic>)) {
         final m = Map<String, dynamic>.from(e as Map);
         final name = m['display_name']?.toString() ?? 'وكيل شحن';
+        final kid = m['kayan_id']?.toString() ?? '';
+
+        if (q.isNotEmpty) {
+          final match = kid.toLowerCase().contains(q.toLowerCase()) ||
+              name.toLowerCase().contains(q.toLowerCase());
+          if (!match) continue;
+        }
+
         addAgent({
           'id': m['id'],
           'display_name': name,
           'avatar_url': m['avatar_url'] ?? '',
-          'kayan_id': m['kayan_id'] ?? '',
-          'recharge_agency_name': 'وكالة $name',
+          'kayan_id': kid,
+          'recharge_agency_name': 'وكالة $name للشحن',
           'recharge_agency_logo': m['avatar_url'] ?? '',
           'whatsapp_number': '',
         });
@@ -1562,7 +1587,19 @@ abstract final class AgencyRepository {
     String? senderPhone,
   }) async {
     try {
-      final reqId = 'topup_${DateTime.now().millisecondsSinceEpoch}_${agentUid.substring(0, 4)}';
+      final reqId = 'topup_${DateTime.now().millisecondsSinceEpoch}_${agentUid.length >= 4 ? agentUid.substring(0, 4) : agentUid}';
+
+      String customId = '';
+      String agencyName = '';
+      String agencyLogo = '';
+      try {
+        final u = await _sb.from('users').select('custom_id, recharge_agency_name, recharge_agency_logo, avatar').or('id.eq.$agentUid,uid.eq.$agentUid').maybeSingle();
+        if (u != null) {
+          customId = u['custom_id']?.toString() ?? '';
+          agencyName = u['recharge_agency_name']?.toString() ?? '';
+          agencyLogo = u['recharge_agency_logo']?.toString() ?? u['avatar']?.toString() ?? '';
+        }
+      } catch (_) {}
 
       await _sb.from('agent_withdrawal_requests').insert({
         'id': reqId,
@@ -1577,6 +1614,9 @@ abstract final class AgencyRepository {
           'txid': txid ?? '',
           'sender_name': senderName ?? '',
           'sender_phone': senderPhone ?? '',
+          'agent_custom_id': customId,
+          'agency_name': agencyName,
+          'agency_logo': agencyLogo,
         },
         'status': 'pending',
         'created_at': DateTime.now().toIso8601String(),

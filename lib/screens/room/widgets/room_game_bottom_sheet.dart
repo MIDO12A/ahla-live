@@ -1,3 +1,4 @@
+import 'sugarrush_game_dialog.dart';
 ﻿// lib/screens/room/widgets/room_game_bottom_sheet.dart
 // ─────────────────────────────────────────────────────────────────────────────
 // Room Game Bottom Sheet — matches room_fragment_game.xml & room_adapter_game_item.xml
@@ -46,6 +47,14 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
   Timer? _marqueeTimer;
 
   static const List<Map<String, String>> _games = [
+    {
+      'key': 'sugarrush',
+      'name_ar': 'Sugar Rush',
+      'name_en': 'Sugar Rush',
+      'icon': 'assets/images/icon_game_fuiter.png',
+      'hot': 'true',
+    },
+
     {
       'key': 'domino',
       'name_ar': 'دومينو',
@@ -120,6 +129,14 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
   }
 
   void _handleGameTap(Map<String, String> game, bool isAr) {
+    Navigator.pop(context);
+    final gameName = isAr ? game['name_ar']! : game['name_en']!;
+    widget.onGameSelect?.call(game['key']!, gameName);
+
+    if (game['key'] == 'sugarrush') {
+      SugarRushGameDialog.show(context, roomId: widget.roomId);
+      return;
+    }
     Navigator.pop(context);
     final gameName = isAr ? game['name_ar']! : game['name_en']!;
     widget.onGameSelect?.call(game['key']!, gameName);
