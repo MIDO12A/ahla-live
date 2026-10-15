@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 
 import '../data/agency_chat_repository.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
+import '../../../core/supabase_compat.dart';
+import '../../../services/supabase_auth_service.dart';
 import '../../../services/supabase_data_service.dart';
 
 class AgencyInviteByIdScreen extends StatefulWidget {
@@ -126,11 +128,11 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
     try {
       final reqId = 'invite_${DateTime.now().millisecondsSinceEpoch}_${_foundUserId!.length >= 4 ? _foundUserId!.substring(0, 4) : _foundUserId!}';
       final nowIso = DateTime.now().toUtc().toIso8601String();
-      final myUid = SupabaseDataService().currentUserId ?? '';
+      final myUid = SupabaseAuthService().currentUid ?? '';
 
       // 1. تسجيل الدعوة في جدول host_agency_join_requests
       try {
-        await SupabaseDataService().client.from('host_agency_join_requests').upsert({
+        await Supabase.instance.client.from('host_agency_join_requests').upsert({
           'id': reqId,
           'agency_id': widget.agencyId,
           'user_id': _foundUserId,
@@ -145,7 +147,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
 
       // 2. إرسال إشعار مباشر للمستخدم المدعو
       try {
-        await SupabaseDataService().client.from('notifications').insert({
+        await Supabase.instance.client.from('notifications').insert({
           'uid': _foundUserId,
           'target': _foundUserId,
           'title': 'دعوة انضمام إلى وكالة [${widget.agencyName}] 🎙️',

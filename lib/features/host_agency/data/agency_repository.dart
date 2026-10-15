@@ -154,13 +154,11 @@ abstract final class AgencyRepository {
     final uid = _sb.auth.currentUser?.id;
     if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
 
-    bool rpcSuccess = false;
     try {
       final resp = await _sb.rpc('agency_request_join', params: {'p_agency_id': agencyId});
       if (resp is Map && resp['status'] == 'error') {
         throw Exception(resp['message'] ?? 'تعذر تقديم طلب الانضمام');
       }
-      rpcSuccess = true;
     } catch (e) {
       if (e is Exception &&
           (e.toString().contains('عضو بالفعل') ||
@@ -1294,7 +1292,8 @@ abstract final class AgencyRepository {
       for (final e in (uResp as List<dynamic>)) {
         final m = Map<String, dynamic>.from(e as Map);
         final agentName = m['name']?.toString() ?? 'وكيل شحن معتمد';
-        final customId = m['custom_id']?.toString() ?? (m['uid']?.toString().length >= 8 ? m['uid'].toString().substring(0, 8) : (m['id']?.toString() ?? ''));
+        final uidStr = m['uid']?.toString() ?? '';
+        final customId = m['custom_id']?.toString() ?? (uidStr.length >= 8 ? uidStr.substring(0, 8) : (m['id']?.toString() ?? ''));
         final agencyName = (m['recharge_agency_name'] != null && m['recharge_agency_name'].toString().trim().isNotEmpty)
             ? m['recharge_agency_name'].toString().trim()
             : 'وكالة $agentName للشحن';
@@ -1504,7 +1503,6 @@ abstract final class AgencyRepository {
       final details = reqRow['account_details'] is Map ? Map<String, dynamic>.from(reqRow['account_details']) : {};
       final hostUid = details['host_uid']?.toString() ?? '';
       final diamonds = (details['diamonds'] as num?)?.toInt() ?? 0;
-      final hostName = details['host_name']?.toString() ?? 'المضيف';
 
       if (approve) {
         // تنفيذ التحويل الفعلي للألماس
