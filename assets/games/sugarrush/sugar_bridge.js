@@ -17,7 +17,10 @@ window.__sugarGame = {
   chips: [100, 500, 1000, 5000],
   
   initUser: function(id, name, avatar, coins, roomId, winRate) {
-    if (id) this.userId = String(id);
+    if (id) {
+      var n = parseInt(id, 10);
+      this.userId = (!isNaN(n) && n > 0) ? String(n) : '10001';
+    }
     if (name) this.userName = String(name);
     if (avatar) this.userAvatar = String(avatar);
     if (coins !== undefined && coins !== null) this.userCoins = Number(coins);
@@ -36,7 +39,10 @@ window.__sugarGame = {
 try {
   var urlParams = new URLSearchParams(window.location.search);
   var qUid = urlParams.get('uid') || urlParams.get('playerId');
-  if (qUid) window.__sugarGame.userId = qUid;
+  if (qUid) {
+    var n = parseInt(qUid, 10);
+    window.__sugarGame.userId = (!isNaN(n) && n > 0) ? String(n) : '10001';
+  }
   var qRoom = urlParams.get('roomId');
   if (qRoom) window.__sugarGame.roomId = qRoom;
   var qCoins = urlParams.get('coins');
@@ -52,10 +58,12 @@ try {
 // Implement androidJsObj for NativeManager
 window.androidJsObj = {
   getUid: function() {
-    return String(window.__sugarGame.userId || '10001');
+    var pid = parseInt(window.__sugarGame.userId, 10);
+    return String((!isNaN(pid) && pid > 0) ? pid : 10001);
   },
   getTicket: function() {
-    return 'ticket_' + String(window.__sugarGame.userId || '10001');
+    var pid = parseInt(window.__sugarGame.userId, 10);
+    return 'ticket_' + String((!isNaN(pid) && pid > 0) ? pid : 10001);
   },
   getRoomId: function() {
     return String(window.__sugarGame.roomId || '1');
@@ -66,17 +74,28 @@ window.androidJsObj = {
   getAppDomain: function() {
     return '127.0.0.1';
   },
+  getAppVersion: function() {
+    return '1.0.0';
+  },
+  getAppOs: function() {
+    return 'android';
+  },
   getGameConfig: function() {
+    var pid = parseInt(window.__sugarGame.userId, 10);
+    if (isNaN(pid) || pid <= 0) pid = 10001;
     return JSON.stringify({
       gameType: 1,
       isProd: false,
       appDomain: '127.0.0.1',
+      containerUrl: '127.0.0.1',
+      serverAddress: '127.0.0.1',
+      goldUrl: '',
       roomId: String(window.__sugarGame.roomId || '1'),
       platform: 'android',
       os: 'android',
-      ticket: 'ticket_' + String(window.__sugarGame.userId || '10001'),
-      playerId: Number(window.__sugarGame.userId) || 10001,
-      uid: String(window.__sugarGame.userId || '10001')
+      ticket: 'ticket_' + pid,
+      playerId: pid,
+      uid: String(pid)
     });
   },
   closeWin: function() {
@@ -104,16 +123,23 @@ window.androidJsObj = {
 window.flutter_inappwebview = {
   callHandler: function(handlerName, args) {
     return new Promise(function(resolve) {
+      var pid = parseInt(window.__sugarGame.userId, 10);
+      if (isNaN(pid) || pid <= 0) pid = 10001;
+
       if (handlerName === 'getUid') {
-        resolve(String(window.__sugarGame.userId || '10001'));
+        resolve(String(pid));
       } else if (handlerName === 'getTicket') {
-        resolve('ticket_' + String(window.__sugarGame.userId || '10001'));
+        resolve('ticket_' + pid);
       } else if (handlerName === 'getRoomId') {
         resolve(String(window.__sugarGame.roomId || '1'));
       } else if (handlerName === 'getLanguage') {
         resolve('en');
       } else if (handlerName === 'getAppDomain') {
         resolve('127.0.0.1');
+      } else if (handlerName === 'getAppVersion') {
+        resolve('1.0.0');
+      } else if (handlerName === 'getAppOs') {
+        resolve('android');
       } else if (handlerName === 'getGameConfig') {
         resolve(window.androidJsObj.getGameConfig());
       } else if (handlerName === 'closeWin') {

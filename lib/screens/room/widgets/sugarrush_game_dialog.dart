@@ -145,24 +145,32 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
       if (mounted) {
         final userProvider = Provider.of<UserProvider>(context, listen: false);
         final user = userProvider.currentUser;
-        final userId = user?.uid ?? '10001';
+        final customId = user?.customId.trim() ?? '';
+        final rawUid = user?.uid ?? '10001';
+        final numericId = int.tryParse(customId) ??
+            int.tryParse(rawUid) ??
+            (int.tryParse(rawUid.replaceAll(RegExp(r'\D'), '')) ?? 10001);
+        final playerIdStr = numericId.toString();
+
         final userName = (user?.name.isNotEmpty ?? false) ? user!.name : 'Player';
         final userAvatar = user?.photoUrl ?? '';
         final coins = user?.coins ?? 50000;
 
         final queryParams = {
-          'uid': userId,
-          'playerId': userId,
+          'uid': playerIdStr,
+          'playerId': playerIdStr,
           'name': userName,
           'avatar': userAvatar,
           'coins': coins.toString(),
-          'ticket': 'ticket_$userId',
+          'ticket': 'ticket_$playerIdStr',
           'roomId': widget.roomId,
           'gameType': '1',
           'isProd': '0',
           'platform': 'android',
           'os': 'android',
           'DOMAIN': '127.0.0.1',
+          'containerUrl': '127.0.0.1',
+          'serverAddress': '127.0.0.1',
           'appDomain': '127.0.0.1',
           'language': 'en',
           'winRate': _poolWinRate.toString(),
@@ -210,14 +218,20 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.currentUser;
 
-    final userId = user?.uid ?? '10001';
+    final customId = user?.customId.trim() ?? '';
+    final rawUid = user?.uid ?? '10001';
+    final numericId = int.tryParse(customId) ??
+        int.tryParse(rawUid) ??
+        (int.tryParse(rawUid.replaceAll(RegExp(r'\D'), '')) ?? 10001);
+    final playerIdStr = numericId.toString();
+
     final userName = (user?.name.isNotEmpty ?? false) ? user!.name : 'Player';
     final userAvatar = user?.photoUrl ?? '';
     final coins = user?.coins ?? 50000;
 
     final safeName = userName.replaceAll('"', '\\"');
     final js =
-        'if (window.__sugarGame) { window.__sugarGame.initUser("$userId", "$safeName", "$userAvatar", $coins, "${widget.roomId}", $_poolWinRate); }';
+        'if (window.__sugarGame) { window.__sugarGame.initUser("$playerIdStr", "$safeName", "$userAvatar", $coins, "${widget.roomId}", $_poolWinRate); }';
 
     _controller.runJavaScript(js);
   }
