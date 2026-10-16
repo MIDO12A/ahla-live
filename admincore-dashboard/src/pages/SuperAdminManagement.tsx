@@ -5,18 +5,18 @@ import { onAuthChange, type AppUser } from '../lib/auth';
 import {
   Crown, Shield, Briefcase, Percent, ArrowLeftRight, UserPlus,
   Search, Save, X, Edit3, Trash2, CheckCircle, AlertTriangle, RefreshCw,
-  Building, Users, DollarSign, Award, Sparkles, CheckSquare, Square
+  Building, Users, DollarSign, Award, Sparkles, CheckSquare, Square, PlusCircle, Check
 } from 'lucide-react';
 import {
   getSuperAdmins, assignSuperAdmin, updateSuperAdmin, revokeSuperAdmin,
   getAdmins, assignAdmin, updateAdminStaff, revokeAdminStaff,
   getBDManagers, assignBDManager, updateBDManager, revokeBDManager,
-  getStaffCommissionConfigs, saveStaffCommissionConfigs, getSalaryTransfers,
+  getStaffCommissionConfigs, saveStaffCommissionConfigs, getSalaryTransfers, getHostAgencies, updateHostAgency,
   getBadges, getNecklaces, getStoreItems, searchUserProfile,
   type SuperAdminModel, type AdminStaffModel, type SalaryTransferRequest
 } from '../lib/db';
 import { PERMISSION_CATEGORIES, ALL_PERMISSIONS } from '../lib/permissions';
-import type { BDModel, BadgeConfig, NecklaceConfig, StoreItemModel } from '../types';
+import type { BDModel, BadgeConfig, NecklaceConfig, StoreItemModel, HostAgencyModel } from '../types';
 
 export default function SuperAdminManagement() {
   const { t, lang } = useContext(I18nContext);
@@ -42,6 +42,11 @@ export default function SuperAdminManagement() {
   const [admins, setAdmins] = useState<AdminStaffModel[]>([]);
   const [bds, setBds] = useState<BDModel[]>([]);
   const [transfers, setTransfers] = useState<SalaryTransferRequest[]>([]);
+  const [hostAgencies, setHostAgencies] = useState<HostAgencyModel[]>([]);
+  const [agencySearchQ, setAgencySearchQ] = useState('');
+  const [agencyRates, setAgencyRates] = useState<Record<string, number>>({});
+  const [savingAgencyId, setSavingAgencyId] = useState<string | null>(null);
+  const [agencySaveSuccess, setAgencySaveSuccess] = useState<string | null>(null);
   const [commConfigs, setCommConfigs] = useState({
     superAdminRate: 15,
     adminRate: 10,
@@ -101,7 +106,7 @@ export default function SuperAdminManagement() {
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const [saData, admData, bdData, commData, transData, bdgData, nckData, stData] = await Promise.all([
+      const [saData, admData, bdData, commData, transData, bdgData, nckData, stData, agData] = await Promise.all([
         getSuperAdmins(),
         getAdmins(),
         getBDManagers(),
@@ -110,6 +115,7 @@ export default function SuperAdminManagement() {
         getBadges(),
         getNecklaces(),
         getStoreItems(),
+        getHostAgencies().catch(() => []),
       ]);
       setSuperAdmins(saData);
       setAdmins(admData);
@@ -119,6 +125,12 @@ export default function SuperAdminManagement() {
       setBadges(bdgData || []);
       setNecklaces(nckData || []);
       setFrames((stData || []).filter(i => i.category === 'frame'));
+      setHostAgencies(agData || []);
+      const initialRates: Record<string, number> = {};
+      (agData || []).forEach((a: any) => {
+        initialRates[a.id] = a.data?.commission_rate ?? a.commission_rate ?? 10;
+      });
+      setAgencyRates(initialRates);
     } catch (e) {
       console.error('SuperAdminManagement fetch error:', e);
     } finally {
@@ -263,6 +275,46 @@ export default function SuperAdminManagement() {
       fetchAllData();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  
+  const handleAddTier = () => {
+    setCommConfigs(prev => ({
+      ...prev,
+      tiers: [
+        ...(prev.tiers || []),
+        { targetDiamonds: 100000000, bonusPercentage: 10, description: isAr ? 'تارجت 100M' : '100M Target' }
+      ]
+    }));
+  };
+
+  const handleRemoveTier = (idx: number) => {
+    setCommConfigs(prev => ({
+      ...prev,
+      tiers: (prev.tiers || []).filter((_, i) => i !== idx)
+    }));
+  };
+
+  const handleUpdateTier = (idx: number, field: string, val: any) => {
+    setCommConfigs(prev => {
+      const updated = [...(prev.tiers || [])];
+      updated[idx] = { ...updated[idx], [field]: val };
+      return { ...prev, tiers: updated };
+    });
+  };
+
+  const handleSaveAgencyRate = async (agencyId: string) => {
+    setSavingAgencyId(agencyId);
+    try {
+      const rate = agencyRates[agencyId] ?? 10;
+      await updateHostAgency(agencyId, { commission_rate: rate });
+      setAgencySaveSuccess(agencyId);
+      setTimeout(() => setAgencySaveSuccess(null), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingAgencyId(null);
     }
   };
 
@@ -679,70 +731,281 @@ export default function SuperAdminManagement() {
 
       {/* Tab 4: Target Commissions Config */}
       {activeTab === 'commissions' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 max-w-3xl">
-          <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Percent className="text-emerald-400" size={20} />
-              {isAr ? 'إعدادات نسبة العمولة على تارجت الوكالات' : 'Agency Target Commission Settings'}
-            </h2>
-            <p className="text-sm text-slate-400 mt-1">
-              {isAr
-                ? 'تحديد نسبة العمولة الأساسية التي يحصل عليها السوبر أدمن والأدمن والـ BD من تارجت أرباح الوكالات التابعة لهم'
-                : 'Configure base commission percentages on total diamonds generated by recruited agencies'}
-            </p>
+        <div className="space-y-6">
+          {/* Section 1: Base Role Commissions */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Percent className="text-emerald-400" size={20} />
+                {isAr ? 'النسب المئوية الأساسية لعمولات الإدارة' : 'Base Administrative Commission Rates'}
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">
+                {isAr
+                  ? 'النسب الأساسية الافتراضية لكل رتبة من أرباح وتارجت الوكالات التابعة لها'
+                  : 'Default base commission rates for each role from their recruited agencies'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-slate-950 p-4 rounded-xl border border-amber-500/20">
+                <label className="text-xs font-bold text-amber-400 block mb-2">
+                  {isAr ? 'عمولة Super Admin (%)' : 'Super Admin Commission (%)'}
+                </label>
+                <input
+                  type="number"
+                  value={commConfigs.superAdminRate}
+                  onChange={e => setCommConfigs({ ...commConfigs, superAdminRate: Number(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono font-bold"
+                />
+              </div>
+              <div className="bg-slate-950 p-4 rounded-xl border border-rose-500/20">
+                <label className="text-xs font-bold text-rose-400 block mb-2">
+                  {isAr ? 'عمولة Admin (%)' : 'Admin Commission (%)'}
+                </label>
+                <input
+                  type="number"
+                  value={commConfigs.adminRate}
+                  onChange={e => setCommConfigs({ ...commConfigs, adminRate: Number(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono font-bold"
+                />
+              </div>
+              <div className="bg-slate-950 p-4 rounded-xl border border-indigo-500/20">
+                <label className="text-xs font-bold text-indigo-400 block mb-2">
+                  {isAr ? 'عمولة مسؤولي الـ BD (%)' : 'BD Commission (%)'}
+                </label>
+                <input
+                  type="number"
+                  value={commConfigs.bdRate}
+                  onChange={e => setCommConfigs({ ...commConfigs, bdRate: Number(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono font-bold"
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-slate-950 p-4 rounded-xl border border-amber-500/20">
-              <label className="text-xs font-bold text-amber-400 block mb-2">
-                {isAr ? 'عمولة Super Admin (%)' : 'Super Admin Commission (%)'}
-              </label>
-              <input
-                type="number"
-                value={commConfigs.superAdminRate}
-                onChange={e => setCommConfigs({ ...commConfigs, superAdminRate: Number(e.target.value) })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono font-bold"
-              />
+          {/* Section 2: Dynamic Target Milestones (e.g. 100M -> 10%) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Award className="text-amber-400" size={20} />
+                  {isAr ? 'شرائح تارجت الوكالات ونسب العمولة' : 'Agency Target Milestones & Rates'}
+                </h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  {isAr
+                    ? 'حدد التارجت بالماس ونسبة العمولة المقابلة له (مثال: عند الوصول إلى 100M تكون نسبة العمولة 10%)'
+                    : 'Configure diamond milestone targets and their commission percentages (e.g. 100M target = 10%)'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddTier}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all"
+              >
+                <PlusCircle size={16} />
+                {isAr ? 'إضافة شريحة تارجت جديدة' : 'Add Target Tier'}
+              </button>
             </div>
-            <div className="bg-slate-950 p-4 rounded-xl border border-rose-500/20">
-              <label className="text-xs font-bold text-rose-400 block mb-2">
-                {isAr ? 'عمولة Admin (%)' : 'Admin Commission (%)'}
-              </label>
-              <input
-                type="number"
-                value={commConfigs.adminRate}
-                onChange={e => setCommConfigs({ ...commConfigs, adminRate: Number(e.target.value) })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono font-bold"
-              />
+
+            <div className="space-y-3">
+              {(commConfigs.tiers || []).map((tier, idx) => (
+                <div
+                  key={idx}
+                  className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center bg-slate-950/70 border border-slate-800 p-4 rounded-xl"
+                >
+                  <div className="sm:col-span-5">
+                    <label className="text-[11px] text-slate-400 block mb-1">
+                      {isAr ? 'وصف التارجت / المرحلة' : 'Milestone Description'}
+                    </label>
+                    <input
+                      type="text"
+                      value={tier.description || ''}
+                      onChange={e => handleUpdateTier(idx, 'description', e.target.value)}
+                      placeholder={isAr ? 'مثال: تارجت الـ 100 مليون' : 'e.g. 100M Target'}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white text-sm"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-4">
+                    <label className="text-[11px] text-slate-400 block mb-1">
+                      {isAr ? 'التارجت المطلوب (بالماس)' : 'Target Diamonds'}
+                    </label>
+                    <input
+                      type="number"
+                      value={tier.targetDiamonds || 0}
+                      onChange={e => handleUpdateTier(idx, 'targetDiamonds', Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-amber-400 font-mono font-bold text-sm"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-[11px] text-slate-400 block mb-1">
+                      {isAr ? 'نسبة العمولة (%)' : 'Commission %'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={tier.bonusPercentage || 0}
+                      onChange={e => handleUpdateTier(idx, 'bonusPercentage', Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-emerald-400 font-mono font-bold text-sm"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-1 flex justify-end pt-5 sm:pt-0">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTier(idx)}
+                      className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
+                      title={isAr ? 'حذف الشريحة' : 'Remove tier'}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="bg-slate-950 p-4 rounded-xl border border-indigo-500/20">
-              <label className="text-xs font-bold text-indigo-400 block mb-2">
-                {isAr ? 'عمولة مسؤولي الـ BD (%)' : 'BD Commission (%)'}
-              </label>
-              <input
-                type="number"
-                value={commConfigs.bdRate}
-                onChange={e => setCommConfigs({ ...commConfigs, bdRate: Number(e.target.value) })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono font-bold"
-              />
+
+            <div className="border-t border-slate-800 pt-4 flex items-center justify-between">
+              {commSuccess && (
+                <span className="text-sm text-emerald-400 flex items-center gap-1.5 font-bold">
+                  <CheckCircle size={16} />
+                  {isAr ? 'تم حفظ إعدادات العمولات والشرائح بنجاح!' : 'Commission settings saved successfully!'}
+                </span>
+              )}
+              <div className="flex-1" />
+              <button
+                onClick={handleSaveCommissions}
+                disabled={savingComms}
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 text-sm transition-all"
+              >
+                {savingComms ? (isAr ? 'جارٍ الحفظ...' : 'Saving...') : isAr ? 'حفظ إعدادات الشرائح والعمولات' : 'Save Configurations'}
+              </button>
             </div>
           </div>
 
-          <div className="border-t border-slate-800 pt-4 flex items-center justify-between">
-            {commSuccess && (
-              <span className="text-sm text-emerald-400 flex items-center gap-1.5 font-bold">
-                <CheckCircle size={16} />
-                {isAr ? 'تم حفظ الإعدادات بنجاح!' : 'Settings saved successfully!'}
-              </span>
-            )}
-            <div className="flex-1" />
-            <button
-              onClick={handleSaveCommissions}
-              disabled={savingComms}
-              className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 text-sm transition-all"
-            >
-              {savingComms ? (isAr ? 'جارٍ الحفظ...' : 'Saving...') : isAr ? 'حفظ إعدادات العمولات' : 'Save Commissions'}
-            </button>
+          {/* Section 3: Custom Commission Per Agency (Based on profits) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Building className="text-cyan-400" size={20} />
+                  {isAr ? 'تخصيص نسبة العمولة لكل وكالة (حسب أرباح الوكالة)' : 'Custom Commission Per Agency (By Profit)'}
+                </h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  {isAr
+                    ? 'يمكنك تعديل نسبة عمولة أي وكالة على حدة بشكل مخصص بناءً على ربحها وإيراداتها'
+                    : 'Customize individual commission percentage for any specific agency based on its revenue'}
+                </p>
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute top-1/2 -translate-y-1/2 left-3 text-slate-400" size={16} />
+                <input
+                  type="text"
+                  placeholder={isAr ? 'بحث بالاسم أو كود الوكالة...' : 'Search agency...'}
+                  value={agencySearchQ}
+                  onChange={e => setAgencySearchQ(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+              {hostAgencies
+                .filter(a => {
+                  const q = agencySearchQ.toLowerCase();
+                  return (
+                    (a.name || '').toLowerCase().includes(q) ||
+                    String(a.agency_code || '').includes(q) ||
+                    (a.owner_name || '').toLowerCase().includes(q)
+                  );
+                })
+                .map(ag => {
+                  const currentRate = agencyRates[ag.id] ?? (ag as any).data?.commission_rate ?? ag.commission_rate ?? 10;
+                  const isSavingThis = savingAgencyId === ag.id;
+                  const isSuccessThis = agencySaveSuccess === ag.id;
+                  const diamonds = (ag as any).total_diamonds || (ag as any).total_earnings || 0;
+
+                  return (
+                    <div
+                      key={ag.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-slate-700 transition-all"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shrink-0 overflow-hidden">
+                          {ag.photo_url ? (
+                            <img src={ag.photo_url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <Building size={22} className="text-cyan-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-white text-sm truncate">{ag.name}</h4>
+                            <span className="text-[10px] bg-slate-800 text-cyan-300 font-mono px-2 py-0.5 rounded border border-slate-700">
+                              #{ag.agency_code || ag.id.slice(0, 6)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {isAr ? 'المالك:' : 'Owner:'} {ag.owner_name || 'غير معروف'}
+                            {' • '}
+                            <span className="text-amber-400 font-mono font-bold">
+                              {diamonds.toLocaleString()} 💎
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 justify-end shrink-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-400 whitespace-nowrap">
+                            {isAr ? 'نسبة العمولة:' : 'Rate:'}
+                          </span>
+                          <div className="relative w-24">
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={currentRate}
+                              onChange={e => {
+                                const v = Number(e.target.value);
+                                setAgencyRates(prev => ({ ...prev, [ag.id]: v }));
+                              }}
+                              className="w-full px-3 py-1.5 bg-slate-900 border border-cyan-500/40 rounded-lg text-white font-mono font-bold text-sm text-center"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-400 text-xs font-bold">%</span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleSaveAgencyRate(ag.id)}
+                          disabled={isSavingThis}
+                          className="px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                        >
+                          {isSuccessThis ? (
+                            <>
+                              <Check size={14} className="text-emerald-400" />
+                              <span className="text-emerald-400">{isAr ? 'تم!' : 'Saved!'}</span>
+                            </>
+                          ) : isSavingThis ? (
+                            <span>{isAr ? 'حفظ...' : 'Saving...'}</span>
+                          ) : (
+                            <>
+                              <Save size={14} />
+                              <span>{isAr ? 'حفظ' : 'Save'}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {hostAgencies.length === 0 && (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  {isAr ? 'لا توجد وكالات مسجلة حالياً' : 'No agencies found'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
