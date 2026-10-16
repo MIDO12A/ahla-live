@@ -24,6 +24,8 @@ import '../vip/vip_center_screen.dart';
 import '../../features/cp/cp_space_screen.dart';
 import '../../features/host_agency/host_agency_screen.dart';
 import '../../features/host_agency/screens/bd_center_screen.dart';
+import '../../features/super_admin/screens/super_admin_center_screen.dart';
+import '../../features/super_admin/screens/admin_center_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/level_service.dart';
@@ -94,6 +96,16 @@ class ProfileScreen extends StatelessWidget {
 
                   // 5. بطاقة مركز VIP (cl_vip)
                   _buildVipBanner(context, user),
+
+                  if (user?.isSuperAdmin == true) ...[
+                    const SizedBox(height: 12),
+                    _buildSuperAdminBanner(context, user),
+                  ],
+
+                  if (user?.isAdmin == true) ...[
+                    const SizedBox(height: 12),
+                    _buildAdminBanner(context, user),
+                  ],
 
                   const SizedBox(height: 12),
 
@@ -875,6 +887,186 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  /// بطاقة لوحة السوبر أدمن الفاخرة
+  Widget _buildSuperAdminBanner(BuildContext context, UserModel? user) {
+    if (user?.isSuperAdmin != true) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => SuperAdminCenterScreen(currentUser: user!)),
+          );
+        },
+        child: Container(
+          height: 68,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF2E1C68), Color(0xFF141A32)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFFFB800).withValues(alpha: 0.5), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF9C6BFF).withValues(alpha: 0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [Color(0xFFFFB800), Color(0xFFB8860B)]),
+                ),
+                child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.black87, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'لوحة السوبر أدمن',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFFB800),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFB800).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'SUPER ADMIN',
+                            style: TextStyle(color: Color(0xFFFFB800), fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'إدارة الوكالات • تارجت الألماس • مدراء BD • صرف الراتب',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF8E9BB0)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFFFB800), size: 14),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// بطاقة لوحة الإدارة (Admin)
+  Widget _buildAdminBanner(BuildContext context, UserModel? user) {
+    if (user?.isAdmin != true) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => AdminCenterScreen(currentUser: user!)),
+          );
+        },
+        child: Container(
+          height: 68,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4A1020), Color(0xFF141A32)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFFF4D4D).withValues(alpha: 0.5), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF4D4D).withValues(alpha: 0.15),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [Color(0xFFFF4D4D), Color(0xFF990000)]),
+                ),
+                child: const Icon(Icons.shield_rounded, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'لوحة الإدارة',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFF4D4D),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF4D4D).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'ADMIN',
+                            style: TextStyle(color: Color(0xFFFF4D4D), fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'إدارة الوكالات • تارجت الألماس • صرف الراتب',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF8E9BB0)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFFF4D4D), size: 14),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// قائمة الوظائف والإعدادات البيضاء ll_set المطابقة لـ fragment_mine.xml
   Widget _buildSettingsList(BuildContext context, UserModel? user) {
     final isAgent = user?.isRechargeAgent == true;
@@ -1025,6 +1217,32 @@ class ProfileScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => BDCenterScreen(currentUser: user!)),
+                  );
+                },
+              ),
+
+            // 12. لوحة السوبر أدمن (Super Admin)
+            if (user?.isSuperAdmin == true)
+              _buildFunctionItem(
+                icon: 'assets/mipmap-xxhdpi/union_admin_center.webp',
+                title: 'لوحة السوبر أدمن (Super Admin)',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => SuperAdminCenterScreen(currentUser: user!)),
+                  );
+                },
+              ),
+
+            // 13. لوحة الإدارة (Admin)
+            if (user?.isAdmin == true)
+              _buildFunctionItem(
+                icon: 'assets/mipmap-xxhdpi/union_admin_center.webp',
+                title: 'لوحة الإدارة (Admin)',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => AdminCenterScreen(currentUser: user!)),
                   );
                 },
               ),

@@ -6,6 +6,7 @@ import '../../../models/user_model.dart';
 import '../../../core/localization/app_strings.dart';
 import '../data/agency_models.dart';
 import '../../../config/r.dart';
+import '../../super_admin/widgets/salary_disburse_dialog.dart';
 
 const Color _bgDeep    = Color(0xFF0A0E21);
 const Color _bgCard    = Color(0xFF141A32);
@@ -290,6 +291,52 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
 
           // Statistics Grid (Agencies, Hosts, Diamonds, Salary/Earnings)
           _buildStatsGrid(estimatedCommission),
+
+          const SizedBox(height: 14),
+
+          // Disburse Salary Button
+          GestureDetector(
+            onTap: () {
+              SalaryDisburseDialog.show(
+                context,
+                currentUser: widget.currentUser,
+                role: 'bd',
+                currentSalary: _salary,
+                onDisbursed: _fetchBDData,
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFB800), Color(0xFFD4AF37)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: _gold.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF0A0E21), size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    context.tr('صرف الراتب إلى وكيل شحن', 'Disburse Salary to Recharge Agent'),
+                    style: const TextStyle(
+                      color: Color(0xFF0A0E21),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
           const SizedBox(height: 20),
 

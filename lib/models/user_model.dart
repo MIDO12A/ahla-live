@@ -63,6 +63,13 @@ class UserModel {
   final String? bdSupervisorId;
   final double bdSalary;
   final double bdCommissionRate;
+  final bool isSuperAdmin;
+  final double superAdminSalary;
+  final double superAdminCommissionRate;
+  final bool isAdmin;
+  final double adminSalary;
+  final double adminCommissionRate;
+  final String? adminSupervisorId;
   final String? originalCustomId;
   final bool isHostAgent;
   final String? agencyId;
@@ -137,6 +144,13 @@ class UserModel {
     this.bdSupervisorId,
     this.bdSalary = 0.0,
     this.bdCommissionRate = 10.0,
+    this.isSuperAdmin = false,
+    this.superAdminSalary = 0.0,
+    this.superAdminCommissionRate = 15.0,
+    this.isAdmin = false,
+    this.adminSalary = 0.0,
+    this.adminCommissionRate = 10.0,
+    this.adminSupervisorId,
     this.originalCustomId,
     this.isHostAgent = false,
     this.agencyId,
@@ -200,11 +214,17 @@ class UserModel {
     bool? isRechargeAgent,
     String? rechargeAgencyName,
     String? rechargeAgencyLogo,
-    String? whatsappNumber,
     bool? isBd,
     String? bdSupervisorId,
     double? bdSalary,
     double? bdCommissionRate,
+    bool? isSuperAdmin,
+    double? superAdminSalary,
+    double? superAdminCommissionRate,
+    bool? isAdmin,
+    double? adminSalary,
+    double? adminCommissionRate,
+    String? adminSupervisorId,
     bool? isHostAgent,
     String? agencyId,
   }) {
@@ -271,6 +291,13 @@ class UserModel {
       bdSupervisorId: bdSupervisorId ?? this.bdSupervisorId,
       bdSalary: bdSalary ?? this.bdSalary,
       bdCommissionRate: bdCommissionRate ?? this.bdCommissionRate,
+      isSuperAdmin: isSuperAdmin ?? this.isSuperAdmin,
+      superAdminSalary: superAdminSalary ?? this.superAdminSalary,
+      superAdminCommissionRate: superAdminCommissionRate ?? this.superAdminCommissionRate,
+      isAdmin: isAdmin ?? this.isAdmin,
+      adminSalary: adminSalary ?? this.adminSalary,
+      adminCommissionRate: adminCommissionRate ?? this.adminCommissionRate,
+      adminSupervisorId: adminSupervisorId ?? this.adminSupervisorId,
       originalCustomId: originalCustomId ?? this.originalCustomId,
       isHostAgent: isHostAgent ?? this.isHostAgent,
       agencyId: agencyId ?? this.agencyId,
@@ -516,6 +543,18 @@ class UserModel {
           map['isHostAgent'] == true ||
           map['role'] == 'host_agent',
       agencyId: map['agency_id']?.toString() ?? map['agencyId']?.toString(),
+      isSuperAdmin: map['is_super_admin'] == true ||
+          map['isSuperAdmin'] == true ||
+          map['role'] == 'super_admin' ||
+          map['role'] == 'superadmin',
+      superAdminSalary: (map['super_admin_salary'] ?? map['superAdminSalary'] ?? 0).toDouble(),
+      superAdminCommissionRate: (map['super_admin_commission_rate'] ?? map['superAdminCommissionRate'] ?? 15).toDouble(),
+      isAdmin: map['is_admin'] == true ||
+          map['isAdmin'] == true ||
+          map['role'] == 'admin',
+      adminSalary: (map['admin_salary'] ?? map['adminSalary'] ?? 0).toDouble(),
+      adminCommissionRate: (map['admin_commission_rate'] ?? map['adminCommissionRate'] ?? 10).toDouble(),
+      adminSupervisorId: map['admin_supervisor_id']?.toString() ?? map['adminSupervisorId']?.toString(),
     );
   }
 
@@ -588,6 +627,13 @@ class UserModel {
         'bd_salary': bdSalary,
         'bd_commission_rate': bdCommissionRate,
         'original_custom_id': originalCustomId,
+        'is_super_admin': isSuperAdmin,
+        'super_admin_salary': superAdminSalary,
+        'super_admin_commission_rate': superAdminCommissionRate,
+        'is_admin': isAdmin,
+        'admin_salary': adminSalary,
+        'admin_commission_rate': adminCommissionRate,
+        'admin_supervisor_id': adminSupervisorId,
       };
 
   Map<String, dynamic> toSupabaseMap() => {
@@ -657,5 +703,12 @@ class UserModel {
         'bd_commission_rate': bdCommissionRate,
         'is_host_agent': isHostAgent,
         'agency_id': agencyId,
+        'is_super_admin': isSuperAdmin,
+        'super_admin_salary': superAdminSalary,
+        'super_admin_commission_rate': superAdminCommissionRate,
+        'is_admin': isAdmin,
+        'admin_salary': adminSalary,
+        'admin_commission_rate': adminCommissionRate,
+        'admin_supervisor_id': adminSupervisorId,
       };
 }

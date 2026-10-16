@@ -1103,12 +1103,6 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                     });
                   },
                 ),
-                // 4. BD Center
-                _buildFunctionButton(
-                  iconAsset: 'assets/mipmap-xxhdpi/union_bd_center.webp',
-                  title: 'مركز BD',
-                  onTap: _openBdCenterSheet,
-                ),
               ],
             ),
           ),

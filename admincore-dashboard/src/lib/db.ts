@@ -5704,3 +5704,582 @@ export async function getGameBetRecords(gameId: string = 'sugarrush', limit: num
     return [];
   }
 }
+
+// ==========================================
+// Super Admin & Admin & Staff Commissions API
+// ==========================================
+
+export interface SuperAdminModel {
+  uid: string;
+  appId?: string;
+  name?: string;
+  email?: string;
+  avatar?: string;
+  salary: number;
+  commissionRate: number;
+  specialId?: string;
+  giftedFrame?: string;
+  giftedBadge?: string;
+  giftedNecklace?: string;
+  status: 'active' | 'revoked';
+  agenciesCount?: number;
+  totalDiamonds?: number;
+  bdsCount?: number;
+  createdAt?: string;
+}
+
+export interface AdminStaffModel {
+  uid: string;
+  appId?: string;
+  name?: string;
+  email?: string;
+  avatar?: string;
+  supervisorId?: string;
+  supervisorName?: string;
+  salary: number;
+  commissionRate: number;
+  specialId?: string;
+  giftedFrame?: string;
+  giftedBadge?: string;
+  giftedNecklace?: string;
+  status: 'active' | 'revoked';
+  agenciesCount?: number;
+  totalDiamonds?: number;
+  bdsCount?: number;
+  createdAt?: string;
+}
+
+export interface SalaryTransferRequest {
+  id: string;
+  sender_uid: string;
+  sender_custom_id?: string;
+  sender_name?: string;
+  sender_role?: string;
+  recharge_agent_uid: string;
+  recharge_agent_custom_id?: string;
+  amount: number;
+  status: 'pending' | 'accepted' | 'rejected';
+  rejection_reason?: string;
+  created_at: string;
+  accepted_at?: string;
+  rejected_at?: string;
+}
+
+export async function getSuperAdmins(): Promise<SuperAdminModel[]> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const map = new Map<string, SuperAdminModel>();
+
+    // 1. Fetch from users table
+    const { data: usersData } = await client
+      .from('users')
+      .select('uid, id, custom_id, name, email, photo_url, is_super_admin, super_admin_salary, super_admin_commission_rate, role, created_at')
+      .or('is_super_admin.eq.true,role.eq.super_admin,role.eq.superadmin');
+
+    if (usersData) {
+      for (const u of usersData) {
+        const uid = u.uid || u.id;
+        if (!uid) continue;
+        map.set(uid, {
+          uid,
+          appId: u.custom_id || '',
+          name: u.name || '',
+          email: u.email || '',
+          avatar: u.photo_url || '',
+          salary: u.super_admin_salary || 0,
+          commissionRate: u.super_admin_commission_rate || 15,
+          specialId: u.custom_id || '',
+          status: 'active',
+          createdAt: u.created_at || '',
+          agenciesCount: 0,
+          totalDiamonds: 0,
+          bdsCount: 0,
+        });
+      }
+    }
+
+    // 2. Fetch from app_config key super_admin_meta_*
+    const { data: configs } = await client
+      .from('app_config')
+      .select('key, value')
+      .like('key', 'super_admin_meta_%');
+
+    if (configs) {
+      for (const c of configs) {
+        const val = c.value || {};
+        const uid = val.uid || c.key.replace('super_admin_meta_', '');
+        if (!uid) continue;
+        const existing = map.get(uid);
+        map.set(uid, {
+          ...(existing || {
+            uid,
+            appId: val.appId || '',
+            name: val.name || '',
+            salary: val.salary || 0,
+            commissionRate: val.commissionRate || 15,
+            status: val.status || 'active',
+          }),
+          salary: val.salary !== undefined ? val.salary : (existing?.salary ?? 0),
+          commissionRate: val.commissionRate !== undefined ? val.commissionRate : (existing?.commissionRate ?? 15),
+          specialId: val.specialId || existing?.specialId || '',
+          giftedFrame: val.giftedFrame || existing?.giftedFrame,
+          giftedBadge: val.giftedBadge || existing?.giftedBadge,
+          giftedNecklace: val.giftedNecklace || existing?.giftedNecklace,
+          status: val.status || existing?.status || 'active',
+        });
+      }
+    }
+
+    // 3. Count agencies and BDs for each Super Admin
+    const { data: agencies } = await client.from('host_agencies').select('total_diamonds, data');
+    const { data: bds } = await client.from('users').select('uid, bd_supervisor_id').eq('is_bd', true);
+
+    if (agencies) {
+      for (const a of agencies) {
+        const d = a.data || {};
+        const supId = d.super_admin_id || d.created_by_super_admin;
+        if (supId && map.has(supId)) {
+          const sa = map.get(supId)!;
+          sa.agenciesCount = (sa.agenciesCount || 0) + 1;
+          sa.totalDiamonds = (sa.totalDiamonds || 0) + (a.total_diamonds || 0);
+        }
+      }
+    }
+
+    if (bds) {
+      for (const b of bds) {
+        const supId = b.bd_supervisor_id;
+        if (supId && map.has(supId)) {
+          const sa = map.get(supId)!;
+          sa.bdsCount = (sa.bdsCount || 0) + 1;
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  } catch (e) {
+    console.error('getSuperAdmins error:', e);
+    return [];
+  }
+}
+
+export async function assignSuperAdmin(params: {
+  uid: string;
+  appId?: string;
+  name?: string;
+  email?: string;
+  password?: string;
+  salary?: number;
+  commissionRate?: number;
+  specialId?: string;
+  permissions?: Record<string, boolean>;
+  frameId?: string;
+  badgeId?: string;
+  necklaceId?: string;
+}) {
+  const client = getAdminSupabase() || supabase;
+  const {
+    uid, appId, name, email, password, salary = 0, commissionRate = 15,
+    specialId, permissions = {}, frameId, badgeId, necklaceId,
+  } = params;
+
+  // 1. Update users table in Supabase
+  const updates: Record<string, any> = {
+    is_super_admin: true,
+    role: 'super_admin',
+    super_admin_salary: salary,
+    super_admin_commission_rate: commissionRate,
+  };
+  if (specialId && specialId.trim()) updates.custom_id = specialId.trim();
+
+  await client.from('users').update(updates).or(`uid.eq.${uid},id.eq.${uid}`);
+
+  // 2. Gift Items if specified
+  await giftUserItems(uid, { necklaceId, badgeId, frameId, specialId });
+
+  // 3. Save meta in app_config
+  await client.from('app_config').upsert({
+    key: 'super_admin_meta_' + uid,
+    value: {
+      uid,
+      appId: specialId || appId || '',
+      name: name || '',
+      salary,
+      commissionRate,
+      specialId: specialId || '',
+      giftedFrame: frameId || '',
+      giftedBadge: badgeId || '',
+      giftedNecklace: necklaceId || '',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+    },
+  });
+
+  // 4. Create or update admin_users table for dashboard access with checkboxes
+  const adminUserData: any = {
+    uid,
+    app_id: specialId || appId || uid,
+    email: email || `${specialId || appId || uid}@superadmin.ahla.live`,
+    display_name: name || 'Super Admin',
+    role: 'super_admin',
+    permissions: permissions,
+    updated_at: new Date().toISOString(),
+  };
+  if (password && password.trim()) adminUserData.password = password.trim();
+
+  try {
+    await client.from('admin_users').upsert(adminUserData, { onConflict: 'uid' });
+  } catch (e) {
+    console.warn('admin_users upsert error:', e);
+  }
+
+  // 5. Send in-app notification
+  await sendSystemNotification({
+    userId: uid,
+    title: 'تهانينا! تم تعيينك كـ Super Admin رسمي 👑',
+    body: `تم اعتماد حسابك كـ Super Admin براتب شهري ${salary} ونسبة عمولة ${commissionRate}% على أرباح الوكالات التابعة لك.`,
+    type: 'super_admin_assigned',
+    action: 'super_admin_center',
+  });
+}
+
+export async function updateSuperAdmin(params: {
+  uid: string;
+  salary?: number;
+  commissionRate?: number;
+  permissions?: Record<string, boolean>;
+}) {
+  const client = getAdminSupabase() || supabase;
+  const { uid, salary = 0, commissionRate = 15, permissions } = params;
+
+  await client.from('users').update({
+    super_admin_salary: salary,
+    super_admin_commission_rate: commissionRate,
+  }).or(`uid.eq.${uid},id.eq.${uid}`);
+
+  const { data: curMeta } = await client.from('app_config').select('value').eq('key', 'super_admin_meta_' + uid).maybeSingle();
+  const cur = (curMeta?.value as any) || {};
+  await client.from('app_config').upsert({
+    key: 'super_admin_meta_' + uid,
+    value: {
+      ...cur,
+      salary,
+      commissionRate,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+
+  if (permissions) {
+    try {
+      await client.from('admin_users').update({ permissions, updated_at: new Date().toISOString() }).eq('uid', uid);
+    } catch (_) {}
+  }
+}
+
+export async function revokeSuperAdmin(uid: string) {
+  const client = getAdminSupabase() || supabase;
+  await client.from('users').update({
+    is_super_admin: false,
+    role: 'user',
+    super_admin_salary: 0,
+    super_admin_commission_rate: 0,
+  }).or(`uid.eq.${uid},id.eq.${uid}`);
+
+  await client.from('app_config').delete().eq('key', 'super_admin_meta_' + uid);
+  try {
+    await client.from('admin_users').delete().eq('uid', uid);
+  } catch (_) {}
+}
+
+export async function getAdmins(): Promise<AdminStaffModel[]> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const map = new Map<string, AdminStaffModel>();
+
+    // 1. Fetch from users table
+    const { data: usersData } = await client
+      .from('users')
+      .select('uid, id, custom_id, name, email, photo_url, is_admin, admin_salary, admin_commission_rate, admin_supervisor_id, role, created_at')
+      .or('is_admin.eq.true,role.eq.admin');
+
+    if (usersData) {
+      for (const u of usersData) {
+        const uid = u.uid || u.id;
+        if (!uid) continue;
+        map.set(uid, {
+          uid,
+          appId: u.custom_id || '',
+          name: u.name || '',
+          email: u.email || '',
+          avatar: u.photo_url || '',
+          supervisorId: u.admin_supervisor_id || '',
+          salary: u.admin_salary || 0,
+          commissionRate: u.admin_commission_rate || 10,
+          specialId: u.custom_id || '',
+          status: 'active',
+          createdAt: u.created_at || '',
+          agenciesCount: 0,
+          totalDiamonds: 0,
+          bdsCount: 0,
+        });
+      }
+    }
+
+    // 2. Fetch from app_config key admin_meta_*
+    const { data: configs } = await client
+      .from('app_config')
+      .select('key, value')
+      .like('key', 'admin_meta_%');
+
+    if (configs) {
+      for (const c of configs) {
+        const val = c.value || {};
+        const uid = val.uid || c.key.replace('admin_meta_', '');
+        if (!uid) continue;
+        const existing = map.get(uid);
+        map.set(uid, {
+          ...(existing || {
+            uid,
+            appId: val.appId || '',
+            name: val.name || '',
+            salary: val.salary || 0,
+            commissionRate: val.commissionRate || 10,
+            supervisorId: val.supervisorId || '',
+            status: val.status || 'active',
+          }),
+          salary: val.salary !== undefined ? val.salary : (existing?.salary ?? 0),
+          commissionRate: val.commissionRate !== undefined ? val.commissionRate : (existing?.commissionRate ?? 10),
+          supervisorId: val.supervisorId || existing?.supervisorId || '',
+          specialId: val.specialId || existing?.specialId || '',
+          giftedFrame: val.giftedFrame || existing?.giftedFrame,
+          giftedBadge: val.giftedBadge || existing?.giftedBadge,
+          giftedNecklace: val.giftedNecklace || existing?.giftedNecklace,
+          status: val.status || existing?.status || 'active',
+        });
+      }
+    }
+
+    // 3. Count agencies and BDs for each Admin
+    const { data: agencies } = await client.from('host_agencies').select('total_diamonds, data');
+    const { data: bds } = await client.from('users').select('uid, bd_supervisor_id').eq('is_bd', true);
+
+    if (agencies) {
+      for (const a of agencies) {
+        const d = a.data || {};
+        const adminId = d.admin_id || d.created_by_admin;
+        if (adminId && map.has(adminId)) {
+          const adm = map.get(adminId)!;
+          adm.agenciesCount = (adm.agenciesCount || 0) + 1;
+          adm.totalDiamonds = (adm.totalDiamonds || 0) + (a.total_diamonds || 0);
+        }
+      }
+    }
+
+    if (bds) {
+      for (const b of bds) {
+        const supId = b.bd_supervisor_id;
+        if (supId && map.has(supId)) {
+          const adm = map.get(supId)!;
+          adm.bdsCount = (adm.bdsCount || 0) + 1;
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  } catch (e) {
+    console.error('getAdmins error:', e);
+    return [];
+  }
+}
+
+export async function assignAdmin(params: {
+  uid: string;
+  appId?: string;
+  name?: string;
+  email?: string;
+  password?: string;
+  supervisorId?: string;
+  salary?: number;
+  commissionRate?: number;
+  specialId?: string;
+  permissions?: Record<string, boolean>;
+  frameId?: string;
+  badgeId?: string;
+  necklaceId?: string;
+}) {
+  const client = getAdminSupabase() || supabase;
+  const {
+    uid, appId, name, email, password, supervisorId, salary = 0, commissionRate = 10,
+    specialId, permissions = {}, frameId, badgeId, necklaceId,
+  } = params;
+
+  // 1. Update users table in Supabase
+  const updates: Record<string, any> = {
+    is_admin: true,
+    role: 'admin',
+    admin_salary: salary,
+    admin_commission_rate: commissionRate,
+    admin_supervisor_id: supervisorId || null,
+  };
+  if (specialId && specialId.trim()) updates.custom_id = specialId.trim();
+
+  await client.from('users').update(updates).or(`uid.eq.${uid},id.eq.${uid}`);
+
+  // 2. Gift Items if specified
+  await giftUserItems(uid, { necklaceId, badgeId, frameId, specialId });
+
+  // 3. Save meta in app_config
+  await client.from('app_config').upsert({
+    key: 'admin_meta_' + uid,
+    value: {
+      uid,
+      appId: specialId || appId || '',
+      name: name || '',
+      supervisorId: supervisorId || '',
+      salary,
+      commissionRate,
+      specialId: specialId || '',
+      giftedFrame: frameId || '',
+      giftedBadge: badgeId || '',
+      giftedNecklace: necklaceId || '',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+    },
+  });
+
+  // 4. Create or update admin_users table for dashboard access with checkboxes
+  const adminUserData: any = {
+    uid,
+    app_id: specialId || appId || uid,
+    email: email || `${specialId || appId || uid}@admin.ahla.live`,
+    display_name: name || 'Admin',
+    role: 'admin',
+    permissions: permissions,
+    updated_at: new Date().toISOString(),
+  };
+  if (password && password.trim()) adminUserData.password = password.trim();
+
+  try {
+    await client.from('admin_users').upsert(adminUserData, { onConflict: 'uid' });
+  } catch (e) {
+    console.warn('admin_users upsert error:', e);
+  }
+
+  // 5. Send in-app notification
+  await sendSystemNotification({
+    userId: uid,
+    title: 'تهانينا! تم تعيينك كـ Admin رسمي 🛡️',
+    body: `تم اعتماد حسابك كـ Admin براتب شهري ${salary} ونسبة عمولة ${commissionRate}% على أرباح الوكالات التابعة لك.`,
+    type: 'admin_assigned',
+    action: 'admin_center',
+  });
+}
+
+export async function updateAdminStaff(params: {
+  uid: string;
+  supervisorId?: string;
+  salary?: number;
+  commissionRate?: number;
+  permissions?: Record<string, boolean>;
+}) {
+  const client = getAdminSupabase() || supabase;
+  const { uid, supervisorId, salary = 0, commissionRate = 10, permissions } = params;
+
+  await client.from('users').update({
+    admin_salary: salary,
+    admin_commission_rate: commissionRate,
+    admin_supervisor_id: supervisorId || null,
+  }).or(`uid.eq.${uid},id.eq.${uid}`);
+
+  const { data: curMeta } = await client.from('app_config').select('value').eq('key', 'admin_meta_' + uid).maybeSingle();
+  const cur = (curMeta?.value as any) || {};
+  await client.from('app_config').upsert({
+    key: 'admin_meta_' + uid,
+    value: {
+      ...cur,
+      supervisorId: supervisorId !== undefined ? supervisorId : cur.supervisorId,
+      salary,
+      commissionRate,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+
+  if (permissions) {
+    try {
+      await client.from('admin_users').update({ permissions, updated_at: new Date().toISOString() }).eq('uid', uid);
+    } catch (_) {}
+  }
+}
+
+export async function revokeAdminStaff(uid: string) {
+  const client = getAdminSupabase() || supabase;
+  await client.from('users').update({
+    is_admin: false,
+    role: 'user',
+    admin_salary: 0,
+    admin_commission_rate: 0,
+    admin_supervisor_id: null,
+  }).or(`uid.eq.${uid},id.eq.${uid}`);
+
+  await client.from('app_config').delete().eq('key', 'admin_meta_' + uid);
+  try {
+    await client.from('admin_users').delete().eq('uid', uid);
+  } catch (_) {}
+}
+
+export async function getStaffCommissionConfigs(): Promise<{
+  superAdminRate: number;
+  adminRate: number;
+  bdRate: number;
+  tiers: Array<{ targetDiamonds: number; bonusPercentage: number; description: string }>;
+}> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const { data } = await client.from('app_config').select('value').eq('key', 'staff_commissions_config').maybeSingle();
+    if (data?.value) {
+      return data.value;
+    }
+  } catch (_) {}
+  return {
+    superAdminRate: 15,
+    adminRate: 10,
+    bdRate: 10,
+    tiers: [
+      { targetDiamonds: 10000000, bonusPercentage: 2, description: '10M Target Milestone' },
+      { targetDiamonds: 50000000, bonusPercentage: 5, description: '50M Target Milestone' },
+      { targetDiamonds: 100000000, bonusPercentage: 10, description: '100M Super Target Milestone' },
+    ],
+  };
+}
+
+export async function saveStaffCommissionConfigs(config: any): Promise<boolean> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    await client.from('app_config').upsert({
+      key: 'staff_commissions_config',
+      value: config,
+    });
+    return true;
+  } catch (e) {
+    console.error('saveStaffCommissionConfigs error:', e);
+    return false;
+  }
+}
+
+export async function getSalaryTransfers(): Promise<SalaryTransferRequest[]> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const { data, error } = await client
+      .from('salary_transfer_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error || !data) return [];
+    return data as SalaryTransferRequest[];
+  } catch (e) {
+    console.error('getSalaryTransfers error:', e);
+    return [];
+  }
+}
+

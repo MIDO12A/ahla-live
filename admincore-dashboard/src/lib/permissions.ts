@@ -52,6 +52,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { key: 'agency_join_requests', ar: 'طلبات الانضمام للوكالات', en: 'Agency Join Requests' },
       { key: 'agency_financial', ar: 'السجلات المالية وسحوبات الوكالات', en: 'Agency Financial & Ledger' },
       { key: 'agency_commission', ar: 'نسب العمولات العامة', en: 'Agency Commissions' },
+      { key: 'super_admin_mgmt', ar: 'إدارة السوبر أدمن والطاقم الإداري (Super Admin)', en: 'Super Admin & Staff Management' },
       { key: 'bd', ar: 'إدارة وكلاء الأعمال BD', en: 'BD Management' },
     ],
   },

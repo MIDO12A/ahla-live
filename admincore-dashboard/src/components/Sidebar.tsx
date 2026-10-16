@@ -50,6 +50,7 @@ const navItems = [
   { to: '/cp-features', icon: Gift, label: 'nav.cpFeatures', permKey: 'cp_features' },
   { to: '/signin-features', icon: Calendar, label: 'nav.signin', permKey: 'signin_features' },
   { to: '/app-updates', icon: Rocket, label: 'nav.appUpdates', permKey: 'app_updates' },
+  { to: '/super-admin-management', icon: Crown, label: 'nav.superAdminMgmt', permKey: 'super_admin_mgmt' },
   { to: '/bd', icon: TrendingUp, label: 'nav.bd', permKey: 'bd' },
   { to: '/profile-customize', icon: User, label: 'nav.profileCustomize', permKey: 'profile_customize' },
   { to: '/error-analysis', icon: Bug, label: 'nav.errors', permKey: 'error_analysis' },

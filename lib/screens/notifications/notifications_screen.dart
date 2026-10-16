@@ -445,6 +445,169 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
                         ),
 
+                      // Salary Disburse Request to Recharge Agent (Accept / Reject)
+                      if (action == 'salary_transfer_request' || notif.type == 'salary_transfer_request' || notif.title.contains('صرف راتب'))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Row(
+                            children: [
+                              _actionButton(
+                                label: isAr ? 'قبول الراتب وإيداع الكوينز ✅' : 'Accept & Credit Coins ✅',
+                                color: const Color(0xFF10B981),
+                                onTap: () async {
+                                  final currentUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+                                  final transferId = notif.data?['transfer_id']?.toString() ?? '';
+                                  final senderUid = notif.data?['sender_uid']?.toString() ?? notif.actorUid;
+                                  final senderRole = notif.data?['sender_role']?.toString() ?? 'staff';
+                                  final amount = (notif.data?['amount'] as num?)?.toInt() ?? 
+                                                 (notif.data?['diamonds_amount'] as num?)?.toInt() ?? 0;
+
+                                  if (currentUid != null && amount > 0) {
+                                    try {
+                                      // 1. Try atomic RPC accept_salary_transfer if available
+                                      bool rpcSuccess = false;
+                                      if (transferId.isNotEmpty) {
+                                        try {
+                                          final rpcRes = await Supabase.instance.client.rpc(
+                                            'accept_salary_transfer',
+                                            params: {'p_transfer_id': transferId},
+                                          );
+                                          if (rpcRes != null && (rpcRes['success'] == true || rpcRes == true)) {
+                                            rpcSuccess = true;
+                                          }
+                                        } catch (_) {}
+                                      }
+
+                                      // 2. Direct fallback transaction if RPC is not present
+                                      if (!rpcSuccess) {
+                                        final sb = Supabase.instance.client;
+                                        // Credit coins to recharge agent
+                                        final agentRow = await sb.from('users').select('coins').eq('uid', currentUid).maybeSingle();
+                                        final currentCoins = (agentRow?['coins'] as num? ?? 0).toInt();
+                                        await sb.from('users').update({'coins': currentCoins + amount}).eq('uid', currentUid);
+
+                                        // Deduct / zero salary diamonds from sender
+                                        if (senderUid.isNotEmpty) {
+                                          final senderRow = await sb.from('users').select('diamonds, super_admin_salary, admin_salary, bd_salary').eq('uid', senderUid).maybeSingle();
+                                          if (senderRow != null) {
+                                            final curDiamonds = (senderRow['diamonds'] as num? ?? 0).toInt();
+                                            final updateSender = <String, dynamic>{
+                                              'diamonds': (curDiamonds - amount).clamp(0, 999999999),
+                                            };
+                                            if (senderRole == 'super_admin') {
+                                              updateSender['super_admin_salary'] = 0;
+                                            } else if (senderRole == 'admin') {
+                                              updateSender['admin_salary'] = 0;
+                                            } else if (senderRole == 'bd') {
+                                              updateSender['bd_salary'] = 0;
+                                            }
+                                            await sb.from('users').update(updateSender).eq('uid', senderUid);
+                                          }
+                                        }
+
+                                        // Update transfer status
+                                        if (transferId.isNotEmpty) {
+                                          try {
+                                            await sb.from('salary_transfer_requests').update({
+                                              'status': 'accepted',
+                                              'accepted_at': DateTime.now().toUtc().toIso8601String(),
+                                            }).eq('id', transferId);
+                                          } catch (_) {}
+                                        }
+                                      }
+
+                                      // 3. Send confirmation notification to sender
+                                      if (senderUid.isNotEmpty) {
+                                        await SupabaseDataService().sendNotification(
+                                          uid: senderUid,
+                                          type: 'salary_transfer_accepted',
+                                          actorUid: currentUid,
+                                          title: 'تم قبول صرف الراتب بنجاح 🎉',
+                                          body: 'وافق وكيل الشحن على استلام الراتب وتم إيداع $amount كوينز في محفظته وتصفير رصيدك بنجاح.',
+                                        );
+                                      }
+
+                                      // 4. Refresh user provider
+                                      await Provider.of<UserProvider>(context, listen: false).loadUser(currentUid);
+
+                                      // 5. Delete notification
+                                      if (notif.id.isNotEmpty) {
+                                        try {
+                                          await SupabaseDataService().deleteNotification(notif.id);
+                                        } catch (_) {}
+                                      }
+
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(isAr
+                                                ? '✅ تم قبول الراتب وإيداع $amount كوينز في محفظتك بنجاح.'
+                                                : '✅ Salary accepted! $amount coins added to your agency wallet.'),
+                                            backgroundColor: const Color(0xFF10B981),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('فشل قبول الراتب: $e'),
+                                            backgroundColor: const Color(0xFFEF4444),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              _actionButton(
+                                label: isAr ? 'رفض ❌' : 'Reject ❌',
+                                color: const Color(0xFFEF4444),
+                                onTap: () async {
+                                  final transferId = notif.data?['transfer_id']?.toString() ?? '';
+                                  final senderUid = notif.data?['sender_uid']?.toString() ?? notif.actorUid;
+                                  final currentUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+
+                                  if (transferId.isNotEmpty) {
+                                    try {
+                                      await Supabase.instance.client.from('salary_transfer_requests').update({
+                                        'status': 'rejected',
+                                        'rejected_at': DateTime.now().toUtc().toIso8601String(),
+                                      }).eq('id', transferId);
+                                    } catch (_) {}
+                                  }
+
+                                  if (senderUid.isNotEmpty && currentUid != null) {
+                                    await SupabaseDataService().sendNotification(
+                                      uid: senderUid,
+                                      type: 'salary_transfer_rejected',
+                                      actorUid: currentUid,
+                                      title: 'تم رفض طلب تحويل الراتب ❌',
+                                      body: 'اعتذر وكيل الشحن عن قبول طلب تحويل الراتب، ورصيدك كما هو لم يتغير.',
+                                    );
+                                  }
+
+                                  if (notif.id.isNotEmpty) {
+                                    try {
+                                      await SupabaseDataService().deleteNotification(notif.id);
+                                    } catch (_) {}
+                                  }
+
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(isAr ? 'تم رفض طلب الراتب' : 'Salary transfer rejected'),
+                                        backgroundColor: const Color(0xFFEF4444),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
                       // Host Invitation to join Agency (Accept/Reject)
                       if (action == 'host_invite' || notif.type == 'host_invite' || notif.title.contains('دعوة انضمام لوكالة'))
                         Padding(

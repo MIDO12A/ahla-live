@@ -20,6 +20,7 @@ import Necklaces from './pages/Necklaces';
 import BadgeNecklaceGifts from './pages/BadgeNecklaceGifts';
 import Agency from './pages/Agency';
 import BD from './pages/BD';
+import SuperAdminManagement from './pages/SuperAdminManagement';
 import UserGifting from './pages/UserGifting';
 import ImageCustomize from './pages/ImageCustomize';
 import ColorCustomize from './pages/ColorCustomize';
@@ -118,6 +119,7 @@ export default function App() {
             <Route path="/badge-necklace-gifts" element={<BadgeNecklaceGifts />} />
             <Route path="/agency" element={<Agency />} />
             <Route path="/bd" element={<BD />} />
+            <Route path="/super-admin-management" element={<SuperAdminManagement />} />
             <Route path="/app-assets" element={<AppAssets />} />
             <Route path="/image-customize" element={<ImageCustomize />} />
             <Route path="/color-customize" element={<ColorCustomize />} />
