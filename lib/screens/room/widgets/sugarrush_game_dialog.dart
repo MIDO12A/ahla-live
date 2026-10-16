@@ -143,9 +143,34 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
       });
 
       if (mounted) {
-        final localUrl = 'http://127.0.0.1:$_localPort/index.html';
-        debugPrint('[SugarRush] Loading game from: $localUrl');
-        _controller.loadRequest(Uri.parse(localUrl));
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        final user = userProvider.currentUser;
+        final userId = user?.uid ?? '10001';
+        final userName = (user?.name.isNotEmpty ?? false) ? user!.name : 'Player';
+        final userAvatar = user?.photoUrl ?? '';
+        final coins = user?.coins ?? 50000;
+
+        final queryParams = {
+          'uid': userId,
+          'playerId': userId,
+          'name': userName,
+          'avatar': userAvatar,
+          'coins': coins.toString(),
+          'ticket': 'ticket_$userId',
+          'roomId': widget.roomId,
+          'gameType': '1',
+          'isProd': '0',
+          'platform': 'android',
+          'os': 'android',
+          'DOMAIN': '127.0.0.1',
+          'appDomain': '127.0.0.1',
+          'language': 'en',
+          'winRate': _poolWinRate.toString(),
+        };
+
+        final localUri = Uri.http('127.0.0.1:$_localPort', '/index.html', queryParams);
+        debugPrint('[SugarRush] Loading game with query params: $localUri');
+        _controller.loadRequest(localUri);
       }
     } catch (e) {
       debugPrint('[SugarRush] Error starting local server, fallback to asset: $e');

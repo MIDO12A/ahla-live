@@ -32,6 +32,103 @@ window.__sugarGame = {
   }
 };
 
+// Immediately parse any URL query params so they are available synchronously
+try {
+  var urlParams = new URLSearchParams(window.location.search);
+  var qUid = urlParams.get('uid') || urlParams.get('playerId');
+  if (qUid) window.__sugarGame.userId = qUid;
+  var qRoom = urlParams.get('roomId');
+  if (qRoom) window.__sugarGame.roomId = qRoom;
+  var qCoins = urlParams.get('coins');
+  if (qCoins) window.__sugarGame.userCoins = Number(qCoins);
+  var qWin = urlParams.get('winRate');
+  if (qWin) window.__sugarGame.winRate = Number(qWin);
+  var qName = urlParams.get('name');
+  if (qName) window.__sugarGame.userName = qName;
+  var qAvatar = urlParams.get('avatar');
+  if (qAvatar) window.__sugarGame.userAvatar = qAvatar;
+} catch(e) {}
+
+// Implement androidJsObj for NativeManager
+window.androidJsObj = {
+  getUid: function() {
+    return String(window.__sugarGame.userId || '10001');
+  },
+  getTicket: function() {
+    return 'ticket_' + String(window.__sugarGame.userId || '10001');
+  },
+  getRoomId: function() {
+    return String(window.__sugarGame.roomId || '1');
+  },
+  getLanguage: function() {
+    return 'en';
+  },
+  getAppDomain: function() {
+    return '127.0.0.1';
+  },
+  getGameConfig: function() {
+    return JSON.stringify({
+      gameType: 1,
+      isProd: false,
+      appDomain: '127.0.0.1',
+      roomId: String(window.__sugarGame.roomId || '1'),
+      platform: 'android',
+      os: 'android',
+      ticket: 'ticket_' + String(window.__sugarGame.userId || '10001'),
+      playerId: Number(window.__sugarGame.userId) || 10001,
+      uid: String(window.__sugarGame.userId || '10001')
+    });
+  },
+  closeWin: function() {
+    if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'close' }));
+    }
+  },
+  closeLoadingView: function() {
+    var splash = document.getElementById('splash');
+    if (splash) splash.style.display = 'none';
+    var log = document.getElementById('log-container');
+    if (log) log.style.display = 'none';
+  },
+  openChargePage: function() {
+    if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+      window.FlutterBridge.postMessage(JSON.stringify({ action: 'charge' }));
+    }
+  },
+  trackBettingEvent: function(evt) {
+    console.log('[androidJsObj] trackBettingEvent:', evt);
+  }
+};
+
+// Implement flutter_inappwebview for NativeManager
+window.flutter_inappwebview = {
+  callHandler: function(handlerName, args) {
+    return new Promise(function(resolve) {
+      if (handlerName === 'getUid') {
+        resolve(String(window.__sugarGame.userId || '10001'));
+      } else if (handlerName === 'getTicket') {
+        resolve('ticket_' + String(window.__sugarGame.userId || '10001'));
+      } else if (handlerName === 'getRoomId') {
+        resolve(String(window.__sugarGame.roomId || '1'));
+      } else if (handlerName === 'getLanguage') {
+        resolve('en');
+      } else if (handlerName === 'getAppDomain') {
+        resolve('127.0.0.1');
+      } else if (handlerName === 'getGameConfig') {
+        resolve(window.androidJsObj.getGameConfig());
+      } else if (handlerName === 'closeWin') {
+        window.androidJsObj.closeWin();
+        resolve(true);
+      } else if (handlerName === 'closeLoadingView') {
+        window.androidJsObj.closeLoadingView();
+        resolve(true);
+      } else {
+        resolve('');
+      }
+    });
+  }
+};
+
 window.__BridgeWebSocket = function(url) {
   console.log('[BridgeWebSocket] Connected to virtual socket URL:', url);
   this.url = url;
