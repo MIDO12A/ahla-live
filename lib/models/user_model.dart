@@ -76,6 +76,8 @@ class UserModel {
 
   int get exp => experience;
   String get id => uid;
+  String get userId => customId;
+  String? get avatarUrl => photoUrl.isNotEmpty ? photoUrl : null;
   String get avatar => photoUrl;
   String get nickname => name;
   String get displayName => name;

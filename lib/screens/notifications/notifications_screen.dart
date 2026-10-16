@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/supabase_compat.dart';
 import '../../config/r.dart';
 import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
