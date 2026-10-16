@@ -732,144 +732,102 @@ export default function SuperAdminManagement() {
       {/* Tab 4: Target Commissions Config */}
       {activeTab === 'commissions' && (
         <div className="space-y-6">
-          {/* Section 1: Base Role Commissions */}
+          {/* Section 1: Staff Supervision Commissions from Total Agency Target */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <Percent className="text-emerald-400" size={20} />
-                {isAr ? 'النسب المئوية الأساسية لعمولات الإدارة' : 'Base Administrative Commission Rates'}
+                {isAr ? 'نسب عمولات أرباح وتارجت الوكالات للطاقم الإداري' : 'Staff Commission Rates from Agency Target'}
               </h2>
               <p className="text-sm text-slate-400 mt-1">
                 {isAr
-                  ? 'النسب الأساسية الافتراضية لكل رتبة من أرباح وتارجت الوكالات التابعة لها'
-                  : 'Default base commission rates for each role from their recruited agencies'}
+                  ? 'حدد النسبة المئوية التي يحصل عليها السوبر أدمن، الأدمن، والـ BD من إجمالي تارجت وأرباح الوكالات التي يقومون بتفعيلها وإدارتها بالكامل (مثال: 12% أو 20% من إجمالي أرباح الوكالة)'
+                  : 'Configure the percentage of total agency target earnings that Super Admins, Admins, and BDs receive as commission'}
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-slate-950 p-4 rounded-xl border border-amber-500/20">
-                <label className="text-xs font-bold text-amber-400 block mb-2">
-                  {isAr ? 'عمولة Super Admin (%)' : 'Super Admin Commission (%)'}
-                </label>
-                <input
-                  type="number"
-                  value={commConfigs.superAdminRate}
-                  onChange={e => setCommConfigs({ ...commConfigs, superAdminRate: Number(e.target.value) })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono font-bold"
-                />
-              </div>
-              <div className="bg-slate-950 p-4 rounded-xl border border-rose-500/20">
-                <label className="text-xs font-bold text-rose-400 block mb-2">
-                  {isAr ? 'عمولة Admin (%)' : 'Admin Commission (%)'}
-                </label>
-                <input
-                  type="number"
-                  value={commConfigs.adminRate}
-                  onChange={e => setCommConfigs({ ...commConfigs, adminRate: Number(e.target.value) })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono font-bold"
-                />
-              </div>
-              <div className="bg-slate-950 p-4 rounded-xl border border-indigo-500/20">
-                <label className="text-xs font-bold text-indigo-400 block mb-2">
-                  {isAr ? 'عمولة مسؤولي الـ BD (%)' : 'BD Commission (%)'}
-                </label>
-                <input
-                  type="number"
-                  value={commConfigs.bdRate}
-                  onChange={e => setCommConfigs({ ...commConfigs, bdRate: Number(e.target.value) })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono font-bold"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Dynamic Target Milestones (e.g. 100M -> 10%) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Award className="text-amber-400" size={20} />
-                  {isAr ? 'شرائح تارجت الوكالات ونسب العمولة' : 'Agency Target Milestones & Rates'}
-                </h2>
-                <p className="text-sm text-slate-400 mt-1">
-                  {isAr
-                    ? 'حدد التارجت بالماس ونسبة العمولة المقابلة له (مثال: عند الوصول إلى 100M تكون نسبة العمولة 10%)'
-                    : 'Configure diamond milestone targets and their commission percentages (e.g. 100M target = 10%)'}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="bg-slate-950 p-5 rounded-2xl border border-amber-500/30 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-amber-400">
+                    {isAr ? 'عمولة Super Admin (%)' : 'Super Admin Commission (%)'}
+                  </span>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-mono font-bold">
+                    سوبر أدمن
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={commConfigs.superAdminRate}
+                    onChange={e => setCommConfigs({ ...commConfigs, superAdminRate: Number(e.target.value) })}
+                    placeholder="مثال: 20 أو 15"
+                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-amber-500/40 rounded-xl text-white font-mono font-bold text-lg focus:outline-none focus:border-amber-400"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-400 font-bold text-base">%</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  {isAr ? 'يحصل على هذه النسبة من إجمالي تارجت كل وكالة تابعة له' : 'Earns this % from total targets of recruited agencies'}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleAddTier}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all"
-              >
-                <PlusCircle size={16} />
-                {isAr ? 'إضافة شريحة تارجت جديدة' : 'Add Target Tier'}
-              </button>
-            </div>
 
-            <div className="space-y-3">
-              {(commConfigs.tiers || []).map((tier, idx) => (
-                <div
-                  key={idx}
-                  className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center bg-slate-950/70 border border-slate-800 p-4 rounded-xl"
-                >
-                  <div className="sm:col-span-5">
-                    <label className="text-[11px] text-slate-400 block mb-1">
-                      {isAr ? 'وصف التارجت / المرحلة' : 'Milestone Description'}
-                    </label>
-                    <input
-                      type="text"
-                      value={tier.description || ''}
-                      onChange={e => handleUpdateTier(idx, 'description', e.target.value)}
-                      placeholder={isAr ? 'مثال: تارجت الـ 100 مليون' : 'e.g. 100M Target'}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white text-sm"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-4">
-                    <label className="text-[11px] text-slate-400 block mb-1">
-                      {isAr ? 'التارجت المطلوب (بالماس)' : 'Target Diamonds'}
-                    </label>
-                    <input
-                      type="number"
-                      value={tier.targetDiamonds || 0}
-                      onChange={e => handleUpdateTier(idx, 'targetDiamonds', Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-amber-400 font-mono font-bold text-sm"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="text-[11px] text-slate-400 block mb-1">
-                      {isAr ? 'نسبة العمولة (%)' : 'Commission %'}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={tier.bonusPercentage || 0}
-                      onChange={e => handleUpdateTier(idx, 'bonusPercentage', Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-emerald-400 font-mono font-bold text-sm"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-1 flex justify-end pt-5 sm:pt-0">
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTier(idx)}
-                      className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
-                      title={isAr ? 'حذف الشريحة' : 'Remove tier'}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+              <div className="bg-slate-950 p-5 rounded-2xl border border-rose-500/30 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-rose-400">
+                    {isAr ? 'عمولة Admin (%)' : 'Admin Commission (%)'}
+                  </span>
+                  <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-mono font-bold">
+                    أدمن
+                  </span>
                 </div>
-              ))}
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={commConfigs.adminRate}
+                    onChange={e => setCommConfigs({ ...commConfigs, adminRate: Number(e.target.value) })}
+                    placeholder="مثال: 12 أو 10"
+                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-rose-500/40 rounded-xl text-white font-mono font-bold text-lg focus:outline-none focus:border-rose-400"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-rose-400 font-bold text-base">%</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  {isAr ? 'يحصل على هذه النسبة من إجمالي تارجت كل وكالة تابعة له' : 'Earns this % from total targets of recruited agencies'}
+                </p>
+              </div>
+
+              <div className="bg-slate-950 p-5 rounded-2xl border border-indigo-500/30 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-indigo-400">
+                    {isAr ? 'عمولة مسؤولي الـ BD (%)' : 'BD Commission (%)'}
+                  </span>
+                  <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-mono font-bold">
+                    مسؤول BD
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={commConfigs.bdRate}
+                    onChange={e => setCommConfigs({ ...commConfigs, bdRate: Number(e.target.value) })}
+                    placeholder="مثال: 10 أو 8"
+                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-indigo-500/40 rounded-xl text-white font-mono font-bold text-lg focus:outline-none focus:border-indigo-400"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400 font-bold text-base">%</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  {isAr ? 'يحصل على هذه النسبة من إجمالي تارجت كل وكالة تابعة له' : 'Earns this % from total targets of recruited agencies'}
+                </p>
+              </div>
             </div>
 
             <div className="border-t border-slate-800 pt-4 flex items-center justify-between">
               {commSuccess && (
                 <span className="text-sm text-emerald-400 flex items-center gap-1.5 font-bold">
                   <CheckCircle size={16} />
-                  {isAr ? 'تم حفظ إعدادات العمولات والشرائح بنجاح!' : 'Commission settings saved successfully!'}
+                  {isAr ? 'تم حفظ نسب عمولات الإدارة بنجاح!' : 'Commission settings saved successfully!'}
                 </span>
               )}
               <div className="flex-1" />
@@ -878,23 +836,23 @@ export default function SuperAdminManagement() {
                 disabled={savingComms}
                 className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 text-sm transition-all"
               >
-                {savingComms ? (isAr ? 'جارٍ الحفظ...' : 'Saving...') : isAr ? 'حفظ إعدادات الشرائح والعمولات' : 'Save Configurations'}
+                {savingComms ? (isAr ? 'جارٍ الحفظ...' : 'Saving...') : isAr ? 'حفظ نسب عمولات الإدارة' : 'Save Default Commissions'}
               </button>
             </div>
           </div>
 
-          {/* Section 3: Custom Commission Per Agency (Based on profits) */}
+          {/* Section 2: Custom Commission Per Agency (Based on total agency profit & supervising staff) */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Building className="text-cyan-400" size={20} />
-                  {isAr ? 'تخصيص نسبة العمولة لكل وكالة (حسب أرباح الوكالة)' : 'Custom Commission Per Agency (By Profit)'}
+                  {isAr ? 'تخصيص نسبة عمولة الإشراف لكل وكالة بالكامل' : 'Custom Supervision Commission Per Agency'}
                 </h2>
                 <p className="text-sm text-slate-400 mt-1">
                   {isAr
-                    ? 'يمكنك تعديل نسبة عمولة أي وكالة على حدة بشكل مخصص بناءً على ربحها وإيراداتها'
-                    : 'Customize individual commission percentage for any specific agency based on its revenue'}
+                    ? 'يمكنك هنا تحديد نسبة عمولة مخصصة لأي وكالة محددة (مثل كتابة 12% أو 20% من إجمالي تارجت الوكالة بالكامل ليحصل عليها المشرف التابع لها)'
+                    : 'Customize specific commission rate for any agency (e.g. 12% or 20% of total agency target earnings)'}
                 </p>
               </div>
 
@@ -902,7 +860,7 @@ export default function SuperAdminManagement() {
                 <Search className="absolute top-1/2 -translate-y-1/2 left-3 text-slate-400" size={16} />
                 <input
                   type="text"
-                  placeholder={isAr ? 'بحث بالاسم أو كود الوكالة...' : 'Search agency...'}
+                  placeholder={isAr ? 'بحث باسم أو كود الوكالة...' : 'Search agency...'}
                   value={agencySearchQ}
                   onChange={e => setAgencySearchQ(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-cyan-500"
@@ -910,7 +868,7 @@ export default function SuperAdminManagement() {
               </div>
             </div>
 
-            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
               {hostAgencies
                 .filter(a => {
                   const q = agencySearchQ.toLowerCase();
@@ -925,13 +883,14 @@ export default function SuperAdminManagement() {
                   const isSavingThis = savingAgencyId === ag.id;
                   const isSuccessThis = agencySaveSuccess === ag.id;
                   const diamonds = (ag as any).total_diamonds || (ag as any).total_earnings || 0;
+                  const earnedCommission = diamonds * (currentRate / 100);
 
                   return (
                     <div
                       key={ag.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-slate-700 transition-all"
+                      className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-slate-700 transition-all shadow-md"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-3.5 min-w-0">
                         <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shrink-0 overflow-hidden">
                           {ag.photo_url ? (
                             <img src={ag.photo_url} alt="" className="w-full h-full object-cover" />
@@ -946,17 +905,24 @@ export default function SuperAdminManagement() {
                               #{ag.agency_code || ag.id.slice(0, 6)}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            {isAr ? 'المالك:' : 'Owner:'} {ag.owner_name || 'غير معروف'}
-                            {' • '}
-                            <span className="text-amber-400 font-mono font-bold">
-                              {diamonds.toLocaleString()} 💎
-                            </span>
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
+                            <span>{isAr ? 'المالك:' : 'Owner:'} <strong className="text-white">{ag.owner_name || 'غير معروف'}</strong></span>
+                            <span>•</span>
+                            <span>{isAr ? 'إجمالي تارجت الوكالة:' : 'Total Target:'} <strong className="text-amber-400 font-mono">{diamonds.toLocaleString()} 💎</strong></span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 justify-end shrink-0">
+                      <div className="flex items-center gap-4 justify-between md:justify-end shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
+                        {/* Calculated Commission Display */}
+                        <div className="text-left md:text-right">
+                          <span className="text-[10px] text-slate-400 block">{isAr ? 'الربح المحسوب للمشرف' : 'Earned Commission'}</span>
+                          <span className="text-xs font-bold text-emerald-400 font-mono">
+                            {earnedCommission.toLocaleString()} 💎
+                          </span>
+                        </div>
+
+                        {/* Rate Input */}
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-400 whitespace-nowrap">
                             {isAr ? 'نسبة العمولة:' : 'Rate:'}
@@ -970,7 +936,7 @@ export default function SuperAdminManagement() {
                                 const v = Number(e.target.value);
                                 setAgencyRates(prev => ({ ...prev, [ag.id]: v }));
                               }}
-                              className="w-full px-3 py-1.5 bg-slate-900 border border-cyan-500/40 rounded-lg text-white font-mono font-bold text-sm text-center"
+                              className="w-full px-3 py-1.5 bg-slate-900 border border-cyan-500/40 rounded-lg text-white font-mono font-bold text-sm text-center focus:outline-none focus:border-cyan-400"
                             />
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-400 text-xs font-bold">%</span>
                           </div>
@@ -979,7 +945,7 @@ export default function SuperAdminManagement() {
                         <button
                           onClick={() => handleSaveAgencyRate(ag.id)}
                           disabled={isSavingThis}
-                          className="px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                          className="px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
                         >
                           {isSuccessThis ? (
                             <>
