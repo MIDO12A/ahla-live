@@ -521,43 +521,6 @@ export default function SuperAdminManagement() {
                       </div>
                     </div>
 
-                    <div className="p-3 bg-slate-950/80 border border-rose-500/20 rounded-xl space-y-1.5 text-xs font-mono">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-slate-500 font-sans">{isAr ? 'اسم الدخول للوحة:' : 'Login:'}</span>
-                        <span className="text-cyan-300 font-bold truncate max-w-[170px]">{adm.loginUsername || adm.email || adm.appId || adm.uid}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-slate-500 font-sans">{isAr ? 'كلمة المرور:' : 'Password:'}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-rose-400 font-bold">
-                            {revealedPass[adm.uid] ? (adm.password || '••••••') : '••••••••'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setRevealedPass(p => ({ ...p, [adm.uid]: !p[adm.uid] }))}
-                            className="text-slate-400 hover:text-white p-0.5"
-                            title={isAr ? 'إظهار / إخفاء' : 'Show / Hide'}
-                          >
-                            {revealedPass[adm.uid] ? <EyeOff size={13} /> : <Eye size={13} />}
-                          </button>
-                          {adm.password && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(adm.password!);
-                                setCopiedPass(adm.uid);
-                                setTimeout(() => setCopiedPass(null), 2000);
-                              }}
-                              className="text-emerald-400 hover:text-emerald-300 p-0.5 text-[10px] flex items-center gap-0.5"
-                              title={isAr ? 'نسخ كلمة المرور' : 'Copy'}
-                            >
-                              {copiedPass === adm.uid ? <Check size={13} /> : <Copy size={13} />}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
                     <div className="grid grid-cols-2 gap-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
                       <div>
                         <span className="text-[11px] text-slate-500 block">{isAr ? 'الراتب المعتمد' : 'Salary'}</span>
@@ -657,6 +620,43 @@ export default function SuperAdminManagement() {
                           </span>
                         </div>
                         <p className="text-xs text-cyan-400 font-mono mt-0.5">ID: {adm.appId || adm.uid}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/80 border border-rose-500/20 rounded-xl space-y-1.5 text-xs font-mono">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-sans">{isAr ? 'اسم الدخول للوحة:' : 'Login:'}</span>
+                        <span className="text-cyan-300 font-bold truncate max-w-[170px]">{adm.loginUsername || adm.email || adm.appId || adm.uid}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-sans">{isAr ? 'كلمة المرور:' : 'Password:'}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-rose-400 font-bold">
+                            {revealedPass[adm.uid] ? (adm.password || '••••••') : '••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setRevealedPass(p => ({ ...p, [adm.uid]: !p[adm.uid] }))}
+                            className="text-slate-400 hover:text-white p-0.5"
+                            title={isAr ? 'إظهار / إخفاء' : 'Show / Hide'}
+                          >
+                            {revealedPass[adm.uid] ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                          {adm.password && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(adm.password!);
+                                setCopiedPass(adm.uid);
+                                setTimeout(() => setCopiedPass(null), 2000);
+                              }}
+                              className="text-emerald-400 hover:text-emerald-300 p-0.5 text-[10px] flex items-center gap-0.5"
+                              title={isAr ? 'نسخ كلمة المرور' : 'Copy'}
+                            >
+                              {copiedPass === adm.uid ? <Check size={13} /> : <Copy size={13} />}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
 

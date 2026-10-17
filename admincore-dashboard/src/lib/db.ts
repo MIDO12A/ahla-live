@@ -3192,34 +3192,32 @@ export async function getBDManagers(): Promise<BDModel[]> {
       configMap[u] = c.value;
     });
 
-    // 1b. Fallback: Also fetch all users marked as BD in Supabase users table
+    // 1b. Fallback: Also fetch from admin_users table where role is bd
     try {
-      const { data: directUsers } = await client
-        .from('users')
-        .select('uid, id, custom_id, name, email, photo_url, created_at, role, is_bd, bd_supervisor_id, bd_salary, bd_commission_rate')
-        .or('is_bd.eq.true,role.eq.bd');
+      const { data: adminBds } = await client
+        .from('admin_users')
+        .select('*')
+        .eq('role', 'bd');
 
-      (directUsers || []).forEach((u: any) => {
-        const uId = u.uid || u.id;
+      (adminBds || []).forEach((u: any) => {
+        const uId = u.uid;
         if (!uId) return;
         if (!configMap[uId]) {
           configMap[uId] = {
             uid: uId,
-            appId: u.custom_id || '',
-            name: u.name || 'BD Manager',
+            appId: u.app_id || '',
+            name: u.display_name || 'BD Manager',
             email: u.email || '',
-            photoUrl: u.photo_url || '',
-            supervisorId: u.bd_supervisor_id || '',
-            salary: Number(u.bd_salary || 0),
-            commissionRate: Number(u.bd_commission_rate || 10),
+            photoUrl: '',
+            supervisorId: '',
+            salary: 0,
+            commissionRate: 10,
             status: 'active',
             createdAt: u.created_at || new Date().toISOString(),
           };
         }
       });
-    } catch (e) {
-      console.warn('getBDManagers directUsers query error:', e);
-    }
+    } catch (_) {}
 
 
 
@@ -5819,35 +5817,7 @@ export async function getSuperAdmins(): Promise<SuperAdminModel[]> {
   try {
     const map = new Map<string, SuperAdminModel>();
 
-    // 1. Fetch from users table
-    const { data: usersData } = await client
-      .from('users')
-      .select('uid, id, custom_id, name, email, photo_url, is_super_admin, super_admin_salary, super_admin_commission_rate, role, created_at')
-      .or('is_super_admin.eq.true,role.eq.super_admin,role.eq.superadmin');
-
-    if (usersData) {
-      for (const u of usersData) {
-        const uid = u.uid || u.id;
-        if (!uid) continue;
-        map.set(uid, {
-          uid,
-          appId: u.custom_id || '',
-          name: u.name || '',
-          email: u.email || '',
-          avatar: u.photo_url || '',
-          salary: u.super_admin_salary || 0,
-          commissionRate: u.super_admin_commission_rate || 15,
-          specialId: u.custom_id || '',
-          status: 'active',
-          createdAt: u.created_at || '',
-          agenciesCount: 0,
-          totalDiamonds: 0,
-          bdsCount: 0,
-        });
-      }
-    }
-
-    // 2. Fetch from app_config key super_admin_meta_*
+    // 1. Fetch from app_config key super_admin_meta_* (Reliable source of truth)
     const { data: configs } = await client
       .from('app_config')
       .select('key, value')
@@ -5858,56 +5828,121 @@ export async function getSuperAdmins(): Promise<SuperAdminModel[]> {
         const val = c.value || {};
         const uid = val.uid || c.key.replace('super_admin_meta_', '');
         if (!uid) continue;
-        const existing = map.get(uid);
         map.set(uid, {
-          ...(existing || {
-            uid,
-            appId: val.appId || '',
-            name: val.name || '',
-            salary: val.salary || 0,
-            commissionRate: val.commissionRate || 15,
-            status: val.status || 'active',
-          }),
-          salary: val.salary !== undefined ? val.salary : (existing?.salary ?? 0),
-          commissionRate: val.commissionRate !== undefined ? val.commissionRate : (existing?.commissionRate ?? 15),
-          specialId: val.specialId || existing?.specialId || '',
-          giftedFrame: val.giftedFrame || existing?.giftedFrame,
-          giftedBadge: val.giftedBadge || existing?.giftedBadge,
-          giftedNecklace: val.giftedNecklace || existing?.giftedNecklace,
-          status: val.status || existing?.status || 'active',
-          email: val.email || existing?.email || '',
-          loginUsername: val.loginUsername || val.appId || existing?.loginUsername || '',
-          password: val.password || existing?.password || '',
-          permissions: val.permissions || existing?.permissions || {},
+          uid,
+          appId: val.appId || '',
+          name: val.name || '',
+          email: val.email || '',
+          avatar: val.avatar || val.photoUrl || '',
+          salary: val.salary !== undefined ? val.salary : 0,
+          commissionRate: val.commissionRate !== undefined ? val.commissionRate : 15,
+          specialId: val.specialId || '',
+          giftedFrame: val.giftedFrame,
+          giftedBadge: val.giftedBadge,
+          giftedNecklace: val.giftedNecklace,
+          status: val.status || 'active',
+          loginUsername: val.loginUsername || val.appId || '',
+          password: val.password || '',
+          permissions: val.permissions || {},
+          agenciesCount: 0,
+          totalDiamonds: 0,
+          bdsCount: 0,
         });
       }
     }
 
-    // 3. Count agencies and BDs for each Super Admin
-    const { data: agencies } = await client.from('host_agencies').select('total_diamonds, data');
-    const { data: bds } = await client.from('users').select('uid, bd_supervisor_id').eq('is_bd', true);
+    // 2. Also check admin_users table
+    try {
+      const { data: adminUsers } = await client
+        .from('admin_users')
+        .select('*')
+        .in('role', ['super_admin', 'superadmin']);
+      if (adminUsers) {
+        for (const au of adminUsers) {
+          const uid = au.uid;
+          if (!uid) continue;
+          const existing = map.get(uid);
+          if (existing) {
+            if (!existing.email && au.email) existing.email = au.email;
+            if (!existing.name && au.display_name) existing.name = au.display_name;
+            if (!existing.loginUsername && (au.app_id || au.email)) existing.loginUsername = au.app_id || au.email;
+            if (!existing.password && au.password) existing.password = au.password;
+          } else {
+            map.set(uid, {
+              uid,
+              appId: au.app_id || '',
+              name: au.display_name || '',
+              email: au.email || '',
+              avatar: '',
+              salary: 0,
+              commissionRate: 15,
+              status: 'active',
+              loginUsername: au.app_id || au.email || '',
+              password: au.password || '',
+              permissions: au.permissions || {},
+              agenciesCount: 0,
+              totalDiamonds: 0,
+              bdsCount: 0,
+            });
+          }
+        }
+      }
+    } catch (_) {}
 
-    if (agencies) {
+    // 3. Enrich with profile details from users table using only standard columns
+    const uids = Array.from(map.keys());
+    if (uids.length > 0) {
+      try {
+        const { data: uData } = await client
+          .from('users')
+          .select('uid, id, custom_id, name, email, photo_url, created_at')
+          .in('uid', uids);
+        if (uData) {
+          for (const u of uData) {
+            const uid = u.uid || u.id;
+            if (!uid || !map.has(uid)) continue;
+            const sa = map.get(uid)!;
+            if (!sa.name && u.name) sa.name = u.name;
+            if (!sa.avatar && u.photo_url) sa.avatar = u.photo_url;
+            if (!sa.appId && u.custom_id) sa.appId = u.custom_id;
+            if (!sa.email && u.email) sa.email = u.email;
+            if (!sa.createdAt && u.created_at) sa.createdAt = u.created_at;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 4. Count agencies safely using getHostAgencies()
+    const agencies = await getHostAgencies().catch(() => []);
+    if (agencies && agencies.length > 0) {
       for (const a of agencies) {
         const d = a.data || {};
-        const supId = d.super_admin_id || d.created_by_super_admin;
+        const supId = d.super_admin_id || d.created_by_super_admin || a.super_admin_id;
         if (supId && map.has(supId)) {
           const sa = map.get(supId)!;
           sa.agenciesCount = (sa.agenciesCount || 0) + 1;
-          sa.totalDiamonds = (sa.totalDiamonds || 0) + (a.total_diamonds || 0);
+          const dia = Number(a.total_diamonds_monthly || a.total_diamonds_earned || a.total_diamonds || 0);
+          sa.totalDiamonds = (sa.totalDiamonds || 0) + dia;
         }
       }
     }
 
-    if (bds) {
-      for (const b of bds) {
-        const supId = b.bd_supervisor_id;
-        if (supId && map.has(supId)) {
-          const sa = map.get(supId)!;
-          sa.bdsCount = (sa.bdsCount || 0) + 1;
+    // 5. Count BDs from bd_meta_%
+    try {
+      const { data: bdConfigs } = await client
+        .from('app_config')
+        .select('value')
+        .like('key', 'bd_meta_%');
+      if (bdConfigs) {
+        for (const bc of bdConfigs) {
+          const supId = bc.value?.supervisorId;
+          if (supId && map.has(supId)) {
+            const sa = map.get(supId)!;
+            sa.bdsCount = (sa.bdsCount || 0) + 1;
+          }
         }
       }
-    }
+    } catch (_) {}
 
     return Array.from(map.values());
   } catch (e) {
@@ -6108,36 +6143,7 @@ export async function getAdmins(): Promise<AdminStaffModel[]> {
   try {
     const map = new Map<string, AdminStaffModel>();
 
-    // 1. Fetch from users table
-    const { data: usersData } = await client
-      .from('users')
-      .select('uid, id, custom_id, name, email, photo_url, is_admin, admin_salary, admin_commission_rate, admin_supervisor_id, role, created_at')
-      .or('is_admin.eq.true,role.eq.admin');
-
-    if (usersData) {
-      for (const u of usersData) {
-        const uid = u.uid || u.id;
-        if (!uid) continue;
-        map.set(uid, {
-          uid,
-          appId: u.custom_id || '',
-          name: u.name || '',
-          email: u.email || '',
-          avatar: u.photo_url || '',
-          supervisorId: u.admin_supervisor_id || '',
-          salary: u.admin_salary || 0,
-          commissionRate: u.admin_commission_rate || 10,
-          specialId: u.custom_id || '',
-          status: 'active',
-          createdAt: u.created_at || '',
-          agenciesCount: 0,
-          totalDiamonds: 0,
-          bdsCount: 0,
-        });
-      }
-    }
-
-    // 2. Fetch from app_config key admin_meta_*
+    // 1. Fetch from app_config key admin_meta_* (Reliable source of truth)
     const { data: configs } = await client
       .from('app_config')
       .select('key, value')
@@ -6148,58 +6154,123 @@ export async function getAdmins(): Promise<AdminStaffModel[]> {
         const val = c.value || {};
         const uid = val.uid || c.key.replace('admin_meta_', '');
         if (!uid) continue;
-        const existing = map.get(uid);
         map.set(uid, {
-          ...(existing || {
-            uid,
-            appId: val.appId || '',
-            name: val.name || '',
-            salary: val.salary || 0,
-            commissionRate: val.commissionRate || 10,
-            supervisorId: val.supervisorId || '',
-            status: val.status || 'active',
-          }),
-          salary: val.salary !== undefined ? val.salary : (existing?.salary ?? 0),
-          commissionRate: val.commissionRate !== undefined ? val.commissionRate : (existing?.commissionRate ?? 10),
-          supervisorId: val.supervisorId || existing?.supervisorId || '',
-          specialId: val.specialId || existing?.specialId || '',
-          giftedFrame: val.giftedFrame || existing?.giftedFrame,
-          giftedBadge: val.giftedBadge || existing?.giftedBadge,
-          giftedNecklace: val.giftedNecklace || existing?.giftedNecklace,
-          status: val.status || existing?.status || 'active',
-          email: val.email || existing?.email || '',
-          loginUsername: val.loginUsername || val.appId || existing?.loginUsername || '',
-          password: val.password || existing?.password || '',
-          permissions: val.permissions || existing?.permissions || {},
+          uid,
+          appId: val.appId || '',
+          name: val.name || '',
+          email: val.email || '',
+          avatar: val.avatar || val.photoUrl || '',
+          salary: val.salary !== undefined ? val.salary : 0,
+          commissionRate: val.commissionRate !== undefined ? val.commissionRate : 10,
+          supervisorId: val.supervisorId || '',
+          specialId: val.specialId || '',
+          giftedFrame: val.giftedFrame,
+          giftedBadge: val.giftedBadge,
+          giftedNecklace: val.giftedNecklace,
+          status: val.status || 'active',
+          loginUsername: val.loginUsername || val.appId || '',
+          password: val.password || '',
+          permissions: val.permissions || {},
+          agenciesCount: 0,
+          totalDiamonds: 0,
+          bdsCount: 0,
         });
       }
     }
 
-    // 3. Count agencies and BDs for each Admin
-    const { data: agencies } = await client.from('host_agencies').select('total_diamonds, data');
-    const { data: bds } = await client.from('users').select('uid, bd_supervisor_id').eq('is_bd', true);
+    // 2. Also check admin_users table
+    try {
+      const { data: adminUsers } = await client
+        .from('admin_users')
+        .select('*')
+        .eq('role', 'admin');
+      if (adminUsers) {
+        for (const au of adminUsers) {
+          const uid = au.uid;
+          if (!uid) continue;
+          const existing = map.get(uid);
+          if (existing) {
+            if (!existing.email && au.email) existing.email = au.email;
+            if (!existing.name && au.display_name) existing.name = au.display_name;
+            if (!existing.loginUsername && (au.app_id || au.email)) existing.loginUsername = au.app_id || au.email;
+            if (!existing.password && au.password) existing.password = au.password;
+          } else {
+            map.set(uid, {
+              uid,
+              appId: au.app_id || '',
+              name: au.display_name || '',
+              email: au.email || '',
+              avatar: '',
+              salary: 0,
+              commissionRate: 10,
+              supervisorId: '',
+              status: 'active',
+              loginUsername: au.app_id || au.email || '',
+              password: au.password || '',
+              permissions: au.permissions || {},
+              agenciesCount: 0,
+              totalDiamonds: 0,
+              bdsCount: 0,
+            });
+          }
+        }
+      }
+    } catch (_) {}
 
-    if (agencies) {
+    // 3. Enrich with profile details from users table using only standard columns
+    const uids = Array.from(map.keys());
+    if (uids.length > 0) {
+      try {
+        const { data: uData } = await client
+          .from('users')
+          .select('uid, id, custom_id, name, email, photo_url, created_at')
+          .in('uid', uids);
+        if (uData) {
+          for (const u of uData) {
+            const uid = u.uid || u.id;
+            if (!uid || !map.has(uid)) continue;
+            const adm = map.get(uid)!;
+            if (!adm.name && u.name) adm.name = u.name;
+            if (!adm.avatar && u.photo_url) adm.avatar = u.photo_url;
+            if (!adm.appId && u.custom_id) adm.appId = u.custom_id;
+            if (!adm.email && u.email) adm.email = u.email;
+            if (!adm.createdAt && u.created_at) adm.createdAt = u.created_at;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 4. Count agencies safely using getHostAgencies()
+    const agencies = await getHostAgencies().catch(() => []);
+    if (agencies && agencies.length > 0) {
       for (const a of agencies) {
         const d = a.data || {};
-        const adminId = d.admin_id || d.created_by_admin;
+        const adminId = d.admin_id || d.created_by_admin || a.admin_id;
         if (adminId && map.has(adminId)) {
           const adm = map.get(adminId)!;
           adm.agenciesCount = (adm.agenciesCount || 0) + 1;
-          adm.totalDiamonds = (adm.totalDiamonds || 0) + (a.total_diamonds || 0);
+          const dia = Number(a.total_diamonds_monthly || a.total_diamonds_earned || a.total_diamonds || 0);
+          adm.totalDiamonds = (adm.totalDiamonds || 0) + dia;
         }
       }
     }
 
-    if (bds) {
-      for (const b of bds) {
-        const supId = b.bd_supervisor_id;
-        if (supId && map.has(supId)) {
-          const adm = map.get(supId)!;
-          adm.bdsCount = (adm.bdsCount || 0) + 1;
+    // 5. Count BDs from bd_meta_%
+    try {
+      const { data: bdConfigs } = await client
+        .from('app_config')
+        .select('value')
+        .like('key', 'bd_meta_%');
+      if (bdConfigs) {
+        for (const bc of bdConfigs) {
+          const supId = bc.value?.supervisorId;
+          if (supId && map.has(supId)) {
+            const adm = map.get(supId)!;
+            adm.bdsCount = (adm.bdsCount || 0) + 1;
+          }
         }
       }
-    }
+    } catch (_) {}
 
     return Array.from(map.values());
   } catch (e) {
