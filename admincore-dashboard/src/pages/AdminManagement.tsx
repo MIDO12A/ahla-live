@@ -516,12 +516,36 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
                                   </div>
                                 )}
                                 <div>
-                                  <span className="text-white font-medium block leading-tight">{nameOrEmail}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-white font-bold block leading-tight">{nameOrEmail}</span>
+                                    {isSuper && (
+                                      <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                        SUPER
+                                      </span>
+                                    )}
+                                    {admin.role === 'admin' && (
+                                      <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                        ADMIN
+                                      </span>
+                                    )}
+                                    {admin.role === 'bd' && (
+                                      <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                        BD
+                                      </span>
+                                    )}
+                                  </div>
                                   <span className="text-[10px] text-slate-500 font-mono">UID: {admin.uid.slice(0, 10)}...</span>
                                 </div>
                               </div>
                             </td>
-                            <td className="p-3 text-slate-400 font-mono">{admin.email || '—'}</td>
+                            <td className="p-3 text-slate-300 font-mono text-xs">
+                              <span className="block font-medium">{admin.email || admin.loginUsername || '—'}</span>
+                              {admin.password && (
+                                <div className="flex items-center gap-1.5 text-[11px] text-amber-400 font-mono mt-0.5">
+                                  <span>🔑 {admin.password}</span>
+                                </div>
+                              )}
+                            </td>
                             <td className="p-3">
                               {admin.appId ? (
                                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
@@ -532,14 +556,16 @@ export default function AdminManagement({ currentUser }: { currentUser: AppUser 
                               )}
                             </td>
                             <td className="p-3">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
-                                isSuper ? 'bg-rose-500/10 text-rose-300 border-rose-500/20' :
-                                admin.role === 'admin' ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20' :
-                                'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                              <span className={`px-3 py-1.5 rounded-xl text-xs font-bold border inline-flex items-center gap-1.5 shadow-sm ${
+                                isSuper ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
+                                admin.role === 'admin' ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' :
+                                admin.role === 'bd' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' :
+                                'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                               }`}>
-                                {isSuper ? (isAr ? 'سوبر أدمن (المدير العام)' : 'Super Admin') :
-                                 admin.role === 'admin' ? (isAr ? 'مسؤول (Admin)' : 'Admin') :
-                                 (isAr ? 'مشرف (Moderator)' : 'Moderator')}
+                                {isSuper ? (isAr ? '👑 سوبر أدمن (SUPER ADMIN)' : '👑 Super Admin') :
+                                 admin.role === 'admin' ? (isAr ? '🛡️ مسؤول (ADMIN)' : '🛡️ Admin') :
+                                 admin.role === 'bd' ? (isAr ? '💼 مسؤول وكالات (BD)' : '💼 BD Manager') :
+                                 (isAr ? '🔰 مشرف (MODERATOR)' : '🔰 Moderator')}
                               </span>
                             </td>
                             <td className="p-3">

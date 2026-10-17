@@ -249,6 +249,31 @@ export async function loginWithEmail(identifier: string, password: string) {
     console.warn('Direct admin auth check error:', err);
   }
 
+  // 2.1 Direct check against admin_users table and staff meta
+  try {
+    const { data: adminRows } = await supabase
+      .from('admin_users')
+      .select('*')
+      .or(`uid.eq.${targetUid},email.ilike.${targetEmailLower},app_id.eq.${lower}`);
+    if (adminRows && adminRows.length > 0) {
+      for (const ar of adminRows) {
+        if (ar.password && ar.password === password) {
+          const role = ar.role === 'superadmin' ? 'super_admin' : (ar.role || 'moderator');
+          const user: AppUser = {
+            id: ar.uid || targetUid,
+            email: ar.email || targetEmail,
+            displayName: ar.display_name || ar.name || targetEmail.split('@')[0],
+            photoUrl: ar.photo_url || null,
+            role,
+            permissions: Array.isArray(ar.permissions) ? ar.permissions : ['all'],
+          };
+          setLocalAdmin(user);
+          return;
+        }
+      }
+    }
+  } catch (_) {}
+
   // 3. Fallback to Supabase Auth sign in if it's an email
   if (targetEmail.includes('@')) {
     try {

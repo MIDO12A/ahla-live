@@ -223,13 +223,15 @@ export interface BugReport {
 export interface AdminUser {
   uid: string;
   email: string;
-  role: 'super_admin' | 'superadmin' | 'admin' | 'moderator';
+  role: 'super_admin' | 'superadmin' | 'admin' | 'bd' | 'moderator';
   displayName: string;
   permissions: Record<string, boolean>;
   photoUrl: string;
   isActive: boolean;
   createdBy: string;
   appId?: string;
+  loginUsername?: string;
+  password?: string;
   createdAt: string;
   updatedAt: string;
 }

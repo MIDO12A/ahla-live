@@ -3,7 +3,7 @@ import { I18nContext } from '../lib/i18n';
 import { useOutletContext } from 'react-router-dom';
 import { onAuthChange, type AppUser } from '../lib/auth';
 import {
-  Crown, Shield, Briefcase, Percent, ArrowLeftRight, UserPlus,
+  Crown, Shield, Briefcase, Eye, EyeOff, Copy, Percent, ArrowLeftRight, UserPlus,
   Search, Save, X, Edit3, Trash2, CheckCircle, AlertTriangle, RefreshCw,
   Building, Users, DollarSign, Award, Sparkles, CheckSquare, Square, PlusCircle, Check
 } from 'lucide-react';
@@ -87,6 +87,9 @@ export default function SuperAdminManagement() {
   const [searchedUser, setSearchedUser] = useState<any>(null);
   const [searchingUser, setSearchingUser] = useState(false);
   const [assignSaving, setAssignSaving] = useState(false);
+  const [showAssignPass, setShowAssignPass] = useState(false);
+  const [revealedPass, setRevealedPass] = useState<Record<string, boolean>>({});
+  const [copiedPass, setCopiedPass] = useState<string | null>(null);
   const [assignError, setAssignError] = useState('');
 
   // Edit Staff Modal
@@ -155,7 +158,8 @@ export default function SuperAdminManagement() {
           ...prev,
           uid: u.uid || u.id,
           name: u.name || '',
-          email: u.email || `${u.custom_id || u.uid}@staff.ahla.live`,
+          email: u.email || (u.custom_id ? `admin_${u.custom_id}` : `${u.uid}@staff.ahla.live`),
+          password: prev.password || ('Ahla@' + Math.floor(100000 + Math.random() * 900000)),
         }));
       } else {
         setSearchedUser(null);
@@ -179,7 +183,7 @@ export default function SuperAdminManagement() {
       appId: '',
       name: '',
       email: '',
-      password: '',
+      password: 'Ahla@' + Math.floor(100000 + Math.random() * 900000),
       supervisorId: '',
       salary: role === 'super_admin' ? 1000 : role === 'admin' ? 500 : 200,
       commissionRate: role === 'super_admin' ? 15 : 10,
@@ -240,6 +244,7 @@ export default function SuperAdminManagement() {
           salary: editForm.salary,
           commissionRate: editForm.commissionRate,
           permissions: editForm.permissions,
+          password: (editForm as any).password || undefined,
         });
       } else if (editRole === 'admin') {
         await updateAdminStaff({
@@ -248,6 +253,7 @@ export default function SuperAdminManagement() {
           commissionRate: editForm.commissionRate,
           supervisorId: editForm.supervisorId,
           permissions: editForm.permissions,
+          password: (editForm as any).password || undefined,
         });
       } else {
         await updateBDManager({
@@ -475,6 +481,80 @@ export default function SuperAdminManagement() {
                           </span>
                         </div>
                         <p className="text-xs text-cyan-400 font-mono mt-0.5">ID: {sa.appId || sa.uid}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/80 border border-amber-500/20 rounded-xl space-y-1.5 text-xs font-mono">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-sans">{isAr ? 'اسم الدخول للوحة:' : 'Login:'}</span>
+                        <span className="text-cyan-300 font-bold truncate max-w-[170px]">{sa.loginUsername || sa.email || sa.appId || sa.uid}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-sans">{isAr ? 'كلمة المرور:' : 'Password:'}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-amber-400 font-bold">
+                            {revealedPass[sa.uid] ? (sa.password || '••••••') : '••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setRevealedPass(p => ({ ...p, [sa.uid]: !p[sa.uid] }))}
+                            className="text-slate-400 hover:text-white p-0.5"
+                            title={isAr ? 'إظهار / إخفاء' : 'Show / Hide'}
+                          >
+                            {revealedPass[sa.uid] ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                          {sa.password && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(sa.password!);
+                                setCopiedPass(sa.uid);
+                                setTimeout(() => setCopiedPass(null), 2000);
+                              }}
+                              className="text-emerald-400 hover:text-emerald-300 p-0.5 text-[10px] flex items-center gap-0.5"
+                              title={isAr ? 'نسخ كلمة المرور' : 'Copy'}
+                            >
+                              {copiedPass === sa.uid ? <Check size={13} /> : <Copy size={13} />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/80 border border-rose-500/20 rounded-xl space-y-1.5 text-xs font-mono">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-sans">{isAr ? 'اسم الدخول للوحة:' : 'Login:'}</span>
+                        <span className="text-cyan-300 font-bold truncate max-w-[170px]">{adm.loginUsername || adm.email || adm.appId || adm.uid}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-sans">{isAr ? 'كلمة المرور:' : 'Password:'}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-rose-400 font-bold">
+                            {revealedPass[adm.uid] ? (adm.password || '••••••') : '••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setRevealedPass(p => ({ ...p, [adm.uid]: !p[adm.uid] }))}
+                            className="text-slate-400 hover:text-white p-0.5"
+                            title={isAr ? 'إظهار / إخفاء' : 'Show / Hide'}
+                          >
+                            {revealedPass[adm.uid] ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                          {adm.password && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(adm.password!);
+                                setCopiedPass(adm.uid);
+                                setTimeout(() => setCopiedPass(null), 2000);
+                              }}
+                              className="text-emerald-400 hover:text-emerald-300 p-0.5 text-[10px] flex items-center gap-0.5"
+                              title={isAr ? 'نسخ كلمة المرور' : 'Copy'}
+                            >
+                              {copiedPass === adm.uid ? <Check size={13} /> : <Copy size={13} />}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -841,139 +921,7 @@ export default function SuperAdminManagement() {
             </div>
           </div>
 
-          {/* Section 2: Custom Commission Per Agency (Based on total agency profit & supervising staff) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Building className="text-cyan-400" size={20} />
-                  {isAr ? 'تخصيص نسبة عمولة الإشراف لكل وكالة بالكامل' : 'Custom Supervision Commission Per Agency'}
-                </h2>
-                <p className="text-sm text-slate-400 mt-1">
-                  {isAr
-                    ? 'يمكنك هنا تحديد نسبة عمولة مخصصة لأي وكالة محددة (مثل كتابة 12% أو 20% من إجمالي تارجت الوكالة بالكامل ليحصل عليها المشرف التابع لها)'
-                    : 'Customize specific commission rate for any agency (e.g. 12% or 20% of total agency target earnings)'}
-                </p>
-              </div>
-
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute top-1/2 -translate-y-1/2 left-3 text-slate-400" size={16} />
-                <input
-                  type="text"
-                  placeholder={isAr ? 'بحث باسم أو كود الوكالة...' : 'Search agency...'}
-                  value={agencySearchQ}
-                  onChange={e => setAgencySearchQ(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-              {hostAgencies
-                .filter(a => {
-                  const q = agencySearchQ.toLowerCase();
-                  return (
-                    (a.name || '').toLowerCase().includes(q) ||
-                    String(a.agency_code || '').includes(q) ||
-                    (a.owner_name || '').toLowerCase().includes(q)
-                  );
-                })
-                .map(ag => {
-                  const currentRate = agencyRates[ag.id] ?? (ag as any).data?.commission_rate ?? ag.commission_rate ?? 10;
-                  const isSavingThis = savingAgencyId === ag.id;
-                  const isSuccessThis = agencySaveSuccess === ag.id;
-                  const diamonds = (ag as any).total_diamonds || (ag as any).total_earnings || 0;
-                  const earnedCommission = diamonds * (currentRate / 100);
-
-                  return (
-                    <div
-                      key={ag.id}
-                      className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-slate-700 transition-all shadow-md"
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shrink-0 overflow-hidden">
-                          {ag.photo_url ? (
-                            <img src={ag.photo_url} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <Building size={22} className="text-cyan-400" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-white text-sm truncate">{ag.name}</h4>
-                            <span className="text-[10px] bg-slate-800 text-cyan-300 font-mono px-2 py-0.5 rounded border border-slate-700">
-                              #{ag.agency_code || ag.id.slice(0, 6)}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
-                            <span>{isAr ? 'المالك:' : 'Owner:'} <strong className="text-white">{ag.owner_name || 'غير معروف'}</strong></span>
-                            <span>•</span>
-                            <span>{isAr ? 'إجمالي تارجت الوكالة:' : 'Total Target:'} <strong className="text-amber-400 font-mono">{diamonds.toLocaleString()} 💎</strong></span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4 justify-between md:justify-end shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
-                        {/* Calculated Commission Display */}
-                        <div className="text-left md:text-right">
-                          <span className="text-[10px] text-slate-400 block">{isAr ? 'الربح المحسوب للمشرف' : 'Earned Commission'}</span>
-                          <span className="text-xs font-bold text-emerald-400 font-mono">
-                            {earnedCommission.toLocaleString()} 💎
-                          </span>
-                        </div>
-
-                        {/* Rate Input */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400 whitespace-nowrap">
-                            {isAr ? 'نسبة العمولة:' : 'Rate:'}
-                          </span>
-                          <div className="relative w-24">
-                            <input
-                              type="number"
-                              step="0.5"
-                              value={currentRate}
-                              onChange={e => {
-                                const v = Number(e.target.value);
-                                setAgencyRates(prev => ({ ...prev, [ag.id]: v }));
-                              }}
-                              className="w-full px-3 py-1.5 bg-slate-900 border border-cyan-500/40 rounded-lg text-white font-mono font-bold text-sm text-center focus:outline-none focus:border-cyan-400"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-400 text-xs font-bold">%</span>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => handleSaveAgencyRate(ag.id)}
-                          disabled={isSavingThis}
-                          className="px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
-                        >
-                          {isSuccessThis ? (
-                            <>
-                              <Check size={14} className="text-emerald-400" />
-                              <span className="text-emerald-400">{isAr ? 'تم!' : 'Saved!'}</span>
-                            </>
-                          ) : isSavingThis ? (
-                            <span>{isAr ? 'حفظ...' : 'Saving...'}</span>
-                          ) : (
-                            <>
-                              <Save size={14} />
-                              <span>{isAr ? 'حفظ' : 'Save'}</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-              {hostAgencies.length === 0 && (
-                <div className="text-center py-8 text-slate-500 text-sm">
-                  {isAr ? 'لا توجد وكالات مسجلة حالياً' : 'No agencies found'}
-                </div>
-              )}
-            </div>
           </div>
-        </div>
       )}
 
       {/* Tab 5: Salary Transfers */}
@@ -1120,6 +1068,65 @@ export default function SuperAdminManagement() {
                   </div>
                 </div>
               )}
+
+              {/* Dashboard Login Credentials (Username/Email & Password) */}
+              <div className="p-4 bg-slate-950 border border-amber-500/30 rounded-xl space-y-3">
+                <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                  <Shield size={14} />
+                  {isAr ? 'بيانات تسجيل الدخول للوحة التحكم (Dashboard Login Credentials):' : 'Dashboard Login Credentials:'}
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                      {isAr ? 'اسم المستخدم / البريد للدخول' : 'Username / Email for Login'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={assignForm.email}
+                      onChange={e => setAssignForm({ ...assignForm, email: e.target.value })}
+                      placeholder="e.g. admin_100234 or email"
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono text-xs focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-slate-300">
+                        {isAr ? 'كلمة المرور للوحة' : 'Dashboard Password'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const randPass = 'AhlaStaff@' + Math.floor(1000 + Math.random() * 9000);
+                          setAssignForm(prev => ({ ...prev, password: randPass }));
+                        }}
+                        className="text-[10px] text-amber-400 hover:underline"
+                      >
+                        {isAr ? 'توليد تلقائي 🎲' : 'Auto Generate 🎲'}
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showAssignPass ? 'text' : 'password'}
+                        required
+                        value={assignForm.password}
+                        onChange={e => setAssignForm({ ...assignForm, password: e.target.value })}
+                        placeholder={isAr ? 'كلمة المرور للدخول...' : 'Password...'}
+                        className="w-full pl-3 pr-8 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono text-xs focus:border-amber-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAssignPass(!showAssignPass)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      >
+                        {showAssignPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Salary & Commission Rate */}
               <div className="grid grid-cols-2 gap-3">
@@ -1269,6 +1276,19 @@ export default function SuperAdminManagement() {
                 />
               </div>
             </div>
+
+            <div>
+                <label className="text-xs text-slate-400 block mb-1">
+                  {isAr ? 'تغيير كلمة المرور للوحة (اختياري)' : 'Change Dashboard Password (Optional)'}
+                </label>
+                <input
+                  type="text"
+                  value={(editForm as any).password || ''}
+                  onChange={e => setEditForm({ ...editForm, password: e.target.value } as any)}
+                  placeholder={isAr ? 'اتركه فارغاً للإبقاء على الحالية' : 'Leave empty to keep current'}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono text-xs"
+                />
+              </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
               <button onClick={() => setEditingStaff(null)} className="px-4 py-2 text-slate-400 text-sm">

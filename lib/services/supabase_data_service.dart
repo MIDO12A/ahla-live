@@ -659,7 +659,8 @@ class SupabaseDataService {
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
-          return UserModel.fromMap(list.first as Map<String, dynamic>);
+          final user = UserModel.fromMap(list.first as Map<String, dynamic>);
+          return await _enrichUserRoles(user);
         }
       }
 
@@ -669,7 +670,8 @@ class SupabaseDataService {
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
-          return UserModel.fromMap(list.first as Map<String, dynamic>);
+          final user = UserModel.fromMap(list.first as Map<String, dynamic>);
+          return await _enrichUserRoles(user);
         }
       }
 
@@ -679,13 +681,86 @@ class SupabaseDataService {
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
-          return UserModel.fromMap(list.first as Map<String, dynamic>);
+          final user = UserModel.fromMap(list.first as Map<String, dynamic>);
+          return await _enrichUserRoles(user);
         }
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getUser error: $e');
     }
     return null;
+  }
+
+  /// إثراء بيانات المستخدم من app_config لحمايته من أي نقص في أعمدة قاعدة البيانات
+  Future<UserModel> _enrichUserRoles(UserModel user) async {
+    try {
+      if (user.isSuperAdmin && user.isAdmin && user.isBd) return user;
+      final keys = [
+        'super_admin_meta_${user.uid}',
+        'admin_meta_${user.uid}',
+        'bd_meta_${user.uid}',
+      ];
+      final url = Uri.parse('$_baseUrl/rest/v1/app_config?key=in.(${keys.join(",")})&select=key,value');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        bool isSuper = user.isSuperAdmin;
+        bool isAdmin = user.isAdmin;
+        bool isBd = user.isBd;
+        String currentRole = user.role;
+        double saSalary = user.superAdminSalary;
+        double saRate = user.superAdminCommissionRate;
+        double admSalary = user.adminSalary;
+        double admRate = user.adminCommissionRate;
+        double bdSal = user.bdSalary;
+        double bdRate = user.bdCommissionRate;
+
+        for (final row in list) {
+          final key = row['key']?.toString() ?? '';
+          final val = row['value'];
+          final m = val is Map<String, dynamic> ? val : (val is String ? (tryJsonDecode(val) ?? {}) : {});
+          if (key.startsWith('super_admin_meta_')) {
+            isSuper = true;
+            if (currentRole.isEmpty || currentRole == 'user') currentRole = 'super_admin';
+            if (m['salary'] != null) saSalary = (m['salary'] as num).toDouble();
+            if (m['commissionRate'] != null) saRate = (m['commissionRate'] as num).toDouble();
+          } else if (key.startsWith('admin_meta_')) {
+            isAdmin = true;
+            if (currentRole.isEmpty || currentRole == 'user') currentRole = 'admin';
+            if (m['salary'] != null) admSalary = (m['salary'] as num).toDouble();
+            if (m['commissionRate'] != null) admRate = (m['commissionRate'] as num).toDouble();
+          } else if (key.startsWith('bd_meta_')) {
+            isBd = true;
+            if (currentRole.isEmpty || currentRole == 'user') currentRole = 'bd';
+            if (m['salary'] != null) bdSal = (m['salary'] as num).toDouble();
+            if (m['commissionRate'] != null) bdRate = (m['commissionRate'] as num).toDouble();
+          }
+        }
+
+        return user.copyWith(
+          isSuperAdmin: isSuper,
+          isAdmin: isAdmin,
+          isBd: isBd,
+          role: currentRole,
+          superAdminSalary: saSalary,
+          superAdminCommissionRate: saRate,
+          adminSalary: admSalary,
+          adminCommissionRate: admRate,
+          bdSalary: bdSal,
+          bdCommissionRate: bdRate,
+        );
+      }
+    } catch (_) {}
+    return user;
+  }
+
+  Map<String, dynamic>? tryJsonDecode(String s) {
+    try {
+      final d = jsonDecode(s);
+      return d is Map<String, dynamic> ? d : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<UserModel>> getUsersByCustomId(String customId) async {

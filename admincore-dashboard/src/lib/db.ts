@@ -4128,71 +4128,114 @@ export async function getStats(): Promise<{
 
 export async function getAdminUsers(): Promise<AdminUser[]> {
   try {
-    const client = getAdminSupabase() || supabase
-    const { data: rows } = await client.from('admin_users').select('*').order('created_at', { ascending: false })
-    if (!rows) return []
+    const client = getAdminSupabase() || supabase;
+    const adminMap = new Map<string, AdminUser>();
 
-    // Fetch display names and photo URLs stored in app_config
-    const { data: configs } = await client.from('app_config').select('*').like('key', 'admin_meta_%')
-    const configMap: Record<string, any> = {}
+    // 1. Fetch from app_config for all staff meta (admin_meta_*, super_admin_meta_*, bd_meta_*)
+    const { data: configs } = await client
+      .from('app_config')
+      .select('*')
+      .or('key.like.admin_meta_%,key.like.super_admin_meta_%,key.like.bd_meta_%');
+
+    const configMap: Record<string, any> = {};
     if (configs) {
       for (const c of configs) {
         if (c.key && c.value) {
-          const uid = c.key.replace('admin_meta_', '')
-          configMap[uid] = c.value
+          let uid = '';
+          let derivedRole: AdminUser['role'] = 'moderator';
+          if (c.key.startsWith('super_admin_meta_')) {
+            uid = c.key.replace('super_admin_meta_', '');
+            derivedRole = 'super_admin';
+          } else if (c.key.startsWith('admin_meta_')) {
+            uid = c.key.replace('admin_meta_', '');
+            derivedRole = 'admin';
+          } else if (c.key.startsWith('bd_meta_')) {
+            uid = c.key.replace('bd_meta_', '');
+            derivedRole = 'bd';
+          }
+          if (uid) {
+            configMap[uid] = { ...(c.value || {}), derivedRole };
+          }
         }
       }
     }
 
-    return rows.map((r: any) => {
-      const uid = r.uid || r.id
-      const meta = configMap[uid] || {}
-      const role = r.role === 'superadmin' ? 'super_admin' : (r.role || 'moderator')
+    // 2. Fetch rows from admin_users table
+    const { data: rows } = await client.from('admin_users').select('*').order('created_at', { ascending: false });
+    if (rows) {
+      for (const r of rows) {
+        const uid = r.uid || r.id;
+        if (!uid) continue;
+        const meta = configMap[uid] || {};
+        const rawRole = r.role === 'superadmin' ? 'super_admin' : (r.role || meta.derivedRole || 'moderator');
 
-      const permsMap: Record<string, boolean> = {}
-      if (Array.isArray(r.permissions)) {
-        const isAll = r.permissions.includes('all') || r.permissions.includes('*')
-        if (isAll) {
-          permsMap['all'] = true
-          for (const k of ALL_PERMISSION_KEYS) {
-            permsMap[k] = true
+        const permsMap: Record<string, boolean> = {};
+        if (Array.isArray(r.permissions)) {
+          const isAll = r.permissions.includes('all') || r.permissions.includes('*');
+          if (isAll) {
+            permsMap['all'] = true;
+            for (const k of ALL_PERMISSION_KEYS) permsMap[k] = true;
           }
-        }
-        for (const p of r.permissions) {
-          permsMap[p] = true
-        }
-      } else if (typeof r.permissions === 'object' && r.permissions !== null) {
-        Object.assign(permsMap, r.permissions)
-      } else if (meta.permissions && Array.isArray(meta.permissions)) {
-        const isAll = meta.permissions.includes('all') || meta.permissions.includes('*')
-        if (isAll) {
-          permsMap['all'] = true
-          for (const k of ALL_PERMISSION_KEYS) {
-            permsMap[k] = true
+          for (const p of r.permissions) permsMap[p] = true;
+        } else if (typeof r.permissions === 'object' && r.permissions !== null) {
+          Object.assign(permsMap, r.permissions);
+        } else if (meta.permissions && Array.isArray(meta.permissions)) {
+          const isAll = meta.permissions.includes('all') || meta.permissions.includes('*');
+          if (isAll) {
+            permsMap['all'] = true;
+            for (const k of ALL_PERMISSION_KEYS) permsMap[k] = true;
           }
+          for (const p of meta.permissions) permsMap[p] = true;
         }
-        for (const p of meta.permissions) {
-          permsMap[p] = true
-        }
-      }
 
-      return {
-        uid,
-        email: r.email || '',
-        role: role as any,
-        displayName: meta.displayName || meta.display_name || r.display_name || (r.email ? r.email.split('@')[0] : 'Admin'),
-        permissions: permsMap,
-        photoUrl: meta.photoUrl || meta.photo_url || r.photo_url || '',
-        isActive: meta.isActive !== false && r.is_active !== false,
-        createdBy: meta.createdBy || r.created_by || '',
-        appId: meta.appId || meta.customId || '',
-        createdAt: r.created_at || new Date().toISOString(),
-        updatedAt: r.updated_at || new Date().toISOString(),
+        adminMap.set(uid, {
+          uid,
+          email: r.email || meta.email || '',
+          role: rawRole as any,
+          displayName: meta.displayName || meta.name || r.display_name || (r.email ? r.email.split('@')[0] : 'Admin'),
+          permissions: permsMap,
+          photoUrl: meta.photoUrl || meta.photo_url || meta.avatar || r.photo_url || '',
+          isActive: meta.isActive !== false && r.is_active !== false,
+          createdBy: meta.createdBy || r.created_by || '',
+          appId: meta.appId || meta.customId || r.app_id || '',
+          loginUsername: meta.loginUsername || meta.appId || r.app_id || r.email || '',
+          password: meta.password || r.password || '',
+          createdAt: r.created_at || meta.createdAt || new Date().toISOString(),
+          updatedAt: r.updated_at || new Date().toISOString(),
+        });
       }
-    })
+    }
+
+    // 3. For any staff from configMap not yet in admin_users, add them
+    for (const [uid, meta] of Object.entries(configMap)) {
+      if (!adminMap.has(uid) && meta.status !== 'revoked') {
+        const permsMap: Record<string, boolean> = {};
+        if (meta.derivedRole === 'super_admin') {
+          permsMap['all'] = true;
+          for (const k of ALL_PERMISSION_KEYS) permsMap[k] = true;
+        }
+        adminMap.set(uid, {
+          uid,
+          email: meta.email || `${meta.appId || uid}@${meta.derivedRole}.ahla.live`,
+          role: meta.derivedRole,
+          displayName: meta.name || meta.displayName || 'Supervisor',
+          permissions: permsMap,
+          photoUrl: meta.avatar || meta.photoUrl || '',
+          isActive: meta.status !== 'revoked',
+          createdBy: meta.createdBy || '',
+          appId: meta.appId || meta.specialId || '',
+          loginUsername: meta.loginUsername || meta.appId || meta.email || '',
+          password: meta.password || '',
+          createdAt: meta.createdAt || new Date().toISOString(),
+          updatedAt: meta.updatedAt || new Date().toISOString(),
+        });
+      }
+    }
+
+    return Array.from(adminMap.values());
   } catch (err) {
-    console.warn('getAdminUsers error:', err)
-    return []
+    console.warn('getAdminUsers error:', err);
+    return [];
   }
 }
 
@@ -5714,6 +5757,8 @@ export interface SuperAdminModel {
   appId?: string;
   name?: string;
   email?: string;
+  loginUsername?: string;
+  password?: string;
   avatar?: string;
   salary: number;
   commissionRate: number;
@@ -5725,6 +5770,7 @@ export interface SuperAdminModel {
   agenciesCount?: number;
   totalDiamonds?: number;
   bdsCount?: number;
+  permissions?: Record<string, boolean>;
   createdAt?: string;
 }
 
@@ -5733,6 +5779,8 @@ export interface AdminStaffModel {
   appId?: string;
   name?: string;
   email?: string;
+  loginUsername?: string;
+  password?: string;
   avatar?: string;
   supervisorId?: string;
   supervisorName?: string;
@@ -5746,6 +5794,7 @@ export interface AdminStaffModel {
   agenciesCount?: number;
   totalDiamonds?: number;
   bdsCount?: number;
+  permissions?: Record<string, boolean>;
   createdAt?: string;
 }
 
@@ -5826,6 +5875,10 @@ export async function getSuperAdmins(): Promise<SuperAdminModel[]> {
           giftedBadge: val.giftedBadge || existing?.giftedBadge,
           giftedNecklace: val.giftedNecklace || existing?.giftedNecklace,
           status: val.status || existing?.status || 'active',
+          email: val.email || existing?.email || '',
+          loginUsername: val.loginUsername || val.appId || existing?.loginUsername || '',
+          password: val.password || existing?.password || '',
+          permissions: val.permissions || existing?.permissions || {},
         });
       }
     }
@@ -5883,7 +5936,10 @@ export async function assignSuperAdmin(params: {
     specialId, permissions = {}, frameId, badgeId, necklaceId,
   } = params;
 
-  // 1. Update users table in Supabase
+  const resolvedEmail = (email && email.trim()) || `${specialId || appId || uid}@superadmin.ahla.live`;
+  const cleanPass = password?.trim() || '';
+
+  // 1. Update users table in Supabase (with fallback if columns don't exist yet)
   const updates: Record<string, any> = {
     is_super_admin: true,
     role: 'super_admin',
@@ -5892,7 +5948,13 @@ export async function assignSuperAdmin(params: {
   };
   if (specialId && specialId.trim()) updates.custom_id = specialId.trim();
 
-  await client.from('users').update(updates).or(`uid.eq.${uid},id.eq.${uid}`);
+  try {
+    await client.from('users').update(updates).or(`uid.eq.${uid},id.eq.${uid}`);
+  } catch (e) {
+    try {
+      await client.from('users').update({ role: 'super_admin' }).or(`uid.eq.${uid},id.eq.${uid}`);
+    } catch (_) {}
+  }
 
   // 2. Gift Items if specified
   await giftUserItems(uid, { necklaceId, badgeId, frameId, specialId });
@@ -5904,28 +5966,52 @@ export async function assignSuperAdmin(params: {
       uid,
       appId: specialId || appId || '',
       name: name || '',
+      email: resolvedEmail,
+      loginUsername: specialId || appId || resolvedEmail,
+      password: cleanPass,
       salary,
       commissionRate,
       specialId: specialId || '',
       giftedFrame: frameId || '',
       giftedBadge: badgeId || '',
       giftedNecklace: necklaceId || '',
+      permissions,
       status: 'active',
       createdAt: new Date().toISOString(),
     },
   });
 
-  // 4. Create or update admin_users table for dashboard access with checkboxes
+  // 4. Save direct auth in app_config for instant login
+  if (cleanPass) {
+    const authRecord = {
+      uid,
+      appId: specialId || appId || uid,
+      email: resolvedEmail,
+      loginUsername: specialId || appId || uid,
+      password: cleanPass,
+      role: 'super_admin',
+      permissions: ['all'],
+      displayName: name || 'Super Admin',
+    };
+    await Promise.all([
+      client.from('app_config').upsert({ key: 'admin_auth_' + uid.toLowerCase(), value: authRecord }),
+      client.from('app_config').upsert({ key: 'admin_auth_' + resolvedEmail.toLowerCase(), value: authRecord }),
+      appId ? client.from('app_config').upsert({ key: 'admin_auth_' + appId.toLowerCase(), value: authRecord }) : Promise.resolve(),
+      specialId ? client.from('app_config').upsert({ key: 'admin_auth_' + specialId.toLowerCase(), value: authRecord }) : Promise.resolve(),
+    ]);
+  }
+
+  // 5. Create or update admin_users table for dashboard access with checkboxes
   const adminUserData: any = {
     uid,
     app_id: specialId || appId || uid,
-    email: email || `${specialId || appId || uid}@superadmin.ahla.live`,
+    email: resolvedEmail,
     display_name: name || 'Super Admin',
     role: 'super_admin',
     permissions: permissions,
     updated_at: new Date().toISOString(),
   };
-  if (password && password.trim()) adminUserData.password = password.trim();
+  if (cleanPass) adminUserData.password = cleanPass;
 
   try {
     await client.from('admin_users').upsert(adminUserData, { onConflict: 'uid' });
@@ -5933,7 +6019,7 @@ export async function assignSuperAdmin(params: {
     console.warn('admin_users upsert error:', e);
   }
 
-  // 5. Send in-app notification
+  // 6. Send in-app notification
   await sendSystemNotification({
     userId: uid,
     title: 'تهانينا! تم تعيينك كـ Super Admin رسمي 👑',
@@ -5948,31 +6034,57 @@ export async function updateSuperAdmin(params: {
   salary?: number;
   commissionRate?: number;
   permissions?: Record<string, boolean>;
+  password?: string;
 }) {
   const client = getAdminSupabase() || supabase;
-  const { uid, salary = 0, commissionRate = 15, permissions } = params;
+  const { uid, salary = 0, commissionRate = 15, permissions, password } = params;
 
-  await client.from('users').update({
-    super_admin_salary: salary,
-    super_admin_commission_rate: commissionRate,
-  }).or(`uid.eq.${uid},id.eq.${uid}`);
+  try {
+    await client.from('users').update({
+      super_admin_salary: salary,
+      super_admin_commission_rate: commissionRate,
+    }).or(`uid.eq.${uid},id.eq.${uid}`);
+  } catch (_) {}
 
   const { data: curMeta } = await client.from('app_config').select('value').eq('key', 'super_admin_meta_' + uid).maybeSingle();
   const cur = (curMeta?.value as any) || {};
+  const cleanPass = password?.trim() || cur.password || '';
+
   await client.from('app_config').upsert({
     key: 'super_admin_meta_' + uid,
     value: {
       ...cur,
       salary,
       commissionRate,
+      password: cleanPass,
       updatedAt: new Date().toISOString(),
     },
   });
 
-  if (permissions) {
-    try {
-      await client.from('admin_users').update({ permissions, updated_at: new Date().toISOString() }).eq('uid', uid);
-    } catch (_) {}
+  const adminUpdates: any = { updated_at: new Date().toISOString() };
+  if (permissions) adminUpdates.permissions = permissions;
+  if (password && password.trim()) adminUpdates.password = password.trim();
+
+  try {
+    await client.from('admin_users').update(adminUpdates).eq('uid', uid);
+  } catch (_) {}
+
+  if (password && password.trim()) {
+    const authRecord = {
+      uid,
+      appId: cur.appId || uid,
+      email: cur.email || '',
+      loginUsername: cur.loginUsername || cur.appId || uid,
+      password: password.trim(),
+      role: 'super_admin',
+      permissions: ['all'],
+      displayName: cur.name || 'Super Admin',
+    };
+    await Promise.all([
+      client.from('app_config').upsert({ key: 'admin_auth_' + uid.toLowerCase(), value: authRecord }),
+      cur.email ? client.from('app_config').upsert({ key: 'admin_auth_' + cur.email.toLowerCase(), value: authRecord }) : Promise.resolve(),
+      cur.appId ? client.from('app_config').upsert({ key: 'admin_auth_' + cur.appId.toLowerCase(), value: authRecord }) : Promise.resolve(),
+    ]);
   }
 }
 
@@ -6055,6 +6167,10 @@ export async function getAdmins(): Promise<AdminStaffModel[]> {
           giftedBadge: val.giftedBadge || existing?.giftedBadge,
           giftedNecklace: val.giftedNecklace || existing?.giftedNecklace,
           status: val.status || existing?.status || 'active',
+          email: val.email || existing?.email || '',
+          loginUsername: val.loginUsername || val.appId || existing?.loginUsername || '',
+          password: val.password || existing?.password || '',
+          permissions: val.permissions || existing?.permissions || {},
         });
       }
     }
@@ -6113,6 +6229,9 @@ export async function assignAdmin(params: {
     specialId, permissions = {}, frameId, badgeId, necklaceId,
   } = params;
 
+  const resolvedEmail = (email && email.trim()) || `${specialId || appId || uid}@admin.ahla.live`;
+  const cleanPass = password?.trim() || '';
+
   // 1. Update users table in Supabase
   const updates: Record<string, any> = {
     is_admin: true,
@@ -6123,7 +6242,13 @@ export async function assignAdmin(params: {
   };
   if (specialId && specialId.trim()) updates.custom_id = specialId.trim();
 
-  await client.from('users').update(updates).or(`uid.eq.${uid},id.eq.${uid}`);
+  try {
+    await client.from('users').update(updates).or(`uid.eq.${uid},id.eq.${uid}`);
+  } catch (e) {
+    try {
+      await client.from('users').update({ role: 'admin' }).or(`uid.eq.${uid},id.eq.${uid}`);
+    } catch (_) {}
+  }
 
   // 2. Gift Items if specified
   await giftUserItems(uid, { necklaceId, badgeId, frameId, specialId });
@@ -6135,6 +6260,9 @@ export async function assignAdmin(params: {
       uid,
       appId: specialId || appId || '',
       name: name || '',
+      email: resolvedEmail,
+      loginUsername: specialId || appId || resolvedEmail,
+      password: cleanPass,
       supervisorId: supervisorId || '',
       salary,
       commissionRate,
@@ -6142,22 +6270,43 @@ export async function assignAdmin(params: {
       giftedFrame: frameId || '',
       giftedBadge: badgeId || '',
       giftedNecklace: necklaceId || '',
+      permissions,
       status: 'active',
       createdAt: new Date().toISOString(),
     },
   });
 
-  // 4. Create or update admin_users table for dashboard access with checkboxes
+  // 4. Save direct auth in app_config for instant login
+  if (cleanPass) {
+    const authRecord = {
+      uid,
+      appId: specialId || appId || uid,
+      email: resolvedEmail,
+      loginUsername: specialId || appId || uid,
+      password: cleanPass,
+      role: 'admin',
+      permissions: Object.keys(permissions).length > 0 ? Object.keys(permissions).filter(k => permissions[k]) : ['all'],
+      displayName: name || 'Admin',
+    };
+    await Promise.all([
+      client.from('app_config').upsert({ key: 'admin_auth_' + uid.toLowerCase(), value: authRecord }),
+      client.from('app_config').upsert({ key: 'admin_auth_' + resolvedEmail.toLowerCase(), value: authRecord }),
+      appId ? client.from('app_config').upsert({ key: 'admin_auth_' + appId.toLowerCase(), value: authRecord }) : Promise.resolve(),
+      specialId ? client.from('app_config').upsert({ key: 'admin_auth_' + specialId.toLowerCase(), value: authRecord }) : Promise.resolve(),
+    ]);
+  }
+
+  // 5. Create or update admin_users table for dashboard access with checkboxes
   const adminUserData: any = {
     uid,
     app_id: specialId || appId || uid,
-    email: email || `${specialId || appId || uid}@admin.ahla.live`,
+    email: resolvedEmail,
     display_name: name || 'Admin',
     role: 'admin',
     permissions: permissions,
     updated_at: new Date().toISOString(),
   };
-  if (password && password.trim()) adminUserData.password = password.trim();
+  if (cleanPass) adminUserData.password = cleanPass;
 
   try {
     await client.from('admin_users').upsert(adminUserData, { onConflict: 'uid' });
@@ -6165,7 +6314,7 @@ export async function assignAdmin(params: {
     console.warn('admin_users upsert error:', e);
   }
 
-  // 5. Send in-app notification
+  // 6. Send in-app notification
   await sendSystemNotification({
     userId: uid,
     title: 'تهانينا! تم تعيينك كـ Admin رسمي 🛡️',
@@ -6181,18 +6330,23 @@ export async function updateAdminStaff(params: {
   salary?: number;
   commissionRate?: number;
   permissions?: Record<string, boolean>;
+  password?: string;
 }) {
   const client = getAdminSupabase() || supabase;
-  const { uid, supervisorId, salary = 0, commissionRate = 10, permissions } = params;
+  const { uid, supervisorId, salary = 0, commissionRate = 10, permissions, password } = params;
 
-  await client.from('users').update({
-    admin_salary: salary,
-    admin_commission_rate: commissionRate,
-    admin_supervisor_id: supervisorId || null,
-  }).or(`uid.eq.${uid},id.eq.${uid}`);
+  try {
+    await client.from('users').update({
+      admin_salary: salary,
+      admin_commission_rate: commissionRate,
+      admin_supervisor_id: supervisorId || null,
+    }).or(`uid.eq.${uid},id.eq.${uid}`);
+  } catch (_) {}
 
   const { data: curMeta } = await client.from('app_config').select('value').eq('key', 'admin_meta_' + uid).maybeSingle();
   const cur = (curMeta?.value as any) || {};
+  const cleanPass = password?.trim() || cur.password || '';
+
   await client.from('app_config').upsert({
     key: 'admin_meta_' + uid,
     value: {
@@ -6200,14 +6354,35 @@ export async function updateAdminStaff(params: {
       supervisorId: supervisorId !== undefined ? supervisorId : cur.supervisorId,
       salary,
       commissionRate,
+      password: cleanPass,
       updatedAt: new Date().toISOString(),
     },
   });
 
-  if (permissions) {
-    try {
-      await client.from('admin_users').update({ permissions, updated_at: new Date().toISOString() }).eq('uid', uid);
-    } catch (_) {}
+  const adminUpdates: any = { updated_at: new Date().toISOString() };
+  if (permissions) adminUpdates.permissions = permissions;
+  if (password && password.trim()) adminUpdates.password = password.trim();
+
+  try {
+    await client.from('admin_users').update(adminUpdates).eq('uid', uid);
+  } catch (_) {}
+
+  if (password && password.trim()) {
+    const authRecord = {
+      uid,
+      appId: cur.appId || uid,
+      email: cur.email || '',
+      loginUsername: cur.loginUsername || cur.appId || uid,
+      password: password.trim(),
+      role: 'admin',
+      permissions: permissions ? Object.keys(permissions).filter(k => permissions[k]) : ['all'],
+      displayName: cur.name || 'Admin',
+    };
+    await Promise.all([
+      client.from('app_config').upsert({ key: 'admin_auth_' + uid.toLowerCase(), value: authRecord }),
+      cur.email ? client.from('app_config').upsert({ key: 'admin_auth_' + cur.email.toLowerCase(), value: authRecord }) : Promise.resolve(),
+      cur.appId ? client.from('app_config').upsert({ key: 'admin_auth_' + cur.appId.toLowerCase(), value: authRecord }) : Promise.resolve(),
+    ]);
   }
 }
 

@@ -72,46 +72,61 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
 
-            SingleChildScrollView(
-              padding: EdgeInsets.only(
-                top: topPadding,
-                bottom: 90,
-              ),
-              child: Column(
-                children: [
-                  // 2. لوحة المستخدم المركزية (cl_info)
-                  _buildUserInfoPanel(context, user),
+            RefreshIndicator(
+              onRefresh: () async {
+                if (user != null) {
+                  await userProvider.loadUser(user.uid);
+                }
+              },
+              color: const Color(0xFFFFB800),
+              backgroundColor: const Color(0xFF141A32),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.only(
+                  top: topPadding,
+                  bottom: 90,
+                ),
+                child: Column(
+                  children: [
+                    // 2. لوحة المستخدم المركزية (cl_info)
+                    _buildUserInfoPanel(context, user),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  // 3. شريط الإحصائيات الثلاثي (cl_data_info)
-                  _buildStatsRow(context, user),
+                    // 3. شريط الإحصائيات الثلاثي (cl_data_info)
+                    _buildStatsRow(context, user),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // 4. بطاقة المحفظة (ll_wallet_info)
-                  _buildWalletCard(context, user),
+                    // 4. بطاقة المحفظة (ll_wallet_info)
+                    _buildWalletCard(context, user),
 
-                  const SizedBox(height: 12),
-
-                  // 5. بطاقة مركز VIP (cl_vip)
-                  _buildVipBanner(context, user),
-
-                  if (user?.isSuperAdmin == true) ...[
                     const SizedBox(height: 12),
-                    _buildSuperAdminBanner(context, user),
-                  ],
 
-                  if (user?.isAdmin == true) ...[
+                    // 5. بطاقة مركز VIP (cl_vip)
+                    _buildVipBanner(context, user),
+
+                    if (user?.isSuperAdmin == true || user?.role == 'super_admin' || user?.role == 'superadmin') ...[
+                      const SizedBox(height: 12),
+                      _buildSuperAdminBanner(context, user),
+                    ],
+
+                    if (user?.isAdmin == true || user?.role == 'admin') ...[
+                      const SizedBox(height: 12),
+                      _buildAdminBanner(context, user),
+                    ],
+
+                    if (user?.isBd == true || user?.role == 'bd') ...[
+                      const SizedBox(height: 12),
+                      _buildBdBanner(context, user),
+                    ],
+
                     const SizedBox(height: 12),
-                    _buildAdminBanner(context, user),
+
+                    // 6. قائمة الوظائف والإعدادات (ll_set)
+                    _buildSettingsList(context, user),
                   ],
-
-                  const SizedBox(height: 12),
-
-                  // 6. قائمة الوظائف والإعدادات (ll_set)
-                  _buildSettingsList(context, user),
-                ],
+                ),
               ),
             ),
           ],
@@ -889,7 +904,8 @@ class ProfileScreen extends StatelessWidget {
 
   /// بطاقة لوحة السوبر أدمن الفاخرة
   Widget _buildSuperAdminBanner(BuildContext context, UserModel? user) {
-    if (user?.isSuperAdmin != true) return const SizedBox.shrink();
+    final isSuper = user?.isSuperAdmin == true || user?.role == 'super_admin' || user?.role == 'superadmin';
+    if (!isSuper) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GestureDetector(
@@ -979,7 +995,8 @@ class ProfileScreen extends StatelessWidget {
 
   /// بطاقة لوحة الإدارة (Admin)
   Widget _buildAdminBanner(BuildContext context, UserModel? user) {
-    if (user?.isAdmin != true) return const SizedBox.shrink();
+    final isAdmin = user?.isAdmin == true || user?.role == 'admin';
+    if (!isAdmin) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GestureDetector(
@@ -1060,6 +1077,97 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
               const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFFF4D4D), size: 14),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// بطاقة مركز الـ BD والوكالات (BD Manager)
+  Widget _buildBdBanner(BuildContext context, UserModel? user) {
+    final isBd = user?.isBd == true || user?.role == 'bd';
+    if (!isBd) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => BDCenterScreen(currentUser: user!)),
+          );
+        },
+        child: Container(
+          height: 68,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1E2640), Color(0xFF141A32)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.5), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF4338CA)]),
+                ),
+                child: const Icon(Icons.business_center_rounded, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'مركز الـ BD والوكالات',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF818CF8),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'BD MANAGER',
+                            style: TextStyle(color: Color(0xFF818CF8), fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'إدارة الوكالات التابعة • متابعة التارجت • صرف الراتب',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF8E9BB0)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF818CF8), size: 14),
             ],
           ),
         ),
@@ -1209,7 +1317,7 @@ class ProfileScreen extends StatelessWidget {
               ),
 
             // 11. مركز الـ BD والوكالات (خاص بمسؤولي الـ BD المعتمدين)
-            if (user?.isBd == true)
+            if (user?.isBd == true || user?.role == 'bd')
               _buildFunctionItem(
                 icon: 'assets/mipmap-xxhdpi/mine_union_ic.webp',
                 title: 'مركز الـ BD والوكالات',
@@ -1222,7 +1330,7 @@ class ProfileScreen extends StatelessWidget {
               ),
 
             // 12. لوحة السوبر أدمن (Super Admin)
-            if (user?.isSuperAdmin == true)
+            if (user?.isSuperAdmin == true || user?.role == 'super_admin' || user?.role == 'superadmin')
               _buildFunctionItem(
                 icon: 'assets/mipmap-xxhdpi/union_admin_center.webp',
                 title: 'لوحة السوبر أدمن (Super Admin)',
@@ -1235,7 +1343,7 @@ class ProfileScreen extends StatelessWidget {
               ),
 
             // 13. لوحة الإدارة (Admin)
-            if (user?.isAdmin == true)
+            if (user?.isAdmin == true || user?.role == 'admin')
               _buildFunctionItem(
                 icon: 'assets/mipmap-xxhdpi/union_admin_center.webp',
                 title: 'لوحة الإدارة (Admin)',
