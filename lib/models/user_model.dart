@@ -73,6 +73,7 @@ class UserModel {
   final String? originalCustomId;
   final bool isHostAgent;
   final String? agencyId;
+  final String role;
 
   int get exp => experience;
   String get id => uid;
@@ -156,6 +157,7 @@ class UserModel {
     this.originalCustomId,
     this.isHostAgent = false,
     this.agencyId,
+    this.role = 'user',
   });
 
   UserModel copyWith({
@@ -229,6 +231,7 @@ class UserModel {
     String? adminSupervisorId,
     bool? isHostAgent,
     String? agencyId,
+    String? role,
   }) {
     return UserModel(
       uid: uid,
@@ -303,6 +306,7 @@ class UserModel {
       originalCustomId: originalCustomId ?? this.originalCustomId,
       isHostAgent: isHostAgent ?? this.isHostAgent,
       agencyId: agencyId ?? this.agencyId,
+      role: role ?? this.role,
     );
   }
 
@@ -557,6 +561,14 @@ class UserModel {
       adminSalary: (map['admin_salary'] ?? map['adminSalary'] ?? 0).toDouble(),
       adminCommissionRate: (map['admin_commission_rate'] ?? map['adminCommissionRate'] ?? 10).toDouble(),
       adminSupervisorId: map['admin_supervisor_id']?.toString() ?? map['adminSupervisorId']?.toString(),
+      role: map['role']?.toString() ??
+          ((map['is_super_admin'] == true || map['isSuperAdmin'] == true)
+              ? 'super_admin'
+              : ((map['is_admin'] == true || map['isAdmin'] == true)
+                  ? 'admin'
+                  : ((map['is_bd'] == true || map['isBd'] == true)
+                      ? 'bd'
+                      : 'user'))),
     );
   }
 
@@ -636,6 +648,7 @@ class UserModel {
         'admin_salary': adminSalary,
         'admin_commission_rate': adminCommissionRate,
         'admin_supervisor_id': adminSupervisorId,
+        'role': role,
       };
 
   Map<String, dynamic> toSupabaseMap() => {
@@ -712,5 +725,6 @@ class UserModel {
         'admin_salary': adminSalary,
         'admin_commission_rate': adminCommissionRate,
         'admin_supervisor_id': adminSupervisorId,
+        'role': role,
       };
 }
