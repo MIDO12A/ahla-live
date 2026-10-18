@@ -1,4 +1,4 @@
-﻿// lib/features/host_agency/agency_dashboard_screen.dart
+// lib/features/host_agency/agency_dashboard_screen.dart
 // ─────────────────────────────────────────────────────────────────────────────
 // Glassmorphic 2035 Agency Dashboard
 // • Team aggregation: total diamonds, top earner
@@ -22,6 +22,7 @@ import 'screens/agency_join_requests_screen.dart';
 import 'screens/agency_chat_screen.dart';
 import 'screens/agency_invite_by_id_screen.dart';
 import 'screens/agency_owner_wallet_screen.dart';
+import 'screens/agency_disbursement_screen.dart';
 import 'screens/agency_verification_screen.dart';
 import 'data/agency_models.dart';
 import 'screens/agency_level_desc_screen.dart';
@@ -1049,11 +1050,11 @@ class _AgencyQuickActions extends StatelessWidget {
       ),
       _QuickAction(
         icon: '💎',
-        label: 'محفظة الوكالة',
+        label: 'صرف الأرباح',
         badge: 0,
         color: _gold,
         onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => AgencyOwnerWalletScreen(agencyId: agencyId))),
+          builder: (_) => AgencyDisbursementScreen(agencyId: agencyId))),
       ),
     ];
 

@@ -866,11 +866,19 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     }
 
     try {
-      final agentUser = await SupabaseDataService().getUser(agentUid);
-      if (agentUser == null || agentUser.coins < amount) {
+      // فحص رصيد وكالة الشحن من جدول agency_wallets حصراً (فصل تام عن المحفظة الشخصية)
+      final sb = Supabase.instance.client;
+      final aw = await sb
+          .from('agency_wallets')
+          .select('id, gold_balance')
+          .eq('agency_profile_id', agentUid)
+          .maybeSingle();
+
+      final agencyGold = (aw?['gold_balance'] as num?)?.toInt() ?? 0;
+      if (agencyGold < amount) {
         if (!mounted) return;
         setState(() => _busy = false);
-        _showSnack('فشلت العملية: رصيد الوكيل غير كافٍ');
+        _showSnack('فشلت العملية: رصيد وكالة الشحن غير كافٍ ($agencyGold كوينز)');
         return;
       }
 
@@ -882,16 +890,11 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
         return;
       }
 
-      final agentDeductSuccess = await SupabaseDataService().updateUser(agentUid, {
-        'coins': agentUser.coins - amount,
-      });
-
-      if (!agentDeductSuccess) {
-        if (!mounted) return;
-        setState(() => _busy = false);
-        _showSnack('فشلت العملية أثناء تحديث رصيد الوكيل');
-        return;
-      }
+      // خصم الكوينز من محفظة وكالة الشحن فقط (لا يتم المساس برصيد كوينز حساب المستخدم الشخصي)
+      await sb.from('agency_wallets').update({
+        'gold_balance': (agencyGold - amount).clamp(0, 999999999),
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('agency_profile_id', agentUid);
 
       await SupabaseDataService().updateUser(targetUid, {
         'coins': targetUser.coins + amount,
@@ -903,11 +906,6 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
         targetCustomId: user['kayan_id']?.toString() ?? targetUser.customId,
         amountCoins: amount,
       );
-
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      if (userProvider.currentUser?.uid == agentUid) {
-        userProvider.deductCoinsLocally(amount);
-      }
 
       if (!mounted) return;
       setState(() => _busy = false);

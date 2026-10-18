@@ -33,6 +33,7 @@ import 'agency_leaderboard_screen.dart';
 import 'agency_level_desc_screen.dart';
 import 'agency_owner_wallet_screen.dart';
 import 'agency_withdrawal_screen.dart';
+import 'agency_disbursement_screen.dart';
 
 class AgencyOwnerScreen extends StatefulWidget {
   final String? agencyId;
@@ -1071,7 +1072,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => AgencyOwnerWalletScreen(
+                    builder: (_) => AgencyDisbursementScreen(
                       agencyId: _agencyInfo?.agencyId ?? '',
                     ),
                   ),
@@ -1120,7 +1121,9 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const AgencyWithdrawalScreen(),
+                    builder: (_) => AgencyDisbursementScreen(
+                      agencyId: _agencyInfo?.agencyId ?? '',
+                    ),
                   ),
                 );
               },

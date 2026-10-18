@@ -584,6 +584,7 @@ abstract final class AgencyRepository {
     required int    diamonds,
     required String idempotencyKey,
     String source = 'host',
+    String? senderUid,
   }) async {
     try {
       final resp = await _sb.rpc('host_transfer_diamonds_to_agent', params: {
@@ -600,7 +601,7 @@ abstract final class AgencyRepository {
     }
 
     try {
-      final uid = _sb.auth.currentUser?.id;
+      final uid = senderUid ?? _sb.auth.currentUser?.id;
       if (uid == null || uid.isEmpty) {
         return {'status': 'error', 'message': 'المستخدم غير مسجل الدخول'};
       }
@@ -681,16 +682,26 @@ abstract final class AgencyRepository {
           'diamonds': newHostDiamonds,
         }).or('uid.eq.$uid,id.eq.$uid');
 
-        // 2. Deduct host's available diamonds in host_agency_members (Preserve monthly target & agency commission)
+        // 2. Zero out host's target & deduct available diamonds in host_agency_members
         if (memberRow != null && memberRow['id'] != null) {
           final curBal = (memberRow['diamonds_balance'] as num?)?.toInt() ?? (memberRow['diamonds'] as num?)?.toInt() ?? userDiamonds;
+          final curMonthly = (memberRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
           final updatedBal = (curBal - diamonds).clamp(0, 999999999);
+          final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
           await _sb.from('host_agency_members').update({
             'diamonds': updatedBal,
             'diamonds_balance': updatedBal,
             'diamonds_available': updatedBal,
-            // ⚠️ تحذير: لا يتم تصفير diamonds_earned_monthly للحفاظ على تارجت الوكالة وعمولة الوكيل المعتمدة
+            'diamonds_earned_monthly': updatedMonthly, // تصفير / خصم التارجت فوراً عند الصرف
           }).eq('id', memberRow['id']);
+
+          // تصفير الراتب المستحق للمضيف في جدول الرواتب
+          try {
+            await _sb.from('host_salaries').update({
+              'status': 'disbursed',
+              'disbursed_at': DateTime.now().toIso8601String(),
+            }).eq('user_id', uid).eq('status', 'pending');
+          } catch (_) {}
         }
 
         // 3. Add Agent Commission to Agency Owner wallet & member record & agency target
@@ -801,38 +812,49 @@ abstract final class AgencyRepository {
           }
         }
 
-        // 4. Convert diamonds to coins and deposit to Recharge Agent Wallet
+        // 4. Deposit diamonds into Recharge Agency Wallet (agency_wallets)
         if (agentId.isNotEmpty && agentId != 'admin') {
           try {
             final agentRow = await _sb
                 .from('users')
-                .select('id, uid, coins')
+                .select('id, uid')
                 .or('uid.eq.$agentId,id.eq.$agentId,custom_id.eq.$agentId')
                 .maybeSingle();
-            if (agentRow != null) {
-              final aId = agentRow['uid'] ?? agentRow['id'];
-              final curCoins = (agentRow['coins'] as num?)?.toInt() ?? 0;
-              await _sb.from('users').update({
-                'coins': curCoins + diamonds,
-              }).or('uid.eq.$aId,id.eq.$aId');
+            final aId = agentRow?['uid']?.toString() ?? agentRow?['id']?.toString() ?? agentId;
 
-              try {
-                await _sb.from('profiles').update({
-                  'coins': curCoins + diamonds,
-                }).eq('id', aId);
-              } catch (_) {}
+            // إيداع الألماس حصراً في محفظة وكالة الشحن (وليس المحفظة الشخصية)
+            final aw = await _sb
+                .from('agency_wallets')
+                .select('id, diamond_balance')
+                .eq('agency_profile_id', aId)
+                .maybeSingle();
 
-              // Send notification to recharge agent
-              try {
-                await _sb.from('private_messages').insert({
-                  'sender_id': 'system',
-                  'receiver_id': aId,
-                  'text': '⚡ تم تحويل $diamonds كوينز إلى محفظتك بنجاح من سحب المضيف $userName (وكالة: $agencyName).',
-                  'type': 'system',
-                  'created_at': DateTime.now().toIso8601String(),
-                });
-              } catch (_) {}
+            if (aw != null) {
+              final curDia = (aw['diamond_balance'] as num?)?.toInt() ?? 0;
+              await _sb.from('agency_wallets').update({
+                'diamond_balance': curDia + diamonds,
+                'updated_at': DateTime.now().toIso8601String(),
+              }).eq('agency_profile_id', aId);
+            } else {
+              await _sb.from('agency_wallets').insert({
+                'agency_profile_id': aId,
+                'diamond_balance': diamonds,
+                'gold_balance': 0,
+                'total_earnings': diamonds,
+                'updated_at': DateTime.now().toIso8601String(),
+              });
             }
+
+            // إرسال إشعار فوري لوكيل الشحن
+            try {
+              await _sb.from('private_messages').insert({
+                'sender_id': 'system',
+                'receiver_id': aId,
+                'text': '⚡ تم إيداع $diamonds ماسة في محفظة وكالة الشحن الخاصة بك من سحب المضيف $userName (وكالة: $agencyName).',
+                'type': 'system',
+                'created_at': DateTime.now().toIso8601String(),
+              });
+            } catch (_) {}
           } catch (e) {
             debugPrint('[AgencyRepository] error crediting recharge agent: $e');
           }
@@ -944,38 +966,48 @@ abstract final class AgencyRepository {
           } catch (_) {}
         }
 
-        // Credit coins to recharge agent
+        // Deposit diamonds into Recharge Agency Wallet (agency_wallets)
         if (agentId.isNotEmpty && agentId != 'admin') {
           try {
             final agentRow = await _sb
                 .from('users')
-                .select('id, uid, coins')
+                .select('id, uid')
                 .or('uid.eq.$agentId,id.eq.$agentId,custom_id.eq.$agentId')
                 .maybeSingle();
-            if (agentRow != null) {
-              final aId = agentRow['uid'] ?? agentRow['id'];
-              final curCoins = (agentRow['coins'] as num?)?.toInt() ?? 0;
-              await _sb.from('users').update({
-                'coins': curCoins + diamonds,
-              }).or('uid.eq.$aId,id.eq.$aId');
+            final aId = agentRow?['uid']?.toString() ?? agentRow?['id']?.toString() ?? agentId;
 
-              try {
-                await _sb.from('profiles').update({
-                  'coins': curCoins + diamonds,
-                }).eq('id', aId);
-              } catch (_) {}
+            final aw = await _sb
+                .from('agency_wallets')
+                .select('id, diamond_balance')
+                .eq('agency_profile_id', aId)
+                .maybeSingle();
 
-              // Send notification
-              try {
-                await _sb.from('private_messages').insert({
-                  'sender_id': 'system',
-                  'receiver_id': aId,
-                  'text': '⚡ تم تحويل $diamonds كوينز إلى محفظتك بنجاح من سحب مالك الوكالة $userName.',
-                  'type': 'system',
-                  'created_at': DateTime.now().toIso8601String(),
-                });
-              } catch (_) {}
+            if (aw != null) {
+              final curDia = (aw['diamond_balance'] as num?)?.toInt() ?? 0;
+              await _sb.from('agency_wallets').update({
+                'diamond_balance': curDia + diamonds,
+                'updated_at': DateTime.now().toIso8601String(),
+              }).eq('agency_profile_id', aId);
+            } else {
+              await _sb.from('agency_wallets').insert({
+                'agency_profile_id': aId,
+                'diamond_balance': diamonds,
+                'gold_balance': 0,
+                'total_earnings': diamonds,
+                'updated_at': DateTime.now().toIso8601String(),
+              });
             }
+
+            // Send notification
+            try {
+              await _sb.from('private_messages').insert({
+                'sender_id': 'system',
+                'receiver_id': aId,
+                'text': '⚡ تم إيداع $diamonds ماسة في محفظة وكالة الشحن الخاصة بك من سحب مالك الوكالة $userName.',
+                'type': 'system',
+                'created_at': DateTime.now().toIso8601String(),
+              });
+            } catch (_) {}
           } catch (_) {}
         }
 
@@ -1589,6 +1621,7 @@ abstract final class AgencyRepository {
           diamonds: diamonds,
           idempotencyKey: key,
           source: 'host',
+          senderUid: hostUid,
         );
 
         if (txRes['status'] != 'ok' && txRes['success'] != true) {

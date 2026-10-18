@@ -15,6 +15,7 @@ import '../data/anchor_agent_model.dart';
 import '../data/agency_chat_repository.dart';
 import 'agency_exit_screen.dart';
 import 'agency_owner_wallet_screen.dart';
+import 'agency_disbursement_screen.dart';
 import 'agency_invite_by_id_screen.dart';
 import 'agency_item_detail_screen.dart';
 import 'agency_join_requests_screen.dart';
@@ -860,7 +861,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => AgencyOwnerWalletScreen(
+                                builder: (_) => AgencyDisbursementScreen(
                                   agencyId: _agentInfo?.agencyId ?? widget.agencyId ?? '',
                                 ),
                               ),
@@ -917,7 +918,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => AgencyOwnerWalletScreen(
+                                builder: (_) => AgencyDisbursementScreen(
                                   agencyId: _agentInfo?.agencyId ?? widget.agencyId ?? '',
                                 ),
                               ),
@@ -2205,7 +2206,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) => AgencyOwnerWalletScreen(
+                                            builder: (_) => AgencyDisbursementScreen(
                                               agencyId: _agentInfo?.agencyId ?? widget.agencyId ?? '',
                                             ),
                                           ),

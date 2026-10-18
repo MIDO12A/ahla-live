@@ -9,7 +9,7 @@ import '../../core/realtime/supabase_realtime_bridge.dart';
 import '../../core/ui/in_app_toast.dart';
 import 'data/agency_models.dart';
 import 'data/agency_repository.dart';
-import 'screens/agency_withdrawal_screen.dart';
+import 'screens/agency_disbursement_screen.dart';
 import 'screens/agency_leaderboard_screen.dart';
 import 'screens/agency_exit_screen.dart';
 import 'screens/agency_item_detail_screen.dart';
@@ -592,8 +592,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => AgencyWithdrawalScreen(
-                                initialTab: 2, // تبويب وكيل الشحن
+                              builder: (_) => AgencyDisbursementScreen(
+                                initialTab: 1, // تبويب وكيل الشحن
                                 initialDiamonds: totalAchievedDiamonds > 0 ? totalAchievedDiamonds : null,
                               ),
                             ),
@@ -640,8 +640,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => AgencyWithdrawalScreen(
-                            initialTab: 2, // تحويل لوكيل الشحن
+                          builder: (_) => AgencyDisbursementScreen(
+                            initialTab: 1, // تحويل لوكيل الشحن
                             initialDiamonds: targetVal > 0 ? targetVal : null,
                           ),
                         ),
@@ -672,9 +672,9 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                   _AgencyWalletCard(
                     stats: _agencyStats!,
                     onExchange: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const AgencyWithdrawalScreen())),
+                      MaterialPageRoute(builder: (_) => const AgencyDisbursementScreen())),
                     onWithdraw: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const AgencyWithdrawalScreen())),
+                      MaterialPageRoute(builder: (_) => const AgencyDisbursementScreen())),
                     onLeaderboard: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const AgencyLeaderboardScreen())),
                     onExit: () => Navigator.push(context,
@@ -2067,7 +2067,7 @@ class _UsdWalletCard extends StatelessWidget {
           ),
           if (usdBalance > 0)
             GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgencyWithdrawalScreen())),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgencyDisbursementScreen())),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(

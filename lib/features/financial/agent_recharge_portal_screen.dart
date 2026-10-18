@@ -90,8 +90,21 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
         if (sbUser != null) {
           final isAgent = sbUser.isRechargeAgent;
 
-          if (isAgent && mounted) {
-            final coins = sbUser.coins;
+            // جلب رصيد وكالة الشحن حصراً من جدول agency_wallets لضمان الفصل التام عن المحفظة الشخصية
+            int agencyCoins = 0;
+            int agencyDiamonds = 0;
+            try {
+              final aw = await Supabase.instance.client
+                  .from('agency_wallets')
+                  .select('gold_balance, diamond_balance')
+                  .eq('agency_profile_id', uid)
+                  .maybeSingle();
+              if (aw != null) {
+                agencyCoins = (aw['gold_balance'] as num?)?.toInt() ?? 0;
+                agencyDiamonds = (aw['diamond_balance'] as num?)?.toInt() ?? 0;
+              }
+            } catch (_) {}
+
             final customId = sbUser.customId.isNotEmpty ? sbUser.customId : uid;
             String? pin;
             try {
@@ -109,7 +122,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
                 enabled: true,
                 pinSet: pin != null && pin.isNotEmpty,
                 dailyLimit: 10000000,
-                agencyGold: coins,
+                agencyGold: agencyCoins,
                 agentPublicId: customId,
                 todayTotal: 0,
                 todayCount: 0,

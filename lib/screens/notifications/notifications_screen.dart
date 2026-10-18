@@ -11,6 +11,7 @@ import '../../features/cp/cp_detail_full_screen.dart';
 import '../../features/financial/agent_recharge_portal_screen.dart';
 import 'package:uuid/uuid.dart';
 import '../../features/host_agency/screens/agency_join_requests_screen.dart';
+import '../../features/host_agency/data/agency_repository.dart';
 
 /// Replicates [chat_activity_system_notification.xml] and [chat_adapter_activity_item.xml]
 /// from the original decompiled app (F:\Medal\New folder\nu).
@@ -342,13 +343,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ),
 
                       // Agent Diamond Withdrawal Request Actions (Accept / Reject)
-                      if (action == 'agent_withdrawal_request' || notif.type == 'agent_withdrawal_request')
+                      if (action == 'agent_withdrawal_request' ||
+                          notif.type == 'agent_withdrawal_request' ||
+                          notif.type == 'agent_host_withdrawal_request' ||
+                          action == 'salary_transfer_request' ||
+                          notif.type == 'salary_transfer_request' ||
+                          notif.title.contains('سحب ألماس') ||
+                          notif.title.contains('صرف راتب'))
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
                           child: Row(
                             children: [
                               _actionButton(
-                                label: isAr ? 'موافقة على السحب ✅' : 'Approve ✅',
+                                label: isAr ? 'موافقة وقبول الراتب ✅' : 'Approve & Accept ✅',
                                 color: const Color(0xFF10B981),
                                 onTap: () async {
                                   final currentUid = Provider.of<UserProvider>(
@@ -356,47 +363,117 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           listen: false)
                                       .currentUser
                                       ?.uid;
-                                  final requestId = notif.data?['request_id']?.toString() ?? '';
-                                  final amount = notif.data?['diamonds_amount'] ?? 0;
+                                  final requestId = notif.data?['request_id']?.toString() ??
+                                      notif.data?['transfer_id']?.toString() ??
+                                      '';
+                                  final senderUid = notif.data?['host_uid']?.toString() ??
+                                      notif.data?['sender_uid']?.toString() ??
+                                      notif.actorUid;
+                                  final amount = (notif.data?['diamonds'] as num?)?.toInt() ??
+                                      (notif.data?['amount'] as num?)?.toInt() ??
+                                      (notif.data?['diamonds_amount'] as num?)?.toInt() ??
+                                      0;
 
                                   if (currentUid != null && requestId.isNotEmpty) {
-                                    final res = await _firebaseService.respondToAgentWithdrawalRequest(
+                                    // 1. استخدام معالج السحب المعتمد في الوكالات
+                                    final res = await AgencyRepository.handleAgentWithdrawalAction(
                                       requestId: requestId,
-                                      userUid: currentUid,
-                                      approved: true,
-                                      agentId: notif.data?['agent_id']?.toString(),
-                                      diamondsAmount: int.tryParse('${notif.data?['diamonds_amount'] ?? 0}') ?? 0,
-                                      targetName: notif.data?['target_name']?.toString(),
+                                      agentUid: currentUid,
+                                      approve: true,
                                     );
 
-                                    if (!mounted) return;
+                                    // إذا كان الطلب من نوع salary_transfer_requests كاحتياط
+                                    if (res['success'] != true && amount > 0) {
+                                      try {
+                                        final sb = Supabase.instance.client;
+                                        // إيداع الألماس في محفظة وكالة الشحن حصراً (agency_wallets)
+                                        final aw = await sb
+                                            .from('agency_wallets')
+                                            .select('id, diamond_balance')
+                                            .eq('agency_profile_id', currentUid)
+                                            .maybeSingle();
+                                        if (aw != null) {
+                                          final curDia = (aw['diamond_balance'] as num?)?.toInt() ?? 0;
+                                          await sb.from('agency_wallets').update({
+                                            'diamond_balance': curDia + amount,
+                                            'updated_at': DateTime.now().toIso8601String(),
+                                          }).eq('agency_profile_id', currentUid);
+                                        } else {
+                                          await sb.from('agency_wallets').insert({
+                                            'agency_profile_id': currentUid,
+                                            'diamond_balance': amount,
+                                            'gold_balance': 0,
+                                            'total_earnings': amount,
+                                            'updated_at': DateTime.now().toIso8601String(),
+                                          });
+                                        }
 
-                                    if (res['success'] == true) {
-                                      await Provider.of<UserProvider>(context, listen: false).loadUser(currentUid);
-                                      if (notif.id.isNotEmpty) {
-                                        try {
-                                          await SupabaseDataService().deleteNotification(notif.id);
-                                        } catch (_) {}
-                                      }
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(isAr
-                                                ? '✅ تمت الموافقة وسحب $amount ماسة بنجاح.'
-                                                : '✅ Approved! $amount diamonds withdrawn successfully.'),
-                                            backgroundColor: const Color(0xFF10B981),
-                                          ),
+                                        // تصفير تارجت وراتب الراسل فوراً
+                                        if (senderUid.isNotEmpty) {
+                                          // تصفير تارجت المضيف
+                                          try {
+                                            final mRow = await sb.from('host_agency_members')
+                                                .select('id, diamonds_earned_monthly, diamonds_balance')
+                                                .or('user_id.eq.$senderUid,host_uid.eq.$senderUid')
+                                                .maybeSingle();
+                                            if (mRow != null) {
+                                              final curM = (mRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+                                              final curB = (mRow['diamonds_balance'] as num?)?.toInt() ?? 0;
+                                              await sb.from('host_agency_members').update({
+                                                'diamonds_earned_monthly': (curM - amount).clamp(0, 999999999),
+                                                'diamonds_balance': (curB - amount).clamp(0, 999999999),
+                                                'diamonds': (curB - amount).clamp(0, 999999999),
+                                              }).eq('id', mRow['id']);
+                                            }
+                                          } catch (_) {}
+
+                                          // تصفير رواتب المضيفين والمشرفين
+                                          try {
+                                            await sb.from('host_salaries').update({
+                                              'status': 'disbursed',
+                                              'disbursed_at': DateTime.now().toIso8601String(),
+                                            }).eq('user_id', senderUid).eq('status', 'pending');
+                                          } catch (_) {}
+
+                                          // تصفير رواتب الإدارة إن وجدت
+                                          try {
+                                            await sb.from('users').update({
+                                              'super_admin_salary': 0,
+                                              'admin_salary': 0,
+                                              'bd_salary': 0,
+                                            }).eq('uid', senderUid);
+                                          } catch (_) {}
+                                        }
+
+                                        // إشعار الراسل
+                                        await SupabaseDataService().sendNotification(
+                                          uid: senderUid,
+                                          type: 'salary_transfer_accepted',
+                                          actorUid: currentUid,
+                                          title: 'تم قبول صرف الراتب بنجاح 🎉',
+                                          body: 'وافق وكيل الشحن على طلب الصرف وتم تحويل $amount ماسة وتصفير تارجتك بنجاح.',
                                         );
+                                      } catch (e) {
+                                        debugPrint('[notifications] fallback error: $e');
                                       }
-                                    } else {
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(res['message']?.toString() ?? 'فشلت العملية'),
-                                            backgroundColor: const Color(0xFFEF4444),
-                                          ),
-                                        );
-                                      }
+                                    }
+
+                                    if (!mounted) return;
+                                    await Provider.of<UserProvider>(context, listen: false).loadUser(currentUid);
+                                    if (notif.id.isNotEmpty) {
+                                      try {
+                                        await SupabaseDataService().deleteNotification(notif.id);
+                                      } catch (_) {}
+                                    }
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(isAr
+                                              ? '✅ تمت الموافقة وتصفير تارجت المستخدم وإيداع الرصيد في محفظة وكالة الشحن.'
+                                              : '✅ Approved! User target reset and balance credited to recharge agency wallet.'),
+                                          backgroundColor: const Color(0xFF10B981),
+                                        ),
+                                      );
                                     }
                                   }
                                 },
@@ -411,16 +488,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           listen: false)
                                       .currentUser
                                       ?.uid;
-                                  final requestId = notif.data?['request_id']?.toString() ?? '';
+                                  final requestId = notif.data?['request_id']?.toString() ??
+                                      notif.data?['transfer_id']?.toString() ??
+                                      '';
 
                                   if (currentUid != null && requestId.isNotEmpty) {
-                                    await _firebaseService.respondToAgentWithdrawalRequest(
+                                    await AgencyRepository.handleAgentWithdrawalAction(
                                       requestId: requestId,
-                                      userUid: currentUid,
-                                      approved: false,
-                                      agentId: notif.data?['agent_id']?.toString(),
-                                      diamondsAmount: int.tryParse('${notif.data?['diamonds_amount'] ?? 0}') ?? 0,
-                                      targetName: notif.data?['target_name']?.toString(),
+                                      agentUid: currentUid,
+                                      approve: false,
                                     );
                                   }
 
@@ -434,8 +510,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(isAr
-                                            ? 'تم رفض طلب سحب الألماس ولم يتم خصم أي رصيد.'
-                                            : 'Withdrawal request rejected. No diamonds deducted.'),
+                                            ? 'تم رفض طلب السحب ولم يتم خصم أي رصيد.'
+                                            : 'Withdrawal request rejected. No balance deducted.'),
                                         backgroundColor: const Color(0xFFEF4444),
                                       ),
                                     );
@@ -445,118 +521,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ],
                           ),
                         ),
-
-                      // Salary Disburse Request to Recharge Agent (Accept / Reject)
-                      if (action == 'salary_transfer_request' || notif.type == 'salary_transfer_request' || notif.title.contains('صرف راتب'))
-                        Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: Row(
-                            children: [
-                              _actionButton(
-                                label: isAr ? 'قبول الراتب وإيداع الكوينز ✅' : 'Accept & Credit Coins ✅',
-                                color: const Color(0xFF10B981),
-                                onTap: () async {
-                                  final currentUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
-                                  final transferId = notif.data?['transfer_id']?.toString() ?? '';
-                                  final senderUid = notif.data?['sender_uid']?.toString() ?? notif.actorUid;
-                                  final senderRole = notif.data?['sender_role']?.toString() ?? 'staff';
-                                  final amount = (notif.data?['amount'] as num?)?.toInt() ?? 
-                                                 (notif.data?['diamonds_amount'] as num?)?.toInt() ?? 0;
-
-                                  if (currentUid != null && amount > 0) {
-                                    try {
-                                      // 1. Try atomic RPC accept_salary_transfer if available
-                                      bool rpcSuccess = false;
-                                      if (transferId.isNotEmpty) {
-                                        try {
-                                          final rpcRes = await Supabase.instance.client.rpc(
-                                            'accept_salary_transfer',
-                                            params: {'p_transfer_id': transferId},
-                                          );
-                                          if (rpcRes != null && (rpcRes['success'] == true || rpcRes == true)) {
-                                            rpcSuccess = true;
-                                          }
-                                        } catch (_) {}
-                                      }
-
-                                      // 2. Direct fallback transaction if RPC is not present
-                                      if (!rpcSuccess) {
-                                        final sb = Supabase.instance.client;
-                                        // Credit coins to recharge agent
-                                        final agentRow = await sb.from('users').select('coins').eq('uid', currentUid).maybeSingle();
-                                        final currentCoins = (agentRow?['coins'] as num? ?? 0).toInt();
-                                        await sb.from('users').update({'coins': currentCoins + amount}).eq('uid', currentUid);
-
-                                        // Deduct / zero salary diamonds from sender
-                                        if (senderUid.isNotEmpty) {
-                                          final senderRow = await sb.from('users').select('diamonds, super_admin_salary, admin_salary, bd_salary').eq('uid', senderUid).maybeSingle();
-                                          if (senderRow != null) {
-                                            final curDiamonds = (senderRow['diamonds'] as num? ?? 0).toInt();
-                                            final updateSender = <String, dynamic>{
-                                              'diamonds': (curDiamonds - amount).clamp(0, 999999999),
-                                            };
-                                            if (senderRole == 'super_admin') {
-                                              updateSender['super_admin_salary'] = 0;
-                                            } else if (senderRole == 'admin') {
-                                              updateSender['admin_salary'] = 0;
-                                            } else if (senderRole == 'bd') {
-                                              updateSender['bd_salary'] = 0;
-                                            }
-                                            await sb.from('users').update(updateSender).eq('uid', senderUid);
-                                          }
-                                        }
-
-                                        // Update transfer status
-                                        if (transferId.isNotEmpty) {
-                                          try {
-                                            await sb.from('salary_transfer_requests').update({
-                                              'status': 'accepted',
-                                              'accepted_at': DateTime.now().toUtc().toIso8601String(),
-                                            }).eq('id', transferId);
-                                          } catch (_) {}
-                                        }
-                                      }
-
-                                      // 3. Send confirmation notification to sender
-                                      if (senderUid.isNotEmpty) {
-                                        await SupabaseDataService().sendNotification(
-                                          uid: senderUid,
-                                          type: 'salary_transfer_accepted',
-                                          actorUid: currentUid,
-                                          title: 'تم قبول صرف الراتب بنجاح 🎉',
-                                          body: 'وافق وكيل الشحن على استلام الراتب وتم إيداع $amount كوينز في محفظته وتصفير رصيدك بنجاح.',
-                                        );
-                                      }
-
-                                      // 4. Refresh user provider
-                                      await Provider.of<UserProvider>(context, listen: false).loadUser(currentUid);
-
-                                      // 5. Delete notification
-                                      if (notif.id.isNotEmpty) {
-                                        try {
-                                          await SupabaseDataService().deleteNotification(notif.id);
-                                        } catch (_) {}
-                                      }
-
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(isAr
-                                                ? '✅ تم قبول الراتب وإيداع $amount كوينز في محفظتك بنجاح.'
-                                                : '✅ Salary accepted! $amount coins added to your agency wallet.'),
-                                            backgroundColor: const Color(0xFF10B981),
-                                          ),
-                                        );
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('فشل قبول الراتب: $e'),
-                                            backgroundColor: const Color(0xFFEF4444),
-                                          ),
-                                        );
-                                      }
                                     }
                                   }
                                 },
