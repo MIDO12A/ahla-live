@@ -521,57 +521,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ],
                           ),
                         ),
-                                    }
-                                  }
-                                },
-                              ),
-                              const SizedBox(width: 8),
-                              _actionButton(
-                                label: isAr ? 'رفض ❌' : 'Reject ❌',
-                                color: const Color(0xFFEF4444),
-                                onTap: () async {
-                                  final transferId = notif.data?['transfer_id']?.toString() ?? '';
-                                  final senderUid = notif.data?['sender_uid']?.toString() ?? notif.actorUid;
-                                  final currentUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
-
-                                  if (transferId.isNotEmpty) {
-                                    try {
-                                      await Supabase.instance.client.from('salary_transfer_requests').update({
-                                        'status': 'rejected',
-                                        'rejected_at': DateTime.now().toUtc().toIso8601String(),
-                                      }).eq('id', transferId);
-                                    } catch (_) {}
-                                  }
-
-                                  if (senderUid.isNotEmpty && currentUid != null) {
-                                    await SupabaseDataService().sendNotification(
-                                      uid: senderUid,
-                                      type: 'salary_transfer_rejected',
-                                      actorUid: currentUid,
-                                      title: 'تم رفض طلب تحويل الراتب ❌',
-                                      body: 'اعتذر وكيل الشحن عن قبول طلب تحويل الراتب، ورصيدك كما هو لم يتغير.',
-                                    );
-                                  }
-
-                                  if (notif.id.isNotEmpty) {
-                                    try {
-                                      await SupabaseDataService().deleteNotification(notif.id);
-                                    } catch (_) {}
-                                  }
-
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(isAr ? 'تم رفض طلب الراتب' : 'Salary transfer rejected'),
-                                        backgroundColor: const Color(0xFFEF4444),
-                                      ),
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
 
                       // Host Invitation to join Agency (Accept/Reject)
                       if (action == 'host_invite' || notif.type == 'host_invite' || notif.title.contains('دعوة انضمام لوكالة'))

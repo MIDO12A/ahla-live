@@ -90,6 +90,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
         if (sbUser != null) {
           final isAgent = sbUser.isRechargeAgent;
 
+          if (isAgent && mounted) {
             // جلب رصيد وكالة الشحن حصراً من جدول agency_wallets لضمان الفصل التام عن المحفظة الشخصية
             int agencyCoins = 0;
             int agencyDiamonds = 0;
