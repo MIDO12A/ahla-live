@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../core/supabase_compat.dart';
+import 'dynamic_config_service.dart';
 
 class AgencyTargetEvaluator {
   static SupabaseClient get _sb => Supabase.instance.client;

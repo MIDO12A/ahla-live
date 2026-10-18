@@ -2,6 +2,7 @@ import '../../../core/supabase_compat.dart';
 
 import '../../../core/utils/server_time_service.dart';
 import '../../../services/dynamic_config_service.dart';
+import '../../../services/agency_target_evaluator.dart';
 import 'agency_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';

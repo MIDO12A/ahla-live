@@ -16,6 +16,7 @@ import '../models/store_item_model.dart';
 import '../models/gifted_item_model.dart';
 import '../models/banner_config.dart';
 import '../models/notification_model.dart';
+import '../core/supabase_compat.dart';
 import 'supabase_data_service.dart';
 import 'dynamic_config_service.dart';
 import 'agency_target_evaluator.dart';
@@ -27,6 +28,7 @@ class SupabaseService {
   factory SupabaseService() => _instance;
   SupabaseService._internal();
 
+  SupabaseClient get _sb => Supabase.instance.client;
   final SupabaseDataService _ds = SupabaseDataService();
   static const String _baseUrl = SupabaseConfig.projectUrl;
   static const String _anonKey = SupabaseConfig.anonKey;
