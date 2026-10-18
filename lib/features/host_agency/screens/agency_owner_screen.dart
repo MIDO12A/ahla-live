@@ -721,7 +721,11 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildAgencyLevelPanel(AgentInfoModel info, DynamicConfigService cfg) {
     final curExp = info.transferMoney;
-    final targetExp = info.targetDiamonds > 0 ? info.targetDiamonds : 1000000;
+    final targetExp = (info.targetDiamonds > 0 && info.targetDiamonds != 1000000)
+        ? info.targetDiamonds
+        : (_milestones.isNotEmpty
+            ? ((_milestones.first['target_diamonds'] ?? _milestones.first['targetDiamonds'] as num?)?.toInt() ?? 150000)
+            : 150000);
     final expLeft = (targetExp - curExp).clamp(0, targetExp);
     final ratio = (curExp / targetExp).clamp(0.0, 1.0);
 
@@ -1607,10 +1611,29 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
     int totalMembersDiamonds = 0;
     for (final m in _members) {
       if (m.role != 'owner') {
-        totalMembersDiamonds += int.tryParse(m.diamonds) ?? 0;
+        totalMembersDiamonds += m.effectiveDiamonds;
       }
     }
-    final agencyTarget = info.targetDiamonds > 0 ? info.targetDiamonds : 1000000;
+    
+    // مستهدف الوكالة مأخوذ مباشرة من تارجت لوحة التحكم ولا يعود لمليون أبداً
+    int agencyTarget = 150000;
+    if (_milestones.isNotEmpty) {
+      final sorted = List<Map<String, dynamic>>.from(_milestones)
+        ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
+            .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
+      for (final ms in sorted) {
+        final t = (ms['target_diamonds'] ?? ms['targetDiamonds'] as num?)?.toInt() ?? 0;
+        if (totalMembersDiamonds < t) {
+          agencyTarget = t;
+          break;
+        }
+      }
+      if (agencyTarget == 150000 && totalMembersDiamonds >= ((sorted.last['target_diamonds'] ?? sorted.last['targetDiamonds'] as num?)?.toInt() ?? 0)) {
+        agencyTarget = (sorted.last['target_diamonds'] ?? sorted.last['targetDiamonds'] as num?)?.toInt() ?? 150000;
+      }
+    } else if (info.targetDiamonds > 0 && info.targetDiamonds != 1000000) {
+      agencyTarget = info.targetDiamonds;
+    }
 
     double totalDueSalaries = 0.0;
     double totalCommissionDiamonds = 0.0;
@@ -1624,7 +1647,8 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
     for (final m in _members) {
       if (m.role == 'owner') continue;
-      final hostDia = int.tryParse(m.diamonds) ?? 0;
+      // نعتمد الألماس الفعلي المحقق (شاملاً المفكوك) لتبقى عمولة الوكيل 100% محفوظة ولا تتأثر بالفك إطلاقاً
+      final hostDia = m.effectiveDiamonds;
       final hostDays = m.days;
       final hostHours = (m.minute / 60.0);
 
@@ -1649,10 +1673,14 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                            highestAchievedMilestone['rewardValue'] ?? 
                            highestAchievedMilestone['reward'] as num?)?.toDouble() ?? 
                           (((highestAchievedMilestone['target_diamonds'] as num?)?.toDouble() ?? 100000) / 1000.0);
-        totalDueSalaries += rewardVal;
+        // راتب المضيف: يخصم 40% (يحصل على 60%) فقط في حال فك التارجت
+        final hostSalary = m.unpackedDiamonds > 0 ? (rewardVal * 0.60) : rewardVal;
+        totalDueSalaries += hostSalary;
 
+        // عمولة وكيل المضيفين: كاملة بنسبة 100% على التارجت المحقق ولا يخصم منها أي سنت عند فك المضيف
         final targetDia = (highestAchievedMilestone['target_diamonds'] ?? highestAchievedMilestone['targetDiamonds'] as num?)?.toInt() ?? hostDia;
-        totalCommissionDiamonds += (targetDia * agencyCommRate);
+        final commRate = (highestAchievedMilestone['agent_commission_rate'] as num?)?.toDouble() ?? agencyCommRate;
+        totalCommissionDiamonds += (targetDia * commRate);
       }
     }
 

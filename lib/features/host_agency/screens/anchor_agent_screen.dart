@@ -1719,7 +1719,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     int totalAnchorsDiamonds = 0;
     int totalAgentCommissionDiamonds = 0;
     for (final a in _anchors) {
-      final hostMonthlyDiamonds = int.tryParse(a.diamonds) ?? int.tryParse(a.totalDiamond) ?? 0;
+      // نعتمد الألماس الفعلي المحقق للشهر (بما فيه المفكوك) لضمان حماية عمولة وكيل المضيفين بنسبة 100%
+      final hostMonthlyDiamonds = a.effectiveDiamonds;
       totalAnchorsDiamonds += hostMonthlyDiamonds;
 
       double hostCommRate = info?.commissionRate ?? 0.10;
@@ -1743,7 +1744,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
     // حساب أرقام المضيف الشخصية إذا لم يكن مالكاً
     final user = Provider.of<UserProvider>(context, listen: false).currentUser;
-    final hostDiamonds = int.tryParse(_myAnchor?.diamonds ?? '') ?? (user?.diamonds ?? 0);
+    final hostDiamonds = (_myAnchor != null)
+        ? _myAnchor!.effectiveDiamonds
+        : (user?.diamonds ?? 0);
     final hostHours = ((_myAnchor?.minute ?? 0.0) / 60.0);
     final effectiveDiamonds = _isAgencyOwner ? totalAgencyDiamonds : hostDiamonds;
     final hostDollar = (hostDiamonds / 1000).toStringAsFixed(1);
@@ -1797,30 +1800,27 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         nextStageTitle = last['title']?.toString() ?? '';
       }
     } else {
-      currentStageSalary = 10.0;
-      if (effectiveDiamonds >= 5000000) {
-        currentStageTarget = 10000000;
-        nextStageTarget = 20000000;
-      } else if (effectiveDiamonds >= 2000000) {
-        currentStageTarget = 5000000;
-        nextStageTarget = 10000000;
-      } else if (effectiveDiamonds >= 1000000) {
-        currentStageTarget = 2000000;
-        nextStageTarget = 5000000;
-      } else if (effectiveDiamonds >= 500000) {
-        currentStageTarget = 1000000;
-        nextStageTarget = 2000000;
+      currentStageSalary = 6.0;
+      if (effectiveDiamonds >= 525000) {
+        currentStageTarget = 525000;
+        nextStageTarget = 525000;
+      } else if (effectiveDiamonds >= 375000) {
+        currentStageTarget = 525000;
+        nextStageTarget = 525000;
       } else if (effectiveDiamonds >= 300000) {
-        currentStageTarget = 500000;
-        nextStageTarget = 1000000;
-      } else if (effectiveDiamonds >= 100000) {
+        currentStageTarget = 375000;
+        nextStageTarget = 525000;
+      } else if (effectiveDiamonds >= 225000) {
         currentStageTarget = 300000;
-        nextStageTarget = 500000;
-      } else {
-        currentStageTarget = 100000;
+        nextStageTarget = 375000;
+      } else if (effectiveDiamonds >= 150000) {
+        currentStageTarget = 225000;
         nextStageTarget = 300000;
+      } else {
+        currentStageTarget = 150000;
+        nextStageTarget = 225000;
       }
-      nextStageSalary = (nextStageTarget / 1000);
+      nextStageSalary = 9.0;
     }
 
     final hostSalaryStr = currentStageSalary > 0

@@ -55,7 +55,7 @@ class AgentInfoModel {
     this.commissionRate = 0.10,
     this.tier = 'bronze',
     this.notice = 'أهلاً بكم في الوكالة الرسمية!',
-    this.targetDiamonds = 1000000,
+    this.targetDiamonds = 150000,
     this.salaryUsd = 0.0,
     this.rewardType = 'salary_usd',
     this.rewardValue = 0.0,
@@ -87,7 +87,7 @@ class AgentInfoModel {
       commissionRate: _safeDouble(json['commission_rate'] ?? dataMap['commission_rate'], 0.10),
       tier: json['tier']?.toString() ?? dataMap['tier']?.toString() ?? 'bronze',
       notice: json['notice']?.toString() ?? json['description']?.toString() ?? json['announcement']?.toString() ?? 'أهلاً بكم في الوكالة الرسمية!',
-      targetDiamonds: _safeInt(json['target_diamonds'] ?? json['monthly_target'], 1000000),
+      targetDiamonds: _safeInt(json['target_diamonds'] ?? json['monthly_target'], 0),
       salaryUsd: _safeDouble(json['salary_usd']),
       rewardType: json['reward_type']?.toString() ?? 'salary_usd',
       rewardValue: _safeDouble(json['reward_value']),
@@ -187,6 +187,7 @@ class AnchorAgentUserInfoDataModel {
   final int days;
   final double minute;
   final String diamonds;
+  final int unpackedDiamonds;
   final int experience;
   final int level;
   final int recgLevel;
@@ -207,6 +208,7 @@ class AnchorAgentUserInfoDataModel {
     this.days = 0,
     this.minute = 0.0,
     this.diamonds = '0',
+    this.unpackedDiamonds = 0,
     this.experience = 0,
     this.level = 1,
     this.recgLevel = 0,
@@ -224,8 +226,14 @@ class AnchorAgentUserInfoDataModel {
   String get avatarUrl => headImage;
   String get totalDiamond => diamonds;
 
+  /// إجمالي الألماس الفعلي المحقق للشهر (بما فيه الألماس المفكوك) لضمان حماية عمولة وكيل المضيفين وتارجت الوكالة
+  int get effectiveDiamonds {
+    final cur = int.tryParse(diamonds) ?? 0;
+    return cur + unpackedDiamonds;
+  }
+
   double get targetProgress {
-    final current = double.tryParse(diamonds) ?? 0.0;
+    final current = effectiveDiamonds.toDouble();
     if (targetDiamonds <= 0) return 0.0;
     return (current / targetDiamonds).clamp(0.0, 1.0);
   }
@@ -247,6 +255,7 @@ class AnchorAgentUserInfoDataModel {
       days: _safeInt(json['days'] ?? json['valid_days_monthly'] ?? json['valid_days']),
       minute: _safeDouble(json['minute'] ?? (json['live_seconds_monthly'] != null ? _safeDouble(json['live_seconds_monthly']) / 60.0 : null)),
       diamonds: json['diamonds']?.toString() ?? json['diamonds_earned_monthly']?.toString() ?? json['earnings']?.toString() ?? '0',
+      unpackedDiamonds: _safeInt(json['unpacked_target_diamonds']),
       experience: _safeInt(json['experience']),
       level: _safeInt(json['level'], 1),
       recgLevel: _safeInt(json['recg_level']),
@@ -267,6 +276,7 @@ class AnchorAgentUserInfoDataModel {
         'days': days,
         'minute': minute,
         'diamonds': diamonds,
+        'unpacked_target_diamonds': unpackedDiamonds,
         'experience': experience,
         'level': level,
         'recg_level': recgLevel,

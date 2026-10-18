@@ -1084,6 +1084,7 @@ class SupabaseDataService {
                 m['minute'] = (m['minute'] as num?)?.toDouble() ?? (sec > 0 ? (sec / 60.0) : (hrs * 60.0));
                 m['days'] = (m['valid_days_monthly'] as num?)?.toInt() ?? (m['valid_days'] as num?)?.toInt() ?? (m['days'] as num?)?.toInt() ?? 0;
                 m['diamonds'] = m['diamonds_earned_monthly']?.toString() ?? uData?['diamonds']?.toString() ?? m['diamonds']?.toString() ?? '0';
+                m['unpacked_target_diamonds'] = (m['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
                 m['target_diamonds'] = (m['target_diamonds'] as num?)?.toInt() ?? 100000;
               }
             }
