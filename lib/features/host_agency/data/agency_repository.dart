@@ -1,6 +1,7 @@
 import '../../../core/supabase_compat.dart';
 
 import '../../../core/utils/server_time_service.dart';
+import '../../../services/dynamic_config_service.dart';
 import 'agency_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
@@ -497,8 +498,10 @@ abstract final class AgencyRepository {
     final curC = (uRow?['coins'] as num?)?.toInt() ?? 0;
     if (curD < diamondsAmount) throw Exception('رصيد الألماس غير كافٍ');
 
-    // كوينز كاملة 1:1 (المضيف يستلم كامل الكوينز عند الفك)
-    final coinsReceived = diamondsAmount;
+    // احتساب الكوينز المستلمة بناءً على الإعدادات المحددة في لوحة التحكم (coinsPerDiamond من recharge-settings)
+    final dc = DynamicConfigService();
+    final mult = dc.coinsPerDiamond > 0 ? dc.coinsPerDiamond : 1.0;
+    final coinsReceived = (diamondsAmount * mult).floor();
 
     await _sb.from('users').update({
       'diamonds': (curD - diamondsAmount).clamp(0, 999999999),

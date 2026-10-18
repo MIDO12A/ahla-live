@@ -1349,7 +1349,13 @@ class DynamicConfigService extends ChangeNotifier {
     _diamondToCoinRate = (_rawConfig['diamondToCoinRate'] ?? 1).toInt();
     if (_diamondToCoinRate <= 0) _diamondToCoinRate = 1;
 
-    final dec = _rawConfig['diamond_exchange_config'];
+    dynamic dec = _rawConfig['diamond_exchange_config'];
+    if (dec is String) {
+      try {
+        dec = jsonDecode(dec);
+      } catch (_) {}
+    }
+
     if (dec is Map) {
       _coinsPerDiamond = (dec['coinsPerDiamond'] as num?)?.toDouble() ?? 1.0;
       _minDiamondsToExchange = (dec['minDiamonds'] as num?)?.toInt() ?? 10;

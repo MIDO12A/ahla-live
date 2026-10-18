@@ -5,6 +5,7 @@ import '../../../core/supabase_compat.dart';
 
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
+import '../../../services/dynamic_config_service.dart';
 
 import '../../../core/cache/encrypted_image_provider.dart';
 import '../../../screens/message/message_reply_detail_screen.dart';
@@ -251,8 +252,13 @@ class _ExchangeTabState extends State<_ExchangeTab> {
   bool _processing = false;
   int  _diamonds   = 0;
 
-  /// يستخدم المعدل من قاعدة البيانات (لا ثوابت مشفّرة)
-  int get _coinsResult => widget.engine.coinsFromDiamonds(_diamonds);
+  /// يستخدم المعدل من إعدادات الشحن في لوحة التحكم (diamond_exchange_config)
+  int get _coinsResult {
+    final mult = DynamicConfigService().coinsPerDiamond > 0
+        ? DynamicConfigService().coinsPerDiamond
+        : widget.engine.diamondToCoinRate;
+    return (_diamonds * mult).floor();
+  }
 
   @override
   void dispose() { _ctrl.dispose(); super.dispose(); }
@@ -286,10 +292,12 @@ class _ExchangeTabState extends State<_ExchangeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final rate    = widget.engine.diamondToCoinRate;
-    final rateStr = rate == rate.truncateToDouble()
-        ? rate.toInt().toString()
-        : rate.toStringAsFixed(2);
+    final mult = DynamicConfigService().coinsPerDiamond > 0
+        ? DynamicConfigService().coinsPerDiamond
+        : widget.engine.diamondToCoinRate;
+    final rateStr = mult == mult.truncateToDouble()
+        ? mult.toInt().toString()
+        : mult.toString();
     final limit   = widget.engine.dailyExchangeLimit;
 
     return SingleChildScrollView(
@@ -299,7 +307,7 @@ class _ExchangeTabState extends State<_ExchangeTab> {
           icon: '💱',
           title: 'تبادل الألماس',
           lines: [
-            'معدل التبادل: 1 ♦ = 1 كوينز (تبديل كامل 1:1)',
+            'معدل التبادل: 1 ♦ = $rateStr كوينز (حسب إعدادات لوحة التحكم)',
             'حد يومي: ${_fmtK(limit)} ألماس',
             'الحد الأدنى للعملية: 100 ألماس',
             'يخصم من الرصيد المتاح ومن التارجت الشهري للمضيف ويتراجع التارجت بمقداره',

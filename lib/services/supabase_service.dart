@@ -1067,7 +1067,9 @@ class SupabaseService {
   }) async {
     final effectiveMultiplier = (coinsPerDiamond != null && coinsPerDiamond > 0)
         ? coinsPerDiamond
-        : (rate != null && rate > 0 ? (rate == 1 ? 1.0 : 1.0 / rate) : 1.0);
+        : (DynamicConfigService().coinsPerDiamond > 0
+            ? DynamicConfigService().coinsPerDiamond
+            : (rate != null && rate > 0 ? (rate == 1 ? 1.0 : 1.0 / rate) : 1.0));
 
     final effectiveMin = minDiamonds ?? (rate != null && rate > 0 ? rate : 1);
 
