@@ -1649,6 +1649,46 @@ class DynamicConfigService extends ChangeNotifier {
     return 100.0; // 100% كاملة افتراضياً
   }
 
+  /// نسبة استبدال ألماس تارجت المضيف إلى كوينز عند فك التارجت
+  /// القيمة الافتراضية 0.60 (أي 60% كوينز)
+  double get hostTargetExchangeRate {
+    final candidates = [
+      _rawConfig['host_target_exchange_rate'],
+      _rawConfig['host_target_exchange_rate_pct'],
+      _rawConfig['hostExchangeRate'],
+      _rawConfig['host_exchange_rate'],
+    ];
+
+    for (final direct in candidates) {
+      if (direct != null) {
+        final p = double.tryParse(direct.toString());
+        if (p != null && p > 0) {
+          return (p > 1.0) ? p / 100.0 : p;
+        }
+      }
+    }
+
+    final pol = _rawConfig['agency_financial_policy'];
+    if (pol is Map) {
+      final p = double.tryParse((pol['host_target_exchange_rate_pct'] ?? pol['host_target_exchange_rate'])?.toString() ?? '');
+      if (p != null && p > 0) {
+        return (p > 1.0) ? p / 100.0 : p;
+      }
+    } else if (pol is String) {
+      try {
+        final m = jsonDecode(pol);
+        if (m is Map) {
+          final p = double.tryParse((m['host_target_exchange_rate_pct'] ?? m['host_target_exchange_rate'])?.toString() ?? '');
+          if (p != null && p > 0) {
+            return (p > 1.0) ? p / 100.0 : p;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return 0.60; // 60% كوينز افتراضياً
+  }
+
   // ─── Audio & Zego Configurations ──────────────────────────────────────
   int get zegoAppId {
     final v = _rawConfig['zego_app_id'] ?? _rawConfig['zegoAppId'];

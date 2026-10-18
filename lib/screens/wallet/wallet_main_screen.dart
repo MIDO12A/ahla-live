@@ -27,6 +27,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   List<Map<String, dynamic>> _coinPlans = [];
   List<Map<String, dynamic>> _diamondPlans = [];
   bool _loadingPlans = true;
+  bool _isHost = false;
 
   final Map<String, dynamic> _gatewayConfig = {
     'googlePlayEnabled': true,
@@ -110,6 +111,21 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           ];
         });
       }
+
+      // Check if current user is an active host
+      try {
+        final uid = Supabase.instance.client.auth.currentUser?.id;
+        if (uid != null) {
+          final mem = await Supabase.instance.client
+              .from('host_agency_members')
+              .select('id')
+              .or('host_uid.eq.$uid,user_id.eq.$uid')
+              .maybeSingle();
+          if (mem != null && mounted) {
+            setState(() => _isHost = true);
+          }
+        }
+      } catch (_) {}
     } catch (_) {
     } finally {
       if (mounted) setState(() => _loadingPlans = false);
@@ -782,13 +798,17 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     if (!dc.diamondExchangeEnabled) {
       return const SizedBox.shrink();
     }
-    final multiplier = dc.coinsPerDiamond;
+    final isHost = _isHost;
+    final hostRate = dc.hostTargetExchangeRate; // 0.60
+    final multiplier = isHost ? hostRate : dc.coinsPerDiamond;
     final minDiamonds = dc.minDiamondsToExchange;
-    final rateLabel = multiplier == 1.0
-        ? '1 ألماس = 1 كوين'
-        : (multiplier > 1.0
-            ? '1 ألماس = ${multiplier % 1 == 0 ? multiplier.toInt() : multiplier} كوينز'
-            : '${(1 / multiplier).round()} ألماس = 1 كوين');
+    final rateLabel = isHost
+        ? 'معدل التبادل للمضيف: 60% كوينز (يؤثر على التارجت الشهري)'
+        : (multiplier == 1.0
+            ? '1 ألماس = 1 كوين'
+            : (multiplier > 1.0
+                ? '1 ألماس = ${multiplier % 1 == 0 ? multiplier.toInt() : multiplier} كوينز'
+                : '${(1 / multiplier).round()} ألماس = 1 كوين'));
 
     final coinsPreview = (_exchangeDiamondAmount * multiplier).floor();
 
@@ -817,6 +837,28 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           Text('المعدل: $rateLabel (الحد الأدنى: $minDiamonds ألماس)',
             style: TextStyle(fontSize: 13, color: dc.walletSubTextColor),
           ),
+          if (isHost)
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.amber, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'تنبيه للمضيفين: فك الألماس إلى كوينز يتم بنسبة راتب 60% كوينز، ويتم خصم الألماس من التارجت الشهري فيتراجع التارجت بمقدار ما تم فكه.',
+                      style: TextStyle(fontSize: 11, color: Colors.amber, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           const SizedBox(height: 12),
           Row(
             children: [

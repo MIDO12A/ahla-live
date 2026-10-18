@@ -1,4 +1,4 @@
-﻿// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 //  Agency Models — نظام الوكالات الشامل (v2 — موحد مع المحرك الجديد)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -66,7 +66,7 @@ class AgencyEngineSettings {
       hostSharePct:           (m['host_share_pct'] as num?)?.toInt()              ?? 70,
       agencySharePct:         (m['agency_share_pct'] as num?)?.toInt()            ?? 20,
       platformSharePct:       (m['platform_share_pct'] as num?)?.toInt()          ?? 10,
-      diamondToCoinRate:      (m['diamond_to_coin_rate'] as num?)?.toDouble()     ?? 0.5,
+      diamondToCoinRate:      (m['diamond_to_coin_rate'] as num?)?.toDouble()     ?? 0.6,
       dailyExchangeLimit:     (m['daily_exchange_limit_diamonds'] as num?)?.toInt() ?? 500000,
       diamondToUsdRate:       (m['diamond_to_usd_rate'] as num?)?.toDouble()      ?? 0.0001,
       withdrawalFeePct:       (m['withdrawal_fee_pct'] as num?)?.toDouble()       ?? 10.0,

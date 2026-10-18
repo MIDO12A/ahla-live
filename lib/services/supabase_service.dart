@@ -1082,7 +1082,23 @@ class SupabaseService {
       if (user == null || user.diamonds < diamonds) {
         return (success: false, coinsReceived: 0, error: 'رصيد الألماس غير كافٍ');
       }
-      final coinsToReceive = (diamonds * effectiveMultiplier).floor();
+
+      // التحقق مما إذا كان المستخدم مضيفاً في وكالة
+      Map<String, dynamic>? hostMember;
+      try {
+        final memRes = await _sb.from('host_agency_members')
+            .select('id, diamonds_balance, diamonds, diamonds_earned_monthly')
+            .or('host_uid.eq.$uid,user_id.eq.$uid')
+            .maybeSingle();
+        if (memRes != null) hostMember = Map<String, dynamic>.from(memRes);
+      } catch (_) {}
+
+      // في حال كان المستخدم مضيفاً يفك تارجت الألماس لكوينز، يحصل على 60% كوينز فقط
+      final isHost = hostMember != null;
+      final hostRate = DynamicConfigService().hostTargetExchangeRate; // 0.60
+      final actualMultiplier = isHost ? hostRate : effectiveMultiplier;
+
+      final coinsToReceive = (diamonds * actualMultiplier).floor();
       if (coinsToReceive <= 0) {
         return (success: false, coinsReceived: 0, error: 'كمية الألماس غير كافية للحصول على كوينز');
       }
@@ -1094,22 +1110,27 @@ class SupabaseService {
         'coins': newCoins,
       });
 
-      // فك الألماس يخصم فقط من الرصيد المتاح للإنفاق (diamonds_balance) للمضيف
-      // ⚠️ حماية عمولة وكيل المضيفين: لا يتم خصم أو التأثير بأي شكل على عمولة وكيل المضيفين، ولا يتم مساس diamonds_earned_monthly
-      try {
-        final memRes = await _sb.from('host_agency_members')
-            .select('id, diamonds_balance, diamonds')
-            .or('host_uid.eq.$uid,user_id.eq.$uid')
-            .maybeSingle();
-        if (memRes != null) {
-          final curBal = (memRes['diamonds_balance'] as num?)?.toInt() ?? (memRes['diamonds'] as num?)?.toInt() ?? 0;
+      // إذا كان مضيفاً:
+      // يتم خصم الألماس من رصيده المتاح (diamonds_balance)
+      // ويتم أيضاً خصمه من التارجت الشهري (diamonds_earned_monthly) ليتراجع التارجت بمقدار ما تم فكه
+      // مع الحفاظ الكامل على عمولة وكيل المضيفين دون أي مساس بها
+      if (hostMember != null) {
+        try {
+          final curBal = (hostMember['diamonds_balance'] as num?)?.toInt() ?? (hostMember['diamonds'] as num?)?.toInt() ?? 0;
+          final curMonthly = (hostMember['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
           final updatedBal = (curBal - diamonds).clamp(0, 999999999);
+          final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
+
           await _sb.from('host_agency_members').update({
             'diamonds_balance': updatedBal,
             'diamonds': updatedBal,
-          }).eq('id', memRes['id']);
-        }
-      } catch (_) {}
+            'diamonds_earned_monthly': updatedMonthly, // خصم الألماس من التارجت الشهري ليتراجع
+          }).eq('id', hostMember['id']);
+
+          // تحديث وإعادة تقييم التارجت ليتراجع فوراً
+          await AgencyTargetEvaluator.evaluateHostTargets(uid);
+        } catch (_) {}
+      }
 
       return (success: true, coinsReceived: coinsToReceive, error: null);
     } catch (e) {

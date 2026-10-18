@@ -55,10 +55,7 @@ class AgencyTargetEvaluator {
       if (agencyId.isEmpty) return;
 
       final md = memberDoc ?? {};
-      final d1 = (md['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-      final d2 = (md['diamonds_balance'] as num?)?.toInt() ?? 0;
-      final d3 = (md['diamonds'] as num?)?.toInt() ?? 0;
-      final diamondsMonthly = [d1, d2, d3].reduce((curr, next) => curr > next ? curr : next);
+      final diamondsMonthly = (md['diamonds_earned_monthly'] as num?)?.toInt() ?? (md['diamonds_balance'] as num?)?.toInt() ?? 0;
       final liveSeconds = (md['live_seconds_monthly'] as num?)?.toInt() ?? 0;
       final liveHours = (md['live_hours_monthly'] as num?)?.toDouble() ?? (liveSeconds / 3600.0);
       final validDays = (md['valid_days_monthly'] as num?)?.toInt() ?? 0;
@@ -113,12 +110,13 @@ class AgencyTargetEvaluator {
         final requiredDays = (td['required_days'] as num?)?.toInt() ?? (td['target_days'] as num?)?.toInt() ?? 0;
         final targetId = td['id']?.toString() ?? '';
 
+        final achievedId = '${hostUserId}_${targetId}_$currentMonth';
+
         if (targetDiamonds > 0 && diamondsMonthly >= targetDiamonds) {
           if (requiredHours > 0 && liveHours < requiredHours) continue;
           if (requiredDays > 0 && validDays < requiredDays) continue;
 
           // Did they already achieve this target this month?
-          final achievedId = '${hostUserId}_${targetId}_$currentMonth';
           try {
             final achievedSnap = await _sb.from('agency_achieved_targets')
                 .select('id')
@@ -136,6 +134,13 @@ class AgencyTargetEvaluator {
                 currentMonth: currentMonth,
               );
             }
+          } catch (_) {}
+        } else if (targetDiamonds > 0 && diamondsMonthly < targetDiamonds) {
+          // في حال تراجع رصيد الألماس الشهري نتيجة فك الألماس، يتم تراجع التارجت وإلغاء حالة التحقيق
+          try {
+            await _sb.from('agency_achieved_targets')
+                .delete()
+                .eq('id', achievedId);
           } catch (_) {}
         }
       }
