@@ -530,8 +530,9 @@ class SupabaseService {
       final currentCoins = sUser?.coins ?? 0;
       if (currentCoins < totalCost) return false;
 
-      // 2. توزيع الماس وفق سياسة النظام المعتمدة (68% للمضيف، و 10% لوكيل المضيف دون خصمها من المضيف)
-      final hostDiamonds = (totalCost * 0.68).round();
+      // 2. توزيع الماس وفق سياسة النظام المعتمدة (100% للمضيف كاملة، وعمولة وكيل المضيف تُضاف لرصيده دون أي خصم من المضيف)
+      final hostRatePct = DynamicConfigService().hostRatePercentage;
+      final hostDiamonds = (totalCost * (hostRatePct / 100.0)).round();
 
       if (isSelfSend) {
         await _ds.updateUser(senderId, {
@@ -1092,6 +1093,23 @@ class SupabaseService {
         'diamonds': newDiamonds,
         'coins': newCoins,
       });
+
+      // فك الألماس يخصم فقط من الرصيد المتاح للإنفاق (diamonds_balance) للمضيف
+      // ⚠️ حماية عمولة وكيل المضيفين: لا يتم خصم أو التأثير بأي شكل على عمولة وكيل المضيفين، ولا يتم مساس diamonds_earned_monthly
+      try {
+        final memRes = await _sb.from('host_agency_members')
+            .select('id, diamonds_balance, diamonds')
+            .or('host_uid.eq.$uid,user_id.eq.$uid')
+            .maybeSingle();
+        if (memRes != null) {
+          final curBal = (memRes['diamonds_balance'] as num?)?.toInt() ?? (memRes['diamonds'] as num?)?.toInt() ?? 0;
+          final updatedBal = (curBal - diamonds).clamp(0, 999999999);
+          await _sb.from('host_agency_members').update({
+            'diamonds_balance': updatedBal,
+            'diamonds': updatedBal,
+          }).eq('id', memRes['id']);
+        }
+      } catch (_) {}
 
       return (success: true, coinsReceived: coinsToReceive, error: null);
     } catch (e) {

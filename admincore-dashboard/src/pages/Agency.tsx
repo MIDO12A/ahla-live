@@ -1992,7 +1992,7 @@ function CommissionTab() {
   };
 
   const descKeyMap: Record<string, string> = {
-    host_rate: 'نسبة راتب المضيف من الكوينز المستلمة (افتراضي 68%)',
+    host_rate: 'نسبة راتب المضيف من الكوينز المستلمة (افتراضي 100%)',
     agency_rate: 'نسبة راتب وكيل المضيف من ماس المضيف (افتراضي 10%)',
     recharge_agent_host_rate: 'عمولة وكيل الشحن من تحويل راتب المضيف (افتراضي 10%)',
     recharge_agent_agency_rate: 'عمولة وكيل الشحن من تحويل راتب وكيل المضيف (افتراضي 10%)',
@@ -2023,11 +2023,11 @@ function CommissionTab() {
               عند إرسال هدايا بقيمة 15,000 كوينز:
             </p>
             <ul className="space-y-1 text-slate-300">
-              <li className="flex justify-between"><span>• المضيف (68%):</span> <strong className="text-emerald-400">10,200 ماس</strong></li>
-              <li className="flex justify-between"><span>• وكيل المضيف (10%):</span> <strong className="text-indigo-400">1,020 ماس</strong></li>
+              <li className="flex justify-between"><span>• المضيف (100%):</span> <strong className="text-emerald-400">15,000 ماس</strong></li>
+              <li className="flex justify-between"><span>• وكيل المضيف (10%):</span> <strong className="text-indigo-400">1,500 ماس</strong></li>
             </ul>
             <div className="text-[10px] text-amber-400/90 bg-amber-500/10 p-2 rounded border border-amber-500/20">
-              ⚡ يتم احتساب راتب الوكيل تلقائياً مع أي قيمة هدايا دون خصمها من المضيف.
+              ⚡ يتم احتساب راتب وعمولة الوكيل تلقائياً دون خصمها من المضيف، وفي حال فك المضيف للألماس أو تحويله لكوينز لا تتأثر عمولة الوكيل نهائياً وتظل ثابتة في محفظته.
             </div>
           </div>
 

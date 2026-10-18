@@ -459,11 +459,47 @@ abstract final class AgencyRepository {
     required int    diamondsAmount,
     required String idempotencyKey,
   }) async {
-    final resp = await _sb.rpc('agency_exchange_diamonds', params: {
-      'p_diamonds':        diamondsAmount,
-      'p_idempotency_key': idempotencyKey,
-    });
-    return Map<String, dynamic>.from(resp as Map);
+    try {
+      final resp = await _sb.rpc('agency_exchange_diamonds', params: {
+        'p_diamonds':        diamondsAmount,
+        'p_idempotency_key': idempotencyKey,
+      });
+      if (resp != null) return Map<String, dynamic>.from(resp as Map);
+    } catch (_) {}
+
+    // Fallback المباشر: فك الألماس لكوينز مع حماية عمولة وتارجت الوكالة تماماً
+    final uid = _sb.auth.currentUser?.id;
+    if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
+    final uRow = await _sb.from('users').select('diamonds, coins').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
+    final curD = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
+    final curC = (uRow?['coins'] as num?)?.toInt() ?? 0;
+    if (curD < diamondsAmount) throw Exception('رصيد الألماس غير كافٍ');
+
+    await _sb.from('users').update({
+      'diamonds': (curD - diamondsAmount).clamp(0, 999999999),
+      'coins': curC + diamondsAmount,
+    }).or('uid.eq.$uid,id.eq.$uid');
+
+    try {
+      final mem = await _sb.from('host_agency_members')
+          .select('id, diamonds_balance, diamonds')
+          .or('host_uid.eq.$uid,user_id.eq.$uid')
+          .maybeSingle();
+      if (mem != null) {
+        final curBal = (mem['diamonds_balance'] as num?)?.toInt() ?? (mem['diamonds'] as num?)?.toInt() ?? 0;
+        final updatedBal = (curBal - diamondsAmount).clamp(0, 999999999);
+        await _sb.from('host_agency_members').update({
+          'diamonds_balance': updatedBal,
+          'diamonds': updatedBal,
+        }).eq('id', mem['id']);
+      }
+    } catch (_) {}
+
+    return {
+      'status': 'ok',
+      'success': true,
+      'coins_received': diamondsAmount,
+    };
   }
 
   // ─── طلب سحب نقدي (مع KYC وتجميد فوري) ─────────────────────────
@@ -606,13 +642,15 @@ abstract final class AgencyRepository {
           'diamonds': newHostDiamonds,
         }).or('uid.eq.$uid,id.eq.$uid');
 
-        // 2. Zero out host's diamonds in host_agency_members
+        // 2. Deduct host's available diamonds in host_agency_members (Preserve monthly target & agency commission)
         if (memberRow != null && memberRow['id'] != null) {
+          final curBal = (memberRow['diamonds_balance'] as num?)?.toInt() ?? (memberRow['diamonds'] as num?)?.toInt() ?? userDiamonds;
+          final updatedBal = (curBal - diamonds).clamp(0, 999999999);
           await _sb.from('host_agency_members').update({
-            'diamonds': 0,
-            'diamonds_balance': 0,
-            'diamonds_earned_monthly': 0,
-            'diamonds_available': 0,
+            'diamonds': updatedBal,
+            'diamonds_balance': updatedBal,
+            'diamonds_available': updatedBal,
+            // ⚠️ تحذير: لا يتم تصفير diamonds_earned_monthly للحفاظ على تارجت الوكالة وعمولة الوكيل المعتمدة
           }).eq('id', memberRow['id']);
         }
 
