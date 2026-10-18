@@ -1093,12 +1093,8 @@ class SupabaseService {
         if (memRes != null) hostMember = Map<String, dynamic>.from(memRes);
       } catch (_) {}
 
-      // في حال كان المستخدم مضيفاً يفك تارجت الألماس لكوينز، يحصل على 60% كوينز فقط
-      final isHost = hostMember != null;
-      final hostRate = DynamicConfigService().hostTargetExchangeRate; // 0.60
-      final actualMultiplier = isHost ? hostRate : effectiveMultiplier;
-
-      final coinsToReceive = (diamonds * actualMultiplier).floor();
+      // استبدال الألماس إلى كوينز بمعدل كامل 1:1 (المستخدم يستلم كامل الكوينز)
+      final coinsToReceive = (diamonds * effectiveMultiplier).floor();
       if (coinsToReceive <= 0) {
         return (success: false, coinsReceived: 0, error: 'كمية الألماس غير كافية للحصول على كوينز');
       }
@@ -1113,11 +1109,13 @@ class SupabaseService {
       // إذا كان مضيفاً:
       // يتم خصم الألماس من رصيده المتاح (diamonds_balance)
       // ويتم أيضاً خصمه من التارجت الشهري (diamonds_earned_monthly) ليتراجع التارجت بمقدار ما تم فكه
+      // ويتم تسجيل فك التارجت لاحتساب راتب التارجت بنسبة 60% لاحقاً (خصم 40% من الراتب)
       // مع الحفاظ الكامل على عمولة وكيل المضيفين دون أي مساس بها
       if (hostMember != null) {
         try {
           final curBal = (hostMember['diamonds_balance'] as num?)?.toInt() ?? (hostMember['diamonds'] as num?)?.toInt() ?? 0;
           final curMonthly = (hostMember['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+          final curUnpacked = (hostMember['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
           final updatedBal = (curBal - diamonds).clamp(0, 999999999);
           final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
 
@@ -1125,6 +1123,8 @@ class SupabaseService {
             'diamonds_balance': updatedBal,
             'diamonds': updatedBal,
             'diamonds_earned_monthly': updatedMonthly, // خصم الألماس من التارجت الشهري ليتراجع
+            'unpacked_target_diamonds': curUnpacked + diamonds, // تسجيل فك التارجت
+            'has_unpacked_target': true,
           }).eq('id', hostMember['id']);
 
           // تحديث وإعادة تقييم التارجت ليتراجع فوراً

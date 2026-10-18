@@ -1649,14 +1649,15 @@ class DynamicConfigService extends ChangeNotifier {
     return 100.0; // 100% كاملة افتراضياً
   }
 
-  /// نسبة استبدال ألماس تارجت المضيف إلى كوينز عند فك التارجت
-  /// القيمة الافتراضية 0.60 (أي 60% كوينز)
-  double get hostTargetExchangeRate {
+  /// نسبة راتب المضيف في حال فك جزء من ألماس التارجت (افتراضياً 60%، أي خصم 40% من الراتب)
+  /// مثلاً: إذا كان الراتب 9 دولار، ينزل إلى 5.4 دولار (~ 5 دولار)
+  double get hostTargetSalaryRate {
     final candidates = [
+      _rawConfig['host_target_salary_rate'],
+      _rawConfig['host_target_salary_rate_pct'],
       _rawConfig['host_target_exchange_rate'],
       _rawConfig['host_target_exchange_rate_pct'],
       _rawConfig['hostExchangeRate'],
-      _rawConfig['host_exchange_rate'],
     ];
 
     for (final direct in candidates) {
@@ -1670,7 +1671,7 @@ class DynamicConfigService extends ChangeNotifier {
 
     final pol = _rawConfig['agency_financial_policy'];
     if (pol is Map) {
-      final p = double.tryParse((pol['host_target_exchange_rate_pct'] ?? pol['host_target_exchange_rate'])?.toString() ?? '');
+      final p = double.tryParse((pol['host_target_salary_rate_pct'] ?? pol['host_target_exchange_rate_pct'] ?? pol['host_target_salary_rate'])?.toString() ?? '');
       if (p != null && p > 0) {
         return (p > 1.0) ? p / 100.0 : p;
       }
@@ -1678,7 +1679,7 @@ class DynamicConfigService extends ChangeNotifier {
       try {
         final m = jsonDecode(pol);
         if (m is Map) {
-          final p = double.tryParse((m['host_target_exchange_rate_pct'] ?? m['host_target_exchange_rate'])?.toString() ?? '');
+          final p = double.tryParse((m['host_target_salary_rate_pct'] ?? m['host_target_exchange_rate_pct'] ?? m['host_target_salary_rate'])?.toString() ?? '');
           if (p != null && p > 0) {
             return (p > 1.0) ? p / 100.0 : p;
           }
@@ -1686,8 +1687,11 @@ class DynamicConfigService extends ChangeNotifier {
       } catch (_) {}
     }
 
-    return 0.60; // 60% كوينز افتراضياً
+    return 0.60; // 60% من الراتب افتراضياً (خصم 40%)
   }
+
+  /// متوافق مع المسميات القديمة
+  double get hostTargetExchangeRate => hostTargetSalaryRate;
 
   // ─── Audio & Zego Configurations ──────────────────────────────────────
   int get zegoAppId {

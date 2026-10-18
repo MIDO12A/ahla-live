@@ -211,7 +211,7 @@ class AgencyTargetEvaluator {
   }) async {
     final targetDiamonds = (targetData['target_diamonds'] as num?)?.toInt() ?? 0;
     final rewardType = targetData['reward_type']?.toString() ?? 'salary_usd';
-    final rewardValue = (targetData['reward_value'] as num?)?.toDouble() ?? 0.0;
+    final rawRewardValue = (targetData['reward_value'] as num?)?.toDouble() ?? 0.0;
     final rewardItemId = targetData['reward_item_id']?.toString() ?? '';
     final num? rawCommissionRate = targetData['agent_commission_rate'] as num?;
     final num? rawProfitPercent = targetData['agency_profit_percent'] as num?;
@@ -220,6 +220,24 @@ class AgencyTargetEvaluator {
     final rewardFrameId = targetData['reward_frame_id']?.toString() ?? (rewardType == 'frame' ? rewardItemId : null);
     final rewardBadgeId = targetData['reward_badge_id']?.toString() ?? (rewardType == 'badge' ? rewardItemId : null);
     final rewardDurationDays = (targetData['reward_duration_days'] as num?)?.toInt() ?? 30;
+
+    // فحص ما إذا كان المضيف قد قام بفك ألماس من التارجت خلال الشهر
+    bool hasUnpacked = false;
+    try {
+      final mRow = await _sb.from('host_agency_members')
+          .select('unpacked_target_diamonds, has_unpacked_target')
+          .or('user_id.eq.$hostUserId,host_uid.eq.$hostUserId')
+          .maybeSingle();
+      if (mRow != null) {
+        final unp = (mRow['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
+        hasUnpacked = unp > 0 || mRow['has_unpacked_target'] == true;
+      }
+    } catch (_) {}
+
+    // في حال فك المضيف من التارجت، يتم احتساب الراتب بنسبة 60% فقط (خصم 40% من الراتب)
+    // مثلاً: إذا كان الراتب 9 دولار، ينزل إلى 5.4 دولار (~ 5 دولار)
+    final salaryRate = DynamicConfigService().hostTargetSalaryRate; // 0.60
+    final rewardValue = hasUnpacked ? (rawRewardValue * salaryRate) : rawRewardValue;
 
     // 1. Mark as achieved
     try {
@@ -336,8 +354,19 @@ class AgencyTargetEvaluator {
           'target_diamonds': targetDiamonds,
           'month': currentMonth,
           'status': 'pending_payout',
+          'has_unpacked_penalty': hasUnpacked,
+          'original_amount_usd': rawRewardValue,
           'created_at': DateTime.now().toIso8601String(),
         });
+
+        if (hasUnpacked) {
+          try {
+            await _sendSystemMessage(
+              hostUserId,
+              'مبروك! حققت تارجت $targetDiamonds 💎. نظراً لفك جزء من ألماس التارجت، تم احتساب الراتب بنسبة 60% بقيمة ${rewardValue.toStringAsFixed(1)}\$ بدلاً من ${rawRewardValue.toStringAsFixed(1)}\$ (تم تطبيق خصم 40% من الراتب).',
+            );
+          } catch (_) {}
+        }
 
         // Update host_usd_wallets
         try {

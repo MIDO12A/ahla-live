@@ -799,16 +799,13 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       return const SizedBox.shrink();
     }
     final isHost = _isHost;
-    final hostRate = dc.hostTargetExchangeRate; // 0.60
-    final multiplier = isHost ? hostRate : dc.coinsPerDiamond;
+    final multiplier = dc.coinsPerDiamond;
     final minDiamonds = dc.minDiamondsToExchange;
-    final rateLabel = isHost
-        ? 'معدل التبادل للمضيف: 60% كوينز (يؤثر على التارجت الشهري)'
-        : (multiplier == 1.0
-            ? '1 ألماس = 1 كوين'
-            : (multiplier > 1.0
-                ? '1 ألماس = ${multiplier % 1 == 0 ? multiplier.toInt() : multiplier} كوينز'
-                : '${(1 / multiplier).round()} ألماس = 1 كوين'));
+    final rateLabel = multiplier == 1.0
+        ? '1 ألماس = 1 كوين (تبديل كامل 1:1)'
+        : (multiplier > 1.0
+            ? '1 ألماس = ${multiplier % 1 == 0 ? multiplier.toInt() : multiplier} كوينز'
+            : '${(1 / multiplier).round()} ألماس = 1 كوين');
 
     final coinsPreview = (_exchangeDiamondAmount * multiplier).floor();
 
@@ -852,7 +849,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'تنبيه للمضيفين: فك الألماس إلى كوينز يتم بنسبة راتب 60% كوينز، ويتم خصم الألماس من التارجت الشهري فيتراجع التارجت بمقدار ما تم فكه.',
+                      'تنبيه للمضيفين: تبديل الألماس لكوينز يتم بمعدل 1:1 كامل، ويُخصم الألماس المفكوك من التارجت الشهري، وفي حال فك أي ألماس من التارجت يتم احتساب راتب التارجت بنسبة 60% فقط (يُخصم 40% من الراتب، مثلاً ينزل من 9\$ إلى 5.4\$).',
                       style: TextStyle(fontSize: 11, color: Colors.amber, height: 1.3),
                     ),
                   ),

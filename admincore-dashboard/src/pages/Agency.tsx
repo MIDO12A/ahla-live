@@ -1993,7 +1993,7 @@ function CommissionTab() {
 
   const descKeyMap: Record<string, string> = {
     host_rate: 'نسبة راتب المضيف من الكوينز المستلمة (افتراضي 100%)',
-    host_target_exchange_rate: 'نسبة راتب المضيف عند فك التارجت إلى كوينز (افتراضي 60%)',
+    host_target_exchange_rate: 'نسبة راتب المضيف في حال فك ألماس التارجت (افتراضي 60% - خصم 40% من الراتب)',
     agency_rate: 'نسبة راتب وكيل المضيف من ماس المضيف (افتراضي 10%)',
     recharge_agent_host_rate: 'عمولة وكيل الشحن من تحويل راتب المضيف (افتراضي 10%)',
     recharge_agent_agency_rate: 'عمولة وكيل الشحن من تحويل راتب وكيل المضيف (افتراضي 10%)',
@@ -2035,17 +2035,17 @@ function CommissionTab() {
           {/* Card 2: Target 1 Distribution */}
           <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2">
             <div className="font-bold text-indigo-300 flex items-center gap-1.5">
-              <span>🎯</span> التارجت الأول (150,000 ماس) وسياسة فك الألماس:
+              <span>🎯</span> سياسة تارجت المضيف وفك الألماس:
             </div>
             <ul className="space-y-1 text-slate-300">
-              <li className="flex justify-between"><span>• فك التارجت إلى كوينز (60%):</span> <strong className="text-emerald-400">90,000 كوينز</strong></li>
-              <li className="flex justify-between"><span>• التأثير على تارجت المضيف:</span> <strong className="text-rose-400">يُخصم من التارجت الشهري ويتراجع</strong></li>
-              <li className="flex justify-between"><span>• عمولة وكيل المضيف (10%):</span> <strong className="text-indigo-400">10,200 ماس (محفوظة وثابتة)</strong></li>
-              <li className="flex justify-between"><span>• وكيل الشحن من المضيف (10%):</span> <strong className="text-amber-400">10,200 ماس</strong></li>
-              <li className="flex justify-between border-t border-white/10 pt-1"><span>• متبقي الإدارة:</span> <strong className="text-cyan-400">محفوظ للنظام</strong></li>
+              <li className="flex justify-between"><span>• فك الألماس إلى كوينز (1:1):</span> <strong className="text-emerald-400">100% كوينز كاملة</strong></li>
+              <li className="flex justify-between"><span>• التأثير على التارجت الشهري:</span> <strong className="text-rose-400">يُخصم الألماس المفكوك ويتراجع التارجت</strong></li>
+              <li className="flex justify-between"><span>• نسبة الراتب عند فك التارجت:</span> <strong className="text-amber-400">60% فقط (خصم 40% من الراتب)</strong></li>
+              <li className="flex justify-between"><span>• مثال الراتب (لو 9 دولار):</span> <strong className="text-cyan-400">ينزل إلى 5.4$ (~5$)</strong></li>
+              <li className="flex justify-between border-t border-white/10 pt-1"><span>• عمولة وكيل المضيف (10%):</span> <strong className="text-indigo-400">محفوظة 100% دون أي خصم</strong></li>
             </ul>
             <div className="text-[10px] text-cyan-400/90 bg-cyan-500/10 p-2 rounded border border-cyan-500/20">
-              🔄 عند قيام المضيف بفك ألماس التارجت إلى كوينز، يحصل على نسبة راتب 60% كوينز، ويتم خصم الألماس مباشرة من التارجت الشهري للمضيف (diamonds_earned_monthly) ليتراجع التارجت بمقدار ما تم تحويله، بينما عمولة وكيل المضيف تبقى كما هي دون أي خصم.
+              🔄 مثال تطبيقي: إذا كان تارجت المضيف 225,000 ماس وفك 100,000 ماس إلى كوينز: يستلم 100,000 كوينز كاملة، ويُخصم 100,000 من تارجته الشهري ليتبقى 125,000 ماس، ويتم احتساب راتب التارجت بنسبة 60% فقط (خصم 40% من الراتب، فينزل من 9$ إلى 5$)، وعمولة وكيل المضيف تبقى كما هي كاملة.
             </div>
           </div>
 

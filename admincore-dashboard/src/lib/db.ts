@@ -1468,7 +1468,7 @@ export async function getCommissionSettings(): Promise<CommissionSettingModel[]>
       const pol = typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value;
       return [
         { id: 'host_rate', key: 'host_rate', value: pol.host_rate_pct ?? 100, description: 'نسبة راتب المضيف من الكوينز (%)', updated_at: '', updated_by: null },
-        { id: 'host_target_exchange_rate', key: 'host_target_exchange_rate', value: pol.host_target_exchange_rate_pct ?? 60, description: 'نسبة راتب المضيف عند فك التارجت إلى كوينز (%)', updated_at: '', updated_by: null },
+        { id: 'host_target_exchange_rate', key: 'host_target_exchange_rate', value: pol.host_target_exchange_rate_pct ?? 60, description: 'نسبة راتب المضيف في حال فك ألماس التارجت (%)', updated_at: '', updated_by: null },
         { id: 'agency_rate', key: 'agency_rate', value: pol.agency_rate_pct ?? 10, description: 'نسبة راتب وكيل المضيف من ماس المضيف (%)', updated_at: '', updated_by: null },
         { id: 'recharge_agent_host_rate', key: 'recharge_agent_host_rate', value: pol.recharge_agent_host_rate_pct ?? 10, description: 'عمولة وكيل الشحن من راتب المضيف (%)', updated_at: '', updated_by: null },
         { id: 'recharge_agent_agency_rate', key: 'recharge_agent_agency_rate', value: pol.recharge_agent_agency_rate_pct ?? 10, description: 'عمولة وكيل الشحن من راتب وكيل المضيف (%)', updated_at: '', updated_by: null },
@@ -1479,7 +1479,7 @@ export async function getCommissionSettings(): Promise<CommissionSettingModel[]>
 
   return [
     { id: 'host_rate', key: 'host_rate', value: 100, description: 'نسبة راتب المضيف من الكوينز (%)', updated_at: '', updated_by: null },
-    { id: 'host_target_exchange_rate', key: 'host_target_exchange_rate', value: 60, description: 'نسبة راتب المضيف عند فك التارجت إلى كوينز (%)', updated_at: '', updated_by: null },
+    { id: 'host_target_exchange_rate', key: 'host_target_exchange_rate', value: 60, description: 'نسبة راتب المضيف في حال فك ألماس التارجت (%)', updated_at: '', updated_by: null },
     { id: 'agency_rate', key: 'agency_rate', value: 10, description: 'نسبة راتب وكيل المضيف من ماس المضيف (%)', updated_at: '', updated_by: null },
     { id: 'recharge_agent_host_rate', key: 'recharge_agent_host_rate', value: 10, description: 'عمولة وكيل الشحن من راتب المضيف (%)', updated_at: '', updated_by: null },
     { id: 'recharge_agent_agency_rate', key: 'recharge_agent_agency_rate', value: 10, description: 'عمولة وكيل الشحن من راتب وكيل المضيف (%)', updated_at: '', updated_by: null },

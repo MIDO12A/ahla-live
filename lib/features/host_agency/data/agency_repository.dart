@@ -470,14 +470,17 @@ abstract final class AgencyRepository {
         if (uid != null) {
           try {
             final mem = await _sb.from('host_agency_members')
-                .select('id, diamonds_earned_monthly')
+                .select('id, diamonds_earned_monthly, unpacked_target_diamonds')
                 .or('host_uid.eq.$uid,user_id.eq.$uid')
                 .maybeSingle();
             if (mem != null) {
               final curMonthly = (mem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+              final curUnpacked = (mem['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
               final updatedMonthly = (curMonthly - diamondsAmount).clamp(0, 999999999);
               await _sb.from('host_agency_members').update({
                 'diamonds_earned_monthly': updatedMonthly,
+                'unpacked_target_diamonds': curUnpacked + diamondsAmount,
+                'has_unpacked_target': true,
               }).eq('id', mem['id']);
               await AgencyTargetEvaluator.evaluateHostTargets(uid);
             }
@@ -487,16 +490,15 @@ abstract final class AgencyRepository {
       }
     } catch (_) {}
 
-    // Fallback المباشر: فك الألماس لكوينز بنسبة 60% والتأثير على تارجت المضيف مع حماية عمولة الوكيل
+    // Fallback المباشر: فك الألماس لكوينز بمعدل 1:1 كامل، مع التأثير على تارجت المضيف واحتساب راتب 60% لاحقاً
     if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
     final uRow = await _sb.from('users').select('diamonds, coins').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
     final curD = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
     final curC = (uRow?['coins'] as num?)?.toInt() ?? 0;
     if (curD < diamondsAmount) throw Exception('رصيد الألماس غير كافٍ');
 
-    // نسبة استبدال التارجت لكوينز 60%
-    final xchgRate = DynamicConfigService().hostTargetExchangeRate; // 0.60
-    final coinsReceived = (diamondsAmount * xchgRate).round();
+    // كوينز كاملة 1:1 (المضيف يستلم كامل الكوينز عند الفك)
+    final coinsReceived = diamondsAmount;
 
     await _sb.from('users').update({
       'diamonds': (curD - diamondsAmount).clamp(0, 999999999),
@@ -505,12 +507,13 @@ abstract final class AgencyRepository {
 
     try {
       final mem = await _sb.from('host_agency_members')
-          .select('id, diamonds_balance, diamonds, diamonds_earned_monthly')
+          .select('id, diamonds_balance, diamonds, diamonds_earned_monthly, unpacked_target_diamonds')
           .or('host_uid.eq.$uid,user_id.eq.$uid')
           .maybeSingle();
       if (mem != null) {
         final curBal = (mem['diamonds_balance'] as num?)?.toInt() ?? (mem['diamonds'] as num?)?.toInt() ?? 0;
         final curMonthly = (mem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        final curUnpacked = (mem['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
         final updatedBal = (curBal - diamondsAmount).clamp(0, 999999999);
         final updatedMonthly = (curMonthly - diamondsAmount).clamp(0, 999999999);
 
@@ -518,6 +521,8 @@ abstract final class AgencyRepository {
           'diamonds_balance': updatedBal,
           'diamonds': updatedBal,
           'diamonds_earned_monthly': updatedMonthly, // التأثير على تارجت المضيف الشهري ليتراجع
+          'unpacked_target_diamonds': curUnpacked + diamondsAmount, // تسجيل فك التارجت لتطبيق راتب 60%
+          'has_unpacked_target': true,
         }).eq('id', mem['id']);
 
         // إعادة تقييم التارجت فوراً ليتراجع
