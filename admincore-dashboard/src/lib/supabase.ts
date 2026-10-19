@@ -434,7 +434,15 @@ export const supabase = {
   from: (table: string) => new FbQuery(table),
   channel: (_name: string) => new FbChannel(),
   removeChannel: (ch: FbChannel) => ch?.removeChannel(),
-  auth: { admin: authAdmin },
+  auth: {
+    admin: authAdmin,
+    getSession: async () => ({ data: { session: null }, error: null }),
+    onAuthStateChange: (_callback: any) => ({
+      data: { subscription: { unsubscribe: () => {} } },
+    }),
+    signInWithPassword: async () => ({ data: { user: null, session: null }, error: new Error('Use loginWithEmail') }),
+    signOut: async () => ({ error: null }),
+  },
   // storage kept as a stub — uploads now go to Firebase Storage (see storage.ts)
   storage: {
     from: () => ({

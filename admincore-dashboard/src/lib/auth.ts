@@ -101,48 +101,42 @@ export function onAuthChange(callback: (user: AppUser | null) => void) {
       if (refreshed) callback(refreshed)
     })
   } else {
-    supabase.auth.getSession().then(({ data }) => {
-      const u = toAppUser(data.session?.user)
-      if (u) {
-        setLocalAdmin(u)
-        hydrateUserPermissions(u).then(() => {
-          callback(getLocalAdmin() || u)
-        })
-      } else {
-        callback(null)
-      }
-    })
+    callback(null)
   }
 
-  const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-    if (session?.user) {
-      const user = toAppUser(session.user)
-      if (user) {
-        setLocalAdmin(user)
-        hydrateUserPermissions(user).then(() => {
-          callback(getLocalAdmin() || user)
-        })
+  // Listen for Firebase auth changes
+  let unsubFirebase: (() => void) | undefined
+  try {
+    unsubFirebase = onFirebaseAuthChange((fbUser: FirebaseUser | null) => {
+      if (fbUser) {
+        const user = toAppUser(fbUser)
+        if (user) {
+          setLocalAdmin(user)
+          hydrateUserPermissions(user).then(() => {
+            callback(getLocalAdmin() || user)
+          })
+        }
+      } else {
+        const cur = getLocalAdmin()
+        if (!cur) {
+          callback(null)
+        }
       }
-    } else {
-      const remainingLocal = getLocalAdmin()
-      callback(remainingLocal)
-    }
-  })
+    })
+  } catch (err) {
+    console.warn('onFirebaseAuthChange error:', err)
+  }
 
-  // Also listen for Firebase auth changes
-  const unsubFirebase = onFirebaseAuthChange((fbUser: FirebaseUser | null) => {
-    if (fbUser && !getLocalAdmin()) {
-      const user = toAppUser(fbUser)
-      if (user) {
-        setLocalAdmin(user)
-        callback(user)
-      }
+  const handleStorage = (e: StorageEvent) => {
+    if (e.key === LOCAL_ADMIN_KEY) {
+      callback(getLocalAdmin())
     }
-  })
+  }
+  window.addEventListener('storage', handleStorage)
 
   return () => {
-    listener?.subscription?.unsubscribe()
     unsubFirebase?.()
+    window.removeEventListener('storage', handleStorage)
   }
 }
 
