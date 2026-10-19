@@ -1,4 +1,4 @@
-﻿import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Gift, Store, DoorOpen,
   Building2, Crown, BarChart3, Award, Handshake,
@@ -14,6 +14,8 @@ import { useDashboardMode } from '../lib/dashboardMode';
 
 const adminNavItems = [
   { to: '/', icon: LayoutDashboard, label: 'nav.dashboard', end: true },
+  { to: '/super-admin', icon: Crown, label: 'لوحة السوبر أدمن 👑', isCustom: true },
+  { to: '/visual-manager', icon: Wand2, label: 'لوحة المصمم الشاملة 🎨', isCustom: true },
   { to: '/recharge-event', icon: Zap, label: 'nav.rechargeEvent' },
   { to: '/users', icon: Users, label: 'nav.users' },
   { to: '/gifts', icon: Gift, label: 'nav.gifts' },

@@ -2736,3 +2736,404 @@ export async function unpublishAppUpdate(): Promise<string | null> {
     return e instanceof Error ? e.message : String(e)
   }
 }
+
+// ============================================================
+// Super Admin, Admin, BD & Staff Management
+// ============================================================
+
+export interface SuperAdminModel {
+  uid: string;
+  appId: string;
+  name: string;
+  email?: string;
+  loginUsername?: string;
+  password?: string;
+  avatar?: string;
+  salary: number;
+  commissionRate: number;
+  permissions?: Record<string, boolean>;
+  createdAt?: string;
+}
+
+export interface AdminStaffModel {
+  uid: string;
+  appId: string;
+  name: string;
+  email?: string;
+  loginUsername?: string;
+  password?: string;
+  avatar?: string;
+  supervisorId?: string;
+  supervisorName?: string;
+  salary: number;
+  commissionRate: number;
+  agenciesCount?: number;
+  permissions?: Record<string, boolean>;
+  createdAt?: string;
+}
+
+export interface SalaryTransferRequest {
+  id: string;
+  sender_uid: string;
+  sender_name?: string;
+  sender_custom_id?: string;
+  sender_role: string;
+  agent_uid: string;
+  agent_custom_id?: string;
+  agent_name?: string;
+  amount_diamonds: number;
+  amount_coins: number;
+  status: string;
+  rejection_reason?: string;
+  created_at: string;
+  resolved_at?: string;
+}
+
+export interface StaffCommissionConfigs {
+  superAdminRate: number;
+  adminRate: number;
+  bdRate: number;
+  tiers: Array<{
+    targetDiamonds: number;
+    bonusPercentage: number;
+    description: string;
+  }>;
+}
+
+export async function getSuperAdmins(): Promise<SuperAdminModel[]> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('is_super_admin', true);
+    if (error || !data) return [];
+    return data.map((u: any) => ({
+      uid: u.uid || u.id,
+      appId: String(u.custom_id || u.id?.slice(0, 8) || ''),
+      name: u.name || 'Super Admin',
+      email: u.email,
+      loginUsername: u.email || String(u.custom_id || u.id?.slice(0, 8)),
+      password: u.super_admin_password || '',
+      avatar: u.photo_url || u.avatar || '',
+      salary: Number(u.super_admin_salary || 1000),
+      commissionRate: Number(u.super_admin_commission_rate || 15),
+      permissions: u.super_admin_permissions || {},
+      createdAt: u.created_at,
+    }));
+  } catch (e) {
+    console.error('getSuperAdmins error:', e);
+    return [];
+  }
+}
+
+export async function assignSuperAdmin(data: {
+  uid: string;
+  appId?: string;
+  name?: string;
+  email?: string;
+  password?: string;
+  salary?: number;
+  commissionRate?: number;
+  permissions?: Record<string, boolean>;
+}): Promise<boolean> {
+  try {
+    const updates: any = {
+      is_super_admin: true,
+      super_admin_salary: data.salary ?? 1000,
+      super_admin_commission_rate: data.commissionRate ?? 15,
+      super_admin_permissions: data.permissions ?? {},
+      super_admin_password: data.password || '1586494',
+    };
+    const { error } = await supabase.from('users').update(updates).eq('uid', data.uid);
+    if (error) {
+      await supabase.from('users').update(updates).eq('id', data.uid);
+    }
+    return true;
+  } catch (e) {
+    console.error('assignSuperAdmin error:', e);
+    return false;
+  }
+}
+
+export async function updateSuperAdmin(data: {
+  uid: string;
+  salary?: number;
+  commissionRate?: number;
+  permissions?: Record<string, boolean>;
+  password?: string;
+}): Promise<boolean> {
+  try {
+    const updates: any = {};
+    if (data.salary !== undefined) updates.super_admin_salary = data.salary;
+    if (data.commissionRate !== undefined) updates.super_admin_commission_rate = data.commissionRate;
+    if (data.permissions !== undefined) updates.super_admin_permissions = data.permissions;
+    if (data.password !== undefined) updates.super_admin_password = data.password;
+
+    const { error } = await supabase.from('users').update(updates).eq('uid', data.uid);
+    if (error) {
+      await supabase.from('users').update(updates).eq('id', data.uid);
+    }
+    return true;
+  } catch (e) {
+    console.error('updateSuperAdmin error:', e);
+    return false;
+  }
+}
+
+export async function revokeSuperAdmin(uid: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('users').update({ is_super_admin: false }).eq('uid', uid);
+    if (error) {
+      await supabase.from('users').update({ is_super_admin: false }).eq('id', uid);
+    }
+    return true;
+  } catch (e) {
+    console.error('revokeSuperAdmin error:', e);
+    return false;
+  }
+}
+
+export async function getAdmins(): Promise<AdminStaffModel[]> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('is_admin', true);
+    if (error || !data) return [];
+    return data.map((u: any) => ({
+      uid: u.uid || u.id,
+      appId: String(u.custom_id || u.id?.slice(0, 8) || ''),
+      name: u.name || 'Admin',
+      email: u.email,
+      loginUsername: u.email || String(u.custom_id || u.id?.slice(0, 8)),
+      password: u.admin_password || '',
+      avatar: u.photo_url || u.avatar || '',
+      supervisorId: u.admin_supervisor_id || '',
+      salary: Number(u.admin_salary || 500),
+      commissionRate: Number(u.admin_commission_rate || 10),
+      agenciesCount: Number(u.agencies_count || 0),
+      permissions: u.admin_permissions || {},
+      createdAt: u.created_at,
+    }));
+  } catch (e) {
+    console.error('getAdmins error:', e);
+    return [];
+  }
+}
+
+export async function assignAdmin(data: {
+  uid: string;
+  appId?: string;
+  name?: string;
+  email?: string;
+  password?: string;
+  supervisorId?: string;
+  salary?: number;
+  commissionRate?: number;
+  permissions?: Record<string, boolean>;
+}): Promise<boolean> {
+  try {
+    const updates: any = {
+      is_admin: true,
+      admin_salary: data.salary ?? 500,
+      admin_commission_rate: data.commissionRate ?? 10,
+      admin_supervisor_id: data.supervisorId || '',
+      admin_permissions: data.permissions ?? {},
+      admin_password: data.password || '1586494',
+    };
+    const { error } = await supabase.from('users').update(updates).eq('uid', data.uid);
+    if (error) {
+      await supabase.from('users').update(updates).eq('id', data.uid);
+    }
+    return true;
+  } catch (e) {
+    console.error('assignAdmin error:', e);
+    return false;
+  }
+}
+
+export async function updateAdminStaff(data: {
+  uid: string;
+  salary?: number;
+  commissionRate?: number;
+  supervisorId?: string;
+  permissions?: Record<string, boolean>;
+  password?: string;
+}): Promise<boolean> {
+  try {
+    const updates: any = {};
+    if (data.salary !== undefined) updates.admin_salary = data.salary;
+    if (data.commissionRate !== undefined) updates.admin_commission_rate = data.commissionRate;
+    if (data.supervisorId !== undefined) updates.admin_supervisor_id = data.supervisorId;
+    if (data.permissions !== undefined) updates.admin_permissions = data.permissions;
+    if (data.password !== undefined) updates.admin_password = data.password;
+
+    const { error } = await supabase.from('users').update(updates).eq('uid', data.uid);
+    if (error) {
+      await supabase.from('users').update(updates).eq('id', data.uid);
+    }
+    return true;
+  } catch (e) {
+    console.error('updateAdminStaff error:', e);
+    return false;
+  }
+}
+
+export async function revokeAdminStaff(uid: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('users').update({ is_admin: false }).eq('uid', uid);
+    if (error) {
+      await supabase.from('users').update({ is_admin: false }).eq('id', uid);
+    }
+    return true;
+  } catch (e) {
+    console.error('revokeAdminStaff error:', e);
+    return false;
+  }
+}
+
+export async function getBDManagers(): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('is_bd', true);
+    if (error || !data) return [];
+    return data.map((u: any) => ({
+      id: u.uid || u.id,
+      uid: u.uid || u.id,
+      appId: String(u.custom_id || u.id?.slice(0, 8) || ''),
+      name: u.name || 'BD Manager',
+      email: u.email,
+      avatar: u.photo_url || u.avatar || '',
+      supervisorId: u.bd_supervisor_id || '',
+      salary: Number(u.bd_salary || 200),
+      commissionRate: Number(u.bd_commission_rate || 10),
+      status: 'active',
+    }));
+  } catch (e) {
+    console.error('getBDManagers error:', e);
+    return [];
+  }
+}
+
+export async function assignBDManager(data: {
+  uid: string;
+  appId?: string;
+  name?: string;
+  supervisorId?: string;
+  salary?: number;
+  commissionRate?: number;
+  specialId?: string;
+  frameId?: string;
+  badgeId?: string;
+  necklaceId?: string;
+}): Promise<boolean> {
+  try {
+    const updates: any = {
+      is_bd: true,
+      bd_salary: data.salary ?? 200,
+      bd_commission_rate: data.commissionRate ?? 10,
+      bd_supervisor_id: data.supervisorId || '',
+    };
+    const { error } = await supabase.from('users').update(updates).eq('uid', data.uid);
+    if (error) {
+      await supabase.from('users').update(updates).eq('id', data.uid);
+    }
+    return true;
+  } catch (e) {
+    console.error('assignBDManager error:', e);
+    return false;
+  }
+}
+
+export async function updateBDManager(data: {
+  uid: string;
+  salary?: number;
+  commissionRate?: number;
+  supervisorId?: string;
+}): Promise<boolean> {
+  try {
+    const updates: any = {};
+    if (data.salary !== undefined) updates.bd_salary = data.salary;
+    if (data.commissionRate !== undefined) updates.bd_commission_rate = data.commissionRate;
+    if (data.supervisorId !== undefined) updates.bd_supervisor_id = data.supervisorId;
+
+    const { error } = await supabase.from('users').update(updates).eq('uid', data.uid);
+    if (error) {
+      await supabase.from('users').update(updates).eq('id', data.uid);
+    }
+    return true;
+  } catch (e) {
+    console.error('updateBDManager error:', e);
+    return false;
+  }
+}
+
+export async function revokeBDManager(uid: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('users').update({ is_bd: false }).eq('uid', uid);
+    if (error) {
+      await supabase.from('users').update({ is_bd: false }).eq('id', uid);
+    }
+    return true;
+  } catch (e) {
+    console.error('revokeBDManager error:', e);
+    return false;
+  }
+}
+
+export async function getStaffCommissionConfigs(): Promise<StaffCommissionConfigs> {
+  const defaultCfg: StaffCommissionConfigs = {
+    superAdminRate: 15,
+    adminRate: 10,
+    bdRate: 10,
+    tiers: [
+      { targetDiamonds: 10000000, bonusPercentage: 2, description: '10M Target Milestone' },
+      { targetDiamonds: 50000000, bonusPercentage: 5, description: '50M Target Milestone' },
+      { targetDiamonds: 100000000, bonusPercentage: 10, description: '100M Super Target Milestone' },
+    ],
+  };
+  try {
+    const { data } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', 'staff_commission_configs')
+      .maybeSingle();
+    if (!data || !data.value) return defaultCfg;
+    const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+    return { ...defaultCfg, ...parsed };
+  } catch (e) {
+    return defaultCfg;
+  }
+}
+
+export async function saveStaffCommissionConfigs(cfg: StaffCommissionConfigs): Promise<boolean> {
+  try {
+    await supabase.from('app_config').upsert({
+      key: 'staff_commission_configs',
+      value: cfg,
+      updated_at: new Date().toISOString(),
+    });
+    return true;
+  } catch (e) {
+    console.error('saveStaffCommissionConfigs error:', e);
+    return false;
+  }
+}
+
+export async function getSalaryTransfers(): Promise<SalaryTransferRequest[]> {
+  try {
+    const { data, error } = await supabase
+      .from('salary_transfer_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error || !data) return [];
+    return data as SalaryTransferRequest[];
+  } catch (e) {
+    console.error('getSalaryTransfers error:', e);
+    return [];
+  }
+}
+

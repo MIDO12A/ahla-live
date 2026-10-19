@@ -9,6 +9,7 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [status, setStatus] = useState<{ fixed: boolean; reason: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const location = useLocation();
@@ -25,6 +26,7 @@ export default function Layout() {
 
   useEffect(() => {
     const unsub = onAuthChange(u => {
+      setCurrentUser(u);
       setUid(u?.id ?? null);
       setStatus(null);
       if (u) check(u.id);
@@ -94,7 +96,7 @@ export default function Layout() {
           </div>
         )}
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 custom-scrollbar w-full max-w-full">
-          <Outlet />
+          <Outlet context={{ currentUser }} />
         </main>
       </div>
     </div>
