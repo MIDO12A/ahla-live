@@ -5,30 +5,52 @@ import { Eye, EyeOff, KeyRound, Mail, AlertCircle } from 'lucide-react';
 
 function parseAuthError(err: unknown, lang: 'ar' | 'en'): string {
   const code = (err as { code?: string })?.code || '';
-  const rawMsg = (err as { message?: string })?.message || '';
+  const rawMsg = (err as { message?: string })?.message || String(err || '');
+  const lower = rawMsg.toLowerCase();
 
   if (lang === 'ar') {
-    if (rawMsg.includes('Invalid credentials') || rawMsg.includes('غير صحيحة') || code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-      return 'البريد الإلكتروني أو الآيدي أو كلمة المرور غير صحيحة. يرجى التأكد من البيانات.';
+    if (
+      code === 'auth/invalid-credential' ||
+      code === 'auth/wrong-password' ||
+      code === 'auth/user-not-found' ||
+      lower.includes('invalid login credentials') ||
+      lower.includes('invalid credentials')
+    ) {
+      return 'البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التأكد من بيانات الحساب.';
     }
-    if (code === 'auth/invalid-email') {
+    if (code === 'auth/invalid-email' || lower.includes('invalid email')) {
       return 'صيغة البريد الإلكتروني غير صحيحة.';
     }
-    if (code === 'auth/too-many-requests') {
+    if (lower.includes('email not confirmed')) {
+      return 'البريد الإلكتروني لم يتم تأكيده بعد.';
+    }
+    if (code === 'auth/too-many-requests' || lower.includes('rate limit') || lower.includes('too many requests')) {
       return 'تم حظر الطلبات مؤقتاً لكثرة المحاولات. يرجى الانتظار دقيقة والمحاولة مجدداً.';
     }
-    if (code === 'auth/network-request-failed') {
+    if (code === 'auth/network-request-failed' || lower.includes('network') || lower.includes('fetch')) {
       return 'تعذر الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.';
     }
     return rawMsg || 'فشل تسجيل الدخول. يرجى التأكد من البيانات.';
   } else {
-    if (rawMsg.includes('Invalid credentials') || code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-      return 'Invalid email, App ID or password. Please verify your credentials.';
+    if (
+      code === 'auth/invalid-credential' ||
+      code === 'auth/wrong-password' ||
+      code === 'auth/user-not-found' ||
+      lower.includes('invalid login credentials') ||
+      lower.includes('invalid credentials')
+    ) {
+      return 'Invalid email or password. Please verify your credentials.';
     }
-    if (code === 'auth/too-many-requests') {
+    if (code === 'auth/invalid-email' || lower.includes('invalid email')) {
+      return 'Invalid email format.';
+    }
+    if (lower.includes('email not confirmed')) {
+      return 'Email not confirmed yet.';
+    }
+    if (code === 'auth/too-many-requests' || lower.includes('rate limit') || lower.includes('too many requests')) {
       return 'Access temporarily disabled due to many failed attempts. Try again later.';
     }
-    if (code === 'auth/network-request-failed') {
+    if (code === 'auth/network-request-failed' || lower.includes('network') || lower.includes('fetch')) {
       return 'Network error. Please check your internet connection.';
     }
     return rawMsg || 'Login failed. Please check your credentials.';
@@ -120,7 +142,7 @@ export default function Login() {
                   type="text"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder={lang === 'ar' ? 'البريد أو الآيدي داخل التطبيق (مثال: 1586494)...' : 'Email or App ID (e.g. 1586494)...'}
+                  placeholder={lang === 'ar' ? 'البريد أو الآيدي داخل التطبيق...' : 'Email or App ID...'}
                   className="w-full bg-[#161618] border border-white/10 rounded-xl py-2.5 px-9 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-sans"
                   required
                 />

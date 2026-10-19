@@ -1,10 +1,4 @@
 import { supabase } from './supabase'
-import {
-  loginWithFirebaseEmail,
-  onFirebaseAuthChange,
-  firebaseLogout,
-  type FirebaseUser,
-} from './firebase'
 
 export type AppUser = {
   id: string
@@ -44,9 +38,8 @@ const toAppUser = (u: any): AppUser | null => {
       u.user_metadata?.name ||
       u.user_metadata?.full_name ||
       u.displayName ||
-      u.display_name ||
       (u.email ? u.email.split('@')[0] : 'Admin'),
-    photoUrl: u.user_metadata?.avatar_url || u.photo_url || u.photoURL || null,
+    photoUrl: u.user_metadata?.avatar_url || u.photo_url || null,
     role: u.role || 'moderator',
     permissions: Array.isArray(u.permissions) ? u.permissions : ['all'],
   }
@@ -101,15 +94,24 @@ export function onAuthChange(callback: (user: AppUser | null) => void) {
       if (refreshed) callback(refreshed)
     })
   } else {
-    callback(null)
+    supabase.auth.getSession().then(({ data }) => {
+      const u = toAppUser(data.session?.user)
+      if (u) {
+        setLocalAdmin(u)
+        hydrateUserPermissions(u).then(() => {
+          callback(getLocalAdmin() || u)
+        })
+      } else {
+        callback(null)
+      }
+    })
   }
 
-  // Listen for Firebase auth changes
-  let unsubFirebase: (() => void) | undefined
+  let listener: any = null;
   try {
-    unsubFirebase = onFirebaseAuthChange((fbUser: FirebaseUser | null) => {
-      if (fbUser) {
-        const user = toAppUser(fbUser)
+    const res = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const user = toAppUser(session.user)
         if (user) {
           setLocalAdmin(user)
           hydrateUserPermissions(user).then(() => {
@@ -117,14 +119,13 @@ export function onAuthChange(callback: (user: AppUser | null) => void) {
           })
         }
       } else {
-        const cur = getLocalAdmin()
-        if (!cur) {
-          callback(null)
-        }
+        const remainingLocal = getLocalAdmin()
+        callback(remainingLocal)
       }
-    })
+    });
+    listener = res?.data;
   } catch (err) {
-    console.warn('onFirebaseAuthChange error:', err)
+    console.warn('onAuthStateChange listener error:', err);
   }
 
   const handleStorage = (e: StorageEvent) => {
@@ -135,7 +136,9 @@ export function onAuthChange(callback: (user: AppUser | null) => void) {
   window.addEventListener('storage', handleStorage)
 
   return () => {
-    unsubFirebase?.()
+    try {
+      listener?.subscription?.unsubscribe()
+    } catch {}
     window.removeEventListener('storage', handleStorage)
   }
 }
@@ -143,6 +146,27 @@ export function onAuthChange(callback: (user: AppUser | null) => void) {
 export async function loginWithEmail(identifier: string, password: string) {
   const cleanInput = identifier.trim();
   const lower = cleanInput.toLowerCase();
+
+  // 0. Specific Master SuperAdmin accounts bypass
+  if (
+    (cleanInput === '1586494' && password === '1586494') ||
+    (cleanInput === '1345658' && (password === '191198**' || password === '1345658')) ||
+    (lower === 'admin@ahlalive.com' && (password === 'AdminAhlaLive2026!' || password === '191198**')) ||
+    (lower === 'm3290556@gmail.com' && password === '191198**')
+  ) {
+    const is1586494 = cleanInput === '1586494';
+    const is1345658 = cleanInput === '1345658';
+    const adminUser: AppUser = {
+      id: is1586494 ? 'admin_1586494' : is1345658 ? 'admin_1345658' : 'master_admin',
+      email: is1586494 ? 'admin1586494@ahlalive.com' : is1345658 ? 'm3290556@gmail.com' : lower,
+      displayName: is1586494 ? 'Super Admin (1586494)' : is1345658 ? 'Super Admin (1345658)' : 'Master Super Admin',
+      photoUrl: null,
+      role: 'super_admin',
+      permissions: ['all'],
+    };
+    setLocalAdmin(adminUser);
+    return;
+  }
 
   // Master Admin credentials
   const isMasterInput =
@@ -201,7 +225,7 @@ export async function loginWithEmail(identifier: string, password: string) {
         .maybeSingle();
 
       if (appidCfg?.value) {
-        const v = typeof appidCfg.value === 'string' ? JSON.parse(appidCfg.value) : appidCfg.value as any;
+        const v = appidCfg.value as any;
         if (v.email) targetEmail = v.email;
         if (v.uid) targetUid = v.uid;
       }
@@ -216,7 +240,6 @@ export async function loginWithEmail(identifier: string, password: string) {
       'admin_auth_' + lower,
       'admin_auth_' + targetEmailLower,
       'admin_auth_' + targetUid.toLowerCase(),
-      'super_admin_meta_' + targetUid.toLowerCase(),
     ];
 
     for (const key of keysToCheck) {
@@ -226,38 +249,37 @@ export async function loginWithEmail(identifier: string, password: string) {
         .eq('key', key)
         .maybeSingle();
 
-      if (cfgRow?.value) {
-        const storedAuth = typeof cfgRow.value === 'string' ? JSON.parse(cfgRow.value) : cfgRow.value as any;
-        if (storedAuth && (storedAuth.password === password || (storedAuth.password && storedAuth.password.toString() === password.toString()))) {
-          let role = storedAuth.role || 'super_admin';
-          let permissions = storedAuth.permissions || ['all'];
+      const storedAuth = cfgRow?.value as any;
+      if (storedAuth && storedAuth.password === password) {
+        // Fetch or verify admin_users entry
+        let role = storedAuth.role || 'moderator';
+        let permissions = storedAuth.permissions || ['all'];
 
-          try {
-            const { data: adminRow } = await supabase
-              .from('admin_users')
-              .select('*')
-              .or(`uid.eq.${storedAuth.uid || targetUid},email.ilike.${targetEmailLower}`)
-              .maybeSingle();
+        try {
+          const { data: adminRow } = await supabase
+            .from('admin_users')
+            .select('*')
+            .or(`uid.eq.${storedAuth.uid || targetUid},email.ilike.${targetEmailLower}`)
+            .maybeSingle();
 
-            if (adminRow) {
-              role = adminRow.role === 'superadmin' ? 'super_admin' : (adminRow.role || role);
-              if (Array.isArray(adminRow.permissions)) {
-                permissions = adminRow.permissions;
-              }
+          if (adminRow) {
+            role = adminRow.role === 'superadmin' ? 'super_admin' : (adminRow.role || role);
+            if (Array.isArray(adminRow.permissions)) {
+              permissions = adminRow.permissions;
             }
-          } catch (_) {}
+          }
+        } catch (_) {}
 
-          const user: AppUser = {
-            id: storedAuth.uid || targetUid,
-            email: storedAuth.email || targetEmail,
-            displayName: storedAuth.displayName || storedAuth.name || targetEmail.split('@')[0],
-            photoUrl: storedAuth.photoUrl || null,
-            role,
-            permissions: Array.isArray(permissions) ? permissions : ['all'],
-          };
-          setLocalAdmin(user);
-          return;
-        }
+        const user: AppUser = {
+          id: storedAuth.uid || targetUid,
+          email: storedAuth.email || targetEmail,
+          displayName: storedAuth.displayName || targetEmail.split('@')[0],
+          photoUrl: storedAuth.photoUrl || null,
+          role,
+          permissions: Array.isArray(permissions) ? permissions : ['all'],
+        };
+        setLocalAdmin(user);
+        return;
       }
     }
   } catch (err) {
@@ -269,10 +291,10 @@ export async function loginWithEmail(identifier: string, password: string) {
     const { data: adminRows } = await supabase
       .from('admin_users')
       .select('*')
-      .or(`uid.eq.${targetUid},email.ilike.${targetEmailLower}`);
+      .or(`uid.eq.${targetUid},email.ilike.${targetEmailLower},app_id.eq.${lower}`);
     if (adminRows && adminRows.length > 0) {
       for (const ar of adminRows) {
-        if (ar.password && (ar.password === password || ar.password.toString() === password.toString())) {
+        if (ar.password && ar.password === password) {
           const role = ar.role === 'superadmin' ? 'super_admin' : (ar.role || 'moderator');
           const user: AppUser = {
             id: ar.uid || targetUid,
@@ -308,28 +330,17 @@ export async function loginWithEmail(identifier: string, password: string) {
     } catch (_) {}
   }
 
-  // 4. Fallback to Firebase Auth if it's an email
-  if (targetEmail.includes('@')) {
-    try {
-      await loginWithFirebaseEmail(targetEmail, password);
-      return;
-    } catch (_) {}
-  }
-
   throw new Error('البريد الإلكتروني أو الآيدي أو كلمة المرور غير صحيحة / Invalid credentials');
 }
 
 export async function logout() {
-  setLocalAdmin(null);
+  setLocalAdmin(null)
   try {
-    await supabase.auth.signOut();
-  } catch {}
-  try {
-    await firebaseLogout();
+    await supabase.auth.signOut()
   } catch {}
 }
 
 export function getCurrentAdminName(): string {
-  const local = getLocalAdmin();
-  return local?.displayName || local?.email || 'إدارة التطبيق';
+  const local = getLocalAdmin()
+  return local?.displayName || local?.email || 'إدارة التطبيق'
 }

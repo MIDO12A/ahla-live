@@ -271,6 +271,59 @@ export const SCREEN_ASSETS: Record<string, { label: string; assets: ScreenAssetE
       { constant: 'cpAcceptInvitationDialogBg', path: 'assets/cp/ic_accept_cp_invitation_dialog_bg.webp', fullKey: 'assets_cp_ic_accept_cp_invitation_dialog_bg_webp' },
       { constant: 'cpRankingDefaultHeader', path: 'assets/cp/ic_cp_ranking_default_header.webp', fullKey: 'assets_cp_ic_cp_ranking_default_header_webp' },
       { constant: 'cpTabNo', path: 'assets/cp/ic_cp_tab_no.webp', fullKey: 'assets_cp_ic_cp_tab_no_webp' },
+      { constant: 'mineCpIc', path: 'assets/mipmap-xxhdpi/mine_cp_ic.webp', fullKey: 'assets_mipmap-xxhdpi_mine_cp_ic_webp' },
+    ],
+  },
+  'الميداليات والشارات': {
+    label: '🏅 الميداليات والشارات',
+    assets: [
+      { constant: 'badgesScreenBg', path: 'assets/mipmap-xxhdpi/mine_mall_top_bg.webp', fullKey: 'assets_mipmap-xxhdpi_mine_mall_top_bg_webp' },
+      { constant: 'badgesCardBg', path: 'assets/mipmap-xxhdpi/level_top_bg.webp', fullKey: 'assets_mipmap-xxhdpi_level_top_bg_webp' },
+      { constant: 'mineLevelIc', path: 'assets/mipmap-xxhdpi/mine_level_ic.webp', fullKey: 'assets_mipmap-xxhdpi_mine_level_ic_webp' },
+      { constant: 'roomRankBorder1', path: 'assets/svga/kojuyee_room_rank_border1.svga', fullKey: 'assets_svga_kojuyee_room_rank_border1_svga' },
+      { constant: 'roomRankBorder2', path: 'assets/svga/kojuyee_room_rank_border2.svga', fullKey: 'assets_svga_kojuyee_room_rank_border2_svga' },
+      { constant: 'roomRankBorder3', path: 'assets/svga/kojuyee_room_rank_border3.svga', fullKey: 'assets_svga_kojuyee_room_rank_border3_svga' },
+    ],
+  },
+  'مركز المهام': {
+    label: '🎯 مركز المهام',
+    assets: [
+      { constant: 'bgRoomInfoTitle', path: 'assets/images/bg_room_info_title.png', fullKey: 'assets_images_bg_room_info_title_png' },
+      { constant: 'dailyTaskTopBanner', path: 'assets/images/ic_daily_task_top.png', fullKey: 'assets_images_ic_daily_task_top_png' },
+      { constant: 'floatTask', path: 'assets/images/float_task.png', fullKey: 'assets_images_float_task_png' },
+      { constant: 'bgDialogTask', path: 'assets/mipmap-xxhdpi/bg_dialog_task.png', fullKey: 'assets_mipmap-xxhdpi_bg_dialog_task_png' },
+      { constant: 'bgGetTaskCoin', path: 'assets/mipmap-xxhdpi/bg_get_task_coin.png', fullKey: 'assets_mipmap-xxhdpi_bg_get_task_coin_png' },
+      { constant: 'dialogCoins', path: 'assets/mipmap-xxhdpi/dialog_coins.png', fullKey: 'assets_mipmap-xxhdpi_dialog_coins_png' },
+      { constant: 'sunlightTask', path: 'assets/images/sunlight_task.png', fullKey: 'assets_images_sunlight_task_png' },
+      { constant: 'giveCoinIcon', path: 'assets/mipmap-xxhdpi/give_coin_icon.png', fullKey: 'assets_mipmap-xxhdpi_give_coin_icon_png' },
+      { constant: 'miniCoins', path: 'assets/mipmap-xxhdpi/mini_coins.png', fullKey: 'assets_mipmap-xxhdpi_mini_coins_png' },
+      { constant: 'icMinCoins', path: 'assets/mipmap-xxhdpi/ic_min_coins.png', fullKey: 'assets_mipmap-xxhdpi_ic_min_coins_png' },
+      { constant: 'icMineTask', path: 'assets/images/ic_mine_task.png', fullKey: 'assets_images_ic_mine_task_png' },
+    ],
+  },
+  'تسجيل الدخول اليومي': {
+    label: '📅 تسجيل الدخول اليومي',
+    assets: [
+      { constant: 'signCoinTop', path: 'assets/mipmap-xxhdpi/sign_coin_top.png', fullKey: 'assets_mipmap-xxhdpi_sign_coin_top_png' },
+      { constant: 'signGiftBg', path: 'assets/mipmap-xxhdpi/sign_gift_bg.png', fullKey: 'assets_mipmap-xxhdpi_sign_gift_bg_png' },
+      { constant: 'signGift', path: 'assets/mipmap-xxhdpi/sign_gift.png', fullKey: 'assets_mipmap-xxhdpi_sign_gift_png' },
+      { constant: 'signCoinBgCoin', path: 'assets/mipmap-xxhdpi/sign_coin_bg_coin.png', fullKey: 'assets_mipmap-xxhdpi_sign_coin_bg_coin_png' },
+      { constant: 'icCheckinGift', path: 'assets/mipmap-xxhdpi/ic_checkin_gift.png', fullKey: 'assets_mipmap-xxhdpi_ic_checkin_gift_png' },
+      { constant: 'icCheckinGiftHalf', path: 'assets/mipmap-xxhdpi/ic_checkin_gift_half.png', fullKey: 'assets_mipmap-xxhdpi_ic_checkin_gift_half_png' },
+      { constant: 'icHaveCheckedIn', path: 'assets/mipmap-xxhdpi/ic_have_checked_in.png', fullKey: 'assets_mipmap-xxhdpi_ic_have_checked_in_png' },
+      { constant: 'icHaveNotCheckedIn', path: 'assets/mipmap-xxhdpi/ic_have_not_checked_in.png', fullKey: 'assets_mipmap-xxhdpi_ic_have_not_checked_in_png' },
+      { constant: 'icSigningWaitingClock', path: 'assets/mipmap-xxhdpi/ic_signing_waiting_clock.png', fullKey: 'assets_mipmap-xxhdpi_ic_signing_waiting_clock_png' },
+      { constant: 'icSigningTopBg', path: 'assets/mipmap-xxhdpi/ic_signing_top_bg.png', fullKey: 'assets_mipmap-xxhdpi_ic_signing_top_bg_png' },
+      { constant: 'icSigningOk', path: 'assets/mipmap-xxhdpi/ic_signing_ok.png', fullKey: 'assets_mipmap-xxhdpi_ic_signing_ok_png' },
+      { constant: 'icSigningClock', path: 'assets/mipmap-xxhdpi/ic_signing_clock.png', fullKey: 'assets_mipmap-xxhdpi_ic_signing_clock_png' },
+    ],
+  },
+  'التحقق من التحديث': {
+    label: '🔄 التحقق من التحديث',
+    assets: [
+      { constant: 'splashImgLogo', path: 'assets/mipmap-xxhdpi/splash_img_logo.webp', fullKey: 'assets_mipmap-xxhdpi_splash_img_logo_webp' },
+      { constant: 'bgDialogTask', path: 'assets/mipmap-xxhdpi/bg_dialog_task.png', fullKey: 'assets_mipmap-xxhdpi_bg_dialog_task_png' },
+      { constant: 'commonBtnDianNor', path: 'assets/mipmap-xxhdpi/common_btn_dian_nor.webp', fullKey: 'assets_mipmap-xxhdpi_common_btn_dian_nor_webp' },
     ],
   },
   'الوكالات': {
@@ -304,4 +357,20 @@ export const SCREEN_ASSETS: Record<string, { label: string; assets: ScreenAssetE
   },
 };
 
-export const SCREEN_ORDER = ['الغرفة', 'الشات', 'الوكالات', 'الاستكشاف', 'حسابي', 'CP والعلاقات', 'عام', 'التبويبات', 'SVGA', 'Lottie', 'تسجيل الدخول'];
+export const SCREEN_ORDER = [
+  'الغرفة',
+  'الشات',
+  'الاستكشاف',
+  'حسابي',
+  'CP والعلاقات',
+  'الميداليات والشارات',
+  'مركز المهام',
+  'تسجيل الدخول اليومي',
+  'التحقق من التحديث',
+  'الوكالات',
+  'عام',
+  'التبويبات',
+  'SVGA',
+  'Lottie',
+  'تسجيل الدخول',
+];

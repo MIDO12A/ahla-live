@@ -21,8 +21,8 @@ export default function UnionsPage() {
       <DataTable
         loading={loading}
         columns={[
-          { key: 'id', label: 'ID', render: u => <span className="font-mono text-[10px] text-slate-400">{u.id}</span> },
-          { key: 'name', label: 'Name', sortable: true, render: u => (
+          { key: 'id', label: 'ID', render: (u: any) => <span className="font-mono text-[10px] text-slate-400">{u.id}</span> },
+          { key: 'name', label: 'Name', sortable: true, render: (u: any) => (
             <div className="flex items-center gap-2">
               {u.logoUrl ? <img src={u.logoUrl} className="w-6 h-6 rounded-full object-cover" /> : <Building2 className="w-5 h-5 text-slate-500" />}
               <div>
@@ -33,7 +33,7 @@ export default function UnionsPage() {
           )},
           { key: 'level', label: 'Level', sortable: true },
           { key: 'memberCount', label: 'Members', sortable: true },
-          { key: 'createdAt', label: 'Created', sortable: true, render: u => <span className="text-[10px] text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</span> },
+          { key: 'createdAt', label: 'Created', sortable: true, render: (u: any) => <span className="text-[10px] text-slate-500">{new Date(u.createdAt || Date.now()).toLocaleDateString()}</span> },
         ]}
         data={unions}
         searchKeys={['name', 'creatorName', 'id']}

@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import { onAuthChange } from '../lib/auth';
+import { onAuthChange, type AppUser } from '../lib/auth';
 import { ensureAdminBootstrap, getAdminStatus } from '../lib/supabase';
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [uid, setUid] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
   const [status, setStatus] = useState<{ fixed: boolean; reason: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const location = useLocation();
@@ -70,7 +70,13 @@ export default function Layout() {
 
   return (
     <div className="h-screen bg-[#0A0A0B] text-slate-300 flex overflow-hidden w-full relative">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+      <Sidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
+        currentUser={currentUser}
+      />
       {/* Mobile overlay backdrop */}
       {mobileOpen && (
         <div

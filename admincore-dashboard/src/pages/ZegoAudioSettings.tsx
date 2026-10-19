@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { firestoreDb } from '../lib/firebase';
+import { useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   Mic,
@@ -38,54 +36,28 @@ export default function ZegoAudioSettings() {
     setLoading(true);
     setStatusMessage(null);
     try {
-      // 1. Try reading from Firestore app_config
-      const idDoc = await getDoc(doc(firestoreDb, 'app_config', 'zego_app_id'));
-      const signDoc = await getDoc(doc(firestoreDb, 'app_config', 'zego_app_sign'));
-      const provDoc = await getDoc(doc(firestoreDb, 'app_config', 'audio_provider'));
-      const scenDoc = await getDoc(doc(firestoreDb, 'app_config', 'zego_scenario'));
-      const enDoc = await getDoc(doc(firestoreDb, 'app_config', 'zego_audio_enabled'));
+      const { data, error } = await supabase
+        .from('app_config')
+        .select('key, value')
+        .in('key', ['zego_app_id', 'zego_app_sign', 'audio_provider', 'zego_scenario', 'zego_audio_enabled']);
 
-      if (idDoc.exists() && idDoc.data()?.value) {
-        setAppId(String(idDoc.data()?.value));
-      }
-      if (signDoc.exists() && signDoc.data()?.value) {
-        setAppSign(String(signDoc.data()?.value));
-      }
-      if (provDoc.exists() && provDoc.data()?.value) {
-        setProvider(String(provDoc.data()?.value));
-      }
-      if (scenDoc.exists() && scenDoc.data()?.value !== undefined) {
-        setScenario(Number(scenDoc.data()?.value));
-      }
-      if (enDoc.exists() && enDoc.data()?.value !== undefined) {
-        setAudioEnabled(enDoc.data()?.value !== false);
-      }
-    } catch (e: any) {
-      console.warn('Firestore fetch fallback, trying Supabase...', e);
-      try {
-        const { data } = await supabase
-          .from('app_config')
-          .select('key, value')
-          .in('key', ['zego_app_id', 'zego_app_sign', 'audio_provider', 'zego_scenario', 'zego_audio_enabled']);
-
-        if (data) {
-          for (const item of data) {
-            if (item.key === 'zego_app_id' && item.value) setAppId(String(item.value));
-            if (item.key === 'zego_app_sign' && item.value) setAppSign(String(item.value));
-            if (item.key === 'audio_provider' && item.value) setProvider(String(item.value));
-            if (item.key === 'zego_scenario' && item.value !== undefined) setScenario(Number(item.value));
-            if (item.key === 'zego_audio_enabled' && item.value !== undefined) setAudioEnabled(item.value !== false && item.value !== 'false');
-          }
+      if (!error && data) {
+        for (const item of data) {
+          if (item.key === 'zego_app_id' && item.value) setAppId(String(item.value));
+          if (item.key === 'zego_app_sign' && item.value) setAppSign(String(item.value));
+          if (item.key === 'audio_provider' && item.value) setProvider(String(item.value));
+          if (item.key === 'zego_scenario' && item.value !== undefined) setScenario(Number(item.value));
+          if (item.key === 'zego_audio_enabled' && item.value !== undefined) setAudioEnabled(item.value !== false && item.value !== 'false');
         }
-      } catch (err) {
-        console.error('Failed to load audio config:', err);
       }
+    } catch (err) {
+      console.error('Failed to load audio config:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async (e?: React.FormEvent) => {
+  const handleSave = async (e?: FormEvent) => {
     if (e) e.preventDefault();
     if (!appId.trim()) {
       alert('يرجى إدخال Zego App ID');
@@ -105,29 +77,19 @@ export default function ZegoAudioSettings() {
     try {
       const parsedAppId = parseInt(appId.trim(), 10) || 2088500186;
 
-      // 1. Save directly to Cloud Firestore (app_config collection)
-      await setDoc(doc(firestoreDb, 'app_config', 'zego_app_id'), { value: parsedAppId }, { merge: true });
-      await setDoc(doc(firestoreDb, 'app_config', 'zego_app_sign'), { value: cleanSign }, { merge: true });
-      await setDoc(doc(firestoreDb, 'app_config', 'audio_provider'), { value: provider }, { merge: true });
-      await setDoc(doc(firestoreDb, 'app_config', 'zego_scenario'), { value: scenario }, { merge: true });
-      await setDoc(doc(firestoreDb, 'app_config', 'zego_audio_enabled'), { value: audioEnabled }, { merge: true });
+      const { error } = await supabase.from('app_config').upsert([
+        { key: 'zego_app_id', value: parsedAppId },
+        { key: 'zego_app_sign', value: cleanSign },
+        { key: 'audio_provider', value: provider },
+        { key: 'zego_scenario', value: scenario },
+        { key: 'zego_audio_enabled', value: audioEnabled },
+      ], { onConflict: 'key' });
 
-      // 2. Also save to Supabase app_config for dual compatibility
-      try {
-        await supabase.from('app_config').upsert([
-          { key: 'zego_app_id', value: parsedAppId },
-          { key: 'zego_app_sign', value: cleanSign },
-          { key: 'audio_provider', value: provider },
-          { key: 'zego_scenario', value: scenario },
-          { key: 'zego_audio_enabled', value: audioEnabled },
-        ], { onConflict: 'key' });
-      } catch (err) {
-        console.warn('Supabase sync skipped:', err);
-      }
+      if (error) throw error;
 
       setStatusMessage({
         type: 'success',
-        text: 'تم حفظ وتطبيق إعدادات Zego ومحرك الصوت بنجاح! يتم الآن تفعيل المفاتيح فورياً في تطبيق الموبايل لجميع المستخدمين.',
+        text: 'تم حفظ وتطبيق إعدادات Zego ومحرك الصوت بنجاح في Supabase! يتم الآن تفعيل المفاتيح فورياً في تطبيق الموبايل لجميع المستخدمين.',
       });
     } catch (err: any) {
       console.error('Error saving config:', err);
@@ -362,7 +324,7 @@ export default function ZegoAudioSettings() {
           <div className="text-xs text-slate-400 space-y-1">
             <div className="font-semibold text-white">كيف يستقبل تطبيق الموبايل هذه التعديلات؟</div>
             <p className="leading-relaxed">
-              يقوم تطبيق Flutter بالاستماع المباشر للتعديلات في <code className="text-amber-300 font-mono">app_config</code> عبر Firebase Firestore.
+              يقوم تطبيق Flutter بالاستماع المباشر للتعديلات في <code className="text-amber-300 font-mono">app_config</code> عبر Supabase.
               بمجرد الضغط على زر الحفظ، يتم تحديث المفتاح وتفعيله فوراً على هواتف جميع المستخدمين بدون الحاجة لإعادة رفع أو إصدار نسخة جديدة من التطبيق.
             </p>
           </div>

@@ -53,7 +53,7 @@ export default function ColorCustomizePage() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h2 className="text-white text-lg font-semibold">Color Customization</h2>
-        <p className="text-slate-500 text-xs mt-0.5">Customize all app colors. Changes are saved to Firebase and applied on next app load.</p>
+        <p className="text-slate-500 text-xs mt-0.5">Customize all app colors. Changes are saved to Supabase and applied on next app load.</p>
       </div>
 
       <div className="bg-[#141417] rounded-2xl border border-white/5 p-6 space-y-4">

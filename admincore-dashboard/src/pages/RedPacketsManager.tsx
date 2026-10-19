@@ -16,8 +16,7 @@ import {
   Flame,
   Award
 } from 'lucide-react';
-import { firestoreDb } from '../lib/firebase';
-import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 
 interface RedPacketConfig {
   enabled: boolean;
@@ -82,19 +81,25 @@ export default function RedPacketsManager() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      if (firestoreDb) {
-        const cfgDoc = await getDoc(doc(firestoreDb, 'app_config', 'lucky_bag_config'));
-        if (cfgDoc.exists()) {
-          setConfig({ ...defaultConfig, ...(cfgDoc.data() as RedPacketConfig) });
-        }
+      const { data: cfgRow } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'lucky_bag_config')
+        .maybeSingle();
 
-        const q = query(collection(firestoreDb, 'lucky_bags'), orderBy('created_at', 'desc'), limit(30));
-        const snap = await getDocs(q);
-        const bags: ActiveBag[] = [];
-        snap.forEach((d) => {
-          bags.push({ id: d.id, ...(d.data() as any) });
-        });
-        setActiveBags(bags);
+      if (cfgRow?.value) {
+        const val = typeof cfgRow.value === 'string' ? JSON.parse(cfgRow.value) : cfgRow.value;
+        setConfig({ ...defaultConfig, ...val });
+      }
+
+      const { data: bagsData } = await supabase
+        .from('lucky_bags')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (bagsData) {
+        setActiveBags(bagsData as ActiveBag[]);
       }
     } catch (err: any) {
       console.error('Failed to fetch red packet config:', err);
@@ -109,11 +114,14 @@ export default function RedPacketsManager() {
     setSuccessMsg('');
     setErrorMsg('');
     try {
-      if (firestoreDb) {
-        await setDoc(doc(firestoreDb, 'app_config', 'lucky_bag_config'), config, { merge: true });
-        setSuccessMsg('تم حفظ إعدادات المظاريف الحمراء بنجاح ✅');
-        setTimeout(() => setSuccessMsg(''), 4000);
-      }
+      const { error } = await supabase.from('app_config').upsert({
+        key: 'lucky_bag_config',
+        value: config,
+      }, { onConflict: 'key' });
+
+      if (error) throw error;
+      setSuccessMsg('تم حفظ إعدادات المظاريف الحمراء بنجاح في Supabase ✅');
+      setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
       console.error('Failed to save config:', err);
       setErrorMsg('حدث خطأ أثناء حفظ الإعدادات');

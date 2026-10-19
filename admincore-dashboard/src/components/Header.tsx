@@ -1,14 +1,15 @@
 import { useLocation } from 'react-router-dom';
-import { Search, X, Languages, Menu, Wand2, Palette } from 'lucide-react';
+import { Search, X, Languages, Menu } from 'lucide-react';
 import { useState, useContext } from 'react';
 import { I18nContext, langs } from '../lib/i18n';
-import { useDashboardMode } from '../lib/dashboardMode';
 
 const pageTitles: Record<string, string> = {
   '/': 'nav.dashboard',
+  '/recharge-settings': 'nav.rechargeSettings',
   '/users': 'nav.users',
   '/gifts': 'nav.gifts',
   '/store': 'nav.store',
+  '/user-gifting': 'nav.userGifting',
   '/rooms': 'nav.rooms',
   '/unions': 'nav.unions',
   '/vip': 'nav.vip',
@@ -16,52 +17,51 @@ const pageTitles: Record<string, string> = {
   '/levels': 'nav.levels',
   '/badges': 'nav.badges',
   '/necklaces': 'nav.necklaces',
-  '/badge-necklace-gifts': 'Badge & Necklace Gifts',
+  '/badge-necklace-gifts': 'nav.badgeNecklaceGifts',
   '/banners': 'nav.banners',
   '/agency': 'nav.agency',
   '/cp': 'nav.cp',
-  '/cp-features': 'CP Features',
+  '/cp-features': 'nav.cpFeatures',
   '/bd': 'nav.bd',
   '/app-assets': 'nav.appAssets',
   '/app-sounds': 'nav.appSounds',
   '/audio-settings': 'nav.audioSettings',
   '/app-icons': 'nav.appIcons',
-  '/visual-manager': 'المظهر الشامل',
+  '/visual-manager': 'nav.visualManager',
   '/image-customize': 'nav.images',
   '/color-customize': 'nav.colors',
   '/screen-customization': 'nav.screenVisuals',
   '/app-visual-designer': 'nav.appVisualDesigner',
   '/recharge-event': 'nav.rechargeEvent',
   '/lucky-gifts': 'nav.luckyGifts',
-  '/red-packets': 'المظاريف وصناديق الحظ 🧧',
-  '/tasks-manager': 'مركز المهام والمكافآت',
+  '/red-packets': 'nav.redPackets',
+  '/tasks-manager': 'nav.tasksManager',
   '/gift-items': 'nav.giftItems',
   '/gift-categories': 'nav.giftCategories',
   '/gift-banner-configs': 'nav.giftBannerConfigs',
   '/signin-features': 'nav.signin',
-  '/app-updates': 'App Updates',
+  '/app-updates': 'nav.appUpdates',
   '/profile-customize': 'nav.profileCustomize',
   '/error-analysis': 'nav.errors',
   '/admins': 'nav.admins',
   '/notifications': 'nav.notifications',
-  '/reports': 'البلاغات',
-  '/emojis': 'الإيموجي',
-  '/room-backgrounds': 'خلفيات الغرف',
+  '/reports': 'nav.reports',
+  '/emojis': 'nav.emojis',
+  '/room-backgrounds': 'nav.roomBackgrounds',
   '/settings': 'nav.settings',
 };
 
 export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const location = useLocation();
   const { t, lang, setLang } = useContext(I18nContext);
-  const { isDesigner, toggleMode } = useDashboardMode();
   const [search, setSearch] = useState('');
   const [showLang, setShowLang] = useState(false);
   const titleKey = pageTitles[location.pathname] || '';
   const title = titleKey ? (titleKey.startsWith('nav.') ? t(titleKey) : titleKey) : 'Admin';
 
   return (
-    <header className={`h-14 shrink-0 border-b border-white/5 flex items-center justify-between px-2.5 sm:px-4 lg:px-6 bg-[#0D0D0E] z-30 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-      <div className={`flex items-center gap-1.5 sm:gap-2.5 min-w-0 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+    <header className="h-14 shrink-0 border-b border-white/5 flex items-center justify-between px-2.5 sm:px-4 lg:px-6 bg-[#0D0D0E] z-30">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
         <button
           onClick={onMenuClick}
           aria-label="Open menu"
@@ -69,13 +69,13 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         >
           <Menu className="w-5 h-5" />
         </button>
-        <div className={`flex items-center gap-1.5 sm:gap-2.5 min-w-0 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-          <span className="text-slate-500 text-xs uppercase tracking-wider font-bold hidden md:inline">Zero</span>
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+          <span className="text-slate-500 text-xs uppercase tracking-wider font-bold hidden md:inline">Ahla Live</span>
           <span className="text-slate-600 text-sm hidden md:inline">/</span>
           <span className="text-white text-xs sm:text-sm font-bold truncate max-w-[120px] xs:max-w-[160px] sm:max-w-none">{title}</span>
         </div>
       </div>
-      <div className={`flex items-center gap-2 sm:gap-4 shrink-0 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         <div className="relative">
           <Search className={`w-3.5 h-3.5 absolute top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none ${lang === 'ar' ? 'right-2.5' : 'left-2.5'}`} />
           <input
@@ -105,28 +105,11 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             </div>
           )}
         </div>
-
-        {/* Header Mode Quick Switcher */}
-        <button
-          onClick={toggleMode}
-          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-[11px] font-bold transition-all shadow-sm active:scale-95 ${
-            isDesigner
-              ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
-              : 'bg-indigo-600/15 border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/25'
-          }`}
-          title={isDesigner ? (lang === 'ar' ? 'العودة للوحة الإدارة العامة' : 'Switch to Admin') : (lang === 'ar' ? 'التبديل إلى لوحة المصمم' : 'Switch to Designer')}
-        >
-          {isDesigner ? <Wand2 className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <Palette className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
-          <span className="hidden sm:inline">
-            {isDesigner ? (lang === 'ar' ? 'وضع المصمم 🎨' : 'Designer Mode') : (lang === 'ar' ? 'لوحة الإدارة 🏢' : 'Admin Mode')}
-          </span>
-        </button>
-
-        <div className={`flex items-center gap-2 pl-1 sm:pl-2 border-l border-white/5 ${lang === 'ar' ? 'flex-row-reverse border-r border-l-0 pr-1 sm:pr-2' : ''}`}>
+        <div className={`flex items-center gap-2 ${lang === 'ar' ? 'border-r pr-1 sm:pr-2' : 'border-l pl-1 sm:pl-2'} border-white/5`}>
           <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-rose-500 flex items-center justify-center font-bold text-[11px] sm:text-xs text-white select-none shadow-md">
             A
           </div>
-          <div className={`hidden lg:flex flex-col ${lang === 'ar' ? 'text-right' : ''}`}>
+          <div className="hidden lg:flex flex-col">
             <span className="text-xs text-white font-medium leading-tight">Admin</span>
             <span className="text-[9px] text-slate-500 font-mono leading-none">Super Admin</span>
           </div>

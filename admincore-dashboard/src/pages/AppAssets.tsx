@@ -74,6 +74,11 @@ const _wordMap: Record<string, string> = {
   information: 'معلومات',
   placeholder: 'مكان',
   bd: 'مدير', cp: 'منسق', agency: 'وكالة', union: 'نقابة',
+  badges: 'شارات', badge: 'شارة', medal: 'ميدالية', medals: 'ميداليات',
+  task: 'مهمة', tasks: 'مهام', daily: 'يومي', signin: 'تسجيل دخول',
+  checkin: 'تسجيل وصول', sunlight: 'ضوء الشمس', clock: 'ساعة',
+  coin: 'عملة', coins: 'عملات', dialog: 'نافذة', update: 'تحديث',
+  waiting: 'انتظار', card: 'بطاقة', screen: 'شاشة',
 };
 
 function constantToArabic(constant: string): string {
