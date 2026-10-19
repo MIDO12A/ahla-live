@@ -596,19 +596,19 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
             children: [
               Expanded(
                 child: _buildPanelCard(
-                  title: 'المستهدف الحالي',
+                  title: cfg.getScreenText('hostAgency', 'curTargetTitle', cfg.getScreenText('agency', 'curTargetTitle', 'المستهدف الحالي')),
                   value: '$curTargetDia 💎',
-                  bgColor: const Color(0xFFF9FAFB),
-                  valColor: const Color(0xFF1F2937),
+                  bgColor: cfg.getScreenColor('hostAgency', 'targetCardBg', const Color(0xFFF9FAFB)),
+                  valColor: cfg.getScreenColor('hostAgency', 'targetCardValColor', const Color(0xFF1F2937)),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _buildPanelCard(
-                  title: 'الرصيد المحقق',
+                  title: cfg.getScreenText('hostAgency', 'curBalanceTitle', cfg.getScreenText('agency', 'curBalanceTitle', 'الرصيد المحقق')),
                   value: '$currentDiamonds 💎',
-                  bgColor: const Color(0xFFECFDF5),
-                  valColor: const Color(0xFF059669),
+                  bgColor: cfg.getScreenColor('hostAgency', 'balanceCardBg', const Color(0xFFECFDF5)),
+                  valColor: cfg.getScreenColor('hostAgency', 'balanceCardValColor', const Color(0xFF059669)),
                 ),
               ),
             ],
@@ -643,20 +643,20 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
             children: [
               Expanded(
                 child: _buildPanelCard(
-                  title: 'المستهدف القادم',
+                  title: cfg.getScreenText('hostAgency', 'nextTargetTitle', cfg.getScreenText('agency', 'nextTargetTitle', 'المستهدف القادم')),
                   value: '$nextTargetDia 💎',
-                  bgColor: const Color(0xFFF9FAFB),
-                  valColor: const Color(0xFF6B7280),
+                  bgColor: cfg.getScreenColor('hostAgency', 'nextTargetCardBg', const Color(0xFFF9FAFB)),
+                  valColor: cfg.getScreenColor('hostAgency', 'nextTargetCardValColor', const Color(0xFF6B7280)),
                   isDashed: true,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _buildPanelCard(
-                  title: 'المتبقي للهدف القادم',
+                  title: cfg.getScreenText('hostAgency', 'nextRemainingTitle', cfg.getScreenText('agency', 'nextRemainingTitle', 'المتبقي للهدف القادم')),
                   value: '${(nextTargetDia - currentDiamonds).clamp(0, nextTargetDia)} 💎',
-                  bgColor: const Color(0xFFFFFBEB),
-                  valColor: const Color(0xFFD97706),
+                  bgColor: cfg.getScreenColor('hostAgency', 'nextRemainingCardBg', const Color(0xFFFFFBEB)),
+                  valColor: cfg.getScreenColor('hostAgency', 'nextRemainingCardValColor', const Color(0xFFD97706)),
                   isDashed: true,
                 ),
               ),

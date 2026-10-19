@@ -69,6 +69,7 @@ class DynamicConfigService extends ChangeNotifier {
   String _messageTitle = 'الرسائل';
   String _profileTitle = 'حسابي';
   Map<String, String> _screenTitles = {};
+  Map<String, String> _customStrings = {};
   
   // CP WebView URL
   String _cpWebUrl = 'https://app.ayomet.com/cp.html';
@@ -638,6 +639,33 @@ class DynamicConfigService extends ChangeNotifier {
   String get profileTitle => _profileTitle;
   Map<String, String> get screenTitles => _screenTitles;
   String getScreenTitle(String key, String fallback) => _screenTitles[key] ?? fallback;
+  Map<String, String> get customStrings => _customStrings;
+
+  /// Dynamic custom text resolver: checks customStrings, then screenTitles, then fallback
+  String getCustomString(String key, String fallback) {
+    if (_customStrings.containsKey(key) && _customStrings[key]!.trim().isNotEmpty) {
+      return _customStrings[key]!.trim();
+    }
+    if (_screenTitles.containsKey(key) && _screenTitles[key]!.trim().isNotEmpty) {
+      return _screenTitles[key]!.trim();
+    }
+    return fallback;
+  }
+
+  /// Dynamic screen text: checks screenVisuals[screen][field], then getCustomString(field), then fallback
+  String getScreenText(String screen, String field, String fallback) {
+    return _screenStr(screen, field, getCustomString(field, fallback));
+  }
+
+  /// Dynamic screen color: checks screenVisuals[screen][field] then fallback
+  Color getScreenColor(String screen, String field, Color fallback) {
+    return _screenColor(screen, field, fallback);
+  }
+
+  /// Dynamic screen image / asset: checks screenVisuals[screen][field] then fallback
+  String getScreenImage(String screen, String field, String fallback) {
+    return _screenStr(screen, field, fallback);
+  }
   String get cpWebUrl => _cpWebUrl;
   String get audioCompany => _audioCompany;
   String get agoraAppId => _agoraAppId;
@@ -1318,6 +1346,12 @@ class DynamicConfigService extends ChangeNotifier {
     if (titles is Map) {
       _screenTitles =
           titles.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+
+    final cs = _rawConfig['customStrings'] ?? _rawConfig['custom_strings'];
+    if (cs is Map) {
+      _customStrings =
+          cs.map((k, v) => MapEntry(k.toString(), v.toString()));
     }
 
     _cpWebUrl = _rawConfig['cpWebUrl'] as String? ?? _cpWebUrl;

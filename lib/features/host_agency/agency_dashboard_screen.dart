@@ -316,28 +316,34 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
                 // ─ kpi row ──────────────────────────────────────────────────
                 Row(children: [
                   Expanded(child: _KpiTile(
-                    label: 'ماسة الشهر', value: _fmt(totalD),
+                    label: DynamicConfigService().getScreenText('agency', 'monthlyDiamondsLabel', 'ماسة الشهر'),
+                    value: _fmt(totalD),
                     icon: '💎', color: _cyan)),
                   const SizedBox(width: 10),
                   Expanded(child: _KpiTile(
-                    label: 'الأعضاء', value: '${members.length}',
+                    label: DynamicConfigService().getScreenText('agency', 'membersCountLabel', 'الأعضاء'),
+                    value: '${members.length}',
                     icon: '👥', color: _purple)),
                   const SizedBox(width: 10),
                   Expanded(child: _KpiTile(
-                    label: 'العمولة', value: '${(rate * 100).toStringAsFixed(0)}%',
+                    label: DynamicConfigService().getScreenText('agency', 'commissionRateLabel', 'العمولة'),
+                    value: '${(rate * 100).toStringAsFixed(0)}%',
                     icon: '💰', color: _gold)),
                 ]),
 
                 const SizedBox(height: 18),
 
                 // ─ ✅ مطابق للتطبيق الأصلي: كروت تارجت نصفي الشهر (1-15 و 16-30) ───
-                const _SectionHeader(label: 'إحصائيات التارجت والدخل', icon: '📊'),
+                _SectionHeader(
+                  label: DynamicConfigService().getScreenText('agency', 'targetStatsTitle', 'إحصائيات التارجت والدخل'),
+                  icon: '📊'
+                ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: _OriginalHalfMonthCard(
-                        title: 'النصف الأول (1-15)',
+                        title: DynamicConfigService().getScreenText('agency', 'firstHalfTitle', 'النصف الأول (1-15)'),
                         diamonds: (totalD * 0.55).toInt(),
                         rate: rate,
                         isCurrent: DateTime.now().day <= 15,
@@ -348,7 +354,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: _OriginalHalfMonthCard(
-                        title: 'النصف الثاني (16-30)',
+                        title: DynamicConfigService().getScreenText('agency', 'secondHalfTitle', 'النصف الثاني (16-30)'),
                         diamonds: (totalD * 0.45).toInt(),
                         rate: rate,
                         isCurrent: DateTime.now().day > 15,
