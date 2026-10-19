@@ -3,44 +3,35 @@ import { loginWithEmail } from '../lib/auth';
 import { I18nContext } from '../lib/i18n';
 import { Eye, EyeOff, KeyRound, Mail, AlertCircle } from 'lucide-react';
 
-function parseFirebaseError(err: unknown, lang: 'ar' | 'en'): string {
+function parseAuthError(err: unknown, lang: 'ar' | 'en'): string {
   const code = (err as { code?: string })?.code || '';
   const rawMsg = (err as { message?: string })?.message || '';
 
   if (lang === 'ar') {
-    switch (code) {
-      case 'auth/invalid-credential':
-      case 'auth/wrong-password':
-      case 'auth/user-not-found':
-        return 'البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التأكد من بيانات الحساب.';
-      case 'auth/invalid-email':
-        return 'صيغة البريد الإلكتروني غير صحيحة.';
-      case 'auth/operation-not-allowed':
-        return 'تسجيل الدخول بالبريد غير مفعل في Firebase Console.';
-      case 'auth/too-many-requests':
-        return 'تم حظر الطلبات مؤقتاً لكثرة المحاولات. يرجى الانتظار دقيقة والمحاولة مجدداً.';
-      case 'auth/network-request-failed':
-        return 'تعذر الاتصال بالإنترنت أو بخوادم Firebase.';
-      default:
-        return rawMsg || 'فشل تسجيل الدخول. يرجى التأكد من البيانات.';
+    if (rawMsg.includes('Invalid credentials') || rawMsg.includes('غير صحيحة') || code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+      return 'البريد الإلكتروني أو الآيدي أو كلمة المرور غير صحيحة. يرجى التأكد من البيانات.';
     }
+    if (code === 'auth/invalid-email') {
+      return 'صيغة البريد الإلكتروني غير صحيحة.';
+    }
+    if (code === 'auth/too-many-requests') {
+      return 'تم حظر الطلبات مؤقتاً لكثرة المحاولات. يرجى الانتظار دقيقة والمحاولة مجدداً.';
+    }
+    if (code === 'auth/network-request-failed') {
+      return 'تعذر الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.';
+    }
+    return rawMsg || 'فشل تسجيل الدخول. يرجى التأكد من البيانات.';
   } else {
-    switch (code) {
-      case 'auth/invalid-credential':
-      case 'auth/wrong-password':
-      case 'auth/user-not-found':
-        return 'Invalid email or password. Please verify your credentials.';
-      case 'auth/invalid-email':
-        return 'Invalid email format.';
-      case 'auth/operation-not-allowed':
-        return 'Email/Password sign-in is not enabled in Firebase Console.';
-      case 'auth/too-many-requests':
-        return 'Access temporarily disabled due to many failed attempts. Try again later.';
-      case 'auth/network-request-failed':
-        return 'Network error. Please check your internet connection.';
-      default:
-        return rawMsg || 'Login failed. Please check your credentials.';
+    if (rawMsg.includes('Invalid credentials') || code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+      return 'Invalid email, App ID or password. Please verify your credentials.';
     }
+    if (code === 'auth/too-many-requests') {
+      return 'Access temporarily disabled due to many failed attempts. Try again later.';
+    }
+    if (code === 'auth/network-request-failed') {
+      return 'Network error. Please check your internet connection.';
+    }
+    return rawMsg || 'Login failed. Please check your credentials.';
   }
 }
 
@@ -61,7 +52,7 @@ export default function Login() {
     try {
       await loginWithEmail(email.trim(), password);
     } catch (err: unknown) {
-      setError(parseFirebaseError(err, lang));
+      setError(parseAuthError(err, lang));
     } finally {
       setLoading(false);
     }
@@ -118,19 +109,19 @@ export default function Login() {
 
           {/* Input Fields */}
           <div className="space-y-4">
-            {/* Email Field */}
+            {/* Identifier Field (Email or App ID) */}
             <div>
               <label className="block text-[11px] uppercase text-slate-400 font-bold mb-1.5 tracking-wider">
-                {t('login.email')}
+                {lang === 'ar' ? 'البريد الإلكتروني أو الآيدي (App ID)' : 'Email or App ID'}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 text-slate-500 w-4 h-4 rtl:left-auto rtl:right-3" />
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="admin@zero.app"
-                  className="w-full bg-[#161618] border border-white/10 rounded-xl py-2.5 px-9 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                  placeholder={lang === 'ar' ? 'البريد أو الآيدي داخل التطبيق (مثال: 1586494)...' : 'Email or App ID (e.g. 1586494)...'}
+                  className="w-full bg-[#161618] border border-white/10 rounded-xl py-2.5 px-9 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-sans"
                   required
                 />
               </div>
