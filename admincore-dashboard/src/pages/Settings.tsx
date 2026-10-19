@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { I18nContext, langs } from '../lib/i18n';
 import { getCloudinaryStatus, saveCloudinaryConfig } from '../lib/storage';
 import { supabase, isAdminConnected } from '../lib/supabase';
-import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame } from 'lucide-react';
+import { useDashboardMode } from '../lib/dashboardMode';
+import { Save, Crown, Database, Mic, ArrowLeft, Wand2, Palette, Eye, Phone, SlidersHorizontal, Image, Sparkles } from 'lucide-react';
 
 export default function Settings() {
   const navigate = useNavigate();
   const { t, lang, setLang } = useContext(I18nContext);
+  const { isDesigner, toggleMode, setMode } = useDashboardMode();
   const [cloudName, setCloudName] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
@@ -16,9 +18,6 @@ export default function Settings() {
   const [vipSaving, setVipSaving] = useState(false);
   const [supabaseServiceKey, setSupabaseServiceKey] = useState('');
   const [supabaseSaving, setSupabaseSaving] = useState(false);
-
-  const [luckyGiftTargetPct, setLuckyGiftTargetPct] = useState<number>(10.0);
-  const [luckySaving, setLuckySaving] = useState(false);
 
   useEffect(() => {
     const status = getCloudinaryStatus();
@@ -37,24 +36,6 @@ export default function Settings() {
     supabase.from('app_config').select('value').eq('key', 'vip_url').maybeSingle().then(res => {
       if (res?.data?.value) setVipUrl(String(res.data.value));
     });
-
-    // تحميل نسبة هدايا الحظ للتارجت
-    supabase.from('app_config').select('value').eq('key', 'lucky_gift_target_percentage').maybeSingle().then(res => {
-      if (res?.data?.value !== undefined && res?.data?.value !== null) {
-        const val = Number(res.data.value);
-        if (!isNaN(val)) setLuckyGiftTargetPct(val);
-      } else {
-        // Fallback from lucky_box_config
-        supabase.from('app_config').select('value').eq('key', 'lucky_box_config').maybeSingle().then(r2 => {
-          if (r2?.data?.value) {
-            const parsed = typeof r2.data.value === 'string' ? JSON.parse(r2.data.value) : r2.data.value;
-            if (parsed?.targetPercentage !== undefined) {
-              setLuckyGiftTargetPct(Number(parsed.targetPercentage) || 10.0);
-            }
-          }
-        });
-      }
-    });
   }, []);
 
   const handleSaveCloudinary = () => {
@@ -62,45 +43,6 @@ export default function Settings() {
     saveCloudinaryConfig(cloudName, apiKey, apiSecret);
     setSaving(false);
     alert(t('cloudinary.save') + ' ✓');
-  };
-
-  const handleSaveLuckyTargetPct = async () => {
-    setLuckySaving(true);
-    try {
-      // 1. حفظ في lucky_gift_target_percentage
-      await supabase.from('app_config').upsert(
-        { key: 'lucky_gift_target_percentage', value: luckyGiftTargetPct },
-        { onConflict: 'key' }
-      );
-
-      // 2. تحديث داخل lucky_box_config أيضاً للتوافق التام
-      const { data: curBox } = await supabase
-        .from('app_config')
-        .select('value')
-        .eq('key', 'lucky_box_config')
-        .maybeSingle();
-
-      const existing = curBox?.value
-        ? (typeof curBox.value === 'string' ? JSON.parse(curBox.value) : curBox.value)
-        : {};
-
-      await supabase.from('app_config').upsert(
-        {
-          key: 'lucky_box_config',
-          value: {
-            ...existing,
-            targetPercentage: luckyGiftTargetPct,
-            updated_at: new Date().toISOString(),
-          },
-        },
-        { onConflict: 'key' }
-      );
-
-      alert('تم حفظ نسبة هدايا الحظ في التارجت بنجاح ✓ (' + luckyGiftTargetPct + '%)');
-    } catch (e) {
-      alert('فشل الحفظ: ' + (e as Error).message);
-    }
-    setLuckySaving(false);
   };
 
   const handleSaveVipUrl = async () => {
@@ -121,13 +63,123 @@ export default function Settings() {
   const status = getCloudinaryStatus();
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
       <div>
         <h2 className="text-white text-lg font-semibold">{t('settings.title')}</h2>
         <p className="text-slate-500 text-xs mt-0.5">{t('settings.description')}</p>
       </div>
 
       <div className="bg-[#141417] rounded-2xl border border-white/5 p-6 space-y-6">
+        {/* Designer Mode Switcher Card */}
+        <div className={`rounded-xl border p-5 transition-all ${
+          isDesigner
+            ? 'bg-gradient-to-br from-amber-500/10 via-pink-500/5 to-purple-500/10 border-amber-500/30 shadow-lg shadow-amber-500/5'
+            : 'bg-[#18181c] border-white/10'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
+                  <Palette className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>{lang === 'ar' ? 'وضع لوحة المصمم (Designer Dashboard)' : 'Designer Dashboard Mode'}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                      isDesigner ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-700 text-slate-300'
+                    }`}>
+                      {isDesigner ? (lang === 'ar' ? 'مفعل الآن 🎨' : 'Active') : (lang === 'ar' ? 'لوحة الإدارة 🏢' : 'Standard')}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {lang === 'ar'
+                      ? 'عند تفعيل هذا الخيار، تتحول القائمة الجانبية لعرض أدوات تصميم الواجهات والألوان والخلفيات والأصول.'
+                      : 'Switch between standard admin panel and visual designer tools for screens, assets, and themes.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={toggleMode}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shrink-0 active:scale-95 ${
+                isDesigner
+                  ? 'bg-gradient-to-r from-amber-500 to-pink-600 hover:from-amber-600 hover:to-pink-700 text-white shadow-amber-500/20'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20'
+              }`}
+            >
+              {isDesigner ? <Wand2 className="w-4 h-4" /> : <Palette className="w-4 h-4" />}
+              <span>
+                {isDesigner
+                  ? (lang === 'ar' ? 'التبديل إلى لوحة الإدارة 🏢' : 'Switch to Admin')
+                  : (lang === 'ar' ? 'التبديل إلى لوحة المصمم 🎨' : 'Switch to Designer Mode')}
+              </span>
+            </button>
+          </div>
+
+          {/* Quick Access to Designer Tools */}
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
+              {lang === 'ar' ? 'الوصول المباشر لأدوات المصمم والشاشات:' : 'Direct Access to Designer Tools:'}
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              <button
+                onClick={() => { setMode('designer'); navigate('/visual-manager'); }}
+                className="p-2.5 rounded-lg bg-black/30 hover:bg-white/5 border border-white/5 hover:border-amber-500/30 flex items-center gap-2 text-right transition-all group"
+              >
+                <Eye className="w-4 h-4 text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white truncate">{lang === 'ar' ? 'المظهر الشامل' : 'Visual Manager'}</div>
+                  <div className="text-[10px] text-slate-400 truncate">/visual-manager</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setMode('designer'); navigate('/app-visual-designer'); }}
+                className="p-2.5 rounded-lg bg-black/30 hover:bg-white/5 border border-white/5 hover:border-amber-500/30 flex items-center gap-2 text-right transition-all group"
+              >
+                <Phone className="w-4 h-4 text-indigo-400 shrink-0 group-hover:scale-110 transition-transform" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white truncate">{lang === 'ar' ? 'مصمم الواجهات' : 'App Designer'}</div>
+                  <div className="text-[10px] text-slate-400 truncate">/app-visual-designer</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setMode('designer'); navigate('/screen-customization'); }}
+                className="p-2.5 rounded-lg bg-black/30 hover:bg-white/5 border border-white/5 hover:border-amber-500/30 flex items-center gap-2 text-right transition-all group"
+              >
+                <SlidersHorizontal className="w-4 h-4 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white truncate">{lang === 'ar' ? 'تخصيص الشاشات' : 'Screen Custom'}</div>
+                  <div className="text-[10px] text-slate-400 truncate">/screen-customization</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setMode('designer'); navigate('/app-assets'); }}
+                className="p-2.5 rounded-lg bg-black/30 hover:bg-white/5 border border-white/5 hover:border-amber-500/30 flex items-center gap-2 text-right transition-all group"
+              >
+                <Image className="w-4 h-4 text-pink-400 shrink-0 group-hover:scale-110 transition-transform" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white truncate">{lang === 'ar' ? 'أصول التطبيق' : 'App Assets'}</div>
+                  <div className="text-[10px] text-slate-400 truncate">/app-assets</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setMode('designer'); navigate('/gift-banner-configs'); }}
+                className="p-2.5 rounded-lg bg-black/30 hover:bg-white/5 border border-white/5 hover:border-amber-500/30 flex items-center gap-2 text-right transition-all group sm:col-span-2 md:col-span-1"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300 shrink-0 group-hover:scale-110 transition-transform" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white truncate">{lang === 'ar' ? 'بانرات الهدايا' : 'Gift Banners'}</div>
+                  <div className="text-[10px] text-slate-400 truncate">/gift-banner-configs</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
         <div>
           <label className="block text-[10px] uppercase text-slate-400 font-bold mb-2">Language / اللغة</label>
           <div className="flex gap-2">
@@ -165,81 +217,8 @@ export default function Settings() {
               </button>
             </div>
             <p className="text-[10px] text-slate-500">
-              يتم حفظ المفاتيح سحابياً في Supabase ليتم تطبيقها فورياً على جميع مستخدمي التطبيق.
+              يتم حفظ المفاتيح سحابياً في Firebase Firestore ليتم تطبيقها فورياً على جميع مستخدمي التطبيق.
             </p>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-[10px] uppercase text-slate-400 font-bold mb-2">
-            نسبة هدايا الحظ في تارجت وماسات المستلم (Lucky Gifts Target Rate)
-          </label>
-          <div className="bg-[#161618] rounded-lg border border-amber-500/30 p-4 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                    <span>نسبة الماس المحسوبة للمستلم</span>
-                    <span className="text-[11px] bg-amber-500 text-black font-extrabold px-2 py-0.5 rounded-full">
-                      {luckyGiftTargetPct}%
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    النسبة المئوية التي تدخل في محفظة المستلم وتارجت الوكالة عند استلام هدايا الحظ (مثلاً 10 كوينز تمنح {((10 * luckyGiftTargetPct) / 100).toFixed(1)} ماسة).
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1 flex-wrap">
-                {[0, 5, 10, 15, 20, 50, 100].map(pct => (
-                  <button
-                    key={pct}
-                    onClick={() => setLuckyGiftTargetPct(pct)}
-                    className={`px-2.5 py-1 rounded text-[11px] font-bold border transition ${
-                      luckyGiftTargetPct === pct
-                        ? 'bg-amber-500 text-black border-amber-400'
-                        : 'bg-black/30 text-slate-400 border-white/5 hover:text-white'
-                    }`}
-                  >
-                    {pct}%
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-2 border-t border-white/5">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value={luckyGiftTargetPct}
-                onChange={e => setLuckyGiftTargetPct(Number(e.target.value))}
-                className="flex-1 accent-amber-500 cursor-pointer"
-              />
-              <div className="flex items-center gap-2 shrink-0">
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.5"
-                  value={luckyGiftTargetPct}
-                  onChange={e => setLuckyGiftTargetPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                  className="w-20 bg-[#1c1c1f] border border-white/10 rounded-lg py-1 px-2 text-xs text-white text-center font-bold font-mono"
-                />
-                <button
-                  onClick={handleSaveLuckyTargetPct}
-                  disabled={luckySaving}
-                  className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 text-[11px] text-black font-bold rounded-lg flex items-center gap-1 shadow"
-                >
-                  <Save className="w-3 h-3" />
-                  {luckySaving ? 'جارٍ الحفظ...' : 'حفظ النسبة'}
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -307,11 +286,11 @@ export default function Settings() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[9px] uppercase text-slate-500 font-bold mb-1">{t('cloudinary.cloudName')}</label>
-                <input type="text" value={cloudName} onChange={e => setCloudName(e.target.value)} className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder="r5kohqhd" />
+                <input type="text" value={cloudName} onChange={e => setCloudName(e.target.value)} className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder="dl30muiuc" />
               </div>
               <div>
                 <label className="block text-[9px] uppercase text-slate-500 font-bold mb-1">{t('cloudinary.apiKey')}</label>
-                <input type="text" value={apiKey} onChange={e => setApiKey(e.target.value)} className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder="183298827798548" />
+                <input type="text" value={apiKey} onChange={e => setApiKey(e.target.value)} className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder="865669713469485" />
               </div>
               <div>
                 <label className="block text-[9px] uppercase text-slate-500 font-bold mb-1">{t('cloudinary.apiSecret')}</label>

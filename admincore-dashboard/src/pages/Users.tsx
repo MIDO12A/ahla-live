@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { UserModel } from '../types';
-import { getUsers, deleteUser, updateUser, updateUserPassword, getAuthUsers, getAuthUser, syncAllAuthUsersToDB, sendSystemNotification } from '../lib/db';
+import { getUsers, deleteUser, updateUser, updateUserPassword, getAuthUsers, getAuthUser, syncAllAuthUsersToDB } from '../lib/db';
 import { uploadUserPhoto } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
@@ -20,7 +20,6 @@ export default function UsersPage() {
   const [banReason, setBanReason] = useState('');
   const [activeTab, setActiveTab] = useState<'info' | 'levels' | 'currency' | 'network'>('info');
   const [msg, setMsg] = useState('');
-  const [rechargeInput, setRechargeInput] = useState('1');
 
   const loadUsers = async () => {
     setLoading(true);
@@ -39,29 +38,6 @@ export default function UsersPage() {
   }, []);
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(''), 3000); };
-
-  const handleRechargeUserCoins = async (amount: number) => {
-    if (!editing || amount <= 0) return;
-    try {
-      const currentCoins = Number(editing.coins || 0);
-      const newCoins = currentCoins + amount;
-      await updateUser(editing.uid, { coins: newCoins });
-      const updated = { ...editing, coins: newCoins };
-      setEditing(updated);
-      setUsers(prev => prev.map(u => u.uid === editing.uid ? updated : u));
-      await sendSystemNotification({
-        userId: editing.uid,
-        title: '🪙 شحن رصيد عملات لحسابك',
-        body: `مبروك! تم شحن ${amount.toLocaleString()} عملة ذهبية لحسابك بنجاح من قبل الإدارة. رصيدك الحالي الآن: ${newCoins.toLocaleString()} عملة.`,
-        type: 'system',
-        action: 'coins_recharged',
-        extraData: { amount, new_balance: newCoins },
-      });
-      showMsg(`✅ تم شحن ${amount.toLocaleString()} كوينز للمستخدم وإرسال إشعار فوري له بنجاح!`);
-    } catch (e: any) {
-      showMsg('⚠️ فشل الشحن: ' + (e?.message || e));
-    }
-  };
 
   const handleSyncUsers = async () => {
     if (!confirm('This will create user records in database for all auth users who don\'t have them yet. Continue?')) return;
@@ -99,14 +75,9 @@ export default function UsersPage() {
     try {
       await updateUser(editing.uid, { [field]: value });
       setUsers(prev => prev.map(u => u.uid === editing.uid ? updated : u));
-      showMsg('تم الحفظ بنجاح!');
     } catch (e: unknown) {
       const err = e as { message?: string };
-      const errMsg = err?.message || 'Update failed';
-      alert('⚠️ ' + errMsg);
-      showMsg('⚠️ ' + errMsg);
-      // Reload user data to revert uncommitted change
-      loadUsers();
+      showMsg('Error: ' + (err?.message || 'Update failed'));
     }
   };
 
@@ -115,13 +86,10 @@ export default function UsersPage() {
     try {
       await updateUser(editing.uid, editing);
       setUsers(prev => prev.map(u => u.uid === editing.uid ? editing : u));
-      showMsg('تم الحفظ بنجاح!');
+      showMsg('Saved!');
     } catch (e: unknown) {
       const err = e as { message?: string };
-      const errMsg = err?.message || 'Save failed';
-      alert('⚠️ ' + errMsg);
-      showMsg('⚠️ ' + errMsg);
-      loadUsers();
+      showMsg('Error: ' + (err?.message || 'Save failed'));
     }
   };
 
@@ -139,39 +107,16 @@ export default function UsersPage() {
     }
   };
 
-  const [banDurationDays, setBanDurationDays] = useState<number>(7);
-
   const handleBan = async () => {
     if (!editing) return;
     const nowBanned = !editing.banned;
-    let bannedUntil: string | null = null;
-    let bannedAt: string | null = null;
-    const duration = banDurationDays;
-
-    if (nowBanned) {
-      bannedAt = new Date().toISOString();
-      if (duration > 0) {
-        bannedUntil = new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString();
-      } else {
-        bannedUntil = null; // Permanent
-      }
-    }
-
-    const banPayload = {
-      banned: nowBanned,
-      banReason: nowBanned ? (banReason || 'انتهاك شروط الاستخدام') : '',
-      banDurationDays: nowBanned ? duration : 0,
-      bannedAt: bannedAt ?? undefined,
-      bannedUntil: bannedUntil,
-    };
-
-    await updateUser(editing.uid, banPayload);
-    const updated = { ...editing, ...banPayload };
+    await updateUser(editing.uid, { banned: nowBanned, banReason: nowBanned ? banReason : '' });
+    const updated = { ...editing, banned: nowBanned, banReason: nowBanned ? banReason : '' };
     setEditing(updated);
     setUsers(prev => prev.map(u => u.uid === editing.uid ? updated : u));
     setShowBanDialog(false);
     setBanReason('');
-    showMsg(nowBanned ? (duration > 0 ? `تم حظر المستخدم لمدة ${duration} يوماً` : 'تم حظر المستخدم بشكل دائم') : 'تم إلغاء حظر المستخدم');
+    showMsg(nowBanned ? 'User banned' : 'User unbanned');
   };
 
   const visibleUsers = searchTerm
@@ -314,24 +259,8 @@ export default function UsersPage() {
                   <input type="text" value={editing.name || ''} onChange={e => handleUpdate('name', e.target.value)} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Custom ID (الآيدي المميز)</label>
-                  <div className="flex gap-1.5">
-                    <input
-                      type="text"
-                      value={editing.customId || ''}
-                      onChange={e => setEditing({ ...editing, customId: e.target.value })}
-                      onKeyDown={e => { if (e.key === 'Enter') handleUpdate('customId', editing.customId); }}
-                      placeholder="e.g. 1, 100, 777"
-                      className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleUpdate('customId', editing.customId)}
-                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-[11px] text-white rounded-lg whitespace-nowrap"
-                    >
-                      تحديث
-                    </button>
-                  </div>
+                  <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Custom ID</label>
+                  <input type="text" value={editing.customId || ''} onChange={e => handleUpdate('customId', e.target.value)} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Email</label>
@@ -408,72 +337,35 @@ export default function UsersPage() {
 
             {/* Tab: Currency */}
             {activeTab === 'currency' && (
-              <div className="space-y-6">
-                {/* Recharge Box */}
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
-                      <Coins className="w-4 h-4" /> شحن رصيد كوينز للمستخدم مع إرسال إشعار فوري (1 عملة = 1 عملة)
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      الرصيد الحالي: <strong className="text-amber-300 font-mono">{(editing.coins ?? 0).toLocaleString()}</strong> 🪙
-                    </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-[10px] uppercase text-amber-400 font-bold mb-1 flex items-center gap-1"><Coins className="w-3 h-3" /> Coins</label>
+                  <div className="flex gap-1 mb-1">
+                    <button onClick={() => handleUpdate('coins', editing.coins + 100)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+100</button>
+                    <button onClick={() => handleUpdate('coins', editing.coins + 1000)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+1K</button>
+                    <button onClick={() => handleUpdate('coins', editing.coins + 10000)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+10K</button>
+                    <button onClick={() => handleUpdate('coins', editing.coins + 100000)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+100K</button>
+                    <button onClick={() => handleUpdate('coins', editing.coins + 1000000)} className="px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] rounded hover:bg-amber-500/20">+1M</button>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {[1, 10, 100, 1000, 10000, 50000, 100000].map(val => (
-                      <button
-                        key={val}
-                        onClick={() => handleRechargeUserCoins(val)}
-                        className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold rounded-lg transition-colors"
-                      >
-                        +{val >= 1000 ? `${val / 1000}K` : val}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2 pt-1">
-                    <input
-                      type="number"
-                      min="1"
-                      value={rechargeInput}
-                      onChange={e => setRechargeInput(e.target.value)}
-                      placeholder="كمية الشحن المخصصة (مثال: 1)"
-                      className="w-48 bg-[#161618] border border-amber-500/30 rounded-lg py-1.5 px-3 text-xs text-white font-mono"
-                    />
-                    <button
-                      onClick={() => {
-                        const amt = parseInt(rechargeInput) || 0;
-                        if (amt > 0) handleRechargeUserCoins(amt);
-                      }}
-                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-md transition-colors"
-                    >
-                      تأكيد الشحن فوراً 🪙
-                    </button>
-                  </div>
+                  <input type="number" value={String(editing.coins ?? 0)} onChange={e => handleUpdate('coins', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-[10px] uppercase text-amber-400 font-bold mb-1 flex items-center gap-1"><Coins className="w-3 h-3" /> تعديل الرصيد الإجمالي يدوياً (Coins)</label>
-                    <input type="number" value={String(editing.coins ?? 0)} onChange={e => handleUpdate('coins', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
+                <div>
+                  <label className="block text-[10px] uppercase text-cyan-400 font-bold mb-1 flex items-center gap-1"><Gem className="w-3 h-3" /> Diamonds</label>
+                  <div className="flex gap-1 mb-1">
+                    <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10</button>
+                    <button onClick={() => handleUpdate('diamonds', editing.diamonds + 100)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+100</button>
+                    <button onClick={() => handleUpdate('diamonds', editing.diamonds + 1000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+1K</button>
+                    <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10K</button>
                   </div>
-                  <div>
-                    <label className="block text-[10px] uppercase text-cyan-400 font-bold mb-1 flex items-center gap-1"><Gem className="w-3 h-3" /> تعديل الألماس (Diamonds)</label>
-                    <div className="flex gap-1 mb-1">
-                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10</button>
-                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 100)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+100</button>
-                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 1000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+1K</button>
-                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10K</button>
-                    </div>
-                    <input type="number" value={String(editing.diamonds ?? 0)} onChange={e => handleUpdate('diamonds', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
-                  </div>
+                  <input type="number" value={String(editing.diamonds ?? 0)} onChange={e => handleUpdate('diamonds', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
                 </div>
               </div>
             )}
 
             {/* Tab: Network & Ban */}
             {activeTab === 'network' && (
-              <div className="space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1 flex items-center gap-1"><Phone className="w-3 h-3" /> Phone Number</label>
                     <input type="text" value={editing.phone || ''} onChange={e => handleUpdate('phone', e.target.value)} placeholder="e.g. +20123456789" className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
@@ -484,102 +376,22 @@ export default function UsersPage() {
                   </div>
                 </div>
 
-                {/* Device & Hardware Info */}
-                <div className="bg-black/30 border border-white/10 rounded-xl p-3.5 space-y-3">
-                  <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    📱 بيانات الهاتف والشبكة (Device Fingerprint)
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                    <div className="bg-white/5 p-2 rounded-lg">
-                      <div className="text-[10px] text-slate-400">موديل الهاتف (Device Model):</div>
-                      <div className="text-white font-medium truncate">{editing.deviceModel || 'غير متوفر'}</div>
-                    </div>
-                    <div className="bg-white/5 p-2 rounded-lg">
-                      <div className="text-[10px] text-slate-400">معرف الهاتف (Device ID):</div>
-                      <div className="text-white font-mono text-[11px] truncate">{editing.deviceId || 'غير مربوط'}</div>
-                    </div>
-                    <div className="bg-white/5 p-2 rounded-lg">
-                      <div className="text-[10px] text-slate-400">المعرف الفيزيائي (Hardware MAC):</div>
-                      <div className="text-white font-mono text-[11px] truncate">{editing.macAddress || 'غير متوفر'}</div>
-                    </div>
-                    <div className="bg-white/5 p-2 rounded-lg">
-                      <div className="text-[10px] text-slate-400">معرف الشبكة والاتصال (Network ID):</div>
-                      <div className="text-white font-mono text-[11px] truncate">{editing.networkId || editing.lastIp || 'غير متوفر'}</div>
-                    </div>
-                  </div>
-
-                  {/* Device Accounts Count & Listing */}
-                  {(() => {
-                    const dId = editing.deviceId;
-                    const sameDeviceUsers = dId ? users.filter(u => u.deviceId === dId) : [];
-                    return (
-                      <div className="pt-2 border-t border-white/5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                            👥 عدد الحسابات المسجلة من نفس هذا الهاتف:
-                          </span>
-                          {!dId ? (
-                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-400 border border-slate-500/30">
-                              بانتظار تسجيل البصمة عند فتح التطبيق
-                            </span>
-                          ) : (
-                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${sameDeviceUsers.length >= 2 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
-                              {sameDeviceUsers.length > 0 ? `${sameDeviceUsers.length} / 2 حسابات` : 'حساب واحد'}
-                            </span>
-                          )}
-                        </div>
-                        {sameDeviceUsers.length > 0 ? (
-                          <div className="space-y-1.5">
-                            {sameDeviceUsers.map(du => (
-                              <div key={du.uid} className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/5 border border-white/5">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-white font-medium">{du.name}</span>
-                                  <span className="text-slate-400 font-mono text-[11px]">({du.email || 'بدون بريد'})</span>
-                                </div>
-                                {du.uid === editing.uid ? (
-                                  <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded">الحساب الحالي</span>
-                                ) : (
-                                  <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-0.5 rounded">حساب مرتبط بنفس الهاتف</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })()}
-                </div>
-
                 <div className="border-t border-white/5 pt-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-white text-xs font-semibold flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> حالة الحظر (Ban Status)</h4>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${editing.banned ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
-                      {editing.banned ? 'محظور (BANNED)' : 'نشط (ACTIVE)'}
+                    <h4 className="text-white text-xs font-semibold flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Ban Status</h4>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${editing.banned ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                      {editing.banned ? 'BANNED' : 'ACTIVE'}
                     </span>
                   </div>
-                  {editing.banned && (
-                    <div className="mb-3 bg-red-500/5 border border-red-500/20 rounded-xl p-3 space-y-1.5 text-xs">
-                      <div>
-                        <span className="text-red-400 font-bold">سبب الحظر: </span>
-                        <span className="text-slate-300">{editing.banReason || 'غير محدد'}</span>
-                      </div>
-                      <div>
-                        <span className="text-red-400 font-bold">المدة: </span>
-                        <span className="text-slate-300">
-                          {editing.banDurationDays && editing.banDurationDays > 0 ? `${editing.banDurationDays} يوماً` : 'حظر دائم ونهائي'}
-                        </span>
-                      </div>
-                      {editing.bannedUntil && (
-                        <div>
-                          <span className="text-red-400 font-bold">تاريخ انتهاء الحظر: </span>
-                          <span className="text-slate-300 font-mono">{new Date(editing.bannedUntil).toLocaleDateString('ar-EG', { dateStyle: 'full' })}</span>
-                        </div>
-                      )}
+                  {editing.banned && editing.banReason && (
+                    <div className="mb-3 bg-red-500/5 border border-red-500/10 rounded-lg px-3 py-2">
+                      <span className="text-[10px] text-red-400 font-semibold">Reason: </span>
+                      <span className="text-[10px] text-slate-400">{editing.banReason}</span>
                     </div>
                   )}
-                  <button onClick={() => { setShowBanDialog(true); setBanReason(editing.banReason || ''); setBanDurationDays(editing.banDurationDays || 7); }}
-                    className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 ${editing.banned ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}>
-                    <Ban className="w-3 h-3" /> {editing.banned ? 'إلغاء حظر المستخدم (Unban)' : 'حظر المستخدم وتحديد المدة (Ban)'}
+                  <button onClick={() => { setShowBanDialog(true); setBanReason(editing.banReason || ''); }}
+                    className={`px-4 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 ${editing.banned ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}>
+                    <Ban className="w-3 h-3" /> {editing.banned ? 'Unban User' : 'Ban User'}
                   </button>
                 </div>
               </div>
@@ -596,108 +408,20 @@ export default function UsersPage() {
 
       {/* Ban Dialog */}
       {showBanDialog && editing && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#141417] rounded-2xl border border-white/10 p-6 w-full max-w-lg mx-4 space-y-4">
-            <h3 className="text-white font-semibold text-sm flex items-center gap-2">
-              <Ban className="w-4 h-4 text-red-400" />
-              {editing.banned ? 'إلغاء حظر المستخدم' : 'حظر المستخدم وتحديد المدة والسبب'}
-            </h3>
-
-            {!editing.banned ? (
-              <div className="space-y-4">
-                {/* Duration Presets */}
-                <div>
-                  <label className="block text-[11px] uppercase text-slate-400 font-bold mb-1.5">
-                    مدة الحظر بالأيام (Ban Duration):
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { days: 1, label: '24 ساعة' },
-                      { days: 3, label: '3 أيام' },
-                      { days: 7, label: 'أسبوع' },
-                      { days: 15, label: '15 يوماً' },
-                      { days: 30, label: 'شهر' },
-                      { days: 90, label: '3 أشهر' },
-                      { days: 0, label: 'حظر دائم' },
-                    ].map(p => (
-                      <button
-                        key={p.days}
-                        type="button"
-                        onClick={() => setBanDurationDays(p.days)}
-                        className={`p-2 rounded-xl text-xs font-bold border transition-all ${
-                          banDurationDays === p.days
-                            ? 'bg-red-500/20 border-red-500 text-red-400'
-                            : 'bg-white/5 border-white/5 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-[11px] text-slate-400">أو عدد أيام مخصص:</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={banDurationDays}
-                      onChange={e => setBanDurationDays(parseInt(e.target.value) || 0)}
-                      className="w-24 bg-[#161618] border border-white/10 rounded-lg py-1 px-2 text-xs text-white font-mono"
-                    />
-                    <span className="text-[11px] text-slate-500">(0 = دائم)</span>
-                  </div>
-                </div>
-
-                {/* Reason Presets */}
-                <div>
-                  <label className="block text-[11px] uppercase text-slate-400 font-bold mb-1.5">
-                    سبب الحظر (Ban Reason):
-                  </label>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {[
-                      'انتهاك شروط الاستخدام',
-                      'محاولة شحن احتيالية',
-                      'سلوك غير لائق أو سب وقذف',
-                      'حساب متعدد مخالف لنفس الهاتف',
-                    ].map(r => (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => setBanReason(r)}
-                        className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] text-slate-300 border border-white/5"
-                      >
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                  <input
-                    type="text"
-                    value={banReason}
-                    onChange={e => setBanReason(e.target.value)}
-                    placeholder="اكتب سبب الحظر المخصص..."
-                    className="w-full bg-[#161618] border border-white/10 rounded-lg py-2 px-3 text-xs text-white"
-                  />
-                </div>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#141417] rounded-2xl border border-white/10 p-6 w-full max-w-md mx-4">
+            <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2"><Ban className="w-4 h-4" /> {editing.banned ? 'Unban User' : 'Ban User'}</h3>
+            {!editing.banned && (
+              <div className="mb-4">
+                <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Ban Reason</label>
+                <input type="text" value={banReason} onChange={e => setBanReason(e.target.value)} placeholder="Enter reason for ban..." className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
               </div>
-            ) : (
-              <p className="text-xs text-slate-300">
-                هل أنت متأكد من إلغاء الحظر عن هذا المستخدم وإعادة تفعيل حسابه فوراً؟
-              </p>
             )}
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
-              <button
-                onClick={() => setShowBanDialog(false)}
-                className="px-4 py-1.5 border border-white/10 text-xs text-slate-400 rounded-lg hover:bg-white/5"
-              >
-                إلغاء
+            <div className="flex gap-2">
+              <button onClick={handleBan} className={`px-4 py-1.5 text-xs font-semibold rounded-lg ${editing.banned ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
+                {editing.banned ? 'Yes, Unban' : 'Yes, Ban'}
               </button>
-              <button
-                onClick={handleBan}
-                className={`px-5 py-1.5 text-xs font-bold rounded-lg ${editing.banned ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white shadow-lg`}
-              >
-                {editing.banned ? 'تأكيد إلغاء الحظر' : 'تأكيد الحظر'}
-              </button>
+              <button onClick={() => setShowBanDialog(false)} className="px-4 py-1.5 border border-white/10 text-xs text-slate-400 rounded-lg">Cancel</button>
             </div>
           </div>
         </div>

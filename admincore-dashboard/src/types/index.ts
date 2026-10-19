@@ -37,72 +37,13 @@ export interface UserModel {
   lastIp: string;
   banned: boolean;
   banReason: string;
-  banDurationDays?: number;
-  bannedAt?: string;
-  bannedUntil?: string | null;
-  deviceId?: string;
-  deviceModel?: string;
-  macAddress?: string;
-  networkId?: string;
-  ipAddress?: string;
-  originalCustomId?: string;
-  isBd?: boolean;
-  bdSupervisorId?: string | null;
-  bdSalary?: number;
-  bdCommissionRate?: number;
 }
-
-export interface RechargeRequestModel {
-  id: string;
-  userId: string;
-  userName?: string;
-  userAvatar?: string;
-  customId?: string;
-  amount: number;
-  price: number;
-  currency: string;
-  gateway: string;
-  senderPhone?: string;
-  txid?: string;
-  proofUrl?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  rejectionReason?: string;
-  createdAt: string;
-  reviewedAt?: string;
-  reviewedBy?: string;
-}
-
-export interface GiftedItemModel {
-  id: string;
-  uid: string;
-  item_id: string;
-  item_category: string;
-  item_name: string;
-  item_icon: string;
-  svga_asset?: string | null;
-  video_asset?: string | null;
-  sent_by: string;
-  sent_by_name: string;
-  sent_at: number;
-  expires_at: number;
-  user?: {
-    uid: string;
-    name: string;
-    custom_id?: string;
-    original_custom_id?: string;
-    photo_url?: string;
-  };
-}
-
-export type GiftedItem = GiftedItemModel;
 
 export interface RoomModel {
   roomId: string;
   name: string;
   description: string;
   roomPhotoUrl: string;
-  bgImage?: string;
-  country?: string;
   hostUid: string;
   hostName: string;
   hostPhotoUrl: string;
@@ -183,10 +124,6 @@ export interface StoreItemModel {
   photoKey?: string;
   defaultImage?: string;
   isHidden?: boolean;
-  customId?: string;
-  colorEffect?: string;
-  isAvailable?: boolean;
-  isSold?: boolean;
 }
 
 export interface UnionModel {
@@ -223,15 +160,12 @@ export interface BugReport {
 export interface AdminUser {
   uid: string;
   email: string;
-  role: 'super_admin' | 'superadmin' | 'admin' | 'bd' | 'moderator';
+  role: 'superadmin' | 'admin' | 'moderator';
   displayName: string;
   permissions: Record<string, boolean>;
   photoUrl: string;
   isActive: boolean;
   createdBy: string;
-  appId?: string;
-  loginUsername?: string;
-  password?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -309,23 +243,6 @@ export interface AppConfig {
 
   // Icon overrides (Icons.xxx name → URL)
   iconOverrides?: Record<string, string>;
-
-  // Allow dynamic/extended properties
-  [key: string]: any;
-}
-
-export interface ReportModel {
-  id: string;
-  reporterUid: string;
-  reporterName?: string;
-  reportedUid: string;
-  reportedName?: string;
-  reason: string;
-  details?: string;
-  status: 'pending' | 'resolved' | 'banned' | 'dismissed';
-  createdAt?: string;
-  created_at?: string;
-  [key: string]: any;
 }
 
 export interface AppAsset {
@@ -561,7 +478,6 @@ export interface AgencyModel {
 export interface HostAgencyModel {
   id: string;
   name: string;
-  agency_code?: string | number;
   owner_id: string;
   commission_rate: number;
   specialty: 'singing' | 'gaming' | 'talk' | 'mixed';
@@ -577,7 +493,6 @@ export interface HostAgencyModel {
   phone?: string;
   owner_name?: string;
   owner_avatar?: string;
-  owner_custom_id?: string;
   created_at: string;
 }
 
@@ -594,27 +509,7 @@ export interface HostAgencyMemberModel {
   user_name?: string;
   custom_id?: string;
   avatar_url?: string;
-  coins?: number;
   joined_at: string;
-}
-
-export interface HostRechargeRecord {
-  id: string;
-  source: 'agent' | 'admin' | 'store';
-  source_label: string;
-  amount_coins: number;
-  amount_usd?: number;
-  agent_id?: string;
-  agent_name?: string;
-  agent_custom_id?: string;
-  agent_avatar?: string;
-  target_uid: string;
-  target_custom_id?: string;
-  target_name?: string;
-  created_at: string;
-  is_refunded?: boolean;
-  refunded_at?: string;
-  refunded_by?: string;
 }
 
 export interface AgencyApplicationModel {
@@ -724,42 +619,13 @@ export interface CPModel {
 
 export interface BDModel {
   id: string;
-  uid: string;
-  appId?: string;
   name: string;
-  region?: string;
-  contactName?: string;
-  contactEmail?: string;
-  email?: string;
-  photoUrl?: string;
-  supervisorId?: string;
-  supervisorName?: string;
-  agencyCount: number;
-  totalHosts: number;
-  totalEarnings: number;
-  salary: number;
-  commissionRate: number;
-  specialId?: string;
-  giftedFrame?: string;
-  giftedBadge?: string;
-  giftedNecklace?: string;
-  status: 'active' | 'suspended' | 'inactive';
-  dealValue?: number;
-  partnerSince?: number;
-  createdAt?: string | number;
-}
-
-export interface BDAgencyDetail {
-  id: string;
-  name: string;
-  ownerUid: string;
-  ownerName?: string;
-  ownerAppId?: string;
-  memberCount: number;
-  monthlyDiamonds: number;
-  totalDiamonds: number;
-  status: string;
-  createdAt?: string;
+  region: string;
+  contactName: string;
+  contactEmail: string;
+  partnerSince: number;
+  dealValue: number;
+  status: 'active' | 'inactive';
 }
 
 export interface GiftCategory {

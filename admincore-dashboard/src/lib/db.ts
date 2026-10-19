@@ -1,5 +1,6 @@
 import { supabase, getAdminSupabase } from './supabase'
-import { getCurrentAdminName } from './auth'
+import { firestoreDb } from './firebase'
+import { doc, getDoc, getDocs, collection, query, where, setDoc, increment } from 'firebase/firestore'
 import type {
   UserModel, RoomModel, GiftModel, SentGiftModel,
   StoreItemModel, UnionModel, BugReport, AppConfig,
@@ -9,7 +10,7 @@ import type {
   HostAgencyMemberModel, HostMilestoneModel, CommissionSettingModel,
   AgencyJoinRequestModel, AgencyLedgerEntryModel, AgencyWithdrawalRequestModel,
   HostAgencyModel, CpGiftModel, CpCarModel, CpEventSettings, CpRankRewardModel,
-  SigninRewardModel, AgencyApplicationModel, HostRechargeRecord,
+  SigninRewardModel, AgencyApplicationModel,
 } from '../types'
 
 // ---- Auth Admin ----
@@ -55,7 +56,7 @@ export async function getAuthUser(uid: string) {
 // ---- Helpers ----
 
 function toCamelCase(record: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = { ...record }
+  const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(record)) {
     const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
     result[camelKey] = value
@@ -101,11 +102,6 @@ export async function syncAllAuthUsersToDB() {
     // 3. Create missing users
     let syncedCount = 0
     for (const au of authData.users) {
-      // Never sync synthetic @admin.zero.app accounts into public users table
-      if (au.email && au.email.endsWith('@admin.zero.app')) {
-        continue
-      }
-
       if (!existingUids.has(au.id)) {
         const metadata = au.user_metadata || {}
         const name = metadata.name || metadata.full_name || metadata.display_name || au.email?.split('@')[0] || 'Unknown'
@@ -178,51 +174,13 @@ export async function getUsers(): Promise<UserModel[]> {
   const adminClient = getAdminSupabase()
   const results: UserModel[] = []
 
-  // 1. Fetch from public users table (source of truth)
+  // 1. Fetch ONLY from public users table (this is our source of truth!)
   try {
     const client = adminClient || supabase
     const { data } = await client.from('users').select('*').order('uid')
     if (data) results.push(...mapList<UserModel>(data))
   } catch (e) {
     console.warn('getUsers: public table failed', e)
-  }
-
-  // 2. Fetch device fingerprints from Supabase app_config (key like 'user_device_%')
-  const deviceMetaMap: Record<string, any> = {}
-  try {
-    const client = adminClient || supabase
-    const { data: configs } = await client.from('app_config').select('key, value').like('key', 'user_device_%')
-    if (configs && Array.isArray(configs)) {
-      for (const row of configs) {
-        const uid = row.key.replace('user_device_', '').trim()
-        let val = row.value
-        if (typeof val === 'string') {
-          try { val = JSON.parse(val) } catch {}
-        }
-        if (uid && val && typeof val === 'object') {
-          deviceMetaMap[uid] = val
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('getUsers: failed to fetch device metadata from app_config', e)
-  }
-
-
-
-  // 4. Merge device metadata into users
-  for (const u of results) {
-    const meta = deviceMetaMap[u.uid]
-    if (meta) {
-      if (!u.deviceId) u.deviceId = meta.device_id || meta.deviceId
-      if (!u.deviceModel) u.deviceModel = meta.device_model || meta.deviceModel
-      if (!u.macAddress) u.macAddress = meta.mac_address || meta.macAddress
-      if (!u.networkId) u.networkId = meta.network_id || meta.networkId
-      if (!u.ipAddress) u.ipAddress = meta.ip_address || meta.ipAddress
-      if (!u.lastIp && (meta.ip_address || meta.ipAddress)) {
-        u.lastIp = meta.ip_address || meta.ipAddress
-      }
-    }
   }
 
   return results.sort((a, b) => (Number(a.customId) || 0) - (Number(b.customId) || 0))
@@ -244,143 +202,15 @@ export async function getUser(uid: string): Promise<UserModel | null> {
   try {
     const client = getAdminSupabase() || supabase
     const { data } = await client.from('users').select('*').eq('uid', uid).maybeSingle()
-    const user = mapSingle<UserModel>(data)
-    if (!user) return null
-
-    // Check device metadata from app_config
-    try {
-      const { data: cfg } = await client.from('app_config').select('value').eq('key', `user_device_${uid}`).maybeSingle()
-      if (cfg && cfg.value) {
-        let val = cfg.value
-        if (typeof val === 'string') {
-          try { val = JSON.parse(val) } catch {}
-        }
-        if (val && typeof val === 'object') {
-          user.deviceId = user.deviceId || val.device_id || val.deviceId
-          user.deviceModel = user.deviceModel || val.device_model || val.deviceModel
-          user.macAddress = user.macAddress || val.mac_address || val.macAddress
-          user.networkId = user.networkId || val.network_id || val.networkId
-          user.ipAddress = user.ipAddress || val.ip_address || val.ipAddress
-        }
-      }
-    } catch {}
-
-    return user
+    return mapSingle<UserModel>(data)
   } catch (e) {
     console.warn('getUser failed:', e)
     return null
   }
 }
 
-export function cleanFirestoreData<T extends Record<string, any>>(obj: T): Record<string, any> {
-  const result: Record<string, any> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== undefined) {
-      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
-        result[key] = cleanFirestoreData(value);
-      } else {
-        result[key] = value;
-      }
-    }
-  }
-  return result;
-}
-
-export async function checkCustomIdAvailable(
-  customId: string,
-  excludeUid?: string,
-  excludeItemId?: string,
-  isStoreItem = false
-): Promise<{ available: boolean; reason?: string }> {
-  const cleanId = String(customId || '').trim();
-  if (!cleanId) return { available: false, reason: 'يرجى إدخال الآيدي' };
-
-  const client = getAdminSupabase() || supabase;
-
-  // 1. Check if taken by another user (only when assigning ID to a user directly, NOT when adding to store)
-  if (!isStoreItem) {
-    let userQuery = client.from('users').select('uid, name, custom_id').eq('custom_id', cleanId);
-    if (excludeUid) {
-      userQuery = userQuery.neq('uid', excludeUid);
-    }
-    const { data: userMatch } = await userQuery.maybeSingle();
-    if (userMatch) {
-      return {
-        available: false,
-        reason: `هذا الآيدي (${cleanId}) مستخدم بالفعل من قبل المستخدم "${userMatch.name || userMatch.uid}"!`,
-      };
-    }
-  }
-
-  // 2. Check if already for sale in store
-  try {
-    let storeQuery = client
-      .from('store_items')
-      .select('*')
-      .eq('category', 'special_id');
-    if (excludeItemId) {
-      storeQuery = storeQuery.neq('item_id', excludeItemId);
-    }
-    const { data: storeItems, error: storeErr } = await storeQuery;
-    if (!storeErr && storeItems) {
-      const match = storeItems.find((it: any) => {
-        const idVal = String(it.custom_id || it.customId || '').trim();
-        if (idVal && idVal === cleanId) return true;
-        if (it.name_key && typeof it.name_key === 'string' && it.name_key === `custom_id:${cleanId}`) return true;
-        const nameVal = String(it.name || '').trim();
-        if (nameVal === cleanId || nameVal === `آيدي مميز ${cleanId}`) return true;
-        return false;
-      });
-      if (match) {
-        return {
-          available: false,
-          reason: `هذا الآيدي (${cleanId}) معروض بالفعل للبيع في المتجر!`,
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('Store check error (ignored):', err);
-  }
-
-  // 3. Check if taken by another room
-  try {
-    let roomQuery = client.from('rooms').select('room_id, name, host_uid').eq('room_id', cleanId);
-    if (excludeUid) {
-      roomQuery = roomQuery.neq('host_uid', excludeUid);
-    }
-    const { data: roomMatch } = await roomQuery.maybeSingle();
-    if (roomMatch) {
-      return {
-        available: false,
-        reason: `هذا الآيدي (${cleanId}) مستخدم بالفعل كآيدي لغرفة أخرى ("${roomMatch.name || roomMatch.room_id}")!`,
-      };
-    }
-  } catch (err) {
-    console.warn('Room check error (ignored):', err);
-  }
-
-  return { available: true };
-}
-
 export async function updateUser(uid: string, data: Partial<UserModel>) {
   const client = getAdminSupabase() || supabase
-
-  let customIdUpdated: string | null = null;
-  // Check custom ID uniqueness if updating customId
-  if (data.customId !== undefined || (data as Record<string, unknown>).custom_id !== undefined) {
-    const rawId = String(data.customId ?? (data as Record<string, unknown>).custom_id ?? '').trim();
-    if (rawId) {
-      const check = await checkCustomIdAvailable(rawId, uid);
-      if (!check.available) {
-        throw new Error(check.reason);
-      }
-      customIdUpdated = rawId;
-      (data as any).customId = rawId;
-      (data as any).custom_id = rawId;
-      (data as any).hosted_room_id = rawId;
-      (data as any).hostedRoomId = rawId;
-    }
-  }
   
   // First try to update
   try {
@@ -436,43 +266,14 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
     } else {
       // User exists - update
       const snakeData = toSnakeCase(data as Record<string, unknown>)
+      console.log('Updating user with data:', snakeData)
+      
       const { error } = await client.from('users').update(snakeData).eq('uid', uid)
       if (error) {
         console.error('Error updating user:', error)
         throw error
       }
     }
-
-    // Automatically sync/migrate room to match new custom_id
-    if (customIdUpdated) {
-      try {
-        const { data: hostRoom } = await client
-          .from('rooms')
-          .select('*')
-          .eq('host_uid', uid)
-          .maybeSingle();
-
-        if (hostRoom && hostRoom.room_id !== customIdUpdated) {
-          const oldRoomId = hostRoom.room_id;
-          const newRoomData = {
-            ...hostRoom,
-            room_id: customIdUpdated,
-          };
-          await client.from('rooms').upsert(newRoomData);
-
-          await client.from('room_seats').update({ room_id: customIdUpdated }).eq('room_id', oldRoomId);
-          await client.from('room_members').update({ room_id: customIdUpdated }).eq('room_id', oldRoomId);
-          await client.from('room_messages').update({ room_id: customIdUpdated }).eq('room_id', oldRoomId);
-          await client.from('sent_gifts').update({ room_id: customIdUpdated }).eq('room_id', oldRoomId);
-
-          await client.from('rooms').delete().eq('room_id', oldRoomId);
-        }
-      } catch (rErr) {
-        console.warn('Error migrating user room to custom ID in Supabase:', rErr);
-      }
-    }
-
-
   } catch (e) {
     console.error('updateUser failed:', e)
     throw e
@@ -484,23 +285,17 @@ export async function deleteUser(uid: string) {
 
   // Step 1: Clean up related collections (best-effort, mirror of old FK-safe RPC)
   const related: { col: string; field: string }[] = [
-    { col: 'user_wallets', field: 'user_id' },
     { col: 'user_wallets', field: 'uid' },
-    { col: 'notifications', field: 'target' },
     { col: 'notifications', field: 'uid' },
-    { col: 'sent_gifts', field: 'sender_id' },
-    { col: 'sent_gifts', field: 'receiver_id' },
+    { col: 'sent_gifts', field: 'uid' },
     { col: 'gifted_items', field: 'uid' },
     { col: 'follows', field: 'follower_uid' },
     { col: 'follows', field: 'following_uid' },
     { col: 'blocks', field: 'blocker_uid' },
     { col: 'blocks', field: 'blocked_uid' },
-    { col: 'room_blocks', field: 'blocked_uid' },
-    { col: 'room_blocks', field: 'blocker_uid' },
     { col: 'room_blocks', field: 'user_id' },
     { col: 'room_members', field: 'uid' },
     { col: 'room_seats', field: 'uid' },
-    { col: 'room_messages', field: 'sender_uid' },
     { col: 'room_messages', field: 'uid' },
     { col: 'profile_visits', field: 'visited_uid' },
     { col: 'profile_visits', field: 'visitor_uid' },
@@ -531,14 +326,11 @@ export async function deleteUser(uid: string) {
 
 export async function getGifts(): Promise<GiftModel[]> {
   try {
-    const { data, error } = await supabase.from('gifts').select('*')
-    if (!error && data && data.length > 0) {
-      return mapList<GiftModel>(data)
-    }
-  } catch (e) {
-    console.warn('getGifts supabase error, trying firestore fallback:', e)
+    const { data } = await supabase.from('gifts').select('*').order('sort_order')
+    return mapList<GiftModel>(data ?? [])
+  } catch {
+    return []
   }
-  return []
 }
 
 export function subscribeGifts(cb: (gifts: GiftModel[]) => void) {
@@ -548,103 +340,27 @@ export function subscribeGifts(cb: (gifts: GiftModel[]) => void) {
   return () => { try { supabase.removeChannel(sub) } catch {} }
 }
 
-const BASE_GIFT_COLUMNS = new Set([
-  'id', 'name', 'value', 'icon_asset', 'animation_asset',
-  'is_vap', 'is_lucky', 'is_star', 'is_music',
-  'package_count', 'sort_order', 'name_key', 'photo_key',
-  'default_image', 'wealth_xp', 'gems_xp',
-  'category_id', 'category', 'type', 'is_cp_gift',
-  'cp_gift_duration_hours',
-  'lucky_rtp', 'lucky_max_multiplier', 'lucky_burst', 'lucky_display_mode',
-  'receiver_name_key', 'receiver_photo_key', 'count_key'
-]);
-
-function sanitizeGiftData(data: Partial<GiftModel>): Record<string, unknown> {
-  const raw = { ...data };
-  const name = String(raw.name || (raw as any).name_ar || (raw as any).nameAr || '').trim();
-  const nameAr = String((raw as any).name_ar || (raw as any).nameAr || raw.name || '').trim();
-  let cpDuration = Number(raw.cpGiftDurationHours ?? (raw as any).cp_gift_duration_hours ?? 0) || 0;
-  if (!cpDuration) {
-    const dType = (raw as any).duration_type ?? (raw as any).durationType;
-    const dVal = Number((raw as any).duration_value ?? (raw as any).durationValue ?? 0) || 0;
-    if (dType === 'days' && dVal > 0) {
-      cpDuration = dVal * 24;
-    } else if (dType === 'hours' && dVal > 0) {
-      cpDuration = dVal;
-    }
-  }
-  const clean: Record<string, unknown> = {
-    ...raw,
-    name: name || 'هدية',
-    name_ar: nameAr || name || 'هدية',
-    value: Number(raw.value ?? (raw as any).price ?? 0) || 0,
-    price: Number(raw.value ?? (raw as any).price ?? 0) || 0,
-    type: Number(raw.type ?? 1) || 1,
-    package_count: Number(raw.packageCount ?? (raw as any).package_count ?? 0) || 0,
-    sort_order: Number(raw.sortOrder ?? (raw as any).sort_order ?? 0) || 0,
-    wealth_xp: Number(raw.wealthXp ?? (raw as any).wealth_xp ?? 0) || 0,
-    gems_xp: Number(raw.gemsXp ?? (raw as any).gems_xp ?? 0) || 0,
-    cp_gift_duration_hours: cpDuration,
-    lucky_rtp: Number(raw.luckyRtp ?? (raw as any).lucky_rtp ?? 85) || 85,
-    lucky_max_multiplier: Number(raw.luckyMaxMultiplier ?? (raw as any).lucky_max_multiplier ?? 100) || 100,
-    is_vap: Boolean(raw.isVap ?? (raw as any).is_vap ?? false),
-    is_lucky: Boolean(raw.isLucky ?? (raw as any).is_lucky ?? false),
-    is_star: Boolean(raw.isStar ?? (raw as any).is_star ?? false),
-    is_music: Boolean(raw.isMusic ?? (raw as any).is_music ?? false),
-    is_cp_gift: Boolean(raw.isCpGift ?? (raw as any).is_cp_gift ?? false),
-    lucky_burst: (raw.luckyBurst !== false && (raw as any).lucky_burst !== false),
-  };
-  return clean;
-}
-
 export async function updateGift(id: string, data: Partial<GiftModel>) {
-  const sanitized = sanitizeGiftData(data);
-
-  // 2. Write to Supabase (only send valid columns)
   try {
-    const fullPayload = toSnakeCase(sanitized);
-    const validPayload: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(fullPayload)) {
-      if (BASE_GIFT_COLUMNS.has(k)) {
-        validPayload[k] = v;
-      }
-    }
-    const { error } = await supabase.from('gifts').update(validPayload).eq('id', id);
-    if (error) {
-      console.warn('updateGift supabase error:', error);
-    }
+    await supabase.from('gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
   } catch (e) {
-    console.warn('updateGift supabase failed:', e);
+    console.warn('updateGift failed:', e)
   }
 }
 
 export async function addGift(id: string, data: GiftModel) {
-  const sanitized = sanitizeGiftData(data);
-
-  // 2. Write to Supabase (only send valid columns)
   try {
-    const fullPayload = { id, ...toSnakeCase(sanitized) };
-    const validPayload: Record<string, unknown> = { id };
-    for (const [k, v] of Object.entries(fullPayload)) {
-      if (BASE_GIFT_COLUMNS.has(k)) {
-        validPayload[k] = v;
-      }
-    }
-    const { error } = await supabase.from('gifts').upsert(validPayload);
-    if (error) {
-      console.warn('addGift supabase error:', error);
-    }
+    await supabase.from('gifts').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
   } catch (e) {
-    console.warn('addGift supabase failed:', e);
+    console.warn('addGift failed:', e)
   }
 }
 
 export async function deleteGift(id: string) {
-
   try {
-    await supabase.from('gifts').delete().eq('id', id);
+    await supabase.from('gifts').delete().eq('id', id)
   } catch (e) {
-    console.warn('deleteGift failed:', e);
+    console.warn('deleteGift failed:', e)
   }
 }
 
@@ -652,144 +368,41 @@ export async function deleteGift(id: string) {
 
 export async function getStoreItems(): Promise<StoreItemModel[]> {
   try {
-    const { data } = await supabase.from('store_items').select('*').order('item_id');
-    const items = mapList<StoreItemModel>(data ?? []);
-    return items.map((it: any) => {
-      let customId = it.customId || it.custom_id;
-      let colorEffect = it.colorEffect || it.color_effect;
-      if (!customId && it.nameKey && typeof it.nameKey === 'string' && it.nameKey.startsWith('custom_id:')) {
-        customId = it.nameKey.replace('custom_id:', '');
-      }
-      if (!customId && it.name_key && typeof it.name_key === 'string' && it.name_key.startsWith('custom_id:')) {
-        customId = it.name_key.replace('custom_id:', '');
-      }
-      if (!colorEffect && it.photoKey && typeof it.photoKey === 'string' && it.photoKey.startsWith('color_effect:')) {
-        colorEffect = it.photoKey.replace('color_effect:', '');
-      }
-      if (!colorEffect && it.photo_key && typeof it.photo_key === 'string' && it.photo_key.startsWith('color_effect:')) {
-        colorEffect = it.photo_key.replace('color_effect:', '');
-      }
-      if (it.category === 'special_id' && !customId && it.name) {
-        const num = it.name.replace(/\D/g, '');
-        if (num) customId = num;
-      }
-      return {
-        ...it,
-        customId: customId || undefined,
-        colorEffect: colorEffect || 'golden',
-        isAvailable: it.isAvailable ?? it.is_available ?? true,
-        isSold: it.isSold ?? it.is_sold ?? false,
-      };
-    });
+    const { data } = await supabase.from('store_items').select('*').order('item_id')
+    return mapList<StoreItemModel>(data ?? [])
   } catch {
-    return [];
+    return []
   }
 }
 
 export function subscribeStoreItems(cb: (items: StoreItemModel[]) => void) {
   const sub = supabase.channel('store_items').on('postgres_changes', { event: '*', schema: 'public', table: 'store_items' }, () => {
-    getStoreItems().then(cb);
-  }).subscribe();
-  return () => { try { supabase.removeChannel(sub); } catch {} };
+    getStoreItems().then(cb)
+  }).subscribe()
+  return () => { try { supabase.removeChannel(sub) } catch {} }
 }
 
 export async function updateStoreItem(id: string, data: Partial<StoreItemModel>) {
   try {
-    const client = getAdminSupabase() || supabase;
-    if (data.category === 'special_id' || data.customId) {
-      const rawId = String(data.customId ?? '').trim();
-      if (rawId) {
-        const check = await checkCustomIdAvailable(rawId, undefined, id, true);
-        if (!check.available) {
-          throw new Error(check.reason);
-        }
-      }
-    }
-
-    // Try standard upsert with all snake_case fields
-    const fullPayload = toSnakeCase(data as Record<string, unknown>);
-    const { error } = await client.from('store_items').update(fullPayload).eq('item_id', id);
-
-    if (error) {
-      console.warn('Supabase updateStoreItem full payload failed, falling back to base schema:', error);
-      // Fallback if custom_id column is missing in PostgreSQL
-      const basePayload: Record<string, unknown> = {
-        name: data.name,
-        category: data.category,
-        icon_asset: data.iconAsset,
-        price: data.price,
-        svga_asset: data.svgaAsset,
-        is_premium: data.isPremium,
-        default_image: data.defaultImage,
-      };
-      if (data.customId) {
-        basePayload.name_key = `custom_id:${data.customId.trim()}`;
-      }
-      if (data.colorEffect) {
-        basePayload.photo_key = `color_effect:${data.colorEffect}`;
-      }
-      const cleanedBase = Object.fromEntries(Object.entries(basePayload).filter(([_, v]) => v !== undefined));
-      const res = await client.from('store_items').update(cleanedBase).eq('item_id', id);
-      if (res.error) throw res.error;
-    }
-
-
+    await supabase.from('store_items').update(toSnakeCase(data as Record<string, unknown>)).eq('item_id', id)
   } catch (e) {
-    console.error('updateStoreItem failed:', e);
-    throw e;
+    console.warn('updateStoreItem failed:', e)
   }
 }
 
 export async function addStoreItem(id: string, data: StoreItemModel) {
   try {
-    const client = getAdminSupabase() || supabase;
-    if (data.category === 'special_id' || data.customId) {
-      const rawId = String(data.customId ?? '').trim();
-      if (!rawId) {
-        throw new Error('يرجى تحديد الآيدي المميز للسلعة!');
-      }
-      const check = await checkCustomIdAvailable(rawId, undefined, id, true);
-      if (!check.available) {
-        throw new Error(check.reason);
-      }
-    }
-
-    // Try standard upsert with all snake_case fields
-    const fullPayload = { item_id: id, ...toSnakeCase(data as unknown as Record<string, unknown>) };
-    const { error } = await client.from('store_items').upsert(fullPayload);
-
-    if (error) {
-      console.warn('Supabase addStoreItem full payload failed, falling back to base schema:', error);
-      // Fallback if custom_id column is missing in PostgreSQL table
-      const fallbackPayload: Record<string, unknown> = {
-        item_id: id,
-        name: data.name || (data.customId ? `آيدي مميز ${data.customId}` : 'عنصر متجر'),
-        category: data.category,
-        icon_asset: data.iconAsset || '',
-        price: Number(data.price) || 0,
-        svga_asset: data.svgaAsset || null,
-        is_premium: !!data.isPremium,
-        name_key: data.customId ? `custom_id:${data.customId.trim()}` : (data.nameKey || null),
-        photo_key: data.colorEffect ? `color_effect:${data.colorEffect}` : (data.photoKey || null),
-        default_image: data.defaultImage || null,
-      };
-      const res = await client.from('store_items').upsert(fallbackPayload);
-      if (res.error) throw res.error;
-    }
-
-
+    await supabase.from('store_items').upsert({ item_id: id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
   } catch (e) {
-    console.error('addStoreItem failed:', e);
-    throw e;
+    console.warn('addStoreItem failed:', e)
   }
 }
 
 export async function deleteStoreItem(id: string) {
   try {
-    await supabase.from('store_items').delete().eq('item_id', id);
-
+    await supabase.from('store_items').delete().eq('item_id', id)
   } catch (e) {
-    console.warn('deleteStoreItem failed:', e);
+    console.warn('deleteStoreItem failed:', e)
   }
 }
 
@@ -867,29 +480,18 @@ export async function deleteRoom(id: string) {
 
 export async function getUnions(): Promise<UnionModel[]> {
   try {
-    const list = await getHostAgencies();
-    return list.map(a => ({
-      id: a.id,
-      name: a.name,
-      creatorId: a.owner_id || a.owner_uid || '',
-      creatorName: a.owner_name || 'مالك الوكالة',
-      level: 1,
-      memberCount: a.member_count || 1,
-      logoUrl: a.photo_url || a.logo_url || '',
-      coverUrl: '',
-      announcement: a.description || '',
-      createdAt: a.created_at || new Date().toISOString(),
-      updatedAt: a.created_at || new Date().toISOString(),
-      status: a.is_active ? 'active' : 'inactive',
-    }));
+    const { data } = await supabase.from('unions').select('*').order('created_at', { ascending: false })
+    return mapList<UnionModel>(data ?? [])
   } catch {
-    return [];
+    return []
   }
 }
 
 export function subscribeUnions(cb: (unions: UnionModel[]) => void) {
-  getUnions().then(cb).catch(() => cb([]));
-  return () => {};
+  const sub = supabase.channel('unions').on('postgres_changes', { event: '*', schema: 'public', table: 'unions' }, () => {
+    getUnions().then(cb)
+  }).subscribe()
+  return () => { try { supabase.removeChannel(sub) } catch {} }
 }
 
 // ---- Sent Gifts ----
@@ -984,17 +586,13 @@ export function subscribeLevels(cb: (levels: LevelConfig[]) => void) {
 }
 
 export async function updateLevel(type: string, level: number, data: Partial<LevelConfig>) {
-
-
-  // 2. Safe write to Supabase
-  try {
-    const payload = toSnakeCase(data as Record<string, unknown>)
-    const { error } = await supabase.from('level_config').upsert({ type, level, ...payload }, { onConflict: 'type,level' })
-    if (error) {
-      await supabase.from('level_config').update(payload).eq('type', type).eq('level', level)
-    }
-  } catch (e) {
-    console.warn('updateLevel Supabase failed:', e)
+  const payload = toSnakeCase(data as Record<string, unknown>)
+  const { data: list } = await supabase.from('level_config').select('level').eq('type', type).eq('level', level)
+  const existing = list && list.length > 0 ? list[0] : null
+  if (existing) {
+    await supabase.from('level_config').update(payload).eq('type', type).eq('level', level)
+  } else {
+    await supabase.from('level_config').insert(payload)
   }
 }
 
@@ -1003,12 +601,11 @@ export async function updateLevel(type: string, level: number, data: Partial<Lev
 export async function getVIPConfig(): Promise<VIPConfig[]> {
   try {
     const client = getAdminSupabase() || supabase
-    const { data, error } = await client.from('vip_config').select('*').order('tier')
-    if (!error && data && data.length > 0) {
-      return mapList<VIPConfig>(data)
-    }
-  } catch {}
-  return []
+    const { data } = await client.from('vip_config').select('*').order('tier')
+    return mapList<VIPConfig>(data ?? [])
+  } catch {
+    return []
+  }
 }
 
 export function subscribeVIPConfig(cb: (configs: VIPConfig[]) => void) {
@@ -1019,31 +616,13 @@ export function subscribeVIPConfig(cb: (configs: VIPConfig[]) => void) {
 }
 
 export async function updateVIPConfig(tier: number, data: Partial<VIPConfig>) {
+  const client = getAdminSupabase() || supabase
+  // Firestore is schemaless — write the full payload. Do NOT filter keys
+  // against an existing doc: new fields would be silently dropped.
   const payload = { tier, ...toSnakeCase(data as Record<string, unknown>) }
   console.log('VIP save payload keys:', Object.keys(payload))
-
-  // 2. Write to Supabase
-  try {
-    const client = getAdminSupabase() || supabase
-    const { error } = await client.from('vip_config').upsert(payload)
-    if (error) console.warn('Supabase vip_config upsert warning:', error.message)
-  } catch (e) {
-    console.warn('Supabase vip_config upsert error:', e)
-  }
-}
-
-export async function deleteVIPConfig(tier: number) {
-  try {
-    const client = getAdminSupabase() || supabase
-    const { error } = await client.from('vip_config').delete().eq('tier', tier)
-    if (error) {
-      console.warn('Supabase vip_config delete warning:', error.message)
-      throw error
-    }
-  } catch (e) {
-    console.warn('Supabase vip_config delete error:', e)
-    throw e
-  }
+  const { error } = await client.from('vip_config').upsert(payload)
+  if (error) throw new Error(`VIP save failed: ${error.message}`)
 }
 
 // ---- Badges ----
@@ -1136,107 +715,159 @@ export function subscribeAgencies(cb: (agencies: AgencyModel[]) => void) {
 
 export async function getHostAgencies(): Promise<HostAgencyModel[]> {
   try {
-    const agencies: any[] = [];
-    const existingIds = new Set<string>();
-    const existingOwnerIds = new Set<string>();
-    const existingNames = new Set<string>();
+    const { data: agenciesData } = await supabase.from('host_agencies').select('*');
+    const agencies: any[] = agenciesData ? [...agenciesData] : [];
 
-    // 1. Fetch from Supabase host_agencies
+    const existingOwnerIds = new Set(agencies.map(a => a.owner_id).filter(Boolean));
+    const existingNames = new Set(agencies.map(a => a.name).filter(Boolean));
+    const existingIds = new Set(agencies.map(a => a.id).filter(Boolean));
+
+    // 1. Sync from agency_applications (host agencies requested in app)
     try {
-      const { data: sbData } = await supabase.from('host_agencies').select('*');
-      for (const a of sbData ?? []) {
-        const ownerId = a.owner_uid || a.owner_id || '';
-        const mapped = {
-          ...a,
-          id: a.id,
-          agency_code: a.agency_code || a.data?.agency_code || '',
-          name: a.name || 'وكالة مضيفين',
-          owner_id: ownerId,
-          owner_uid: ownerId,
-          photo_url: a.logo_url || a.photo_url || '',
-          logo_url: a.logo_url || a.photo_url || '',
-          description: a.description || '',
-          specialty: a.data?.specialty || a.specialty || 'mixed',
-          tier: a.data?.tier || a.tier || 'bronze',
-          country: a.data?.country || a.country || '',
-          commission_rate: typeof a.data?.commission_rate === 'number' ? a.data.commission_rate : (a.commission_rate ?? 0.10),
-          is_active: a.is_active !== false && a.status !== 'inactive',
-          member_count: a.member_count ?? 1,
-          total_diamonds_monthly: a.total_diamonds_monthly ?? 0,
-          monthly_diamonds: a.total_diamonds_monthly ?? 0,
-          total_diamonds_earned: a.total_diamonds_cumulative ?? 0,
-          created_at: a.created_at || new Date().toISOString(),
-        };
-        agencies.push(mapped);
-        existingIds.add(mapped.id);
-        if (ownerId) existingOwnerIds.add(ownerId);
-        if (mapped.name) existingNames.add(mapped.name);
+      const { data: appData } = await supabase.from('agency_applications').select('*');
+      for (const app of appData ?? []) {
+        if (app.agency_type === 'host' || !app.agency_type) {
+          const appOwner = app.user_id;
+          const appName = app.agency_name || app.name;
+          if (appName && (!existingOwnerIds.has(appOwner) && !existingNames.has(appName))) {
+            const newAg = {
+              id: app.id || `agency_${appOwner}`,
+              name: appName,
+              owner_id: appOwner,
+              description: app.description || 'وكالة مضيفين معتمدة',
+              country: app.country || null,
+              whatsapp: app.whatsapp || null,
+              photo_url: app.agency_logo || app.user_avatar || null,
+              tier: 'bronze',
+              commission_rate: 0.10,
+              is_active: true,
+              member_count: 1,
+              total_diamonds_monthly: 0,
+              created_at: app.created_at || new Date().toISOString(),
+            };
+            agencies.push(newAg);
+            existingOwnerIds.add(appOwner);
+            existingNames.add(appName);
+            existingIds.add(newAg.id);
+            // Save to host_agencies so it persists
+            supabase.from('host_agencies').insert(newAg).catch(() => {});
+            supabase.from('host_agency_members').upsert({
+              agency_id: newAg.id,
+              user_id: appOwner,
+              role: 'owner',
+              status: 'active',
+              joined_at: new Date().toISOString(),
+            }).catch(() => {});
+            supabase.from('users').update({ agency_id: newAg.id, is_host_agent: true }).eq('id', appOwner).catch(() => {});
+          }
+        }
       }
-    } catch (sbErr) {
-      console.warn('getHostAgencies supabase error:', sbErr);
-    }
+    } catch {}
 
+    // 2. Sync from unions collection (legacy / older agencies)
+    try {
+      const { data: unionsData } = await supabase.from('unions').select('*');
+      for (const u of unionsData ?? []) {
+        const uId = u.id || u.union_id;
+        const uName = u.name || u.union_name;
+        const uOwner = u.owner_id || u.creator_id || u.uid;
+        if (uName && !existingNames.has(uName) && (!uId || !existingIds.has(uId))) {
+          const newAg = {
+            id: uId || `agency_${Date.now()}`,
+            name: uName,
+            owner_id: uOwner || '',
+            description: u.description || u.notice || 'وكالة معتمدة',
+            country: u.country || null,
+            photo_url: u.photo_url || u.avatar || null,
+            tier: u.tier || 'bronze',
+            commission_rate: ((u.commission_rate ?? 10) > 1 ? (u.commission_rate ?? 10) / 100 : (u.commission_rate ?? 0.1)),
+            is_active: u.is_active !== false,
+            member_count: u.member_count ?? 1,
+            total_diamonds_monthly: u.total_diamonds_monthly ?? 0,
+            created_at: u.created_at || new Date().toISOString(),
+          };
+          agencies.push(newAg);
+          existingNames.add(uName);
+          existingIds.add(newAg.id);
+          supabase.from('host_agencies').insert(newAg).catch(() => {});
+        }
+      }
+    } catch {}
 
+    // 3. Sync from users where is_host_agent == true or agency_id is set
+    try {
+      const { data: hostUsers } = await supabase.from('users').select('*');
+      for (const u of hostUsers ?? []) {
+        if ((u.is_host_agent || u.is_agent || u.role === 'agent') && !existingOwnerIds.has(u.id)) {
+          const agName = u.agency_name || `وكالة ${u.name || u.displayName || u.custom_id || 'المعتمدة'}`;
+          if (!existingNames.has(agName)) {
+            const newAgId = u.agency_id || `agency_${u.id}`;
+            const newAg = {
+              id: newAgId,
+              name: agName,
+              owner_id: u.id,
+              description: 'وكالة مضيفين',
+              country: u.country || null,
+              photo_url: u.photo_url || u.avatar || null,
+              tier: 'bronze',
+              commission_rate: 0.10,
+              is_active: true,
+              member_count: 1,
+              total_diamonds_monthly: 0,
+              created_at: new Date().toISOString(),
+            };
+            agencies.push(newAg);
+            existingOwnerIds.add(u.id);
+            existingNames.add(agName);
+            existingIds.add(newAg.id);
+            supabase.from('host_agencies').insert(newAg).catch(() => {});
+            supabase.from('host_agency_members').upsert({
+              agency_id: newAg.id,
+              user_id: u.id,
+              role: 'owner',
+              status: 'active',
+              joined_at: new Date().toISOString(),
+            }).catch(() => {});
+            if (!u.agency_id) {
+              supabase.from('users').update({ agency_id: newAg.id, is_host_agent: true }).eq('id', u.id).catch(() => {});
+            }
+          }
+        }
+      }
+    } catch {}
 
     if (agencies.length === 0) return [];
 
     // Fetch members to compute real active member counts
+    const { data: membersData } = await supabase.from('host_agency_members').select('agency_id, status');
     const memberCounts: Record<string, number> = {};
-    try {
-      const { data: membersData } = await supabase.from('host_agency_members').select('agency_id, status');
-      (membersData ?? []).forEach((m: any) => {
-        if (m.status === 'active') {
-          memberCounts[m.agency_id] = (memberCounts[m.agency_id] || 0) + 1;
-        }
-      });
-    } catch (_) {}
+    (membersData ?? []).forEach((m: any) => {
+      if (m.status === 'active') {
+        memberCounts[m.agency_id] = (memberCounts[m.agency_id] || 0) + 1;
+      }
+    });
 
     // Fetch owner details
-    const ownerIds = Array.from(new Set(agencies.map((a: any) => a.owner_id || a.owner_uid).filter(Boolean)));
+    const ownerIds = Array.from(new Set(agencies.map((a: any) => a.owner_id).filter(Boolean)));
     const ownersMap: Record<string, any> = {};
     if (ownerIds.length > 0) {
-      try {
-        const { data: usersData } = await supabase.from('users').select('*').in('uid', ownerIds);
-        (usersData ?? []).forEach((u: any) => {
-          const resolvedId = u.uid || u.id;
-          const mapped = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
-          ownersMap[resolvedId] = mapped;
-          if (u.custom_id) ownersMap[u.custom_id] = mapped;
-        });
-      } catch (_) {}
-
-      // Fallback for any missing owner
-      for (const oid of ownerIds) {
-        if (!ownersMap[oid]) {
-          try {
-            const u = await searchUserProfile(oid);
-            if (u) {
-              const mapped = { ...u, id: u.uid || u.id, avatar: u.avatar || u.photo_url };
-              ownersMap[oid] = mapped;
-              if (u.custom_id) ownersMap[u.custom_id] = mapped;
-            }
-          } catch (_) {}
+      const { data: usersData } = await supabase.from('users').select('id, name, custom_id, photo_url, avatar');
+      (usersData ?? []).forEach((u: any) => {
+        if (ownerIds.includes(u.id) || ownerIds.includes(u.custom_id)) {
+          ownersMap[u.id] = u;
+          if (u.custom_id) ownersMap[u.custom_id] = u;
         }
-      }
+      });
     }
 
     return mapList<HostAgencyModel>(agencies.map((a: any) => {
-      const ownerId = a.owner_id || a.owner_uid;
-      const owner = ownersMap[ownerId] || ownersMap[a.owner_id] || ownersMap[a.owner_uid];
+      const owner = ownersMap[a.owner_id];
       const realCount = memberCounts[a.id] ?? a.member_count ?? 1;
       return {
         ...a,
         member_count: Math.max(1, realCount),
-        owner_name: owner?.name || owner?.displayName || ownerId?.slice(0, 8) || 'مالك الوكالة',
-        ownerName: owner?.name || owner?.displayName || ownerId?.slice(0, 8) || 'مالك الوكالة',
+        owner_name: owner?.name || owner?.displayName || a.owner_id?.slice(0, 8),
         owner_avatar: owner?.photo_url || owner?.avatar || '',
-        ownerAvatar: owner?.photo_url || owner?.avatar || '',
-        owner_custom_id: owner?.custom_id || '',
-        ownerCustomId: owner?.custom_id || '',
-        owner_id: ownerId,
-        ownerId: ownerId,
-        owner_uid: ownerId,
-        ownerUid: ownerId,
       };
     }));
   } catch { return []; }
@@ -1244,374 +875,101 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
 
 export async function createHostAgency(name: string, ownerId: string, commissionRate: number, specialty: string, extra?: Partial<HostAgencyModel>): Promise<HostAgencyModel | null> {
   try {
-    // 0. Resolve owner ID (whether custom_id, email, or uid was entered)
-    let resolvedUid = ownerId.trim();
-    const u = await searchUserProfile(resolvedUid);
-    if (u) {
-      resolvedUid = u.uid || u.id;
-    }
-
-    const agencyId = extra?.id || `ag_${Date.now()}`;
-    const commRate = typeof commissionRate === 'number' ? commissionRate : (parseFloat(String(commissionRate)) || 0.1);
-    const photoUrl = extra?.photo_url || '';
-    const nowIso = new Date().toISOString();
-
-    const resolvedBdUid = (extra as any)?.bd_uid || (extra as any)?.bdUid || (extra as any)?.data?.bd_uid || (extra as any)?.supervisor_uid || (extra as any)?.supervisor_id || (u as any)?.bd_supervisor_id || '';
-    const resolvedSupUid = (extra as any)?.supervisor_uid || (extra as any)?.supervisor_id || '';
-
-    const agencyCode = (extra?.agency_code ? Number(extra.agency_code) : (100 + Math.floor(Math.random() * 900)));
-
-    // 1. Supabase insert into host_agencies
-    // Schema columns: id, name, owner_uid, logo_url, description, status, is_active, data, agency_code
-    const sbPayload = {
-      id: agencyId,
-      name: name.trim(),
-      agency_code: agencyCode,
-      owner_uid: resolvedUid,
-      logo_url: photoUrl,
-      description: extra?.description || '',
-      status: 'active',
+    const payload = {
+      name,
+      owner_id: ownerId,
+      commission_rate: commissionRate,
+      specialty,
       is_active: true,
       member_count: 1,
-      data: {
-        commission_rate: commRate,
-        specialty: specialty || 'mixed',
-        tier: extra?.tier || 'bronze',
-        country: extra?.country || '',
-        bd_uid: resolvedBdUid || null,
-        bdUid: resolvedBdUid || null,
-        supervisor_uid: resolvedSupUid || null,
-        supervisor_id: resolvedSupUid || null,
-      },
-      created_at: nowIso,
-      updated_at: nowIso,
+      tier: extra?.tier || 'bronze',
+      description: extra?.description || null,
+      country: extra?.country || null,
+      photo_url: extra?.photo_url || null,
+      created_at: new Date().toISOString(),
     };
-
-    const { error: sbErr } = await supabase.from('host_agencies').upsert(sbPayload);
-    if (sbErr) {
-      console.warn('createHostAgency supabase host_agencies upsert warning:', sbErr);
-    }
-
-
-    // 2. Add owner to Supabase host_agency_members (column is host_uid, id is UUID)
-    try {
-      const memberUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-            const r = Math.random() * 16 | 0;
-            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-          });
+    const { data } = await supabase.from('host_agencies').insert(payload).select('*').single();
+    if (data) {
+      // Add owner to members table
       await supabase.from('host_agency_members').upsert({
-        id: memberUuid,
-        agency_id: agencyId,
-        host_uid: resolvedUid,
+        agency_id: (data as any).id,
+        user_id: ownerId,
         role: 'owner',
         status: 'active',
-        joined_at: nowIso,
+        joined_at: new Date().toISOString(),
       });
-    } catch (mErr) {
-      console.warn('createHostAgency supabase host_agency_members warning:', mErr);
+      // Set agency_id on user
+      await supabase.from('users').update({ agency_id: (data as any).id, is_host_agent: true }).eq('id', ownerId);
+
+      // Send congratulations notification to owner
+      const adminLabel = extra?.adminName || 'إدارة التطبيق';
+      await sendSystemNotification({
+        userId: ownerId,
+        title: 'مبروك! تم فتح وكالتك بنجاح 🎉',
+        body: `مبروك! تم فتح وكالة [${name}] بنجاح بواسطة المشرف [${adminLabel}]. يمكنك الآن الدخول إلى مركز إدارة الوكالة وإضافة المضيفين.`,
+        type: 'system',
+        action: 'agency_created',
+        extraData: { agency_id: (data as any).id, agency_name: name, admin_name: adminLabel },
+      });
     }
-
-    // 3. Update owner in Supabase users table
-    try {
-      await supabase.from('users').update({ agency_id: agencyId, is_host_agent: true }).eq('uid', resolvedUid);
-      await supabase.from('users').update({ agency_id: agencyId, is_host_agent: true }).eq('id', resolvedUid);
-      if (u?.custom_id) {
-        await supabase.from('users').update({ agency_id: agencyId, is_host_agent: true }).eq('custom_id', u.custom_id);
-      }
-    } catch (uErr) {
-      console.warn('createHostAgency supabase user update warning:', uErr);
-    }
-
-    
-
-    // 7. Send notification to owner
-    const adminLabel = extra?.adminName || 'إدارة التطبيق';
-    await sendSystemNotification({
-      userId: resolvedUid,
-      title: 'مبروك! تم فتح وكالتك وتفعيلها بنجاح 🎉',
-      body: `مبروك! تم فتح وكالة [${name}] وتفعيلها بنجاح بواسطة المشرف [${adminLabel}]. يمكنك الآن الدخول إلى مركز إدارة الوكالة وإضافة المضيفين.`,
-      type: 'system',
-      action: 'agency_created',
-      extraData: { agency_id: agencyId, agency_name: name, admin_name: adminLabel },
-    });
-
-    return {
-      id: agencyId,
-      name: name.trim(),
-      owner_id: resolvedUid,
-      owner_uid: resolvedUid,
-      commission_rate: commRate,
-      specialty: specialty as any,
-      tier: extra?.tier || 'bronze',
-      is_active: true,
-      member_count: 1,
-      photo_url: photoUrl,
-      created_at: nowIso,
-    } as HostAgencyModel;
-  } catch (e) {
-    console.error('createHostAgency error:', e);
-    return null;
-  }
+    return data as HostAgencyModel;
+  } catch { return null; }
 }
 
 export async function updateHostAgency(id: string, updates: Partial<HostAgencyModel>): Promise<boolean> {
-  try {
-    const sbUpdates: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    };
-    if (updates.name !== undefined) sbUpdates.name = updates.name;
-    if (updates.photo_url !== undefined) sbUpdates.logo_url = updates.photo_url;
-    if (updates.description !== undefined) sbUpdates.description = updates.description;
-    if (updates.is_active !== undefined) {
-      sbUpdates.is_active = updates.is_active;
-      sbUpdates.status = updates.is_active ? 'active' : 'inactive';
-    }
-
-    // Read current data to preserve nested data fields
-    try {
-      const { data: curr } = await supabase.from('host_agencies').select('data').eq('id', id).maybeSingle();
-      const existingData = curr?.data || {};
-      sbUpdates.data = {
-        ...existingData,
-        ...(updates.commission_rate !== undefined ? { commission_rate: updates.commission_rate } : {}),
-        ...(updates.specialty !== undefined ? { specialty: updates.specialty } : {}),
-        ...(updates.tier !== undefined ? { tier: updates.tier } : {}),
-        ...(updates.country !== undefined ? { country: updates.country } : {}),
-      };
-    } catch (_) {}
-
-    await supabase.from('host_agencies').update(sbUpdates).eq('id', id);
-
-
-    return true;
-  } catch {
-    return false;
-  }
+  try { await supabase.from('host_agencies').update(updates).eq('id', id); return true; } catch { return false; }
 }
 
 export async function deleteHostAgency(id: string): Promise<boolean> {
   try {
-    const userIds = new Set<string>();
-
-    // Step 1: Collect member and owner IDs from Supabase
-    try {
-      const { data: members } = await supabase.from('host_agency_members').select('host_uid').eq('agency_id', id);
-      (members ?? []).forEach((m: any) => { if (m.host_uid) userIds.add(m.host_uid); });
-    } catch (_) {}
-    try {
-      const { data: ag } = await supabase.from('host_agencies').select('owner_uid').eq('id', id).maybeSingle();
-      if (ag?.owner_uid) userIds.add(ag.owner_uid);
-    } catch (_) {}
-
-
-
-    // Step 3: Delete child records in Supabase (FK constraints)
-    try { await supabase.from('host_agency_members').delete().eq('agency_id', id); } catch (_) {}
-    try { await supabase.from('agency_achieved_targets').delete().eq('agency_id', id); } catch (_) {}
-    try { await supabase.from('agency_join_requests').delete().eq('agency_id', id); } catch (_) {}
-    try { await supabase.from('agency_diamond_ledger').delete().eq('agency_id', id); } catch (_) {}
-    try { await supabase.from('agency_withdrawal_requests').delete().eq('agency_id', id); } catch (_) {}
-    try { await supabase.from('agency_applications').delete().eq('agency_id', id); } catch (_) {}
-
-    // Step 4: Delete host agency from Supabase
-    const { error: delErr } = await supabase.from('host_agencies').delete().eq('id', id);
-    if (delErr) {
-      console.warn('deleteHostAgency supabase error:', delErr);
-    }
-
-
-
-    // Step 6: Unlink users in Supabase
-    try {
-      await supabase.from('users').update({
-        agency_id: null,
-        is_host_agent: false,
-      }).eq('agency_id', id);
-    } catch (_) {}
-
-    // Step 7: Unlink users in Firestore & Supabase by UID
-    for (const uid of Array.from(userIds)) {
-      try {
-        await supabase.from('users').update({ agency_id: null, is_host_agent: false }).eq('uid', uid);
-      } catch (_) {}
-
-    }
-
+    await supabase.from('host_agencies').delete().eq('id', id);
+    await supabase.from('host_agency_members').delete().eq('agency_id', id);
     return true;
-  } catch (e) {
-    console.error('deleteHostAgency critical error:', e);
-    return false;
-  }
+  } catch { return false; }
 }
 
 export async function getCommissionSettings(): Promise<CommissionSettingModel[]> {
   try {
     const { data } = await supabase.from('commission_settings').select('*').order('key');
-    if (data && data.length > 0) {
-      return data.map((row: any) => ({
-        id: row.key,
-        key: row.key,
-        value: Number(row.percentage != null ? row.percentage : row.value) || 0,
-        description: row.description || null,
-        updated_at: row.updated_at || new Date().toISOString(),
-        updated_by: row.updated_by || null,
-      }));
-    }
-  } catch { /* ignore */ }
-
-  // Fallback to app_config policy
-  try {
-    const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'agency_financial_policy').maybeSingle();
-    if (cfg && cfg.value) {
-      const pol = typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value;
-      return [
-        { id: 'host_rate', key: 'host_rate', value: pol.host_rate_pct ?? 100, description: 'نسبة راتب المضيف من الكوينز (%)', updated_at: '', updated_by: null },
-        { id: 'host_target_exchange_rate', key: 'host_target_exchange_rate', value: pol.host_target_exchange_rate_pct ?? 60, description: 'نسبة راتب المضيف في حال فك ألماس التارجت (%)', updated_at: '', updated_by: null },
-        { id: 'agency_rate', key: 'agency_rate', value: pol.agency_rate_pct ?? 10, description: 'نسبة راتب وكيل المضيف من ماس المضيف (%)', updated_at: '', updated_by: null },
-        { id: 'recharge_agent_host_rate', key: 'recharge_agent_host_rate', value: pol.recharge_agent_host_rate_pct ?? 10, description: 'عمولة وكيل الشحن من راتب المضيف (%)', updated_at: '', updated_by: null },
-        { id: 'recharge_agent_agency_rate', key: 'recharge_agent_agency_rate', value: pol.recharge_agent_agency_rate_pct ?? 10, description: 'عمولة وكيل الشحن من راتب وكيل المضيف (%)', updated_at: '', updated_by: null },
-        { id: 'platform_rate', key: 'platform_rate', value: pol.platform_rate_pct ?? 17.72, description: 'نسبة الإدارة المتبقية (%)', updated_at: '', updated_by: null },
-      ];
-    }
-  } catch {}
-
-  return [
-    { id: 'host_rate', key: 'host_rate', value: 100, description: 'نسبة راتب المضيف من الكوينز (%)', updated_at: '', updated_by: null },
-    { id: 'host_target_exchange_rate', key: 'host_target_exchange_rate', value: 60, description: 'نسبة راتب المضيف في حال فك ألماس التارجت (%)', updated_at: '', updated_by: null },
-    { id: 'agency_rate', key: 'agency_rate', value: 10, description: 'نسبة راتب وكيل المضيف من ماس المضيف (%)', updated_at: '', updated_by: null },
-    { id: 'recharge_agent_host_rate', key: 'recharge_agent_host_rate', value: 10, description: 'عمولة وكيل الشحن من راتب المضيف (%)', updated_at: '', updated_by: null },
-    { id: 'recharge_agent_agency_rate', key: 'recharge_agent_agency_rate', value: 10, description: 'عمولة وكيل الشحن من راتب وكيل المضيف (%)', updated_at: '', updated_by: null },
-    { id: 'platform_rate', key: 'platform_rate', value: 17.72, description: 'نسبة الإدارة المتبقية (%)', updated_at: '', updated_by: null },
-  ];
+    return mapList<CommissionSettingModel>(data ?? []);
+  } catch { return []; }
 }
 
 export async function updateCommissionSetting(id: string, value: number): Promise<boolean> {
   try {
-    const nowIso = new Date().toISOString();
-    // 1. Update commission_settings table
-    try {
-      await supabase.from('commission_settings').upsert({
-        key: id,
-        percentage: value,
-        updated_at: nowIso,
-      });
-    } catch (_) {}
-
-    // 2. Sync to agency_financial_policy in app_config
-    try {
-      const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'agency_financial_policy').maybeSingle();
-      const current = (cfg && cfg.value) ? (typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value) : {};
-      
-      if (id === 'host_rate') current.host_rate_pct = value;
-      else if (id === 'host_target_exchange_rate') current.host_target_exchange_rate_pct = value;
-      else if (id === 'agency_rate') current.agency_rate_pct = value;
-      else if (id === 'recharge_agent_host_rate') current.recharge_agent_host_rate_pct = value;
-      else if (id === 'recharge_agent_agency_rate') current.recharge_agent_agency_rate_pct = value;
-      else if (id === 'platform_rate') current.platform_rate_pct = value;
-      else if (id === 'coins_per_usd') current.coins_per_usd = value;
-      else if (id === 'first_target_diamonds') current.first_target_diamonds = value;
-
-      await supabase.from('app_config').upsert({
-        key: 'agency_financial_policy',
-        value: current,
-      });
-    } catch (_) {}
-
+    await supabase.from('commission_settings').upsert({
+      key: id, value, updated_at: new Date().toISOString(),
+    });
     return true;
   } catch { return false; }
 }
 
 export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgencyMemberModel[]> {
   try {
-    let query = supabase.from('host_agency_members').select('*');
+    let query = supabase.from('host_agency_members').select('*').order('joined_at');
     if (agencyId) query = query.eq('agency_id', agencyId);
     const { data } = await query;
-    let members: any[] = (data ?? []).map((m: any) => ({ ...m }));
-
-    // Fetch agencies to ensure owners are included in the members list
-    try {
-      let agQuery = supabase.from('host_agencies').select('*');
-      if (agencyId) agQuery = agQuery.eq('id', agencyId);
-      const { data: agList } = await agQuery;
-
-      for (const ag of agList ?? []) {
-        const ownerUid = ag.owner_uid || ag.owner_id;
-        if (!ownerUid) continue;
-        const exists = members.some((m: any) => m.agency_id === ag.id && ((m.user_id || m.host_uid) === ownerUid || m.role === 'owner'));
-        if (!exists) {
-          members.unshift({
-            id: `owner_${ag.id}_${ownerUid}`,
-            agency_id: ag.id,
-            user_id: ownerUid,
-            host_uid: ownerUid,
-            role: 'owner',
-            status: 'active',
-            joined_at: ag.created_at || new Date().toISOString(),
-            diamonds_earned_monthly: ag.total_diamonds_monthly ?? ag.monthly_diamonds ?? 0,
-            diamonds_balance: 0,
-          });
-        }
-      }
-    } catch (_) {}
-
+    const members = data ?? [];
     if (members.length === 0) return [];
 
-    // Fetch user details for each member (support both user_id and host_uid)
-    const userIds = Array.from(new Set(members.map((m: any) => m.user_id || m.host_uid).filter(Boolean)));
+    // Fetch user details for each member
+    const userIds = Array.from(new Set(members.map((m: any) => m.user_id).filter(Boolean)));
     const usersMap: Record<string, any> = {};
     if (userIds.length > 0) {
-      try {
-        const { data: usersData } = await supabase.from('users').select('*').in('uid', userIds);
-        (usersData ?? []).forEach((u: any) => {
-          const resolvedId = u.uid || u.id;
-          const mapped = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
-          usersMap[resolvedId] = mapped;
-          if (u.custom_id) usersMap[u.custom_id] = mapped;
-        });
-      } catch (_) {}
-
-      // Fallback for any missing users
-      for (const uid of userIds) {
-        if (!usersMap[uid]) {
-          try {
-            const u = await searchUserProfile(uid);
-            if (u) {
-              const mapped = { ...u, id: u.uid || u.id, avatar: u.avatar || u.photo_url };
-              usersMap[uid] = mapped;
-              if (u.custom_id) usersMap[u.custom_id] = mapped;
-            }
-          } catch (_) {}
-        }
-      }
+      const { data: usersData } = await supabase.from('users').select('id, name, custom_id, photo_url, avatar');
+      (usersData ?? []).forEach((u: any) => {
+        usersMap[u.id] = u;
+        if (u.custom_id) usersMap[u.custom_id] = u;
+      });
     }
 
     return mapList<HostAgencyMemberModel>(members.map((m: any) => {
-      const uid = m.user_id || m.host_uid;
-      const u = usersMap[uid];
-      const monthlyDiamonds = Number(m.diamonds_earned_monthly || m.diamondsEarnedMonthly || m.diamonds || u?.diamonds || 0);
-      const joinedDate = m.joined_at || m.joinedAt || m.created_at || m.createdAt || new Date().toISOString();
+      const u = usersMap[m.user_id];
       return {
         ...m,
-        id: m.id || `${m.agency_id}_${uid}`,
-        user_id: uid,
-        userId: uid,
-        host_uid: uid,
-        hostUid: uid,
-        user_name: u?.name || u?.displayName || uid?.slice(0, 8) || 'مضيف',
-        userName: u?.name || u?.displayName || uid?.slice(0, 8) || 'مضيف',
-        custom_id: u?.custom_id || m.custom_id || m.customId || '',
-        customId: u?.custom_id || m.custom_id || m.customId || '',
+        user_name: u?.name || u?.displayName || m.user_id?.slice(0, 8),
+        custom_id: u?.custom_id || '',
         avatar_url: u?.photo_url || u?.avatar || '',
-        avatarUrl: u?.photo_url || u?.avatar || '',
-        coins: Number(u?.coins || 0),
-        diamonds_earned_monthly: monthlyDiamonds,
-        diamondsEarnedMonthly: monthlyDiamonds,
-        diamonds_balance: Number(m.diamonds_balance || m.diamonds || u?.diamonds || 0),
-        diamondsBalance: Number(m.diamonds_balance || m.diamonds || u?.diamonds || 0),
-        joined_at: joinedDate,
-        joinedAt: joinedDate,
       };
     }));
   } catch { return []; }
@@ -1623,14 +981,14 @@ export async function addAgencyMember(agencyId: string, userQuery: string, role:
     if (!q) return { success: false, message: 'يرجى كتابة UID أو رقم المعرف (ID)' };
 
     // Search in users table
-    const { data: users } = await supabase.from('users').select('*');
-    const targetUser = (users || []).find((u: any) => (u.id || u.uid) === q || u.custom_id === q);
+    const { data: users } = await supabase.from('users').select('id, name, custom_id');
+    const targetUser = (users || []).find((u: any) => u.id === q || u.custom_id === q);
 
     if (!targetUser) {
       return { success: false, message: 'لم يتم العثور على مستخدم بهذا المعرف أو الـ ID' };
     }
 
-    const userId = targetUser.uid || targetUser.id;
+    const userId = targetUser.id;
 
     // Check if already a member in this agency
     const { data: existing } = await supabase.from('host_agency_members')
@@ -1676,103 +1034,73 @@ export async function addAgencyMember(agencyId: string, userQuery: string, role:
 export async function getAgencyApplications(statusFilter?: string, typeFilter?: string): Promise<AgencyApplicationModel[]> {
   try {
     const applications: AgencyApplicationModel[] = [];
-    const seenAppIds = new Set<string>();
 
-    // 1. Fetch from agency_applications in Supabase
-    try {
-      let appQuery = supabase.from('agency_applications').select('*').order('created_at', { ascending: false });
-      if (statusFilter) appQuery = appQuery.eq('status', statusFilter);
-      const { data: appData, error: appErr } = await appQuery;
-      if (appErr) console.warn('Supabase agency_applications select error:', appErr);
+    // 1. Fetch from agency_applications
+    let appQuery = supabase.from('agency_applications').select('*').order('created_at', { ascending: false });
+    if (statusFilter) appQuery = appQuery.eq('status', statusFilter);
+    if (typeFilter) appQuery = appQuery.eq('agency_type', typeFilter);
+    const { data: appData } = await appQuery;
 
-      if (appData && Array.isArray(appData)) {
-        for (const d of appData) {
-          const uid = d.applicant_uid || d.user_id || d.owner_uid || '';
-          applications.push({
-            id: d.id,
-            user_id: uid,
-            user_name: d.user_name || uid.slice(0, 8),
-            custom_id: d.custom_id || '',
-            user_avatar: d.user_avatar || d.photo_url || '',
-            agency_type: d.agency_type || 'host',
-            agency_name: d.agency_name || 'وكالة جديدة',
-            agency_logo: d.agency_logo || d.logo_url || '',
-            country: d.country || '',
-            whatsapp: d.whatsapp || '',
-            description: d.description || '',
-            doc_type: d.doc_type || '',
-            doc_number: d.doc_number || '',
-            doc_front_url: d.doc_front_url || '',
-            doc_back_url: d.doc_back_url || '',
-            video_url: d.video_url || '',
-            status: d.status || 'pending',
-            rejection_reason: d.rejection_reason || '',
-            created_at: d.created_at || new Date().toISOString(),
-            reviewed_at: d.reviewed_at,
-          });
-          seenAppIds.add(d.id);
-        }
-      }
-    } catch (e) {
-      console.warn('agency_applications fetch error:', e);
+    if (appData && Array.isArray(appData)) {
+      applications.push(...appData.map((d: any) => ({
+        id: d.id,
+        user_id: d.user_id,
+        user_name: d.user_name || d.user_id?.slice(0, 8),
+        custom_id: d.custom_id || '',
+        user_avatar: d.user_avatar || '',
+        agency_type: d.agency_type || 'host',
+        agency_name: d.agency_name || 'وكالة جديدة',
+        agency_logo: d.agency_logo || '',
+        country: d.country || '',
+        whatsapp: d.whatsapp || '',
+        description: d.description || '',
+        doc_type: d.doc_type || '',
+        doc_number: d.doc_number || '',
+        doc_front_url: d.doc_front_url || '',
+        doc_back_url: d.doc_back_url || '',
+        video_url: d.video_url || '',
+        status: d.status || 'pending',
+        rejection_reason: d.rejection_reason || '',
+        created_at: d.created_at || new Date().toISOString(),
+        reviewed_at: d.reviewed_at,
+      })));
     }
 
-    // 2. Fetch pending host_agencies from Supabase (to cover pending requests created directly or pre-registered)
-    try {
-      let haQuery = supabase.from('host_agencies').select('*').order('created_at', { ascending: false });
-      if (statusFilter) {
-        haQuery = haQuery.eq('status', statusFilter);
-      } else {
-        haQuery = haQuery.eq('status', 'pending');
-      }
-      const { data: haData } = await haQuery;
-      if (haData && Array.isArray(haData)) {
-        for (const ha of haData) {
-          const linkedAppId = ha.data?.app_id || ha.id;
-          if (seenAppIds.has(ha.id) || seenAppIds.has(linkedAppId)) continue;
-          const uid = ha.owner_uid || ha.owner_id || '';
+    // 2. Also check host_verifications for any applications submitted via verification
+    const { data: verifData } = await supabase.from('host_verifications').select('*').order('created_at', { ascending: false });
+    if (verifData && Array.isArray(verifData)) {
+      for (const v of verifData) {
+        // Skip if already in applications
+        if (!applications.some(a => a.user_id === v.uid && a.id === `verif_${v.id || v.uid}`)) {
           applications.push({
-            id: ha.id,
-            user_id: uid,
-            user_name: ha.data?.user_name || ha.name || uid.slice(0, 8),
-            custom_id: ha.data?.custom_id || '',
-            user_avatar: ha.data?.user_avatar || ha.logo_url || '',
+            id: `verif_${v.id || v.uid}`,
+            user_id: v.uid,
+            user_name: v.full_name || v.uid?.slice(0, 8),
+            custom_id: '',
+            user_avatar: v.face_photo1_url || '',
             agency_type: 'host',
-            agency_name: ha.name || 'وكالة جديدة',
-            agency_logo: ha.logo_url || '',
-            country: ha.data?.country || '',
-            whatsapp: ha.data?.whatsapp || '',
-            description: ha.description || '',
-            doc_type: '',
-            doc_number: '',
-            doc_front_url: '',
-            doc_back_url: '',
-            video_url: '',
-            status: ha.status || 'pending',
-            rejection_reason: '',
-            created_at: ha.created_at || new Date().toISOString(),
-            reviewed_at: undefined,
+            agency_name: `وكالة ${v.full_name || 'المضيف'}`,
+            country: v.country || '',
+            whatsapp: v.whatsapp || '',
+            description: v.previous_platforms ? `منصات سابقة: ${v.previous_platforms}` : '',
+            doc_type: v.doc_type || '',
+            doc_number: v.doc_number || '',
+            doc_front_url: v.doc_front_url || '',
+            doc_back_url: v.doc_back_url || '',
+            video_url: v.video_url || '',
+            status: (v.status === 'approved' ? 'approved' : v.status === 'rejected' ? 'rejected' : 'pending'),
+            created_at: v.created_at || new Date().toISOString(),
           });
-          seenAppIds.add(ha.id);
-          seenAppIds.add(linkedAppId);
         }
       }
-    } catch (haErr) {
-      console.warn('host_agencies pending fetch error:', haErr);
     }
 
-
-
-    // Populate user profile info (name, avatar, custom_id)
+    // Fetch user details to enrich with real names and avatars
     const userIds = Array.from(new Set(applications.map(a => a.user_id).filter(Boolean)));
     if (userIds.length > 0) {
-      const { data: usersData } = await supabase.from('users').select('*');
+      const { data: usersData } = await supabase.from('users').select('id, name, custom_id, photo_url, avatar');
       const uMap: Record<string, any> = {};
-      (usersData ?? []).forEach((u: any) => {
-        const resolvedId = u.id || u.uid;
-        uMap[resolvedId] = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
-        if (u.custom_id) uMap[u.custom_id] = uMap[resolvedId];
-      });
+      (usersData ?? []).forEach((u: any) => { uMap[u.id] = u; });
       applications.forEach(a => {
         const u = uMap[a.user_id];
         if (u) {
@@ -1785,7 +1113,7 @@ export async function getAgencyApplications(statusFilter?: string, typeFilter?: 
 
     let result = applications;
     if (statusFilter) result = result.filter(a => a.status === statusFilter);
-    if (typeFilter && typeFilter !== 'all') result = result.filter(a => a.agency_type === typeFilter);
+    if (typeFilter) result = result.filter(a => a.agency_type === typeFilter);
 
     return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   } catch { return []; }
@@ -1796,139 +1124,79 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
     const now = new Date().toISOString();
 
     if (app.agency_type === 'host') {
-      let agencyCode = (app as any).agency_code || (app as any).agency_public_id || '';
-      if (!agencyCode) {
-        try {
-          const { count } = await supabase.from('host_agencies').select('*', { count: 'exact', head: true });
-          agencyCode = (100 + ((count || 0) + 1)).toString();
-        } catch (_) {
-          agencyCode = (100 + (Date.now() % 899)).toString();
-        }
-      }
-
-      const existingAgencyId = (app as any).agency_id;
-      const ownerUid = (app as any).applicant_uid || app.user_id;
-      const agencyId = existingAgencyId || `agency_${Date.now()}_${ownerUid}`;
-      const agencyLogo = app.agency_logo || app.user_avatar || '';
-
-      let existingData: any = {};
-      try {
-        const { data: currentAg } = await supabase.from('host_agencies').select('*').eq('id', agencyId).maybeSingle();
-        if (currentAg?.data) {
-          existingData = typeof currentAg.data === 'string' ? JSON.parse(currentAg.data) : currentAg.data;
-        }
-      } catch (_) {}
-
-      const appBdUid = (app as any).bd_uid || (app as any).supervisor_uid || existingData.bd_uid || existingData.supervisor_uid || null;
-      const appBdId = (app as any).bd_id || (app as any).supervisor_id || existingData.bd_id || existingData.supervisor_id || null;
-      const appSupUid = (app as any).supervisor_uid || existingData.supervisor_uid || (app as any).supervisor_id || existingData.supervisor_id || null;
-      const appSupId = (app as any).supervisor_id || existingData.supervisor_id || (app as any).supervisor_uid || existingData.supervisor_uid || null;
-      const appSupName = (app as any).supervisor_name || existingData.supervisor_name || null;
-
-      const agencyData: any = {
-        id: agencyId,
+      // 1. Create Host Agency
+      const agencyData = {
         name: app.agency_name || `وكالة ${app.user_name}`,
-        agency_code: Number(agencyCode) || (100 + (Date.now() % 899)),
-        owner_id: ownerUid,
-        owner_uid: ownerUid,
+        owner_id: app.user_id,
         description: app.description || 'وكالة مضيفين معتمدة',
-        logo_url: agencyLogo,
-        background_url: '',
-        announcement: '',
-        level: 1,
-        monthly_exp: 0,
-        total_exp: 0,
-        total_diamonds_monthly: 0,
-        total_diamonds_cumulative: 0,
-        monthly_diamonds: 0,
-        member_count: 1,
-        admin_count: 0,
-        status: 'active',
+        photo_url: app.agency_logo || app.user_avatar || null,
+        country: app.country || null,
+        commission_rate: 0.1, // 10%
+        specialty: 'mixed',
+        tier: 'bronze',
         is_active: true,
-        data: {
-          whatsapp: app.whatsapp || existingData.whatsapp || null,
-          country: app.country || existingData.country || null,
-          tier: existingData.tier || 'bronze',
-          commission_rate: existingData.commission_rate || 0.1,
-          bd_uid: appBdUid,
-          bd_id: appBdId,
-          supervisor_uid: appSupUid,
-          supervisor_id: appSupId,
-          supervisor_name: appSupName,
-        },
+        member_count: 1,
+        total_diamonds_earned: 0,
+        monthly_diamonds: 0,
         created_at: now,
-        updated_at: now,
       };
 
-      // 1. Upsert Host Agency in Supabase
-      try {
-        await supabase.from('host_agencies').upsert(agencyData);
-      } catch (agErr) {
-        console.warn('Supabase host_agencies upsert error:', agErr);
-      }
+      const { data: createdAgency, error: agErr } = await supabase.from('host_agencies').insert(agencyData).select('*').single();
+      const agencyId = (createdAgency as any)?.id;
 
-      // 2. Add owner to host_agency_members in Supabase (id MUST be valid UUID)
-      try {
-        const memberUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
-          ? crypto.randomUUID()
-          : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-              const r = Math.random() * 16 | 0;
-              return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-            });
-
-        // Check if member already exists
-        const { data: existingMember } = await supabase
-          .from('host_agency_members')
-          .select('id')
-          .eq('agency_id', agencyId)
-          .eq('host_uid', ownerUid)
-          .maybeSingle();
-
+      if (agencyId) {
+        // 2. Add owner to host_agency_members
         await supabase.from('host_agency_members').upsert({
-          id: existingMember?.id || memberUuid,
           agency_id: agencyId,
-          user_id: ownerUid,
-          host_uid: ownerUid,
+          user_id: app.user_id,
           role: 'owner',
           status: 'active',
           joined_at: now,
         });
-      } catch (memErr) {
-        console.warn('host_agency_members upsert error:', memErr);
+
+        // 3. Set user's agency_id
+        await supabase.from('users').update({ agency_id: agencyId, is_host_agent: true }).eq('id', app.user_id);
       }
 
-      // 3. Set user's agency_id & is_host_agent in Supabase
-      try {
-        await supabase.from('users').update({
-          agency_id: agencyId,
-          is_host_agent: true,
-        }).or(`uid.eq.${ownerUid},id.eq.${ownerUid}`);
-      } catch (uErr) {
-        console.warn('users agency update error:', uErr);
-      }
+      await sendSystemNotification({
+        userId: app.user_id,
+        title: 'مبروك! تم قبول طلب فتح الوكالة 🎉',
+        body: `مبروك! تم قبول طلبك وفتح وكالة [${app.agency_name}] بنجاح بواسطة المشرف [${adminName}]. يمكنك الآن الدخول لإدارة وكالتك.`,
+        type: 'system',
+        action: 'agency_approved',
+        extraData: { agency_name: app.agency_name, admin_name: adminName },
+      });
+    } else if (app.agency_type === 'recharge') {
+      // Set user as recharge agent
+      await supabase.from('users').update({
+        is_recharge_agent: true,
+        recharge_agency_name: app.agency_name || 'وكالة الشحن المعتمدة',
+        recharge_agency_logo: app.agency_logo || null,
+        whatsapp_number: app.whatsapp || null,
+      }).eq('id', app.user_id);
 
-
-
-      try {
-        await sendSystemNotification({
-          userId: app.user_id,
-          title: 'مبروك! تم تفعيل وكالة الشحن 🎉',
-          body: `مبروك! تم قبول طلبك واعتمادك كوكيل شحن رسمي [${app.agency_name}] بواسطة المشرف [${adminName}].`,
-          type: 'system',
-          action: 'recharge_agency_approved',
-          extraData: { agency_name: app.agency_name, admin_name: adminName },
-        });
-      } catch (_) {}
+      await sendSystemNotification({
+        userId: app.user_id,
+        title: 'مبروك! تم تفعيل وكالة الشحن 🎉',
+        body: `مبروك! تم قبول طلبك واعتمادك كوكيل شحن رسمي [${app.agency_name}] بواسطة المشرف [${adminName}].`,
+        type: 'system',
+        action: 'recharge_agency_approved',
+        extraData: { agency_name: app.agency_name, admin_name: adminName },
+      });
     }
 
-    // Update application record in Supabase (only existing columns)
-    try {
+    // Update application record
+    if (app.id.startsWith('verif_')) {
+      const verifDocId = app.id.replace('verif_', '');
+      await supabase.from('host_verifications').update({ status: 'approved' }).eq('uid', app.user_id);
+    } else {
       await supabase.from('agency_applications').update({
         status: 'approved',
+        reviewed_at: now,
       }).eq('id', app.id);
-    } catch (_) {}
+    }
 
-    return { success: true, message: `تم قبول طلب فتح الوكالة وتفعيلها بنجاح مع ربط الصورة ومعرف الوكالة!` };
+    return { success: true, message: `تم قبول طلب فتح الوكالة بنجاح وتم تفعيل الوكالة!` };
   } catch (err: any) {
     return { success: false, message: err?.message || 'حدث خطأ أثناء قبول الطلب' };
   }
@@ -1936,29 +1204,25 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
 
 export async function rejectAgencyApplication(appId: string, userId: string, reason: string = '', adminName: string = 'إدارة التطبيق'): Promise<{ success: boolean; message: string }> {
   try {
-    try {
+    const now = new Date().toISOString();
+    if (appId.startsWith('verif_')) {
+      await supabase.from('host_verifications').update({ status: 'rejected' }).eq('uid', userId);
+    } else {
       await supabase.from('agency_applications').update({
         status: 'rejected',
+        rejection_reason: reason.trim() || 'لم تستوفِ متطلبات فتح الوكالة',
+        reviewed_at: now,
       }).eq('id', appId);
-    } catch (_) {}
+    }
 
-    try {
-      await supabase.from('host_agencies').update({
-        status: 'rejected',
-        is_active: false,
-      }).or(`id.eq.${appId},owner_uid.eq.${userId}`);
-    } catch (_) {}
-
-    try {
-      await sendSystemNotification({
-        userId: userId,
-        title: 'إشعار بخصوص طلب فتح الوكالة ⚠️',
-        body: `تم رفض طلب فتح الوكالة من قبل المشرف [${adminName}]. سبب الرفض: ${reason.trim() || 'لم يتم استيفاء الشروط المطلوبة'}.`,
-        type: 'system',
-        action: 'agency_rejected',
-        extraData: { reason, admin_name: adminName },
-      });
-    } catch (_) {}
+    await sendSystemNotification({
+      userId: userId,
+      title: 'إشعار بخصوص طلب فتح الوكالة ⚠️',
+      body: `تم رفض طلب فتح الوكالة من قبل المشرف [${adminName}]. سبب الرفض: ${reason.trim() || 'لم يتم استيفاء الشروط المطلوبة'}.`,
+      type: 'system',
+      action: 'agency_rejected',
+      extraData: { reason, admin_name: adminName },
+    });
 
     return { success: true, message: 'تم رفض الطلب بنجاح' };
   } catch (err: any) {
@@ -1968,13 +1232,20 @@ export async function rejectAgencyApplication(appId: string, userId: string, rea
 
 export async function createAgencyApplication(payload: Partial<AgencyApplicationModel>): Promise<boolean> {
   try {
-    const appId = payload.id || `app_${Date.now()}_${payload.user_id}`;
     await supabase.from('agency_applications').insert({
-      id: appId,
-      applicant_uid: payload.user_id,
+      user_id: payload.user_id,
+      user_name: payload.user_name || '',
+      agency_type: payload.agency_type || 'host',
       agency_name: payload.agency_name || '',
+      agency_logo: payload.agency_logo || '',
+      country: payload.country || '',
       whatsapp: payload.whatsapp || '',
       description: payload.description || '',
+      doc_type: payload.doc_type || '',
+      doc_number: payload.doc_number || '',
+      doc_front_url: payload.doc_front_url || '',
+      doc_back_url: payload.doc_back_url || '',
+      video_url: payload.video_url || '',
       status: 'pending',
       created_at: new Date().toISOString(),
     });
@@ -1983,101 +1254,133 @@ export async function createAgencyApplication(payload: Partial<AgencyApplication
 }
 
 export async function getHostMilestones(): Promise<HostMilestoneModel[]> {
-  // 1. Try fetching from app_config 'host_milestones_list'
   try {
-    const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'host_milestones_list').maybeSingle();
-    if (cfg && cfg.value) {
-      const list = typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value;
-      if (Array.isArray(list) && list.length > 0) {
-        return list as HostMilestoneModel[];
-      }
-    }
-  } catch {}
-
-  // 2. Default initial target (150,000 diamonds)
-  const defaultMilestone: HostMilestoneModel = {
-    id: 'hm_target_150k',
-    title: 'التارجت الأول (150,000 ماس)',
-    target_diamonds: 150000,
-    targetDiamonds: 150000,
-    reward_type: 'salary_usd',
-    rewardType: 'salary_usd',
-    reward_value: 10,
-    rewardValue: 10,
-    reward_item_id: null,
-    rewardItemId: null,
-    reward_image_url: 'https://res.cloudinary.com/r5kohqhd/image/upload/v1791072360/config/target_gold.png',
-    rewardImageUrl: 'https://res.cloudinary.com/r5kohqhd/image/upload/v1791072360/config/target_gold.png',
-    background_url: null,
-    backgroundUrl: null,
-    agent_commission_rate: 0.1,
-    agentCommissionRate: 0.1,
-    period_type: 'monthly',
-    periodType: 'monthly',
-    is_active: true,
-    isActive: true,
-    sort_order: 1,
-    sortOrder: 1,
-  };
-
-  try {
-    await supabase.from('app_config').upsert({
-      key: 'host_milestones_list',
-      value: [defaultMilestone],
-    });
-  } catch {}
-
-  return [defaultMilestone];
+    const { data } = await supabase.from('host_milestones').select('*').order('sort_order')
+    return (data ?? []).map((m: any) => ({
+      id: m.id,
+      title: m.title ?? '',
+      target_diamonds: Number(m.target_diamonds ?? m.targetDiamonds ?? 0),
+      targetDiamonds: Number(m.target_diamonds ?? m.targetDiamonds ?? 0),
+      reward_type: m.reward_type ?? m.rewardType ?? 'salary_usd',
+      rewardType: m.reward_type ?? m.rewardType ?? 'salary_usd',
+      reward_value: Number(m.reward_value ?? m.rewardValue ?? 0),
+      rewardValue: Number(m.reward_value ?? m.rewardValue ?? 0),
+      reward_item_id: m.reward_item_id ?? m.rewardItemId ?? null,
+      rewardItemId: m.reward_item_id ?? m.rewardItemId ?? null,
+      reward_image_url: m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? m.imageUrl ?? null,
+      rewardImageUrl: m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? m.imageUrl ?? null,
+      background_url: m.background_url ?? m.backgroundUrl ?? null,
+      backgroundUrl: m.background_url ?? m.backgroundUrl ?? null,
+      agent_commission_rate: Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1),
+      agentCommissionRate: Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1),
+      period_type: m.period_type ?? m.periodType ?? 'monthly',
+      periodType: m.period_type ?? m.periodType ?? 'monthly',
+      is_active: m.is_active !== false && m.isActive !== false,
+      isActive: m.is_active !== false && m.isActive !== false,
+      sort_order: Number(m.sort_order ?? m.sortOrder ?? 0),
+      sortOrder: Number(m.sort_order ?? m.sortOrder ?? 0),
+    })) as any;
+  } catch { return [] }
 }
 
 export async function updateHostMilestone(id: string, updates: Partial<HostMilestoneModel>): Promise<boolean> {
   try {
-    const currentList = await getHostMilestones();
-    const updated = currentList.map(m => m.id === id ? { ...m, ...updates, updated_at: new Date().toISOString() } : m);
-    await supabase.from('app_config').upsert({
-      key: 'host_milestones_list',
-      value: updated,
-    });
+    const raw: any = updates;
+    const targetDiamonds = Number(raw.target_diamonds ?? raw.targetDiamonds ?? 0);
+    const rewardValue = Number(raw.reward_value ?? raw.rewardValue ?? 0);
+    const agentCommissionRate = Number(raw.agent_commission_rate ?? raw.agentCommissionRate ?? 0.1);
+    const sortOrder = Number(raw.sort_order ?? raw.sortOrder ?? 0);
+    const rewardType = raw.reward_type ?? raw.rewardType ?? 'salary_usd';
+    const periodType = raw.period_type ?? raw.periodType ?? 'monthly';
+    const isActive = raw.is_active !== false && raw.isActive !== false;
+    const rewardItemId = raw.reward_item_id ?? raw.rewardItemId ?? null;
+    const rewardImageUrl = raw.reward_image_url ?? raw.rewardImageUrl ?? null;
+    const backgroundUrl = raw.background_url ?? raw.backgroundUrl ?? null;
+    const title = raw.title ?? '';
+
+    const normalized = {
+      title,
+      target_diamonds: targetDiamonds,
+      targetDiamonds,
+      reward_type: rewardType,
+      rewardType,
+      reward_value: rewardValue,
+      rewardValue,
+      agent_commission_rate: agentCommissionRate,
+      agentCommissionRate,
+      sort_order: sortOrder,
+      sortOrder,
+      period_type: periodType,
+      periodType,
+      is_active: isActive,
+      isActive,
+      reward_item_id: rewardItemId,
+      rewardItemId,
+      reward_image_url: rewardImageUrl,
+      rewardImageUrl,
+      background_url: backgroundUrl,
+      backgroundUrl,
+      updated_at: new Date().toISOString(),
+    };
+
+    await supabase.from('host_milestones').update(normalized).eq('id', id);
     return true;
   } catch (e) {
-    console.warn('updateHostMilestone error:', e);
+    console.error('updateHostMilestone error:', e);
     return false;
   }
 }
 
 export async function createHostMilestone(milestone: Omit<HostMilestoneModel, 'id'>): Promise<boolean> {
   try {
-    const currentList = await getHostMilestones();
-    const newId = `hm_${Date.now()}`;
-    const newMilestone = {
-      id: newId,
-      ...milestone,
+    const raw: any = milestone;
+    const targetDiamonds = Number(raw.target_diamonds ?? raw.targetDiamonds ?? 0);
+    const rewardValue = Number(raw.reward_value ?? raw.rewardValue ?? 0);
+    const agentCommissionRate = Number(raw.agent_commission_rate ?? raw.agentCommissionRate ?? 0.1);
+    const sortOrder = Number(raw.sort_order ?? raw.sortOrder ?? 0);
+    const rewardType = raw.reward_type ?? raw.rewardType ?? 'salary_usd';
+    const periodType = raw.period_type ?? raw.periodType ?? 'monthly';
+    const isActive = raw.is_active !== false && raw.isActive !== false;
+    const rewardItemId = raw.reward_item_id ?? raw.rewardItemId ?? null;
+    const rewardImageUrl = raw.reward_image_url ?? raw.rewardImageUrl ?? null;
+    const backgroundUrl = raw.background_url ?? raw.backgroundUrl ?? null;
+    const title = raw.title ?? '';
+
+    const normalized = {
+      title,
+      target_diamonds: targetDiamonds,
+      targetDiamonds,
+      reward_type: rewardType,
+      rewardType,
+      reward_value: rewardValue,
+      rewardValue,
+      agent_commission_rate: agentCommissionRate,
+      agentCommissionRate,
+      sort_order: sortOrder,
+      sortOrder,
+      period_type: periodType,
+      periodType,
+      is_active: isActive,
+      isActive,
+      reward_item_id: rewardItemId,
+      rewardItemId,
+      reward_image_url: rewardImageUrl,
+      rewardImageUrl,
+      background_url: backgroundUrl,
+      backgroundUrl,
       created_at: new Date().toISOString(),
     };
-    const updated = [...currentList, newMilestone];
-    await supabase.from('app_config').upsert({
-      key: 'host_milestones_list',
-      value: updated,
-    });
+
+    await supabase.from('host_milestones').insert(normalized);
     return true;
   } catch (e) {
-    console.warn('createHostMilestone error:', e);
+    console.error('createHostMilestone error:', e);
     return false;
   }
 }
 
 export async function deleteHostMilestone(id: string): Promise<boolean> {
-  try {
-    const currentList = await getHostMilestones();
-    const updated = currentList.filter(m => m.id !== id);
-    await supabase.from('app_config').upsert({
-      key: 'host_milestones_list',
-      value: updated,
-    });
-    return true;
-  } catch (e) {
-    return false;
-  }
+  try { await supabase.from('host_milestones').delete().eq('id', id); return true } catch { return false }
 }
 
 // ---- Agency Join Requests ----
@@ -2132,567 +1435,10 @@ export async function updateAgencyMemberRole(agencyId: string, userId: string, r
 export async function removeAgencyMember(agencyId: string, userId: string): Promise<boolean> {
   try {
     await supabase.from('host_agency_members').delete().eq('agency_id', agencyId).eq('user_id', userId);
-    await supabase.from('host_agency_members').delete().eq('agency_id', agencyId).eq('host_uid', userId);
     await supabase.from('users').update({ agency_id: null }).eq('id', userId);
-    await supabase.from('users').update({ agency_id: null }).eq('uid', userId);
     await adjustAgencyMemberCount(agencyId, -1);
     return true;
   } catch { return false; }
-}
-
-export async function removeAgencyMemberWithNotification(
-  agencyId: string,
-  userId: string,
-  agencyName?: string,
-  userName?: string
-): Promise<{ success: boolean; message: string }> {
-  try {
-    const client = getAdminSupabase() || supabase;
-
-    // 1. Delete from host_agency_members
-    await client.from('host_agency_members').delete().eq('agency_id', agencyId).eq('user_id', userId);
-    await client.from('host_agency_members').delete().eq('agency_id', agencyId).eq('host_uid', userId);
-
-    // 2. Reset agency_id in users
-    await client.from('users').update({ agency_id: null }).eq('id', userId);
-    await client.from('users').update({ agency_id: null }).eq('uid', userId);
-
-    // 3. Adjust member count
-    await adjustAgencyMemberCount(agencyId, -1);
-
-    // 4. Send official in-app system notification
-    const aName = agencyName || 'الوكالة';
-    await sendSystemNotification({
-      userId,
-      title: '❌ تم إنهاء عضويتك في الوكالة',
-      body: `تم إنهاء عضويتك وإزالتك من وكالة [${aName}] بواسطة إدارة التطبيق.`,
-      type: 'system',
-      action: 'agency_member_removed',
-      extraData: { agency_id: agencyId },
-    });
-
-    return { success: true, message: `تم إزالة ${userName || 'المضيف'} من الوكالة بنجاح وإرسال إشعار فوري له!` };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'فشل إزالة العضو من الوكالة' };
-  }
-}
-
-export async function transferAgencyMember(
-  userId: string,
-  fromAgencyId: string,
-  toAgencyId: string,
-  fromAgencyName?: string,
-  toAgencyName?: string
-): Promise<{ success: boolean; message: string }> {
-  try {
-    if (!userId || !toAgencyId) {
-      return { success: false, message: 'معرف المستخدم والوكالة الجديدة مطلوبان' };
-    }
-    if (fromAgencyId === toAgencyId) {
-      return { success: false, message: 'لا يمكن نقل العضو إلى نفس الوكالة الحالية' };
-    }
-
-    const client = getAdminSupabase() || supabase;
-    const nowIso = new Date().toISOString();
-
-    // 1. Update member row in host_agency_members: reset monthly diamonds and target to 0
-    await client.from('host_agency_members')
-      .update({
-        agency_id: toAgencyId,
-        diamonds_earned_monthly: 0,
-        daily_target: 0,
-        monthly_target: 0,
-        joined_at: nowIso,
-      })
-      .eq('agency_id', fromAgencyId)
-      .eq('user_id', userId);
-
-    await client.from('host_agency_members')
-      .update({
-        agency_id: toAgencyId,
-        diamonds_earned_monthly: 0,
-        daily_target: 0,
-        monthly_target: 0,
-        joined_at: nowIso,
-      })
-      .eq('agency_id', fromAgencyId)
-      .eq('host_uid', userId);
-
-    // 2. Update user agency_id in users table
-    await client.from('users').update({ agency_id: toAgencyId }).eq('id', userId);
-    await client.from('users').update({ agency_id: toAgencyId }).eq('uid', userId);
-
-    // 3. Adjust member counts for both agencies
-    if (fromAgencyId) {
-      await adjustAgencyMemberCount(fromAgencyId, -1);
-    }
-    await adjustAgencyMemberCount(toAgencyId, 1);
-
-    // 4. Send official system notification to host
-    const fromLabel = fromAgencyName || 'الوكالة السابقة';
-    const toLabel = toAgencyName || 'الوكالة الجديدة';
-    await sendSystemNotification({
-      userId,
-      title: '🔄 نقل إلى وكالة جديدة',
-      body: `تم نقلك بنجاح من وكالة [${fromLabel}] إلى وكالة [${toLabel}] بواسطة الإدارة، وتم تصفير تارجت الألماس الشهري لبدء دورة تارجت جديدة في الوكالة الجديدة.`,
-      type: 'system',
-      action: 'agency_transferred',
-      extraData: { from_agency_id: fromAgencyId, to_agency_id: toAgencyId },
-    });
-
-    return { success: true, message: `تم نقل العضو بنجاح إلى وكالة [${toLabel}] وتصفير تارجته الشهري وإرسال إشعار له!` };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'حدث خطأ أثناء نقل العضو' };
-  }
-}
-
-export async function getHostRechargeHistory(userId: string): Promise<HostRechargeRecord[]> {
-  try {
-    const client = getAdminSupabase() || supabase;
-    const records: HostRechargeRecord[] = [];
-
-    // 1. Fetch agent recharge transactions where target_uid == userId
-    const { data: agentTxs } = await client
-      .from('agent_recharge_transactions')
-      .select('*')
-      .eq('target_uid', userId)
-      .order('created_at', { ascending: false });
-
-    // 2. Fetch refunded status from app_config
-    const { data: refundedConfigs } = await client
-      .from('app_config')
-      .select('key, value')
-      .ilike('key', 'refunded_agent_tx_%');
-
-    const refundedMap: Record<string, any> = {};
-    (refundedConfigs ?? []).forEach((c: any) => {
-      const txId = c.key.replace('refunded_agent_tx_', '');
-      refundedMap[txId] = c.value;
-    });
-
-    // 3. Fetch agent users to get their name, custom_id, avatar
-    const agentIds = Array.from(new Set((agentTxs ?? []).map((t: any) => t.agent_id).filter(Boolean)));
-    const agentsMap: Record<string, any> = {};
-    if (agentIds.length > 0) {
-      const { data: agentUsers } = await client.from('users').select('*');
-      (agentUsers ?? []).forEach((u: any) => {
-        const uid = u.id || u.uid;
-        if (agentIds.includes(uid) || (u.custom_id && agentIds.includes(u.custom_id))) {
-          agentsMap[uid] = u;
-          if (u.custom_id) agentsMap[u.custom_id] = u;
-        }
-      });
-    }
-
-    for (const t of agentTxs ?? []) {
-      const agent = agentsMap[t.agent_id];
-      const isRefunded = Boolean(t.is_refunded || refundedMap[t.id]?.is_refunded);
-      const refundedInfo = refundedMap[t.id] || {};
-      records.push({
-        id: t.id,
-        source: 'agent',
-        source_label: 'وكيل شحن',
-        amount_coins: Number(t.amount_coins || 0),
-        amount_usd: t.amount_usd ? Number(t.amount_usd) : undefined,
-        agent_id: t.agent_id,
-        agent_name: agent?.name || agent?.displayName || 'وكيل شحن معتمد',
-        agent_custom_id: agent?.custom_id || '',
-        agent_avatar: agent?.photo_url || agent?.avatar || '',
-        target_uid: t.target_uid,
-        target_custom_id: t.target_custom_id || '',
-        created_at: t.created_at || new Date().toISOString(),
-        is_refunded: isRefunded,
-        refunded_at: refundedInfo.refunded_at || t.refunded_at,
-        refunded_by: refundedInfo.refunded_by || t.refunded_by,
-      });
-    }
-
-    // 4. Fetch admin recharge logs from notifications table
-    try {
-      const { data: notifs } = await client
-        .from('notifications')
-        .select('*')
-        .or(`uid.eq.${userId},target.eq.${userId}`)
-        .order('sent_at', { ascending: false });
-
-      for (const n of notifs ?? []) {
-        const isCoinsRecharge = n.data?.action === 'coins_recharged' || n.action === 'coins_recharged' || (n.title && n.title.includes('شحن رصيد'));
-        if (isCoinsRecharge) {
-          const coinsAmt = n.data?.amount || n.data?.coins || 0;
-          if (coinsAmt > 0) {
-            records.push({
-              id: `notif_${n.id}`,
-              source: 'admin',
-              source_label: 'شحن إداري',
-              amount_coins: Number(coinsAmt),
-              target_uid: userId,
-              created_at: n.sent_at || n.created_at || new Date().toISOString(),
-            });
-          }
-        }
-      }
-    } catch (_) {}
-
-    // Sort descending by date
-    records.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    return records;
-  } catch (err) {
-    console.warn('getHostRechargeHistory error:', err);
-    return [];
-  }
-}
-
-export async function refundAgentRechargeTransaction(
-  transactionId: string,
-  agentId: string,
-  targetUid: string,
-  amountCoins: number,
-  targetCustomId?: string,
-  agentCustomId?: string
-): Promise<{ success: boolean; message: string }> {
-  try {
-    const client = getAdminSupabase() || supabase;
-    const adminName = getCurrentAdminName() || 'إدارة التطبيق';
-    const nowIso = new Date().toISOString();
-
-    // 1. Fetch current balances of target user and agent
-    const { data: users } = await client.from('users').select('*').in('id', [targetUid, agentId]);
-    let targetUser = (users ?? []).find((u: any) => (u.id || u.uid) === targetUid);
-    let agentUser = (users ?? []).find((u: any) => (u.id || u.uid) === agentId);
-
-    // Fallback if searched by uid
-    if (!targetUser) {
-      const { data: tU } = await client.from('users').select('*').eq('uid', targetUid).maybeSingle();
-      targetUser = tU;
-    }
-    if (!agentUser) {
-      const { data: aU } = await client.from('users').select('*').eq('uid', agentId).maybeSingle();
-      agentUser = aU;
-    }
-
-    if (!targetUser) {
-      return { success: false, message: 'لم يتم العثور على بيانات المستخدم المستلم للعملات' };
-    }
-    if (!agentUser) {
-      return { success: false, message: 'لم يتم العثور على بيانات وكيل الشحن' };
-    }
-
-    const currentTargetCoins = Number(targetUser.coins || 0);
-    const newTargetCoins = Math.max(0, currentTargetCoins - amountCoins);
-
-    const currentAgentCoins = Number(agentUser.coins || 0);
-    const newAgentCoins = currentAgentCoins + amountCoins;
-
-    // 2. Update target user coins (deduct)
-    await client.from('users').update({ coins: newTargetCoins }).eq('id', targetUid);
-    await client.from('users').update({ coins: newTargetCoins }).eq('uid', targetUid);
-
-    // 3. Update agent user coins (credit back)
-    await client.from('users').update({ coins: newAgentCoins }).eq('id', agentId);
-    await client.from('users').update({ coins: newAgentCoins }).eq('uid', agentId);
-
-    // 4. Mark transaction as refunded in app_config
-    await client.from('app_config').upsert({
-      key: `refunded_agent_tx_${transactionId}`,
-      value: {
-        is_refunded: true,
-        transaction_id: transactionId,
-        amount_coins: amountCoins,
-        agent_id: agentId,
-        target_uid: targetUid,
-        refunded_at: nowIso,
-        refunded_by: adminName,
-      },
-    });
-
-    // Also attempt updating agent_recharge_transactions table if column exists
-    try {
-      await client.from('agent_recharge_transactions').update({
-        is_refunded: true,
-        refunded_at: nowIso,
-        refunded_by: adminName,
-      }).eq('id', transactionId);
-    } catch (_) {}
-
-    // 5. Send notification to Agent
-    const targetDisplayId = targetCustomId || targetUser.custom_id || targetUid.slice(0, 8);
-    await sendSystemNotification({
-      userId: agentId,
-      title: '↩️ تم استرجاع شحن كوينز خاطئ لمحفظتك',
-      body: `قامت الإدارة باسترجاع الشحن الخاطئ بقيمة ${amountCoins.toLocaleString()} كوينز من المستخدم (ID: ${targetDisplayId}) وإعادة الرصيد إلى محفظتك بنجاح. رصيدك الآن: ${newAgentCoins.toLocaleString()} عملة.`,
-      type: 'system',
-      action: 'agent_recharge_refunded',
-      extraData: { transaction_id: transactionId, amount_coins: amountCoins, target_uid: targetUid },
-    });
-
-    // 6. Send notification to Target User
-    await sendSystemNotification({
-      userId: targetUid,
-      title: '↩️ تنبيه استرجاع شحن كوينز خاطئ',
-      body: `قامت الإدارة باسترجاع ${amountCoins.toLocaleString()} كوينز تم شحنها لحسابك بالخطأ وإعادتها إلى وكيل الشحن. رصيدك الحالي الآن: ${newTargetCoins.toLocaleString()} عملة.`,
-      type: 'system',
-      action: 'user_recharge_reverted',
-      extraData: { transaction_id: transactionId, amount_coins: amountCoins },
-    });
-
-    return {
-      success: true,
-      message: `تم بنجاح خصم ${amountCoins.toLocaleString()} كوينز من المستخدم وإعادتها لرصيد وكيل الشحن، مع إرسال إشعار فوري للطرفين!`,
-    };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'فشلت عملية استرجاع الشحن' };
-  }
-}
-
-export interface AllAgentRechargeTx {
-  id: string;
-  agent_id: string;
-  agent_name: string;
-  agent_custom_id: string;
-  agent_avatar: string;
-  target_uid: string;
-  target_name: string;
-  target_custom_id: string;
-  target_avatar: string;
-  amount_coins: number;
-  amount_usd?: number;
-  created_at: string;
-  is_refunded: boolean;
-  refunded_at?: string;
-  refunded_by?: string;
-}
-
-export async function getAllAgentRechargeTransactions(): Promise<AllAgentRechargeTx[]> {
-  try {
-    const client = getAdminSupabase() || supabase;
-    const { data: txs, error } = await client
-      .from('agent_recharge_transactions')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(300);
-
-    if (error || !txs) return [];
-
-    const uids = Array.from(new Set([
-      ...txs.map((t: any) => t.agent_id),
-      ...txs.map((t: any) => t.target_uid)
-    ].filter(Boolean)));
-
-    const usersMap: Record<string, any> = {};
-    if (uids.length > 0) {
-      const { data: users } = await client.from('users').select('id, uid, name, avatar, custom_id');
-      (users ?? []).forEach((u: any) => {
-        const id = u.id || u.uid;
-        usersMap[id] = u;
-        if (u.uid) usersMap[u.uid] = u;
-        if (u.custom_id) usersMap[u.custom_id] = u;
-      });
-    }
-
-    const { data: refundedConfigs } = await client
-      .from('app_config')
-      .select('key, value')
-      .ilike('key', 'refunded_agent_tx_%');
-
-    const refundedMap: Record<string, any> = {};
-    (refundedConfigs ?? []).forEach((c: any) => {
-      const txId = c.key.replace('refunded_agent_tx_', '');
-      refundedMap[txId] = c.value;
-    });
-
-    return txs.map((t: any) => {
-      const agent = usersMap[t.agent_id] || {};
-      const target = usersMap[t.target_uid] || {};
-      const isRefunded = Boolean(t.is_refunded || refundedMap[t.id]?.is_refunded);
-      const refInfo = refundedMap[t.id] || {};
-
-      return {
-        id: t.id,
-        agent_id: t.agent_id,
-        agent_name: agent.name || 'وكيل شحن',
-        agent_custom_id: agent.custom_id || '',
-        agent_avatar: agent.avatar || '',
-        target_uid: t.target_uid,
-        target_name: target.name || 'مستخدم',
-        target_custom_id: t.target_custom_id || target.custom_id || '',
-        target_avatar: target.avatar || '',
-        amount_coins: Number(t.amount_coins || 0),
-        amount_usd: t.amount_usd ? Number(t.amount_usd) : undefined,
-        created_at: t.created_at || new Date().toISOString(),
-        is_refunded: isRefunded,
-        refunded_at: refInfo.refunded_at || t.refunded_at,
-        refunded_by: refInfo.refunded_by || t.refunded_by,
-      };
-    });
-  } catch (e) {
-    console.warn('getAllAgentRechargeTransactions error:', e);
-    return [];
-  }
-}
-
-export interface AgentTopupRequestItem {
-  id: string;
-  agentId: string;
-  agentName: string;
-  agentCustomId?: string;
-  agencyName?: string;
-  agencyLogo?: string;
-  amountUsd: number;
-  coins: number;
-  paymentMethod: string;
-  proofUrl: string;
-  txid: string;
-  senderName: string;
-  senderPhone: string;
-  status: 'pending' | 'approved' | 'rejected';
-  rejectionReason?: string;
-  createdAt: string;
-  reviewedAt?: string;
-  reviewedBy?: string;
-}
-
-export async function getAgentTopupRequests(): Promise<AgentTopupRequestItem[]> {
-  try {
-    const client = getAdminSupabase() || supabase;
-    const { data, error } = await client
-      .from('agent_withdrawal_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error || !data) return [];
-
-    // Collect agent UIDs to fetch their profile/agency info
-    const agentUids = Array.from(new Set(data.map((r: any) => r.agent_id).filter(Boolean)));
-    const agentMap: Record<string, any> = {};
-
-    if (agentUids.length > 0) {
-      try {
-        const { data: uList } = await client
-          .from('users')
-          .select('id, uid, name, avatar, custom_id, recharge_agency_name, recharge_agency_logo');
-        (uList ?? []).forEach((u: any) => {
-          if (u.id) agentMap[u.id] = u;
-          if (u.uid) agentMap[u.uid] = u;
-        });
-      } catch (_) {}
-    }
-
-    const list: AgentTopupRequestItem[] = [];
-    for (const r of data) {
-      const details = r.account_details || {};
-      if (details.request_type === 'agent_topup') {
-        const agInfo = agentMap[r.agent_id] || {};
-        const agentCustomId = agInfo.custom_id || details.agent_custom_id || '';
-        const agencyName = agInfo.recharge_agency_name || details.agency_name || details.recharge_agency_name || 'وكالة الشحن';
-        const agencyLogo = agInfo.recharge_agency_logo || details.agency_logo || agInfo.avatar || '';
-        const agentName = agInfo.name || r.agent_name || details.sender_name || 'وكيل شحن';
-
-        list.push({
-          id: r.id,
-          agentId: r.agent_id,
-          agentName,
-          agentCustomId,
-          agencyName,
-          agencyLogo,
-          amountUsd: Number(r.amount_usd || 0),
-          coins: Number(details.coins || (r.amount_usd * 1000)),
-          paymentMethod: r.payment_method || 'manual',
-          proofUrl: details.proof_url || '',
-          txid: details.txid || '',
-          senderName: details.sender_name || '',
-          senderPhone: details.sender_phone || '',
-          status: r.status || 'pending',
-          rejectionReason: r.rejection_reason || '',
-          createdAt: r.created_at || new Date().toISOString(),
-          reviewedAt: r.reviewed_at,
-          reviewedBy: r.reviewed_by,
-        });
-      }
-    }
-    return list;
-  } catch (e) {
-    console.warn('getAgentTopupRequests error:', e);
-    return [];
-  }
-}
-
-export async function approveAgentTopupRequest(req: AgentTopupRequestItem, coinsToAdd?: number): Promise<boolean> {
-  try {
-    const client = getAdminSupabase() || supabase;
-    const adminName = getCurrentAdminName() || 'Admin';
-    const now = new Date().toISOString();
-
-    const actualCoins = (coinsToAdd !== undefined && coinsToAdd > 0) ? coinsToAdd : req.coins;
-
-    const { data: agentUser } = await client
-      .from('users')
-      .select('coins')
-      .or(`id.eq.${req.agentId},uid.eq.${req.agentId}`)
-      .maybeSingle();
-
-    const currentCoins = Number(agentUser?.coins || 0);
-    const newCoins = currentCoins + actualCoins;
-
-    await client
-      .from('users')
-      .update({ coins: newCoins })
-      .or(`id.eq.${req.agentId},uid.eq.${req.agentId}`);
-
-    await client
-      .from('agent_withdrawal_requests')
-      .update({
-        status: 'approved',
-        reviewed_at: now,
-        reviewed_by: adminName,
-      })
-      .eq('id', req.id);
-
-    await sendSystemNotification({
-      userId: req.agentId,
-      title: '🎉 تم اعتماد شحن رصيد وكالتك بنجاح!',
-      body: `تمت مراجعة عملية التحويل وإضافة ${actualCoins.toLocaleString()} كوينز إلى محفظة وكالتك بنجاح. رصيدك الآن: ${newCoins.toLocaleString()} عملة.`,
-      type: 'system',
-      action: 'agent_topup_approved',
-      extraData: { amount_usd: req.amountUsd, coins: actualCoins, request_id: req.id },
-    });
-
-    return true;
-  } catch (e) {
-    console.error('approveAgentTopupRequest error:', e);
-    throw e;
-  }
-}
-
-export async function rejectAgentTopupRequest(req: AgentTopupRequestItem, reason: string): Promise<boolean> {
-  try {
-    const client = getAdminSupabase() || supabase;
-    const adminName = getCurrentAdminName() || 'Admin';
-    const now = new Date().toISOString();
-
-    await client
-      .from('agent_withdrawal_requests')
-      .update({
-        status: 'rejected',
-        rejection_reason: reason,
-        reviewed_at: now,
-        reviewed_by: adminName,
-      })
-      .eq('id', req.id);
-
-    await sendSystemNotification({
-      userId: req.agentId,
-      title: '❌ تم رفض طلب تعبئة رصيد الوكالة',
-      body: `نأسف، تم رفض طلب تعبئة الرصيد بمبلغ $${req.amountUsd}. السبب: ${reason || 'بيانات التحويل غير متطابقة'}`,
-      type: 'system',
-      action: 'agent_topup_rejected',
-      extraData: { request_id: req.id },
-    });
-
-    return true;
-  } catch (e) {
-    console.error('rejectAgentTopupRequest error:', e);
-    throw e;
-  }
 }
 
 export async function sendSystemNotification(data: {
@@ -2704,24 +1450,22 @@ export async function sendSystemNotification(data: {
   extraData?: Record<string, unknown>;
 }): Promise<boolean> {
   try {
-    const client = getAdminSupabase() || supabase;
-    const nowIso = new Date().toISOString();
-    const payload: Record<string, unknown> = {
-      title: data.title || 'إشعار من الإدارة',
-      body: data.body || '',
-      target: data.userId || 'all',
-      uid: data.userId && data.userId !== 'all' ? data.userId : null,
-      type: data.type || (data.action ? data.action : 'system'),
+    const payload = {
+      user_id: data.userId,
+      uid: data.userId,
+      title: data.title,
+      body: data.body,
+      type: data.type || 'system',
+      sent_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      is_read: false,
       data: {
+        action: data.action || 'system_notice',
         ...(data.extraData || {}),
-        action: data.action || data.type || 'system',
       },
-      sent_at: nowIso,
     };
-    await client.from('notifications').insert(payload);
-
-
-
+    // Direct addDoc to notifications collection
+    await setDoc(doc(collection(firestoreDb, 'notifications')), payload);
     return true;
   } catch (e) {
     console.warn('sendSystemNotification failed:', e);
@@ -2729,83 +1473,13 @@ export async function sendSystemNotification(data: {
   }
 }
 
-export async function getUserOriginalCustomId(uid: string): Promise<string> {
-  const client = getAdminSupabase() || supabase;
-  try {
-    const { data: user } = await client.from('users').select('custom_id, original_custom_id').eq('uid', uid).maybeSingle();
-    if (user?.original_custom_id) {
-      return String(user.original_custom_id).trim();
-    }
-    const { data: cfg } = await client.from('app_config').select('value').eq('key', `orig_cid_${uid}`).maybeSingle();
-    if (cfg?.value?.originalId) {
-      return String(cfg.value.originalId).trim();
-    }
-    if (typeof cfg?.value === 'string' && cfg.value.trim()) {
-      return cfg.value.trim();
-    }
-  } catch (e) {
-    console.warn('getUserOriginalCustomId error:', e);
-  }
-  return '';
-}
-
-export async function setUserOriginalCustomId(uid: string, originalId: string): Promise<void> {
-  if (!uid || !originalId) return;
-  const client = getAdminSupabase() || supabase;
-  const cleanId = String(originalId).trim();
-  try {
-    await client.from('users').update({ original_custom_id: cleanId }).eq('uid', uid);
-  } catch {
-    // If column missing in users table, ignore error
-  }
-  try {
-    await client.from('app_config').upsert({
-      key: `orig_cid_${uid}`,
-      value: { originalId: cleanId, savedAt: Date.now() },
-    });
-  } catch (err) {
-    console.warn('setUserOriginalCustomId app_config error:', err);
-  }
-}
-
-async function mapFoundUserProfile(u: any) {
-  if (!u) return null;
-  const uid = String(u.uid || u.id || '');
-  const customId = String(u.custom_id || u.customId || u.display_id || (uid ? uid.slice(0, 8) : ''));
-  let origId = String(u.original_custom_id || u.originalCustomId || '').trim();
-  if (!origId && uid) {
-    origId = await getUserOriginalCustomId(uid);
-  }
-  const isSpecial = Boolean(
-    (origId && origId !== customId) ||
-    (customId && !isNaN(Number(customId)) && customId.length <= 6)
-  );
-
-  return {
-    id: uid,
-    uid: uid,
-    name: u.name || u.display_name || 'بدون اسم',
-    custom_id: customId,
-    original_custom_id: origId || undefined,
-    is_special_id: isSpecial,
-    photo_url: u.photo_url || u.photoUrl || u.avatar || '',
-    coins: Number(u.coins || 0),
-    diamonds: Number(u.diamonds || 0),
-    agency_id: u.agency_id || undefined,
-    is_recharge_agent: Boolean(u.is_recharge_agent || u.isRechargeAgent || u.is_agent),
-  };
-}
-
 export async function searchUserProfile(queryStr: string): Promise<{
   id: string;
   uid: string;
   name: string;
   custom_id: string;
-  original_custom_id?: string;
-  is_special_id?: boolean;
   photo_url: string;
   coins: number;
-  diamonds?: number;
   agency_id?: string;
   is_recharge_agent?: boolean;
 } | null> {
@@ -2813,79 +1487,73 @@ export async function searchUserProfile(queryStr: string): Promise<{
   if (!q) return null;
   const qLower = q.toLowerCase();
 
-  const client = getAdminSupabase() || supabase;
-
   try {
-    // 1. Check custom_id directly (both string and numeric)
-    const { data: byCid, error: errCid } = await client
-      .from('users')
-      .select('*')
-      .eq('custom_id', q)
-      .limit(1);
-
-    if (!errCid && byCid && byCid.length > 0) {
-      return await mapFoundUserProfile(byCid[0]);
+    // 1. Direct lookup by Firestore document ID / Firebase UID
+    const directDoc = await getDoc(doc(firestoreDb, 'users', q));
+    if (directDoc.exists()) {
+      const data = directDoc.data();
+      return {
+        id: directDoc.id,
+        uid: directDoc.id,
+        name: data.name || data.display_name || 'بدون اسم',
+        custom_id: String(data.custom_id || data.customId || data.display_id || directDoc.id.slice(0, 8)),
+        photo_url: data.photo_url || data.photoUrl || data.avatar || '',
+        coins: Number(data.coins || 0),
+        agency_id: data.agency_id || undefined,
+        is_recharge_agent: Boolean(data.is_recharge_agent || data.isRechargeAgent || data.is_agent),
+      };
     }
 
+    // 2. Query by custom_id (string or number)
+    const customIdQueries = [
+      query(collection(firestoreDb, 'users'), where('custom_id', '==', q)),
+      query(collection(firestoreDb, 'users'), where('customId', '==', q)),
+      query(collection(firestoreDb, 'users'), where('display_id', '==', q)),
+    ];
     if (!isNaN(Number(q))) {
-      const { data: byNumCid } = await client
-        .from('users')
-        .select('*')
-        .eq('custom_id', Number(q))
-        .limit(1);
-      if (byNumCid && byNumCid.length > 0) {
-        return await mapFoundUserProfile(byNumCid[0]);
-      }
+      customIdQueries.push(query(collection(firestoreDb, 'users'), where('custom_id', '==', Number(q))));
+      customIdQueries.push(query(collection(firestoreDb, 'users'), where('customId', '==', Number(q))));
     }
 
-    // 2. Check by uid
-    const { data: byUid, error: errUid } = await client
-      .from('users')
-      .select('*')
-      .eq('uid', q)
-      .limit(1);
-
-    if (!errUid && byUid && byUid.length > 0) {
-      return await mapFoundUserProfile(byUid[0]);
+    for (const qObj of customIdQueries) {
+      try {
+        const snap = await getDocs(qObj);
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          const data = d.data();
+          return {
+            id: d.id,
+            uid: d.id,
+            name: data.name || data.display_name || 'بدون اسم',
+            custom_id: String(data.custom_id || data.customId || data.display_id || d.id.slice(0, 8)),
+            photo_url: data.photo_url || data.photoUrl || data.avatar || '',
+            coins: Number(data.coins || 0),
+            agency_id: data.agency_id || undefined,
+            is_recharge_agent: Boolean(data.is_recharge_agent || data.isRechargeAgent || data.is_agent),
+          };
+        }
+      } catch (_) {}
     }
 
-    // 3. Check by id (uuid)
-    const { data: byId } = await client
-      .from('users')
-      .select('*')
-      .eq('id', q)
-      .limit(1);
-
-    if (byId && byId.length > 0) {
-      return await mapFoundUserProfile(byId[0]);
-    }
-
-    // 4. Check by name (ilike search)
-    const { data: byName } = await client
-      .from('users')
-      .select('*')
-      .ilike('name', `%${q}%`)
-      .limit(1);
-
-    if (byName && byName.length > 0) {
-      return await mapFoundUserProfile(byName[0]);
-    }
-
-    // 5. Fallback in-memory search over top users
-    const { data: allUsers } = await client
-      .from('users')
-      .select('*')
-      .limit(300);
-
-    if (allUsers && Array.isArray(allUsers)) {
-      const found = allUsers.find((u: any) => {
+    // 3. Fallback scan across users
+    const { data: users } = await supabase.from('users').select('*');
+    if (users && Array.isArray(users)) {
+      const found = users.find((u: any) => {
         const uid = String(u.id || u.uid || '').toLowerCase();
         const cid = String(u.custom_id || u.customId || u.display_id || '').toLowerCase();
-        const name = String(u.name || u.display_name || '').toLowerCase();
-        return uid === qLower || cid === qLower || (name && name.includes(qLower));
+        return uid === qLower || cid === qLower;
       });
       if (found) {
-        return await mapFoundUserProfile(found);
+        return {
+          id: found.id || found.uid,
+          uid: found.uid || found.id,
+          name: found.name || 'بدون اسم',
+          custom_id: String(found.custom_id || found.customId || found.id?.slice(0, 8) || ''),
+          photo_url: found.photo_url || found.photoUrl || found.avatar || '',
+          coins: Number(found.coins || 0),
+          agency_id: found.agency_id || undefined,
+          is_recharge_agent: Boolean(found.is_recharge_agent || found.isRechargeAgent || found.is_agent),
+        };
       }
     }
   } catch (e) {
@@ -2925,14 +1593,12 @@ export async function updateRechargeAgency(userId: string, data: {
   recharge_agency_logo?: string;
   whatsapp_number?: string;
   coins?: number;
-  coinsMode?: 'set' | 'add';
   recharge_commission_rate?: number;
   adminName?: string;
 }): Promise<boolean> {
   try {
-    const client = getAdminSupabase() || supabase;
     let resolvedUid = userId.trim();
-    // Resolve user if userId is a custom numeric/string ID or UID
+    // Resolve user if userId is not a direct doc ID or if it's a numeric ID
     const u = await searchUserProfile(resolvedUid);
     if (u) {
       resolvedUid = u.uid || u.id;
@@ -2945,35 +1611,40 @@ export async function updateRechargeAgency(userId: string, data: {
     // 1. Prepare user update payload
     const userUpdate: Record<string, any> = {
       is_recharge_agent: true,
+      isRechargeAgent: true,
+      is_agent: true,
       recharge_agency_name: agencyName,
       recharge_agency_logo: data.recharge_agency_logo || '',
       whatsapp_number: data.whatsapp_number || '',
+      recharge_commission_rate: data.recharge_commission_rate ?? 5,
       updated_at: nowIso,
     };
 
-    if (data.coins !== undefined && data.coins >= 0) {
-      if (data.coinsMode === 'add') {
-        const currentCoins = u ? u.coins : 0;
-        userUpdate.coins = currentCoins + data.coins;
-      } else {
-        userUpdate.coins = data.coins;
-      }
+    // If initial coins specified > 0, increment or set
+    if (data.coins && data.coins > 0) {
+      userUpdate.coins = increment(data.coins);
     }
 
-    // Write to users in Supabase
-    try {
-      await client.from('users').update(userUpdate).eq('uid', resolvedUid);
-      await client.from('users').update(userUpdate).eq('id', resolvedUid);
-      if (u?.custom_id) {
-        await client.from('users').update(userUpdate).eq('custom_id', u.custom_id);
-      }
-    } catch (sbErr) {
-      console.warn('updateRechargeAgency supabase warning:', sbErr);
-    }
+    // Write to users/{resolvedUid}
+    await setDoc(doc(firestoreDb, 'users', resolvedUid), userUpdate, { merge: true });
 
+    // 2. Write to recharge_agents/{resolvedUid} for direct agency queries
+    await setDoc(doc(firestoreDb, 'recharge_agents', resolvedUid), {
+      id: resolvedUid,
+      uid: resolvedUid,
+      name: agencyName,
+      owner_id: resolvedUid,
+      owner_name: u?.name || 'وكيل شحن',
+      custom_id: u?.custom_id || '',
+      whatsapp_number: data.whatsapp_number || '',
+      logo: data.recharge_agency_logo || '',
+      commission_rate: data.recharge_commission_rate ?? 5,
+      is_active: true,
+      created_at: nowIso,
+      updated_at: nowIso,
+    }, { merge: true });
 
-
-    // Send official opening notification
+    // 3. Send official system opening notification
     await sendSystemNotification({
       userId: resolvedUid,
       title: 'مبروك! تم تفعيل وكالة الشحن 🎉',
@@ -2998,25 +1669,21 @@ export async function updateRechargeAgency(userId: string, data: {
 
 export async function revokeRechargeAgency(userId: string): Promise<boolean> {
   try {
-    const client = getAdminSupabase() || supabase;
     let resolvedUid = userId.trim();
     const u = await searchUserProfile(resolvedUid);
     if (u) resolvedUid = u.uid || u.id;
 
-    const userUpdate = {
+    await setDoc(doc(firestoreDb, 'users', resolvedUid), {
       is_recharge_agent: false,
+      isRechargeAgent: false,
+      is_agent: false,
       updated_at: new Date().toISOString(),
-    };
+    }, { merge: true });
 
-    try {
-      await client.from('users').update(userUpdate).eq('uid', resolvedUid);
-      await client.from('users').update(userUpdate).eq('id', resolvedUid);
-      if (u?.custom_id) {
-        await client.from('users').update(userUpdate).eq('custom_id', u.custom_id);
-      }
-    } catch (_) {}
-
-
+    await setDoc(doc(firestoreDb, 'recharge_agents', resolvedUid), {
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
 
     await sendSystemNotification({
       userId: resolvedUid,
@@ -3037,13 +1704,13 @@ export async function revokeRechargeAgency(userId: string): Promise<boolean> {
 
 export async function getAgencyLedger(agencyId?: string, limit = 100): Promise<AgencyLedgerEntryModel[]> {
   try {
-    let query = supabase.from('agency_diamond_ledger').select('*').order('created_at', { ascending: false }).limit(limit)
+    let query = supabase.from('agency_diamond_ledger').select('*, host_agencies!agency_id(name)').order('created_at', { ascending: false }).limit(limit)
     if (agencyId) query = query.eq('agency_id', agencyId)
     const { data } = await query
     return mapList<AgencyLedgerEntryModel>((data ?? []).map((e: any) => ({
       ...e,
       user_name: e.user_id?.slice(0, 8),
-      agency_name: e.agency_name ?? e.agency_id?.slice(0, 8),
+      agency_name: e.host_agencies?.name ?? e.agency_id?.slice(0, 8),
     })))
   } catch { return [] }
 }
@@ -3052,51 +1719,18 @@ export async function getAgencyLedger(agencyId?: string, limit = 100): Promise<A
 
 export async function getWithdrawalRequests(status?: string): Promise<AgencyWithdrawalRequestModel[]> {
   try {
-    let query = supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false });
-    if (status) query = query.eq('status', status);
-    const { data, error } = await query;
-    if (!error && data && data.length > 0) {
-      // Fetch user and agency names for display
-      const userIds = Array.from(new Set(data.map((w: any) => w.user_id).filter(Boolean)));
-      const agencyIds = Array.from(new Set(data.map((w: any) => w.agency_id).filter(Boolean)));
-      
-      const userMap: Record<string, string> = {};
-      const agencyMap: Record<string, string> = {};
-      
-      if (userIds.length > 0) {
-        try {
-          const { data: users } = await supabase.from('users').select('id, uid, name, custom_id');
-          (users || []).forEach((u: any) => {
-            const label = u.name ? `${u.name} (${u.custom_id || ''})` : (u.custom_id || u.id);
-            if (u.id) userMap[u.id] = label;
-            if (u.uid) userMap[u.uid] = label;
-          });
-        } catch (_) {}
-      }
-      
-      if (agencyIds.length > 0) {
-        try {
-          const { data: ags } = await supabase.from('host_agencies').select('id, name');
-          (ags || []).forEach((a: any) => {
-            if (a.id) agencyMap[a.id] = a.name;
-          });
-        } catch (_) {}
-      }
-
-      return mapList<AgencyWithdrawalRequestModel>((data ?? []).map((w: any) => ({
-        ...w,
-        user_name: userMap[w.user_id] || w.user_name || w.user_id?.slice(0, 8),
-        agency_name: agencyMap[w.agency_id] || w.agency_name || w.agency_id?.slice(0, 8),
-      })));
-    }
-  } catch (e) {
-    console.warn('getWithdrawalRequests supabase error:', e);
-  }
-  return [];
+    let query = supabase.from('agency_withdrawal_requests').select('*, host_agencies!agency_id(name)').order('created_at', { ascending: false })
+    if (status) query = query.eq('status', status)
+    const { data } = await query
+    return mapList<AgencyWithdrawalRequestModel>((data ?? []).map((w: any) => ({
+      ...w,
+      user_name: w.user_id?.slice(0, 8),
+      agency_name: w.host_agencies?.name ?? w.agency_id?.slice(0, 8),
+    })))
+  } catch { return [] }
 }
 
 export async function approveWithdrawal(id: string): Promise<boolean> {
-
   try {
     await supabase.from('agency_withdrawal_requests').update({ status: 'approved' }).eq('id', id)
     return true
@@ -3104,7 +1738,6 @@ export async function approveWithdrawal(id: string): Promise<boolean> {
 }
 
 export async function rejectWithdrawal(id: string): Promise<boolean> {
-
   try {
     await supabase.from('agency_withdrawal_requests').update({ status: 'rejected' }).eq('id', id)
     return true
@@ -3129,417 +1762,20 @@ export function subscribeCPs(cb: (cps: CPModel[]) => void) {
   return () => { try { supabase.removeChannel(sub) } catch {} }
 }
 
-// ---- Gift User Items (Necklace, Badge, Frame, Special ID) ----
+// ---- BDs ----
 
-export async function giftUserItems(uid: string, items: {
-  necklaceId?: string;
-  badgeId?: string;
-  frameId?: string;
-  specialId?: string;
-}) {
-  const client = getAdminSupabase() || supabase;
+export async function getBDs(): Promise<BDModel[]> {
   try {
-    const { data: user } = await client
-      .from('users')
-      .select('owned_necklaces, owned_badges, owned_items, active_necklace, active_frame, custom_id')
-      .eq('uid', uid)
-      .maybeSingle();
-
-    if (!user) return;
-
-    const updates: Record<string, any> = {};
-
-    if (items.necklaceId && items.necklaceId.trim()) {
-      const cur = Array.isArray(user.owned_necklaces) ? user.owned_necklaces : [];
-      updates.owned_necklaces = Array.from(new Set([...cur, items.necklaceId.trim()]));
-      updates.active_necklace = items.necklaceId.trim();
-    }
-
-    if (items.badgeId && items.badgeId.trim()) {
-      const cur = Array.isArray(user.owned_badges) ? user.owned_badges : [];
-      updates.owned_badges = Array.from(new Set([...cur, items.badgeId.trim()]));
-    }
-
-    if (items.frameId && items.frameId.trim()) {
-      const cur = Array.isArray(user.owned_items) ? user.owned_items : [];
-      updates.owned_items = Array.from(new Set([...cur, items.frameId.trim()]));
-      updates.active_frame = items.frameId.trim();
-    }
-
-    if (items.specialId && items.specialId.trim()) {
-      updates.custom_id = items.specialId.trim();
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await client.from('users').update(updates).eq('uid', uid);
-    }
-  } catch (err) {
-    console.warn('giftUserItems error:', err);
-  }
-}
-
-// ---- BD Management ----
-
-export async function getBDManagers(): Promise<BDModel[]> {
-  const client = getAdminSupabase() || supabase;
-  try {
-    // 1. Fetch all metadata from app_config (where key starts with bd_meta_)
-    const { data: configs } = await client
-      .from('app_config')
-      .select('key, value')
-      .like('key', 'bd_meta_%');
-
-    const configMap: Record<string, any> = {};
-    (configs || []).forEach(c => {
-      const u = c.key.replace('bd_meta_', '');
-      configMap[u] = c.value;
-    });
-
-    // 1b. Fallback: Also fetch from admin_users table where role is bd
-    try {
-      const { data: adminBds } = await client
-        .from('admin_users')
-        .select('*')
-        .eq('role', 'bd');
-
-      (adminBds || []).forEach((u: any) => {
-        const uId = u.uid;
-        if (!uId) return;
-        if (!configMap[uId]) {
-          configMap[uId] = {
-            uid: uId,
-            appId: u.app_id || '',
-            name: u.display_name || 'BD Manager',
-            email: u.email || '',
-            photoUrl: '',
-            supervisorId: '',
-            salary: 0,
-            commissionRate: 10,
-            status: 'active',
-            createdAt: u.created_at || new Date().toISOString(),
-          };
-        }
-      });
-    } catch (_) {}
-
-
-
-    const bdUids = Object.keys(configMap).filter(Boolean);
-
-    // 2. Fetch corresponding users with safe standard columns only
-    let bdUsers: any[] = [];
-    if (bdUids.length > 0) {
-      const { data: uData } = await client
-        .from('users')
-        .select('uid, custom_id, name, email, photo_url, created_at')
-        .in('uid', bdUids);
-      if (uData) bdUsers = uData;
-    }
-
-    // 3. Fetch all host_agencies (from both Supabase and Firestore)
-    const agencies = await getHostAgencies();
-
-    // 4. Fetch admin users for supervisor names
-    const admins = await getAdminUsers();
-    const adminMap: Record<string, string> = {};
-    admins.forEach(a => { adminMap[a.uid] = a.displayName || a.email; });
-
-    const allBds: Map<string, BDModel> = new Map();
-
-    // Map each BD
-    bdUids.forEach(uid => {
-      if (configMap[uid]?.status === 'revoked') return;
-      const meta = configMap[uid] || {};
-      const u = bdUsers.find((user: any) => user.uid === uid);
-      const supId = meta.supervisorId || '';
-
-      allBds.set(uid, {
-        id: uid,
-        uid: uid,
-        appId: meta.appId || u?.custom_id || '',
-        name: meta.name || u?.name || 'BD Manager',
-        email: meta.email || u?.email || '',
-        photoUrl: meta.photoUrl || u?.photo_url || '',
-        supervisorId: supId,
-        supervisorName: adminMap[supId] || meta.supervisorName || supId,
-        agencyCount: 0,
-        totalHosts: 0,
-        totalEarnings: 0,
-        salary: Number(meta.salary ?? 0),
-        commissionRate: Number(meta.commissionRate ?? 10),
-        specialId: meta.specialId || u?.custom_id || '',
-        giftedFrame: meta.giftedFrame,
-        giftedBadge: meta.giftedBadge,
-        giftedNecklace: meta.giftedNecklace,
-        status: 'active',
-        createdAt: u?.created_at || meta.createdAt,
-      });
-    });
-
-    // Aggregate agency statistics for each BD accurately
-    (agencies || []).forEach(ag => {
-      const bdUid = ag.data?.bd_uid || ag.data?.bdUid || (ag as any).bd_uid || (ag as any).bdUid;
-      const sup = (ag as any).supervisor_uid || (ag as any).supervisor_id;
-      const owner = ag.owner_uid || ag.owner_id;
-
-      let targetBd: BDModel | undefined;
-      if (bdUid && allBds.has(bdUid)) {
-        targetBd = allBds.get(bdUid);
-      } else if (sup && allBds.has(sup)) {
-        targetBd = allBds.get(sup);
-      } else if (owner && allBds.has(owner)) {
-        targetBd = allBds.get(owner);
-      }
-
-      if (targetBd) {
-        targetBd.agencyCount += 1;
-        targetBd.totalHosts += Number(ag.member_count || 1);
-        targetBd.totalEarnings += Number(ag.monthly_diamonds || ag.total_diamonds_monthly || ag.total_diamonds_earned || 0);
-      }
-    });
-
-    return Array.from(allBds.values());
-  } catch (err) {
-    console.error('getBDManagers error:', err);
-    return [];
-  }
-}
-
-export const getBDs = getBDManagers;
-
-export async function assignBDManager(params: {
-  uid: string;
-  appId?: string;
-  name?: string;
-  supervisorId?: string;
-  salary?: number;
-  commissionRate?: number;
-  specialId?: string;
-  frameId?: string;
-  badgeId?: string;
-  necklaceId?: string;
-}) {
-  const client = getAdminSupabase() || supabase;
-  const { uid, appId, name, supervisorId, salary = 0, commissionRate = 10, specialId, frameId, badgeId, necklaceId } = params;
-
-  // 1. Update public.users in Supabase
-  const updates: Record<string, any> = {
-    is_bd: true,
-    role: 'bd',
-    bd_supervisor_id: supervisorId || null,
-    bd_salary: salary,
-    bd_commission_rate: commissionRate,
-  };
-  if (specialId && specialId.trim()) {
-    updates.custom_id = specialId.trim();
-  }
-  try {
-    await client.from('users').update(updates).eq('uid', uid);
-    await client.from('users').update(updates).eq('id', uid);
-  } catch (e) {
-    console.warn('Update user for BD error:', e);
-  }
-
-  // 2. Gift Items (Frame, Badge, Necklace, Special ID)
-  await giftUserItems(uid, {
-    necklaceId,
-    badgeId,
-    frameId,
-    specialId,
-  });
-
-  // 3. Save meta in app_config
-  const meta = {
-    uid,
-    appId: specialId || appId || '',
-    name: name || '',
-    supervisorId: supervisorId || '',
-    salary,
-    commissionRate,
-    specialId: specialId || '',
-    giftedFrame: frameId || '',
-    giftedBadge: badgeId || '',
-    giftedNecklace: necklaceId || '',
-    status: 'active',
-    createdAt: new Date().toISOString(),
-  };
-
-  try {
-    await client.from('app_config').upsert({
-      key: 'bd_meta_' + uid,
-      value: meta,
-    });
-  } catch (e) {
-    console.warn('Save bd_meta error:', e);
-  }
-
-
-  // 5. Send official in-app system notification
-  await sendSystemNotification({
-    userId: uid,
-    title: 'تهانينا! تم تعيينك كمسؤول BD رسمي 💼',
-    body: `تم اعتمادك وتفعيل حسابك كمسؤول تطوير أعمال (BD) رسمي${salary > 0 ? ` براتب شهري $${salary}` : ''} ونسبة عمولة ${commissionRate}%. يمكنك الآن الدخول لمركز الـ BD من شاشة الوكالات ومتابعة وكالاتك وأرباحك.`,
-    type: 'bd_assigned',
-    action: 'bd_center',
-    extraData: {
-      role: 'bd',
-      is_bd: true,
-      supervisor_id: supervisorId || '',
-      salary,
-      commission_rate: commissionRate,
-    },
-  });
-}
-
-export async function updateBDManager(params: {
-  uid: string;
-  appId?: string;
-  supervisorId?: string;
-  salary?: number;
-  commissionRate?: number;
-  specialId?: string;
-  frameId?: string;
-  badgeId?: string;
-  necklaceId?: string;
-}) {
-  const client = getAdminSupabase() || supabase;
-  const { uid, appId, supervisorId, salary = 0, commissionRate = 10, specialId, frameId, badgeId, necklaceId } = params;
-
-  // 1. Update public.users
-  const updates: Record<string, any> = {
-    is_bd: true,
-    role: 'bd',
-    bd_supervisor_id: supervisorId || null,
-    bd_salary: salary,
-    bd_commission_rate: commissionRate,
-  };
-  if (specialId && specialId.trim()) {
-    updates.custom_id = specialId.trim();
-  }
-  try {
-    await client.from('users').update(updates).eq('uid', uid);
-    await client.from('users').update(updates).eq('id', uid);
-  } catch (e) {
-    console.warn('Update user for BD error:', e);
-  }
-
-  // 2. Gift in-app items if specified
-  if (necklaceId || badgeId || frameId || specialId) {
-    await giftUserItems(uid, {
-      necklaceId,
-      badgeId,
-      frameId,
-      specialId,
-    });
-  }
-
-  // 3. Update bd_meta in app_config
-  try {
-    const { data: curMeta } = await client.from('app_config').select('value').eq('key', 'bd_meta_' + uid).maybeSingle();
-    const cur = (curMeta?.value as any) || {};
-    const meta = {
-      ...cur,
-      uid,
-      appId: specialId || appId || cur.appId || '',
-      supervisorId: supervisorId !== undefined ? supervisorId : (cur.supervisorId || ''),
-      salary: salary !== undefined ? salary : (cur.salary ?? 0),
-      commissionRate: commissionRate !== undefined ? commissionRate : (cur.commissionRate ?? 10),
-      specialId: specialId !== undefined ? specialId : (cur.specialId || ''),
-      giftedFrame: frameId || cur.giftedFrame || '',
-      giftedBadge: badgeId || cur.giftedBadge || '',
-      giftedNecklace: necklaceId || cur.giftedNecklace || '',
-      status: 'active',
-      updatedAt: new Date().toISOString(),
-    };
-
-    await client.from('app_config').upsert({
-      key: 'bd_meta_' + uid,
-      value: meta,
-    });
-  } catch (e) {
-    console.warn('Update bd_meta error:', e);
-  }
-
-
-}
-
-export async function revokeBDManager(uid: string) {
-  const client = getAdminSupabase() || supabase;
-  // 1. Clear is_bd in users in Supabase
-  try {
-    await client.from('users').update({
-      is_bd: false,
-      role: 'user',
-      bd_supervisor_id: null,
-      bd_salary: 0,
-      bd_commission_rate: 0,
-    }).or(`uid.eq.${uid},id.eq.${uid}`);
-  } catch (e) {
-    console.warn('Revoke user is_bd error:', e);
-  }
-
-  // 2. Delete meta in app_config
-  try {
-    await client.from('app_config').delete().eq('key', 'bd_meta_' + uid);
-  } catch (e) {
-    console.warn('Delete bd_meta error:', e);
-  }
-
-
-
-  // 4. Send official notification
-  await sendSystemNotification({
-    userId: uid,
-    title: 'تنبيه: تم إنهاء مهام مسؤول الـ BD ⚠️',
-    body: 'تم إلغاء صلاحيات مسؤول تطوير الأعمال (BD) الخاصة بحسابك من قِبل الإدارة.',
-    type: 'bd_revoked',
-  });
-}
-
-export async function getBDAgencies(bdUid: string): Promise<BDAgencyDetail[]> {
-  try {
-    const allAgencies = await getHostAgencies();
-    const filtered = allAgencies.filter(a => {
-      const assignedBd = a.data?.bd_uid || a.data?.bdUid || (a as any).bd_uid || (a as any).bdUid;
-      const sup = (a as any).supervisor_uid || (a as any).supervisor_id;
-      return assignedBd === bdUid || a.owner_uid === bdUid || a.owner_id === bdUid || sup === bdUid;
-    });
-
-    return filtered.map(a => ({
-      id: a.id,
-      name: a.name || 'Agency',
-      ownerUid: a.owner_uid || a.owner_id,
-      ownerName: (a as any).ownerName || (a as any).owner_name || a.name || '',
-      memberCount: a.member_count || 1,
-      monthlyDiamonds: a.monthly_diamonds || a.total_diamonds_monthly || 0,
-      totalDiamonds: a.total_diamonds_earned || a.total_diamonds_cumulative || 0,
-      status: a.is_active ? 'active' : 'inactive',
-      createdAt: a.created_at,
-    }));
-  } catch (e) {
-    console.error('getBDAgencies error:', e);
-    return [];
-  }
-}
-
-export async function linkAgencyToBD(agencyId: string, bdUid: string) {
-  const client = getAdminSupabase() || supabase;
-  try {
-    const { data: ag } = await client.from('host_agencies').select('data').eq('id', agencyId).maybeSingle();
-    const curData = ag?.data || {};
-    await client.from('host_agencies').update({
-      data: { ...curData, bd_uid: bdUid },
-    }).eq('id', agencyId);
-
-
-  } catch (e) {
-    console.error('linkAgencyToBD error:', e);
+    const { data } = await supabase.from('bds').select('*').order('id')
+    return mapList<BDModel>(data ?? [])
+  } catch {
+    return []
   }
 }
 
 export function subscribeBDs(cb: (bds: BDModel[]) => void) {
-  const sub = supabase.channel('bds_sync').on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
-    getBDManagers().then(cb)
+  const sub = supabase.channel('bds').on('postgres_changes', { event: '*', schema: 'public', table: 'bds' }, () => {
+    getBDs().then(cb)
   }).subscribe()
   return () => { try { supabase.removeChannel(sub) } catch {} }
 }
@@ -3600,50 +1836,51 @@ export async function revokeGiftedItem(id: string) {
 export async function getNecklaces(): Promise<NecklaceConfig[]> {
   try {
     const client = getAdminSupabase() || supabase
-    const { data, error } = await client.from('necklaces').select('*')
-    if (!error && data && data.length > 0) {
-      return (data ?? []).map((item: any): NecklaceConfig => ({
-        id: item.id,
-        name: item.name || '',
-        name_ar: item.name_ar || '',
-        name_en: item.name_en || '',
-        description_ar: item.description_ar || '',
-        description_en: item.description_en || '',
-        svgaUrl: item.svga_url || item.svgaUrl || undefined,
-        imageUrl: item.image_url || item.imageUrl || undefined,
-        price: item.price || 0,
-        sortOrder: item.sort_order ?? item.sortOrder ?? 0,
-        isActive: item.is_active ?? item.isActive ?? true,
-        type: item.type || 'admin',
-        requiredRechargeLevel: item.required_recharge_level || item.requiredRechargeLevel || 0,
-      }))
-    }
+    const { data } = await client.from('necklaces').select('*').order('sort_order')
+    return (data ?? []).map((item: any): NecklaceConfig => ({
+      id: item.id,
+      name: item.name || '',
+      name_ar: item.name_ar || '',
+      name_en: item.name_en || '',
+      description_ar: item.description_ar || '',
+      description_en: item.description_en || '',
+      svgaUrl: item.svga_url || item.svgaUrl || undefined,
+      imageUrl: item.image_url || item.imageUrl || undefined,
+      price: item.price || 0,
+      sortOrder: item.sort_order ?? item.sortOrder ?? 0,
+      isActive: item.is_active ?? item.isActive ?? true,
+      type: item.type || 'admin',
+      requiredRechargeLevel: item.required_recharge_level || item.requiredRechargeLevel || 0,
+    }))
   } catch (e) {
-    console.warn('getNecklaces supabase error, trying firestore fallback:', e)
+    console.warn('getNecklaces failed:', e)
+    return []
   }
-  return []
 }
 
 export async function updateNecklace(id: string, data: Partial<NecklaceConfig>) {
-  
-
-  // 2. Write to Supabase
   try {
     const client = getAdminSupabase() || supabase
     const payload = toSnakeCase(data as Record<string, unknown>)
-    await client.from('necklaces').upsert({ id, ...payload })
+    const { data: existing } = await client.from('necklaces').select('id').eq('id', id).maybeSingle()
+    if (existing) {
+      await client.from('necklaces').update(payload).eq('id', id)
+    } else {
+      await client.from('necklaces').upsert({ id, ...payload })
+    }
   } catch (e) {
-    console.warn('Supabase updateNecklace warning:', e)
+    console.warn('Necklace table not found or error:', e)
+    throw e
   }
 }
 
 export async function deleteNecklace(id: string) {
-
   try {
     const client = getAdminSupabase() || supabase
     await client.from('necklaces').delete().eq('id', id)
   } catch (e) {
     console.warn('deleteNecklace failed:', e)
+    throw e
   }
 }
 
@@ -3690,408 +1927,6 @@ export async function revokeUserVIP(uid: string, tier: number) {
   }
 }
 
-// ---- Unified User Gifting (Store, Special IDs, VIP, Badges & Necklaces) ----
-
-export async function getUnifiedGiftedItems(): Promise<GiftedItem[]> {
-  const client = getAdminSupabase() || supabase;
-  try {
-    const { data: gifts, error } = await client
-      .from('gifted_items')
-      .select('*')
-      .order('sent_at', { ascending: false });
-
-    if (error) {
-      console.warn('getUnifiedGiftedItems error:', error);
-      return [];
-    }
-    const rows = gifts || [];
-    if (rows.length === 0) return [];
-
-    const uids = [...new Set(rows.map((r: any) => r.uid).filter(Boolean))];
-    const { data: users } = await client
-      .from('users')
-      .select('uid, name, custom_id, original_custom_id, photo_url')
-      .in('uid', uids);
-
-    const userMap: Record<string, any> = {};
-    (users || []).forEach((u: any) => {
-      userMap[u.uid] = u;
-    });
-
-    return rows.map((r: any) => ({
-      id: String(r.id),
-      uid: String(r.uid),
-      item_id: String(r.item_id || ''),
-      item_category: String(r.item_category || ''),
-      item_name: String(r.item_name || ''),
-      item_icon: String(r.item_icon || ''),
-      svga_asset: r.svga_asset || null,
-      video_asset: r.video_asset || null,
-      sent_by: String(r.sent_by || 'admin'),
-      sent_by_name: String(r.sent_by_name || 'الإدارة'),
-      sent_at: Number(r.sent_at || 0),
-      expires_at: Number(r.expires_at || 0),
-      user: userMap[r.uid] ? {
-        uid: userMap[r.uid].uid,
-        name: userMap[r.uid].name || 'بدون اسم',
-        custom_id: userMap[r.uid].custom_id || '',
-        original_custom_id: userMap[r.uid].original_custom_id || '',
-        photo_url: userMap[r.uid].photo_url || '',
-      } : undefined,
-    }));
-  } catch (err) {
-    console.error('getUnifiedGiftedItems error:', err);
-    return [];
-  }
-}
-
-export async function sendUnifiedGift(params: {
-  uid: string;
-  type: 'store' | 'special_id' | 'vip' | 'badge' | 'necklace';
-  itemId: string;
-  itemName: string;
-  itemCategory: string;
-  itemIcon?: string;
-  svgaAsset?: string;
-  videoAsset?: string;
-  expiryDays?: number; // 0 or undefined for permanent
-  sentBy?: string;
-  sentByName?: string;
-}): Promise<{ success: boolean; message?: string }> {
-  const client = getAdminSupabase() || supabase;
-  const { uid, type, itemId, itemName, itemCategory, itemIcon, svgaAsset, videoAsset, expiryDays = 0, sentBy = 'admin', sentByName = 'الإدارة' } = params;
-
-  try {
-    // 1. Verify user exists
-    const { data: user, error: uErr } = await client
-      .from('users')
-      .select('*')
-      .eq('uid', uid)
-      .maybeSingle();
-
-    if (uErr || !user) {
-      return { success: false, message: 'المستخدم غير موجود' };
-    }
-
-    const giftId = 'gi_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-    const sentAt = Date.now();
-    const expiresAt = expiryDays > 0 ? Date.now() + (expiryDays * 86400000) : 0;
-
-    if (type === 'special_id') {
-      const specialIdClean = itemId.trim();
-      if (!specialIdClean) {
-        return { success: false, message: 'يرجى إدخال الآيدي المميز' };
-      }
-      // Check availability
-      const avail = await checkCustomIdAvailable(specialIdClean, uid);
-      if (!avail.available) {
-        return { success: false, message: avail.reason || 'هذا الآيدي مستخدم بالفعل' };
-      }
-
-      // Check if user already has an original custom ID saved
-      const existingOrig = await getUserOriginalCustomId(uid);
-      if (!existingOrig) {
-        const currentCid = String(user.custom_id || user.customId || '').trim();
-        if (currentCid && currentCid !== specialIdClean) {
-          await setUserOriginalCustomId(uid, currentCid);
-        }
-      }
-
-      // Update user custom_id
-      await updateUser(uid, { customId: specialIdClean });
-
-      // Save to gifted_items
-      await client.from('gifted_items').insert({
-        id: giftId,
-        uid,
-        item_id: specialIdClean,
-        item_category: 'special_id',
-        item_name: itemName || `آيدي مميز: ${specialIdClean}`,
-        item_icon: itemIcon || 'assets/mipmap-xxhdpi/ic_id_card_prop.png',
-        sent_by: sentBy,
-        sent_by_name: sentByName,
-        sent_at: sentAt,
-        expires_at: expiresAt,
-      });
-
-      // Send notification
-      await sendGiftSystemNotification({
-        client, uid,
-        title: 'هدية جديدة من الإدارة 🎁',
-        body: `قام المشرف ${sentByName} بإهدائك: آيدي مميز (${specialIdClean})`,
-        itemIcon: itemIcon || 'assets/mipmap-xxhdpi/ic_id_card_prop.png',
-        itemName: itemName || `آيدي مميز: ${specialIdClean}`,
-        sentByName,
-      });
-
-      return { success: true, message: `تم إهداء الآيدي المميز (${specialIdClean}) بنجاح والاحتفاظ بالآيدي القديم!` };
-    }
-
-    if (type === 'store') {
-      // Add to owned_items in users table
-      const currentOwned = Array.isArray(user.owned_items) ? user.owned_items : [];
-      if (!currentOwned.includes(itemId)) {
-        await client.from('users').update({
-          owned_items: [...currentOwned, itemId],
-        }).eq('uid', uid);
-      }
-
-      // Add to user_backpack
-      try {
-        await client.from('user_backpack').upsert({
-          user_id: uid,
-          item_id: itemId,
-          item_type: itemCategory || 'store',
-          expires_at: expiresAt > 0 ? new Date(expiresAt).toISOString() : null,
-        });
-      } catch (bpErr) {
-        console.warn('user_backpack insert warning:', bpErr);
-      }
-
-      // Add to gifted_items
-      await client.from('gifted_items').insert({
-        id: giftId,
-        uid,
-        item_id: itemId,
-        item_category: itemCategory || 'frame',
-        item_name: itemName,
-        item_icon: itemIcon || '',
-        svga_asset: svgaAsset || null,
-        video_asset: videoAsset || null,
-        sent_by: sentBy,
-        sent_by_name: sentByName,
-        sent_at: sentAt,
-        expires_at: expiresAt,
-      });
-
-      // Send notification
-      await sendGiftSystemNotification({
-        client, uid,
-        title: 'هدية جديدة من الإدارة 🎁',
-        body: `قام المشرف ${sentByName} بإهدائك: ${itemName}`,
-        itemIcon: itemIcon || '',
-        itemName,
-        sentByName,
-      });
-
-      return { success: true, message: `تم إهداء العنصر (${itemName}) بنجاح!` };
-    }
-
-    if (type === 'vip') {
-      const tierNum = Number(itemId) || 1;
-      await giftVIP(uid, tierNum, sentByName, expiryDays > 0 ? expiryDays : undefined);
-
-      await client.from('gifted_items').insert({
-        id: giftId,
-        uid,
-        item_id: String(tierNum),
-        item_category: 'vip',
-        item_name: itemName || `VIP ${tierNum}`,
-        item_icon: itemIcon || 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
-        sent_by: sentBy,
-        sent_by_name: sentByName,
-        sent_at: sentAt,
-        expires_at: expiresAt,
-      });
-
-      // Send notification
-      await sendGiftSystemNotification({
-        client, uid,
-        title: 'هدية جديدة من الإدارة 🎁',
-        body: `قام المشرف ${sentByName} بإهدائك رتبة: ${itemName || 'VIP ' + tierNum}`,
-        itemIcon: itemIcon || 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp',
-        itemName: itemName || `VIP ${tierNum}`,
-        sentByName,
-      });
-
-      return { success: true, message: `تم إهداء رتبة (${itemName || 'VIP ' + tierNum}) بنجاح!` };
-    }
-
-    if (type === 'badge') {
-      const currentBadges = Array.isArray(user.owned_badges) ? user.owned_badges : [];
-      if (!currentBadges.includes(itemId)) {
-        await client.from('users').update({
-          owned_badges: [...currentBadges, itemId],
-        }).eq('uid', uid);
-      }
-
-      await client.from('gifted_items').insert({
-        id: giftId,
-        uid,
-        item_id: itemId,
-        item_category: 'badge',
-        item_name: itemName,
-        item_icon: itemIcon || 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
-        sent_by: sentBy,
-        sent_by_name: sentByName,
-        sent_at: sentAt,
-        expires_at: expiresAt,
-      });
-
-      // Send notification
-      await sendGiftSystemNotification({
-        client, uid,
-        title: 'هدية جديدة من الإدارة 🎁',
-        body: `قام المشرف ${sentByName} بإهدائك شارة: ${itemName}`,
-        itemIcon: itemIcon || 'assets/mipmap-xxhdpi/ic_new_user_badge.png',
-        itemName,
-        sentByName,
-      });
-
-      return { success: true, message: `تم إهداء الشارة (${itemName}) بنجاح!` };
-    }
-
-    if (type === 'necklace') {
-      const currentNecklaces = Array.isArray(user.owned_necklaces) ? user.owned_necklaces : [];
-      const updates: Record<string, any> = {
-        active_necklace: itemId,
-      };
-      if (!currentNecklaces.includes(itemId)) {
-        updates.owned_necklaces = [...currentNecklaces, itemId];
-      }
-      await client.from('users').update(updates).eq('uid', uid);
-
-      await client.from('gifted_items').insert({
-        id: giftId,
-        uid,
-        item_id: itemId,
-        item_category: 'necklace',
-        item_name: itemName,
-        item_icon: itemIcon || '',
-        svga_asset: svgaAsset || null,
-        sent_by: sentBy,
-        sent_by_name: sentByName,
-        sent_at: sentAt,
-        expires_at: expiresAt,
-      });
-
-      // Send system notification
-      await sendGiftSystemNotification({
-        client,
-        uid,
-        title: 'هدية جديدة من الإدارة 🎁',
-        body: `قام المشرف ${sentByName} بإهدائك: ${itemName || 'عنصر جديد'}`,
-        itemIcon: itemIcon || '',
-        itemName: itemName || '',
-        sentByName,
-      });
-
-      return { success: true, message: `تم إهداء القلادة (${itemName}) بنجاح!` };
-    }
-
-    return { success: false, message: 'نوع إهداء غير معروف' };
-  } catch (err: any) {
-    console.error('sendUnifiedGift error:', err);
-    return { success: false, message: err?.message || 'حدث خطأ أثناء الإهداء' };
-  }
-}
-
-async function sendGiftSystemNotification(params: {
-  client: any;
-  uid: string;
-  title: string;
-  body: string;
-  itemIcon: string;
-  itemName: string;
-  sentByName: string;
-}) {
-  try {
-    const notifId = 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-    await params.client.from('notifications').insert({
-      id: notifId,
-      uid: params.uid,
-      target: params.uid,
-      type: 'system',
-      title: params.title,
-      body: params.body,
-      actor_uid: 'admin',
-      is_read: false,
-      sent_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      data: {
-        action: 'gift_received',
-        item_name: params.itemName,
-        gift_name: params.itemName,
-        gift_image: params.itemIcon,
-        image_url: params.itemIcon,
-        sent_by_name: params.sentByName,
-      },
-    });
-  } catch (err) {
-    console.warn('sendGiftSystemNotification failed:', err);
-  }
-}
-
-export async function revokeUnifiedGift(giftId: string): Promise<{ success: boolean; message?: string }> {
-  const client = getAdminSupabase() || supabase;
-  try {
-    const { data: gift, error } = await client
-      .from('gifted_items')
-      .select('*')
-      .eq('id', giftId)
-      .maybeSingle();
-
-    if (error || !gift) {
-      return { success: false, message: 'الهدية غير موجودة أو تم حذفها مسبقاً' };
-    }
-
-    const { uid, item_category, item_id } = gift;
-
-    // 1. Fetch user
-    const { data: user } = await client.from('users').select('*').eq('uid', uid).maybeSingle();
-
-    if (item_category === 'special_id') {
-      // Revert custom_id to original_custom_id
-      const origCid = await getUserOriginalCustomId(uid);
-      if (origCid && user?.custom_id === item_id) {
-        await updateUser(uid, { customId: origCid });
-      }
-    } else if (item_category === 'vip') {
-      await revokeUserVIP(uid, Number(item_id));
-    } else if (item_category === 'badge') {
-      if (user && Array.isArray(user.owned_badges)) {
-        const updated = user.owned_badges.filter((b: string) => b !== item_id);
-        await client.from('users').update({ owned_badges: updated }).eq('uid', uid);
-      }
-    } else if (item_category === 'necklace') {
-      if (user) {
-        const currentNecklaces = Array.isArray(user.owned_necklaces) ? user.owned_necklaces : [];
-        const updated = currentNecklaces.filter((n: string) => n !== item_id);
-        const updates: Record<string, any> = { owned_necklaces: updated };
-        if (user.active_necklace === item_id) {
-          updates.active_necklace = null;
-        }
-        await client.from('users').update(updates).eq('uid', uid);
-      }
-    } else {
-      // Store items: frame, car, entrance, bubble, etc.
-      if (user) {
-        const currentOwned = Array.isArray(user.owned_items) ? user.owned_items : [];
-        const updated = currentOwned.filter((it: string) => it !== item_id);
-        const updates: Record<string, any> = { owned_items: updated };
-        if (user.active_frame === item_id) updates.active_frame = null;
-        if (user.active_headwear === item_id) updates.active_headwear = null;
-        if (user.active_bubble === item_id) updates.active_bubble = null;
-        if (user.active_entrance === item_id) updates.active_entrance = null;
-        if (user.active_car === item_id) updates.active_car = null;
-        if (user.active_cover === item_id) updates.active_cover = null;
-        await client.from('users').update(updates).eq('uid', uid);
-      }
-      try {
-        await client.from('user_backpack').delete().eq('user_id', uid).eq('item_id', item_id);
-      } catch (_) {}
-    }
-
-    // Delete record from gifted_items
-    await client.from('gifted_items').delete().eq('id', giftId);
-
-    return { success: true, message: 'تم سحب الهدية بنجاح واسترجاع الحالة السابقة!' };
-  } catch (err: any) {
-    console.error('revokeUnifiedGift error:', err);
-    return { success: false, message: err?.message || 'فشل سحب الهدية' };
-  }
-}
-
 // ---- Stats ----
 
 export async function getStats(): Promise<{
@@ -4129,395 +1964,55 @@ export async function getStats(): Promise<{
 
 export async function getAdminUsers(): Promise<AdminUser[]> {
   try {
-    const client = getAdminSupabase() || supabase;
-    const adminMap = new Map<string, AdminUser>();
-
-    // 1. Fetch from app_config for all staff meta (admin_meta_*, super_admin_meta_*, bd_meta_*)
-    const { data: configs } = await client
-      .from('app_config')
-      .select('*')
-      .or('key.like.admin_meta_%,key.like.super_admin_meta_%,key.like.bd_meta_%');
-
-    const configMap: Record<string, any> = {};
-    if (configs) {
-      for (const c of configs) {
-        if (c.key && c.value) {
-          let uid = '';
-          let derivedRole: AdminUser['role'] = 'moderator';
-          if (c.key.startsWith('super_admin_meta_')) {
-            uid = c.key.replace('super_admin_meta_', '');
-            derivedRole = 'super_admin';
-          } else if (c.key.startsWith('admin_meta_')) {
-            uid = c.key.replace('admin_meta_', '');
-            derivedRole = 'admin';
-          } else if (c.key.startsWith('bd_meta_')) {
-            uid = c.key.replace('bd_meta_', '');
-            derivedRole = 'bd';
-          }
-          if (uid) {
-            configMap[uid] = { ...(c.value || {}), derivedRole };
-          }
-        }
-      }
-    }
-
-    // 2. Fetch rows from admin_users table
-    const { data: rows } = await client.from('admin_users').select('*').order('created_at', { ascending: false });
-    if (rows) {
-      for (const r of rows) {
-        const uid = r.uid || r.id;
-        if (!uid) continue;
-        const meta = configMap[uid] || {};
-        const rawRole = r.role === 'superadmin' ? 'super_admin' : (r.role || meta.derivedRole || 'moderator');
-
-        const permsMap: Record<string, boolean> = {};
-        if (Array.isArray(r.permissions)) {
-          const isAll = r.permissions.includes('all') || r.permissions.includes('*');
-          if (isAll) {
-            permsMap['all'] = true;
-            for (const k of ALL_PERMISSION_KEYS) permsMap[k] = true;
-          }
-          for (const p of r.permissions) permsMap[p] = true;
-        } else if (typeof r.permissions === 'object' && r.permissions !== null) {
-          Object.assign(permsMap, r.permissions);
-        } else if (meta.permissions && Array.isArray(meta.permissions)) {
-          const isAll = meta.permissions.includes('all') || meta.permissions.includes('*');
-          if (isAll) {
-            permsMap['all'] = true;
-            for (const k of ALL_PERMISSION_KEYS) permsMap[k] = true;
-          }
-          for (const p of meta.permissions) permsMap[p] = true;
-        }
-
-        adminMap.set(uid, {
-          uid,
-          email: r.email || meta.email || '',
-          role: rawRole as any,
-          displayName: meta.displayName || meta.name || r.display_name || (r.email ? r.email.split('@')[0] : 'Admin'),
-          permissions: permsMap,
-          photoUrl: meta.photoUrl || meta.photo_url || meta.avatar || r.photo_url || '',
-          isActive: meta.isActive !== false && r.is_active !== false,
-          createdBy: meta.createdBy || r.created_by || '',
-          appId: meta.appId || meta.customId || r.app_id || '',
-          loginUsername: meta.loginUsername || meta.appId || r.app_id || r.email || '',
-          password: meta.password || r.password || '',
-          createdAt: r.created_at || meta.createdAt || new Date().toISOString(),
-          updatedAt: r.updated_at || new Date().toISOString(),
-        });
-      }
-    }
-
-    // 3. For any staff from configMap not yet in admin_users, add them
-    for (const [uid, meta] of Object.entries(configMap)) {
-      if (!adminMap.has(uid) && meta.status !== 'revoked') {
-        const permsMap: Record<string, boolean> = {};
-        if (meta.derivedRole === 'super_admin') {
-          permsMap['all'] = true;
-          for (const k of ALL_PERMISSION_KEYS) permsMap[k] = true;
-        }
-        adminMap.set(uid, {
-          uid,
-          email: meta.email || `${meta.appId || uid}@${meta.derivedRole}.ahla.live`,
-          role: meta.derivedRole,
-          displayName: meta.name || meta.displayName || 'Supervisor',
-          permissions: permsMap,
-          photoUrl: meta.avatar || meta.photoUrl || '',
-          isActive: meta.status !== 'revoked',
-          createdBy: meta.createdBy || '',
-          appId: meta.appId || meta.specialId || '',
-          loginUsername: meta.loginUsername || meta.appId || meta.email || '',
-          password: meta.password || '',
-          createdAt: meta.createdAt || new Date().toISOString(),
-          updatedAt: meta.updatedAt || new Date().toISOString(),
-        });
-      }
-    }
-
-    return Array.from(adminMap.values());
-  } catch (err) {
-    console.warn('getAdminUsers error:', err);
-    return [];
-  }
+    const client = getAdminSupabase() || supabase
+    const { data } = await client.from('admin_users').select('*').order('created_at', { ascending: false })
+    return mapList<AdminUser>(data ?? [])
+  } catch { return [] }
 }
 
 export async function getAdminUser(uid: string): Promise<AdminUser | null> {
   try {
-    const users = await getAdminUsers()
-    return users.find(u => u.uid === uid) || null
+    const client = getAdminSupabase() || supabase
+    const { data } = await client.from('admin_users').select('*').eq('uid', uid).maybeSingle()
+    return mapSingle<AdminUser>(data)
   } catch { return null }
 }
 
-export async function createAdminUser(
-  uid: string,
-  data: Partial<AdminUser> & { appId?: string; customId?: string },
-  password: string
-) {
-  const client = getAdminSupabase() || supabase
-  const cleanEmail = (data.email || '').trim().toLowerCase()
-  const role = data.role === 'superadmin' ? 'super_admin' : (data.role || 'moderator')
-  const appId = (data.appId || data.customId || '').trim()
-
-  // 1. Prepare permissions array
-  let permsArray: string[] = []
-  if (data.permissions) {
-    if (data.permissions['all']) {
-      permsArray = ['all', ...ALL_PERMISSION_KEYS]
-    } else {
-      permsArray = Object.keys(data.permissions).filter(k => data.permissions![k])
-    }
-  } else if (role === 'super_admin') {
-    permsArray = ['all', ...ALL_PERMISSION_KEYS]
-  }
-
-  // 2. Try Supabase Auth signUp safely (ignore rate-limit / 429)
+export async function createAdminUser(uid: string, data: Partial<AdminUser>, password: string) {
+  const adminClient = getAdminSupabase()
+  if (!adminClient) throw new Error('Admin client not available')
   try {
-    const { error: signUpError } = await client.auth.signUp({
-      email: cleanEmail,
-      password,
-    })
-    if (signUpError) {
-      console.warn('Supabase auth signUp warning (ignoring 429/rate-limit):', signUpError.message)
+    await adminClient.auth.admin.createUser({ email: data.email, password, email_confirm: true })
+  } catch (e: any) {
+    if (!e?.message?.includes('already exists') && !e?.message?.includes('already registered')) {
+      throw e
     }
-  } catch (authErr: any) {
-    console.warn('Supabase auth signUp caught error:', authErr?.message)
   }
-
-  const authPayload = {
+  const payload: Record<string, unknown> = {
     uid,
-    email: cleanEmail,
-    appId: appId || undefined,
-    password,
-    displayName: data.displayName || cleanEmail.split('@')[0],
-    role,
-    permissions: permsArray,
-    updatedAt: new Date().toISOString(),
+    email: data.email || '',
+    display_name: data.displayName || '',
+    role: data.role || 'moderator',
+    permissions: data.permissions || {},
+    photo_url: data.photoUrl || '',
+    is_active: data.isActive !== false,
+    created_by: data.createdBy || '',
   }
-
-  // 3. Save credentials in app_config so admin can log in with Email
-  try {
-    await client.from('app_config').upsert({
-      key: 'admin_auth_' + cleanEmail,
-      value: authPayload,
-    })
-  } catch (e) {
-    console.warn('Saving admin_auth error:', e)
-  }
-
-  // 4. If appId provided, save credentials under appId so admin can log in with App ID
-  if (appId) {
-    try {
-      await client.from('app_config').upsert({
-        key: 'admin_auth_' + appId.toLowerCase(),
-        value: authPayload,
-      })
-      await client.from('app_config').upsert({
-        key: 'admin_appid_' + appId.toLowerCase(),
-        value: { uid, email: cleanEmail, appId },
-      })
-    } catch (e) {
-      console.warn('Saving admin_auth for appId error:', e)
-    }
-  }
-
-  // 5. Save metadata in app_config
-  try {
-    await client.from('app_config').upsert({
-      key: 'admin_meta_' + uid,
-      value: {
-        uid,
-        email: cleanEmail,
-        appId: appId || undefined,
-        displayName: data.displayName || '',
-        photoUrl: data.photoUrl || '',
-        role,
-        isActive: data.isActive !== false,
-        createdBy: data.createdBy || '',
-        updatedAt: new Date().toISOString(),
-      },
-    })
-  } catch (e) {
-    console.warn('Saving admin_meta error:', e)
-  }
-
-  // 6. Insert/upsert into admin_users table with ONLY the actual DB columns
-  const payload = {
-    id: uid,
-    uid,
-    email: cleanEmail,
-    role,
-    permissions: permsArray,
-    updated_at: new Date().toISOString(),
-  }
-  const { error } = await client.from('admin_users').upsert(payload)
-  if (error) {
-    console.error('Error inserting admin_users:', error)
-    throw error
-  }
-
-  // 7. If this admin is an app user in the users table, update their role in the app as well
-  try {
-    const userRole = role === 'super_admin' ? 'admin' : role
-    await client.from('users').update({ role: userRole }).eq('uid', uid)
-  } catch (_) {}
-
-  // 8. If giftNecklaceId or giftBadgeId provided, gift them directly into app account
-  const giftNecklace = (data as any).giftNecklaceId;
-  const giftBadge = (data as any).giftBadgeId;
-  if (giftNecklace || giftBadge) {
-    await giftUserItems(uid, {
-      necklaceId: giftNecklace,
-      badgeId: giftBadge,
-    });
-  }
+  const { error } = await adminClient.from('admin_users').upsert(payload as any)
+  if (error) throw error
 }
 
-export async function updateAdminUser(
-  uid: string,
-  data: Partial<AdminUser> & { appId?: string; customId?: string; password?: string }
-) {
+export async function updateAdminUser(uid: string, data: Partial<AdminUser>) {
   const client = getAdminSupabase() || supabase
-  const role = data.role ? (data.role === 'superadmin' ? 'super_admin' : data.role) : undefined
-  const appId = (data.appId || data.customId || '').trim()
-
-  // 1. Fetch existing admin record to know current email / appId / password
-  let existingEmail = (data.email || '').trim().toLowerCase()
-  let existingAppId = appId
-  let existingPassword = data.password || ''
-
-  try {
-    const { data: currentAdmin } = await client.from('admin_users').select('*').eq('uid', uid).maybeSingle()
-    if (currentAdmin && currentAdmin.email) {
-      if (!existingEmail) existingEmail = currentAdmin.email.toLowerCase()
-    }
-  } catch (_) {}
-
-  try {
-    const { data: existingMeta } = await client.from('app_config').select('value').eq('key', 'admin_meta_' + uid).maybeSingle()
-    const metaVal = (existingMeta?.value as any) || {}
-    if (!existingAppId && metaVal.appId) existingAppId = metaVal.appId
-    if (!existingEmail && metaVal.email) existingEmail = metaVal.email
-  } catch (_) {}
-
-  // 2. Prepare permissions array
-  let permsArray: string[] | undefined = undefined
-  if (data.permissions) {
-    if (data.permissions['all']) {
-      permsArray = ['all', ...ALL_PERMISSION_KEYS]
-    } else {
-      permsArray = Object.keys(data.permissions).filter(k => data.permissions![k])
-    }
-  }
-
-  // 3. Update metadata in app_config
-  try {
-    const { data: existingMeta } = await client.from('app_config').select('value').eq('key', 'admin_meta_' + uid).maybeSingle()
-    const metaVal = (existingMeta?.value as any) || {}
-    if (data.displayName !== undefined) metaVal.displayName = data.displayName
-    if (data.photoUrl !== undefined) metaVal.photoUrl = data.photoUrl
-    if (data.isActive !== undefined) metaVal.isActive = data.isActive
-    if (role !== undefined) metaVal.role = role
-    if (existingAppId) metaVal.appId = existingAppId
-    if (existingEmail) metaVal.email = existingEmail
-    if (permsArray !== undefined) metaVal.permissions = permsArray
-    metaVal.updatedAt = new Date().toISOString()
-    await client.from('app_config').upsert({
-      key: 'admin_meta_' + uid,
-      value: metaVal,
-    })
-  } catch (e) {
-    console.warn('Updating admin_meta error:', e)
-  }
-
-  // 4. Update credentials in app_config under admin_auth_*
-  const keysToCheck = [
-    existingEmail ? 'admin_auth_' + existingEmail : '',
-    existingAppId ? 'admin_auth_' + existingAppId.toLowerCase() : '',
-    'admin_auth_' + uid.toLowerCase(),
-  ].filter(Boolean)
-
-  let currentStoredAuth: any = null
-  for (const k of keysToCheck) {
-    try {
-      const { data: row } = await client.from('app_config').select('value').eq('key', k).maybeSingle()
-      if (row?.value) {
-        currentStoredAuth = row.value
-        if (!existingPassword && currentStoredAuth.password) {
-          existingPassword = currentStoredAuth.password
-        }
-        break
-      }
-    } catch (_) {}
-  }
-
-  const authPayload = {
-    uid,
-    email: existingEmail,
-    appId: existingAppId || undefined,
-    password: existingPassword || data.password || 'admin123',
-    displayName: data.displayName || currentStoredAuth?.displayName || existingEmail.split('@')[0],
-    role: role || currentStoredAuth?.role || 'moderator',
-    permissions: permsArray !== undefined ? permsArray : (currentStoredAuth?.permissions || []),
-    updatedAt: new Date().toISOString(),
-  }
-
-  if (existingEmail) {
-    try {
-      await client.from('app_config').upsert({
-        key: 'admin_auth_' + existingEmail,
-        value: authPayload,
-      })
-    } catch (_) {}
-  }
-  if (existingAppId) {
-    try {
-      await client.from('app_config').upsert({
-        key: 'admin_auth_' + existingAppId.toLowerCase(),
-        value: authPayload,
-      })
-      await client.from('app_config').upsert({
-        key: 'admin_appid_' + existingAppId.toLowerCase(),
-        value: { uid, email: existingEmail, appId: existingAppId },
-      })
-    } catch (_) {}
-  }
-
-  // 5. Update admin_users table
-  const payload: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  }
-  if (role) payload.role = role
-  if (existingEmail) payload.email = existingEmail
-  if (permsArray !== undefined) payload.permissions = permsArray
-  if (data.displayName) payload.display_name = data.displayName
-  if (data.isActive !== undefined) payload.is_active = data.isActive
-
-  const { error } = await client.from('admin_users').update(payload).eq('uid', uid)
-  if (error) {
-    console.error('Error updating admin_users:', error)
-    throw error
-  }
-
-  // 6. If user exists in users table, sync role
-  try {
-    const userRole = role === 'super_admin' ? 'admin' : (role || 'moderator')
-    await client.from('users').update({ role: userRole }).eq('uid', uid)
-  } catch (_) {}
-
-  // 7. Gift necklace or badge if specified
-  const giftNecklace = (data as any).giftNecklaceId
-  const giftBadge = (data as any).giftBadgeId
-  if (giftNecklace || giftBadge) {
-    await giftUserItems(uid, {
-      necklaceId: giftNecklace,
-      badgeId: giftBadge,
-    })
-  }
+  const { error } = await client.from('admin_users').update(toSnakeCase(data as Record<string, unknown>)).eq('uid', uid)
+  if (error) throw error
 }
 
 export async function deleteAdminUser(uid: string) {
-  const client = getAdminSupabase() || supabase
-  await client.from('admin_users').delete().eq('uid', uid)
-  try { await client.from('app_config').delete().eq('key', 'admin_meta_' + uid) } catch {}
+  const adminClient = getAdminSupabase()
+  if (!adminClient) throw new Error('Admin client not available')
+  await adminClient.from('admin_users').delete().eq('uid', uid)
+  try { await adminClient.auth.admin.deleteUser(uid) } catch {}
 }
 
 export async function logAdminAction(
@@ -4611,131 +2106,68 @@ export async function getAppAssets(options?: {
     let query = supabase.from('app_assets').select('*', { count: 'exact' });
 
     if (options?.type) query = query.eq('type', options.type);
+    if (options?.category) query = query.eq('category', options.category);
+    if (options?.isActive !== undefined) query = query.eq('is_active', options.isActive);
     if (options?.search) {
-      query = query.ilike('key', `%${options.search}%`);
+      query = query.or(`key.ilike.%${options.search}%,name.ilike.%${options.search}%,local_path.ilike.%${options.search}%`);
     }
 
-    query = query.order('key', { ascending: true });
+    query = query.order('sort_order', { ascending: true }).order('key', { ascending: true });
 
     if (options?.limit) query = query.range(options.offset || 0, (options.offset || 0) + options.limit - 1);
 
     const { data, count, error } = await query;
     if (error) throw error;
-    const list: AppAssetRecord[] = (data ?? []).map((row: any) => ({
-      id: row.key,
-      key: row.key,
-      name: row.name || row.key,
-      type: row.type || 'image',
-      category: row.category || '',
-      subcategory: row.subcategory || '',
-      localPath: row.local_path || '',
-      remoteUrl: row.remote_url || row.url || '',
-      defaultValue: '',
-      mimeType: row.mime_type || '',
-      fileSize: row.file_size || 0,
-      width: row.width || null,
-      height: row.height || null,
-      sortOrder: row.sort_order || 0,
-      isActive: row.is_active !== false,
-      createdAt: row.updated_at || new Date().toISOString(),
-      updatedAt: row.updated_at || new Date().toISOString(),
-    }));
-    if (list.length > 0) {
-      return { data: list, total: count ?? list.length };
-    }
+    return { data: mapList<AppAssetRecord>(data ?? []), total: count ?? 0 };
   } catch (e) {
-    console.warn('getAppAssets supabase error, trying firestore fallback:', e);
+    console.warn('getAppAssets failed:', e);
+    return { data: [], total: 0 };
   }
-
-  return { data: [], total: 0 };
 }
 
 export async function getAppAssetByKey(key: string): Promise<AppAssetRecord | null> {
   try {
     const { data } = await supabase.from('app_assets').select('*').eq('key', key).maybeSingle();
-    if (data) {
-      return {
-        id: data.key,
-        key: data.key,
-        name: data.name || data.key,
-        type: data.type || 'image',
-        category: data.category || '',
-        subcategory: data.subcategory || '',
-        localPath: data.local_path || '',
-        remoteUrl: data.remote_url || data.url || '',
-        defaultValue: '',
-        mimeType: data.mime_type || '',
-        fileSize: data.file_size || 0,
-        width: data.width || null,
-        height: data.height || null,
-        sortOrder: data.sort_order || 0,
-        isActive: data.is_active !== false,
-        createdAt: data.updated_at || new Date().toISOString(),
-        updatedAt: data.updated_at || new Date().toISOString(),
-      };
-    }
-  } catch {}
-  return null;
+    return mapSingle<AppAssetRecord>(data);
+  } catch {
+    return null;
+  }
 }
 
 function getAppAssetsClient() {
   return getAdminSupabase() || supabase;
 }
 
-export async function updateAppAsset(idOrKey: string, data: Partial<AppAssetRecord>) {
-  const assetUrl = data.remoteUrl || (data as any).url;
-
-  // 2. Write to Supabase
+export async function updateAppAsset(id: string, data: Partial<AppAssetRecord>) {
   try {
     const client = getAppAssetsClient();
-    const payload: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    };
-    if (assetUrl !== undefined) {
-      payload.url = assetUrl;
-      payload.remote_url = assetUrl;
-    }
-    if (data.type !== undefined) payload.type = data.type;
-    if (data.name !== undefined) payload.name = data.name;
-    if (data.category !== undefined) payload.category = data.category;
-    if (data.isActive !== undefined) payload.is_active = data.isActive;
-    await client.from('app_assets').update(payload).eq('key', idOrKey);
+    const payload = toSnakeCase(data as Record<string, unknown>);
+    payload.updated_at = new Date().toISOString();
+    await client.from('app_assets').update(payload).eq('id', id);
   } catch (e) {
-    console.warn('updateAppAsset Supabase failed:', e);
+    console.warn('updateAppAsset failed:', e);
+    throw e;
   }
 }
 
 export async function upsertAppAsset(data: AppAssetRecord) {
-  const assetUrl = data.remoteUrl || (data as any).url || '';
-  const assetType = data.type || 'image';
-
-  // 2. Write to Supabase
   try {
     const client = getAppAssetsClient();
-    const payload = {
-      key: data.key,
-      name: data.name || data.key,
-      url: assetUrl,
-      remote_url: assetUrl,
-      type: assetType,
-      category: data.category || 'other',
-      subcategory: data.subcategory || '',
-      is_active: data.isActive !== false,
-      updated_at: new Date().toISOString(),
-    };
+    const payload = toSnakeCase(data as unknown as Record<string, unknown>);
     await client.from('app_assets').upsert(payload, { onConflict: 'key' });
   } catch (e) {
-    console.warn('Supabase app_assets upsert warning:', e);
+    console.warn('upsertAppAsset failed:', e);
+    throw e;
   }
 }
 
-export async function deleteAppAsset(idOrKey: string) {
-
+export async function deleteAppAsset(id: string) {
   try {
     const client = getAppAssetsClient();
-    await client.from('app_assets').delete().eq('key', idOrKey);
+    await client.from('app_assets').delete().eq('id', id);
   } catch (e) {
     console.warn('deleteAppAsset failed:', e);
+    throw e;
   }
 }
 
@@ -4782,43 +2214,33 @@ export async function migrateAssetOverridesFromConfig(config: Record<string, any
 // ---- Gift Categories ----
 
 export async function getGiftCategories(): Promise<import('../types').GiftCategory[]> {
-  const catMap = new Map<string, import('../types').GiftCategory>();
   try {
-    const { data } = await supabase.from('gift_categories').select('*').order('sort_order');
-    if (data) {
-      mapList<import('../types').GiftCategory>(data).forEach(c => {
-        if (c.id) catMap.set(c.id, c);
-      });
-    }
-  } catch {}
-  
-  return Array.from(catMap.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const { data } = await supabase.from('gift_categories').select('*').order('sort_order')
+    return mapList<import('../types').GiftCategory>(data ?? [])
+  } catch { return [] }
 }
 
 export async function addGiftCategory(id: string, data: import('../types').GiftCategory) {
-  
   try {
-    await supabase.from('gift_categories').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) });
+    await supabase.from('gift_categories').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
   } catch (e) {
-    console.warn('addGiftCategory failed:', e);
+    console.warn('addGiftCategory failed:', e)
   }
 }
 
 export async function updateGiftCategory(id: string, data: Partial<import('../types').GiftCategory>) {
-  
   try {
-    await supabase.from('gift_categories').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id);
+    await supabase.from('gift_categories').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
   } catch (e) {
-    console.warn('updateGiftCategory failed:', e);
+    console.warn('updateGiftCategory failed:', e)
   }
 }
 
 export async function deleteGiftCategory(id: string) {
-  
   try {
-    await supabase.from('gift_categories').delete().eq('id', id);
+    await supabase.from('gift_categories').delete().eq('id', id)
   } catch (e) {
-    console.warn('deleteGiftCategory failed:', e);
+    console.warn('deleteGiftCategory failed:', e)
   }
 }
 
@@ -4859,134 +2281,57 @@ export async function deleteGiftBannerConfig(id: string) {
 
 export async function getCpGifts(): Promise<CpGiftModel[]> {
   try {
-    const { data, error } = await supabase.from('cp_gifts').select('*').order('sort_order')
-    if (!error && data && data.length > 0) {
-      return mapList<CpGiftModel>(data)
-    }
-  } catch {}
-  try {
-    // Select all gifts and filter in-memory to prevent PostgREST 400 error on non-existent column
-    const { data, error } = await supabase.from('gifts').select('*')
-    if (!error && data && data.length > 0) {
-      const filtered = data.filter((g: any) =>
-        g.is_cp_gift === true ||
-        g.isCpGift === true ||
-        g.category === 'cp' ||
-        g.category_id === 'cp' ||
-        g.categoryId === 'cp'
-      );
-      if (filtered.length > 0) {
-        return mapList<CpGiftModel>(filtered);
-      }
-    }
-  } catch {}
-  
-  return [];
+    const { data } = await supabase.from('cp_gifts').select('*').order('sort_order')
+    return mapList<CpGiftModel>(data ?? [])
+  } catch { return [] }
 }
 
 export async function addCpGift(id: string, data: CpGiftModel) {
   try {
     await supabase.from('cp_gifts').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
-  } catch {
-    try {
-      const basePayload: Record<string, unknown> = {
-        id,
-        name: data.name,
-        value: data.value,
-        icon_asset: data.iconAsset,
-        animation_asset: data.animationAsset,
-      };
-      await supabase.from('gifts').upsert(basePayload);
-    } catch (e) {
-      console.warn('addCpGift failed:', e);
-    }
-  }
+  } catch (e) { console.warn('addCpGift failed:', e) }
 }
 
 export async function updateCpGift(id: string, data: Partial<CpGiftModel>) {
   try {
-    await supabase.from('cp_gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id);
-  } catch {
-    try {
-      const basePayload: Record<string, unknown> = {};
-      if (data.name !== undefined) basePayload.name = data.name;
-      if (data.value !== undefined) basePayload.value = data.value;
-      if (data.iconAsset !== undefined) basePayload.icon_asset = data.iconAsset;
-      if (data.animationAsset !== undefined) basePayload.animation_asset = data.animationAsset;
-      await supabase.from('gifts').update(basePayload).eq('id', id);
-    } catch (e) {
-      console.warn('updateCpGift failed:', e);
-    }
-  }
+    await supabase.from('cp_gifts').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
+  } catch (e) { console.warn('updateCpGift failed:', e) }
 }
 
 export async function deleteCpGift(id: string) {
-  try { await supabase.from('cp_gifts').delete().eq('id', id) } catch {}
-  try { await supabase.from('gifts').delete().eq('id', id) } catch {}
+  try { await supabase.from('cp_gifts').delete().eq('id', id) }
+  catch (e) { console.warn('deleteCpGift failed:', e) }
 }
 
 export async function getCpCars(): Promise<CpCarModel[]> {
   try {
-    const { data, error } = await supabase.from('cp_cars').select('*').order('sort_order')
-    if (!error && data && data.length > 0) {
-      return mapList<CpCarModel>(data)
-    }
-  } catch {}
-  try {
-    const { data } = await supabase.from('store_items').select('*').eq('category', 'car')
-    if (data && data.length > 0) {
-      return mapList<CpCarModel>(data)
-    }
-  } catch {}
-  return []
+    const { data } = await supabase.from('cp_cars').select('*').order('sort_order')
+    return mapList<CpCarModel>(data ?? [])
+  } catch { return [] }
 }
 
 export async function addCpCar(id: string, data: CpCarModel) {
   try {
     await supabase.from('cp_cars').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
-  } catch {
-    try {
-      await supabase.from('store_items').upsert({
-        id,
-        ...toSnakeCase(data as unknown as Record<string, unknown>),
-        category: 'car',
-      })
-    } catch (e) {
-      console.warn('addCpCar failed:', e)
-    }
-  }
+  } catch (e) { console.warn('addCpCar failed:', e) }
 }
 
 export async function updateCpCar(id: string, data: Partial<CpCarModel>) {
   try {
     await supabase.from('cp_cars').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
-  } catch {
-    try {
-      await supabase.from('store_items').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
-    } catch (e) {
-      console.warn('updateCpCar failed:', e)
-    }
-  }
+  } catch (e) { console.warn('updateCpCar failed:', e) }
 }
 
 export async function deleteCpCar(id: string) {
-  try { await supabase.from('cp_cars').delete().eq('id', id) } catch {}
-  try { await supabase.from('store_items').delete().eq('id', id) } catch {}
+  try { await supabase.from('cp_cars').delete().eq('id', id) }
+  catch (e) { console.warn('deleteCpCar failed:', e) }
 }
 
 export async function getCpSettings(): Promise<Record<string, string>> {
   try {
-    const { data, error } = await supabase.from('cp_settings').select('key, value')
-    if (!error && data && data.length > 0) {
-      const map: Record<string, string> = {}
-      for (const row of data) map[row.key] = row.value
-      return map
-    }
-  } catch {}
-  try {
-    const { data } = await supabase.from('app_config').select('key, value').like('key', 'cp_%')
+    const { data } = await supabase.from('cp_settings').select('key, value')
     const map: Record<string, string> = {}
-    for (const row of data ?? []) map[row.key] = typeof row.value === 'string' ? row.value : JSON.stringify(row.value)
+    for (const row of data ?? []) map[row.key] = row.value
     return map
   } catch { return {} }
 }
@@ -4994,67 +2339,33 @@ export async function getCpSettings(): Promise<Record<string, string>> {
 export async function updateCpSetting(key: string, value: string) {
   try {
     await supabase.from('cp_settings').upsert({ key, value, updated_at: new Date().toISOString() })
-  } catch {
-    try {
-      await supabase.from('app_config').upsert({ key, value, updated_at: new Date().toISOString() })
-    } catch (e) { console.warn('updateCpSetting failed:', e) }
-  }
+  } catch (e) { console.warn('updateCpSetting failed:', e) }
 }
 
 // ---- Weekly Sign-In Rewards (7-day daily login) ----
 
 export async function getSigninRewards(): Promise<SigninRewardModel[]> {
   try {
-    const { data, error } = await supabase.from('signin_rewards').select('*').order('day_number')
-    if (!error && data && data.length > 0) {
-      return mapList<SigninRewardModel>(data)
-    }
-  } catch {}
-  try {
-    const { data } = await supabase.from('app_config').select('value').eq('key', 'signin_rewards').maybeSingle()
-    if (data && data.value && Array.isArray(data.value)) {
-      return data.value as SigninRewardModel[]
-    }
-  } catch {}
-  return []
+    const { data } = await supabase.from('signin_rewards').select('*').order('day_number')
+    return mapList<SigninRewardModel>(data ?? [])
+  } catch { return [] }
 }
 
 export async function upsertSigninReward(id: string, data: Partial<SigninRewardModel>) {
   try {
     await supabase.from('signin_rewards').upsert({ id, ...toSnakeCase(data as unknown as Record<string, unknown>) })
-  } catch {
-    try {
-      const current = await getSigninRewards()
-      const idx = current.findIndex(x => x.id === id)
-      if (idx >= 0) current[idx] = { ...current[idx], ...data }
-      else current.push({ id, ...data } as SigninRewardModel)
-      await supabase.from('app_config').upsert({ key: 'signin_rewards', value: current, updated_at: new Date().toISOString() })
-    } catch (e) { console.warn('upsertSigninReward failed:', e) }
-  }
+  } catch (e) { console.warn('upsertSigninReward failed:', e) }
 }
 
 export async function updateSigninReward(id: string, data: Partial<SigninRewardModel>) {
   try {
     await supabase.from('signin_rewards').update(toSnakeCase(data as Record<string, unknown>)).eq('id', id)
-  } catch {
-    try {
-      const current = await getSigninRewards()
-      const idx = current.findIndex(x => x.id === id)
-      if (idx >= 0) {
-        current[idx] = { ...current[idx], ...data }
-        await supabase.from('app_config').upsert({ key: 'signin_rewards', value: current, updated_at: new Date().toISOString() })
-      }
-    } catch (e) { console.warn('updateSigninReward failed:', e) }
-  }
+  } catch (e) { console.warn('updateSigninReward failed:', e) }
 }
 
 export async function deleteSigninReward(id: string) {
-  try { await supabase.from('signin_rewards').delete().eq('id', id) } catch {}
-  try {
-    const current = await getSigninRewards()
-    const filtered = current.filter(x => x.id !== id)
-    await supabase.from('app_config').upsert({ key: 'signin_rewards', value: filtered, updated_at: new Date().toISOString() })
-  } catch {}
+  try { await supabase.from('signin_rewards').delete().eq('id', id) }
+  catch (e) { console.warn('deleteSigninReward failed:', e) }
 }
 
 // ---- CP Rank Rewards (بمجموعة Firestore cp_rank_rewards مباشرة) ----
@@ -5402,18 +2713,6 @@ export async function getAppUpdate(): Promise<AppUpdateConfig | null> {
   try {
     const { data } = await supabase.from('app_config').select('*').eq('key', 'app_update').maybeSingle()
     if (!data) return null
-    if (data.value && typeof data.value === 'object') {
-      const val = data.value as any;
-      return {
-        latest_version: val.latest_version || '',
-        build_number: Number(val.build_number) || 1,
-        apk_url: val.apk_url || '',
-        notes_ar: val.notes_ar || val.release_notes || '',
-        notes_en: val.notes_en || '',
-        force_update: !!val.force_update,
-        published_at: val.published_at || val.updated_at,
-      } as AppUpdateConfig
-    }
     return data as unknown as AppUpdateConfig
   } catch {
     return null
@@ -5422,17 +2721,10 @@ export async function getAppUpdate(): Promise<AppUpdateConfig | null> {
 
 export async function publishAppUpdate(cfg: Omit<AppUpdateConfig, 'published_at'>): Promise<string | null> {
   try {
-    const now = new Date().toISOString();
-    const payload = {
-      ...cfg,
-      release_notes: cfg.notes_ar || cfg.notes_en || '',
-      updated_at: now,
-      published_at: now,
-    };
-    await supabase.from('app_config').upsert({ key: 'app_update', value: payload });
-    return null;
+    await supabase.from('app_config').upsert({ ...cfg, published_at: new Date().toISOString() })
+    return null
   } catch (e) {
-    return e instanceof Error ? e.message : String(e);
+    return e instanceof Error ? e.message : String(e)
   }
 }
 
@@ -5444,1091 +2736,3 @@ export async function unpublishAppUpdate(): Promise<string | null> {
     return e instanceof Error ? e.message : String(e)
   }
 }
-
-// ============================================================
-// Recharge Gateways & Requests (مراجعة واعتماد طلبات الشحن وبوابات الدفع)
-// ============================================================
-
-export interface RechargeGatewayConfig {
-  id: string;
-  name: string;
-  name_ar: string;
-  type: 'google_play' | 'vodafone_cash' | 'binance_pay' | 'instapay' | 'custom';
-  enabled: boolean;
-  account_number?: string;
-  account_name?: string;
-  instructions_ar?: string;
-  instructions_en?: string;
-  icon?: string;
-  qr_code_url?: string;
-  min_amount?: number;
-  max_amount?: number;
-}
-
-export async function getRechargeGateways(): Promise<RechargeGatewayConfig[]> {
-  try {
-    const { data } = await supabase.from('app_config').select('value').eq('key', 'recharge_gateways').maybeSingle();
-    if (data && data.value && Array.isArray(data.value)) {
-      return data.value;
-    }
-  } catch (_) {}
-
-  return [
-    {
-      id: 'google_play',
-      name: 'Google Play',
-      name_ar: 'متجر Google Play',
-      type: 'google_play',
-      enabled: false,
-      instructions_ar: 'الشحن المباشر عبر حساب متجر جوجل بلاي الرسمي.',
-    },
-    {
-      id: 'vodafone_cash',
-      name: 'Vodafone Cash',
-      name_ar: 'فودافون كاش',
-      type: 'vodafone_cash',
-      enabled: true,
-      account_number: '01012345678',
-      account_name: 'الإدارة الرسمية',
-      instructions_ar: 'حول المبلغ المطلوب إلى رقم المحفظة، ثم اكتب رقمك ورقم العملية المرجعي لتأكيد الشحن.',
-    },
-    {
-      id: 'binance_pay',
-      name: 'Binance Pay / USDT',
-      name_ar: 'بينانس باي / عملات رقمية',
-      type: 'binance_pay',
-      enabled: true,
-      account_number: '123456789',
-      instructions_ar: 'أرسل المبلغ المطلوب عبر Binance Pay ID أو محفظة USDT TRC-20، واكتب رقم المعاملة TXID.',
-    },
-    {
-      id: 'instapay',
-      name: 'Instapay',
-      name_ar: 'انستاباي / تحويل بنكي',
-      type: 'instapay',
-      enabled: true,
-      account_number: 'example@instapay',
-      account_name: 'شركة أحلى لايف',
-      instructions_ar: 'حول المبلغ المطلوب إلى عنوان انستاباي ثم ادخل الرقم المرجعي للتحويل.',
-    },
-  ];
-}
-
-export async function updateRechargeGateways(gateways: RechargeGatewayConfig[]): Promise<boolean> {
-  try {
-    await supabase.from('app_config').upsert({
-      key: 'recharge_gateways',
-      value: gateways,
-      updated_at: new Date().toISOString(),
-    });
-  } catch (e) {
-    console.warn('updateRechargeGateways supabase error:', e);
-  }
-  return true;
-}
-
-export async function getRechargeRequests(statusFilter?: string): Promise<import('../types').RechargeRequestModel[]> {
-  const list: import('../types').RechargeRequestModel[] = [];
-  const seenIds = new Set<string>();
-
-  try {
-    const { data, error } = await supabase.from('recharge_requests').select('*').order('created_at', { ascending: false });
-    if (error) return [];
-    for (const r of data ?? []) {
-      if (statusFilter && r.status !== statusFilter) continue;
-      list.push({
-        id: r.id,
-        userId: r.user_id,
-        userName: r.user_name || r.name || 'مستخدم',
-        userAvatar: r.user_avatar || r.avatar || '',
-        customId: r.custom_id || '',
-        amount: r.amount || 0,
-        price: r.price || 0,
-        currency: r.currency || 'coins',
-        gateway: r.gateway || 'manual',
-        senderPhone: r.sender_phone || r.senderPhone || '',
-        txid: r.txid || r.transaction_id || '',
-        proofUrl: r.proof_url || '',
-        status: r.status || 'pending',
-        rejectionReason: r.rejection_reason || '',
-        createdAt: r.created_at || new Date().toISOString(),
-        reviewedAt: r.reviewed_at,
-        reviewedBy: r.reviewed_by,
-      });
-      seenIds.add(r.id);
-    }
-  } catch (_) {}
-
-  return list;
-}
-
-export async function approveRechargeRequest(req: import('../types').RechargeRequestModel): Promise<boolean> {
-  const adminName = getCurrentAdminName() || 'Admin';
-  const now = new Date().toISOString();
-
-  try {
-    if (req.currency === 'coins') {
-      await supabase.rpc('add_coins_safe', { p_uid: req.userId, p_amount: req.amount });
-    } else {
-      await supabase.rpc('add_diamonds_safe', { p_uid: req.userId, p_amount: req.amount });
-    }
-  } catch (_) {
-    try {
-      const { data: u } = await supabase.from('users').select('coins, diamonds').eq('uid', req.userId).maybeSingle();
-      if (u) {
-        if (req.currency === 'coins') {
-          await supabase.from('users').update({ coins: (u.coins || 0) + req.amount }).eq('uid', req.userId);
-        } else {
-          await supabase.from('users').update({ diamonds: (u.diamonds || 0) + req.amount }).eq('uid', req.userId);
-        }
-      }
-    } catch (_) {}
-  }
-
-  try {
-    await supabase.from('recharge_requests').update({
-      status: 'approved',
-      reviewed_at: now,
-      reviewed_by: adminName,
-    }).eq('id', req.id);
-  } catch (_) {}
-
-  try {
-    await sendSystemNotification({
-      targetUid: req.userId,
-      titleAr: 'تم شحن رصيدك بنجاح! 🎉',
-      titleEn: 'Recharge Approved! 🎉',
-      bodyAr: `تمت مراجعة عملية التحويل بنجاح وإضافة ${req.amount.toLocaleString()} ${req.currency === 'coins' ? 'عملة ذهبية' : 'ماسة'} إلى محفظتك!`,
-      bodyEn: `Your recharge of ${req.amount.toLocaleString()} ${req.currency} was approved and added to your balance!`,
-    });
-  } catch (_) {}
-
-  return true;
-}
-
-export async function rejectRechargeRequest(req: import('../types').RechargeRequestModel, reason: string): Promise<boolean> {
-  const adminName = getCurrentAdminName() || 'Admin';
-  const now = new Date().toISOString();
-
-  try {
-    await supabase.from('recharge_requests').update({
-      status: 'rejected',
-      rejection_reason: reason,
-      reviewed_at: now,
-      reviewed_by: adminName,
-    }).eq('id', req.id);
-  } catch (_) {}
-
-
-  try {
-    await sendSystemNotification({
-      targetUid: req.userId,
-      titleAr: 'تم رفض طلب الشحن',
-      titleEn: 'Recharge Request Rejected',
-      bodyAr: `نأسف، تم رفض طلب الشحن الخاص بك بمبلغ $${req.price}. السبب: ${reason || 'بيانات التحويل غير متطابقة'}`,
-      bodyEn: `Sorry, your recharge request for $${req.price} was rejected. Reason: ${reason || 'Invalid transaction details'}`,
-    });
-  } catch (_) {}
-
-  return true;
-}
-
-
-
-// ─── Sugar Rush / Game Jackpot Pool Management ──────────────────────────────
-
-export interface GamePoolConfig {
-  id: string;
-  game_name: string;
-  pool_balance: number;
-  win_rate: number;
-  min_bet: number;
-  max_bet: number;
-  max_multiplier: number;
-  is_active: boolean;
-  total_in: number;
-  total_out: number;
-  updated_at?: string;
-}
-
-export interface GameBetRecord {
-  id: string;
-  game_id: string;
-  user_id: string;
-  user_name?: string;
-  room_id?: string;
-  bet_amount: number;
-  win_amount: number;
-  net_result: number;
-  is_win: boolean;
-  created_at: string;
-}
-
-export async function getGamePoolConfig(gameId: string = 'sugarrush'): Promise<GamePoolConfig> {
-  try {
-    const { data, error } = await supabase
-      .from('game_jackpot_pool')
-      .select('*')
-      .eq('id', gameId)
-      .maybeSingle();
-
-    if (error || !data) {
-      // Default fallback initial config
-      return {
-        id: gameId,
-        game_name: 'Sugar Rush',
-        pool_balance: 5000000,
-        win_rate: 75,
-        min_bet: 100,
-        max_bet: 50000,
-        max_multiplier: 10,
-        is_active: true,
-        total_in: 0,
-        total_out: 0,
-      };
-    }
-    return data as GamePoolConfig;
-  } catch (e) {
-    console.error('getGamePoolConfig error:', e);
-    return {
-      id: gameId,
-      game_name: 'Sugar Rush',
-      pool_balance: 5000000,
-      win_rate: 75,
-      min_bet: 100,
-      max_bet: 50000,
-      max_multiplier: 10,
-      is_active: true,
-      total_in: 0,
-      total_out: 0,
-    };
-  }
-}
-
-export async function updateGamePoolConfig(gameId: string, updates: Partial<GamePoolConfig>): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from('game_jackpot_pool')
-      .upsert({
-        id: gameId,
-        ...updates,
-        updated_at: new Date().toISOString(),
-      });
-    return !error;
-  } catch (e) {
-    console.error('updateGamePoolConfig error:', e);
-    return false;
-  }
-}
-
-export async function topupGamePool(gameId: string, amount: number): Promise<boolean> {
-  try {
-    const current = await getGamePoolConfig(gameId);
-    const newBal = (current.pool_balance || 0) + amount;
-    return await updateGamePoolConfig(gameId, { pool_balance: newBal });
-  } catch (e) {
-    console.error('topupGamePool error:', e);
-    return false;
-  }
-}
-
-export async function getGameBetRecords(gameId: string = 'sugarrush', limit: number = 50): Promise<GameBetRecord[]> {
-  try {
-    const { data, error } = await supabase
-      .from('game_bet_records')
-      .select('*')
-      .eq('game_id', gameId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (error || !data) return [];
-    return data as GameBetRecord[];
-  } catch (e) {
-    console.error('getGameBetRecords error:', e);
-    return [];
-  }
-}
-
-// ==========================================
-// Super Admin & Admin & Staff Commissions API
-// ==========================================
-
-export interface SuperAdminModel {
-  uid: string;
-  appId?: string;
-  name?: string;
-  email?: string;
-  loginUsername?: string;
-  password?: string;
-  avatar?: string;
-  salary: number;
-  commissionRate: number;
-  specialId?: string;
-  giftedFrame?: string;
-  giftedBadge?: string;
-  giftedNecklace?: string;
-  status: 'active' | 'revoked';
-  agenciesCount?: number;
-  totalDiamonds?: number;
-  bdsCount?: number;
-  permissions?: Record<string, boolean>;
-  createdAt?: string;
-}
-
-export interface AdminStaffModel {
-  uid: string;
-  appId?: string;
-  name?: string;
-  email?: string;
-  loginUsername?: string;
-  password?: string;
-  avatar?: string;
-  supervisorId?: string;
-  supervisorName?: string;
-  salary: number;
-  commissionRate: number;
-  specialId?: string;
-  giftedFrame?: string;
-  giftedBadge?: string;
-  giftedNecklace?: string;
-  status: 'active' | 'revoked';
-  agenciesCount?: number;
-  totalDiamonds?: number;
-  bdsCount?: number;
-  permissions?: Record<string, boolean>;
-  createdAt?: string;
-}
-
-export interface SalaryTransferRequest {
-  id: string;
-  sender_uid: string;
-  sender_custom_id?: string;
-  sender_name?: string;
-  sender_role?: string;
-  recharge_agent_uid: string;
-  recharge_agent_custom_id?: string;
-  amount: number;
-  status: 'pending' | 'accepted' | 'rejected';
-  rejection_reason?: string;
-  created_at: string;
-  accepted_at?: string;
-  rejected_at?: string;
-}
-
-export async function getSuperAdmins(): Promise<SuperAdminModel[]> {
-  const client = getAdminSupabase() || supabase;
-  try {
-    const map = new Map<string, SuperAdminModel>();
-
-    // 1. Fetch from app_config key super_admin_meta_* (Reliable source of truth)
-    const { data: configs } = await client
-      .from('app_config')
-      .select('key, value')
-      .like('key', 'super_admin_meta_%');
-
-    if (configs) {
-      for (const c of configs) {
-        const val = c.value || {};
-        const uid = val.uid || c.key.replace('super_admin_meta_', '');
-        if (!uid) continue;
-        map.set(uid, {
-          uid,
-          appId: val.appId || '',
-          name: val.name || '',
-          email: val.email || '',
-          avatar: val.avatar || val.photoUrl || '',
-          salary: val.salary !== undefined ? val.salary : 0,
-          commissionRate: val.commissionRate !== undefined ? val.commissionRate : 15,
-          specialId: val.specialId || '',
-          giftedFrame: val.giftedFrame,
-          giftedBadge: val.giftedBadge,
-          giftedNecklace: val.giftedNecklace,
-          status: val.status || 'active',
-          loginUsername: val.loginUsername || val.appId || '',
-          password: val.password || '',
-          permissions: val.permissions || {},
-          agenciesCount: 0,
-          totalDiamonds: 0,
-          bdsCount: 0,
-        });
-      }
-    }
-
-    // 2. Also check admin_users table
-    try {
-      const { data: adminUsers } = await client
-        .from('admin_users')
-        .select('*')
-        .in('role', ['super_admin', 'superadmin']);
-      if (adminUsers) {
-        for (const au of adminUsers) {
-          const uid = au.uid;
-          if (!uid) continue;
-          const existing = map.get(uid);
-          if (existing) {
-            if (!existing.email && au.email) existing.email = au.email;
-            if (!existing.name && au.display_name) existing.name = au.display_name;
-            if (!existing.loginUsername && (au.app_id || au.email)) existing.loginUsername = au.app_id || au.email;
-            if (!existing.password && au.password) existing.password = au.password;
-          } else {
-            map.set(uid, {
-              uid,
-              appId: au.app_id || '',
-              name: au.display_name || '',
-              email: au.email || '',
-              avatar: '',
-              salary: 0,
-              commissionRate: 15,
-              status: 'active',
-              loginUsername: au.app_id || au.email || '',
-              password: au.password || '',
-              permissions: au.permissions || {},
-              agenciesCount: 0,
-              totalDiamonds: 0,
-              bdsCount: 0,
-            });
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 3. Enrich with profile details from users table using only standard columns
-    const uids = Array.from(map.keys());
-    if (uids.length > 0) {
-      try {
-        const { data: uData } = await client
-          .from('users')
-          .select('uid, id, custom_id, name, email, photo_url, created_at')
-          .in('uid', uids);
-        if (uData) {
-          for (const u of uData) {
-            const uid = u.uid || u.id;
-            if (!uid || !map.has(uid)) continue;
-            const sa = map.get(uid)!;
-            if (!sa.name && u.name) sa.name = u.name;
-            if (!sa.avatar && u.photo_url) sa.avatar = u.photo_url;
-            if (!sa.appId && u.custom_id) sa.appId = u.custom_id;
-            if (!sa.email && u.email) sa.email = u.email;
-            if (!sa.createdAt && u.created_at) sa.createdAt = u.created_at;
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 4. Count agencies safely using getHostAgencies()
-    const agencies = await getHostAgencies().catch(() => []);
-    if (agencies && agencies.length > 0) {
-      for (const a of agencies) {
-        const d = a.data || {};
-        const supId = d.super_admin_id || d.created_by_super_admin || a.super_admin_id;
-        if (supId && map.has(supId)) {
-          const sa = map.get(supId)!;
-          sa.agenciesCount = (sa.agenciesCount || 0) + 1;
-          const dia = Number(a.total_diamonds_monthly || a.total_diamonds_earned || a.total_diamonds || 0);
-          sa.totalDiamonds = (sa.totalDiamonds || 0) + dia;
-        }
-      }
-    }
-
-    // 5. Count BDs from bd_meta_%
-    try {
-      const { data: bdConfigs } = await client
-        .from('app_config')
-        .select('value')
-        .like('key', 'bd_meta_%');
-      if (bdConfigs) {
-        for (const bc of bdConfigs) {
-          const supId = bc.value?.supervisorId;
-          if (supId && map.has(supId)) {
-            const sa = map.get(supId)!;
-            sa.bdsCount = (sa.bdsCount || 0) + 1;
-          }
-        }
-      }
-    } catch (_) {}
-
-    return Array.from(map.values());
-  } catch (e) {
-    console.error('getSuperAdmins error:', e);
-    return [];
-  }
-}
-
-export async function assignSuperAdmin(params: {
-  uid: string;
-  appId?: string;
-  name?: string;
-  email?: string;
-  password?: string;
-  salary?: number;
-  commissionRate?: number;
-  specialId?: string;
-  permissions?: Record<string, boolean>;
-  frameId?: string;
-  badgeId?: string;
-  necklaceId?: string;
-}) {
-  const client = getAdminSupabase() || supabase;
-  const {
-    uid, appId, name, email, password, salary = 0, commissionRate = 15,
-    specialId, permissions = {}, frameId, badgeId, necklaceId,
-  } = params;
-
-  const resolvedEmail = (email && email.trim()) || `${specialId || appId || uid}@superadmin.ahla.live`;
-  const cleanPass = password?.trim() || '';
-
-  // 1. Update users table in Supabase (with fallback if columns don't exist yet)
-  const updates: Record<string, any> = {
-    is_super_admin: true,
-    role: 'super_admin',
-    super_admin_salary: salary,
-    super_admin_commission_rate: commissionRate,
-  };
-  if (specialId && specialId.trim()) updates.custom_id = specialId.trim();
-
-  try {
-    await client.from('users').update(updates).or(`uid.eq.${uid},id.eq.${uid}`);
-  } catch (e) {
-    try {
-      await client.from('users').update({ role: 'super_admin' }).or(`uid.eq.${uid},id.eq.${uid}`);
-    } catch (_) {}
-  }
-
-  // 2. Gift Items if specified
-  await giftUserItems(uid, { necklaceId, badgeId, frameId, specialId });
-
-  // 3. Save meta in app_config
-  await client.from('app_config').upsert({
-    key: 'super_admin_meta_' + uid,
-    value: {
-      uid,
-      appId: specialId || appId || '',
-      name: name || '',
-      email: resolvedEmail,
-      loginUsername: specialId || appId || resolvedEmail,
-      password: cleanPass,
-      salary,
-      commissionRate,
-      specialId: specialId || '',
-      giftedFrame: frameId || '',
-      giftedBadge: badgeId || '',
-      giftedNecklace: necklaceId || '',
-      permissions,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    },
-  });
-
-  // 4. Save direct auth in app_config for instant login
-  if (cleanPass) {
-    const authRecord = {
-      uid,
-      appId: specialId || appId || uid,
-      email: resolvedEmail,
-      loginUsername: specialId || appId || uid,
-      password: cleanPass,
-      role: 'super_admin',
-      permissions: ['all'],
-      displayName: name || 'Super Admin',
-    };
-    await Promise.all([
-      client.from('app_config').upsert({ key: 'admin_auth_' + uid.toLowerCase(), value: authRecord }),
-      client.from('app_config').upsert({ key: 'admin_auth_' + resolvedEmail.toLowerCase(), value: authRecord }),
-      appId ? client.from('app_config').upsert({ key: 'admin_auth_' + appId.toLowerCase(), value: authRecord }) : Promise.resolve(),
-      specialId ? client.from('app_config').upsert({ key: 'admin_auth_' + specialId.toLowerCase(), value: authRecord }) : Promise.resolve(),
-    ]);
-  }
-
-  // 5. Create or update admin_users table for dashboard access with checkboxes
-  const adminUserData: any = {
-    uid,
-    app_id: specialId || appId || uid,
-    email: resolvedEmail,
-    display_name: name || 'Super Admin',
-    role: 'super_admin',
-    permissions: permissions,
-    updated_at: new Date().toISOString(),
-  };
-  if (cleanPass) adminUserData.password = cleanPass;
-
-  try {
-    await client.from('admin_users').upsert(adminUserData, { onConflict: 'uid' });
-  } catch (e) {
-    console.warn('admin_users upsert error:', e);
-  }
-
-  // 6. Send in-app notification
-  await sendSystemNotification({
-    userId: uid,
-    title: 'تهانينا! تم تعيينك كـ Super Admin رسمي 👑',
-    body: `تم اعتماد حسابك كـ Super Admin براتب شهري ${salary} ونسبة عمولة ${commissionRate}% على أرباح الوكالات التابعة لك.`,
-    type: 'super_admin_assigned',
-    action: 'super_admin_center',
-  });
-}
-
-export async function updateSuperAdmin(params: {
-  uid: string;
-  salary?: number;
-  commissionRate?: number;
-  permissions?: Record<string, boolean>;
-  password?: string;
-}) {
-  const client = getAdminSupabase() || supabase;
-  const { uid, salary = 0, commissionRate = 15, permissions, password } = params;
-
-  try {
-    await client.from('users').update({
-      super_admin_salary: salary,
-      super_admin_commission_rate: commissionRate,
-    }).or(`uid.eq.${uid},id.eq.${uid}`);
-  } catch (_) {}
-
-  const { data: curMeta } = await client.from('app_config').select('value').eq('key', 'super_admin_meta_' + uid).maybeSingle();
-  const cur = (curMeta?.value as any) || {};
-  const cleanPass = password?.trim() || cur.password || '';
-
-  await client.from('app_config').upsert({
-    key: 'super_admin_meta_' + uid,
-    value: {
-      ...cur,
-      salary,
-      commissionRate,
-      password: cleanPass,
-      updatedAt: new Date().toISOString(),
-    },
-  });
-
-  const adminUpdates: any = { updated_at: new Date().toISOString() };
-  if (permissions) adminUpdates.permissions = permissions;
-  if (password && password.trim()) adminUpdates.password = password.trim();
-
-  try {
-    await client.from('admin_users').update(adminUpdates).eq('uid', uid);
-  } catch (_) {}
-
-  if (password && password.trim()) {
-    const authRecord = {
-      uid,
-      appId: cur.appId || uid,
-      email: cur.email || '',
-      loginUsername: cur.loginUsername || cur.appId || uid,
-      password: password.trim(),
-      role: 'super_admin',
-      permissions: ['all'],
-      displayName: cur.name || 'Super Admin',
-    };
-    await Promise.all([
-      client.from('app_config').upsert({ key: 'admin_auth_' + uid.toLowerCase(), value: authRecord }),
-      cur.email ? client.from('app_config').upsert({ key: 'admin_auth_' + cur.email.toLowerCase(), value: authRecord }) : Promise.resolve(),
-      cur.appId ? client.from('app_config').upsert({ key: 'admin_auth_' + cur.appId.toLowerCase(), value: authRecord }) : Promise.resolve(),
-    ]);
-  }
-}
-
-export async function revokeSuperAdmin(uid: string) {
-  const client = getAdminSupabase() || supabase;
-  await client.from('users').update({
-    is_super_admin: false,
-    role: 'user',
-    super_admin_salary: 0,
-    super_admin_commission_rate: 0,
-  }).or(`uid.eq.${uid},id.eq.${uid}`);
-
-  await client.from('app_config').delete().eq('key', 'super_admin_meta_' + uid);
-  try {
-    await client.from('admin_users').delete().eq('uid', uid);
-  } catch (_) {}
-}
-
-export async function getAdmins(): Promise<AdminStaffModel[]> {
-  const client = getAdminSupabase() || supabase;
-  try {
-    const map = new Map<string, AdminStaffModel>();
-
-    // 1. Fetch from app_config key admin_meta_* (Reliable source of truth)
-    const { data: configs } = await client
-      .from('app_config')
-      .select('key, value')
-      .like('key', 'admin_meta_%');
-
-    if (configs) {
-      for (const c of configs) {
-        const val = c.value || {};
-        const uid = val.uid || c.key.replace('admin_meta_', '');
-        if (!uid) continue;
-        map.set(uid, {
-          uid,
-          appId: val.appId || '',
-          name: val.name || '',
-          email: val.email || '',
-          avatar: val.avatar || val.photoUrl || '',
-          salary: val.salary !== undefined ? val.salary : 0,
-          commissionRate: val.commissionRate !== undefined ? val.commissionRate : 10,
-          supervisorId: val.supervisorId || '',
-          specialId: val.specialId || '',
-          giftedFrame: val.giftedFrame,
-          giftedBadge: val.giftedBadge,
-          giftedNecklace: val.giftedNecklace,
-          status: val.status || 'active',
-          loginUsername: val.loginUsername || val.appId || '',
-          password: val.password || '',
-          permissions: val.permissions || {},
-          agenciesCount: 0,
-          totalDiamonds: 0,
-          bdsCount: 0,
-        });
-      }
-    }
-
-    // 2. Also check admin_users table
-    try {
-      const { data: adminUsers } = await client
-        .from('admin_users')
-        .select('*')
-        .eq('role', 'admin');
-      if (adminUsers) {
-        for (const au of adminUsers) {
-          const uid = au.uid;
-          if (!uid) continue;
-          const existing = map.get(uid);
-          if (existing) {
-            if (!existing.email && au.email) existing.email = au.email;
-            if (!existing.name && au.display_name) existing.name = au.display_name;
-            if (!existing.loginUsername && (au.app_id || au.email)) existing.loginUsername = au.app_id || au.email;
-            if (!existing.password && au.password) existing.password = au.password;
-          } else {
-            map.set(uid, {
-              uid,
-              appId: au.app_id || '',
-              name: au.display_name || '',
-              email: au.email || '',
-              avatar: '',
-              salary: 0,
-              commissionRate: 10,
-              supervisorId: '',
-              status: 'active',
-              loginUsername: au.app_id || au.email || '',
-              password: au.password || '',
-              permissions: au.permissions || {},
-              agenciesCount: 0,
-              totalDiamonds: 0,
-              bdsCount: 0,
-            });
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 3. Enrich with profile details from users table using only standard columns
-    const uids = Array.from(map.keys());
-    if (uids.length > 0) {
-      try {
-        const { data: uData } = await client
-          .from('users')
-          .select('uid, id, custom_id, name, email, photo_url, created_at')
-          .in('uid', uids);
-        if (uData) {
-          for (const u of uData) {
-            const uid = u.uid || u.id;
-            if (!uid || !map.has(uid)) continue;
-            const adm = map.get(uid)!;
-            if (!adm.name && u.name) adm.name = u.name;
-            if (!adm.avatar && u.photo_url) adm.avatar = u.photo_url;
-            if (!adm.appId && u.custom_id) adm.appId = u.custom_id;
-            if (!adm.email && u.email) adm.email = u.email;
-            if (!adm.createdAt && u.created_at) adm.createdAt = u.created_at;
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 4. Count agencies safely using getHostAgencies()
-    const agencies = await getHostAgencies().catch(() => []);
-    if (agencies && agencies.length > 0) {
-      for (const a of agencies) {
-        const d = a.data || {};
-        const adminId = d.admin_id || d.created_by_admin || a.admin_id;
-        if (adminId && map.has(adminId)) {
-          const adm = map.get(adminId)!;
-          adm.agenciesCount = (adm.agenciesCount || 0) + 1;
-          const dia = Number(a.total_diamonds_monthly || a.total_diamonds_earned || a.total_diamonds || 0);
-          adm.totalDiamonds = (adm.totalDiamonds || 0) + dia;
-        }
-      }
-    }
-
-    // 5. Count BDs from bd_meta_%
-    try {
-      const { data: bdConfigs } = await client
-        .from('app_config')
-        .select('value')
-        .like('key', 'bd_meta_%');
-      if (bdConfigs) {
-        for (const bc of bdConfigs) {
-          const supId = bc.value?.supervisorId;
-          if (supId && map.has(supId)) {
-            const adm = map.get(supId)!;
-            adm.bdsCount = (adm.bdsCount || 0) + 1;
-          }
-        }
-      }
-    } catch (_) {}
-
-    return Array.from(map.values());
-  } catch (e) {
-    console.error('getAdmins error:', e);
-    return [];
-  }
-}
-
-export async function assignAdmin(params: {
-  uid: string;
-  appId?: string;
-  name?: string;
-  email?: string;
-  password?: string;
-  supervisorId?: string;
-  salary?: number;
-  commissionRate?: number;
-  specialId?: string;
-  permissions?: Record<string, boolean>;
-  frameId?: string;
-  badgeId?: string;
-  necklaceId?: string;
-}) {
-  const client = getAdminSupabase() || supabase;
-  const {
-    uid, appId, name, email, password, supervisorId, salary = 0, commissionRate = 10,
-    specialId, permissions = {}, frameId, badgeId, necklaceId,
-  } = params;
-
-  const resolvedEmail = (email && email.trim()) || `${specialId || appId || uid}@admin.ahla.live`;
-  const cleanPass = password?.trim() || '';
-
-  // 1. Update users table in Supabase
-  const updates: Record<string, any> = {
-    is_admin: true,
-    role: 'admin',
-    admin_salary: salary,
-    admin_commission_rate: commissionRate,
-    admin_supervisor_id: supervisorId || null,
-  };
-  if (specialId && specialId.trim()) updates.custom_id = specialId.trim();
-
-  try {
-    await client.from('users').update(updates).or(`uid.eq.${uid},id.eq.${uid}`);
-  } catch (e) {
-    try {
-      await client.from('users').update({ role: 'admin' }).or(`uid.eq.${uid},id.eq.${uid}`);
-    } catch (_) {}
-  }
-
-  // 2. Gift Items if specified
-  await giftUserItems(uid, { necklaceId, badgeId, frameId, specialId });
-
-  // 3. Save meta in app_config
-  await client.from('app_config').upsert({
-    key: 'admin_meta_' + uid,
-    value: {
-      uid,
-      appId: specialId || appId || '',
-      name: name || '',
-      email: resolvedEmail,
-      loginUsername: specialId || appId || resolvedEmail,
-      password: cleanPass,
-      supervisorId: supervisorId || '',
-      salary,
-      commissionRate,
-      specialId: specialId || '',
-      giftedFrame: frameId || '',
-      giftedBadge: badgeId || '',
-      giftedNecklace: necklaceId || '',
-      permissions,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    },
-  });
-
-  // 4. Save direct auth in app_config for instant login
-  if (cleanPass) {
-    const authRecord = {
-      uid,
-      appId: specialId || appId || uid,
-      email: resolvedEmail,
-      loginUsername: specialId || appId || uid,
-      password: cleanPass,
-      role: 'admin',
-      permissions: Object.keys(permissions).length > 0 ? Object.keys(permissions).filter(k => permissions[k]) : ['all'],
-      displayName: name || 'Admin',
-    };
-    await Promise.all([
-      client.from('app_config').upsert({ key: 'admin_auth_' + uid.toLowerCase(), value: authRecord }),
-      client.from('app_config').upsert({ key: 'admin_auth_' + resolvedEmail.toLowerCase(), value: authRecord }),
-      appId ? client.from('app_config').upsert({ key: 'admin_auth_' + appId.toLowerCase(), value: authRecord }) : Promise.resolve(),
-      specialId ? client.from('app_config').upsert({ key: 'admin_auth_' + specialId.toLowerCase(), value: authRecord }) : Promise.resolve(),
-    ]);
-  }
-
-  // 5. Create or update admin_users table for dashboard access with checkboxes
-  const adminUserData: any = {
-    uid,
-    app_id: specialId || appId || uid,
-    email: resolvedEmail,
-    display_name: name || 'Admin',
-    role: 'admin',
-    permissions: permissions,
-    updated_at: new Date().toISOString(),
-  };
-  if (cleanPass) adminUserData.password = cleanPass;
-
-  try {
-    await client.from('admin_users').upsert(adminUserData, { onConflict: 'uid' });
-  } catch (e) {
-    console.warn('admin_users upsert error:', e);
-  }
-
-  // 6. Send in-app notification
-  await sendSystemNotification({
-    userId: uid,
-    title: 'تهانينا! تم تعيينك كـ Admin رسمي 🛡️',
-    body: `تم اعتماد حسابك كـ Admin براتب شهري ${salary} ونسبة عمولة ${commissionRate}% على أرباح الوكالات التابعة لك.`,
-    type: 'admin_assigned',
-    action: 'admin_center',
-  });
-}
-
-export async function updateAdminStaff(params: {
-  uid: string;
-  supervisorId?: string;
-  salary?: number;
-  commissionRate?: number;
-  permissions?: Record<string, boolean>;
-  password?: string;
-}) {
-  const client = getAdminSupabase() || supabase;
-  const { uid, supervisorId, salary = 0, commissionRate = 10, permissions, password } = params;
-
-  try {
-    await client.from('users').update({
-      admin_salary: salary,
-      admin_commission_rate: commissionRate,
-      admin_supervisor_id: supervisorId || null,
-    }).or(`uid.eq.${uid},id.eq.${uid}`);
-  } catch (_) {}
-
-  const { data: curMeta } = await client.from('app_config').select('value').eq('key', 'admin_meta_' + uid).maybeSingle();
-  const cur = (curMeta?.value as any) || {};
-  const cleanPass = password?.trim() || cur.password || '';
-
-  await client.from('app_config').upsert({
-    key: 'admin_meta_' + uid,
-    value: {
-      ...cur,
-      supervisorId: supervisorId !== undefined ? supervisorId : cur.supervisorId,
-      salary,
-      commissionRate,
-      password: cleanPass,
-      updatedAt: new Date().toISOString(),
-    },
-  });
-
-  const adminUpdates: any = { updated_at: new Date().toISOString() };
-  if (permissions) adminUpdates.permissions = permissions;
-  if (password && password.trim()) adminUpdates.password = password.trim();
-
-  try {
-    await client.from('admin_users').update(adminUpdates).eq('uid', uid);
-  } catch (_) {}
-
-  if (password && password.trim()) {
-    const authRecord = {
-      uid,
-      appId: cur.appId || uid,
-      email: cur.email || '',
-      loginUsername: cur.loginUsername || cur.appId || uid,
-      password: password.trim(),
-      role: 'admin',
-      permissions: permissions ? Object.keys(permissions).filter(k => permissions[k]) : ['all'],
-      displayName: cur.name || 'Admin',
-    };
-    await Promise.all([
-      client.from('app_config').upsert({ key: 'admin_auth_' + uid.toLowerCase(), value: authRecord }),
-      cur.email ? client.from('app_config').upsert({ key: 'admin_auth_' + cur.email.toLowerCase(), value: authRecord }) : Promise.resolve(),
-      cur.appId ? client.from('app_config').upsert({ key: 'admin_auth_' + cur.appId.toLowerCase(), value: authRecord }) : Promise.resolve(),
-    ]);
-  }
-}
-
-export async function revokeAdminStaff(uid: string) {
-  const client = getAdminSupabase() || supabase;
-  await client.from('users').update({
-    is_admin: false,
-    role: 'user',
-    admin_salary: 0,
-    admin_commission_rate: 0,
-    admin_supervisor_id: null,
-  }).or(`uid.eq.${uid},id.eq.${uid}`);
-
-  await client.from('app_config').delete().eq('key', 'admin_meta_' + uid);
-  try {
-    await client.from('admin_users').delete().eq('uid', uid);
-  } catch (_) {}
-}
-
-export async function getStaffCommissionConfigs(): Promise<{
-  superAdminRate: number;
-  adminRate: number;
-  bdRate: number;
-  tiers: Array<{ targetDiamonds: number; bonusPercentage: number; description: string }>;
-}> {
-  const client = getAdminSupabase() || supabase;
-  try {
-    const { data } = await client.from('app_config').select('value').eq('key', 'staff_commissions_config').maybeSingle();
-    if (data?.value) {
-      return data.value;
-    }
-  } catch (_) {}
-  return {
-    superAdminRate: 15,
-    adminRate: 10,
-    bdRate: 10,
-    tiers: [
-      { targetDiamonds: 10000000, bonusPercentage: 2, description: '10M Target Milestone' },
-      { targetDiamonds: 50000000, bonusPercentage: 5, description: '50M Target Milestone' },
-      { targetDiamonds: 100000000, bonusPercentage: 10, description: '100M Super Target Milestone' },
-    ],
-  };
-}
-
-export async function saveStaffCommissionConfigs(config: any): Promise<boolean> {
-  const client = getAdminSupabase() || supabase;
-  try {
-    await client.from('app_config').upsert({
-      key: 'staff_commissions_config',
-      value: config,
-    });
-    return true;
-  } catch (e) {
-    console.error('saveStaffCommissionConfigs error:', e);
-    return false;
-  }
-}
-
-export async function getSalaryTransfers(): Promise<SalaryTransferRequest[]> {
-  const client = getAdminSupabase() || supabase;
-  try {
-    const { data, error } = await client
-      .from('salary_transfer_requests')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    if (error || !data) return [];
-    return data as SalaryTransferRequest[];
-  } catch (e) {
-    console.error('getSalaryTransfers error:', e);
-    return [];
-  }
-}
-

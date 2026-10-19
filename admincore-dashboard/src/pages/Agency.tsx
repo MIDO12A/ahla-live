@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import {
   HostAgencyModel, HostAgencyMemberModel, CommissionSettingModel,
   HostMilestoneModel, AgencyJoinRequestModel, AgencyLedgerEntryModel,
-  AgencyWithdrawalRequestModel, AgencyApplicationModel, HostRechargeRecord,
+  AgencyWithdrawalRequestModel, AgencyApplicationModel,
 } from '../types';
 import {
   getHostAgencies, createHostAgency, updateHostAgency, deleteHostAgency,
@@ -11,8 +11,6 @@ import {
   createHostMilestone, deleteHostMilestone,
   getHostAgencyJoinRequests, approveJoinRequest, rejectJoinRequest,
   updateAgencyMemberRole, removeAgencyMember, addAgencyMember,
-  transferAgencyMember, removeAgencyMemberWithNotification,
-  getHostRechargeHistory, refundAgentRechargeTransaction,
   getAgencyApplications, approveAgencyApplication, rejectAgencyApplication, createAgencyApplication,
   updateRechargeAgency, revokeRechargeAgency,
   getAgencyLedger, getWithdrawalRequests, approveWithdrawal, rejectWithdrawal,
@@ -21,17 +19,15 @@ import {
 } from '../lib/db';
 import { uploadStoreItem } from '../lib/storage';
 import { supabase } from '../lib/supabase';
-import { getCurrentAdminName, onAuthChange, type AppUser } from '../lib/auth';
+import { firebaseAuth, firestoreDb } from '../lib/firebase';
+import { doc, setDoc, increment } from 'firebase/firestore';
 import { I18nContext } from '../lib/i18n';
-import { useOutletContext } from 'react-router-dom';
-import { canUserAccess } from '../lib/permissions';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
 import {
   Handshake, Users, UserPlus, Wallet, Target, Settings, Sparkles,
   Save, CheckCircle2, RefreshCw, ClipboardCheck, Plus, Trash2, Edit3,
   XCircle, Check, ShieldCheck, UserMinus, Eye, ExternalLink,
-  ArrowRightLeft, RotateCcw, Coins, FileText, AlertTriangle,
 } from 'lucide-react';
 
 /* =============================================================
@@ -120,41 +116,22 @@ function UserSearchPreview({ query, onSelect }: { query?: string | null; onSelec
 }
 
 const tabs = [
-  { key: 'agencies', permKey: 'agency', label: 'الوكالات', labelKey: 'agency.agencies', icon: Handshake },
-  { key: 'recharge_agencies', permKey: 'agency_recharge', label: 'وكالات الشحن والرواتب', labelKey: 'agency.rechargeAgencies', icon: Wallet },
-  { key: 'agency_requests', permKey: 'agency_requests', label: 'طلبات فتح الوكالات', labelKey: 'agency.agencyRequests', icon: ClipboardCheck },
-  { key: 'milestones', permKey: 'agency_milestones', label: 'المراحل والتارجت والرواتب', labelKey: 'agency.milestones', icon: Target },
-  { key: 'members', permKey: 'agency_members', label: 'أعضاء الوكالات', labelKey: 'agency.members', icon: Users },
-  { key: 'necklaces', permKey: 'agency_necklaces', label: 'قلادات الوكالة SVGA', labelKey: 'agency.necklaces', icon: Sparkles },
-  { key: 'join_requests', permKey: 'agency_join_requests', label: 'طلبات الانضمام', labelKey: 'agency.joinRequests', icon: UserPlus },
-  { key: 'financial', permKey: 'agency_financial', label: 'السجلات المالية', labelKey: 'agency.financial', icon: Wallet },
-  { key: 'commission', permKey: 'agency_commission', label: 'نسب العمولات العامة', labelKey: 'agency.commission', icon: Settings },
+  { key: 'agencies', label: 'الوكالات', labelKey: 'agency.agencies', icon: Handshake },
+  { key: 'recharge_agencies', label: 'وكالات الشحن والرواتب', labelKey: 'agency.rechargeAgencies', icon: Wallet },
+  { key: 'agency_requests', label: 'طلبات فتح الوكالات', labelKey: 'agency.agencyRequests', icon: ClipboardCheck },
+  { key: 'milestones', label: 'المراحل والتارجت والرواتب', labelKey: 'agency.milestones', icon: Target },
+  { key: 'members', label: 'أعضاء الوكالات', labelKey: 'agency.members', icon: Users },
+  { key: 'necklaces', label: 'قلادات الوكالة SVGA', labelKey: 'agency.necklaces', icon: Sparkles },
+  { key: 'join_requests', label: 'طلبات الانضمام', labelKey: 'agency.joinRequests', icon: UserPlus },
+  { key: 'financial', label: 'السجلات المالية', labelKey: 'agency.financial', icon: Wallet },
+  { key: 'commission', label: 'نسب العمولات العامة', labelKey: 'agency.commission', icon: Settings },
 ] as const;
 type Tab = typeof tabs[number]['key'];
 
 export default function AgencyPage() {
-  const outletCtx = useOutletContext<{ currentUser?: AppUser | null }>();
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => outletCtx?.currentUser || null);
-
-  useEffect(() => {
-    if (outletCtx?.currentUser) {
-      setCurrentUser(outletCtx.currentUser);
-    } else {
-      const unsub = onAuthChange(u => setCurrentUser(u));
-      return unsub;
-    }
-  }, [outletCtx?.currentUser]);
-
-  const visibleTabs = tabs.filter(tabItem => canUserAccess(currentUser, tabItem.permKey));
-  const [tab, setTab] = useState<Tab>(() => visibleTabs[0]?.key || 'agencies');
+  const [tab, setTab] = useState<Tab>('agencies');
   const [filterAgencyId, setFilterAgencyId] = useState<string>('');
   const { t } = useContext(I18nContext);
-
-  useEffect(() => {
-    if (visibleTabs.length > 0 && !visibleTabs.some(t => t.key === tab)) {
-      setTab(visibleTabs[0].key);
-    }
-  }, [visibleTabs, tab]);
 
   const handleViewAgencyMembers = (agencyId: string) => {
     setFilterAgencyId(agencyId);
@@ -167,33 +144,24 @@ export default function AgencyPage() {
         <Handshake className="w-5 h-5 text-indigo-400" />
         <h2 className="text-white text-lg font-semibold">{t('agency.title')}</h2>
       </div>
-
-      {visibleTabs.length === 0 ? (
-        <div className="p-8 text-center text-slate-400 bg-[#141417] border border-white/5 rounded-2xl">
-          ليس لديك صلاحية للوصول إلى أي من أقسام الوكالات الفرعية. يرجى مراجعة إدارة اللوحة.
-        </div>
-      ) : (
-        <>
-          <div className="flex gap-2 flex-wrap">
-            {visibleTabs.map(tabItem => (
-              <button key={tabItem.key} onClick={() => setTab(tabItem.key)}
-                className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg font-semibold transition-colors ${tab === tabItem.key ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400 hover:text-white'}`}>
-                <tabItem.icon className="w-3.5 h-3.5" />
-                {tabItem.label || t(tabItem.labelKey)}
-              </button>
-            ))}
-          </div>
-          {tab === 'agencies' && canUserAccess(currentUser, 'agency') && <AgenciesTab onViewMembers={handleViewAgencyMembers} />}
-          {tab === 'recharge_agencies' && canUserAccess(currentUser, 'agency_recharge') && <RechargeAgenciesTab />}
-          {tab === 'agency_requests' && canUserAccess(currentUser, 'agency_requests') && <AgencyRequestsTab />}
-          {tab === 'milestones' && canUserAccess(currentUser, 'agency_milestones') && <MilestonesTab />}
-          {tab === 'members' && canUserAccess(currentUser, 'agency_members') && <MembersTab initialAgencyId={filterAgencyId} />}
-          {tab === 'necklaces' && canUserAccess(currentUser, 'agency_necklaces') && <AgencyNecklacesTab />}
-          {tab === 'join_requests' && canUserAccess(currentUser, 'agency_join_requests') && <JoinRequestsTab />}
-          {tab === 'financial' && canUserAccess(currentUser, 'agency_financial') && <FinancialTab />}
-          {tab === 'commission' && canUserAccess(currentUser, 'agency_commission') && <CommissionTab />}
-        </>
-      )}
+      <div className="flex gap-2 flex-wrap">
+        {tabs.map(tabItem => (
+          <button key={tabItem.key} onClick={() => setTab(tabItem.key)}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg font-semibold transition-colors ${tab === tabItem.key ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400 hover:text-white'}`}>
+            <tabItem.icon className="w-3.5 h-3.5" />
+            {tabItem.label || t(tabItem.labelKey)}
+          </button>
+        ))}
+      </div>
+      {tab === 'agencies' && <AgenciesTab onViewMembers={handleViewAgencyMembers} />}
+      {tab === 'recharge_agencies' && <RechargeAgenciesTab />}
+      {tab === 'agency_requests' && <AgencyRequestsTab />}
+      {tab === 'milestones' && <MilestonesTab />}
+      {tab === 'members' && <MembersTab initialAgencyId={filterAgencyId} />}
+      {tab === 'necklaces' && <AgencyNecklacesTab />}
+      {tab === 'join_requests' && <JoinRequestsTab />}
+      {tab === 'financial' && <FinancialTab />}
+      {tab === 'commission' && <CommissionTab />}
     </div>
   );
 }
@@ -205,7 +173,6 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const { t } = useContext(I18nContext);
   const [agencies, setAgencies] = useState<HostAgencyModel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedAgencyForLedger, setSelectedAgencyForLedger] = useState<HostAgencyModel | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -241,7 +208,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const handleSubmit = async () => {
     if (!name.trim() || !ownerId.trim()) return;
     const finalOwnerId = resolvedOwnerUser?.id || ownerId.trim();
-    const adminName = getCurrentAdminName();
+    const adminName = firebaseAuth.currentUser?.displayName || firebaseAuth.currentUser?.email || 'إدارة التطبيق';
 
     if (!editId && sendInviteMode) {
       await sendAgencyInvitation({
@@ -396,10 +363,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
                 <img src={ag.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(ag.name || 'Agency')}&background=random`} alt="" className="w-8 h-8 rounded-xl object-cover border border-amber-500/30" />
                 <div>
                   <div className="text-white font-bold text-xs">{ag.name}</div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded">كود: {ag.agency_code || (ag.id ? (100 + (Math.abs(ag.id.split('').reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0)) % 900)) : '---')}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">ID: {ag.id?.slice(0, 8)}</span>
-                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono">ID: {ag.id?.slice(0, 8)}</div>
                 </div>
               </div>
             );
@@ -408,11 +372,8 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
             const ag = a as HostAgencyModel;
             return (
               <div className="flex items-center gap-2">
-                {ag.owner_avatar && <img src={ag.owner_avatar} alt="" className="w-7 h-7 rounded-full object-cover border border-amber-400/30 shrink-0" />}
-                <div>
-                  <div className="text-slate-200 text-xs font-semibold">{ag.owner_name || ag.owner_id?.slice(0, 8)}</div>
-                  <div className="text-[10px] text-emerald-400 font-mono font-bold">ID: #{ag.owner_custom_id || ag.owner_id?.slice(0, 8)}</div>
-                </div>
+                {ag.owner_avatar && <img src={ag.owner_avatar} alt="" className="w-6 h-6 rounded-full object-cover border border-white/10" />}
+                <span className="text-slate-200 text-xs font-semibold">{ag.owner_name || ag.owner_id?.slice(0, 8)}</span>
               </div>
             );
           }},
@@ -444,44 +405,14 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
             const active = (a as HostAgencyModel).is_active;
             return <span className={active ? 'text-emerald-400' : 'text-rose-400'}>{active ? t('agency.yes') : t('agency.no')}</span>;
           }},
-          { key: 'record_action', label: 'سجل الوكالة', render: a => {
-            const ag = a as HostAgencyModel;
-            return (
-              <button
-                onClick={() => setSelectedAgencyForLedger(ag)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-indigo-500/20 hover:from-amber-500/30 hover:to-indigo-500/30 border border-amber-500/35 text-amber-200 rounded-xl text-xs font-bold transition-all shadow-sm"
-                title="عرض سجل أعضاء الوكالة الكامل وإدارتهم"
-              >
-                <FileText className="w-3.5 h-3.5 text-amber-400" />
-                <span>📋 سجل الوكالة</span>
-              </button>
-            );
-          }},
         ]}
         data={agencies}
         searchKeys={['name', 'owner_name', 'specialty', 'country', 'tier']}
         onEdit={a => openEdit(a as HostAgencyModel)}
         onDelete={async a => {
-          const ag = a as HostAgencyModel;
-          if (confirm(`هل أنت متأكد من حذف وكالة "${ag.name}" نهائياً؟ سيتم فك ارتباط جميع المضيفين والمالك وإلغاء تفعيل الوكالة فوراً.`)) {
-            const ok = await deleteHostAgency(ag.id);
-            if (ok) {
-              alert(`تم حذف وكالة "${ag.name}" بنجاح وفك ارتباط جميع الأعضاء.`);
-            } else {
-              alert(`حدث خطأ أثناء محاولة حذف الوكالة.`);
-            }
-            load();
-          }
+          if (confirm(t('agency.deleteConfirm'))) { await deleteHostAgency((a as HostAgencyModel).id); load(); }
         }}
       />
-
-      {selectedAgencyForLedger && (
-        <AgencyRecordModal
-          agency={selectedAgencyForLedger}
-          allAgencies={agencies}
-          onClose={() => { setSelectedAgencyForLedger(null); load(); }}
-        />
-      )}
     </div>
   );
 }
@@ -506,10 +437,6 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
   const [addRole, setAddRole] = useState('host');
   const [adding, setAdding] = useState(false);
 
-  // Transfer & Recharge History Modal States
-  const [transferTarget, setTransferTarget] = useState<HostAgencyMemberModel | null>(null);
-  const [rechargeTarget, setRechargeTarget] = useState<HostAgencyMemberModel | null>(null);
-
   useEffect(() => {
     if (initialAgencyId) {
       setFilterAgency(initialAgencyId);
@@ -530,10 +457,8 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
   };
 
   const handleRemove = async (agencyId: string, userId: string, userName?: string) => {
-    const ag = agencies.find(a => a.id === agencyId);
-    if (confirm(`هل أنت متأكد من حذف ${userName || 'هذا المضيف'} نهائياً من الوكالة؟\nسيتم خروجه فوراً وإرسال إشعار حذف رسمي له داخل التطبيق.`)) {
-      const res = await removeAgencyMemberWithNotification(agencyId, userId, ag?.name, userName);
-      alert(res.message);
+    if (confirm(`هل أنت متأكد من إزالة ${userName || 'هذا العضو'} من الوكالة؟ سيتم فصله وتحديث عدد أعضاء الوكالة فوراً.`)) {
+      await removeAgencyMember(agencyId, userId);
       load();
     }
   };
@@ -627,7 +552,7 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
                 <img src={mem.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(mem.user_name || 'User')}&background=random`} alt="" className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
                 <div>
                   <div className="text-white font-bold text-xs">{mem.user_name || 'مستخدم'}</div>
-                  <div className="text-[10px] text-cyan-400 font-mono font-bold">ID: #{mem.custom_id || mem.user_id?.slice(0, 8)}</div>
+                  <div className="text-[10px] text-slate-400 font-mono">ID: {mem.custom_id || mem.user_id?.slice(0, 8)}</div>
                 </div>
               </div>
             );
@@ -648,43 +573,27 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
           }},
           { key: 'diamonds_earned_monthly', label: 'ألماس الشهر', sortable: true, render: m => {
             const v = (m as HostAgencyMemberModel).diamonds_earned_monthly;
-            return <span className="text-amber-400 font-bold font-mono">{v?.toLocaleString() ?? '0'} 💎</span>;
+            return <span className="text-amber-400 font-semibold">{v?.toLocaleString() ?? '0'} 💎</span>;
           }},
           { key: 'diamonds_balance', label: 'الرصيد القابل للسحب', sortable: true, render: m => {
             const v = (m as HostAgencyMemberModel).diamonds_balance;
-            return <span className="text-cyan-400 font-semibold font-mono">{v?.toLocaleString() ?? '0'} 💎</span>;
+            return <span className="text-cyan-400 font-semibold">{v?.toLocaleString() ?? '0'} 💎</span>;
           }},
           { key: 'joined_at', label: 'تاريخ الانضمام', sortable: true, render: m => new Date((m as HostAgencyMemberModel).joined_at).toLocaleDateString('ar-EG') },
           { key: 'actions', label: 'الإجراءات', render: m => {
             const member = m as HostAgencyMemberModel;
-            if (member.role === 'owner') return <span className="text-[10px] text-amber-400 font-semibold">👑 مالك الوكالة</span>;
+            if (member.role === 'owner') return <span className="text-[10px] text-amber-400 font-semibold">مالك الوكالة</span>;
             return (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  onClick={() => setTransferTarget(member)}
-                  className="text-[10px] bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1"
-                  title="نقل المضيف لوكالة أخرى وتصفير تارجته"
-                >
-                  <ArrowRightLeft className="w-3 h-3" />
-                  <span>نقل</span>
-                </button>
-                <button
-                  onClick={() => setRechargeTarget(member)}
-                  className="text-[10px] bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1"
-                  title="سجل الشحن الكامل وإرجاع الشحن"
-                >
-                  <Coins className="w-3 h-3" />
-                  <span>سجل الشحن</span>
-                </button>
+              <div className="flex items-center gap-2">
                 <select defaultValue="" onChange={e => { if (e.target.value) handleRoleChange(member.agency_id, member.user_id, e.target.value); }}
                   className="bg-[#161618] border border-white/10 rounded py-0.5 px-1 text-[10px] text-white">
-                  <option value="" disabled>الرتبة</option>
+                  <option value="" disabled>تغيير الرتبة</option>
                   <option value="supervisor">مشرف</option>
                   <option value="host">مضيف</option>
                 </select>
                 <button onClick={() => handleRemove(member.agency_id, member.user_id, member.user_name)}
                   className="text-[10px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-semibold transition-all">
-                  حذف
+                  إزالة من الوكالة
                 </button>
               </div>
             );
@@ -693,23 +602,6 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
         data={members}
         searchKeys={['user_name', 'role', 'status', 'custom_id']}
       />
-
-      {transferTarget && (
-        <TransferHostModal
-          member={transferTarget}
-          currentAgency={agencies.find(a => a.id === transferTarget.agency_id) || { id: transferTarget.agency_id, name: 'الوكالة الحالية' } as HostAgencyModel}
-          allAgencies={agencies}
-          onClose={() => setTransferTarget(null)}
-          onSuccess={() => { setTransferTarget(null); load(); }}
-        />
-      )}
-
-      {rechargeTarget && (
-        <HostRechargeHistoryModal
-          member={rechargeTarget}
-          onClose={() => setRechargeTarget(null)}
-        />
-      )}
     </div>
   );
 }
@@ -747,7 +639,7 @@ function AgencyRequestsTab() {
   const handleApprove = async (app: AgencyApplicationModel) => {
     if (!confirm(`هل أنت متأكد من قبول طلب فتح ${app.agency_type === 'host' ? 'وكالة المضيفين' : 'وكالة الشحن'} (${app.agency_name})؟ سيتم تفعيل الوكالة فوراً.`)) return;
     setActionLoading(true);
-    const adminName = getCurrentAdminName();
+    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
     const res = await approveAgencyApplication(app, adminName);
     alert(res.message);
     setActionLoading(false);
@@ -757,7 +649,7 @@ function AgencyRequestsTab() {
   const handleReject = async () => {
     if (!rejectModalApp) return;
     setActionLoading(true);
-    const adminName = getCurrentAdminName();
+    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
     const res = await rejectAgencyApplication(rejectModalApp.id, rejectModalApp.user_id, rejectionReason, adminName);
     alert(res.message);
     setRejectModalApp(null);
@@ -1164,7 +1056,7 @@ function MilestonesTab() {
   const [rewardItemId, setRewardItemId] = useState('');
   const [rewardImageUrl, setRewardImageUrl] = useState('');
   const [backgroundUrl, setBackgroundUrl] = useState('');
-  const [generalCommissionRate, setGeneralCommissionRate] = useState<number>(15);
+  const [agentCommissionRate, setAgentCommissionRate] = useState('10');
   const [periodType, setPeriodType] = useState('monthly');
   const [sortOrder, setSortOrder] = useState('0');
   const [isActive, setIsActive] = useState(true);
@@ -1173,10 +1065,6 @@ function MilestonesTab() {
   const load = () => {
     setLoading(true);
     getHostMilestones().then(d => { setMilestones(d); setLoading(false); });
-    getCommissionSettings().then(cs => {
-      const ar = cs.find(c => c.key === 'agency_rate')?.value;
-      if (ar != null) setGeneralCommissionRate(ar);
-    });
     supabase.from('store_items').select('*').then(({ data }) => {
       if (data) setStoreItems(data);
     });
@@ -1187,7 +1075,7 @@ function MilestonesTab() {
   const resetForm = () => {
     setTitle(''); setTargetDiamonds('1000000'); setRewardType('salary_usd');
     setRewardValue('100'); setRewardItemId(''); setRewardImageUrl(''); setBackgroundUrl('');
-    setPeriodType('monthly'); setSortOrder('0'); setIsActive(true);
+    setAgentCommissionRate('10'); setPeriodType('monthly'); setSortOrder('0'); setIsActive(true);
     setEditId(null); setShowItemPicker(false);
   };
 
@@ -1200,6 +1088,8 @@ function MilestonesTab() {
     setRewardItemId(m.reward_item_id ?? m.rewardItemId ?? '');
     setRewardImageUrl(m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? '');
     setBackgroundUrl(m.background_url ?? m.backgroundUrl ?? '');
+    const rate = Number(m.agent_commission_rate ?? m.agentCommissionRate ?? 0.1);
+    setAgentCommissionRate(String((rate * 100).toFixed(0)));
     setPeriodType(m.period_type ?? m.periodType ?? 'monthly');
     setSortOrder(String(m.sort_order ?? m.sortOrder ?? 0));
     setIsActive(m.is_active !== false && m.isActive !== false);
@@ -1216,7 +1106,7 @@ function MilestonesTab() {
       reward_item_id: rewardItemId.trim() || null,
       reward_image_url: rewardImageUrl.trim() || null,
       background_url: backgroundUrl.trim() || null,
-      agent_commission_rate: (generalCommissionRate || 15) / 100,
+      agent_commission_rate: (parseFloat(agentCommissionRate) || 0) / 100,
       period_type: periodType as any,
       is_active: isActive,
       sort_order: parseInt(sortOrder) || 0,
@@ -1257,7 +1147,7 @@ function MilestonesTab() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">اسم المرحلة / التارجت *</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="مثال: الهدف الفضي (1M)"
@@ -1268,15 +1158,17 @@ function MilestonesTab() {
               <input type="number" value={targetDiamonds} onChange={e => setTargetDiamonds(e.target.value)} placeholder="1000000"
                 className="w-full bg-[#121214] border border-cyan-500/30 rounded-xl py-2 px-3 text-xs text-cyan-300 font-bold focus:outline-none focus:border-cyan-400" />
             </div>
-          </div>
-
-          <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl px-3 py-2 text-xs flex items-center justify-between">
-            <span className="text-indigo-300 flex items-center gap-1.5 font-medium">
-              <span>🏦</span> يتم احتساب عمولة الوكيل تلقائياً بناءً على إعدادات العمولات العامة المعتمدة:
-            </span>
-            <span className="font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-              عمولة الوكيل الحالية: {generalCommissionRate}%
-            </span>
+            <div>
+              <label className="text-[11px] text-amber-400 block mb-1">عمولة الوكيل من أرباح المضيف (%) *</label>
+              <div className="flex items-center gap-1.5">
+                <input type="number" step="0.5" value={agentCommissionRate} onChange={e => setAgentCommissionRate(e.target.value)} placeholder="10"
+                  className="w-full bg-[#121214] border border-amber-500/30 rounded-xl py-2 px-3 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400" />
+                <span className="text-xs text-amber-400 font-bold">%</span>
+                <button type="button" onClick={() => setAgentCommissionRate('5')} className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded text-[10px]">5%</button>
+                <button type="button" onClick={() => setAgentCommissionRate('10')} className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded text-[10px]">10%</button>
+                <button type="button" onClick={() => setAgentCommissionRate('20')} className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded text-[10px]">20%</button>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1387,59 +1279,6 @@ function MilestonesTab() {
             )}
           </div>
 
-          {/* Quick Preset Buttons */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
-            <span className="text-[11px] text-slate-400 font-bold">🎯 قوالب تارجت جاهزة وسريعة:</span>
-            <button
-              type="button"
-              onClick={() => {
-                setTitle('التارجت الأول (150,000 ماس)');
-                setTargetDiamonds('150000');
-                setRewardType('salary_usd');
-                setRewardValue('10');
-              }}
-              className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-semibold border border-amber-500/20"
-            >
-              التارجت الأول (150 ألف ماس 💎 - $10)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTitle('التارجت الثاني (300,000 ماس)');
-                setTargetDiamonds('300000');
-                setRewardType('salary_usd');
-                setRewardValue('20');
-              }}
-              className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg text-xs font-semibold border border-cyan-500/20"
-            >
-              التارجت الثاني (300 ألف ماس 💎 - $20)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTitle('التارجت الثالث (500,000 ماس)');
-                setTargetDiamonds('500000');
-                setRewardType('salary_usd');
-                setRewardValue('35');
-              }}
-              className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 rounded-lg text-xs font-semibold border border-indigo-500/20"
-            >
-              التارجت الثالث (500 ألف ماس 💎 - $35)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTitle('تارجت المليون (1,000,000 ماس)');
-                setTargetDiamonds('1000000');
-                setRewardType('salary_usd');
-                setRewardValue('70');
-              }}
-              className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-500/20"
-            >
-              تارجت المليون (1 مليون ماس 💎 - $70)
-            </button>
-          </div>
-
           {/* Image and Background Upload for the Milestone */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-[#121214] p-3 rounded-xl border border-white/5">
             <div>
@@ -1495,24 +1334,22 @@ function MilestonesTab() {
             const val = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
             return <span className="text-cyan-400 font-bold">{val.toLocaleString()} 💎</span>;
           }},
-          { key: 'reward_value', label: 'الراتب / المكافأة المحددة', render: m => {
-            const rType = (m as any).reward_type || (m as any).rewardType || 'salary_usd';
-            const rVal = (m as any).reward_value ?? (m as any).rewardValue ?? 0;
-            if (rType === 'salary_usd') return <span className="text-emerald-400 font-bold">${rVal} USD 💵</span>;
-            if (rType === 'diamonds') return <span className="text-cyan-400 font-bold">{Number(rVal).toLocaleString()} 💎</span>;
-            if (rType === 'gold') return <span className="text-amber-400 font-bold">{Number(rVal).toLocaleString()} 🪙</span>;
-            if (rType === 'vip_days') return <span className="text-purple-400 font-bold">{rVal} يوم VIP 👑</span>;
-            return <span className="text-indigo-400 font-bold">{rVal} ({rType})</span>;
+          { key: 'reward_type', label: 'نوع المكافأة', sortable: true, render: m => {
+            const rt = (m as any).reward_type ?? (m as any).rewardType;
+            return <span className="text-amber-400 font-semibold">{rt === 'salary_usd' ? '💵 راتب USD' : rt === 'gold' ? '🪙 عملات' : rt === 'diamonds' ? '💎 ألماس' : rt === 'frame' ? '🖼️ إطار' : rt === 'badge' ? '🏅 وسام' : rt === 'entry_effect' ? '🚗 مؤثر دخول' : rt === 'vip_days' ? '👑 أيام VIP' : rt || '—'}</span>;
           }},
-          { key: 'agent_commission_rate', label: `عمولة الوكيل (${generalCommissionRate}%)`, sortable: true, render: m => {
-            const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
-            const commVal = Math.round(tD * ((generalCommissionRate || 15) / 100));
-            return (
-              <div className="flex flex-col">
-                <span className="text-amber-400 font-bold">{commVal.toLocaleString()} 💎</span>
-                <span className="text-[10px] text-slate-500">حسب العمولات العامة ({generalCommissionRate}%)</span>
-              </div>
-            );
+          { key: 'reward_value', label: 'قيمة الراتب / المكافأة', sortable: true, render: m => {
+            const val = (m as any).reward_value ?? (m as any).rewardValue ?? '';
+            const rt = (m as any).reward_type ?? (m as any).rewardType;
+            return <span className="text-emerald-400 font-bold">{val} {rt === 'salary_usd' ? '$' : rt === 'gold' ? '🪙' : rt === 'diamonds' ? '💎' : rt === 'vip_days' ? 'يوم' : ''}</span>;
+          }},
+          { key: 'agent_commission_rate', label: 'عمولة الوكيل (%)', sortable: true, render: m => {
+            const rate = Number((m as any).agent_commission_rate ?? (m as any).agentCommissionRate ?? 0.1);
+            return <span className="text-amber-400 font-bold">{(rate * 100).toFixed(0)}%</span>;
+          }},
+          { key: 'period_type', label: 'الفترة', sortable: true, render: m => {
+            const pt = (m as any).period_type ?? (m as any).periodType;
+            return <span className="text-slate-400">{pt === 'monthly' ? 'شهري' : pt === 'weekly' ? 'أسبوعي' : pt === 'all_time' ? 'تراكمي' : pt === 'daily' ? 'يومي' : pt || '—'}</span>;
           }},
           { key: 'is_active', label: 'نشط', sortable: true, render: m => {
             const active = (m as any).is_active !== false && (m as any).isActive !== false;
@@ -1568,13 +1405,23 @@ function RechargeAgenciesTab() {
   const load = async () => {
     setLoading(true);
     try {
-      const { data: u1 } = await supabase.from('users').select('*').eq('is_recharge_agent', true);
-      setAgents(u1 || []);
+      const [u1, u2, raSnap] = await Promise.all([
+        supabase.from('users').select('*').eq('is_recharge_agent', true),
+        supabase.from('users').select('*').eq('isRechargeAgent', true),
+        supabase.from('recharge_agents').select('*'),
+      ]);
+      const map = new Map<string, any>();
+      (u1.data || []).forEach((u: any) => map.set(u.id || u.uid, u));
+      (u2.data || []).forEach((u: any) => map.set(u.id || u.uid, { ...(map.get(u.id || u.uid) || {}), ...u }));
+      (raSnap.data || []).forEach((r: any) => {
+        const key = r.id || r.uid || r.owner_id;
+        const prev = map.get(key) || {};
+        map.set(key, { ...prev, ...r, id: key, uid: key, is_recharge_agent: true });
+      });
+      setAgents(Array.from(map.values()));
 
-      try {
-        const { data: wData } = await supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false });
-        setWithdrawals(wData || []);
-      } catch (_) {}
+      const { data: wData } = await supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false });
+      setWithdrawals(wData || []);
     } catch (_) {}
     setLoading(false);
   };
@@ -1592,14 +1439,13 @@ function RechargeAgenciesTab() {
       return;
     }
     const userId = u.uid || u.id;
-    const adminName = getCurrentAdminName();
+    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
 
     await updateRechargeAgency(userId, {
       recharge_agency_name: agencyName.trim() || 'وكالة الشحن المعتمدة',
       recharge_agency_logo: agencyLogo.trim() || undefined,
       whatsapp_number: whatsappPhone.trim() || undefined,
       coins: parseInt(initialCoins) || 0,
-      coinsMode: 'set',
       recharge_commission_rate: parseFloat(rechargeCommissionRate) || 5,
       adminName,
     });
@@ -1622,13 +1468,12 @@ function RechargeAgenciesTab() {
 
   const handleSaveEditAgent = async () => {
     if (!editAgent) return;
-    const adminName = getCurrentAdminName();
+    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
     await updateRechargeAgency(editAgent.id, {
       recharge_agency_name: editName.trim() || 'وكالة الشحن المعتمدة',
       recharge_agency_logo: editLogo.trim() || undefined,
       whatsapp_number: editWhatsapp.trim() || undefined,
       coins: parseInt(editCoins) || 0,
-      coinsMode: 'set',
       recharge_commission_rate: parseFloat(editCommissionRate) || 5,
       adminName,
     });
@@ -1660,21 +1505,37 @@ function RechargeAgenciesTab() {
 
     const currentCoins = Number(u.coins || 0);
     const newCoins = currentCoins + amount;
-    const targetId = u.uid || u.id;
-
-    const { error: err1 } = await supabase.from('users').update({ 
+    await supabase.from('users').update({ 
       coins: newCoins,
-    }).eq('uid', targetId);
+      recharged_coins: Number(u.recharged_coins || 0) + amount,
+      total_recharge: Number(u.total_recharge || 0) + amount,
+    }).eq('id', u.id);
 
-    if (err1) {
-      await supabase.from('users').update({ 
-        coins: newCoins,
-      }).eq('id', targetId);
+    // مزامنة فورية مع Firestore لكي يظهر الشحن فوراً داخل حدث الشحن ويستلم المستخدم المكافأة
+    try {
+      const now = new Date();
+      const eventId = `recharge_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const userRef = doc(firestoreDb, 'users', u.id);
+      await setDoc(userRef, {
+        coins: increment(amount),
+        recharged_coins: increment(amount),
+        total_recharge: increment(amount),
+      }, { merge: true });
+
+      const progressRef = doc(firestoreDb, 'recharge_event_progress', `${eventId}_${u.id}`);
+      await setDoc(progressRef, {
+        event_id: eventId,
+        user_id: u.id,
+        total_recharged_coins: increment(amount),
+        updated_at: now.toISOString(),
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Firestore agency recharge sync:', err);
     }
 
-    const adminName = getCurrentAdminName();
+    const adminName = firebaseAuth?.currentUser?.displayName || firebaseAuth?.currentUser?.email || 'المشرف العام';
     await sendSystemNotification({
-      userId: targetId,
+      userId: u.id,
       title: '🪙 شحن رصيد عملات لحسابك',
       body: `مبروك! قام المشرف [${adminName}] بشحن ${amount.toLocaleString()} عملة ذهبية لحسابك بنجاح. رصيدك الحالي الآن: ${newCoins.toLocaleString()} عملة.`,
       type: 'system',
@@ -1682,7 +1543,7 @@ function RechargeAgenciesTab() {
       extraData: { amount, new_balance: newCoins, admin_name: adminName },
     });
 
-    alert(`تم شحن ${amount.toLocaleString()} عملة للمستخدم (${u.name || targetId}) بنجاح! الرصيد الجديد: ${newCoins.toLocaleString()}`);
+    alert(`تم شحن ${amount.toLocaleString()} عملة للمستخدم (${u.name || u.id}) بنجاح! الرصيد الجديد: ${newCoins.toLocaleString()}`);
     setShowRechargeModal(false);
     setRechargeUserUid('');
     setRechargeCoinsAmount('');
@@ -1992,104 +1853,34 @@ function CommissionTab() {
   };
 
   const descKeyMap: Record<string, string> = {
-    host_rate: 'نسبة راتب المضيف من الكوينز المستلمة (افتراضي 100%)',
-    host_target_exchange_rate: 'نسبة راتب المضيف في حال فك ألماس التارجت (افتراضي 60% - خصم 40% من الراتب)',
-    agency_rate: 'نسبة راتب وكيل المضيف من ماس المضيف (افتراضي 10%)',
-    recharge_agent_host_rate: 'عمولة وكيل الشحن من تحويل راتب المضيف (افتراضي 10%)',
-    recharge_agent_agency_rate: 'عمولة وكيل الشحن من تحويل راتب وكيل المضيف (افتراضي 10%)',
-    platform_rate: 'نسبة الإدارة والمتبقي للنظام (افتراضي 17.72%)',
-    coins_per_usd: 'سعر الصرف: عدد الكوينز لكل 1 دولار (15,000 كوينز)',
-    first_target_diamonds: 'قيمة التارجت الأول بالماس (150,000 ماس)',
+    host_rate: 'agency.commission.hostRate',
+    agency_rate: 'agency.commission.agencyRate',
+    platform_rate: 'agency.commission.platformRate',
+    gold_to_diamond: 'agency.commission.goldToDiamond',
+    diamonds_per_usd: 'agency.commission.diamondsPerUsd',
   };
 
   return (
-    <div className="space-y-6">
-      {/* Financial Policy Guide Card */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-emerald-500/10 border border-amber-500/30 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-amber-400" />
-          <h3 className="text-sm font-bold text-white">
-            🏦 سياسة توزيع الماس، التارجت، وعمولات وكلاء الشحن المعتمدة
-          </h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          {/* Card 1: Rate Calculation */}
-          <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2">
-            <div className="font-bold text-amber-300 flex items-center gap-1.5">
-              <span>💎</span> معدل التحويل والهدايا:
-            </div>
-            <p className="text-slate-300 leading-relaxed">
-              كل <strong>1 دولار = 15,000 كوينز</strong>.<br/>
-              عند إرسال هدايا بقيمة 15,000 كوينز:
-            </p>
-            <ul className="space-y-1 text-slate-300">
-              <li className="flex justify-between"><span>• المضيف (100%):</span> <strong className="text-emerald-400">15,000 ماس</strong></li>
-              <li className="flex justify-between"><span>• وكيل المضيف (10%):</span> <strong className="text-indigo-400">1,500 ماس</strong></li>
-            </ul>
-            <div className="text-[10px] text-amber-400/90 bg-amber-500/10 p-2 rounded border border-amber-500/20">
-              ⚡ يتم احتساب راتب وعمولة الوكيل تلقائياً دون خصمها من المضيف، وفي حال فك المضيف للألماس أو تحويله لكوينز لا تتأثر عمولة الوكيل نهائياً وتظل ثابتة في محفظته.
-            </div>
-          </div>
-
-          {/* Card 2: Target 1 Distribution */}
-          <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2">
-            <div className="font-bold text-indigo-300 flex items-center gap-1.5">
-              <span>🎯</span> سياسة تارجت المضيف وفك الألماس:
-            </div>
-            <ul className="space-y-1 text-slate-300">
-              <li className="flex justify-between"><span>• فك الألماس إلى كوينز (1:1):</span> <strong className="text-emerald-400">100% كوينز كاملة</strong></li>
-              <li className="flex justify-between"><span>• التأثير على التارجت الشهري:</span> <strong className="text-rose-400">يُخصم الألماس المفكوك ويتراجع التارجت</strong></li>
-              <li className="flex justify-between"><span>• نسبة الراتب عند فك التارجت:</span> <strong className="text-amber-400">60% فقط (خصم 40% من الراتب)</strong></li>
-              <li className="flex justify-between"><span>• مثال الراتب (لو 9 دولار):</span> <strong className="text-cyan-400">ينزل إلى 5.4$ (~5$)</strong></li>
-              <li className="flex justify-between border-t border-white/10 pt-1"><span>• عمولة وكيل المضيف (10%):</span> <strong className="text-indigo-400">محفوظة 100% دون أي خصم</strong></li>
-            </ul>
-            <div className="text-[10px] text-cyan-400/90 bg-cyan-500/10 p-2 rounded border border-cyan-500/20">
-              🔄 مثال تطبيقي: إذا كان تارجت المضيف 225,000 ماس وفك 100,000 ماس إلى كوينز: يستلم 100,000 كوينز كاملة، ويُخصم 100,000 من تارجته الشهري ليتبقى 125,000 ماس، ويتم احتساب راتب التارجت بنسبة 60% فقط (خصم 40% من الراتب، فينزل من 9$ إلى 5$)، وعمولة وكيل المضيف تبقى كما هي كاملة.
-            </div>
-          </div>
-
-          {/* Card 3: Recharge Agent Conversion */}
-          <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2">
-            <div className="font-bold text-emerald-300 flex items-center gap-1.5">
-              <span>⚡</span> تحويل الرواتب لوكيل الشحن:
-            </div>
-            <p className="text-slate-300 leading-relaxed">
-              • يُحوّل راتب المضيف وراتب وكيل المضيف بالماس لوكيل الشحن بشكل مستقل.<br/>
-              • عمولة وكيل الشحن تُضاف كعمولة إضافية مستقلة ولا تُخصم من المضيفين.<br/>
-              • تتحمل الإدارة عمولة وكيل الشحن من حصة النظام.
-            </p>
-          </div>
-        </div>
-      </div>
-
+    <div>
+      <p className="text-slate-500 text-xs mb-3">{t('agency.commission')}</p>
       <div className="bg-[#141417] rounded-2xl border border-white/5 overflow-hidden">
-        <div className="p-4 border-b border-white/5 flex items-center justify-between">
-          <div>
-            <h4 className="text-white text-xs font-bold">جدول نسب العمولات والتحويلات القابلة للتعديل</h4>
-            <p className="text-slate-500 text-[11px] mt-0.5">يمكنك تعديل أي نسبة بالضغط على "Edit" وسيتم تطبيقها على الفور في الحسابات التلقائية</p>
-          </div>
-          <button onClick={load} className="px-3 py-1 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs flex items-center gap-1">
-            <RefreshCw className="w-3 h-3" /> تحديث
-          </button>
-        </div>
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-white/5">
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">المفتاح (Key)</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">الوصف والتفاصيل</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">النسبة / القيمة الحالية</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">إجراء</th>
+              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">{t('agency.col.key')}</th>
+              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">{t('agency.col.desc')}</th>
+              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">{t('agency.col.value')}</th>
+              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">{t('agency.col.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="text-center py-12 text-slate-500">جاري التحميل...</td></tr>
+              <tr><td colSpan={4} className="text-center py-12 text-slate-500">{t('agency.loading')}</td></tr>
             ) : settings.map(s => (
               <tr key={s.id} className="border-b border-white/5 hover:bg-white/5">
                 <td className="p-3 text-white font-mono">{s.key}</td>
-                <td className="p-3 text-slate-300">{descKeyMap[s.key] || s.description || s.key}</td>
-                <td className="p-3"><span className="text-amber-400 font-bold">{s.value}%</span></td>
+                <td className="p-3 text-slate-400">{t(descKeyMap[s.key] as any) || s.description}</td>
+                <td className="p-3"><span className="text-amber-400 font-semibold">{s.value}</span></td>
                 <td className="p-3">
                   <InlineEdit value={s.value} onSave={v => handleUpdate(s.id, v)} />
                 </td>
@@ -2351,674 +2142,6 @@ function AgencyNecklacesTab() {
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
           {syncing ? 'جارٍ المزامنة...' : '⚡ مزامنة القلادات لجميع أصحاب الوكالات والمضيفين الآن'}
         </button>
-      </div>
-    </div>
-  );
-}
-
-/* =============================================================
-   TRANSFER HOST MODAL (نقل المضيف لوكالة أخرى وتصفير التارجت)
-   ============================================================= */
-function TransferHostModal({
-  member,
-  currentAgency,
-  allAgencies,
-  onClose,
-  onSuccess,
-}: {
-  member: HostAgencyMemberModel;
-  currentAgency: HostAgencyModel;
-  allAgencies: HostAgencyModel[];
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [targetAgencyId, setTargetAgencyId] = useState<string>('');
-  const [transferring, setTransferring] = useState(false);
-  const otherAgencies = allAgencies.filter(a => a.id !== currentAgency.id);
-
-  const handleTransfer = async () => {
-    if (!targetAgencyId) {
-      alert('يرجى اختيار الوكالة المستهدفة للنقل');
-      return;
-    }
-    const targetAg = allAgencies.find(a => a.id === targetAgencyId);
-    if (!confirm(`هل أنت متأكد من نقل المضيف (${member.user_name || member.custom_id}) من وكالة "${currentAgency.name}" إلى وكالة "${targetAg?.name}"؟\n\nتنبيه: سيتم تصفير تارجت الألماس الشهري الخاص به بالكامل لهذا الشهر فوراً (0 💎).`)) {
-      return;
-    }
-    setTransferring(true);
-    const res = await transferAgencyMember(
-      member.user_id,
-      currentAgency.id,
-      targetAgencyId,
-      currentAgency.name,
-      targetAg?.name
-    );
-    setTransferring(false);
-    alert(res.message);
-    if (res.success) {
-      onSuccess();
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#18181b] border border-indigo-500/30 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-2">
-            <ArrowRightLeft className="w-5 h-5 text-indigo-400" />
-            <h3 className="text-white font-bold text-sm">نقل المضيف إلى وكالة أخرى</h3>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">✕</button>
-        </div>
-
-        {/* Member Preview */}
-        <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
-          <img
-            src={member.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.user_name || 'Host')}&background=random`}
-            alt=""
-            className="w-12 h-12 rounded-full object-cover border border-indigo-400/40"
-          />
-          <div className="space-y-0.5">
-            <div className="text-white font-bold text-xs">{member.user_name || 'مضيف'}</div>
-            <div className="text-[11px] text-cyan-400 font-mono font-bold">ID: #{member.custom_id || member.user_id?.slice(0, 8)}</div>
-            <div className="text-[10px] text-slate-400">الوكالة الحالية: <span className="text-slate-200 font-bold">{currentAgency.name}</span></div>
-          </div>
-        </div>
-
-        {/* Warning Callout */}
-        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1">
-          <div className="text-amber-400 font-bold text-xs flex items-center gap-1.5">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>تنبيه تصفير التارجت الشهري:</span>
-          </div>
-          <p className="text-[11px] text-amber-200/90 leading-relaxed">
-            عند النقل، سيتم نقل ارتباط المضيف فوراً للوكالة الجديدة، و<strong>تصفير تارجت الألماس الشهري الخاص به بالكامل لهذا الشهر (0 💎)</strong> لبدء دورة جديدة، مع إرسال إشعار فوري داخل نظام التطبيق لإبلاغ المضيف.
-          </p>
-        </div>
-
-        {/* Select Target Agency */}
-        <div className="space-y-1.5">
-          <label className="text-xs text-slate-300 font-bold block">اختر الوكالة المستهدفة للنقل إليها *</label>
-          {otherAgencies.length === 0 ? (
-            <p className="text-xs text-rose-400">لا توجد وكالات أخرى متاحة للنقل إليها.</p>
-          ) : (
-            <select
-              value={targetAgencyId}
-              onChange={e => setTargetAgencyId(e.target.value)}
-              className="w-full bg-[#121214] border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-            >
-              <option value="">-- اضغط لاختيار الوكالة المستهدفة --</option>
-              {otherAgencies.map(a => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.member_count ?? 0} أعضاء) - المالك: {a.owner_name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-          <button onClick={onClose} className="px-4 py-2 text-xs text-slate-400 hover:text-white">إلغاء</button>
-          <button
-            onClick={handleTransfer}
-            disabled={transferring || !targetAgencyId}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg shadow-indigo-600/30"
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5" />
-            {transferring ? 'جاري النقل...' : 'تأكيد النقل وتصفير التارجت'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* =============================================================
-   HOST RECHARGE HISTORY & REFUND MODAL
-   ============================================================= */
-function HostRechargeHistoryModal({
-  member,
-  onClose,
-}: {
-  member: HostAgencyMemberModel;
-  onClose: () => void;
-}) {
-  const [records, setRecords] = useState<HostRechargeRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refundingTx, setRefundingTx] = useState<HostRechargeRecord | null>(null);
-  const [refunding, setRefunding] = useState(false);
-  const [memberCoins, setMemberCoins] = useState<number>(member.coins || 0);
-
-  const load = async () => {
-    setLoading(true);
-    const recs = await getHostRechargeHistory(member.user_id);
-    setRecords(recs);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-  }, [member.user_id]);
-
-  // Current month calculation
-  const now = new Date();
-  const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const thisMonthRecords = records.filter(r => r.created_at.startsWith(currentMonthPrefix));
-
-  const totalMonthCoins = thisMonthRecords.reduce((sum, r) => sum + r.amount_coins, 0);
-  const totalAgentCoins = thisMonthRecords.filter(r => r.source === 'agent').reduce((sum, r) => sum + r.amount_coins, 0);
-  const totalAdminCoins = thisMonthRecords.filter(r => r.source === 'admin').reduce((sum, r) => sum + r.amount_coins, 0);
-
-  const handleConfirmRefund = async () => {
-    if (!refundingTx) return;
-    setRefunding(true);
-    const res = await refundAgentRechargeTransaction(
-      refundingTx.id,
-      refundingTx.agent_id || '',
-      refundingTx.target_uid,
-      refundingTx.amount_coins,
-      member.custom_id,
-      refundingTx.agent_custom_id
-    );
-    setRefunding(false);
-    alert(res.message);
-    if (res.success) {
-      setMemberCoins(prev => Math.max(0, prev - refundingTx.amount_coins));
-      setRefundingTx(null);
-      load();
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#18181b] border border-amber-500/30 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-3">
-            <Coins className="w-5 h-5 text-amber-400" />
-            <div>
-              <h3 className="text-white font-bold text-sm">سجل الشحن الكامل للمضيف لهذا الشهر</h3>
-              <p className="text-[11px] text-slate-400">تفاصيل جميع عمليات الشحن من الوكلاء والإدارة والمتجر مع خيار استرجاع الشحن الخاطئ</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">✕</button>
-        </div>
-
-        {/* Host Details Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
-          <div className="flex items-center gap-3">
-            <img
-              src={member.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.user_name || 'Host')}&background=random`}
-              alt=""
-              className="w-10 h-10 rounded-full object-cover border border-amber-400/50"
-            />
-            <div>
-              <div className="text-white font-bold text-xs">{member.user_name || 'مضيف'}</div>
-              <div className="text-[11px] text-cyan-400 font-mono font-bold">ID: #{member.custom_id || member.user_id?.slice(0, 8)}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-left bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg">
-              <span className="text-[10px] text-slate-400 block">رصيد الكوينز الحالي</span>
-              <span className="text-xs text-amber-400 font-bold font-mono">🪙 {memberCoins.toLocaleString()} عملة</span>
-            </div>
-            <div className="text-left bg-cyan-500/10 border border-cyan-500/20 px-3 py-1.5 rounded-lg">
-              <span className="text-[10px] text-slate-400 block">ألماس الشهر الحالي</span>
-              <span className="text-xs text-cyan-400 font-bold font-mono">💎 {(member.diamonds_earned_monthly ?? 0).toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Month Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          <div className="bg-[#141416] p-3 rounded-xl border border-white/5">
-            <span className="text-[10px] text-slate-400 block">إجمالي مشحون الشهر</span>
-            <span className="text-sm font-bold text-amber-400 font-mono">🪙 {totalMonthCoins.toLocaleString()}</span>
-          </div>
-          <div className="bg-[#141416] p-3 rounded-xl border border-white/5">
-            <span className="text-[10px] text-slate-400 block">شحن وكلاء الشحن</span>
-            <span className="text-sm font-bold text-indigo-400 font-mono">🪙 {totalAgentCoins.toLocaleString()}</span>
-          </div>
-          <div className="bg-[#141416] p-3 rounded-xl border border-white/5">
-            <span className="text-[10px] text-slate-400 block">شحن الإدارة المباشر</span>
-            <span className="text-sm font-bold text-emerald-400 font-mono">🪙 {totalAdminCoins.toLocaleString()}</span>
-          </div>
-        </div>
-
-        {/* Table / List */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {loading ? (
-            <div className="py-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-              <span>جاري تحميل سجل الشحن...</span>
-            </div>
-          ) : records.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-500">
-              لا توجد أي حركات شحن مسجلة لهذا الحساب.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
-                <thead>
-                  <tr className="text-slate-400 border-b border-white/10 text-[11px]">
-                    <th className="py-2 px-3">نوع المصدر</th>
-                    <th className="py-2 px-3">القائم بالشحن</th>
-                    <th className="py-2 px-3">الكوينز المشحونة</th>
-                    <th className="py-2 px-3">التاريخ والوقت</th>
-                    <th className="py-2 px-3">الحالة</th>
-                    <th className="py-2 px-3 text-center">الإجراء</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {records.map(rec => (
-                    <tr key={rec.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-2.5 px-3">
-                        {rec.source === 'agent' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                            وكيل شحن
-                          </span>
-                        ) : rec.source === 'admin' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            الإدارة
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            داخل التطبيق
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {rec.source === 'agent' ? (
-                          <div className="flex items-center gap-2">
-                            {rec.agent_avatar && (
-                              <img src={rec.agent_avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                            )}
-                            <div>
-                              <div className="text-white font-semibold text-[11px]">{rec.agent_name}</div>
-                              {rec.agent_custom_id && (
-                                <div className="text-[10px] text-cyan-400 font-mono">ID: #{rec.agent_custom_id}</div>
-                              )}
-                            </div>
-                          </div>
-                        ) : rec.source === 'admin' ? (
-                          <span className="text-slate-300 text-[11px]">إدارة التطبيق</span>
-                        ) : (
-                          <span className="text-slate-400 text-[11px]">متجر العملات</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
-                        +{rec.amount_coins.toLocaleString()} 🪙
-                      </td>
-                      <td className="py-2.5 px-3 text-[11px] text-slate-400">
-                        {new Date(rec.created_at).toLocaleString('ar-EG', {
-                          year: 'numeric',
-                          month: 'numeric',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {rec.is_refunded ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
-                            مسترجعة ↩️
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                            مكتملة ✅
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        {rec.source === 'agent' ? (
-                          rec.is_refunded ? (
-                            <span className="text-[10px] text-slate-500">تم ردها</span>
-                          ) : (
-                            <button
-                              onClick={() => setRefundingTx(rec)}
-                              className="px-2.5 py-1 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 rounded-lg text-[10px] font-bold flex items-center gap-1 mx-auto transition-all"
-                              title="إرجاع هذا الشحن الخاطئ وإعادة الكوينز للوكيل"
-                            >
-                              <RotateCcw className="w-3 h-3" />
-                              <span>إرجاع الشحن ↩️</span>
-                            </button>
-                          )
-                        ) : (
-                          <span className="text-[10px] text-slate-600">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Confirmation Modal for Refund */}
-        {refundingTx && (
-          <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-[#1c1c20] border border-rose-500/40 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-              <div className="flex items-center gap-2 text-rose-400 font-bold text-sm">
-                <RotateCcw className="w-4 h-4" />
-                <span>تأكيد استرجاع الشحن الخاطئ للوكيل</span>
-              </div>
-
-              <div className="p-3 bg-white/5 rounded-xl space-y-2 text-xs">
-                <div className="flex justify-between border-b border-white/5 pb-1.5">
-                  <span className="text-slate-400">الكوينز المراد استرجاعها:</span>
-                  <span className="text-amber-400 font-mono font-bold">🪙 {refundingTx.amount_coins.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between border-b border-white/5 pb-1.5">
-                  <span className="text-slate-400">المستخدم (سيتم الخصم منه):</span>
-                  <span className="text-white font-bold">{member.user_name} (ID: #{member.custom_id})</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">وكيل الشحن (ستعاد إليه):</span>
-                  <span className="text-indigo-300 font-bold">{refundingTx.agent_name} (ID: #{refundingTx.agent_custom_id})</span>
-                </div>
-              </div>
-
-              <p className="text-[11px] text-rose-300 leading-relaxed bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
-                ⚠️ سيتم خصم الكوينز فورياً من رصيد المستخدم وإعادتها بالكامل إلى محفظة وكيل الشحن، مع إرسال إشعار فوري داخل نظام التطبيق لكلا الطرفين لإبلاغهما بالاسترجاع.
-              </p>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setRefundingTx(null)}
-                  disabled={refunding}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white"
-                >
-                  إلغاء
-                </button>
-                <button
-                  onClick={handleConfirmRefund}
-                  disabled={refunding}
-                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg shadow-rose-600/30"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  {refunding ? 'جاري الاسترجاع...' : 'تأكيد الخصم والاسترجاع'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex justify-end pt-2 border-t border-white/10">
-          <button onClick={onClose} className="px-4 py-2 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold">
-            إغلاق
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* =============================================================
-   AGENCY RECORD MODAL (سجل الوكالة وإدارة المضيفين)
-   ============================================================= */
-function AgencyRecordModal({
-  agency,
-  allAgencies,
-  onClose,
-}: {
-  agency: HostAgencyModel;
-  allAgencies: HostAgencyModel[];
-  onClose: () => void;
-}) {
-  const [members, setMembers] = useState<HostAgencyMemberModel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [transferTarget, setTransferTarget] = useState<HostAgencyMemberModel | null>(null);
-  const [rechargeTarget, setRechargeTarget] = useState<HostAgencyMemberModel | null>(null);
-
-  const loadMembers = async () => {
-    setLoading(true);
-    const m = await getHostAgencyMembers(agency.id);
-    setMembers(m);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    loadMembers();
-  }, [agency.id]);
-
-  const handleRemoveHost = async (m: HostAgencyMemberModel) => {
-    if (confirm(`هل أنت متأكد من حذف المضيف (${m.user_name || m.custom_id}) من وكالة "${agency.name}"؟\nسيتم خروجه فوراً وإرسال إشعار رسمي له داخل التطبيق.`)) {
-      const res = await removeAgencyMemberWithNotification(agency.id, m.user_id, agency.name, m.user_name);
-      alert(res.message);
-      loadMembers();
-    }
-  };
-
-  const filteredMembers = members.filter(m => {
-    if (!search.trim()) return true;
-    const q = search.trim().toLowerCase();
-    return (
-      (m.user_name || '').toLowerCase().includes(q) ||
-      (m.custom_id || '').toLowerCase().includes(q) ||
-      (m.user_id || '').toLowerCase().includes(q)
-    );
-  });
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#161619] border border-amber-500/30 rounded-2xl max-w-5xl w-full p-6 space-y-5 shadow-2xl max-h-[92vh] flex flex-col">
-        {/* Modal Top Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={agency.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(agency.name)}&background=random`}
-              alt=""
-              className="w-11 h-11 rounded-xl object-cover border border-amber-400/40"
-            />
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-white font-bold text-base">{agency.name}</h3>
-                <span className="px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 uppercase">
-                  {agency.tier || 'bronze'}
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${agency.is_active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
-                  {agency.is_active ? 'نشطة' : 'معطلة'}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 font-mono">ID: {agency.id}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-base">✕</button>
-        </div>
-
-        {/* Agency Owner & Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {/* Real In-App Owner ID Card */}
-          <div className="md:col-span-2 bg-gradient-to-r from-amber-500/10 to-indigo-500/10 border border-amber-500/25 p-3 rounded-xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img
-                src={agency.owner_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(agency.owner_name || 'Owner')}&background=random`}
-                alt=""
-                className="w-10 h-10 rounded-full object-cover border-2 border-amber-400/50"
-              />
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-white">{agency.owner_name || 'مالك الوكالة'}</span>
-                  <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded font-bold border border-amber-400/30">👑 مالك الوكالة</span>
-                </div>
-                <div className="text-[11px] text-emerald-400 font-mono font-bold">
-                  الآيدي بالتطبيق: #{agency.owner_custom_id || (agency as any).ownerCustomId || agency.owner_id?.slice(0, 8)}
-                </div>
-              </div>
-            </div>
-            <div className="text-left text-[11px] text-slate-400">
-              <span className="block text-slate-500 text-[10px]">عمولة الوكالة</span>
-              <span className="text-amber-400 font-bold font-mono">{((agency.commission_rate ?? 0.1) * 100)}%</span>
-            </div>
-          </div>
-
-          {/* Monthly Diamonds */}
-          <div className="bg-[#1c1c20] p-3 rounded-xl border border-white/5 flex flex-col justify-center">
-            <span className="text-[10px] text-slate-400">💎 ألماس الوكالة هذا الشهر</span>
-            <span className="text-sm font-bold text-amber-400 font-mono">{(agency.monthly_diamonds ?? 0).toLocaleString()}</span>
-          </div>
-
-          {/* Total Members */}
-          <div className="bg-[#1c1c20] p-3 rounded-xl border border-white/5 flex flex-col justify-center">
-            <span className="text-[10px] text-slate-400">👥 إجمالي الأعضاء الحقيقيين</span>
-            <span className="text-sm font-bold text-indigo-400 font-mono">{members.length} عضو</span>
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-xs font-bold text-white flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-indigo-400" />
-            <span>سجل أعضاء ومضيفي الوكالة ({filteredMembers.length})</span>
-          </div>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="بحث باسم المضيف أو الـ ID..."
-            className="bg-[#121214] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-500 w-64 focus:outline-none focus:border-indigo-500"
-          />
-        </div>
-
-        {/* Members Table */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {loading ? (
-            <div className="py-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
-              <span>جاري تحميل أعضاء الوكالة...</span>
-            </div>
-          ) : filteredMembers.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-500">
-              لا يوجد أعضاء يطابقون البحث.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
-                <thead>
-                  <tr className="text-slate-400 border-b border-white/10 text-[11px]">
-                    <th className="py-2.5 px-3">المضيف</th>
-                    <th className="py-2.5 px-3">آيدي التطبيق (Custom ID)</th>
-                    <th className="py-2.5 px-3">الرتبة</th>
-                    <th className="py-2.5 px-3">ألماس هذا الشهر</th>
-                    <th className="py-2.5 px-3">رصيد الكوينز</th>
-                    <th className="py-2.5 px-3">تاريخ الانضمام</th>
-                    <th className="py-2.5 px-3 text-center">الإجراءات</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {filteredMembers.map(m => (
-                    <tr key={m.user_id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={m.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.user_name || 'Host')}&background=random`}
-                            alt=""
-                            className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
-                          />
-                          <div>
-                            <div className="text-white font-bold text-xs">{m.user_name || (m as any).userName || 'مضيف'}</div>
-                            <div className="text-[10px] text-slate-500 font-mono">{(m.user_id || (m as any).userId)?.slice(0, 8)}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="font-mono text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 text-xs">
-                          ID: #{m.custom_id || (m as any).customId || (m.user_id || (m as any).userId)?.slice(0, 8)}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {m.role === 'owner' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">👑 مالك</span>
-                        ) : m.role === 'supervisor' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">⭐ مشرف</span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">🎙️ مضيف</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
-                        💎 {(m.diamonds_earned_monthly ?? (m as any).diamondsEarnedMonthly ?? (m as any).diamonds ?? 0).toLocaleString()}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-amber-300">
-                        🪙 {(m.coins ?? 0).toLocaleString()}
-                      </td>
-                      <td className="py-2.5 px-3 text-[11px] text-slate-400">
-                        {(m.joined_at || (m as any).joinedAt) ? new Date(m.joined_at || (m as any).joinedAt).toLocaleDateString('ar-EG') : '—'}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {m.role === 'owner' ? (
-                          <div className="text-center text-[10px] text-amber-400 font-bold">مالك الوكالة</div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-1.5">
-                            {/* Transfer button */}
-                            <button
-                              onClick={() => setTransferTarget(m)}
-                              className="px-2 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all"
-                              title="نقل المضيف لوكالة أخرى وتصفير تارجته"
-                            >
-                              <ArrowRightLeft className="w-3 h-3" />
-                              <span>نقل لوكالة أخرى</span>
-                            </button>
-
-                            {/* Remove button */}
-                            <button
-                              onClick={() => handleRemoveHost(m)}
-                              className="px-2 py-1 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all"
-                              title="حذف المضيف فوراً وإرسال إشعار له"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              <span>حذف</span>
-                            </button>
-
-                            {/* Recharge history button */}
-                            <button
-                              onClick={() => setRechargeTarget(m)}
-                              className="px-2 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all"
-                              title="عرض سجل الشحن الشهري بالكامل مع إمكانية استرجاع الشحن"
-                            >
-                              <Coins className="w-3 h-3" />
-                              <span>سجل الشحن</span>
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Modals triggered from within AgencyRecordModal */}
-        {transferTarget && (
-          <TransferHostModal
-            member={transferTarget}
-            currentAgency={agency}
-            allAgencies={allAgencies}
-            onClose={() => setTransferTarget(null)}
-            onSuccess={() => {
-              setTransferTarget(null);
-              loadMembers();
-            }}
-          />
-        )}
-
-        {rechargeTarget && (
-          <HostRechargeHistoryModal
-            member={rechargeTarget}
-            onClose={() => setRechargeTarget(null)}
-          />
-        )}
-
-        {/* Modal Footer */}
-        <div className="flex justify-end pt-2 border-t border-white/10">
-          <button onClick={onClose} className="px-5 py-2 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold">
-            إغلاق السجل
-          </button>
-        </div>
       </div>
     </div>
   );

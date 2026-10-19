@@ -1,10 +1,11 @@
-// Uploads go to Cloudinary (same account + preset as the Flutter app).
+// Uploads go to Cloudinary (same account + preset as the Flutter app), because
+// Firebase Storage is not enabled on this project (no billing account linked).
 // The returned URL is a secure_url that the app reads normally via R.cachedImage().
 
-const CLOUD_NAME = 'r5kohqhd';
+const CLOUD_NAME = 'dl30muiuc';
 // Uploads are unsigned (upload_preset only) — no API secret is needed or stored.
 // Configure cloudName/apiKey/apiSecret per-browser from the Settings page if needed.
-const UPLOAD_PRESET = 'ahla_live';
+const UPLOAD_PRESET = 'zero_app';
 
 interface CloudinaryConfig {
   cloudName: string;
@@ -23,8 +24,8 @@ function getCloudinaryConfig(): CloudinaryConfig {
   }
   return {
     cloudName: localStorage.getItem('cloudinary_cloud_name') || CLOUD_NAME,
-    apiKey: localStorage.getItem('cloudinary_api_key') || '183298827798548',
-    apiSecret: localStorage.getItem('cloudinary_api_secret') || 'R9S7Ybk8tTTkVckWGAlgdwvppJw',
+    apiKey: localStorage.getItem('cloudinary_api_key') || '',
+    apiSecret: localStorage.getItem('cloudinary_api_secret') || '',
   };
 }
 
@@ -103,35 +104,39 @@ async function uploadToCloudinaryUnsigned(
   onProgress?: (pct: number) => void,
 ): Promise<string> {
   const cfg = getCloudinaryConfig();
-  const dotIndex = file.name.lastIndexOf('.');
-  const nameWithoutExt = dotIndex > 0 ? file.name.substring(0, dotIndex) : file.name;
-  const cleanName = nameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const publicId = `${folder}/${Date.now()}_${cleanName}`;
+  const publicId = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
   const form = new FormData();
   form.append('file', file);
   form.append('upload_preset', UPLOAD_PRESET);
   form.append('public_id', publicId);
-  form.append('folder', folder);
 
   const resourceType = resourceTypeFor(file);
   const url = cloudinaryUploadUrl(cfg.cloudName, resourceType);
 
-  try {
-    return await xhrPostForm(url, form, onProgress);
-  } catch (err) {
-    // Retry without custom public_id on auto endpoint
-    try {
-      const fallbackForm = new FormData();
-      fallbackForm.append('file', file);
-      fallbackForm.append('upload_preset', UPLOAD_PRESET);
-      fallbackForm.append('folder', folder);
-      const autoUrl = cloudinaryUploadUrl(cfg.cloudName, 'auto');
-      return await xhrPostForm(autoUrl, fallbackForm, onProgress);
-    } catch {
-      throw err;
-    }
-  }
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.upload.onprogress = e => {
+      if (onProgress && e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      try {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data.secure_url || data.url);
+        } else {
+          reject(new Error(`Cloudinary upload failed: ${xhr.status} ${xhr.responseText}`));
+        }
+      } catch (e) {
+        reject(e);
+      }
+    };
+    xhr.onerror = () => reject(new Error('Cloudinary upload network error'));
+    xhr.send(form);
+  });
 }
 
 // ---- Signed upload fallback ----
@@ -266,13 +271,6 @@ export async function uploadLevelImage(file: File, levelType: string, levelNum: 
 
 export async function uploadRoomPhoto(file: File, roomId: string, onProgress?: (pct: number) => void): Promise<string> {
   return uploadAny(file, FOLDERS.roomPhoto, onProgress);
-}
-
-export async function uploadRoomCover(file: File, roomId: string, onProgress?: (pct: number) => void): Promise<string> {
-  const type = detectAssetType(file.name);
-  const isAnimOrFile = type === 'svga' || type === 'vap' || type === 'mp4';
-  const folder = isAnimOrFile ? FOLDERS.storeFile : FOLDERS.roomPhoto;
-  return uploadAny(file, folder, onProgress);
 }
 
 export async function uploadBanner(file: File, bannerId: string, onProgress?: (pct: number) => void): Promise<string> {

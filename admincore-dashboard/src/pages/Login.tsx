@@ -3,57 +3,44 @@ import { loginWithEmail } from '../lib/auth';
 import { I18nContext } from '../lib/i18n';
 import { Eye, EyeOff, KeyRound, Mail, AlertCircle } from 'lucide-react';
 
-function parseAuthError(err: unknown, lang: 'ar' | 'en'): string {
+function parseFirebaseError(err: unknown, lang: 'ar' | 'en'): string {
   const code = (err as { code?: string })?.code || '';
-  const rawMsg = (err as { message?: string })?.message || String(err || '');
-  const lower = rawMsg.toLowerCase();
+  const rawMsg = (err as { message?: string })?.message || '';
 
   if (lang === 'ar') {
-    if (
-      code === 'auth/invalid-credential' ||
-      code === 'auth/wrong-password' ||
-      code === 'auth/user-not-found' ||
-      lower.includes('invalid login credentials') ||
-      lower.includes('invalid credentials')
-    ) {
-      return 'البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التأكد من بيانات الحساب.';
+    switch (code) {
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return 'البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التأكد من بيانات الحساب.';
+      case 'auth/invalid-email':
+        return 'صيغة البريد الإلكتروني غير صحيحة.';
+      case 'auth/operation-not-allowed':
+        return 'تسجيل الدخول بالبريد غير مفعل في Firebase Console.';
+      case 'auth/too-many-requests':
+        return 'تم حظر الطلبات مؤقتاً لكثرة المحاولات. يرجى الانتظار دقيقة والمحاولة مجدداً.';
+      case 'auth/network-request-failed':
+        return 'تعذر الاتصال بالإنترنت أو بخوادم Firebase.';
+      default:
+        return rawMsg || 'فشل تسجيل الدخول. يرجى التأكد من البيانات.';
     }
-    if (code === 'auth/invalid-email' || lower.includes('invalid email')) {
-      return 'صيغة البريد الإلكتروني غير صحيحة.';
-    }
-    if (lower.includes('email not confirmed')) {
-      return 'البريد الإلكتروني لم يتم تأكيده بعد.';
-    }
-    if (code === 'auth/too-many-requests' || lower.includes('rate limit') || lower.includes('too many requests')) {
-      return 'تم حظر الطلبات مؤقتاً لكثرة المحاولات. يرجى الانتظار دقيقة والمحاولة مجدداً.';
-    }
-    if (code === 'auth/network-request-failed' || lower.includes('network') || lower.includes('fetch')) {
-      return 'تعذر الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.';
-    }
-    return rawMsg || 'فشل تسجيل الدخول. يرجى التأكد من البيانات.';
   } else {
-    if (
-      code === 'auth/invalid-credential' ||
-      code === 'auth/wrong-password' ||
-      code === 'auth/user-not-found' ||
-      lower.includes('invalid login credentials') ||
-      lower.includes('invalid credentials')
-    ) {
-      return 'Invalid email or password. Please verify your credentials.';
+    switch (code) {
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return 'Invalid email or password. Please verify your credentials.';
+      case 'auth/invalid-email':
+        return 'Invalid email format.';
+      case 'auth/operation-not-allowed':
+        return 'Email/Password sign-in is not enabled in Firebase Console.';
+      case 'auth/too-many-requests':
+        return 'Access temporarily disabled due to many failed attempts. Try again later.';
+      case 'auth/network-request-failed':
+        return 'Network error. Please check your internet connection.';
+      default:
+        return rawMsg || 'Login failed. Please check your credentials.';
     }
-    if (code === 'auth/invalid-email' || lower.includes('invalid email')) {
-      return 'Invalid email format.';
-    }
-    if (lower.includes('email not confirmed')) {
-      return 'Email not confirmed yet.';
-    }
-    if (code === 'auth/too-many-requests' || lower.includes('rate limit') || lower.includes('too many requests')) {
-      return 'Access temporarily disabled due to many failed attempts. Try again later.';
-    }
-    if (code === 'auth/network-request-failed' || lower.includes('network') || lower.includes('fetch')) {
-      return 'Network error. Please check your internet connection.';
-    }
-    return rawMsg || 'Login failed. Please check your credentials.';
   }
 }
 
@@ -74,7 +61,7 @@ export default function Login() {
     try {
       await loginWithEmail(email.trim(), password);
     } catch (err: unknown) {
-      setError(parseAuthError(err, lang));
+      setError(parseFirebaseError(err, lang));
     } finally {
       setLoading(false);
     }
@@ -131,19 +118,19 @@ export default function Login() {
 
           {/* Input Fields */}
           <div className="space-y-4">
-            {/* Identifier Field (Email or App ID) */}
+            {/* Email Field */}
             <div>
               <label className="block text-[11px] uppercase text-slate-400 font-bold mb-1.5 tracking-wider">
-                {lang === 'ar' ? 'البريد الإلكتروني أو الآيدي (App ID)' : 'Email or App ID'}
+                {t('login.email')}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 text-slate-500 w-4 h-4 rtl:left-auto rtl:right-3" />
                 <input
-                  type="text"
+                  type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder={lang === 'ar' ? 'البريد أو الآيدي داخل التطبيق...' : 'Email or App ID...'}
-                  className="w-full bg-[#161618] border border-white/10 rounded-xl py-2.5 px-9 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-sans"
+                  placeholder="admin@zero.app"
+                  className="w-full bg-[#161618] border border-white/10 rounded-xl py-2.5 px-9 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
                   required
                 />
               </div>

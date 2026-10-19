@@ -154,6 +154,8 @@ export default function BannersPage() {
     await supabase.from('banners').update({
       image_url: bannerForm.imageUrl,
       link_url: effectiveLink,
+      action_type: bannerForm.actionType,
+      action_value: bannerForm.actionValue,
       title: bannerForm.title,
       sort_order: bannerForm.sortOrder,
       active: bannerForm.active,
@@ -172,6 +174,8 @@ export default function BannersPage() {
       id,
       image_url: bannerForm.imageUrl,
       link_url: effectiveLink,
+      action_type: bannerForm.actionType,
+      action_value: bannerForm.actionValue,
       title: bannerForm.title,
       sort_order: bannerForm.sortOrder,
       active: bannerForm.active,

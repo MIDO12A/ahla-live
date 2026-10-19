@@ -26,14 +26,12 @@ const DEFAULT_CATEGORIES: StoreCategory[] = [
   { id: 'badge', key: 'badge', name: 'الشارات والأوسمة', iconAsset: 'assets/mipmap-xxhdpi/ic_new_user_badge.png', selectedIconAsset: 'assets/mipmap-xxhdpi/ic_new_user_badge.png', sortOrder: 7, isActive: true },
   { id: 'special', key: 'special', name: 'المؤثرات الخاصة', iconAsset: 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp', selectedIconAsset: 'assets/mipmap-xxhdpi/mine_mall_tab_vip_ic.webp', sortOrder: 8, isActive: true },
   { id: 'mic_wave', key: 'mic_wave', name: 'موجات المايك الصوتية', iconAsset: 'assets/room_speaking_wave_male.svga', selectedIconAsset: 'assets/room_speaking_wave_male.svga', sortOrder: 9, isActive: true },
-  { id: 'special_id', key: 'special_id', name: 'الآيديهات المميزة (Special IDs)', iconAsset: 'assets/mipmap-xxhdpi/ic_id_card_prop.png', selectedIconAsset: 'assets/mipmap-xxhdpi/ic_id_card_prop.png', sortOrder: 10, isActive: true },
 ];
 
 const svgaCategories = new Set(['entrance', 'car', 'cover', 'mic_wave']);
 
 export default function StorePage() {
   const [activeTab, setActiveTab] = useState<'items' | 'categories'>('items');
-  const [selectedItemCategory, setSelectedItemCategory] = useState<string>('all');
   const [items, setItems] = useState<StoreItemModel[]>([]);
   const [categories, setCategories] = useState<StoreCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,9 +51,6 @@ export default function StorePage() {
     nameKey: '',
     photoKey: '',
     defaultImage: '',
-    customId: '',
-    colorEffect: 'golden',
-    isAvailable: true,
   });
 
   // Category Form State
@@ -77,9 +72,7 @@ export default function StorePage() {
     const [itemsData, catsData] = await Promise.all([getStoreItems(), getStoreCategories()]);
     setItems(itemsData);
     if (catsData.length > 0) {
-      const existingKeys = new Set(catsData.map(c => c.key || c.id));
-      const missing = DEFAULT_CATEGORIES.filter(c => !existingKeys.has(c.key || c.id));
-      setCategories([...catsData, ...missing]);
+      setCategories(catsData);
     } else {
       setCategories(DEFAULT_CATEGORIES);
     }
@@ -91,11 +84,10 @@ export default function StorePage() {
   }, []);
 
   // --- Store Items Handlers ---
-  const resetForm = (targetCat?: string) => {
-    const cat = targetCat || (selectedItemCategory !== 'all' ? selectedItemCategory : (categories[0]?.key || 'frame'));
+  const resetForm = () =>
     setForm({
       name: '',
-      category: cat,
+      category: categories[0]?.key || 'frame',
       iconAsset: '',
       price: 0,
       svgaAsset: '',
@@ -105,11 +97,7 @@ export default function StorePage() {
       nameKey: '',
       photoKey: '',
       defaultImage: '',
-      customId: '',
-      colorEffect: 'golden',
-      isAvailable: true,
     });
-  };
 
   const handleEdit = (item: StoreItemModel) => {
     setEditing(item);
@@ -125,42 +113,24 @@ export default function StorePage() {
       nameKey: item.nameKey || '',
       photoKey: item.photoKey || '',
       defaultImage: item.defaultImage || '',
-      customId: item.customId || '',
-      colorEffect: item.colorEffect || 'golden',
-      isAvailable: item.isAvailable !== false,
     });
     setShowAdd(false);
   };
 
   const handleSave = async () => {
     if (!editing) return;
-    try {
-      if (form.category === 'special_id') {
-        const cleanId = form.customId?.trim();
-        if (!cleanId) {
-          alert('⚠️ يرجى إدخال رقم الآيدي المميز!');
-          return;
-        }
-      }
-      await updateStoreItem(editing.itemId, {
-        ...form,
-        customId: form.customId?.trim() || undefined,
-        colorEffect: form.colorEffect || 'golden',
-        isAvailable: form.isAvailable,
-        svgaAsset: form.svgaAsset || null,
-        videoAsset: form.videoAsset || null,
-        nameKey: form.nameKey || null,
-        photoKey: form.photoKey || null,
-        defaultImage: form.defaultImage || null,
-        isHidden: form.isHidden,
-      });
-      setEditing(null);
-      resetForm();
-      load();
-    } catch (e: unknown) {
-      const err = e as { message?: string };
-      alert('⚠️ ' + (err?.message || 'فشل حفظ التعديل'));
-    }
+    await updateStoreItem(editing.itemId, {
+      ...form,
+      svgaAsset: form.svgaAsset || null,
+      videoAsset: form.videoAsset || null,
+      nameKey: form.nameKey || null,
+      photoKey: form.photoKey || null,
+      defaultImage: form.defaultImage || null,
+      isHidden: form.isHidden,
+    });
+    setEditing(null);
+    resetForm();
+    load();
   };
 
   const handleDelete = async (item: StoreItemModel) => {
@@ -171,36 +141,20 @@ export default function StorePage() {
   };
 
   const handleAdd = async () => {
-    try {
-      if (form.category === 'special_id') {
-        const cleanId = form.customId?.trim();
-        if (!cleanId) {
-          alert('⚠️ يرجى إدخال رقم الآيدي المميز!');
-          return;
-        }
-      }
-      const id = `store_${Date.now()}`;
-      await addStoreItem(id, {
-        ...form,
-        itemId: id,
-        customId: form.customId?.trim() || undefined,
-        colorEffect: form.colorEffect || 'golden',
-        isAvailable: true,
-        isSold: false,
-        svgaAsset: form.svgaAsset || null,
-        videoAsset: form.videoAsset || null,
-        nameKey: form.nameKey || null,
-        photoKey: form.photoKey || null,
-        defaultImage: form.defaultImage || null,
-        isHidden: form.isHidden,
-      });
-      setShowAdd(false);
-      resetForm();
-      load();
-    } catch (e: unknown) {
-      const err = e as { message?: string };
-      alert('⚠️ ' + (err?.message || 'فشل إضافة العنصر للمتجر'));
-    }
+    const id = `store_${Date.now()}`;
+    await addStoreItem(id, {
+      ...form,
+      itemId: id,
+      svgaAsset: form.svgaAsset || null,
+      videoAsset: form.videoAsset || null,
+      nameKey: form.nameKey || null,
+      photoKey: form.photoKey || null,
+      defaultImage: form.defaultImage || null,
+      isHidden: form.isHidden,
+    });
+    setShowAdd(false);
+    resetForm();
+    load();
   };
 
   // --- Category Handlers ---
@@ -476,54 +430,6 @@ export default function StorePage() {
                     </div>
                   </>
                 )}
-
-                {form.category === 'special_id' && (
-                  <div className="col-span-2 md:col-span-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-[10px] uppercase text-indigo-300 font-bold mb-1">
-                        🔢 رقم الآيدي المميز (Custom ID) *
-                      </label>
-                      <input
-                        type="text"
-                        value={form.customId}
-                        onChange={e => updateField('customId', e.target.value)}
-                        placeholder="e.g. 1, 100, 777, 8888"
-                        className="w-full bg-[#161618] border border-indigo-500/30 rounded-lg py-1.5 px-2 text-xs text-white font-mono font-bold"
-                      />
-                      <p className="text-[10px] text-slate-400 mt-1">يجب أن يكون فريداً وغير مستخدم من قبل أي عضو.</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] uppercase text-indigo-300 font-bold mb-1">
-                        ✨ تأثير النص ولون الآيدي
-                      </label>
-                      <select
-                        value={form.colorEffect}
-                        onChange={e => updateField('colorEffect', e.target.value)}
-                        className="w-full bg-[#161618] border border-indigo-500/30 rounded-lg py-1.5 px-2 text-xs text-white"
-                      >
-                        <option value="golden">✨ ذهبي ملكي (Golden Shimmer)</option>
-                        <option value="rainbow">🌈 طيف متحرك (Rainbow Flow)</option>
-                        <option value="neon">⚡ نيون سايبر (Neon Cyan)</option>
-                        <option value="fire">🔥 لهب متوهج (Sunset Fire)</option>
-                      </select>
-                      <p className="text-[10px] text-slate-400 mt-1">تأثير انسيابي متدفق ومتحرك يظهر للمستخدمين.</p>
-                    </div>
-
-                    <div className="flex flex-col justify-center">
-                      <label className="flex items-center gap-2 text-xs text-slate-300 font-medium">
-                        <input
-                          type="checkbox"
-                          checked={form.isAvailable}
-                          onChange={e => updateField('isAvailable', e.target.checked)}
-                          className="accent-indigo-500"
-                        />
-                        متاح للبيع في المتجر (Available)
-                      </label>
-                      <p className="text-[10px] text-slate-400 mt-1">عند شرائه من التطبيق سيتم تعيينه وإخفاؤه تلقائياً.</p>
-                    </div>
-                  </div>
-                )}
               </div>
               <div className="flex items-center gap-6">
                 <label className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -556,46 +462,6 @@ export default function StorePage() {
             </div>
           )}
 
-          {/* Individual Category Tabs for Store Items */}
-          <div className="flex flex-wrap items-center gap-1.5 bg-[#141417] p-2 rounded-2xl border border-white/5">
-            <button
-              onClick={() => setSelectedItemCategory('all')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                selectedItemCategory === 'all'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              <span>الكل (جميع المقتنيات)</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">
-                {items.length}
-              </span>
-            </button>
-
-            {categories.map(cat => {
-              const catKey = cat.key || cat.id;
-              const count = items.filter(i => (i.category || 'frame') === catKey).length;
-              const isActive = selectedItemCategory === catKey;
-
-              return (
-                <button
-                  key={catKey}
-                  onClick={() => setSelectedItemCategory(catKey)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                      : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <span>{cat.name}</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
           <DataTable
             loading={loading}
             columns={[
@@ -610,31 +476,7 @@ export default function StorePage() {
                     <div className="w-6 h-6 rounded bg-slate-800" />
                   ),
               },
-              {
-                key: 'name',
-                label: t('gift.name'),
-                sortable: true,
-                render: i => (
-                  <div>
-                    <div className="font-medium text-white text-xs">{i.name}</div>
-                    {i.category === 'special_id' && i.customId && (
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[11px] font-bold text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                          #{i.customId}
-                        </span>
-                        {i.isAvailable === false || i.isSold ? (
-                          <span className="text-[10px] text-red-400 bg-red-500/10 px-1 rounded">مباع (Sold)</span>
-                        ) : (
-                          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1 rounded">متاح للبيع</span>
-                        )}
-                        {i.colorEffect && (
-                          <span className="text-[10px] text-slate-400">({i.colorEffect})</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ),
-              },
+              { key: 'name', label: t('gift.name'), sortable: true },
               {
                 key: 'category',
                 label: t('store.category'),
@@ -679,12 +521,8 @@ export default function StorePage() {
                   ),
               },
             ]}
-            data={
-              selectedItemCategory === 'all'
-                ? items
-                : items.filter(i => (i.category || 'frame') === selectedItemCategory)
-            }
-            searchKeys={['name', 'category', 'customId']}
+            data={items}
+            searchKeys={['name', 'category']}
             onEdit={handleEdit}
             onDelete={handleDelete}
           />

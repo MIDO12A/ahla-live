@@ -2,7 +2,7 @@ import { useEffect, useState, useContext } from 'react';
 import { I18nContext } from '../lib/i18n';
 import { getAppConfig, updateAppConfig } from '../lib/db';
 import { uploadAppAsset } from '../lib/storage';
-import { Save, RotateCcw, Upload, Check, Image, Type, Layers, SlidersHorizontal } from 'lucide-react';
+import { Save, RotateCcw, Upload, Check, Image, Type, Layers, Search, Plus, Trash2, Sparkles, Wand2 } from 'lucide-react';
 import { to6Hex } from '../lib/colors';
 
 interface ScreenVisuals {
@@ -38,57 +38,23 @@ const defaultVisuals: ScreenVisuals = {
   agentRecharge: {
     backgroundImage: '',
     headerBgImage: '',
-    transferTitleImage: '',
-    transferCardBgImage: '',
-    confirmButtonImage: '',
-    dataPanelBgImage: '',
-    coinsBgImage: '',
-    diamondsBgImage: '',
-    coinIconImage: '',
     headerColor: '#16151A',
-    cardColor: '#141C24',
-    cardBorderColor: '#803ED78A',
-    coinsTextColor: '#FDE638',
-    textColor: '#ffffff',
-    accentColor: '#3ED78A',
+    accentColor: '#FFD700',
     bannerImage: '',
+    textColor: '#ffffff',
+    cardColor: '#1E1D24',
   },
   hostAgency: {
-    headerBgImage: '',
     backgroundImage: '',
-    levelCardBgImage: '',
-    flagImage: '',
-    rankNameBgImage: '',
-    rankBannerImage: '',
-    broadcastIconImage: '',
-    editIconImage: '',
-    helpIconImage: '',
-    lineDotIconImage: '',
-    diamondCardBgImage: '',
-    diamondWatermarkImage: '',
-    salaryCardBgImage: '',
-    salaryWatermarkImage: '',
-    transferArrowIconImage: '',
-    withdrawButtonImage: '',
-    addMemberButtonImage: '',
-    addMemberButtonText: 'إضافة عضو',
-    adminSettingIconImage: '',
-    memberDetailIconImage: '',
-    memberDeleteIconImage: '',
-    memberMoreIconImage: '',
-    tagHostIconImage: '',
-    cardColor: '#00B5B3',
-    textColor: '#ffffff',
+    headerBgImage: '',
     headerColor: '#1A1A1A',
     bannerImage: '',
+    textColor: '#ffffff',
+    cardColor: '#1E1D24',
   },
   hosts: {
     backgroundImage: '',
-    hoursCardBgImage: '',
-    stageCompletedBadgeImage: '',
-    stageNextBadgeImage: '',
     headerColor: '#1A1A1A',
-    cardColor: '#FFFFFF',
     textColor: '#ffffff',
   },
   rocket: {
@@ -597,9 +563,10 @@ const defaultVisuals: ScreenVisuals = {
   },
 };
 
-const screenTabs = ['agentRecharge', 'hostAgency', 'hosts', 'rocket', 'rechargeEvent', 'agency', 'badges', 'necklaces', 'rank', 'checkbox', 'store', 'backpack', 'giftPanel', 'wallet', 'level', 'cp', 'miniprofile', 'signin', 'room', 'discover', 'message', 'profile', 'chat', 'userProfile', 'eventInfo', 'notifications'] as const;
+const screenTabs = ['dynamicStrings', 'agentRecharge', 'hostAgency', 'hosts', 'rocket', 'rechargeEvent', 'agency', 'badges', 'necklaces', 'rank', 'checkbox', 'store', 'backpack', 'giftPanel', 'wallet', 'level', 'cp', 'miniprofile', 'signin', 'room', 'discover', 'message', 'profile', 'chat', 'userProfile', 'eventInfo', 'notifications'] as const;
 
 const screenLabels: Record<string, Record<string, string>> = {
+  dynamicStrings: { ar: '🔤 محرر النصوص والعناوين العامة', en: '🔤 Screen Texts & Custom Labels' },
   agentRecharge: { ar: '💸 بوابة وكالة الشحن المعتمدة', en: '💸 Agent Recharge Portal' },
   hostAgency: { ar: '🏢 شاشة وكالات المضيفين الرسمية', en: '🏢 Host Agencies Screen' },
   hosts: { ar: '🎙️ شاشة إدارة المضيفين بالوكالة', en: '🎙️ Hosts Management Screen' },
@@ -631,35 +598,6 @@ const screenLabels: Record<string, Record<string, string>> = {
 const fieldLabels: Record<string, Record<string, string>> = {
   backgroundImage: { ar: 'صورة الخلفية', en: 'Background Image' },
   backgroundColor: { ar: 'لون الخلفية', en: 'Background Color' },
-  transferTitleImage: { ar: 'صورة عنوان التحويل والشحن (Title)', en: 'Transfer Title Image' },
-  transferCardBgImage: { ar: 'صورة خلفية كارت التحويل وبيانات المستخدم', en: 'Transfer Card Background Image' },
-  confirmButtonImage: { ar: 'صورة زر تأكيد التحويل والشحن', en: 'Confirm Button Image' },
-  dataPanelBgImage: { ar: 'صورة خلفية لوحة بيانات الشحن', en: 'Data Panel Background Image' },
-  coinsBgImage: { ar: 'صورة خلفية بطاقة الكوينز', en: 'Coins Card Background Image' },
-  diamondsBgImage: { ar: 'صورة خلفية بطاقة الألماس', en: 'Diamonds Card Background Image' },
-  levelCardBgImage: { ar: 'صورة خلفية كارت مستوى الوكالة', en: 'Agency Level Card Background' },
-  flagImage: { ar: 'صورة علم رتبة ومستوى الوكالة', en: 'Agency Level Flag Image' },
-  rankNameBgImage: { ar: 'صورة خلفية اسم الرتبة والمستوى', en: 'Rank Name Background Image' },
-  rankBannerImage: { ar: 'صورة بانر تصنيف وترتيب الوكالات', en: 'Agency Rank Banner Image' },
-  broadcastIconImage: { ar: 'أيقونة إعلانات وبرودكاست الوكالة', en: 'Agency Broadcast Icon' },
-  editIconImage: { ar: 'أيقونة تعديل بيانات وبروفايل الوكالة', en: 'Agency Edit Profile Icon' },
-  helpIconImage: { ar: 'أيقونة المساعدة والتعليمات', en: 'Help Icon' },
-  lineDotIconImage: { ar: 'صورة الخط الفاصل المتدرج', en: 'Divider Line Dot Image' },
-  diamondCardBgImage: { ar: 'صورة خلفية كارت تارجت الألماس', en: 'Diamond Target Card Background' },
-  diamondWatermarkImage: { ar: 'العلامة المائية لكارت الألماس', en: 'Diamond Watermark Image' },
-  salaryCardBgImage: { ar: 'صورة خلفية كارت الراتب والأرباح', en: 'Salary Card Background' },
-  salaryWatermarkImage: { ar: 'العلامة المائية لكارت الراتب', en: 'Salary Watermark Image' },
-  transferArrowIconImage: { ar: 'سهم الانتقال للمرحلة التالية', en: 'Next Stage Arrow Icon' },
-  hoursCardBgImage: { ar: 'صورة خلفية كارت ساعات البث المعتمدة', en: 'Broadcasting Hours Card Background' },
-  addMemberButtonImage: { ar: 'صورة خلفية زر إضافة عضو', en: 'Add Member Button Image' },
-  addMemberButtonText: { ar: 'نص زر إضافة عضو', en: 'Add Member Button Text' },
-  adminSettingIconImage: { ar: 'أيقونة إعدادات الإدارة والصلاحيات', en: 'Admin Settings Icon' },
-  memberDetailIconImage: { ar: 'أيقونة تفاصيل المضيف والراتب', en: 'Member Detail Icon' },
-  memberDeleteIconImage: { ar: 'أيقونة حذف عضو من الوكالة', en: 'Member Delete Icon' },
-  memberMoreIconImage: { ar: 'أيقونة المزيد من الخيارات للعضو', en: 'Member More Icon' },
-  tagHostIconImage: { ar: 'شارة/تاج المضيف التابع للوكالة', en: 'Host Tag Icon' },
-  stageCompletedBadgeImage: { ar: 'شارة تقفيل واكتمال المرحلة', en: 'Stage Completed Badge' },
-  stageNextBadgeImage: { ar: 'شارة المرحلة التالية والتارجت', en: 'Next Stage Badge' },
   cardSelectedBorderColor: { ar: 'لون إطار العنصر/الهدية المحددة', en: 'Selected Item Border Color' },
   sendBtnColor: { ar: 'لون زر الإرسال', en: 'Send Button Color' },
   sendBtnGradientStart: { ar: 'بداية تدرج زر الإرسال', en: 'Send Button Gradient Start' },
@@ -875,25 +813,9 @@ const fieldLabels: Record<string, Record<string, string>> = {
   rocketExplosionSvga: { ar: 'أنيميشن انفجار الصاروخ SVGA', en: 'Rocket Blast/Explosion SVGA' },
   rocketTarget: { ar: 'قيمة الطاقة المستهدفة للصاروخ (مثلاً 10000)', en: 'Rocket Target Energy' },
   rocketBanner: { ar: 'صورة بانر صندوق الصاروخ', en: 'Rocket Box Banner' },
-  // ── تخصيص وكالات الشحن والمضيفين ──
-  transferTitleImage: { ar: 'صورة عنوان تحويل الكوينز (أعلى الكرت)', en: 'Transfer Title Image' },
-  transferCardBgImage: { ar: 'صورة خلفية كرت المستلم الزجاجي (استبدال اللون بالصورة)', en: 'Recipient Card Background Image' },
-  confirmButtonImage: { ar: 'صورة زر تأكيد الشحن/التحويل الزمردي (استبدال اللون بالصورة)', en: 'Confirm Button Image' },
-  coinIconImage: { ar: 'صورة/أيقونة عملة الكوينز', en: 'Coin Icon Image' },
-  levelCardBgImage: { ar: 'صورة خلفية كرت المستوى والرتبة (استبدال اللون بالصورة)', en: 'Level Card Background Image' },
-  flagImage: { ar: 'صورة راية الرتبة (يمين كرت المستوى)', en: 'Rank Flag Image' },
-  rankNameBgImage: { ar: 'صورة خلفية اسم الرتبة (Diamond/Gold)', en: 'Rank Name Background Image' },
-  broadcastIconImage: { ar: 'صورة/أيقونة مكبر الصوت لشريط الإعلانات', en: 'Broadcast Horn Icon' },
-  editIconImage: { ar: 'صورة/أيقونة تعديل بيانات الوكالة', en: 'Edit Agency Info Icon' },
-  helpIconImage: { ar: 'صورة/أيقونة المساعدة بجانب الخبرة', en: 'Level Help Icon' },
-  lineDotIconImage: { ar: 'صورة النقطة والخط الأيقوني لعناوين الأقسام (الألماس والراتب)', en: 'Section Line Dot Icon' },
-  diamondCardBgImage: { ar: 'صورة خلفية كرت الألماس (استبدال اللون الفيروزي بصورة)', en: 'Diamond Card Background Image' },
-  diamondWatermarkImage: { ar: 'صورة العلامة المائية لكرت الألماس', en: 'Diamond Card Watermark Image' },
-  salaryCardBgImage: { ar: 'صورة خلفية كرت الراتب الكبرى (استبدال اللون الفيروزي بصورة)', en: 'Salary Card Background Image' },
-  salaryWatermarkImage: { ar: 'صورة العلامة المائية لكرت الراتب الكبرى', en: 'Salary Card Watermark Image' },
 };
 
-const imageFields = ['bgImage', 'listBgImage', 'rank1Frame', 'rank2Frame', 'rank3Frame', 'rank1Banner', 'rank2Banner', 'rank3Banner', 'backgroundImage', 'bannerImage', 'cpIcon', 'rechargeAgentIcon', 'hostAgencyIcon', 'rocketIcon', 'rocketSvga', 'rocketExplosionSvga', 'rocketBanner', 'checkboxCheckedImage', 'checkboxUncheckedImage', 'coinIcon', 'diamondIcon', 'rankIcon', 'crownIcon', 'rankBgImage', 'checkedImage', 'uncheckedImage', 'cardBgImage', 'sectionBgImage', 'badgeBgImage', 'necklaceBgImage', 'headerBgImage', 'headerTextImage', 'cardBorderImage', 'textImage', 'subTextImage', 'accentImage', 'badgeBorderImage', 'necklaceBorderImage', 'lockImage', 'fullScreenBg', 'cabinBg', 'cabinDefaultBg', 'leftFrame', 'rightFrame', 'heartImage', 'noCpHeartSvg', 'tokenBg', 'mineBg', 'tabBgImage', 'invitationBgImage', 'countdownDaySvg', 'countdownHourSvg', 'countdownMinSvg', 'countdownSecSvg', 'rankTagGoldSvg', 'rankTagSilverSvg', 'rankTagBronzeSvg', 'historyCardSvg', 'giftsBannerSvg', 'profileHeartIcon', 'profileLevelBg', 'profileNameFrame', 'profileTopBgSvga', 'checkmarkImage', 'streakIcon', 'topBgSvga', 'buttonImage', 'seatDefaultCircleImage', 'seatLockCircleImage', 'seatDefaultClassicImage', 'seatLockClassicImage', 'seatDefaultVipImage', 'seatLockVipImage', 'gameIconImage', 'exitIconImage', 'onlineCapsuleBgImage', 'giftIconImage', 'chatIconImage', 'emojiIconImage', 'micOnIconImage', 'micOffIconImage', 'musicIconImage', 'msgIconImage', 'functionIconImage', 'userCardBgImage', 'userGiftBgImage', 'userFollowIconImage', 'userChatIconImage', 'userAtIconImage', 'userGiftBtnImage', 'userMicDownIconImage', 'userMicMuteIconImage', 'seatPanelTopBg', 'seatRadioCheckedBg', 'seatRadioUncheckedBg', 'seatGameIcon', 'seatClassicIcon', 'seatVipIcon', 'seatPreviewFrame', 'funcMixerIcon', 'funcSettingsIcon', 'funcSeatStyleIcon', 'funcBgIcon', 'funcReportIcon', 'funcEffectIcon', 'funcVolumeIcon', 'funcGiftValIcon', 'settingsHeaderBg', 'settingsLabelIcon', 'settingsCameraIcon', 'transferTitleImage', 'transferCardBgImage', 'confirmButtonImage', 'coinIconImage', 'levelCardBgImage', 'flagImage', 'rankNameBgImage', 'broadcastIconImage', 'editIconImage', 'helpIconImage', 'lineDotIconImage', 'diamondCardBgImage', 'diamondWatermarkImage', 'salaryCardBgImage', 'salaryWatermarkImage', 'transferArrowIconImage', 'withdrawButtonImage', 'hoursCardBgImage'];
+const imageFields = ['bgImage', 'listBgImage', 'rank1Frame', 'rank2Frame', 'rank3Frame', 'rank1Banner', 'rank2Banner', 'rank3Banner', 'backgroundImage', 'bannerImage', 'cpIcon', 'rechargeAgentIcon', 'hostAgencyIcon', 'rocketIcon', 'rocketSvga', 'rocketExplosionSvga', 'rocketBanner', 'checkboxCheckedImage', 'checkboxUncheckedImage', 'coinIcon', 'diamondIcon', 'rankIcon', 'crownIcon', 'rankBgImage', 'checkedImage', 'uncheckedImage', 'cardBgImage', 'sectionBgImage', 'badgeBgImage', 'necklaceBgImage', 'headerBgImage', 'headerTextImage', 'cardBorderImage', 'textImage', 'subTextImage', 'accentImage', 'badgeBorderImage', 'necklaceBorderImage', 'lockImage', 'fullScreenBg', 'cabinBg', 'cabinDefaultBg', 'leftFrame', 'rightFrame', 'heartImage', 'noCpHeartSvg', 'tokenBg', 'mineBg', 'tabBgImage', 'invitationBgImage', 'countdownDaySvg', 'countdownHourSvg', 'countdownMinSvg', 'countdownSecSvg', 'rankTagGoldSvg', 'rankTagSilverSvg', 'rankTagBronzeSvg', 'historyCardSvg', 'giftsBannerSvg', 'profileHeartIcon', 'profileLevelBg', 'profileNameFrame', 'profileTopBgSvga', 'checkmarkImage', 'streakIcon', 'topBgSvga', 'buttonImage', 'seatDefaultCircleImage', 'seatLockCircleImage', 'seatDefaultClassicImage', 'seatLockClassicImage', 'seatDefaultVipImage', 'seatLockVipImage', 'gameIconImage', 'exitIconImage', 'onlineCapsuleBgImage', 'giftIconImage', 'chatIconImage', 'emojiIconImage', 'micOnIconImage', 'micOffIconImage', 'musicIconImage', 'msgIconImage', 'functionIconImage', 'userCardBgImage', 'userGiftBgImage', 'userFollowIconImage', 'userChatIconImage', 'userAtIconImage', 'userGiftBtnImage', 'userMicDownIconImage', 'userMicMuteIconImage', 'seatPanelTopBg', 'seatRadioCheckedBg', 'seatRadioUncheckedBg', 'seatGameIcon', 'seatClassicIcon', 'seatVipIcon', 'seatPreviewFrame', 'funcMixerIcon', 'funcSettingsIcon', 'funcSeatStyleIcon', 'funcBgIcon', 'funcReportIcon', 'funcEffectIcon', 'funcVolumeIcon', 'funcGiftValIcon', 'settingsHeaderBg', 'settingsLabelIcon', 'settingsCameraIcon'];
 
 const colorRegex = /^(bg|header|text|card|border|accent|tab|gold|silver|bronze|points|section|badge|necklace|member|primary|gradient|countdown|invitation|button|avatar|score|period|rank|shadow|Color)/i;
 
@@ -944,11 +866,25 @@ export default function ScreenCustomizationPage() {
       for (const screen of screenTabs) {
         clean[screen] = {};
         for (const [key, val] of Object.entries(visuals[screen])) {
-          const strVal = String(val ?? '');
-          if (strVal.trim()) clean[screen][key] = strVal.trim();
+          if (val && val.trim()) clean[screen][key] = val.trim();
         }
       }
-      await updateAppConfig({ screenVisuals: clean } as any);
+      await updateAppConfig({
+        screenVisuals: clean,
+        custom_strings: customStrings,
+        screenTitles: {
+          agency: customStrings['agency_screen_title'] || 'شاشة الوكالة',
+          wallet: customStrings['wallet_title'] || 'المحفظة',
+          store: customStrings['store_title'] || 'المتجر',
+          backpack: customStrings['backpack_title'] || 'الحقيبة',
+          cp: customStrings['cp_title'] || 'علاقة CP',
+          tasks: customStrings['tasks_title'] || 'مركز المهام',
+          signin: customStrings['signin_title'] || 'تسجيل الدخول اليومي',
+          ...Object.fromEntries(
+            Object.entries(customStrings).filter(([k]) => k.endsWith('_title') || k.endsWith('Title'))
+          ),
+        },
+      } as any);
       showMsg(lang === 'ar' ? 'تم الحفظ!' : 'Saved!');
     } catch (e) {
       showMsg(lang === 'ar' ? 'فشل الحفظ' : 'Save failed');
@@ -1037,8 +973,7 @@ export default function ScreenCustomizationPage() {
       {/* Inputs Form */}
       <div className="bg-[#141417] rounded-2xl border border-white/5 p-4 sm:p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.entries(visuals[activeTab as keyof ScreenVisuals] || {}).map(([field, rawVal]) => {
-            const value = String(rawVal ?? '');
+          {Object.entries(visuals[activeTab as keyof ScreenVisuals] || {}).map(([field, value]) => {
             const label = fieldLabels[field]?.[lang === 'ar' ? 'ar' : 'en'] || field;
             const isImg = imageFields.includes(field);
             const isColor = isColorField(field);

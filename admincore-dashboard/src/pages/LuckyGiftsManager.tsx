@@ -19,9 +19,10 @@ import {
   Edit,
   Flame,
   Globe,
-  Upload,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { firestoreDb } from '../lib/firebase';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import ImageUpload from '../components/ImageUpload';
 import { uploadGiftIcon, uploadGiftAnimation } from '../lib/storage';
 
@@ -33,7 +34,6 @@ interface MultiplierTier {
   isJackpot: boolean;
   isGlobalBroadcast: boolean;
   label: string;
-  svgaUrl?: string; // رابط أو مسار ملف الـ SVGA المخصص للمضاعف
 }
 
 interface CardVisualSettings {
@@ -96,23 +96,20 @@ export default function LuckyGiftsManager() {
     globalBroadcastMinMultiplier: 50,
   });
 
-  // نسب ومضاعفات الربح مع ملفات الـ SVGA المخصصة لكل مضاعف
+  // نسب ومضاعفات الربح
   const [oddsTiers, setOddsTiers] = useState<MultiplierTier[]>([
-    { id: '1', multiplier: 0, weight: 650, probability: 65.0, isJackpot: false, isGlobalBroadcast: false, label: 'حظ أوفر (خسارة)', svgaUrl: '' },
-    { id: '2', multiplier: 1, weight: 200, probability: 20.0, isJackpot: false, isGlobalBroadcast: false, label: 'استرجاع القيمة (1X)', svgaUrl: '' },
-    { id: '3', multiplier: 2, weight: 90, probability: 9.0, isJackpot: false, isGlobalBroadcast: false, label: 'مضاعف (2X)', svgaUrl: '' },
-    { id: '4', multiplier: 5, weight: 40, probability: 4.0, isJackpot: false, isGlobalBroadcast: false, label: 'مضاعف (5X)', svgaUrl: 'assets/svga/gift_5.svga' },
-    { id: '5', multiplier: 10, weight: 15, probability: 1.5, isJackpot: false, isGlobalBroadcast: false, label: 'مضاعف كبير (10X)', svgaUrl: 'assets/svga/gift_10.svga' },
-    { id: '6', multiplier: 20, weight: 8, probability: 0.8, isJackpot: false, isGlobalBroadcast: false, label: 'مضاعف (20X)', svgaUrl: 'assets/svga/gift_20.svga' },
-    { id: '7', multiplier: 50, weight: 4, probability: 0.4, isJackpot: false, isGlobalBroadcast: true, label: 'فوز ضخم (50X)', svgaUrl: 'assets/svga/gift_50.svga' },
-    { id: '8', multiplier: 100, weight: 0.8, probability: 0.08, isJackpot: true, isGlobalBroadcast: true, label: 'جائزة كبرى (100X)', svgaUrl: 'assets/svga/ar100.svga' },
-    { id: '9', multiplier: 250, weight: 0.35, probability: 0.035, isJackpot: true, isGlobalBroadcast: true, label: 'جائزة خارقة (250X)', svgaUrl: 'assets/svga/ar250.svga' },
-    { id: '10', multiplier: 500, weight: 0.18, probability: 0.018, isJackpot: true, isGlobalBroadcast: true, label: 'جائزة أسطورية (500X)', svgaUrl: 'assets/svga/ar500.svga' },
-    { id: '11', multiplier: 1000, weight: 0.02, probability: 0.002, isJackpot: true, isGlobalBroadcast: true, label: 'الجاكبوت الكلي (1000X)', svgaUrl: 'assets/svga/ar1000.svga' },
+    { id: '1', multiplier: 0, weight: 650, probability: 65.0, isJackpot: false, isGlobalBroadcast: false, label: 'حظ أوفر' },
+    { id: '2', multiplier: 1, weight: 200, probability: 20.0, isJackpot: false, isGlobalBroadcast: false, label: 'استرجاع القيمة (1X)' },
+    { id: '3', multiplier: 2, weight: 90, probability: 9.0, isJackpot: false, isGlobalBroadcast: false, label: 'مضاعف (2X)' },
+    { id: '4', multiplier: 5, weight: 40, probability: 4.0, isJackpot: false, isGlobalBroadcast: false, label: 'مضاعف (5X)' },
+    { id: '5', multiplier: 10, weight: 15, probability: 1.5, isJackpot: false, isGlobalBroadcast: false, label: 'مضاعف كبير (10X)' },
+    { id: '6', multiplier: 20, weight: 8, probability: 0.8, isJackpot: false, isGlobalBroadcast: false, label: 'مضاعف (20X)' },
+    { id: '7', multiplier: 50, weight: 4, probability: 0.4, isJackpot: false, isGlobalBroadcast: true, label: 'فوز ضخم (50X)' },
+    { id: '8', multiplier: 100, weight: 0.8, probability: 0.08, isJackpot: true, isGlobalBroadcast: true, label: 'جائزة كبرى (100X)' },
+    { id: '9', multiplier: 250, weight: 0.35, probability: 0.035, isJackpot: true, isGlobalBroadcast: true, label: 'جائزة خارقة (250X)' },
+    { id: '10', multiplier: 500, weight: 0.18, probability: 0.018, isJackpot: true, isGlobalBroadcast: true, label: 'جائزة أسطورية (500X)' },
+    { id: '11', multiplier: 1000, weight: 0.02, probability: 0.002, isJackpot: true, isGlobalBroadcast: true, label: 'الجاكبوت الكلي (1000X)' },
   ]);
-
-  // نسبة المكسب الإجمالية (%) المباشرة (0 = خسارة مؤكدة 100%, 10 = مكسب 10% وخسارة 90%, 30 = مكسب 30% وخسارة 70%, 40 = مكسب 40% وخسارة 60%)
-  const [winRate, setWinRate] = useState<number>(35.0);
 
   // تصنيفات الهدايا
   const [categories, setCategories] = useState([
@@ -189,89 +186,36 @@ export default function LuckyGiftsManager() {
     { id: 'r_1000', category: 'room_win', title: 'أنيميشن مكسب الغرفة 1000X', tierOrNumber: '1000X', pathOrUrl: 'assets/svga/gift_1000.svga', textKey: 'test-b (الاسم) / test-a (الكوينز)', imageKey: 'Avatar', description: 'يظهر لجميع أعضاء الغرفة' },
   ]);
 
-  // نسبة دخول هدايا الحظ في تارجت وماسات المستلم (%)
-  const [targetPercentage, setTargetPercentage] = useState<number>(10.0);
-
   useEffect(() => {
     loadSettings();
   }, []);
 
   const loadSettings = async () => {
     try {
-      let cfg: any = null;
-      const { data, error } = await supabase
-        .from('app_config')
-        .select('value')
-        .eq('key', 'lucky_box_config')
-        .maybeSingle();
-
-      if (!error && data?.value) {
-        cfg = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-      }
-
-      if (cfg) {
+      const docRef = doc(firestoreDb, 'app_config', 'lucky_box_config');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
         setVisuals(prev => ({
           ...prev,
-          coverUrl: cfg.coverUrl ?? prev.coverUrl,
-          backBgUrl: cfg.backBgUrl ?? prev.backBgUrl,
-          themeStyle: cfg.themeStyle ?? prev.themeStyle,
-          flipDurationMs: cfg.flipDurationMs ?? prev.flipDurationMs,
-          cooldownMs: cfg.cooldownMs ?? prev.cooldownMs,
-          comboTimeoutMs: cfg.comboTimeoutMs ?? prev.comboTimeoutMs,
-          settlementCountdownMs: cfg.settlementCountdownMs ?? prev.settlementCountdownMs,
-          maxCardsPerRound: cfg.maxCardsPerRound ?? prev.maxCardsPerRound,
-          globalBroadcastMinMultiplier: cfg.globalBroadcastMinMultiplier ?? prev.globalBroadcastMinMultiplier,
-          enableBurstMode: cfg.enableBurstMode ?? prev.enableBurstMode,
+          coverUrl: data.coverUrl ?? prev.coverUrl,
+          backBgUrl: data.backBgUrl ?? prev.backBgUrl,
+          themeStyle: data.themeStyle ?? prev.themeStyle,
+          flipDurationMs: data.flipDurationMs ?? prev.flipDurationMs,
+          cooldownMs: data.cooldownMs ?? prev.cooldownMs,
+          comboTimeoutMs: data.comboTimeoutMs ?? prev.comboTimeoutMs,
+          settlementCountdownMs: data.settlementCountdownMs ?? prev.settlementCountdownMs,
+          maxCardsPerRound: data.maxCardsPerRound ?? prev.maxCardsPerRound,
+          globalBroadcastMinMultiplier: data.globalBroadcastMinMultiplier ?? prev.globalBroadcastMinMultiplier,
+          enableBurstMode: data.enableBurstMode ?? prev.enableBurstMode,
         }));
-        if (cfg.targetPercentage !== undefined) {
-          setTargetPercentage(Number(cfg.targetPercentage) || 0);
-        }
-        if (cfg.winRate !== undefined) {
-          setWinRate(Number(cfg.winRate) || 0);
-        }
-        if (cfg.oddsTiers && Array.isArray(cfg.oddsTiers)) {
-          // دمج قيم مسارات الـ SVGA مع القيم الحالية
-          const mergedTiers = cfg.oddsTiers.map((t: any) => ({
-            ...t,
-            svgaUrl: t.svgaUrl ?? (
-              t.multiplier === 5 ? 'assets/svga/gift_5.svga' :
-              t.multiplier === 10 ? 'assets/svga/gift_10.svga' :
-              t.multiplier === 20 ? 'assets/svga/gift_20.svga' :
-              t.multiplier === 50 ? 'assets/svga/gift_50.svga' :
-              t.multiplier === 100 ? 'assets/svga/ar100.svga' :
-              t.multiplier === 250 ? 'assets/svga/ar250.svga' :
-              t.multiplier === 500 ? 'assets/svga/ar500.svga' :
-              t.multiplier === 1000 ? 'assets/svga/ar1000.svga' : ''
-            ),
-          }));
-          setOddsTiers(mergedTiers);
-
-          if (cfg.winRate === undefined) {
-            const lossTier = mergedTiers.find((t: any) => t.multiplier === 0);
-            if (lossTier) {
-              setWinRate(Number(Math.max(0, Math.min(100, 100 - (lossTier.probability || 0))).toFixed(1)));
-            }
-          }
-        }
-        if (cfg.giftsList) setGiftsList(cfg.giftsList);
-        if (cfg.svgaLibrary) setSvgaLibrary(cfg.svgaLibrary);
-      }
-
-      // 2. قراءة النسبة المباشرة إن وجدت
-      const { data: directData } = await supabase
-        .from('app_config')
-        .select('value')
-        .eq('key', 'lucky_gift_target_percentage')
-        .maybeSingle();
-
-      if (directData?.value !== undefined && directData?.value !== null) {
-        const val = Number(directData.value);
-        if (!isNaN(val)) {
-          setTargetPercentage(val);
-        }
+        if (data.oddsTiers) setOddsTiers(data.oddsTiers);
+        if (data.giftsList) setGiftsList(data.giftsList);
+        if (data.svgaLibrary) setSvgaLibrary(data.svgaLibrary);
+        return;
       }
     } catch (e) {
-      console.log('Settings load fallback:', e);
+      console.log('Firebase load fallback:', e);
     }
   };
 
@@ -279,62 +223,6 @@ export default function LuckyGiftsManager() {
   const calculatedRTP = totalWeight > 0
     ? oddsTiers.reduce((acc, t) => acc + (t.multiplier * (t.weight / totalWeight) * 100), 0)
     : 0;
-
-  // دالة تطبيق نسبة المكسب والخسارة الإجمالية (مثلاً: 10% مكسب / 90% خسارة، أو 0% مكسب "يخسرو يخسرو")
-  const applyWinRate = (newWinRate: number) => {
-    const clampedWin = Math.max(0, Math.min(100, Number(newWinRate)));
-    setWinRate(clampedWin);
-    const clampedLoss = 100 - clampedWin;
-
-    const updated = [...oddsTiers];
-    const lossIndex = updated.findIndex(t => t.multiplier === 0);
-
-    if (clampedWin === 0) {
-      // وضع الخسارة التامة 100%
-      updated.forEach((t, i) => {
-        if (i === lossIndex || t.multiplier === 0) {
-          t.weight = 1000;
-          t.probability = 100.0;
-        } else {
-          t.weight = 0;
-          t.probability = 0.0;
-        }
-      });
-      setOddsTiers(updated);
-      return;
-    }
-
-    // مجموع أوزان المضاعفات الرابحة (> 0)
-    let winWeightsSum = updated.filter(t => t.multiplier > 0).reduce((acc, t) => acc + t.weight, 0);
-    if (winWeightsSum <= 0) {
-      // إعادة ملء الأوزان الافتراضية للفوز إن كانت مصفّرة
-      updated.forEach(t => {
-        if (t.multiplier === 1) t.weight = 200;
-        else if (t.multiplier === 2) t.weight = 90;
-        else if (t.multiplier === 5) t.weight = 40;
-        else if (t.multiplier === 10) t.weight = 15;
-        else if (t.multiplier === 20) t.weight = 8;
-        else if (t.multiplier === 50) t.weight = 4;
-        else if (t.multiplier === 100) t.weight = 0.8;
-        else if (t.multiplier === 250) t.weight = 0.35;
-        else if (t.multiplier === 500) t.weight = 0.18;
-        else if (t.multiplier === 1000) t.weight = 0.02;
-      });
-      winWeightsSum = updated.filter(t => t.multiplier > 0).reduce((acc, t) => acc + t.weight, 0);
-    }
-
-    // وزن الخسارة = وزن الفوز * (نسبة الخسارة / نسبة المكسب)
-    const lossWeight = Number((winWeightsSum * (clampedLoss / clampedWin)).toFixed(2));
-    if (lossIndex >= 0) {
-      updated[lossIndex].weight = lossWeight;
-    }
-
-    const newTotal = updated.reduce((acc, t) => acc + t.weight, 0);
-    updated.forEach(t => {
-      t.probability = newTotal > 0 ? Number(((t.weight / newTotal) * 100).toFixed(3)) : 0;
-    });
-    setOddsTiers(updated);
-  };
 
   const handleWeightChange = (index: number, newWeight: number) => {
     const updated = [...oddsTiers];
@@ -344,41 +232,20 @@ export default function LuckyGiftsManager() {
       t.probability = newTotal > 0 ? Number(((t.weight / newTotal) * 100).toFixed(3)) : 0;
     });
     setOddsTiers(updated);
-    // تحديث نسبة المكسب المحسوبة تلقائياً (100 - نسبة الخسارة 0X)
-    const lossTier = updated.find(t => t.multiplier === 0);
-    const lossProb = lossTier?.probability ?? 0;
-    setWinRate(Number(Math.max(0, Math.min(100, 100 - lossProb)).toFixed(1)));
   };
 
   const handleSave = async () => {
     setLoading(true);
     setSavedSuccess(false);
     try {
-      const payload = {
+      const docRef = doc(firestoreDb, 'app_config', 'lucky_box_config');
+      await setDoc(docRef, {
         ...visuals,
-        winRate,
-        lossRate: Number((100 - winRate).toFixed(1)),
-        targetPercentage,
         oddsTiers,
         giftsList,
         svgaLibrary,
         updated_at: new Date().toISOString(),
-      };
-
-      // Save to Supabase
-      try {
-        await supabase.from('app_config').upsert({
-          key: 'lucky_box_config',
-          value: payload,
-        }, { onConflict: 'key' });
-
-        await supabase.from('app_config').upsert({
-          key: 'lucky_gift_target_percentage',
-          value: targetPercentage,
-        }, { onConflict: 'key' });
-      } catch (sErr) {
-        console.warn('Supabase lucky_box_config save error:', sErr);
-      }
+      }, { merge: true });
 
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
@@ -415,7 +282,7 @@ export default function LuckyGiftsManager() {
           {savedSuccess && (
             <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg">
               <CheckCircle className="w-4 h-4" />
-              تم حفظ التعديلات بنجاح في Supabase!
+              تم حفظ التعديلات بنجاح في Firebase!
             </div>
           )}
           <button
@@ -652,163 +519,6 @@ export default function LuckyGiftsManager() {
       {/* TAB 2: ODDS & RTP */}
       {activeTab === 'odds' && (
         <div className="space-y-4">
-          {/* كارت نسبة دخول هدايا الحظ في تارجت وماسات المستلم */}
-          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-transparent border border-amber-500/30 rounded-2xl p-5 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300">
-                  <Flame className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>نسبة احتساب هدايا الحظ في تارجت وماسات المستلم</span>
-                    <span className="text-xs bg-amber-500 text-black font-extrabold px-2 py-0.5 rounded-full">
-                      {targetPercentage}%
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-300 mt-1">
-                    عند إرسال هدية حظ (مثلاً بقيمة 10 كوينز)، يحصل المستلم في رصيد ماساته وتارجت الوكالة على{' '}
-                    <strong className="text-amber-400">
-                      {((10 * targetPercentage) / 100).toFixed(1)} ماسة
-                    </strong>{' '}
-                    بدلاً من القيمة الكاملة، وذلك للحفاظ على توازن واقتصادية هدايا الحظ.
-                  </p>
-                </div>
-              </div>
-
-              {/* أزرار سريعة لاختيار النسبة */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[0, 5, 10, 15, 20, 50, 100].map(pct => (
-                  <button
-                    key={pct}
-                    onClick={() => setTargetPercentage(pct)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
-                      targetPercentage === pct
-                        ? 'bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/20'
-                        : 'bg-black/40 text-slate-300 border-white/10 hover:border-amber-500/50 hover:text-white'
-                    }`}
-                  >
-                    {pct}%
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* سلايدر وحقل إدخال يدوي */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pt-3 border-t border-white/5">
-              <div className="md:col-span-8 flex items-center gap-3">
-                <span className="text-xs text-slate-400 shrink-0">0%</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={targetPercentage}
-                  onChange={e => setTargetPercentage(Number(e.target.value))}
-                  className="w-full accent-amber-500 cursor-pointer"
-                />
-                <span className="text-xs text-slate-400 shrink-0">100%</span>
-              </div>
-              <div className="md:col-span-4 flex items-center gap-2">
-                <span className="text-xs text-slate-300 font-medium shrink-0">النسبة المئوية:</span>
-                <div className="relative flex-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    value={targetPercentage}
-                    onChange={e => setTargetPercentage(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:border-amber-500 outline-none pr-7 font-bold text-center"
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-amber-400 font-bold">%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* كارت التحكم المباشر بالمكسب والخسارة (Win/Loss Controller) */}
-          <div className="bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-rose-500/10 border border-emerald-500/30 rounded-2xl p-5 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
-                  <Sliders className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>التحكم المباشر في المكسب والخسارة (Win vs Loss Controller)</span>
-                    <span className="text-xs bg-emerald-500 text-black font-extrabold px-2.5 py-0.5 rounded-full">
-                      مكسب: {winRate}%
-                    </span>
-                    <span className="text-xs bg-rose-500 text-white font-extrabold px-2.5 py-0.5 rounded-full">
-                      خسارة: {(100 - winRate).toFixed(1)}%
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-300 mt-1">
-                    يمكنك تحديد نسبة فوز المستخدمين مباشرة؛ أي نسبة تختارها تصبح نسبة الخسارة (0X) هي المكمل التلقائي لـ 100%.
-                    مثال: إذا اخترت <strong className="text-emerald-400">10% مكسب</strong> تصبح الخسارة <strong className="text-rose-400">90%</strong>، وإذا اخترت <strong className="text-rose-400">0%</strong> تصبح الخسارة 100% مؤكدة ("يخسرو يخسرو").
-                  </p>
-                </div>
-              </div>
-
-              {/* أزرار الأوضاع السريعة */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[
-                  { label: '🚫 خسارة تامة (0%)', val: 0, color: 'bg-rose-600 hover:bg-rose-700 text-white' },
-                  { label: '🔻 خسارة 90% (مكسب 10%)', val: 10, color: 'bg-orange-600 hover:bg-orange-700 text-white' },
-                  { label: '⚖️ مكسب 30% (خسارة 70%)', val: 30, color: 'bg-amber-600 hover:bg-amber-700 text-white' },
-                  { label: '🎯 مكسب 40% (خسارة 60%)', val: 40, color: 'bg-yellow-600 hover:bg-yellow-700 text-black' },
-                  { label: '🎁 مكسب 50% (متوازن)', val: 50, color: 'bg-cyan-600 hover:bg-cyan-700 text-white' },
-                  { label: '🌟 مكسب 70% (سخي جداً)', val: 70, color: 'bg-emerald-600 hover:bg-emerald-700 text-white' },
-                ].map(mode => (
-                  <button
-                    key={mode.val}
-                    onClick={() => applyWinRate(mode.val)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
-                      winRate === mode.val
-                        ? `${mode.color} border-white/40 shadow-lg shadow-white/10 ring-2 ring-white/30`
-                        : 'bg-black/40 text-slate-300 border-white/10 hover:border-white/30 hover:text-white'
-                    }`}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* سلايدر وحقل إدخال يدوي لنسبة المكسب */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pt-3 border-t border-white/5">
-              <div className="md:col-span-8 flex items-center gap-3">
-                <span className="text-xs text-rose-400 font-bold shrink-0">0% (خسارة 100%)</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={winRate}
-                  onChange={e => applyWinRate(Number(e.target.value))}
-                  className="w-full accent-emerald-500 cursor-pointer"
-                />
-                <span className="text-xs text-emerald-400 font-bold shrink-0">100% (مكسب تام)</span>
-              </div>
-              <div className="md:col-span-4 flex items-center gap-2">
-                <span className="text-xs text-slate-300 font-medium shrink-0">نسبة المكسب المحددة:</span>
-                <div className="relative flex-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    value={winRate}
-                    onChange={e => applyWinRate(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                    className="w-full bg-black/50 border border-emerald-500/40 rounded-xl px-3 py-1.5 text-xs text-emerald-300 focus:border-emerald-400 outline-none pr-7 font-bold text-center"
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-bold">%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div className="bg-[#121214] border border-white/5 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className={`p-3 rounded-xl border ${
@@ -836,7 +546,6 @@ export default function LuckyGiftsManager() {
                     <th className="p-3">الوصف</th>
                     <th className="p-3">الوزن الإحصائي (Weight)</th>
                     <th className="p-3">النسبة المئوية (%)</th>
-                    <th className="p-3">ملف الـ SVGA المخصص للمضاعف (الأنيميشن)</th>
                     <th className="p-3 text-center">إشعار عام (Banner)</th>
                   </tr>
                 </thead>
@@ -857,46 +566,6 @@ export default function LuckyGiftsManager() {
                       </td>
                       <td className="p-3 font-semibold text-emerald-400">
                         {tier.probability.toFixed(3)}%
-                      </td>
-                      <td className="p-3">
-                        {tier.multiplier === 0 ? (
-                          <span className="text-[11px] text-slate-500">لا يتطلب أنيميشن (خسارة)</span>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={tier.svgaUrl || ''}
-                              onChange={e => {
-                                const updated = [...oddsTiers];
-                                updated[idx].svgaUrl = e.target.value;
-                                setOddsTiers(updated);
-                              }}
-                              placeholder="assets/svga/... أو رابط SVGA"
-                              className="w-48 bg-black/50 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-300 outline-none focus:border-amber-500"
-                            />
-                            <label className="cursor-pointer flex items-center gap-1 px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold whitespace-nowrap transition">
-                              <Upload className="w-3 h-3" />
-                              <span>رفع SVGA 📁</span>
-                              <input
-                                type="file"
-                                accept=".svga,.vap,.mp4,.json,.png"
-                                className="hidden"
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0];
-                                  if (!file) return;
-                                  try {
-                                    const url = await uploadGiftAnimation(file, `multiplier_${tier.multiplier}_${Date.now()}`);
-                                    const updated = [...oddsTiers];
-                                    updated[idx].svgaUrl = url;
-                                    setOddsTiers(updated);
-                                  } catch (err) {
-                                    alert('فشل رفع ملف SVGA');
-                                  }
-                                }}
-                              />
-                            </label>
-                          </div>
-                        )}
                       </td>
                       <td className="p-3 text-center">
                         <input
