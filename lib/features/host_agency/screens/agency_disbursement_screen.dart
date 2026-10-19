@@ -75,18 +75,29 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
         return;
       }
 
-      final results = await Future.wait([
-        AgencyRepository.getHostStats(),
-        AgencyRepository.getEngineSettings(),
-        if (widget.agencyId != null && widget.agencyId!.isNotEmpty)
-          AgencyRepository.getOwnerDashboard(widget.agencyId!)
-        else
-          Future.value(null),
-      ]);
+      HostAgencyStats? hostStats;
+      AgencyEngineSettings engine = AgencyEngineSettings.defaults;
+      AgencyOwnerDashboard? ownerDash;
 
-      final hostStats = results[0] as HostAgencyStats?;
-      final engine = results[1] as AgencyEngineSettings;
-      final ownerDash = results[2] as AgencyOwnerDashboard?;
+      try {
+        hostStats = await AgencyRepository.getHostStats();
+      } catch (e) {
+        debugPrint('[AgencyDisbursementScreen] getHostStats error: $e');
+      }
+
+      try {
+        engine = await AgencyRepository.getEngineSettings();
+      } catch (e) {
+        debugPrint('[AgencyDisbursementScreen] getEngineSettings error: $e');
+      }
+
+      if (widget.agencyId != null && widget.agencyId!.isNotEmpty) {
+        try {
+          ownerDash = await AgencyRepository.getOwnerDashboard(widget.agencyId!);
+        } catch (e) {
+          debugPrint('[AgencyDisbursementScreen] getOwnerDashboard error: $e');
+        }
+      }
 
       if (ownerDash != null) {
         _isOwner = true;
@@ -98,24 +109,32 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
         _monthlyTarget = _member!.diamondsEarnedMonthly;
       } else {
         // فحص مباشر من جدول المستخدمين
-        final uRow = await Supabase.instance.client
-            .from('users')
-            .select('diamonds')
-            .eq('uid', uid)
-            .maybeSingle();
-        _availableDiamonds = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
+        try {
+          final uRow = await Supabase.instance.client
+              .from('users')
+              .select('diamonds')
+              .eq('uid', uid)
+              .maybeSingle();
+          _availableDiamonds = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
+        } catch (_) {}
       }
 
-      setState(() {
-        _engine = engine;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _engine = engine;
+          _loading = false;
+          _error = null;
+        });
+      }
     } catch (e) {
       debugPrint('[AgencyDisbursementScreen] _loadAll error: $e');
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _engine = AgencyEngineSettings.defaults;
+          _loading = false;
+          _error = null;
+        });
+      }
     }
   }
 

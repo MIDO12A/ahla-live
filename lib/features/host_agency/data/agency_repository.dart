@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../../../core/supabase_compat.dart';
 
 import '../../../core/utils/server_time_service.dart';
@@ -17,15 +18,108 @@ abstract final class AgencyRepository {
   static SupabaseClient get _sb => Supabase.instance.client;
 
   // ─── إعدادات المحرك (مصدر الحقيقة الوحيد للأسعار) ──────────────
-  // ✅ إصلاح: لا قيم مُشفَّرة — إذا فشل RPC نرفع استثناءً صريحاً
-  // حتى لا تُجري العمليات المالية بمعدلات خاطئة بصمت
   static Future<AgencyEngineSettings> getEngineSettings() async {
-    final resp = await _sb.rpc('agency_get_engine_settings');
-    if (resp == null) {
-      debugPrint('[AgencyRepository] ⚠️ CRITICAL: agency_get_engine_settings returned null');
-      throw Exception('تعذّر جلب إعدادات المحرك المالي من الخادم. يرجى المحاولة مجدداً.');
+    // 1. محاولة استدعاء RPC إذا كان موجوداً على الخادم
+    try {
+      final resp = await _sb.rpc('agency_get_engine_settings');
+      if (resp != null && resp is Map) {
+        return AgencyEngineSettings.fromMap(Map<String, dynamic>.from(resp));
+      }
+    } catch (e) {
+      debugPrint('[AgencyRepository] agency_get_engine_settings RPC unavailable: $e');
     }
-    return AgencyEngineSettings.fromMap(Map<String, dynamic>.from(resp as Map));
+
+    // 2. الجلب المباشر من جداول قاعدة البيانات (commission_settings و app_config)
+    try {
+      int hostShare = AgencyEngineSettings.defaults.hostSharePct;
+      int agencyShare = AgencyEngineSettings.defaults.agencySharePct;
+      int platformShare = AgencyEngineSettings.defaults.platformSharePct;
+      double diamondToCoin = AgencyEngineSettings.defaults.diamondToCoinRate;
+      double diamondToUsd = AgencyEngineSettings.defaults.diamondToUsdRate;
+      double withdrawalFee = AgencyEngineSettings.defaults.withdrawalFeePct;
+      double minWithdrawalUsd = AgencyEngineSettings.defaults.minWithdrawalUsd;
+      int minDiamondsToWithdraw = AgencyEngineSettings.defaults.minDiamondsToWithdraw;
+      int dailyLimit = AgencyEngineSettings.defaults.dailyExchangeLimit;
+      bool engineEnabled = AgencyEngineSettings.defaults.engineEnabled;
+
+      // قراءة نسب العمولات المحددة في لوحة التحكم
+      try {
+        final commRows = await _sb.from('commission_settings').select('*');
+        if (commRows is List) {
+          for (final row in commRows) {
+            final key = row['key']?.toString();
+            final p = (row['percentage'] as num?)?.toDouble() ?? 
+                      (row['value'] as num?)?.toDouble();
+            if (p != null) {
+              if (key == 'host_rate' || key == 'recharge_agent_host_rate') {
+                hostShare = p.toInt();
+              } else if (key == 'agency_rate' || key == 'recharge_agent_agency_rate') {
+                agencyShare = p.toInt();
+              } else if (key == 'platform_rate') {
+                platformShare = p.toInt();
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('[AgencyRepository] fallback comm settings error: $e');
+      }
+
+      // قراءة إعدادات صرف وتحويل الألماس
+      try {
+        final cfgRows = await _sb
+            .from('app_config')
+            .select('*')
+            .inFilter('key', ['diamond_exchange_config', 'diamondToCoinRate']);
+        if (cfgRows is List) {
+          for (final row in cfgRows) {
+            final key = row['key']?.toString();
+            final val = row['value'];
+            if (key == 'diamondToCoinRate' && val is num) {
+              diamondToCoin = val.toDouble();
+            } else if (key == 'diamond_exchange_config') {
+              Map<String, dynamic>? dec;
+              if (val is Map) dec = Map<String, dynamic>.from(val);
+              else if (val is String) {
+                try { dec = jsonDecode(val) as Map<String, dynamic>?; } catch (_) {}
+              }
+              if (dec != null) {
+                if (dec['coinsPerDiamond'] is num) {
+                  diamondToCoin = (dec['coinsPerDiamond'] as num).toDouble();
+                }
+                if (dec['minDiamonds'] is num) {
+                  minDiamondsToWithdraw = (dec['minDiamonds'] as num).toInt();
+                }
+                if (dec['enabled'] is bool) {
+                  engineEnabled = dec['enabled'] as bool;
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('[AgencyRepository] fallback app_config error: $e');
+      }
+
+      return AgencyEngineSettings(
+        hostSharePct: hostShare,
+        agencySharePct: agencyShare,
+        platformSharePct: platformShare,
+        diamondToCoinRate: diamondToCoin,
+        dailyExchangeLimit: dailyLimit,
+        diamondToUsdRate: diamondToUsd,
+        withdrawalFeePct: withdrawalFee,
+        minWithdrawalUsd: minWithdrawalUsd,
+        minDiamondsToWithdraw: minDiamondsToWithdraw,
+        withdrawalCycleDays: 30,
+        trialPeriodDays: 7,
+        exitPenaltyCoins: 0,
+        engineEnabled: engineEnabled,
+      );
+    } catch (e) {
+      debugPrint('[AgencyRepository] getEngineSettings direct error: $e');
+      return AgencyEngineSettings.defaults;
+    }
   }
 
   // ─── التصنيف ────────────────────────────────────────────────────

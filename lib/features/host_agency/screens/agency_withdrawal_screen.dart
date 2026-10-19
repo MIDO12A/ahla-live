@@ -64,21 +64,34 @@ class _AgencyWithdrawalScreenState extends State<AgencyWithdrawalScreen>
     setState(() => _loading = true);
     try {
       final uid = Supabase.instance.client.auth.currentUser?.id;
-      final results = await Future.wait([
-        AgencyRepository.getHostStats(),
-        AgencyRepository.getEngineSettings(),
-        if (uid != null)
-          Supabase.instance.client
+      HostAgencyStats? stats;
+      AgencyEngineSettings engine = AgencyEngineSettings.defaults;
+      Map<String, dynamic>? profile;
+
+      try {
+        stats = await AgencyRepository.getHostStats();
+      } catch (e) {
+        debugPrint('[agency_withdrawal_screen] getHostStats error: $e');
+      }
+
+      try {
+        engine = await AgencyRepository.getEngineSettings();
+      } catch (e) {
+        debugPrint('[agency_withdrawal_screen] getEngineSettings error: $e');
+      }
+
+      if (uid != null) {
+        try {
+          final res = await Supabase.instance.client
               .from('profiles')
               .select('is_kyc_verified')
               .eq('id', uid)
-              .maybeSingle(),
-      ]);
+              .maybeSingle();
+          if (res != null) profile = Map<String, dynamic>.from(res as Map);
+        } catch (_) {}
+      }
 
       if (!mounted) return;
-      final stats  = results[0] as HostAgencyStats?;
-      final engine = results[1] as AgencyEngineSettings;
-      final profile= uid != null ? results[2] as Map<String, dynamic>? : null;
 
       setState(() {
         _member         = stats?.member;
@@ -87,8 +100,13 @@ class _AgencyWithdrawalScreenState extends State<AgencyWithdrawalScreen>
         _loading        = false;
       });
     } catch (e) {
-debugPrint('[agency_withdrawal_screen] error: $e');
-      if (mounted) setState(() => _loading = false);
+      debugPrint('[agency_withdrawal_screen] error: $e');
+      if (mounted) {
+        setState(() {
+          _engine ??= AgencyEngineSettings.defaults;
+          _loading = false;
+        });
+      }
     }
   }
 

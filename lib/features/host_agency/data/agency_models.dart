@@ -61,6 +61,22 @@ class AgencyEngineSettings {
     required this.engineEnabled,
   });
 
+  static const defaults = AgencyEngineSettings(
+    hostSharePct: 100,
+    agencySharePct: 17,
+    platformSharePct: 5,
+    diamondToCoinRate: 1.0,
+    dailyExchangeLimit: 500000,
+    diamondToUsdRate: 0.0001,
+    withdrawalFeePct: 0.0,
+    minWithdrawalUsd: 10.0,
+    minDiamondsToWithdraw: 1000,
+    withdrawalCycleDays: 30,
+    trialPeriodDays: 7,
+    exitPenaltyCoins: 0,
+    engineEnabled: true,
+  );
+
   factory AgencyEngineSettings.fromMap(Map<String, dynamic> m) {
     return AgencyEngineSettings(
       hostSharePct:           (m['host_share_pct'] as num?)?.toInt()              ?? 70,
