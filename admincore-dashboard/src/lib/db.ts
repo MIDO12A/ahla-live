@@ -1505,30 +1505,60 @@ export async function getCommissionSettings(): Promise<CommissionSettingModel[]>
     };
   }
 
-  // 2. Fetch app_config agency_financial_policy
+  // 2. Fetch from commission_settings table (primary dedicated table)
+  try {
+    const { data: rows, error: tblErr } = await supabase.from('commission_settings').select('*');
+    if (!tblErr && rows && rows.length > 0) {
+      for (const row of rows) {
+        const k = row.key;
+        const v = Number(row.value != null ? row.value : row.percentage);
+        if (k && !isNaN(v)) {
+          resultMap[k] = {
+            id: k,
+            key: k,
+            value: v,
+            description: row.description || (defaults[k]?.desc ?? k),
+            updated_at: row.updated_at || '',
+            updated_by: row.updated_by || null,
+          };
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 3. Fallback / enhancement from app_config agency_financial_policy
   try {
     const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'agency_financial_policy').maybeSingle();
     if (cfg && cfg.value) {
       const pol = typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value;
-      if (pol.coins_per_usd != null) resultMap['coins_per_usd'].value = Number(pol.coins_per_usd);
-      if (pol.host_rate_pct != null) resultMap['host_rate'].value = Number(pol.host_rate_pct);
-      if (pol.agency_rate_pct != null) resultMap['agency_rate'].value = Number(pol.agency_rate_pct);
-      if (pol.host_target_exchange_rate_pct != null) resultMap['host_target_exchange_rate'].value = Number(pol.host_target_exchange_rate_pct);
-      if (pol.recharge_agent_host_rate_pct != null) resultMap['recharge_agent_host_rate'].value = Number(pol.recharge_agent_host_rate_pct);
-      if (pol.recharge_agent_agency_rate_pct != null) resultMap['recharge_agent_agency_rate'].value = Number(pol.recharge_agent_agency_rate_pct);
-      if (pol.platform_rate_pct != null) resultMap['platform_rate'].value = Number(pol.platform_rate_pct);
-      if (pol.first_target_diamonds != null) resultMap['first_target_diamonds'].value = Number(pol.first_target_diamonds);
+      if (pol.coins_per_usd != null && !resultMap['coins_per_usd']?.updated_at) resultMap['coins_per_usd'].value = Number(pol.coins_per_usd);
+      if (pol.host_rate_pct != null && !resultMap['host_rate']?.updated_at) resultMap['host_rate'].value = Number(pol.host_rate_pct);
+      if (pol.agency_rate_pct != null && !resultMap['agency_rate']?.updated_at) resultMap['agency_rate'].value = Number(pol.agency_rate_pct);
+      if (pol.host_target_exchange_rate_pct != null && !resultMap['host_target_exchange_rate']?.updated_at) resultMap['host_target_exchange_rate'].value = Number(pol.host_target_exchange_rate_pct);
+      if (pol.recharge_agent_host_rate_pct != null && !resultMap['recharge_agent_host_rate']?.updated_at) resultMap['recharge_agent_host_rate'].value = Number(pol.recharge_agent_host_rate_pct);
+      if (pol.recharge_agent_agency_rate_pct != null && !resultMap['recharge_agent_agency_rate']?.updated_at) resultMap['recharge_agent_agency_rate'].value = Number(pol.recharge_agent_agency_rate_pct);
+      if (pol.platform_rate_pct != null && !resultMap['platform_rate']?.updated_at) resultMap['platform_rate'].value = Number(pol.platform_rate_pct);
+      if (pol.first_target_diamonds != null && !resultMap['first_target_diamonds']?.updated_at) resultMap['first_target_diamonds'].value = Number(pol.first_target_diamonds);
     }
-  } catch (e) {
-    console.warn('Failed to load agency_financial_policy from app_config:', e);
-  }
+  } catch (_) {}
 
   return Object.values(resultMap);
 }
 
 export async function updateCommissionSetting(id: string, value: number): Promise<boolean> {
+  const nowIso = new Date().toISOString();
   try {
-    // Sync to agency_financial_policy in app_config
+    // 1. Direct write to commission_settings table
+    try {
+      await supabase.from('commission_settings').upsert({
+        key: id,
+        value: value,
+        percentage: value,
+        updated_at: nowIso,
+      }, { onConflict: 'key' });
+    } catch (_) {}
+
+    // 2. Dual sync to agency_financial_policy in app_config
     try {
       const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'agency_financial_policy').maybeSingle();
       const current = (cfg && cfg.value) ? (typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value) : {};
