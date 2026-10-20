@@ -1927,9 +1927,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           children: [
                             Text(
                               _isAgencyOwner
-                                  ? (isAr ? 'مستهدف ألماس الوكالة' : 'Agency Diamond Target')
-                                  : (isAr ? 'مستهدف ألماسي الحالي' : 'My Diamond Target'),
-                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                                  ? (isAr ? dc.getScreenText('agency', 'agencyTargetTitle', 'مستهدف ألماس الوكالة') : 'Agency Diamond Target')
+                                  : (isAr ? dc.getScreenText('agency', 'myTargetTitle', 'مستهدف ألماسي الحالي') : 'My Diamond Target'),
+                              style: TextStyle(
+                                color: dc.getScreenColor('agency', 'targetCardTextColor', Colors.white),
+                                fontSize: 12,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1999,9 +2002,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           children: [
                             Text(
                               _isAgencyOwner
-                                  ? (isAr ? 'إنتاج ألماس الوكالة' : 'Agency Diamonds')
-                                  : (isAr ? 'رصيدي المحقق حالياً' : 'My Actual Diamonds'),
-                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                                  ? (isAr ? dc.getScreenText('agency', 'agencyBalanceTitle', 'إنتاج ألماس الوكالة') : 'Agency Diamonds')
+                                  : (isAr ? dc.getScreenText('agency', 'myBalanceTitle', 'رصيدي المحقق حالياً') : 'My Actual Diamonds'),
+                              style: TextStyle(
+                                color: dc.getScreenColor('agency', 'targetCardTextColor', Colors.white),
+                                fontSize: 12,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -2061,9 +2067,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         children: [
                           Text(
                             nextStageTitle.isNotEmpty
-                                ? (isAr ? 'المستهدف القادم ($nextStageTitle)' : 'Next Target ($nextStageTitle)')
-                                : (isAr ? 'المستهدف القادم' : 'Next Target'),
-                            style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                ? (isAr ? '${dc.getScreenText('agency', 'nextTargetTitle', 'المستهدف القادم')} ($nextStageTitle)' : 'Next Target ($nextStageTitle)')
+                                : (isAr ? dc.getScreenText('agency', 'nextTargetTitle', 'المستهدف القادم') : 'Next Target'),
+                            style: TextStyle(color: dc.getScreenColor('agency', 'nextTargetCardValColor', Colors.white70), fontSize: 11),
                           ),
                           const SizedBox(height: 4),
                           Text(

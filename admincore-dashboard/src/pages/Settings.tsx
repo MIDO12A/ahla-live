@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { I18nContext, langs } from '../lib/i18n';
 import { getCloudinaryStatus, saveCloudinaryConfig } from '../lib/storage';
 import { supabase, isAdminConnected } from '../lib/supabase';
-import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame } from 'lucide-react';
+import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame, Palette } from 'lucide-react';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -146,6 +146,80 @@ export default function Settings() {
             ))}
           </div>
           <p className="text-[9px] text-slate-600 mt-1.5">Change dashboard interface language</p>
+        </div>
+
+        {/* Unified Design & Customization Center Card */}
+        <div>
+          <label className="block text-[10px] uppercase text-purple-400 font-bold mb-2">
+            🎨 App Design & Customization Center / مركز التصميم والمظهر الشامل
+          </label>
+          <div className="bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-[#161618] rounded-xl border border-purple-500/30 p-5 space-y-4 shadow-xl">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center justify-center text-2xl shadow-lg shadow-purple-500/20 flex-shrink-0">
+                  🎨
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>مركز التصميم والمظهر وتخصيص النصوص والألوان</span>
+                    <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 font-semibold px-2 py-0.5 rounded-full">
+                      مُوحد 5 في 1
+                    </span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-1">
+                    المظهر الشامل والألوان، مصمم الواجهات والأيقونات، تخصيص الشاشات والخلفيات، مكتبة أصول التطبيق، بانرات الهدايا، وتعديل كافة كتابات ونصوص التطبيق ومستهدف الوكالات وألوان النصوص بالكامل.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/design-center')}
+                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30 cursor-pointer whitespace-nowrap self-start md:self-auto transition-all"
+              >
+                <span>فتح مركز التصميم 🎨</span>
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Links to sub-tabs */}
+            <div className="flex items-center gap-2 pt-2 border-t border-white/5 overflow-x-auto pb-1 text-[11px]">
+              <button
+                onClick={() => navigate('/design-center?tab=texts_colors')}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 transition whitespace-nowrap cursor-pointer"
+              >
+                ✍️ نصوص التطبيق وألوانها
+              </button>
+              <button
+                onClick={() => navigate('/design-center?tab=visual_manager')}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 transition whitespace-nowrap cursor-pointer"
+              >
+                🎨 المظهر الشامل
+              </button>
+              <button
+                onClick={() => navigate('/design-center?tab=app_visual_designer')}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 transition whitespace-nowrap cursor-pointer"
+              >
+                📱 مصمم الواجهات
+              </button>
+              <button
+                onClick={() => navigate('/design-center?tab=screen_customization')}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 transition whitespace-nowrap cursor-pointer"
+              >
+                🛠️ تخصيص الشاشات
+              </button>
+              <button
+                onClick={() => navigate('/design-center?tab=app_assets')}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 transition whitespace-nowrap cursor-pointer"
+              >
+                🖼️ مكتبة الأصول
+              </button>
+              <button
+                onClick={() => navigate('/design-center?tab=gift_banners')}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 transition whitespace-nowrap cursor-pointer"
+              >
+                🎁 بانرات الهدايا
+              </button>
+            </div>
+          </div>
         </div>
 
         <div>
