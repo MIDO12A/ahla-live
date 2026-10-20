@@ -66,14 +66,19 @@ export default function AppDesignCenter() {
     fieldId: string;
   } | null>(null);
 
-  // 14 Comprehensive Screen Categories
+  // 21 Comprehensive Screen Categories
   const categories = [
     { id: 'all', labelAr: '🌟 الكل (جميع الشاشات)', labelEn: 'All Screens', icon: '🌟' },
     { id: 'agency', labelAr: '🎯 مستهدف الوكالات والمضيفين والرواتب', labelEn: 'Agency & Host Targets', icon: '🎯' },
-    { id: 'profile', labelAr: '👤 البروفايل وحسابي والملف الشخصي', labelEn: 'Profile & User Details', icon: '👤' },
+    { id: 'profile', labelAr: '👤 بروفايل المستخدم الكامل (شاشة أنا)', labelEn: 'Full Profile ("Me" Screen)', icon: '👤' },
+    { id: 'room_mini_profile', labelAr: '🪪 البروفايل المصغر داخل الغرفة', labelEn: 'Room Mini Profile Card', icon: '🪪' },
     { id: 'room', labelAr: '🎙️ الغرف الصوتية والمقاعد والمحادثة', labelEn: 'Rooms & Voice Seats', icon: '🎙️' },
-    { id: 'wallet', labelAr: '💳 المحفظة والشحن والتحويل', labelEn: 'Wallet & Recharge', icon: '💳' },
-    { id: 'store', labelAr: '🛍️ المتجر والحقيبة و VIP', labelEn: 'Store & VIP Center', icon: '🛍️' },
+    { id: 'wallet', labelAr: '💳 المحفظة ورصيد الكوينز والماس والشحن', labelEn: 'Wallet, Coins, Diamonds & Recharge', icon: '💳' },
+    { id: 'store', labelAr: '🛍️ المتجر الرسمي وبطاقات المقتنيات', labelEn: 'Official Mall & Store', icon: '🛍️' },
+    { id: 'vip', labelAr: '👑 مركز VIP ومستوياته ومميزاته', labelEn: 'VIP Center & Privileges', icon: '👑' },
+    { id: 'backpack', labelAr: '🎒 شاشة الحقيبة ومقتنيات المستخدم', labelEn: 'User Backpack', icon: '🎒' },
+    { id: 'discover', labelAr: '🔍 شاشة الاستكشاف والرومات الشائعة', labelEn: 'Discover & Explore', icon: '🔍' },
+    { id: 'follow', labelAr: '👥 المتابَعون، المتابِعون، والزوار', labelEn: 'Following, Followers & Visitors', icon: '👥' },
     { id: 'cp', labelAr: '💑 مساحة الارتباط والعلاقات CP', labelEn: 'CP Space & Relationship', icon: '💑' },
     { id: 'signin', labelAr: '📅 تسجيل الدخول اليومي والمكافآت', labelEn: 'Daily Sign-In & Rewards', icon: '📅' },
     { id: 'unions', labelAr: '🏰 العائلات والنقابات', labelEn: 'Unions & Families', icon: '🏰' },
@@ -81,8 +86,10 @@ export default function AppDesignCenter() {
     { id: 'badges', labelAr: '🎖️ الشارات والأوسمة والقلادات', labelEn: 'Badges & Necklaces', icon: '🎖️' },
     { id: 'chat', labelAr: '💬 المحادثات الفردية والرسائل', labelEn: '1-on-1 Messages & Chat', icon: '💬' },
     { id: 'settings', labelAr: '⚙️ شاشة الإعدادات والأمان والنظام', labelEn: 'Settings & Security', icon: '⚙️' },
-    { id: 'gift_banners', labelAr: '🎁 بانرات ولافتات الهدايا', labelEn: 'Gift Banners & Alerts', icon: '🎁' },
-    { id: 'global', labelAr: '🌐 النصوص والألوان العامة وشريط التنقل', labelEn: 'Global App & Bottom Nav', icon: '🌐' },
+    { id: 'gift_banners', labelAr: '🎁 بانرات ولافتات الهدايا والتنبيهات', labelEn: 'Gift Banners & Alerts', icon: '🎁' },
+    { id: 'super_admin', labelAr: '⚡ لوحة تحكم السوبر أدمن', labelEn: 'Super Admin Dashboard', icon: '⚡' },
+    { id: 'admin_panel', labelAr: '🛡️ لوحة إدارة الأدمن والمشرفين', labelEn: 'Admin Management Dashboard', icon: '🛡️' },
+    { id: 'global', labelAr: '🌐 ألوان النظام وشريط التنقل السفلي', labelEn: 'Global App & Bottom Nav', icon: '🌐' },
   ];
 
   // Load configs on mount
@@ -1183,12 +1190,273 @@ export default function AppDesignCenter() {
                   hasImage: true,
                   imageKey: 'supportersBanner',
                 })}
+
+                {renderDualField({
+                  id: 'profileIdBadge',
+                  category: 'profile',
+                  screen: 'profile',
+                  labelAr: 'كارت معرّف المستخدم (ID) وزر النسخ',
+                  labelEn: 'User ID Badge & Copy Button',
+                  hasColor: true,
+                  colorKey: 'idBadgeBg',
+                  defaultColor: '#E5E7EB',
+                  hasIcon: true,
+                  iconKey: 'copyIdIcon',
+                })}
+
+                {renderDualField({
+                  id: 'profileFollowStatsRow',
+                  category: 'profile',
+                  screen: 'profile',
+                  labelAr: 'شريط إحصائيات المتابعة (متابعون، زوار، أصدقاء)',
+                  labelEn: 'Following & Visitors Stats Bar',
+                  hasColor: true,
+                  colorKey: 'statsBarBg',
+                  defaultColor: '#FFFFFF',
+                  hasImage: true,
+                  imageKey: 'statsBarBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'profileWalletCard',
+                  category: 'profile',
+                  screen: 'profile',
+                  labelAr: 'كارت المحفظة ورصيد الشحن في شاشة أنا',
+                  labelEn: 'Profile Wallet Card',
+                  hasText: true,
+                  textKey: 'profileWalletText',
+                  defaultText: 'محفظتي ورصيد العملات',
+                  hasColor: true,
+                  colorKey: 'profileWalletCardBg',
+                  defaultColor: '#FEF3C7',
+                  hasImage: true,
+                  imageKey: 'profileWalletCardBgImage',
+                  hasIcon: true,
+                  iconKey: 'profileWalletIcon',
+                })}
+
+                {renderDualField({
+                  id: 'profileLevelBadgesCard',
+                  category: 'profile',
+                  screen: 'profile',
+                  labelAr: 'كارت مستويات الثراء والمضيف والـ VIP',
+                  labelEn: 'Wealth & Host Levels Card',
+                  hasColor: true,
+                  colorKey: 'profileLevelsCardBg',
+                  defaultColor: '#FFFFFF',
+                  hasImage: true,
+                  imageKey: 'profileLevelsCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'profileAgencyCard',
+                  category: 'profile',
+                  screen: 'profile',
+                  labelAr: 'كارت الوكالة والانضمام في البروفايل',
+                  labelEn: 'Profile Agency Card',
+                  hasText: true,
+                  textKey: 'profileAgencyText',
+                  defaultText: 'مركز الوكالة',
+                  hasColor: true,
+                  colorKey: 'profileAgencyCardBg',
+                  defaultColor: '#EEF2FF',
+                  hasImage: true,
+                  imageKey: 'profileAgencyCardBgImage',
+                  hasIcon: true,
+                  iconKey: 'profileAgencyIcon',
+                })}
+
+                {renderDualField({
+                  id: 'profileStoreBackpackCard',
+                  category: 'profile',
+                  screen: 'profile',
+                  labelAr: 'كارت المتجر والحقيبة في شاشة أنا',
+                  labelEn: 'Profile Store & Backpack Card',
+                  hasText: true,
+                  textKey: 'profileStoreText',
+                  defaultText: 'المتجر والحقيبة',
+                  hasColor: true,
+                  colorKey: 'profileStoreCardBg',
+                  defaultColor: '#FDF2F8',
+                  hasImage: true,
+                  imageKey: 'profileStoreCardBgImage',
+                  hasIcon: true,
+                  iconKey: 'profileStoreIcon',
+                })}
+
+                {renderDualField({
+                  id: 'profileSettingsCard',
+                  category: 'profile',
+                  screen: 'profile',
+                  labelAr: 'كارت الإعدادات ومركز الأمان في البروفايل',
+                  labelEn: 'Profile Settings & Security Card',
+                  hasText: true,
+                  textKey: 'profileSettingsText',
+                  defaultText: 'الإعدادات ومركز الأمان',
+                  hasColor: true,
+                  colorKey: 'profileSettingsCardBg',
+                  defaultColor: '#F3F4F6',
+                  hasImage: true,
+                  imageKey: 'profileSettingsCardBgImage',
+                  hasIcon: true,
+                  iconKey: 'profileSettingsIcon',
+                })}
               </div>
             </div>
           )}
 
           {/* ================================================================= */}
-          {/* SECTION 3: ROOMS, SEATS & CHAT                                   */}
+          {/* SECTION 3: ROOM MINI PROFILE (البروفايل المصغر داخل الغرفة)         */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'room_mini_profile') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center font-bold text-lg">
+                  🪪
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '3. كارت البروفايل المصغر داخل الغرفة (Room Mini Profile Dialog)' : '3. Room Mini Profile Card & Actions'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr
+                      ? 'تخصيص نافذة بروفايل المستخدم التي تفتح عند الضغط على المايك أو صورته في الروم (أزرار الهدايا، المتابعة، والخاص)'
+                      : 'Customize dialog popup when tapping a user in a voice room'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'miniProfileDialogBg',
+                  category: 'room_mini_profile',
+                  screen: 'userProfile',
+                  labelAr: 'خلفية نافذة البروفايل المصغر في الروم',
+                  labelEn: 'Room Mini Profile Dialog Background',
+                  hasColor: true,
+                  colorKey: 'backgroundColor',
+                  defaultColor: '#16141D',
+                  hasImage: true,
+                  imageKey: 'backgroundImage',
+                })}
+
+                {renderDualField({
+                  id: 'miniProfileAvatarBorder',
+                  category: 'room_mini_profile',
+                  screen: 'userProfile',
+                  labelAr: 'إطار صورة المستخدم وألوانه',
+                  labelEn: 'User Avatar Frame Border',
+                  hasColor: true,
+                  colorKey: 'borderColor',
+                  defaultColor: '#F59E0B',
+                  hasImage: true,
+                  imageKey: 'cardFrameImg',
+                })}
+
+                {renderDualField({
+                  id: 'miniProfileName',
+                  category: 'room_mini_profile',
+                  screen: 'userProfile',
+                  labelAr: 'لون خط اسم ومعرف المستخدم في الروم',
+                  labelEn: 'Name & ID Text Color',
+                  hasColor: true,
+                  colorKey: 'textColor',
+                  defaultColor: '#FFFFFF',
+                })}
+
+                {renderDualField({
+                  id: 'miniProfileSendGiftBtn',
+                  category: 'room_mini_profile',
+                  screen: 'userProfile',
+                  labelAr: 'زر إرسال هدية للمستخدم',
+                  labelEn: 'Send Gift Button',
+                  hasText: true,
+                  textKey: 'giftBtnText',
+                  defaultText: 'إرسال هدية',
+                  textColorKey: 'giftBtnTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasColor: true,
+                  colorKey: 'giftBtnBg',
+                  defaultColor: '#EC4899',
+                  hasImage: true,
+                  imageKey: 'giftBtnBgImage',
+                  hasIcon: true,
+                  iconKey: 'giftBtnIcon',
+                })}
+
+                {renderDualField({
+                  id: 'miniProfileFollowBtn',
+                  category: 'room_mini_profile',
+                  screen: 'userProfile',
+                  labelAr: 'زر المتابعة في الروم',
+                  labelEn: 'Follow Button in Room',
+                  hasText: true,
+                  textKey: 'followBtnText',
+                  defaultText: 'متابعة +',
+                  textColorKey: 'followBtnTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasColor: true,
+                  colorKey: 'buttonColor',
+                  defaultColor: '#8B5CF6',
+                  hasImage: true,
+                  imageKey: 'followBtnBgImage',
+                  hasIcon: true,
+                  iconKey: 'followBtnIcon',
+                })}
+
+                {renderDualField({
+                  id: 'miniProfileChatBtn',
+                  category: 'room_mini_profile',
+                  screen: 'userProfile',
+                  labelAr: 'زر الدردشة الخاصة والرسائل @',
+                  labelEn: 'Private Chat Button @',
+                  hasText: true,
+                  textKey: 'chatBtnText',
+                  defaultText: 'محادثة خاصة',
+                  textColorKey: 'chatBtnTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasColor: true,
+                  colorKey: 'chatBtnBg',
+                  defaultColor: '#3B82F6',
+                  hasImage: true,
+                  imageKey: 'chatBtnBgImage',
+                  hasIcon: true,
+                  iconKey: 'chatBtnIcon',
+                })}
+
+                {renderDualField({
+                  id: 'miniProfileAdminKickBtn',
+                  category: 'room_mini_profile',
+                  screen: 'userProfile',
+                  labelAr: 'أزرار الطرد وكتم المايك للمشرفين',
+                  labelEn: 'Admin Kick / Mute Actions',
+                  hasColor: true,
+                  colorKey: 'adminActionBg',
+                  defaultColor: '#EF4444',
+                  hasImage: true,
+                  imageKey: 'adminActionBgImage',
+                  hasIcon: true,
+                  iconKey: 'roomUserMicDownIcon',
+                })}
+
+                {renderDualField({
+                  id: 'miniProfileBadgesCard',
+                  category: 'room_mini_profile',
+                  screen: 'userProfile',
+                  labelAr: 'شريط أوسمة وقلادات المستخدم في الروم',
+                  labelEn: 'User Badges & Necklaces Row',
+                  hasColor: true,
+                  colorKey: 'badgesBg',
+                  defaultColor: '#1E1B2E',
+                  hasImage: true,
+                  imageKey: 'badgesBgImage',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 4: ROOMS, SEATS & CHAT                                   */}
           {/* ================================================================= */}
           {(activeSection === 'all' || activeSection === 'room') && (
             <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
@@ -1430,12 +1698,54 @@ export default function AppDesignCenter() {
                   textKey: 'exchangeTitle',
                   defaultText: 'تبديل الألماس إلى كوينز',
                 })}
+
+                {renderDualField({
+                  id: 'rechargePackagesCard',
+                  category: 'wallet',
+                  screen: 'wallet',
+                  labelAr: 'كارت باقات الشحن المتاحة',
+                  labelEn: 'Recharge Packages Card',
+                  hasColor: true,
+                  colorKey: 'packageCardBg',
+                  defaultColor: '#1A1A2E',
+                  hasImage: true,
+                  imageKey: 'packageCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'walletHistoryCard',
+                  category: 'wallet',
+                  screen: 'wallet',
+                  labelAr: 'كارت وسجل العمليات المالية والشحن',
+                  labelEn: 'Transaction History Card',
+                  hasColor: true,
+                  colorKey: 'historyCardBg',
+                  defaultColor: '#141C24',
+                  hasImage: true,
+                  imageKey: 'historyCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'walletExchangeActionBtn',
+                  category: 'wallet',
+                  screen: 'wallet',
+                  labelAr: 'زر تنفيذ تحويل الألماس إلى كوينز',
+                  labelEn: 'Exchange Diamond to Coins Action Button',
+                  hasText: true,
+                  textKey: 'exchangeBtnText',
+                  defaultText: 'تحويل الآن',
+                  hasColor: true,
+                  colorKey: 'exchangeBtnColor',
+                  defaultColor: '#F59E0B',
+                  hasImage: true,
+                  imageKey: 'exchangeBtnImage',
+                })}
               </div>
             </div>
           )}
 
           {/* ================================================================= */}
-          {/* SECTION 5: STORE & VIP                                           */}
+          {/* SECTION 6: STORE / MALL (المتجر وبطاقات المقتنيات)                */}
           {/* ================================================================= */}
           {(activeSection === 'all' || activeSection === 'store') && (
             <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
@@ -1445,10 +1755,10 @@ export default function AppDesignCenter() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    {isAr ? '5. المتجر، الحقيبة، ومركز VIP' : '5. Store, Backpack & VIP Center'}
+                    {isAr ? '6. المتجر الرسمي وبطاقات المقتنيات والتبويبات' : '6. Official Mall & Store Catalog'}
                   </h3>
                   <p className="text-slate-400 text-xs">
-                    {isAr ? 'تعديل نصوص المتجر والحقيبة، كروت الاشتراكات، أزرار الشراء، وخلفيات VIP' : 'Customize store items, backpack tabs, VIP card, and purchase buttons'}
+                    {isAr ? 'تعديل خلفية المتجر، تبويبات الإطارات، الفقاعات، الدخوليات، السيارات، كروت العناصر وأزرار الشراء' : 'Customize store background, tabs (frames, bubbles, entrances, cars), item cards, and buy buttons'}
                   </p>
                 </div>
               </div>
@@ -1471,58 +1781,567 @@ export default function AppDesignCenter() {
                 })}
 
                 {renderDualField({
-                  id: 'vipScreenCard',
-                  category: 'store',
-                  screen: 'vip',
-                  labelAr: 'كارت وخلفية مركز VIP',
-                  labelEn: 'VIP Center Screen Card & Title',
-                  hasText: true,
-                  textKey: 'vipTitle',
-                  defaultText: 'مركز VIP',
-                  hasColor: true,
-                  colorKey: 'vipCardBgColor',
-                  defaultColor: '#1A3D1A',
-                  hasImage: true,
-                  imageKey: 'vipCardBgImgUrl',
-                })}
-
-                {renderDualField({
-                  id: 'vipBuyBtn',
-                  category: 'store',
-                  screen: 'vip',
-                  labelAr: 'زر شراء وتجديد اشتراك VIP',
-                  labelEn: 'VIP Purchase / Subscribe Button',
-                  hasText: true,
-                  textKey: 'vipBuyBtnText',
-                  defaultText: 'ترقية إلى VIP 👑',
-                  hasImage: true,
-                  imageKey: 'vipBuyBtnImgUrl',
-                })}
-
-                {renderDualField({
-                  id: 'backpackCard',
-                  category: 'store',
-                  screen: 'backpack',
-                  labelAr: 'شاشة وكروت الحقيبة الشخصية',
-                  labelEn: 'Backpack Screen Cards',
-                  hasColor: true,
-                  colorKey: 'cardBgColor',
-                  defaultColor: '#16151A',
-                  hasImage: true,
-                  imageKey: 'backgroundImage',
-                })}
-
-                {renderDualField({
-                  id: 'storeItemsCard',
+                  id: 'storeTabFrames',
                   category: 'store',
                   screen: 'store',
-                  labelAr: 'كروت عناصر المتجر (الإطارات والدخوليات)',
+                  labelAr: 'تبويب إطارات الصور الرمزية',
+                  labelEn: 'Store Frames Tab',
+                  hasText: true,
+                  textKey: 'tabFramesText',
+                  defaultText: 'إطارات',
+                  textColorKey: 'tabFramesTextColor',
+                  hasImage: true,
+                  imageKey: 'tabFramesBgImage',
+                  hasIcon: true,
+                  iconKey: 'tabFramesIcon',
+                })}
+
+                {renderDualField({
+                  id: 'storeTabBubbles',
+                  category: 'store',
+                  screen: 'store',
+                  labelAr: 'تبويب فقاعات شات الغرف',
+                  labelEn: 'Store Chat Bubbles Tab',
+                  hasText: true,
+                  textKey: 'tabBubblesText',
+                  defaultText: 'فقاعات',
+                  textColorKey: 'tabBubblesTextColor',
+                  hasImage: true,
+                  imageKey: 'tabBubblesBgImage',
+                  hasIcon: true,
+                  iconKey: 'tabBubblesIcon',
+                })}
+
+                {renderDualField({
+                  id: 'storeTabEntrances',
+                  category: 'store',
+                  screen: 'store',
+                  labelAr: 'تبويب مؤثرات ودخوليات الغرف',
+                  labelEn: 'Store Room Entrances Tab',
+                  hasText: true,
+                  textKey: 'tabEntrancesText',
+                  defaultText: 'دخوليات',
+                  textColorKey: 'tabEntrancesTextColor',
+                  hasImage: true,
+                  imageKey: 'tabEntrancesBgImage',
+                  hasIcon: true,
+                  iconKey: 'tabEntrancesIcon',
+                })}
+
+                {renderDualField({
+                  id: 'storeTabCars',
+                  category: 'store',
+                  screen: 'store',
+                  labelAr: 'تبويب المركبات والسيارات',
+                  labelEn: 'Store Vehicles / Cars Tab',
+                  hasText: true,
+                  textKey: 'tabCarsText',
+                  defaultText: 'سيارات',
+                  textColorKey: 'tabCarsTextColor',
+                  hasImage: true,
+                  imageKey: 'tabCarsBgImage',
+                  hasIcon: true,
+                  iconKey: 'tabCarsIcon',
+                })}
+
+                {renderDualField({
+                  id: 'storeTabCovers',
+                  category: 'store',
+                  screen: 'store',
+                  labelAr: 'تبويب خلفيات وبطاقات الغرف',
+                  labelEn: 'Store Room Covers Tab',
+                  hasText: true,
+                  textKey: 'tabCoversText',
+                  defaultText: 'خلفيات',
+                  textColorKey: 'tabCoversTextColor',
+                  hasImage: true,
+                  imageKey: 'tabCoversBgImage',
+                  hasIcon: true,
+                  iconKey: 'tabCoversIcon',
+                })}
+
+                {renderDualField({
+                  id: 'storeTabSpecialIds',
+                  category: 'store',
+                  screen: 'store',
+                  labelAr: 'تبويب الأرقام والآيديهات المميزة',
+                  labelEn: 'Store Special IDs Tab',
+                  hasText: true,
+                  textKey: 'tabSpecialIdsText',
+                  defaultText: 'أرقام مميزة',
+                  textColorKey: 'tabSpecialIdsTextColor',
+                  hasImage: true,
+                  imageKey: 'tabSpecialIdsBgImage',
+                  hasIcon: true,
+                  iconKey: 'tabSpecialIdsIcon',
+                })}
+
+                {renderDualField({
+                  id: 'storeItemCardBg',
+                  category: 'store',
+                  screen: 'store',
+                  labelAr: 'كروت عناصر ومقتنيات المتجر',
                   labelEn: 'Store Item Card Background',
                   hasColor: true,
                   colorKey: 'cardBgColor',
                   defaultColor: '#16151A',
                   hasImage: true,
                   imageKey: 'cardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'storeBuyBtn',
+                  category: 'store',
+                  screen: 'store',
+                  labelAr: 'زر شراء المقتنى في المتجر',
+                  labelEn: 'Store Buy Item Button',
+                  hasText: true,
+                  textKey: 'buyBtnText',
+                  defaultText: 'شراء الآن',
+                  hasColor: true,
+                  colorKey: 'buyBtnColor',
+                  defaultColor: '#E11D48',
+                  hasImage: true,
+                  imageKey: 'buyBtnImage',
+                })}
+
+                {renderDualField({
+                  id: 'storePreviewBtn',
+                  category: 'store',
+                  screen: 'store',
+                  labelAr: 'زر معاينة وتجربة المقتنى',
+                  labelEn: 'Store Preview Item Button',
+                  hasText: true,
+                  textKey: 'previewBtnText',
+                  defaultText: 'معاينة',
+                  hasColor: true,
+                  colorKey: 'previewBtnColor',
+                  defaultColor: '#6366F1',
+                  hasImage: true,
+                  imageKey: 'previewBtnImage',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 7: VIP CENTER & PRIVILEGES (مركز VIP)                     */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'vip') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-lg">
+                  👑
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '7. مركز VIP ومستوياته ومميزاته الحصرية' : '7. VIP Center, Privileges & Levels'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr ? 'تعديل خلفية VIP، كروت المستويات من 1 إلى 10، بانر التاج، كارت المميزات وأزرار الترقية' : 'Customize VIP main background, level cards (VIP 1-10), privileges card, and upgrade buttons'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'vipScreenMain',
+                  category: 'vip',
+                  screen: 'vip',
+                  labelAr: 'شاشة مركز VIP الرئيسية',
+                  labelEn: 'VIP Center Main Screen',
+                  hasText: true,
+                  textKey: 'vipTitle',
+                  defaultText: 'مركز VIP',
+                  hasColor: true,
+                  colorKey: 'vipBgColor',
+                  defaultColor: '#0F172A',
+                  hasImage: true,
+                  imageKey: 'backgroundImage',
+                })}
+
+                {renderDualField({
+                  id: 'vipBannerCard',
+                  category: 'vip',
+                  screen: 'vip',
+                  labelAr: 'بانر التاج والترقية VIP العلوي',
+                  labelEn: 'VIP Crown Banner Card',
+                  hasImage: true,
+                  imageKey: 'vipBannerImgUrl',
+                })}
+
+                {renderDualField({
+                  id: 'vipLevelCard',
+                  category: 'vip',
+                  screen: 'vip',
+                  labelAr: 'بطاقات مستويات VIP (من 1 إلى 10)',
+                  labelEn: 'VIP Tier Cards (Levels 1 to 10)',
+                  hasColor: true,
+                  colorKey: 'vipCardBgColor',
+                  defaultColor: '#1E293B',
+                  hasImage: true,
+                  imageKey: 'vipCardBgImgUrl',
+                })}
+
+                {renderDualField({
+                  id: 'vipPrivilegesCard',
+                  category: 'vip',
+                  screen: 'vip',
+                  labelAr: 'كارت مميزات وامتيازات VIP الحصرية',
+                  labelEn: 'VIP Exclusive Privileges Card',
+                  hasColor: true,
+                  colorKey: 'privilegesCardBgColor',
+                  defaultColor: '#1A1A2E',
+                  hasImage: true,
+                  imageKey: 'privilegesCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'vipBuyBtn',
+                  category: 'vip',
+                  screen: 'vip',
+                  labelAr: 'زر شراء وتفعيل اشتراك VIP',
+                  labelEn: 'VIP Subscribe / Purchase Button',
+                  hasText: true,
+                  textKey: 'vipBuyBtnText',
+                  defaultText: 'ترقية إلى VIP 👑',
+                  hasColor: true,
+                  colorKey: 'vipBuyBtnColor',
+                  defaultColor: '#D97706',
+                  hasImage: true,
+                  imageKey: 'vipBuyBtnImgUrl',
+                })}
+
+                {renderDualField({
+                  id: 'vipBadgeIcon',
+                  category: 'vip',
+                  screen: 'vip',
+                  labelAr: 'أيقونة وشعار رتبة VIP الملكية',
+                  labelEn: 'VIP Royal Badge Icon',
+                  hasIcon: true,
+                  iconKey: 'vipBadgeIcon',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 8: USER BACKPACK (حقيبة المقتنيات)                        */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'backpack') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg">
+                  🎒
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '8. شاشة الحقيبة الشخصية ومقتنيات المستخدم' : '8. User Backpack & Inventory'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr ? 'تعديل خلفية الحقيبة، كروت المقتنيات، زر الاستخدام/الارتداء، وشارة مدة الصلاحية' : 'Customize backpack screen background, inventory cards, equip button, and validity badges'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'backpackScreen',
+                  category: 'backpack',
+                  screen: 'backpack',
+                  labelAr: 'شاشة الحقيبة الرئيسية',
+                  labelEn: 'Backpack Screen Title & Background',
+                  hasText: true,
+                  textKey: 'backpackTitle',
+                  defaultText: 'حقيبتي',
+                  hasColor: true,
+                  colorKey: 'headerBgColor',
+                  defaultColor: '#16151A',
+                  hasImage: true,
+                  imageKey: 'backgroundImage',
+                })}
+
+                {renderDualField({
+                  id: 'backpackItemCard',
+                  category: 'backpack',
+                  screen: 'backpack',
+                  labelAr: 'كروت عناصر ومقتنيات الحقيبة',
+                  labelEn: 'Backpack Item Card Background',
+                  hasColor: true,
+                  colorKey: 'cardBgColor',
+                  defaultColor: '#1E1B4B',
+                  hasImage: true,
+                  imageKey: 'itemCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'backpackEquipBtn',
+                  category: 'backpack',
+                  screen: 'backpack',
+                  labelAr: 'زر استخدام / ارتداء المقتنى',
+                  labelEn: 'Equip / Use Item Button',
+                  hasText: true,
+                  textKey: 'equipBtnText',
+                  defaultText: 'ارتداء',
+                  hasColor: true,
+                  colorKey: 'equipBtnColor',
+                  defaultColor: '#10B981',
+                  hasImage: true,
+                  imageKey: 'equipBtnImage',
+                })}
+
+                {renderDualField({
+                  id: 'backpackExpirationBadge',
+                  category: 'backpack',
+                  screen: 'backpack',
+                  labelAr: 'شارة مدة الصلاحية المتبقية',
+                  labelEn: 'Expiration Days Badge',
+                  hasColor: true,
+                  colorKey: 'expirationBadgeColor',
+                  defaultColor: '#F59E0B',
+                  textColorKey: 'expirationTextColor',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 9: DISCOVER & EXPLORE (الاستكشاف والرومات)                */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'discover') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-lg">
+                  🔍
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '9. شاشة الاستكشاف والرومات الشائعة وفلتر الدول' : '9. Discover, Hot Rooms & Country Filter'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr ? 'تعديل خلفية الاستكشاف، شريط البحث، تبويب الرومات الشائعة والأصدقاء، كروت الغرف وزر إنشاء غرفة' : 'Customize discover background, search bar, hot/friends tabs, room cards, and create room button'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'discoverMainBg',
+                  category: 'discover',
+                  screen: 'discover',
+                  labelAr: 'شاشة الاستكشاف واستعراض الرومات',
+                  labelEn: 'Discover Screen Title & Background',
+                  hasText: true,
+                  textKey: 'discoverTitle',
+                  defaultText: 'استكشاف',
+                  hasColor: true,
+                  colorKey: 'headerBgColor',
+                  defaultColor: '#121316',
+                  hasImage: true,
+                  imageKey: 'backgroundImage',
+                })}
+
+                {renderDualField({
+                  id: 'discoverSearchBar',
+                  category: 'discover',
+                  screen: 'discover',
+                  labelAr: 'شريط البحث عن الغرف والمستخدمين',
+                  labelEn: 'Discover Search Bar',
+                  hasText: true,
+                  textKey: 'searchPlaceholder',
+                  defaultText: 'ابحث عن الرومات أو الآيدي...',
+                  hasColor: true,
+                  colorKey: 'searchBarBg',
+                  defaultColor: '#1F2026',
+                })}
+
+                {renderDualField({
+                  id: 'discoverHotRoomsTab',
+                  category: 'discover',
+                  screen: 'discover',
+                  labelAr: 'تبويب الرومات الرائجة / الشائعة',
+                  labelEn: 'Hot Rooms Tab',
+                  hasText: true,
+                  textKey: 'hotRoomsText',
+                  defaultText: 'الرائجة 🔥',
+                  textColorKey: 'hotRoomsTextColor',
+                  hasImage: true,
+                  imageKey: 'hotRoomsBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'discoverFriendsRoomsTab',
+                  category: 'discover',
+                  screen: 'discover',
+                  labelAr: 'تبويب رومات الأصدقاء',
+                  labelEn: 'Friends Rooms Tab',
+                  hasText: true,
+                  textKey: 'friendsRoomsText',
+                  defaultText: 'الأصدقاء',
+                  textColorKey: 'friendsRoomsTextColor',
+                  hasImage: true,
+                  imageKey: 'friendsRoomsBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'discoverCountryFilter',
+                  category: 'discover',
+                  screen: 'discover',
+                  labelAr: 'شريط فلتر الدول والأقاليم',
+                  labelEn: 'Country / Region Filter Bar',
+                  hasColor: true,
+                  colorKey: 'countryFilterBg',
+                  defaultColor: '#1A1A1E',
+                })}
+
+                {renderDualField({
+                  id: 'discoverRoomCard',
+                  category: 'discover',
+                  screen: 'discover',
+                  labelAr: 'كارت الغرفة في قائمة الاستكشاف',
+                  labelEn: 'Discover Room Item Card',
+                  hasColor: true,
+                  colorKey: 'roomCardBg',
+                  defaultColor: '#1A1A24',
+                  hasImage: true,
+                  imageKey: 'roomCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'discoverCreateRoomBtn',
+                  category: 'discover',
+                  screen: 'discover',
+                  labelAr: 'زر إنشاء أو فتح غرفة صوتية جديدة',
+                  labelEn: 'Create / Open Room Floating Button',
+                  hasText: true,
+                  textKey: 'createRoomText',
+                  defaultText: 'بدء غرفة',
+                  hasColor: true,
+                  colorKey: 'createRoomBtnColor',
+                  defaultColor: '#8B5CF6',
+                  hasImage: true,
+                  imageKey: 'createRoomBtnImage',
+                  hasIcon: true,
+                  iconKey: 'createRoomIcon',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 10: FOLLOWING, FOLLOWERS & VISITORS (المتابعة والزوار)     */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'follow') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-lg">
+                  👥
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '10. المُتابَعون، المُتابِعون، والزوار' : '10. Following, Followers & Profile Visitors'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr ? 'تعديل تبويبات المتابعين، كروت المستخدمين، زر المتابعة، وشارة وقت زيارة البروفايل' : 'Customize following/followers tabs, user cards, follow action button, and visitor badges'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'followMainBg',
+                  category: 'follow',
+                  screen: 'follow',
+                  labelAr: 'شاشة قائمة المتابعة والزوار',
+                  labelEn: 'Follow & Visitors Screen Background',
+                  hasColor: true,
+                  colorKey: 'headerBgColor',
+                  defaultColor: '#121316',
+                  hasImage: true,
+                  imageKey: 'backgroundImage',
+                })}
+
+                {renderDualField({
+                  id: 'followingTab',
+                  category: 'follow',
+                  screen: 'follow',
+                  labelAr: 'تبويب المُتابَعون (الذين أتابعهم)',
+                  labelEn: 'Following Tab',
+                  hasText: true,
+                  textKey: 'followingTitle',
+                  defaultText: 'المُتابَعون',
+                  textColorKey: 'followingTextColor',
+                  hasIcon: true,
+                  iconKey: 'followingIcon',
+                })}
+
+                {renderDualField({
+                  id: 'followersTab',
+                  category: 'follow',
+                  screen: 'follow',
+                  labelAr: 'تبويب المُتابِعون (الذين يتابعونني)',
+                  labelEn: 'Followers Tab',
+                  hasText: true,
+                  textKey: 'followersTitle',
+                  defaultText: 'المُتابِعون',
+                  textColorKey: 'followersTextColor',
+                  hasIcon: true,
+                  iconKey: 'followersIcon',
+                })}
+
+                {renderDualField({
+                  id: 'visitorsTab',
+                  category: 'follow',
+                  screen: 'follow',
+                  labelAr: 'تبويب زوار البروفايل',
+                  labelEn: 'Profile Visitors Tab',
+                  hasText: true,
+                  textKey: 'visitorsTitle',
+                  defaultText: 'الزوار',
+                  textColorKey: 'visitorsTextColor',
+                  hasIcon: true,
+                  iconKey: 'visitorsIcon',
+                })}
+
+                {renderDualField({
+                  id: 'followUserCard',
+                  category: 'follow',
+                  screen: 'follow',
+                  labelAr: 'كارت المستخدم في القائمة',
+                  labelEn: 'User Item Card in List',
+                  hasColor: true,
+                  colorKey: 'userCardBg',
+                  defaultColor: '#16151A',
+                  hasImage: true,
+                  imageKey: 'userCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'followActionBtn',
+                  category: 'follow',
+                  screen: 'follow',
+                  labelAr: 'زر المتابعة / إلغاء المتابعة',
+                  labelEn: 'Follow / Unfollow Action Button',
+                  hasText: true,
+                  textKey: 'followBtnText',
+                  defaultText: 'متابعة',
+                  hasColor: true,
+                  colorKey: 'followBtnColor',
+                  defaultColor: '#6366F1',
+                  hasImage: true,
+                  imageKey: 'followBtnImage',
+                })}
+
+                {renderDualField({
+                  id: 'visitorTimeBadge',
+                  category: 'follow',
+                  screen: 'follow',
+                  labelAr: 'شارة وقت وتاريخ الزيارة',
+                  labelEn: 'Visit Timestamp Badge',
+                  hasColor: true,
+                  colorKey: 'visitTimeBadgeColor',
+                  defaultColor: '#334155',
+                  textColorKey: 'visitTimeTextColor',
                 })}
               </div>
             </div>
@@ -2245,7 +3064,190 @@ export default function AppDesignCenter() {
           )}
 
           {/* ================================================================= */}
-          {/* SECTION 14: GLOBAL COLORS & BOTTOM NAVIGATION                     */}
+          {/* SECTION 19: SUPER ADMIN DASHBOARD (لوحة تحكم السوبر أدمن)        */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'super_admin') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-lg">
+                  ⚡
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '19. لوحة تحكم السوبر أدمن وإدارة الرواتب والسلف' : '19. Super Admin Dashboard & Financial Control'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr ? 'تعديل خلفية لوحة السوبر أدمن، كروت صرف الرواتب والسلف، تدقيق الوكالات، الشارة الملكية والأزرار' : 'Customize Super Admin dashboard background, salary disburse cards, agency audit, badges, and action buttons'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'superAdminMainBg',
+                  category: 'super_admin',
+                  screen: 'super_admin',
+                  labelAr: 'شاشة ولوحة تحكم السوبر أدمن',
+                  labelEn: 'Super Admin Dashboard Background',
+                  hasText: true,
+                  textKey: 'superAdminTitle',
+                  defaultText: 'لوحة السوبر أدمن',
+                  hasColor: true,
+                  colorKey: 'headerBgColor',
+                  defaultColor: '#0F172A',
+                  hasImage: true,
+                  imageKey: 'backgroundImage',
+                })}
+
+                {renderDualField({
+                  id: 'superAdminSalaryCard',
+                  category: 'super_admin',
+                  screen: 'super_admin',
+                  labelAr: 'كارت إدارة وصرف الرواتب والسلف',
+                  labelEn: 'Disburse Salaries & Advance Card',
+                  hasText: true,
+                  textKey: 'salaryDisburseTitle',
+                  defaultText: 'صرف الرواتب والعمولات',
+                  hasColor: true,
+                  colorKey: 'salaryCardBg',
+                  defaultColor: '#1E1B4B',
+                  hasImage: true,
+                  imageKey: 'salaryCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'superAdminAgencyAuditCard',
+                  category: 'super_admin',
+                  screen: 'super_admin',
+                  labelAr: 'كارت مراجعة واعتماد الوكالات',
+                  labelEn: 'Agency Verification & Audit Card',
+                  hasText: true,
+                  textKey: 'agencyAuditTitle',
+                  defaultText: 'تدقيق واعتماد الوكالات',
+                  hasColor: true,
+                  colorKey: 'auditCardBg',
+                  defaultColor: '#1E293B',
+                  hasImage: true,
+                  imageKey: 'auditCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'superAdminRoleBadge',
+                  category: 'super_admin',
+                  screen: 'super_admin',
+                  labelAr: 'شارة ورتبة السوبر أدمن الملكية',
+                  labelEn: 'Super Admin Royal Role Badge',
+                  hasColor: true,
+                  colorKey: 'roleBadgeBg',
+                  defaultColor: '#DC2626',
+                  textColorKey: 'roleBadgeTextColor',
+                  hasIcon: true,
+                  iconKey: 'roleBadgeIcon',
+                })}
+
+                {renderDualField({
+                  id: 'superAdminActionBtn',
+                  category: 'super_admin',
+                  screen: 'super_admin',
+                  labelAr: 'زر تنفيذ الإجراءات المصيرية (صرف/تعديل)',
+                  labelEn: 'Execute Action Button',
+                  hasText: true,
+                  textKey: 'executeBtnText',
+                  defaultText: 'تنفيذ وتأكيد العملية',
+                  hasColor: true,
+                  colorKey: 'executeBtnColor',
+                  defaultColor: '#059669',
+                  hasImage: true,
+                  imageKey: 'executeBtnImage',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 20: ADMIN MANAGEMENT PANEL (لوحة إدارة الأدمن والمشرفين) */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'admin_panel') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold text-lg">
+                  🛡️
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '20. لوحة إدارة الأدمن والمشرفين والصلاحيات' : '20. Admin Management Panel & Permissions'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr ? 'تعديل خلفية لوحة الإدارة، زر تعيين مشرف جديد، كروت بيانات المشرفين، وشارات الصلاحيات' : 'Customize Admin Panel background, add admin button, admin member cards, and permission badges'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'adminPanelMainBg',
+                  category: 'admin_panel',
+                  screen: 'admin_panel',
+                  labelAr: 'شاشة لوحة تحكم المشرفين والإدارة',
+                  labelEn: 'Admin Management Panel Background',
+                  hasText: true,
+                  textKey: 'adminPanelTitle',
+                  defaultText: 'إدارة المشرفين',
+                  hasColor: true,
+                  colorKey: 'headerBgColor',
+                  defaultColor: '#111827',
+                  hasImage: true,
+                  imageKey: 'backgroundImage',
+                })}
+
+                {renderDualField({
+                  id: 'adminAddUserBtn',
+                  category: 'admin_panel',
+                  screen: 'admin_panel',
+                  labelAr: 'زر تعيين مشرف / أدمن جديد',
+                  labelEn: 'Add New Admin Button',
+                  hasText: true,
+                  textKey: 'addAdminBtnText',
+                  defaultText: 'تعيين مشرف جديد',
+                  hasColor: true,
+                  colorKey: 'addAdminBtnColor',
+                  defaultColor: '#2563EB',
+                  hasImage: true,
+                  imageKey: 'addAdminBtnImage',
+                })}
+
+                {renderDualField({
+                  id: 'adminUserCard',
+                  category: 'admin_panel',
+                  screen: 'admin_panel',
+                  labelAr: 'كارت عرض المشرف وسجل نشاطه',
+                  labelEn: 'Admin Member Card Background',
+                  hasColor: true,
+                  colorKey: 'adminCardBg',
+                  defaultColor: '#1F2937',
+                  hasImage: true,
+                  imageKey: 'adminCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'adminPermissionsBadge',
+                  category: 'admin_panel',
+                  screen: 'admin_panel',
+                  labelAr: 'شارة الصلاحيات والمستوى الإداري',
+                  labelEn: 'Admin Permissions Level Badge',
+                  hasColor: true,
+                  colorKey: 'permBadgeBg',
+                  defaultColor: '#7C3AED',
+                  textColorKey: 'permBadgeTextColor',
+                  hasIcon: true,
+                  iconKey: 'permBadgeIcon',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 21: GLOBAL COLORS & BOTTOM NAVIGATION                     */}
           {/* ================================================================= */}
           {(activeSection === 'all' || activeSection === 'global') && (
             <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
