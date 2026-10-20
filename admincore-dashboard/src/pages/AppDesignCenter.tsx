@@ -253,6 +253,18 @@ export default function AppDesignCenter() {
     { key: 'gift_banners', label: isAr ? '🎁 بانرات ولافتات الهدايا' : '🎁 Gift Banners', icon: Sparkles },
   ];
 
+  const toValidHex = (colorStr: string, fallback = '#1A1A1E'): string => {
+    if (!colorStr || typeof colorStr !== 'string') return fallback;
+    const s = colorStr.trim();
+    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(s)) {
+      if (s.length === 4) {
+        return `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+      }
+      return s;
+    }
+    return fallback;
+  };
+
   // Reusable Master Element Editor with Hide/Show, Directional Movements, Shape, Size & Dual-mode Background/Image
   const renderElementEditor = (params: {
     id: string;
@@ -369,7 +381,7 @@ export default function AppDesignCenter() {
                     <span className="text-[10px] text-slate-400">{isAr ? 'لون الخط:' : 'Font Color:'}</span>
                     <input
                       type="color"
-                      value={textColorVal.slice(0, 7)}
+                      value={toValidHex(textColorVal, '#FFFFFF')}
                       onChange={e => setVal(params.screen, params.textColorKey!, e.target.value)}
                       className="w-5 h-5 rounded border-none cursor-pointer bg-transparent"
                     />
@@ -395,7 +407,7 @@ export default function AppDesignCenter() {
                 <span className="text-[10px] text-slate-400">{isAr ? 'اللون:' : 'Color:'}</span>
                 <input
                   type="color"
-                  value={colorVal.slice(0, 7)}
+                  value={toValidHex(colorVal, '#1A1A1E')}
                   onChange={e => setVal(params.screen, params.colorKey!, e.target.value)}
                   className="w-6 h-6 rounded border-none cursor-pointer bg-transparent"
                   title={isAr ? 'اختر اللون' : 'Pick Color'}
@@ -1206,7 +1218,7 @@ export default function AppDesignCenter() {
                   defaultText: 'الغرف الصوتية',
                   hasColor: true,
                   colorKey: 'headerBgColor',
-                  defaultColor: 'transparent',
+                  defaultColor: '#121316',
                   hasImage: true,
                   imageKey: 'backgroundImage',
                 })}

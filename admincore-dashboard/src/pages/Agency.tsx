@@ -1176,6 +1176,8 @@ function MilestonesTab() {
     getCommissionSettings().then(cs => {
       const ar = cs.find(c => c.key === 'agency_rate')?.value;
       if (ar != null) setGeneralCommissionRate(ar);
+    }).catch(err => {
+      console.warn('Failed to load commission settings for agency rate:', err);
     });
     supabase.from('store_items').select('*').then(({ data }) => {
       if (data) setStoreItems(data);
@@ -1990,6 +1992,9 @@ function CommissionTab() {
     setLoading(true);
     getCommissionSettings().then(d => {
       setSettings(d);
+      setLoading(false);
+    }).catch(err => {
+      console.warn('Failed to load commission settings:', err);
       setLoading(false);
     });
   };

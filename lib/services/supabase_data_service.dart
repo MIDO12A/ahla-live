@@ -16,6 +16,7 @@ import '../models/app_asset_model.dart';
 import '../models/notification_model.dart';
 import '../models/gifted_item_model.dart';
 import 'package:uuid/uuid.dart';
+import 'dynamic_config_service.dart';
 
 class SupabaseDataService {
   static final SupabaseDataService _instance = SupabaseDataService._internal();

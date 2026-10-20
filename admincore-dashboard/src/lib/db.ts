@@ -1519,46 +1519,16 @@ export async function getCommissionSettings(): Promise<CommissionSettingModel[]>
       if (pol.platform_rate_pct != null) resultMap['platform_rate'].value = Number(pol.platform_rate_pct);
       if (pol.first_target_diamonds != null) resultMap['first_target_diamonds'].value = Number(pol.first_target_diamonds);
     }
-  } catch {}
-
-  // 3. Override from commission_settings table
-  try {
-    const { data } = await supabase.from('commission_settings').select('*');
-    if (data && data.length > 0) {
-      for (const row of data) {
-        const k = row.key;
-        const v = Number(row.percentage != null ? row.percentage : row.value);
-        if (k && !isNaN(v)) {
-          resultMap[k] = {
-            id: k,
-            key: k,
-            value: v,
-            description: row.description || (defaults[k] ? defaults[k].desc : k),
-            updated_at: row.updated_at || new Date().toISOString(),
-            updated_by: row.updated_by || null,
-          };
-        }
-      }
-    }
-  } catch { /* ignore */ }
+  } catch (e) {
+    console.warn('Failed to load agency_financial_policy from app_config:', e);
+  }
 
   return Object.values(resultMap);
 }
 
 export async function updateCommissionSetting(id: string, value: number): Promise<boolean> {
   try {
-    const nowIso = new Date().toISOString();
-    // 1. Update commission_settings table
-    try {
-      await supabase.from('commission_settings').upsert({
-        key: id,
-        percentage: value,
-        value: value,
-        updated_at: nowIso,
-      });
-    } catch (_) {}
-
-    // 2. Sync to agency_financial_policy in app_config
+    // Sync to agency_financial_policy in app_config
     try {
       const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'agency_financial_policy').maybeSingle();
       const current = (cfg && cfg.value) ? (typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value) : {};
