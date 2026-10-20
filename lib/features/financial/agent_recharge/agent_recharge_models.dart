@@ -73,27 +73,48 @@ class AgentDashboardData {
     this.usdBalance = 0.0,
   });
 
-  /// Returns a copy with updated quickAmounts
-  AgentDashboardData copyWithQuickAmounts(List<int> newAmounts) => AgentDashboardData(
-    enabled:        enabled,
-    pinSet:         pinSet,
-    dailyLimit:     dailyLimit,
-    agencyGold:     agencyGold,
-    agentPublicId:  agentPublicId,
-    todayTotal:     todayTotal,
-    todayCount:     todayCount,
-    todayRemaining: todayRemaining,
-    weekTotal:      weekTotal,
-    weekCount:      weekCount,
-    monthTotal:     monthTotal,
-    monthCount:     monthCount,
-    allTotal:       allTotal,
-    allCount:       allCount,
-    weekChart:      weekChart,
-    recentTxns:     recentTxns,
-    quickAmounts:   newAmounts,
-    usdBalance:     usdBalance,
+  AgentDashboardData copyWith({
+    bool? enabled,
+    bool? pinSet,
+    int? dailyLimit,
+    int? agencyGold,
+    String? agentPublicId,
+    int? todayTotal,
+    int? todayCount,
+    int? todayRemaining,
+    int? weekTotal,
+    int? weekCount,
+    int? monthTotal,
+    int? monthCount,
+    int? allTotal,
+    int? allCount,
+    List<AgentDayChart>? weekChart,
+    List<AgentRecentTxn>? recentTxns,
+    List<int>? quickAmounts,
+    double? usdBalance,
+  }) => AgentDashboardData(
+    enabled:        enabled ?? this.enabled,
+    pinSet:         pinSet ?? this.pinSet,
+    dailyLimit:     dailyLimit ?? this.dailyLimit,
+    agencyGold:     agencyGold ?? this.agencyGold,
+    agentPublicId:  agentPublicId ?? this.agentPublicId,
+    todayTotal:     todayTotal ?? this.todayTotal,
+    todayCount:     todayCount ?? this.todayCount,
+    todayRemaining: todayRemaining ?? this.todayRemaining,
+    weekTotal:      weekTotal ?? this.weekTotal,
+    weekCount:      weekCount ?? this.weekCount,
+    monthTotal:     monthTotal ?? this.monthTotal,
+    monthCount:     monthCount ?? this.monthCount,
+    allTotal:       allTotal ?? this.allTotal,
+    allCount:       allCount ?? this.allCount,
+    weekChart:      weekChart ?? this.weekChart,
+    recentTxns:     recentTxns ?? this.recentTxns,
+    quickAmounts:   quickAmounts ?? this.quickAmounts,
+    usdBalance:     usdBalance ?? this.usdBalance,
   );
+
+  /// Returns a copy with updated quickAmounts
+  AgentDashboardData copyWithQuickAmounts(List<int> newAmounts) => copyWith(quickAmounts: newAmounts);
 
   factory AgentDashboardData.fromMap(Map<String,dynamic> m) {
     final today = m['today'] as Map? ?? {};

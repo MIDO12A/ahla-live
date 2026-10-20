@@ -161,7 +161,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
                 weekChart: const [],
                 recentTxns: const [],
                 quickAmounts: const [1000, 5000, 10000, 50000, 100000],
-                usdBalance: 0.0,
+                usdBalance: agencyDiamonds.toDouble(),
               );
               _loading = false;
             });
