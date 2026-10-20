@@ -1649,6 +1649,61 @@ class DynamicConfigService extends ChangeNotifier {
     return 10.0;
   }
 
+  /// سعر الصرف: عدد الكوينز لكل 1 دولار أمريكي (افتراضياً 15,000 كوينز)
+  int get coinsPerUsd {
+    final v = _rawConfig['coins_per_usd'] ?? _rawConfig['coinsPerUsd'];
+    if (v is int && v > 0) return v;
+    if (v != null) {
+      final parsed = int.tryParse(v.toString());
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    final pol = _rawConfig['agency_financial_policy'];
+    if (pol is Map && pol['coins_per_usd'] != null) {
+      final p = int.tryParse(pol['coins_per_usd'].toString());
+      if (p != null && p > 0) return p;
+    }
+    return 15000;
+  }
+
+  /// نسبة عمولة وكيل المضيف من ماس المضيف (%) (افتراضياً 10%)
+  double get agencyRatePercentage {
+    final candidates = [
+      _rawConfig['agency_rate'],
+      _rawConfig['agency_rate_pct'],
+      _rawConfig['agencyRate'],
+      _rawConfig['agencyRatePct'],
+    ];
+
+    for (final direct in candidates) {
+      if (direct != null) {
+        final p = double.tryParse(direct.toString());
+        if (p != null && p > 0) {
+          return (p > 0 && p <= 1.0) ? p * 100.0 : p;
+        }
+      }
+    }
+
+    final pol = _rawConfig['agency_financial_policy'];
+    if (pol is Map) {
+      final p = double.tryParse((pol['agency_rate_pct'] ?? pol['agency_rate'])?.toString() ?? '');
+      if (p != null && p > 0) {
+        return (p > 0 && p <= 1.0) ? p * 100.0 : p;
+      }
+    } else if (pol is String) {
+      try {
+        final m = jsonDecode(pol);
+        if (m is Map) {
+          final p = double.tryParse((m['agency_rate_pct'] ?? m['agency_rate'])?.toString() ?? '');
+          if (p != null && p > 0) {
+            return (p > 0 && p <= 1.0) ? p * 100.0 : p;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return 10.0; // 10% افتراضياً
+  }
+
   /// نسبة راتب المضيف من الكوينز المستلمة (%)
   /// القيمة الافتراضية 100.0 (أي 100% كاملة)
   double get hostRatePercentage {

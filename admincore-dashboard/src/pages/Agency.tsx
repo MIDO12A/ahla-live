@@ -1982,29 +1982,326 @@ function CommissionTab() {
   const { t } = useContext(I18nContext);
   const [settings, setSettings] = useState<CommissionSettingModel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [simCoins, setSimCoins] = useState<number>(15000);
+  const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
 
-  const load = () => { setLoading(true); getCommissionSettings().then(d => { setSettings(d); setLoading(false); }); };
+  const load = () => {
+    setLoading(true);
+    getCommissionSettings().then(d => {
+      setSettings(d);
+      setLoading(false);
+    });
+  };
+
   useEffect(() => { load(); }, []);
 
   const handleUpdate = async (id: string, value: number) => {
+    setSavingKey(id);
     await updateCommissionSetting(id, value);
+    setSavingKey(null);
     load();
   };
 
+  const getVal = (key: string, fallback: number) => {
+    const s = settings.find(x => x.key === key);
+    return s && typeof s.value === 'number' && !isNaN(s.value) ? s.value : fallback;
+  };
+
+  const coinsPerUsd = getVal('coins_per_usd', 15000);
+  const hostRate = getVal('host_rate', 100);
+  const agencyRate = getVal('agency_rate', 10);
+  const hostTargetExchangeRate = getVal('host_target_exchange_rate', 60);
+  const rechargeAgentHostRate = getVal('recharge_agent_host_rate', 10);
+  const rechargeAgentAgencyRate = getVal('recharge_agent_agency_rate', 10);
+  const platformRate = getVal('platform_rate', 17.72);
+  const firstTargetDiamonds = getVal('first_target_diamonds', 150000);
+
+  // Simulation calculations
+  const safeCoins = Math.max(0, simCoins || 0);
+  const simUsd = Number(((safeCoins) / (coinsPerUsd || 15000)).toFixed(2));
+  const simHostDiamonds = Math.round(safeCoins * (hostRate / 100));
+  const simAgencyDiamonds = Math.round(simHostDiamonds * (agencyRate / 100));
+  const simTargetUnlockedSalary = Number((simUsd * (hostTargetExchangeRate / 100)).toFixed(2));
+
   const descKeyMap: Record<string, string> = {
-    host_rate: 'نسبة راتب المضيف من الكوينز المستلمة (افتراضي 100%)',
-    host_target_exchange_rate: 'نسبة راتب المضيف في حال فك ألماس التارجت (افتراضي 60% - خصم 40% من الراتب)',
-    agency_rate: 'نسبة راتب وكيل المضيف من ماس المضيف (افتراضي 10%)',
-    recharge_agent_host_rate: 'عمولة وكيل الشحن من تحويل راتب المضيف (افتراضي 10%)',
-    recharge_agent_agency_rate: 'عمولة وكيل الشحن من تحويل راتب وكيل المضيف (افتراضي 10%)',
+    coins_per_usd: 'سعر الصرف المعتمد: عدد الكوينز مقابل كل 1 دولار أمريكي (1$ = 15,000 كوينز)',
+    host_rate: 'نسبة استلام المضيف من كوينز الهدايا المرسلة وتحويلها لألماس (افتراضي 100%)',
+    agency_rate: 'نسبة عمولة وراتب صاحب الوكالة من ألماس المضيف (افتراضي 10%)',
+    host_target_exchange_rate: 'نسبة راتب المضيف في حال فك ألماس التارجت وتحويله لكوينز (افتراضي 60% مع خصم 40% من الراتب)',
+    recharge_agent_host_rate: 'عمولة وكيل الشحن الإضافية من تحويل راتب المضيف (افتراضي 10%)',
+    recharge_agent_agency_rate: 'عمولة وكيل الشحن الإضافية من تحويل راتب وكيل المضيف (افتراضي 10%)',
     platform_rate: 'نسبة الإدارة والمتبقي للنظام (افتراضي 17.72%)',
-    coins_per_usd: 'سعر الصرف: عدد الكوينز لكل 1 دولار (15,000 كوينز)',
-    first_target_diamonds: 'قيمة التارجت الأول بالماس (150,000 ماس)',
+    first_target_diamonds: 'قيمة تارجت المستوى الأول بالماس (150,000 ماس)',
+  };
+
+  const quickSave = async (key: string) => {
+    const raw = draftInputs[key];
+    const num = parseFloat(raw);
+    if (!isNaN(num) && num >= 0) {
+      await handleUpdate(key, num);
+      setDraftInputs(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Financial Policy Guide Card */}
+      {/* 1. Quick Control Hero Cards */}
+      <div className="bg-[#141417] border border-amber-500/30 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Coins className="w-5 h-5 text-amber-400" />
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                ⚡ التحكم الفوري في سعر الصرف وتوزيع أرباح الهدايا
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                يمكنك تغيير سعر صرف الدولار ونسب المضيف والوكيل مباشرةً من هنا، ويتم تحديث النظام والتطبيق فوراً
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={load}
+            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs flex items-center gap-1.5 transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            تحديث البيانات
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-2">
+          {/* Card 1: Coins per USD */}
+          <div className="bg-gradient-to-b from-amber-500/10 to-transparent border border-amber-500/20 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-300">💵 سعر الصرف (1$ دولار)</span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-mono">
+                {coinsPerUsd.toLocaleString()} كوينز
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">كم كوينز تعادل 1 دولار أمريكي</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="100"
+                min="1"
+                placeholder={String(coinsPerUsd)}
+                value={draftInputs['coins_per_usd'] ?? ''}
+                onChange={e => setDraftInputs(prev => ({ ...prev, coins_per_usd: e.target.value }))}
+                className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400"
+              />
+              <button
+                disabled={savingKey === 'coins_per_usd' || draftInputs['coins_per_usd'] == null || draftInputs['coins_per_usd'] === ''}
+                onClick={() => quickSave('coins_per_usd')}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-black font-bold rounded-lg text-xs transition-colors shrink-0"
+              >
+                {savingKey === 'coins_per_usd' ? '...' : 'حفظ'}
+              </button>
+            </div>
+          </div>
+
+          {/* Card 2: Host Diamond Rate */}
+          <div className="bg-gradient-to-b from-emerald-500/10 to-transparent border border-emerald-500/20 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-300">💎 نسبة استلام المضيف</span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-mono">
+                {hostRate}%
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">نسبة تحويل كوينز الهدايا لألماس للمضيف</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="100"
+                placeholder={String(hostRate)}
+                value={draftInputs['host_rate'] ?? ''}
+                onChange={e => setDraftInputs(prev => ({ ...prev, host_rate: e.target.value }))}
+                className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-400"
+              />
+              <button
+                disabled={savingKey === 'host_rate' || draftInputs['host_rate'] == null || draftInputs['host_rate'] === ''}
+                onClick={() => quickSave('host_rate')}
+                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-black font-bold rounded-lg text-xs transition-colors shrink-0"
+              >
+                {savingKey === 'host_rate' ? '...' : 'حفظ'}
+              </button>
+            </div>
+          </div>
+
+          {/* Card 3: Agency Rate */}
+          <div className="bg-gradient-to-b from-indigo-500/10 to-transparent border border-indigo-500/20 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-indigo-300">🏢 عمولة صاحب الوكالة</span>
+              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-mono">
+                {agencyRate}%
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">نسبة راتب الوكيل من ألماس المضيف</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="100"
+                placeholder={String(agencyRate)}
+                value={draftInputs['agency_rate'] ?? ''}
+                onChange={e => setDraftInputs(prev => ({ ...prev, agency_rate: e.target.value }))}
+                className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-400"
+              />
+              <button
+                disabled={savingKey === 'agency_rate' || draftInputs['agency_rate'] == null || draftInputs['agency_rate'] === ''}
+                onClick={() => quickSave('agency_rate')}
+                className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition-colors shrink-0"
+              >
+                {savingKey === 'agency_rate' ? '...' : 'حفظ'}
+              </button>
+            </div>
+          </div>
+
+          {/* Card 4: Target Unlocked Rate */}
+          <div className="bg-gradient-to-b from-rose-500/10 to-transparent border border-rose-500/20 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-rose-300">🎯 راتب فك التارجت</span>
+              <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-mono">
+                {hostTargetExchangeRate}%
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">نسبة الراتب المتبقية عند فك ألماس التارجت</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                placeholder={String(hostTargetExchangeRate)}
+                value={draftInputs['host_target_exchange_rate'] ?? ''}
+                onChange={e => setDraftInputs(prev => ({ ...prev, host_target_exchange_rate: e.target.value }))}
+                className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-rose-400"
+              />
+              <button
+                disabled={savingKey === 'host_target_exchange_rate' || draftInputs['host_target_exchange_rate'] == null || draftInputs['host_target_exchange_rate'] === ''}
+                onClick={() => quickSave('host_target_exchange_rate')}
+                className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition-colors shrink-0"
+              >
+                {savingKey === 'host_target_exchange_rate' ? '...' : 'حفظ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Interactive Live Gift Distribution Simulator */}
+      <div className="bg-gradient-to-br from-indigo-950/40 via-purple-950/20 to-slate-900 border border-indigo-500/30 rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🧮</span>
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                محاكي وحاسبة إرسال الهدايا والتوزيع الفوري (Live Gift Distribution Simulator)
+              </h3>
+              <p className="text-[11px] text-indigo-300">
+                أدخل أي قيمة كوينز لتجربة كيفية تقسيمها فوراً بين المضيف والوكيل والنظام بناءً على الإعدادات الحالية
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-slate-400 ml-1">أمثلة سريعة:</span>
+            {[
+              { label: '15,000 (1$)', val: 15000 },
+              { label: '30,000 (2$)', val: 30000 },
+              { label: '150,000 (تارجت 1)', val: 150000 },
+              { label: '300,000 (20$)', val: 300000 },
+              { label: '1,500,000 (100$)', val: 1500000 },
+            ].map(preset => (
+              <button
+                key={preset.val}
+                onClick={() => setSimCoins(preset.val)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] transition-colors border ${
+                  simCoins === preset.val
+                    ? 'bg-indigo-600 text-white border-indigo-400 font-bold'
+                    : 'bg-black/40 text-slate-300 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Input Bar */}
+        <div className="bg-black/50 border border-white/10 rounded-xl p-3 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <span className="text-xs text-slate-300 whitespace-nowrap font-medium">🎁 قيمة الهدايا بالكوينز:</span>
+            <input
+              type="number"
+              step="1000"
+              min="0"
+              value={simCoins}
+              onChange={e => setSimCoins(Math.max(0, parseFloat(e.target.value) || 0))}
+              className="w-full bg-[#161618] border border-indigo-500/40 rounded-lg px-3 py-1.5 text-sm text-amber-400 font-bold font-mono focus:outline-none focus:border-indigo-400"
+              placeholder="15000"
+            />
+          </div>
+          <div className="text-xs text-slate-400 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+            سعر الصرف الحالي: <strong className="text-amber-400">1$ = {coinsPerUsd.toLocaleString()} كوينز</strong>
+          </div>
+        </div>
+
+        {/* Breakdown Output Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+          {/* Result 1: USD Value */}
+          <div className="bg-black/40 border border-amber-500/20 rounded-xl p-3.5 space-y-1">
+            <div className="text-slate-400 text-[10px]">💵 القيمة المقابلة بالدولار</div>
+            <div className="text-lg font-black text-amber-400 font-mono">${simUsd}</div>
+            <div className="text-[10px] text-slate-500">حسب سعر الصرف المعتمد</div>
+          </div>
+
+          {/* Result 2: Host Diamonds */}
+          <div className="bg-black/40 border border-emerald-500/20 rounded-xl p-3.5 space-y-1">
+            <div className="text-slate-400 text-[10px]">💎 ألماس المضيف المستلم</div>
+            <div className="text-lg font-black text-emerald-400 font-mono">
+              {simHostDiamonds.toLocaleString()} 💎
+            </div>
+            <div className="text-[10px] text-emerald-400/80 font-medium">
+              نسبة استلام المضيف: {hostRate}%
+            </div>
+          </div>
+
+          {/* Result 3: Agency Diamonds */}
+          <div className="bg-black/40 border border-indigo-500/20 rounded-xl p-3.5 space-y-1">
+            <div className="text-slate-400 text-[10px]">🏢 عمولة صاحب الوكالة</div>
+            <div className="text-lg font-black text-indigo-400 font-mono">
+              {simAgencyDiamonds.toLocaleString()} 💎
+            </div>
+            <div className="text-[10px] text-indigo-400/80 font-medium">
+              نسبة عمولة الوكيل: {agencyRate}% (من ألماس المضيف)
+            </div>
+          </div>
+
+          {/* Result 4: Target Unlocked Salary */}
+          <div className="bg-black/40 border border-rose-500/20 rounded-xl p-3.5 space-y-1">
+            <div className="text-slate-400 text-[10px]">🎯 الراتب عند فك التارجت</div>
+            <div className="text-lg font-black text-rose-400 font-mono">${simTargetUnlockedSalary}</div>
+            <div className="text-[10px] text-rose-400/80 font-medium">
+              نسبة {hostTargetExchangeRate}% (خصم {100 - hostTargetExchangeRate}%)
+            </div>
+          </div>
+
+          {/* Result 5: Platform Share */}
+          <div className="bg-black/40 border border-cyan-500/20 rounded-xl p-3.5 space-y-1">
+            <div className="text-slate-400 text-[10px]">🛡️ حصة المنصة المتبقية</div>
+            <div className="text-lg font-black text-cyan-400 font-mono">{platformRate}%</div>
+            <div className="text-[10px] text-slate-500">حصة النظام المعتمدة</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Detailed Financial Policy Guide Cards (Dynamic) */}
       <div className="bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-emerald-500/10 border border-amber-500/30 rounded-2xl p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-amber-400" />
@@ -2017,15 +2314,25 @@ function CommissionTab() {
           {/* Card 1: Rate Calculation */}
           <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2">
             <div className="font-bold text-amber-300 flex items-center gap-1.5">
-              <span>💎</span> معدل التحويل والهدايا:
+              <span>💎</span> معدل التحويل والهدايا المعتمد:
             </div>
             <p className="text-slate-300 leading-relaxed">
-              كل <strong>1 دولار = 15,000 كوينز</strong>.<br/>
-              عند إرسال هدايا بقيمة 15,000 كوينز:
+              كل <strong>1 دولار = {coinsPerUsd.toLocaleString()} كوينز</strong>.<br/>
+              عند إرسال هدايا بقيمة {coinsPerUsd.toLocaleString()} كوينز:
             </p>
             <ul className="space-y-1 text-slate-300">
-              <li className="flex justify-between"><span>• المضيف (100%):</span> <strong className="text-emerald-400">15,000 ماس</strong></li>
-              <li className="flex justify-between"><span>• وكيل المضيف (10%):</span> <strong className="text-indigo-400">1,500 ماس</strong></li>
+              <li className="flex justify-between">
+                <span>• المضيف ({hostRate}%):</span>
+                <strong className="text-emerald-400">
+                  {Math.round(coinsPerUsd * (hostRate / 100)).toLocaleString()} ماس
+                </strong>
+              </li>
+              <li className="flex justify-between">
+                <span>• وكيل المضيف ({agencyRate}%):</span>
+                <strong className="text-indigo-400">
+                  {Math.round((coinsPerUsd * (hostRate / 100)) * (agencyRate / 100)).toLocaleString()} ماس
+                </strong>
+              </li>
             </ul>
             <div className="text-[10px] text-amber-400/90 bg-amber-500/10 p-2 rounded border border-amber-500/20">
               ⚡ يتم احتساب راتب وعمولة الوكيل تلقائياً دون خصمها من المضيف، وفي حال فك المضيف للألماس أو تحويله لكوينز لا تتأثر عمولة الوكيل نهائياً وتظل ثابتة في محفظته.
@@ -2038,14 +2345,25 @@ function CommissionTab() {
               <span>🎯</span> سياسة تارجت المضيف وفك الألماس:
             </div>
             <ul className="space-y-1 text-slate-300">
-              <li className="flex justify-between"><span>• فك الألماس إلى كوينز (1:1):</span> <strong className="text-emerald-400">100% كوينز كاملة</strong></li>
-              <li className="flex justify-between"><span>• التأثير على التارجت الشهري:</span> <strong className="text-rose-400">يُخصم الألماس المفكوك ويتراجع التارجت</strong></li>
-              <li className="flex justify-between"><span>• نسبة الراتب عند فك التارجت:</span> <strong className="text-amber-400">60% فقط (خصم 40% من الراتب)</strong></li>
-              <li className="flex justify-between"><span>• مثال الراتب (لو 9 دولار):</span> <strong className="text-cyan-400">ينزل إلى 5.4$ (~5$)</strong></li>
-              <li className="flex justify-between border-t border-white/10 pt-1"><span>• عمولة وكيل المضيف (10%):</span> <strong className="text-indigo-400">محفوظة 100% دون أي خصم</strong></li>
+              <li className="flex justify-between">
+                <span>• فك الألماس إلى كوينز (1:1):</span>
+                <strong className="text-emerald-400">100% كوينز كاملة</strong>
+              </li>
+              <li className="flex justify-between">
+                <span>• التأثير على التارجت الشهري:</span>
+                <strong className="text-rose-400">يُخصم الألماس المفكوك ويتراجع التارجت</strong>
+              </li>
+              <li className="flex justify-between">
+                <span>• نسبة الراتب عند فك التارجت:</span>
+                <strong className="text-amber-400">{hostTargetExchangeRate}% فقط (خصم {100 - hostTargetExchangeRate}% من الراتب)</strong>
+              </li>
+              <li className="flex justify-between border-t border-white/10 pt-1">
+                <span>• عمولة وكيل المضيف ({agencyRate}%):</span>
+                <strong className="text-indigo-400">محفوظة 100% دون أي خصم</strong>
+              </li>
             </ul>
             <div className="text-[10px] text-cyan-400/90 bg-cyan-500/10 p-2 rounded border border-cyan-500/20">
-              🔄 مثال تطبيقي: إذا كان تارجت المضيف 225,000 ماس وفك 100,000 ماس إلى كوينز: يستلم 100,000 كوينز كاملة، ويُخصم 100,000 من تارجته الشهري ليتبقى 125,000 ماس، ويتم احتساب راتب التارجت بنسبة 60% فقط (خصم 40% من الراتب، فينزل من 9$ إلى 5$)، وعمولة وكيل المضيف تبقى كما هي كاملة.
+              🔄 مثال تطبيقي: إذا كان تارجت المضيف 225,000 ماس وفك 100,000 ماس إلى كوينز: يستلم 100,000 كوينز كاملة، ويُخصم 100,000 من تارجته الشهري ليتبقى 125,000 ماس، ويتم احتساب راتب التارجت بنسبة {hostTargetExchangeRate}% فقط، وعمولة وكيل المضيف تبقى كما هي كاملة.
             </div>
           </div>
 
@@ -2056,18 +2374,19 @@ function CommissionTab() {
             </div>
             <p className="text-slate-300 leading-relaxed">
               • يُحوّل راتب المضيف وراتب وكيل المضيف بالماس لوكيل الشحن بشكل مستقل.<br/>
-              • عمولة وكيل الشحن تُضاف كعمولة إضافية مستقلة ولا تُخصم من المضيفين.<br/>
-              • تتحمل الإدارة عمولة وكيل الشحن من حصة النظام.
+              • عمولة وكيل الشحن ({rechargeAgentHostRate}%) تُضاف كعمولة إضافية مستقلة ولا تُخصم من المضيفين.<br/>
+              • تتحمل الإدارة عمولة وكيل الشحن من حصة النظام ({platformRate}%).
             </p>
           </div>
         </div>
       </div>
 
+      {/* 4. Complete Commission Settings Table */}
       <div className="bg-[#141417] rounded-2xl border border-white/5 overflow-hidden">
         <div className="p-4 border-b border-white/5 flex items-center justify-between">
           <div>
             <h4 className="text-white text-xs font-bold">جدول نسب العمولات والتحويلات القابلة للتعديل</h4>
-            <p className="text-slate-500 text-[11px] mt-0.5">يمكنك تعديل أي نسبة بالضغط على "Edit" وسيتم تطبيقها على الفور في الحسابات التلقائية</p>
+            <p className="text-slate-500 text-[11px] mt-0.5">يمكنك تعديل أي نسبة أو قيمة بالضغط على "Edit" وسيتم تطبيقها على الفور في الحسابات التلقائية</p>
           </div>
           <button onClick={load} className="px-3 py-1 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs flex items-center gap-1">
             <RefreshCw className="w-3 h-3" /> تحديث
@@ -2078,23 +2397,35 @@ function CommissionTab() {
             <tr className="border-b border-white/5">
               <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">المفتاح (Key)</th>
               <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">الوصف والتفاصيل</th>
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">النسبة / القيمة الحالية</th>
+              <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">القيمة المعتمدة</th>
               <th className="text-left text-[10px] uppercase tracking-wider text-slate-500 font-bold p-3">إجراء</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr><td colSpan={4} className="text-center py-12 text-slate-500">جاري التحميل...</td></tr>
-            ) : settings.map(s => (
-              <tr key={s.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-3 text-white font-mono">{s.key}</td>
-                <td className="p-3 text-slate-300">{descKeyMap[s.key] || s.description || s.key}</td>
-                <td className="p-3"><span className="text-amber-400 font-bold">{s.value}%</span></td>
-                <td className="p-3">
-                  <InlineEdit value={s.value} onSave={v => handleUpdate(s.id, v)} />
-                </td>
-              </tr>
-            ))}
+            ) : settings.map(s => {
+              const isCoinsKey = s.key === 'coins_per_usd';
+              const isDiamondsKey = s.key === 'first_target_diamonds';
+              return (
+                <tr key={s.id} className="border-b border-white/5 hover:bg-white/5">
+                  <td className="p-3 text-white font-mono">{s.key}</td>
+                  <td className="p-3 text-slate-300">{descKeyMap[s.key] || s.description || s.key}</td>
+                  <td className="p-3">
+                    <span className="text-amber-400 font-bold">
+                      {isCoinsKey
+                        ? `${s.value.toLocaleString()} كوينز / 1$`
+                        : isDiamondsKey
+                          ? `${s.value.toLocaleString()} ماس`
+                          : `${s.value}%`}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    <InlineEdit value={s.value} onSave={v => handleUpdate(s.id, v)} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

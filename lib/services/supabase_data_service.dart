@@ -1252,10 +1252,11 @@ class SupabaseDataService {
                   }),
                 );
 
-                // وكيل المضيف: يحصل على 10% من ماس المضيف (يُضاف لرصيده دون الخصم من المضيف)
+                // وكيل المضيف: يحصل على نسبة عمولته المحددة من لوحة التحكم (يُضاف لرصيده دون الخصم من المضيف)
                 final ownerUid = (ag['owner_uid'] ?? ag['owner_id'])?.toString() ?? '';
                 if (ownerUid.isNotEmpty && ownerUid != hostUid) {
-                  final agentSalary = (diamondsToAdd * 0.10).round();
+                  final agencyRatePct = DynamicConfigService().agencyRatePercentage;
+                  final agentSalary = (diamondsToAdd * (agencyRatePct / 100.0)).round();
                   if (agentSalary > 0) {
                     final ownerMemUrl = Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&or=(host_uid.eq.$ownerUid,user_id.eq.$ownerUid)&select=*&limit=1');
                     final oRes = await http.get(ownerMemUrl, headers: _headers);

@@ -1447,44 +1447,69 @@ export async function deleteHostAgency(id: string): Promise<boolean> {
 }
 
 export async function getCommissionSettings(): Promise<CommissionSettingModel[]> {
-  try {
-    const { data } = await supabase.from('commission_settings').select('*').order('key');
-    if (data && data.length > 0) {
-      return data.map((row: any) => ({
-        id: row.key,
-        key: row.key,
-        value: Number(row.percentage != null ? row.percentage : row.value) || 0,
-        description: row.description || null,
-        updated_at: row.updated_at || new Date().toISOString(),
-        updated_by: row.updated_by || null,
-      }));
-    }
-  } catch { /* ignore */ }
+  const defaults: Record<string, { desc: string; val: number }> = {
+    coins_per_usd: { desc: 'سعر الصرف: عدد الكوينز لكل 1 دولار أمريكي', val: 15000 },
+    host_rate: { desc: 'نسبة استلام المضيف من كوينز الهدية (%)', val: 100 },
+    agency_rate: { desc: 'نسبة راتب وكيل المضيف من ماس المضيف (%)', val: 10 },
+    host_target_exchange_rate: { desc: 'نسبة راتب المضيف في حال فك ألماس التارجت (%)', val: 60 },
+    recharge_agent_host_rate: { desc: 'عمولة وكيل الشحن من راتب المضيف (%)', val: 10 },
+    recharge_agent_agency_rate: { desc: 'عمولة وكيل الشحن من راتب وكيل المضيف (%)', val: 10 },
+    platform_rate: { desc: 'نسبة الإدارة والمتبقي للنظام (%)', val: 17.72 },
+    first_target_diamonds: { desc: 'قيمة التارجت الأول بالألماس', val: 150000 },
+  };
 
-  // Fallback to app_config policy
+  const resultMap: Record<string, CommissionSettingModel> = {};
+
+  // 1. Initialize with defaults
+  for (const [k, d] of Object.entries(defaults)) {
+    resultMap[k] = {
+      id: k,
+      key: k,
+      value: d.val,
+      description: d.desc,
+      updated_at: '',
+      updated_by: null,
+    };
+  }
+
+  // 2. Fetch app_config agency_financial_policy
   try {
     const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'agency_financial_policy').maybeSingle();
     if (cfg && cfg.value) {
       const pol = typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value;
-      return [
-        { id: 'host_rate', key: 'host_rate', value: pol.host_rate_pct ?? 100, description: 'نسبة راتب المضيف من الكوينز (%)', updated_at: '', updated_by: null },
-        { id: 'host_target_exchange_rate', key: 'host_target_exchange_rate', value: pol.host_target_exchange_rate_pct ?? 60, description: 'نسبة راتب المضيف في حال فك ألماس التارجت (%)', updated_at: '', updated_by: null },
-        { id: 'agency_rate', key: 'agency_rate', value: pol.agency_rate_pct ?? 10, description: 'نسبة راتب وكيل المضيف من ماس المضيف (%)', updated_at: '', updated_by: null },
-        { id: 'recharge_agent_host_rate', key: 'recharge_agent_host_rate', value: pol.recharge_agent_host_rate_pct ?? 10, description: 'عمولة وكيل الشحن من راتب المضيف (%)', updated_at: '', updated_by: null },
-        { id: 'recharge_agent_agency_rate', key: 'recharge_agent_agency_rate', value: pol.recharge_agent_agency_rate_pct ?? 10, description: 'عمولة وكيل الشحن من راتب وكيل المضيف (%)', updated_at: '', updated_by: null },
-        { id: 'platform_rate', key: 'platform_rate', value: pol.platform_rate_pct ?? 17.72, description: 'نسبة الإدارة المتبقية (%)', updated_at: '', updated_by: null },
-      ];
+      if (pol.coins_per_usd != null) resultMap['coins_per_usd'].value = Number(pol.coins_per_usd);
+      if (pol.host_rate_pct != null) resultMap['host_rate'].value = Number(pol.host_rate_pct);
+      if (pol.agency_rate_pct != null) resultMap['agency_rate'].value = Number(pol.agency_rate_pct);
+      if (pol.host_target_exchange_rate_pct != null) resultMap['host_target_exchange_rate'].value = Number(pol.host_target_exchange_rate_pct);
+      if (pol.recharge_agent_host_rate_pct != null) resultMap['recharge_agent_host_rate'].value = Number(pol.recharge_agent_host_rate_pct);
+      if (pol.recharge_agent_agency_rate_pct != null) resultMap['recharge_agent_agency_rate'].value = Number(pol.recharge_agent_agency_rate_pct);
+      if (pol.platform_rate_pct != null) resultMap['platform_rate'].value = Number(pol.platform_rate_pct);
+      if (pol.first_target_diamonds != null) resultMap['first_target_diamonds'].value = Number(pol.first_target_diamonds);
     }
   } catch {}
 
-  return [
-    { id: 'host_rate', key: 'host_rate', value: 100, description: 'نسبة راتب المضيف من الكوينز (%)', updated_at: '', updated_by: null },
-    { id: 'host_target_exchange_rate', key: 'host_target_exchange_rate', value: 60, description: 'نسبة راتب المضيف في حال فك ألماس التارجت (%)', updated_at: '', updated_by: null },
-    { id: 'agency_rate', key: 'agency_rate', value: 10, description: 'نسبة راتب وكيل المضيف من ماس المضيف (%)', updated_at: '', updated_by: null },
-    { id: 'recharge_agent_host_rate', key: 'recharge_agent_host_rate', value: 10, description: 'عمولة وكيل الشحن من راتب المضيف (%)', updated_at: '', updated_by: null },
-    { id: 'recharge_agent_agency_rate', key: 'recharge_agent_agency_rate', value: 10, description: 'عمولة وكيل الشحن من راتب وكيل المضيف (%)', updated_at: '', updated_by: null },
-    { id: 'platform_rate', key: 'platform_rate', value: 17.72, description: 'نسبة الإدارة المتبقية (%)', updated_at: '', updated_by: null },
-  ];
+  // 3. Override from commission_settings table
+  try {
+    const { data } = await supabase.from('commission_settings').select('*');
+    if (data && data.length > 0) {
+      for (const row of data) {
+        const k = row.key;
+        const v = Number(row.percentage != null ? row.percentage : row.value);
+        if (k && !isNaN(v)) {
+          resultMap[k] = {
+            id: k,
+            key: k,
+            value: v,
+            description: row.description || (defaults[k] ? defaults[k].desc : k),
+            updated_at: row.updated_at || new Date().toISOString(),
+            updated_by: row.updated_by || null,
+          };
+        }
+      }
+    }
+  } catch { /* ignore */ }
+
+  return Object.values(resultMap);
 }
 
 export async function updateCommissionSetting(id: string, value: number): Promise<boolean> {
@@ -1495,6 +1520,7 @@ export async function updateCommissionSetting(id: string, value: number): Promis
       await supabase.from('commission_settings').upsert({
         key: id,
         percentage: value,
+        value: value,
         updated_at: nowIso,
       });
     } catch (_) {}
@@ -1513,10 +1539,16 @@ export async function updateCommissionSetting(id: string, value: number): Promis
       else if (id === 'coins_per_usd') current.coins_per_usd = value;
       else if (id === 'first_target_diamonds') current.first_target_diamonds = value;
 
-      await supabase.from('app_config').upsert({
-        key: 'agency_financial_policy',
-        value: current,
-      });
+      await Promise.all([
+        supabase.from('app_config').upsert({
+          key: 'agency_financial_policy',
+          value: current,
+        }),
+        supabase.from('app_config').upsert({
+          key: id,
+          value: value,
+        }),
+      ]);
     } catch (_) {}
 
     return true;
