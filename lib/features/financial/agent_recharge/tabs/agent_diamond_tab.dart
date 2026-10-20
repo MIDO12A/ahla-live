@@ -166,6 +166,20 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
     }
   }
 
+  Future<void> _showExchangeBottomSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ExchangeBottomSheetContent(
+        currentBalance: _balance,
+        onExchanged: () {
+          _load();
+        },
+      ),
+    );
+  }
+
   void _subscribeRealtime() {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
@@ -199,6 +213,8 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
         return 'استلام من وكالة';
       case 'admin_withdrawal':
         return 'سحب إداري';
+      case 'exchange_to_coins':
+        return 'صرف أرباح إلى كوينز الوكالة';
       default:
         return txnType;
     }
@@ -206,11 +222,13 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
 
   Color _txnColor(String txnType) {
     if (txnType == 'admin_withdrawal') return Colors.red.shade400;
+    if (txnType == 'exchange_to_coins') return const Color(0xFFFF9800);
     return Colors.green.shade600;
   }
 
   IconData _txnIcon(String txnType) {
     if (txnType == 'admin_withdrawal') return Icons.arrow_upward_rounded;
+    if (txnType == 'exchange_to_coins') return Icons.swap_horiz_rounded;
     return Icons.arrow_downward_rounded;
   }
 
@@ -272,28 +290,42 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
                           value: _fmt(_withdrawn),
                           icon: '⬆️')),
                 ]),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.info_outline_rounded,
-                        color: Colors.white70, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'السحب يتم فقط عبر الإدارة — لا يمكن الاستبدال بكوينز',
-                        style: GoogleFonts.tajawal(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: _showExchangeBottomSheet,
+                    icon: const Icon(Icons.currency_exchange_rounded, color: Colors.black, size: 22),
+                    label: Text(
+                      'صرف الألماس إلى كوينز الوكالة 🔄',
+                      style: GoogleFonts.tajawal(
+                        color: Colors.black,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                  ]),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFD700),
+                      elevation: 4,
+                      shadowColor: Colors.black45,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Center(
+                  child: Text(
+                    '⚡ يتم تحويل الألماس فوراً إلى كوينز في محفظة وكالتك لشحن المستخدمين',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.tajawal(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -457,12 +489,14 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
   Widget _buildTxnRow(Map<String, dynamic> t) {
     final txnType = t['txn_type']?.toString() ?? '';
     final amount = (t['diamonds_amount'] as num?)?.toInt() ?? 0;
-    final name = t['sender_name']?.toString() ?? 'الإدارة';
+    final name = t['sender_name']?.toString() ??
+        (txnType == 'exchange_to_coins' ? 'صرف أرباح الوكالة' : 'الإدارة');
     final avatar = t['sender_avatar']?.toString();
     final kayanId = t['sender_kayan_id']?.toString();
     final createdAt =
         DateTime.tryParse(t['created_at']?.toString() ?? '') ?? DateTime.now();
-    final isIncoming = txnType != 'admin_withdrawal';
+    final isIncoming =
+        txnType != 'admin_withdrawal' && txnType != 'exchange_to_coins';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -548,3 +582,531 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
     );
   }
 }
+
+// ── نافذة باقات صرف الألماس إلى كوينز الوكالة ──────────────────────────────
+class _ExchangeBottomSheetContent extends StatefulWidget {
+  final int currentBalance;
+  final VoidCallback onExchanged;
+
+  const _ExchangeBottomSheetContent({
+    required this.currentBalance,
+    required this.onExchanged,
+  });
+
+  @override
+  State<_ExchangeBottomSheetContent> createState() =>
+      _ExchangeBottomSheetContentState();
+}
+
+class _ExchangeBottomSheetContentState
+    extends State<_ExchangeBottomSheetContent> {
+  bool _loading = true;
+  bool _exchanging = false;
+  List<Map<String, dynamic>> _tiers = [];
+  int _agencyCoins = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTiersAndCoins();
+  }
+
+  Future<void> _fetchTiersAndCoins() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    try {
+      // 1. Fetch active tiers
+      final res = await Supabase.instance.client
+          .from('recharge_agency_exchange_tiers')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', ascending: true);
+
+      List<Map<String, dynamic>> list = [];
+      if (res is List && res.isNotEmpty) {
+        list = (res as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+
+      // Default fallback if no tiers configured
+      if (list.isEmpty) {
+        list = [
+          {
+            'id': 'default_1',
+            'usd_amount': 1.0,
+            'diamonds_cost': 15000,
+            'coins_received': 1000,
+            'title': 'باقة 1 دولار',
+            'badge_text': 'أساسي',
+          },
+          {
+            'id': 'default_2',
+            'usd_amount': 2.0,
+            'diamonds_cost': 30000,
+            'coins_received': 30000,
+            'title': 'باقة 2 دولار',
+            'badge_text': 'شائع',
+          },
+          {
+            'id': 'default_5',
+            'usd_amount': 5.0,
+            'diamonds_cost': 75000,
+            'coins_received': 80000,
+            'title': 'باقة 5 دولار',
+            'badge_text': 'توفير',
+          },
+          {
+            'id': 'default_10',
+            'usd_amount': 10.0,
+            'diamonds_cost': 150000,
+            'coins_received': 165000,
+            'title': 'باقة 10 دولار',
+            'badge_text': 'أفضل قيمة',
+          },
+          {
+            'id': 'default_20',
+            'usd_amount': 20.0,
+            'diamonds_cost': 300000,
+            'coins_received': 340000,
+            'title': 'باقة 20 دولار',
+            'badge_text': 'VIP',
+          },
+        ];
+      }
+
+      // 2. Fetch current agency coins
+      int coins = 0;
+      if (uid != null) {
+        try {
+          final aw = await Supabase.instance.client
+              .from('agency_wallets')
+              .select('gold_balance')
+              .eq('agency_profile_id', uid)
+              .maybeSingle();
+          if (aw != null) {
+            coins = (aw['gold_balance'] as num?)?.toInt() ?? 0;
+          }
+        } catch (_) {}
+      }
+
+      if (mounted) {
+        setState(() {
+          _tiers = list;
+          _agencyCoins = coins;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[ExchangeBottomSheet] error: $e');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _handleExchange(Map<String, dynamic> tier) async {
+    final diamondsCost = (tier['diamonds_cost'] as num?)?.toInt() ?? 0;
+    final coinsReceived = (tier['coins_received'] as num?)?.toInt() ?? 0;
+    final tierId = tier['id']?.toString() ?? '';
+
+    if (widget.currentBalance < diamondsCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'عذراً، رصيد الألماس المتاح لديك لا يكفي ($diamondsCost 💎 مطلوب)',
+            style: GoogleFonts.tajawal(),
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: Text(
+          'تأكيد صرف الألماس 🔄',
+          style: GoogleFonts.tajawal(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'هل أنت متأكد من صرف $diamondsCost ماسة واستلام $coinsReceived كوينز في محفظة وكالة الشحن؟',
+              style: GoogleFonts.tajawal(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('💎 المطلوب خصمه:', style: GoogleFonts.tajawal(color: Colors.cyanAccent, fontSize: 12)),
+                  Text('$diamondsCost 💎', style: GoogleFonts.tajawal(color: Colors.white, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('🪙 الكوينز المستلمة:', style: GoogleFonts.tajawal(color: Colors.amber, fontSize: 12)),
+                  Text('$coinsReceived 🪙', style: GoogleFonts.tajawal(color: Colors.amber, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('إلغاء', style: GoogleFonts.tajawal(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFD700),
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('تأكيد الصرف الآن', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _exchanging = true);
+
+    try {
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      if (uid == null) throw Exception('المستخدم غير مسجل الدخول');
+
+      // Try calling RPC first
+      bool success = false;
+      String message = '';
+      try {
+        final rpcRes = await Supabase.instance.client.rpc(
+          'agent_exchange_diamonds_to_coins',
+          params: {'p_tier_id': tierId},
+        );
+        if (rpcRes is Map) {
+          success = rpcRes['success'] == true;
+          message = rpcRes['message']?.toString() ?? '';
+        }
+      } catch (rpcErr) {
+        debugPrint('[ExchangeBottomSheet] RPC fallback: $rpcErr');
+      }
+
+      // Fallback direct execution if RPC failed or not configured yet
+      if (!success) {
+        final aw = await Supabase.instance.client
+            .from('agency_wallets')
+            .select('diamond_balance, gold_balance, total_withdrawn')
+            .eq('agency_profile_id', uid)
+            .maybeSingle();
+
+        if (aw != null) {
+          final curDia = (aw['diamond_balance'] as num?)?.toInt() ?? 0;
+          final curGold = (aw['gold_balance'] as num?)?.toInt() ?? 0;
+          final curWithdrawn = (aw['total_withdrawn'] as num?)?.toInt() ?? 0;
+
+          if (curDia < diamondsCost) {
+            throw Exception('رصيد الألماس لا يكفي');
+          }
+
+          final newDia = curDia - diamondsCost;
+          final newGold = curGold + coinsReceived;
+          final newWithdrawn = curWithdrawn + diamondsCost;
+
+          await Supabase.instance.client.from('agency_wallets').update({
+            'diamond_balance': newDia,
+            'gold_balance': newGold,
+            'total_withdrawn': newWithdrawn,
+            'updated_at': DateTime.now().toIso8601String(),
+          }).eq('agency_profile_id', uid);
+
+          try {
+            await Supabase.instance.client
+                .from('agent_diamond_transactions')
+                .insert({
+              'agent_id': uid,
+              'sender_id': uid,
+              'sender_name': 'صرف أرباح الوكالة',
+              'txn_type': 'exchange_to_coins',
+              'diamonds_amount': diamondsCost,
+              'coins_amount': coinsReceived,
+              'usd_amount': tier['usd_amount'] ?? 0,
+              'balance_after': newDia,
+              'notes': 'صرف $diamondsCost ماسة إلى $coinsReceived كوينز للوكالة',
+              'created_at': DateTime.now().toIso8601String(),
+            });
+          } catch (_) {}
+
+          success = true;
+          message = 'تم صرف $coinsReceived كوينز وإضافتها لمحفظة الوكالة بنجاح! 🪙';
+        } else {
+          throw Exception('محفظة الوكالة غير موجودة');
+        }
+      }
+
+      if (mounted) {
+        setState(() => _exchanging = false);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message.isNotEmpty ? message : 'تم صرف الكوينز بنجاح! 🪙',
+              style: GoogleFonts.tajawal(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: const Color(0xFF00C853),
+          ),
+        );
+        widget.onExchanged();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _exchanging = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('فشلت العملية: $e', style: GoogleFonts.tajawal()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: const BoxDecoration(
+        color: Color(0xFF12121A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Header
+          Row(
+            children: [
+              const Icon(Icons.currency_exchange_rounded, color: Color(0xFFFFD700), size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'صرف الألماس إلى كوينز الوكالة',
+                style: GoogleFonts.tajawal(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+
+          // Balance Bar
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E2235), Color(0xFF151726)],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('الألماس المتاح للصرف:', style: GoogleFonts.tajawal(color: Colors.white54, fontSize: 11)),
+                      Text('${widget.currentBalance.toString()} 💎',
+                          style: GoogleFonts.tajawal(color: Colors.cyanAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+                Container(width: 1, height: 30, color: Colors.white12),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('رصيد كوينز الوكالة:', style: GoogleFonts.tajawal(color: Colors.white54, fontSize: 11)),
+                      Text('${_agencyCoins.toString()} 🪙',
+                          style: GoogleFonts.tajawal(color: const Color(0xFFFFD700), fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (_exchanging)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Column(
+                children: [
+                  CircularProgressIndicator(color: Color(0xFFFFD700)),
+                  SizedBox(height: 10),
+                  Text('جاري إتمام عملية الصرف وتحديث المحفظة...', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
+              ),
+            )
+          else if (_loading)
+            const Expanded(child: Center(child: CircularProgressIndicator(color: Color(0xFFFFD700))))
+          else
+            Expanded(
+              child: ListView.separated(
+                itemCount: _tiers.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (ctx, i) {
+                  final t = _tiers[i];
+                  final cost = (t['diamonds_cost'] as num?)?.toInt() ?? 0;
+                  final coins = (t['coins_received'] as num?)?.toInt() ?? 0;
+                  final title = t['title']?.toString() ?? '';
+                  final badge = t['badge_text']?.toString();
+                  final usd = t['usd_amount'] != null ? '\$${t['usd_amount']}' : '';
+                  final canAfford = widget.currentBalance >= cost;
+
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1B1D2A),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: canAfford ? const Color(0xFFFFD700).withValues(alpha: 0.3) : Colors.white10,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        // USD pill
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.4)),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            usd,
+                            style: GoogleFonts.tajawal(
+                              color: const Color(0xFFFFD700),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+
+                        // Info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    title,
+                                    style: GoogleFonts.tajawal(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (badge != null && badge.isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        badge,
+                                        style: GoogleFonts.tajawal(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text(
+                                    'خصم: $cost 💎',
+                                    style: GoogleFonts.tajawal(color: Colors.cyanAccent, fontSize: 12),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.arrow_forward_rounded, size: 12, color: Colors.white38),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'استلام: $coins 🪙',
+                                    style: GoogleFonts.tajawal(color: const Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Action button
+                        ElevatedButton(
+                          onPressed: canAfford ? () => _handleExchange(t) : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: canAfford ? const Color(0xFFFFD700) : Colors.white12,
+                            foregroundColor: canAfford ? Colors.black : Colors.white38,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: Text(
+                            canAfford ? 'صرف' : 'غير كافٍ',
+                            style: GoogleFonts.tajawal(fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+

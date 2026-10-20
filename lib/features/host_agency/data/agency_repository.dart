@@ -939,6 +939,21 @@ abstract final class AgencyRepository {
               });
             }
 
+            // تسجيل العملية في سجل معاملات ألماس وكيل الشحن
+            try {
+              await _sb.from('agent_diamond_transactions').insert({
+                'agent_id': aId,
+                'sender_id': uid,
+                'sender_name': userName,
+                'sender_avatar': userRow?['avatar_url'] ?? userRow?['photo_url'],
+                'sender_kayan_id': userRow?['custom_id'],
+                'txn_type': 'received_from_host',
+                'diamonds_amount': diamonds,
+                'notes': 'استلام راتب من المضيف $userName (وكالة: $agencyName)',
+                'created_at': DateTime.now().toIso8601String(),
+              });
+            } catch (_) {}
+
             // إرسال إشعار فوري لوكيل الشحن
             try {
               await _sb.from('private_messages').insert({
@@ -1091,6 +1106,21 @@ abstract final class AgencyRepository {
                 'updated_at': DateTime.now().toIso8601String(),
               });
             }
+
+            // تسجيل العملية في سجل معاملات ألماس وكيل الشحن
+            try {
+              await _sb.from('agent_diamond_transactions').insert({
+                'agent_id': aId,
+                'sender_id': uid,
+                'sender_name': userName,
+                'sender_avatar': userRow?['avatar_url'] ?? userRow?['photo_url'],
+                'sender_kayan_id': userRow?['custom_id'],
+                'txn_type': 'received_from_agency',
+                'diamonds_amount': diamonds,
+                'notes': 'استلام أرباح من مالك الوكالة $userName',
+                'created_at': DateTime.now().toIso8601String(),
+              });
+            } catch (_) {}
 
             // Send notification
             try {

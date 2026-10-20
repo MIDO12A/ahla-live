@@ -3007,25 +3007,17 @@ export async function updateRechargeAgency(userId: string, data: {
     const nowIso = new Date().toISOString();
     const agencyName = data.recharge_agency_name || 'وكالة الشحن المعتمدة';
 
-    // 1. Prepare user update payload
+    // 1. Prepare user update payload (Agency metadata only - NEVER touch users.coins)
     const userUpdate: Record<string, any> = {
       is_recharge_agent: true,
       recharge_agency_name: agencyName,
       recharge_agency_logo: data.recharge_agency_logo || '',
       whatsapp_number: data.whatsapp_number || '',
+      recharge_commission_rate: data.recharge_commission_rate ?? 5,
       updated_at: nowIso,
     };
 
-    if (data.coins !== undefined && data.coins >= 0) {
-      if (data.coinsMode === 'add') {
-        const currentCoins = u ? u.coins : 0;
-        userUpdate.coins = currentCoins + data.coins;
-      } else {
-        userUpdate.coins = data.coins;
-      }
-    }
-
-    // Write to users in Supabase
+    // Write metadata to users in Supabase
     try {
       await client.from('users').update(userUpdate).eq('uid', resolvedUid);
       await client.from('users').update(userUpdate).eq('id', resolvedUid);
@@ -3036,7 +3028,39 @@ export async function updateRechargeAgency(userId: string, data: {
       console.warn('updateRechargeAgency supabase warning:', sbErr);
     }
 
+    // 2. Manage Agency Gold & Diamond Wallets strictly in agency_wallets (SEPARATED FROM personal users.coins)
+    if (data.coins !== undefined && data.coins >= 0) {
+      try {
+        const { data: existingWallet } = await client
+          .from('agency_wallets')
+          .select('agency_profile_id, gold_balance, diamond_balance')
+          .eq('agency_profile_id', resolvedUid)
+          .maybeSingle();
 
+        let newGold = data.coins;
+        if (data.coinsMode === 'add') {
+          newGold = (existingWallet?.gold_balance || 0) + data.coins;
+        }
+
+        if (existingWallet) {
+          await client.from('agency_wallets').update({
+            gold_balance: newGold,
+            updated_at: nowIso,
+          }).eq('agency_profile_id', resolvedUid);
+        } else {
+          await client.from('agency_wallets').insert({
+            agency_profile_id: resolvedUid,
+            gold_balance: newGold,
+            diamond_balance: 0,
+            total_received: 0,
+            total_withdrawn: 0,
+            updated_at: nowIso,
+          });
+        }
+      } catch (wErr) {
+        console.warn('updateRechargeAgency agency_wallets error:', wErr);
+      }
+    }
 
     // Send official opening notification
     await sendSystemNotification({
@@ -3058,6 +3082,159 @@ export async function updateRechargeAgency(userId: string, data: {
   } catch (e) {
     console.error('updateRechargeAgency failed:', e);
     return false;
+  }
+}
+
+/* =============================================================
+   RECHARGE AGENCY EXCHANGE TIERS CRUD (باقات صرف الألماس إلى كوينز)
+   ============================================================= */
+export interface RechargeAgencyExchangeTier {
+  id: string;
+  usd_amount: number;
+  diamonds_cost: number;
+  coins_received: number;
+  title: string;
+  badge_text?: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function getRechargeAgencyExchangeTiers(): Promise<RechargeAgencyExchangeTier[]> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const { data, error } = await client
+      .from('recharge_agency_exchange_tiers')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (error) {
+      console.warn('getRechargeAgencyExchangeTiers error:', error);
+      return [];
+    }
+    return (data || []).map((t: any) => ({
+      id: t.id,
+      usd_amount: Number(t.usd_amount || 0),
+      diamonds_cost: Number(t.diamonds_cost || 0),
+      coins_received: Number(t.coins_received || 0),
+      title: t.title || '',
+      badge_text: t.badge_text || null,
+      is_active: t.is_active !== false,
+      sort_order: Number(t.sort_order || 0),
+      created_at: t.created_at,
+      updated_at: t.updated_at,
+    }));
+  } catch (e) {
+    console.error('getRechargeAgencyExchangeTiers failed:', e);
+    return [];
+  }
+}
+
+export async function createRechargeAgencyExchangeTier(tier: Partial<RechargeAgencyExchangeTier>): Promise<boolean> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const { error } = await client
+      .from('recharge_agency_exchange_tiers')
+      .insert({
+        usd_amount: Number(tier.usd_amount || 1),
+        diamonds_cost: Number(tier.diamonds_cost || 15000),
+        coins_received: Number(tier.coins_received || 1000),
+        title: tier.title?.trim() || `باقة $${tier.usd_amount}`,
+        badge_text: tier.badge_text?.trim() || null,
+        is_active: tier.is_active !== false,
+        sort_order: Number(tier.sort_order || 0),
+        updated_at: new Date().toISOString(),
+      });
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('createRechargeAgencyExchangeTier failed:', e);
+    return false;
+  }
+}
+
+export async function updateRechargeAgencyExchangeTier(id: string, tier: Partial<RechargeAgencyExchangeTier>): Promise<boolean> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const payload: any = { updated_at: new Date().toISOString() };
+    if (tier.usd_amount !== undefined) payload.usd_amount = Number(tier.usd_amount);
+    if (tier.diamonds_cost !== undefined) payload.diamonds_cost = Number(tier.diamonds_cost);
+    if (tier.coins_received !== undefined) payload.coins_received = Number(tier.coins_received);
+    if (tier.title !== undefined) payload.title = tier.title.trim();
+    if (tier.badge_text !== undefined) payload.badge_text = tier.badge_text ? tier.badge_text.trim() : null;
+    if (tier.is_active !== undefined) payload.is_active = tier.is_active;
+    if (tier.sort_order !== undefined) payload.sort_order = Number(tier.sort_order);
+
+    const { error } = await client
+      .from('recharge_agency_exchange_tiers')
+      .update(payload)
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('updateRechargeAgencyExchangeTier failed:', e);
+    return false;
+  }
+}
+
+export async function deleteRechargeAgencyExchangeTier(id: string): Promise<boolean> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const { error } = await client
+      .from('recharge_agency_exchange_tiers')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('deleteRechargeAgencyExchangeTier failed:', e);
+    return false;
+  }
+}
+
+export async function getRechargeAgentsWithWallets(): Promise<any[]> {
+  try {
+    const client = getAdminSupabase() || supabase;
+    const { data: users, error: uErr } = await client
+      .from('users')
+      .select('*')
+      .eq('is_recharge_agent', true);
+
+    if (uErr || !users) return [];
+
+    const userIds = users.map((u: any) => u.uid || u.id);
+    let walletsMap: Record<string, { gold_balance: number; diamond_balance: number }> = {};
+
+    if (userIds.length > 0) {
+      try {
+        const { data: wList } = await client
+          .from('agency_wallets')
+          .select('agency_profile_id, gold_balance, diamond_balance')
+          .in('agency_profile_id', userIds);
+
+        if (wList) {
+          for (const w of wList) {
+            walletsMap[w.agency_profile_id] = {
+              gold_balance: Number(w.gold_balance || 0),
+              diamond_balance: Number(w.diamond_balance || 0),
+            };
+          }
+        }
+      } catch (_) {}
+    }
+
+    return users.map((u: any) => {
+      const uId = u.uid || u.id;
+      const w = walletsMap[uId] || { gold_balance: 0, diamond_balance: 0 };
+      return {
+        ...u,
+        agency_gold_balance: w.gold_balance,
+        agency_diamond_balance: w.diamond_balance,
+      };
+    });
+  } catch (e) {
+    console.error('getRechargeAgentsWithWallets failed:', e);
+    return [];
   }
 }
 

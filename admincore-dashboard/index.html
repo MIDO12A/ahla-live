@@ -6,6 +6,32 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <title>Ahla Live Admin Dashboard</title>
+    <script>
+      // Suppress noisy browser extension errors (Chrome/Edge extensions message channel)
+      window.addEventListener('unhandledrejection', function (event) {
+        var msg = (event && event.reason && (event.reason.message || event.reason.toString())) || '';
+        if (
+          msg.indexOf('message channel closed before a response was received') !== -1 ||
+          msg.indexOf('A listener indicated an asynchronous response') !== -1 ||
+          msg.indexOf('The play() request was interrupted') !== -1 ||
+          msg.indexOf('AbortError') !== -1
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
+      window.addEventListener('error', function (event) {
+        var msg = (event && (event.message || '')) || '';
+        if (
+          msg.indexOf('message channel closed before a response was received') !== -1 ||
+          msg.indexOf('A listener indicated an asynchronous response') !== -1 ||
+          msg.indexOf('The play() request was interrupted') !== -1
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

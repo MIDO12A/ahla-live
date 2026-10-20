@@ -15,6 +15,9 @@ import {
   getHostRechargeHistory, refundAgentRechargeTransaction,
   getAgencyApplications, approveAgencyApplication, rejectAgencyApplication, createAgencyApplication,
   updateRechargeAgency, revokeRechargeAgency,
+  getRechargeAgencyExchangeTiers, createRechargeAgencyExchangeTier,
+  updateRechargeAgencyExchangeTier, deleteRechargeAgencyExchangeTier,
+  getRechargeAgentsWithWallets, type RechargeAgencyExchangeTier,
   getAgencyLedger, getWithdrawalRequests, approveWithdrawal, rejectWithdrawal,
   getAppConfig, updateAppConfig,
   searchUserProfile, sendSystemNotification, sendAgencyInvitation,
@@ -1542,6 +1545,19 @@ function RechargeAgenciesTab() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // Exchange Tiers State
+  const [exchangeTiers, setExchangeTiers] = useState<RechargeAgencyExchangeTier[]>([]);
+  const [showAddTierModal, setShowAddTierModal] = useState(false);
+  const [editTier, setEditTier] = useState<RechargeAgencyExchangeTier | null>(null);
+
+  // Form states for Exchange Tier
+  const [tierUsd, setTierUsd] = useState('1');
+  const [tierDiamonds, setTierDiamonds] = useState('15000');
+  const [tierCoins, setTierCoins] = useState('1000');
+  const [tierTitle, setTierTitle] = useState('');
+  const [tierBadge, setTierBadge] = useState('');
+  const [tierOrder, setTierOrder] = useState('1');
+
   // New Agent Form
   const [targetUid, setTargetUid] = useState('');
   const [agencyName, setAgencyName] = useState('');
@@ -1570,8 +1586,11 @@ function RechargeAgenciesTab() {
   const load = async () => {
     setLoading(true);
     try {
-      const { data: u1 } = await supabase.from('users').select('*').eq('is_recharge_agent', true);
+      const u1 = await getRechargeAgentsWithWallets();
       setAgents(u1 || []);
+
+      const tiers = await getRechargeAgencyExchangeTiers();
+      setExchangeTiers(tiers || []);
 
       try {
         const { data: wData } = await supabase.from('agency_withdrawal_requests').select('*').order('created_at', { ascending: false });
@@ -1618,7 +1637,7 @@ function RechargeAgenciesTab() {
     setEditName(ag.recharge_agency_name || ag.name || '');
     setEditLogo(ag.recharge_agency_logo || '');
     setEditWhatsapp(ag.whatsapp_number || '');
-    setEditCoins(String(ag.coins || 0));
+    setEditCoins(String(ag.agency_gold_balance ?? ag.coins ?? 0));
     setEditCommissionRate(String(ag.recharge_commission_rate ?? 5));
   };
 
@@ -1636,6 +1655,82 @@ function RechargeAgenciesTab() {
     });
     setEditAgent(null);
     alert('تم تحديث بيانات وكالة الشحن بنجاح!');
+    load();
+  };
+
+  // Exchange Tiers CRUD Handlers
+  const handleCreateTier = async () => {
+    const usd = parseFloat(tierUsd) || 1;
+    const dia = parseInt(tierDiamonds) || 15000;
+    const cns = parseInt(tierCoins) || 1000;
+    const title = tierTitle.trim() || `باقة $${usd}`;
+    const badge = tierBadge.trim() || null;
+    const order = parseInt(tierOrder) || 1;
+
+    const ok = await createRechargeAgencyExchangeTier({
+      usd_amount: usd,
+      diamonds_cost: dia,
+      coins_received: cns,
+      title,
+      badge_text: badge,
+      is_active: true,
+      sort_order: order,
+    });
+
+    if (ok) {
+      setShowAddTierModal(false);
+      setTierUsd('1'); setTierDiamonds('15000'); setTierCoins('1000'); setTierTitle(''); setTierBadge('');
+      load();
+    } else {
+      alert('حدث خطأ أثناء حفظ باقة الصرف');
+    }
+  };
+
+  const openEditTierModal = (t: RechargeAgencyExchangeTier) => {
+    setEditTier(t);
+    setTierUsd(String(t.usd_amount));
+    setTierDiamonds(String(t.diamonds_cost));
+    setTierCoins(String(t.coins_received));
+    setTierTitle(t.title);
+    setTierBadge(t.badge_text || '');
+    setTierOrder(String(t.sort_order));
+  };
+
+  const handleSaveEditTier = async () => {
+    if (!editTier) return;
+    const usd = parseFloat(tierUsd) || 1;
+    const dia = parseInt(tierDiamonds) || 15000;
+    const cns = parseInt(tierCoins) || 1000;
+    const title = tierTitle.trim() || `باقة $${usd}`;
+    const badge = tierBadge.trim() || null;
+    const order = parseInt(tierOrder) || 1;
+
+    const ok = await updateRechargeAgencyExchangeTier(editTier.id, {
+      usd_amount: usd,
+      diamonds_cost: dia,
+      coins_received: cns,
+      title,
+      badge_text: badge,
+      sort_order: order,
+    });
+
+    if (ok) {
+      setEditTier(null);
+      load();
+    } else {
+      alert('حدث خطأ أثناء تعديل باقة الصرف');
+    }
+  };
+
+  const handleDeleteTier = async (id: string) => {
+    if (confirm('هل أنت متأكد من حذف باقة الصرف هذه؟')) {
+      await deleteRechargeAgencyExchangeTier(id);
+      load();
+    }
+  };
+
+  const handleToggleTierActive = async (tier: RechargeAgencyExchangeTier) => {
+    await updateRechargeAgencyExchangeTier(tier.id, { is_active: !tier.is_active });
     load();
   };
 
@@ -1753,9 +1848,18 @@ function RechargeAgenciesTab() {
               <span className="text-amber-300 font-bold">{ag.recharge_commission_rate ?? 5}%</span>
             </div>
 
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400">رصيد الوكالة:</span>
-              <span className="text-sm text-amber-400 font-bold">{Number(ag.coins || 0).toLocaleString()} 🪙</span>
+            <div className="space-y-1.5 pt-2 border-t border-white/5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">🪙 كوينز الوكالة (للشحن):</span>
+                <span className="text-sm text-amber-400 font-bold font-mono">{Number(ag.agency_gold_balance ?? 0).toLocaleString()} 🪙</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">💎 ألماس الوكالة (رواتب):</span>
+                <span className="text-sm text-cyan-400 font-bold font-mono">{Number(ag.agency_diamond_balance ?? 0).toLocaleString()} 💎</span>
+              </div>
+              <div className="text-[10px] text-slate-500 text-left pt-0.5">
+                (رصيد الوكالة مفصول تماماً عن محفظة المستخدم الشخصية)
+              </div>
             </div>
 
             <div className="flex items-center gap-2 pt-2 border-t border-white/5">
@@ -1770,6 +1874,107 @@ function RechargeAgenciesTab() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* 🔄 Recharge Agency Exchange Tiers Section */}
+      <div className="bg-[#141417] border border-amber-500/20 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🔄</span>
+              <h3 className="text-white text-sm font-bold">باقات صرف الألماس إلى كوينز (لوحة تحكم وكيل الشحن)</h3>
+            </div>
+            <p className="text-slate-400 text-xs mt-1">
+              هذه الباقات تظهر لوكيل الشحن عند النقر على زر "صرف" في شاشة الألماس بتطبيق الموبايل، ليتم تحويل الألماس إلى كوينز في محفظة الوكالة
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setTierUsd('1');
+              setTierDiamonds('15000');
+              setTierCoins('1000');
+              setTierTitle('باقة 1 دولار');
+              setTierBadge('');
+              setTierOrder(String(exchangeTiers.length + 1));
+              setShowAddTierModal(true);
+            }}
+            className="text-xs bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold px-4 py-2 rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>إضافة باقة صرف جديدة</span>
+          </button>
+        </div>
+
+        {/* Tiers Grid */}
+        {exchangeTiers.length === 0 ? (
+          <div className="p-8 text-center text-xs text-slate-500 bg-black/20 rounded-xl border border-white/5">
+            لا توجد باقات صرف مسجلة حالياً. اضغط "إضافة باقة صرف جديدة" لإنشاء أول باقة.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            {exchangeTiers.map(t => (
+              <div
+                key={t.id}
+                className={`bg-black/40 border ${
+                  t.is_active ? 'border-amber-500/30' : 'border-white/5 opacity-60'
+                } rounded-xl p-4 space-y-3 relative flex flex-col justify-between`}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white truncate">{t.title}</span>
+                    {t.badge_text && (
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                        {t.badge_text}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-2xl font-black text-amber-400 font-mono">
+                    ${t.usd_amount}
+                  </div>
+
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between text-slate-300">
+                      <span className="text-slate-400">تكلفة الألماس:</span>
+                      <strong className="text-cyan-400 font-mono">{t.diamonds_cost.toLocaleString()} 💎</strong>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span className="text-slate-400">كوينز مستلمة:</span>
+                      <strong className="text-emerald-400 font-mono">{t.coins_received.toLocaleString()} 🪙</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
+                  <button
+                    onClick={() => handleToggleTierActive(t)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      t.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {t.is_active ? 'مفعلة' : 'معطلة'}
+                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => openEditTierModal(t)}
+                      className="p-1 text-slate-300 hover:text-white hover:bg-white/10 rounded"
+                      title="تعديل الباقة"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTier(t.id)}
+                      className="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded"
+                      title="حذف الباقة"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Withdrawal & Transfer Requests Table */}
@@ -1969,6 +2174,180 @@ function RechargeAgenciesTab() {
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setSelectedWithdrawal(null)} className="px-4 py-2 text-xs text-slate-400">إلغاء</button>
               <button onClick={handleCompleteTransferWithProof} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold">تأكيد اكتمال التحويل</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Exchange Tier Modal */}
+      {showAddTierModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#18181b] border border-amber-500/30 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <h4 className="text-white font-bold text-sm flex items-center gap-2">
+              <span>➕</span> إضافة باقة صرف ألماس جديدة لوكالات الشحن
+            </h4>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">اسم الباقة *</label>
+                <input
+                  value={tierTitle}
+                  onChange={e => setTierTitle(e.target.value)}
+                  placeholder="مثال: باقة 1 دولار"
+                  className="w-full bg-[#121214] border border-white/10 rounded-xl p-2 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-amber-400 block mb-1">القيمة بالدولار ($) *</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={tierUsd}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setTierUsd(v);
+                      if (!tierTitle || tierTitle.startsWith('باقة')) {
+                        setTierTitle(`باقة ${v} دولار`);
+                      }
+                    }}
+                    placeholder="1"
+                    className="w-full bg-[#121214] border border-amber-500/30 rounded-xl p-2 text-xs text-amber-300 font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-cyan-400 block mb-1">تكلفة الألماس (💎) *</label>
+                  <input
+                    type="number"
+                    step="1000"
+                    value={tierDiamonds}
+                    onChange={e => setTierDiamonds(e.target.value)}
+                    placeholder="15000"
+                    className="w-full bg-[#121214] border border-cyan-500/30 rounded-xl p-2 text-xs text-cyan-300 font-bold font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-emerald-400 block mb-1">الكوينز المضافة لمحفظة الوكالة (🪙) *</label>
+                <input
+                  type="number"
+                  step="1000"
+                  value={tierCoins}
+                  onChange={e => setTierCoins(e.target.value)}
+                  placeholder="1000"
+                  className="w-full bg-[#121214] border border-emerald-500/30 rounded-xl p-2 text-xs text-emerald-300 font-bold font-mono"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">يتم إيداع هذا العدد من الكوينز حصراً في محفظة الوكالة لشحن المستخدمين</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">شارة مميزة (اختياري)</label>
+                  <input
+                    value={tierBadge}
+                    onChange={e => setTierBadge(e.target.value)}
+                    placeholder="مثال: الأكثر طلباً، توفير"
+                    className="w-full bg-[#121214] border border-white/10 rounded-xl p-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">ترتيب الظهور</label>
+                  <input
+                    type="number"
+                    value={tierOrder}
+                    onChange={e => setTierOrder(e.target.value)}
+                    placeholder="1"
+                    className="w-full bg-[#121214] border border-white/10 rounded-xl p-2 text-xs text-white font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+              <button onClick={() => setShowAddTierModal(false)} className="px-4 py-2 text-xs text-slate-400">إلغاء</button>
+              <button onClick={handleCreateTier} className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-black rounded-xl text-xs font-bold">حفظ الباقة</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Exchange Tier Modal */}
+      {editTier && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#18181b] border border-amber-500/30 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <h4 className="text-white font-bold text-sm flex items-center gap-2">
+              <span>✏️</span> تعديل باقة صرف الألماس
+            </h4>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">اسم الباقة *</label>
+                <input
+                  value={tierTitle}
+                  onChange={e => setTierTitle(e.target.value)}
+                  className="w-full bg-[#121214] border border-white/10 rounded-xl p-2 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-amber-400 block mb-1">القيمة بالدولار ($) *</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={tierUsd}
+                    onChange={e => setTierUsd(e.target.value)}
+                    className="w-full bg-[#121214] border border-amber-500/30 rounded-xl p-2 text-xs text-amber-300 font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-cyan-400 block mb-1">تكلفة الألماس (💎) *</label>
+                  <input
+                    type="number"
+                    step="1000"
+                    value={tierDiamonds}
+                    onChange={e => setTierDiamonds(e.target.value)}
+                    className="w-full bg-[#121214] border border-cyan-500/30 rounded-xl p-2 text-xs text-cyan-300 font-bold font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-emerald-400 block mb-1">الكوينز المضافة لمحفظة الوكالة (🪙) *</label>
+                <input
+                  type="number"
+                  step="1000"
+                  value={tierCoins}
+                  onChange={e => setTierCoins(e.target.value)}
+                  className="w-full bg-[#121214] border border-emerald-500/30 rounded-xl p-2 text-xs text-emerald-300 font-bold font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">شارة مميزة</label>
+                  <input
+                    value={tierBadge}
+                    onChange={e => setTierBadge(e.target.value)}
+                    placeholder="مثال: الأكثر طلباً، توفير"
+                    className="w-full bg-[#121214] border border-white/10 rounded-xl p-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">ترتيب الظهور</label>
+                  <input
+                    type="number"
+                    value={tierOrder}
+                    onChange={e => setTierOrder(e.target.value)}
+                    className="w-full bg-[#121214] border border-white/10 rounded-xl p-2 text-xs text-white font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+              <button onClick={() => setEditTier(null)} className="px-4 py-2 text-xs text-slate-400">إلغاء</button>
+              <button onClick={handleSaveEditTier} className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-black rounded-xl text-xs font-bold">حفظ التعديلات</button>
             </div>
           </div>
         </div>
@@ -2372,15 +2751,15 @@ function CommissionTab() {
             </div>
           </div>
 
-          {/* Card 3: Recharge Agent Conversion */}
+          {/* Card 3: Recharge Agent Conversion & Exchange System */}
           <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2">
             <div className="font-bold text-emerald-300 flex items-center gap-1.5">
-              <span>⚡</span> تحويل الرواتب لوكيل الشحن:
+              <span>⚡</span> تحويل الرواتب وصرف كوينز وكيل الشحن:
             </div>
             <p className="text-slate-300 leading-relaxed">
-              • يُحوّل راتب المضيف وراتب وكيل المضيف بالماس لوكيل الشحن بشكل مستقل.<br/>
-              • عمولة وكيل الشحن ({rechargeAgentHostRate}%) تُضاف كعمولة إضافية مستقلة ولا تُخصم من المضيفين.<br/>
-              • تتحمل الإدارة عمولة وكيل الشحن من حصة النظام ({platformRate}%).
+              • تُحوّل جميع رواتب المضيفين وأصحاب الوكالات والسوبر أدمن كـ <strong>ألماس حصراً</strong> إلى محفظة وكالة الشحن (agency_wallets.diamond_balance).<br/>
+              • يقوم وكيل الشحن بصرف الألماس إلى كوينز شحن عبر زر "صرف" وباقات الصرف المعتمدة من الإدارة.<br/>
+              • كوينز الوكالة مفصولة 100% عن محفظة المستخدم الشخصية ولا تختلط بها.
             </p>
           </div>
         </div>

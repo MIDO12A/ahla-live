@@ -43,6 +43,11 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
   void initState() {
     super.initState();
     _tabs = TabController(length: 5, vsync: this);
+    _tabs.addListener(() {
+      if (!_tabs.indexIsChanging) {
+        _loadDashboard();
+      }
+    });
     _bootstrap();
   }
 
@@ -70,10 +75,29 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
       );
       if (!mounted) return;
       if (res is Map && res['ok'] == true) {
+        var dash = AgentDashboardData.fromMap(
+            Map<String, dynamic>.from(res));
+
+        // Always enforce agency_wallets gold_balance for agencyGold
+        if (uid != null) {
+          try {
+            final aw = await Supabase.instance.client
+                .from('agency_wallets')
+                .select('gold_balance')
+                .eq('agency_profile_id', uid)
+                .maybeSingle();
+            if (aw != null) {
+              final g = (aw['gold_balance'] as num?)?.toInt();
+              if (g != null) {
+                dash = dash.copyWith(agencyGold: g);
+              }
+            }
+          } catch (_) {}
+        }
+
         setState(() {
           _isAgent = true;
-          _dashboard = AgentDashboardData.fromMap(
-              Map<String, dynamic>.from(res));
+          _dashboard = dash;
           _loading = false;
         });
         return;
