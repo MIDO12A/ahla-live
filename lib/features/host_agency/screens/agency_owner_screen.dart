@@ -303,6 +303,54 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
     }
   }
 
+  Map<String, dynamic>? _getHighestAchievedMilestone(AnchorAgentUserInfoDataModel member) {
+    if (_milestones.isEmpty) return null;
+    final sortedMilestones = List<Map<String, dynamic>>.from(_milestones)
+      ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
+          .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
+
+    final hostDia = member.effectiveDiamonds;
+    final hostDays = member.days;
+    final hostHours = (member.minute / 60.0);
+
+    Map<String, dynamic>? highest;
+    for (final ms in sortedMilestones) {
+      final tDia = (ms['target_diamonds'] ?? ms['targetDiamonds'] as num?)?.toInt() ?? 0;
+      final tDays = (ms['target_days'] ?? ms['targetDays'] as num?)?.toInt() ?? 0;
+      final tHours = (ms['target_hours'] ?? ms['targetHours'] as num?)?.toInt() ?? 0;
+
+      final diaOk = hostDia >= tDia;
+      final daysOk = tDays > 0 ? (hostDays >= tDays) : true;
+      final hoursOk = tHours > 0 ? (hostHours >= tHours) : true;
+
+      if (diaOk && (daysOk || hoursOk) && tDia > 0) {
+        highest = ms;
+      }
+    }
+    return highest;
+  }
+
+  double _calculateHostCommissionUsd(AnchorAgentUserInfoDataModel member) {
+    final highest = _getHighestAchievedMilestone(member);
+    if (highest == null) return 0.0;
+
+    final cfg = DynamicConfigService.instance;
+    final rawAgencyRate = (_agencyInfo?.commissionRate ?? 0) > 0 
+        ? _agencyInfo!.commissionRate 
+        : (cfg.agencyRatePercentage / 100.0);
+    final agencyCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : (rawAgencyRate > 0 ? rawAgencyRate : 0.10);
+
+    final rewardVal = (highest['reward_value'] ?? 
+                       highest['rewardValue'] ?? 
+                       highest['reward'] as num?)?.toDouble() ?? 
+                      (((highest['target_diamonds'] as num?)?.toDouble() ?? 40000) / (cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 15000.0));
+
+    final rawComm = (highest['agent_commission_rate'] as num?)?.toDouble() ?? agencyCommRate;
+    final normCommRate = rawComm > 1.0 ? (rawComm / 100.0) : (rawComm > 0 ? rawComm : 0.10);
+
+    return rewardVal * normCommRate;
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // BUILD METHOD
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1541,10 +1589,11 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                 // Host Commission Banner (عمولة الوكيل المكتسبة من هذا المضيف)
                 Builder(
                   builder: (_) {
-                    final hDia = int.tryParse(member.diamonds) ?? 0;
-                    final cRate = _agencyInfo?.commissionRate ?? 0.15;
-                    final commDia = (hDia * cRate).round();
-                    final commUsd = (commDia / 1000.0).toStringAsFixed(1);
+                    final commUsd = _calculateHostCommissionUsd(member);
+                    final commDia = (commUsd * (cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd : 15000)).round();
+                    final commUsdStr = commUsd > 0 
+                        ? (commUsd % 1 == 0 ? commUsd.toInt().toString() : commUsd.toStringAsFixed(2)) 
+                        : '0.00';
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
@@ -1570,7 +1619,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                             ],
                           ),
                           Text(
-                            '$commDia 💎 (\$$commUsd USD)',
+                            commDia > 0 ? '$commDia 💎 (\$$commUsdStr USD)' : '\$$commUsdStr USD',
                             style: const TextStyle(
                               color: Color(0xFFB45309),
                               fontSize: 11,
@@ -1635,15 +1684,16 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       agencyTarget = info.targetDiamonds;
     }
 
+    final rawAgencyRate = info.commissionRate > 0 ? info.commissionRate : (cfg.agencyRatePercentage / 100.0);
+    final agencyCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : (rawAgencyRate > 0 ? rawAgencyRate : 0.10);
+
     double totalDueSalaries = 0.0;
-    double totalCommissionDiamonds = 0.0;
+    double totalCommissionUsd = 0.0;
     int completedHostsCount = 0;
 
     final sortedMilestones = List<Map<String, dynamic>>.from(_milestones)
       ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
           .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
-
-    final agencyCommRate = info.commissionRate > 0 ? info.commissionRate : 0.15;
 
     for (final m in _members) {
       if (m.role == 'owner') continue;
@@ -1672,24 +1722,24 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         final rewardVal = (highestAchievedMilestone['reward_value'] ?? 
                            highestAchievedMilestone['rewardValue'] ?? 
                            highestAchievedMilestone['reward'] as num?)?.toDouble() ?? 
-                          (((highestAchievedMilestone['target_diamonds'] as num?)?.toDouble() ?? 100000) / 1000.0);
+                          (((highestAchievedMilestone['target_diamonds'] as num?)?.toDouble() ?? 40000) / (cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 15000.0));
         // راتب المضيف: يخصم 40% (يحصل على 60%) فقط في حال فك التارجت
         final hostSalary = m.unpackedDiamonds > 0 ? (rewardVal * 0.60) : rewardVal;
         totalDueSalaries += hostSalary;
 
-        // عمولة وكيل المضيفين: كاملة بنسبة 100% على التارجت المحقق ولا يخصم منها أي سنت عند فك المضيف
-        final targetDia = (highestAchievedMilestone['target_diamonds'] ?? highestAchievedMilestone['targetDiamonds'] as num?)?.toInt() ?? hostDia;
-        final commRate = (highestAchievedMilestone['agent_commission_rate'] as num?)?.toDouble() ?? agencyCommRate;
-        totalCommissionDiamonds += (targetDia * commRate);
+        // عمولة وكيل المضيفين: نسبة مئوية مباشرة من راتب/مكافأة المضيف الكاملة ولا تتأثر بالفك
+        final rawComm = (highestAchievedMilestone['agent_commission_rate'] as num?)?.toDouble() ?? agencyCommRate;
+        final normCommRate = rawComm > 1.0 ? (rawComm / 100.0) : (rawComm > 0 ? rawComm : 0.10);
+        final hostCommissionUsd = rewardVal * normCommRate;
+        totalCommissionUsd += hostCommissionUsd;
       }
     }
 
     final totalSalary = totalDueSalaries > 0 
-        ? (totalDueSalaries % 1 == 0 ? totalDueSalaries.toInt().toString() : totalDueSalaries.toStringAsFixed(1))
+        ? (totalDueSalaries % 1 == 0 ? totalDueSalaries.toInt().toString() : totalDueSalaries.toStringAsFixed(2))
         : '0';
-    final commissionUsd = (totalCommissionDiamonds / 1000.0);
-    final commission = commissionUsd > 0
-        ? (commissionUsd % 1 == 0 ? commissionUsd.toInt().toString() : commissionUsd.toStringAsFixed(1))
+    final commission = totalCommissionUsd > 0
+        ? (totalCommissionUsd % 1 == 0 ? totalCommissionUsd.toInt().toString() : totalCommissionUsd.toStringAsFixed(2))
         : '0';
 
     return Container(
@@ -2756,11 +2806,15 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
               _buildDataRow('الماس المحقق:', '${member.diamonds} 💎'),
               Builder(
                 builder: (_) {
-                  final hDia = int.tryParse(member.diamonds) ?? 0;
-                  final cRate = _agencyInfo?.commissionRate ?? 0.15;
-                  final commDia = (hDia * cRate).round();
-                  final commUsd = (commDia / 1000.0).toStringAsFixed(1);
-                  return _buildDataRow('عمولة الوكيل من المضيف:', '$commDia 💎 (\$$commUsd USD)');
+                  final commUsd = _calculateHostCommissionUsd(member);
+                  final commDia = (commUsd * (DynamicConfigService.instance.coinsPerUsd > 0 ? DynamicConfigService.instance.coinsPerUsd : 15000)).round();
+                  final commUsdStr = commUsd > 0 
+                      ? (commUsd % 1 == 0 ? commUsd.toInt().toString() : commUsd.toStringAsFixed(2)) 
+                      : '0.00';
+                  return _buildDataRow(
+                    'عمولة الوكيل من المضيف:',
+                    commDia > 0 ? '$commDia 💎 (\$$commUsdStr USD)' : '\$$commUsdStr USD',
+                  );
                 },
               ),
               _buildDataRow('متبقي للمرحلة التالية:', '${stageInfo['remainingDiamonds']} 💎'),

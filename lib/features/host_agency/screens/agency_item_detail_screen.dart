@@ -203,7 +203,8 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
 
   /// Header Card matching union_adapter_agency_detail_header.xml
   Widget _buildDetailHeaderCard(bool isAr, DynamicConfigService dyn) {
-    final ratePercent = (widget.commissionRate * 100).toStringAsFixed(0);
+    final normRate = widget.commissionRate > 1.0 ? (widget.commissionRate / 100.0) : widget.commissionRate;
+    final ratePercent = (normRate * 100).toStringAsFixed(0);
 
     return Container(
       width: double.infinity,
