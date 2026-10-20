@@ -89,7 +89,7 @@ export default function AppSounds() {
           audioRef.current.pause();
           setIsPlaying(false);
         } else {
-          audioRef.current.play();
+          audioRef.current.play().catch(() => {});
           setIsPlaying(true);
         }
       }

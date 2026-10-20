@@ -921,36 +921,69 @@ export function subscribeBugReports(cb: (reports: BugReport[]) => void) {
   return () => { try { supabase.removeChannel(sub) } catch {} }
 }
 
-// ---- App Config (key-value store, merged into single object) ----
+// ---- App Config (key-value store, merged into single object, with local cache & single-key lookup) ----
 
-export async function getAppConfig(): Promise<AppConfig | null> {
+export async function getAppConfig<T = any>(key?: string): Promise<T | null> {
+  const cacheKey = key ? `app_config_cache_${key}` : 'app_config_cache_all';
   try {
-    const { data } = await supabase.from('app_config').select('*')
-    if (!data || data.length === 0) return null
-    const merged: Record<string, unknown> = {}
-    for (const row of data) {
-      const raw = row.value
-      if (typeof raw === 'string') {
-        try { merged[row.key as string] = JSON.parse(raw) } catch { merged[row.key as string] = raw }
-      } else {
-        merged[row.key as string] = raw
+    if (key) {
+      const { data, error } = await supabase.from('app_config').select('value').eq('key', key).maybeSingle();
+      if (!error && data && data.value !== undefined) {
+        let val = data.value;
+        if (typeof val === 'string') {
+          try { val = JSON.parse(val); } catch (_) {}
+        }
+        try { localStorage.setItem(cacheKey, JSON.stringify(val)); } catch (_) {}
+        return val as T;
+      }
+    } else {
+      const { data, error } = await supabase.from('app_config').select('*');
+      if (!error && data && data.length > 0) {
+        const merged: Record<string, unknown> = {};
+        for (const row of data) {
+          const raw = row.value;
+          if (typeof raw === 'string') {
+            try { merged[row.key as string] = JSON.parse(raw); } catch { merged[row.key as string] = raw; }
+          } else {
+            merged[row.key as string] = raw;
+          }
+        }
+        try { localStorage.setItem(cacheKey, JSON.stringify(merged)); } catch (_) {}
+        return merged as unknown as T;
       }
     }
-    return merged as unknown as AppConfig
-  } catch {
-    return null
+  } catch (e) {
+    console.warn(`getAppConfig(${key || 'all'}) network error:`, e);
   }
+
+  // Graceful Fallback from LocalStorage cache (fixes ERR_CONNECTION_CLOSED / TIMED_OUT!)
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      return JSON.parse(cached) as T;
+    }
+  } catch (_) {}
+
+  return null;
 }
 
-export async function updateAppConfig(updates: Partial<AppConfig>) {
+export async function updateAppConfig(keyOrUpdates: string | Record<string, any>, value?: any) {
   try {
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === undefined || value === null) continue
-      const stored = typeof value === 'object' ? JSON.stringify(value) : value
-      await supabase.from('app_config').upsert({ key, value: stored })
+    if (typeof keyOrUpdates === 'string') {
+      const key = keyOrUpdates;
+      const stored = typeof value === 'object' ? JSON.stringify(value) : value;
+      try { localStorage.setItem(`app_config_cache_${key}`, JSON.stringify(value)); } catch (_) {}
+      await supabase.from('app_config').upsert({ key, value: stored });
+    } else if (keyOrUpdates && typeof keyOrUpdates === 'object') {
+      for (const [k, v] of Object.entries(keyOrUpdates)) {
+        if (v === undefined || v === null) continue;
+        const stored = typeof v === 'object' ? JSON.stringify(v) : v;
+        try { localStorage.setItem(`app_config_cache_${k}`, JSON.stringify(v)); } catch (_) {}
+        await supabase.from('app_config').upsert({ key: k, value: stored });
+      }
     }
   } catch (e) {
-    console.warn('updateAppConfig failed:', e)
+    console.warn('updateAppConfig failed:', e);
   }
 }
 
@@ -3740,13 +3773,19 @@ export async function getUnifiedGiftedItems(): Promise<GiftedItem[]> {
     if (rows.length === 0) return [];
 
     const uids = [...new Set(rows.map((r: any) => r.uid).filter(Boolean))];
-    const { data: users } = await client
-      .from('users')
-      .select('uid, name, custom_id, original_custom_id, photo_url')
-      .in('uid', uids);
+    let users: any[] = [];
+    if (uids.length > 0) {
+      try {
+        const { data } = await client
+          .from('users')
+          .select('uid, name, custom_id, photo_url')
+          .in('uid', uids);
+        users = data || [];
+      } catch (_) {}
+    }
 
     const userMap: Record<string, any> = {};
-    (users || []).forEach((u: any) => {
+    users.forEach((u: any) => {
       userMap[u.uid] = u;
     });
 

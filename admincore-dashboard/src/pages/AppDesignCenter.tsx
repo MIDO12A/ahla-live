@@ -6,8 +6,9 @@ import { uploadAppAsset } from '../lib/storage';
 import {
   Palette, Smartphone, SlidersHorizontal, Image as ImageIcon, Sparkles,
   Type, Save, RotateCcw, Search, Plus, Trash2, CheckCircle, RefreshCw,
-  Eye, Check, Layers, AlertCircle, ArrowRightLeft, Target, Shield, LayoutGrid,
-  Upload, X, ImagePlus, CheckCircle2, ChevronRight, Sliders, ExternalLink
+  Eye, EyeOff, Check, Layers, AlertCircle, ArrowRightLeft, Target, Shield, LayoutGrid,
+  Upload, X, ImagePlus, CheckCircle2, ChevronRight, Sliders, ExternalLink,
+  Move, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Circle, Square, Maximize2
 } from 'lucide-react';
 
 // Sub-components
@@ -65,10 +66,10 @@ export default function AppDesignCenter() {
     fieldId: string;
   } | null>(null);
 
-  // 12 Comprehensive Screen Categories
+  // 14 Comprehensive Screen Categories
   const categories = [
     { id: 'all', labelAr: '🌟 الكل (جميع الشاشات)', labelEn: 'All Screens', icon: '🌟' },
-    { id: 'agency', labelAr: '🎯 مستهدف الوكالات والمضيفين', labelEn: 'Agency & Host Targets', icon: '🎯' },
+    { id: 'agency', labelAr: '🎯 مستهدف الوكالات والمضيفين والرواتب', labelEn: 'Agency & Host Targets', icon: '🎯' },
     { id: 'profile', labelAr: '👤 البروفايل وحسابي والملف الشخصي', labelEn: 'Profile & User Details', icon: '👤' },
     { id: 'room', labelAr: '🎙️ الغرف الصوتية والمقاعد والمحادثة', labelEn: 'Rooms & Voice Seats', icon: '🎙️' },
     { id: 'wallet', labelAr: '💳 المحفظة والشحن والتحويل', labelEn: 'Wallet & Recharge', icon: '💳' },
@@ -79,7 +80,9 @@ export default function AppDesignCenter() {
     { id: 'rankings', labelAr: '🏆 المتصدرون وقوائم الترتيب', labelEn: 'Leaderboards & Rankings', icon: '🏆' },
     { id: 'badges', labelAr: '🎖️ الشارات والأوسمة والقلادات', labelEn: 'Badges & Necklaces', icon: '🎖️' },
     { id: 'chat', labelAr: '💬 المحادثات الفردية والرسائل', labelEn: '1-on-1 Messages & Chat', icon: '💬' },
-    { id: 'global', labelAr: '🌐 النصوص والألوان العامة للتطبيق', labelEn: 'Global App Colors & Texts', icon: '🌐' },
+    { id: 'settings', labelAr: '⚙️ شاشة الإعدادات والأمان والنظام', labelEn: 'Settings & Security', icon: '⚙️' },
+    { id: 'gift_banners', labelAr: '🎁 بانرات ولافتات الهدايا', labelEn: 'Gift Banners & Alerts', icon: '🎁' },
+    { id: 'global', labelAr: '🌐 النصوص والألوان العامة وشريط التنقل', labelEn: 'Global App & Bottom Nav', icon: '🌐' },
   ];
 
   // Load configs on mount
@@ -250,8 +253,8 @@ export default function AppDesignCenter() {
     { key: 'gift_banners', label: isAr ? '🎁 بانرات ولافتات الهدايا' : '🎁 Gift Banners', icon: Sparkles },
   ];
 
-  // Reusable Dual-Mode Card/Color/Image Component
-  const renderDualField = (params: {
+  // Reusable Master Element Editor with Hide/Show, Directional Movements, Shape, Size & Dual-mode Background/Image
+  const renderElementEditor = (params: {
     id: string;
     category: string;
     screen: string;
@@ -272,12 +275,29 @@ export default function AppDesignCenter() {
     hasImage?: boolean;
     imageKey?: string;
     imageHint?: string;
+    // Icon customization (uploaded from device)
+    hasIcon?: boolean;
+    iconKey?: string;
   }) => {
     const textVal = params.textKey ? getVal(params.screen, params.textKey, params.defaultText || '') : '';
     const textColorVal = params.textColorKey ? getVal(params.screen, params.textColorKey, params.defaultTextColor || '#FFFFFF') : '';
     const colorVal = params.colorKey ? getVal(params.screen, params.colorKey, params.defaultColor || '#1A1A1E') : '';
     const imageVal = params.imageKey ? getVal(params.screen, params.imageKey, '') : '';
-    const isUploading = uploadingFieldId === params.id;
+    const iconVal = params.iconKey ? getVal(params.screen, params.iconKey, '') : '';
+    const isUploadingBg = uploadingFieldId === `${params.id}_bg`;
+    const isUploadingIcon = uploadingFieldId === `${params.id}_icon`;
+
+    // Visibility toggle (إخفاء / إظهار من التطبيق)
+    const isHidden = getVal(params.screen, `${params.id}_hidden`, 'false') === 'true';
+
+    // Position / Arrow movements (يمين، شمال، فوق، تحت)
+    const offsetX = parseInt(getVal(params.screen, `${params.id}_offset_x`, '0')) || 0;
+    const offsetY = parseInt(getVal(params.screen, `${params.id}_offset_y`, '0')) || 0;
+
+    // Shape & Size (الشكل والحجم)
+    const width = getVal(params.screen, `${params.id}_width`, '');
+    const height = getVal(params.screen, `${params.id}_height`, '');
+    const radius = getVal(params.screen, `${params.id}_radius`, '');
 
     // Filter by search query
     if (searchQ.trim()) {
@@ -289,26 +309,61 @@ export default function AppDesignCenter() {
     }
 
     return (
-      <div key={params.id} className="bg-[#16171B] border border-white/10 hover:border-purple-500/40 transition-all rounded-xl p-4 space-y-3 shadow-md flex flex-col justify-between">
+      <div
+        key={params.id}
+        className={`bg-[#16171B] border transition-all rounded-xl p-4 space-y-3.5 shadow-md flex flex-col justify-between ${
+          isHidden ? 'border-rose-500/40 bg-[#171214]' : 'border-white/10 hover:border-purple-500/40'
+        }`}
+      >
         <div>
-          {/* Header Title */}
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <span className="text-xs font-bold text-slate-200">
-              {isAr ? params.labelAr : params.labelEn}
-            </span>
-            {params.imageKey && imageVal && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 font-semibold">
-                <Check className="w-3 h-3" />
-                {isAr ? 'صورة مخصصة' : 'Custom Image'}
+          {/* Header Title + Badges + Hide Toggle Button */}
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                {isAr ? params.labelAr : params.labelEn}
               </span>
-            )}
+              {isHidden ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1 font-bold">
+                  <EyeOff className="w-3 h-3" /> {isAr ? 'مخفي بالتطبيق' : 'Hidden'}
+                </span>
+              ) : (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 font-semibold">
+                  <Eye className="w-3 h-3" /> {isAr ? 'ظاهر' : 'Visible'}
+                </span>
+              )}
+              {params.imageKey && imageVal && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center gap-1 font-semibold">
+                  <Check className="w-3 h-3" /> {isAr ? 'صورة خلفية' : 'Image Bg'}
+                </span>
+              )}
+              {params.iconKey && iconVal && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center gap-1 font-semibold">
+                  <Check className="w-3 h-3" /> {isAr ? 'أيقونة مخصصة' : 'Custom Icon'}
+                </span>
+              )}
+            </div>
+
+            {/* Quick Hide/Show Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setVal(params.screen, `${params.id}_hidden`, isHidden ? 'false' : 'true')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                isHidden
+                  ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40'
+                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
+              }`}
+              title={isAr ? 'إخفاء أو إظهار هذا العنصر في التطبيق' : 'Toggle visibility in mobile app'}
+            >
+              {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{isHidden ? (isAr ? 'إظهار بالتطبيق' : 'Unhide') : (isAr ? 'إخفاء من التطبيق' : 'Hide')}</span>
+            </button>
           </div>
 
           {/* Text Input (if applicable) */}
           {params.hasText && params.textKey && (
-            <div className="space-y-1.5 mb-3">
+            <div className="space-y-1.5 mb-2.5">
               <label className="text-[11px] text-slate-400 flex items-center justify-between">
-                <span>{isAr ? 'النص المعروض:' : 'Displayed Text:'}</span>
+                <span>{isAr ? 'النص المعروض داخل العنصر:' : 'Displayed Text:'}</span>
                 {params.textColorKey && (
                   <div className="flex items-center gap-1.5 cursor-pointer">
                     <span className="text-[10px] text-slate-400">{isAr ? 'لون الخط:' : 'Font Color:'}</span>
@@ -326,79 +381,248 @@ export default function AppDesignCenter() {
                 value={textVal}
                 onChange={e => setVal(params.screen, params.textKey!, e.target.value)}
                 placeholder={params.textPlaceholder || (isAr ? 'اكتب النص المطلوب...' : 'Enter text...')}
-                className="w-full bg-[#1F2026] border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-500"
+                className="w-full bg-[#1F2026] border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500"
               />
             </div>
           )}
         </div>
 
-        {/* Dual Mode: Color or Image */}
-        <div className="pt-2 border-t border-white/5 space-y-2">
-          {/* Status preview banner */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {params.hasColor && params.colorKey && (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="color"
-                    value={colorVal.slice(0, 7)}
-                    onChange={e => setVal(params.screen, params.colorKey!, e.target.value)}
-                    className="w-7 h-7 rounded border-none cursor-pointer bg-transparent"
-                    title={isAr ? 'اختر اللون' : 'Pick Color'}
-                  />
-                  <span className="text-[11px] font-mono text-slate-300">{colorVal}</span>
-                </div>
+        {/* Middle Section: Background Color or Device Image Upload */}
+        <div className="pt-2 border-t border-white/5 space-y-2.5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            {params.hasColor && params.colorKey && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-400">{isAr ? 'اللون:' : 'Color:'}</span>
+                <input
+                  type="color"
+                  value={colorVal.slice(0, 7)}
+                  onChange={e => setVal(params.screen, params.colorKey!, e.target.value)}
+                  className="w-6 h-6 rounded border-none cursor-pointer bg-transparent"
+                  title={isAr ? 'اختر اللون' : 'Pick Color'}
+                />
+                <span className="text-[11px] font-mono text-slate-300">{colorVal}</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Upload Background Image Button */}
+              {params.hasImage && params.imageKey && (
+                <button
+                  type="button"
+                  onClick={() => triggerImageUpload(params.screen, params.imageKey!, `${params.id}_bg`)}
+                  disabled={isUploadingBg}
+                  className="px-2.5 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
+                >
+                  {isUploadingBg ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  <span>{isUploadingBg ? (isAr ? 'جارٍ الرفع...' : 'Uploading...') : (isAr ? 'تبديل لصورة من الجهاز' : 'Upload Image')}</span>
+                </button>
+              )}
+
+              {/* Upload Icon Button (if applicable) */}
+              {params.hasIcon && params.iconKey && (
+                <button
+                  type="button"
+                  onClick={() => triggerImageUpload(params.screen, params.iconKey!, `${params.id}_icon`)}
+                  disabled={isUploadingIcon}
+                  className="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
+                >
+                  {isUploadingIcon ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+                  <span>{isUploadingIcon ? (isAr ? 'جارٍ الرفع...' : 'Uploading...') : (isAr ? 'رفع أيقونة بديلة' : 'Upload Icon')}</span>
+                </button>
               )}
             </div>
-
-            {/* Upload Button */}
-            {params.hasImage && params.imageKey && (
-              <button
-                type="button"
-                onClick={() => triggerImageUpload(params.screen, params.imageKey!, params.id)}
-                disabled={isUploading}
-                className="px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-              >
-                {isUploading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                <span>{isUploading ? (isAr ? 'جارٍ الرفع...' : 'Uploading...') : (isAr ? 'رفع صورة من الجهاز' : 'Upload Image')}</span>
-              </button>
-            )}
           </div>
 
-          {/* If Image exists: Show Thumbnail and Clear Button */}
+          {/* Background Image Thumbnail & Clear Button */}
           {params.hasImage && params.imageKey && imageVal && (
-            <div className="bg-[#121316] border border-emerald-500/30 rounded-lg p-2 flex items-center justify-between gap-3 animate-fade-in">
+            <div className="bg-[#121316] border border-cyan-500/30 rounded-lg p-2 flex items-center justify-between gap-2 animate-fade-in">
               <div className="flex items-center gap-2 overflow-hidden">
                 <img
                   src={imageVal}
-                  alt="custom element visual"
-                  className="w-10 h-10 rounded-md object-cover border border-white/10 flex-shrink-0 bg-black/40"
+                  alt="bg visual"
+                  className="w-9 h-9 rounded object-cover border border-white/10 flex-shrink-0 bg-black/40"
                   onError={(e) => { (e.target as any).style.display = 'none'; }}
                 />
                 <div className="overflow-hidden">
-                  <span className="text-[10px] text-emerald-400 font-bold block truncate">
-                    {isAr ? 'تم استبدال اللون بصورة بنجاح' : 'Color replaced with image'}
+                  <span className="text-[10px] text-cyan-400 font-bold block truncate">
+                    {isAr ? 'صورة الخلفية مفعّلة' : 'Custom Image Active'}
                   </span>
                   <span className="text-[9px] text-slate-500 truncate block font-mono" title={imageVal}>
                     {imageVal}
                   </span>
                 </div>
               </div>
-
               <button
                 type="button"
                 onClick={() => setVal(params.screen, params.imageKey!, '')}
-                className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded-lg transition-all cursor-pointer flex-shrink-0"
-                title={isAr ? 'حذف الصورة والرجوع للون' : 'Delete image & revert to solid color'}
+                className="p-1 text-rose-400 hover:bg-rose-500/20 rounded transition-all cursor-pointer flex-shrink-0"
+                title={isAr ? 'حذف واسترجاع اللون الصافي' : 'Revert to solid color'}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
           )}
+
+          {/* Icon Thumbnail & Clear Button */}
+          {params.hasIcon && params.iconKey && iconVal && (
+            <div className="bg-[#121316] border border-indigo-500/30 rounded-lg p-2 flex items-center justify-between gap-2 animate-fade-in">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <img
+                  src={iconVal}
+                  alt="icon visual"
+                  className="w-9 h-9 rounded object-contain border border-white/10 flex-shrink-0 bg-black/40"
+                  onError={(e) => { (e.target as any).style.display = 'none'; }}
+                />
+                <div className="overflow-hidden">
+                  <span className="text-[10px] text-indigo-400 font-bold block truncate">
+                    {isAr ? 'أيقونة مخصصة من الجهاز' : 'Custom Icon Active'}
+                  </span>
+                  <span className="text-[9px] text-slate-500 truncate block font-mono" title={iconVal}>
+                    {iconVal}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVal(params.screen, params.iconKey!, '')}
+                className="p-1 text-rose-400 hover:bg-rose-500/20 rounded transition-all cursor-pointer flex-shrink-0"
+                title={isAr ? 'حذف الأيقونة' : 'Remove icon'}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Advanced Controls: Movement with Arrows (يمين، شمال، فوق، تحت) */}
+          <div className="bg-black/40 border border-white/5 rounded-lg p-2.5 space-y-2">
+            <div className="flex items-center justify-between text-[11px] text-slate-300">
+              <span className="font-semibold flex items-center gap-1 text-slate-300">
+                <Move className="w-3.5 h-3.5 text-indigo-400" />
+                {isAr ? 'تحريك الموضع بالأسهم:' : 'Position & Arrows:'}
+              </span>
+              <span className="text-[10px] font-mono text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                X: {offsetX}px | Y: {offsetY}px
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              {/* Arrow pad */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setVal(params.screen, `${params.id}_offset_x`, String(offsetX - 2))}
+                  className="p-1.5 bg-white/5 hover:bg-white/15 text-slate-200 rounded border border-white/10 text-xs font-bold transition-all"
+                  title={isAr ? 'تحريك يسار (2px-)' : 'Move Left'}
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVal(params.screen, `${params.id}_offset_y`, String(offsetY - 2))}
+                  className="p-1.5 bg-white/5 hover:bg-white/15 text-slate-200 rounded border border-white/10 text-xs font-bold transition-all"
+                  title={isAr ? 'تحريك لأعلى (2px-)' : 'Move Up'}
+                >
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVal(params.screen, `${params.id}_offset_x`, '0');
+                    setVal(params.screen, `${params.id}_offset_y`, '0');
+                  }}
+                  className="px-2 py-1 bg-white/5 hover:bg-white/15 text-[10px] text-amber-400 rounded border border-white/10 font-bold transition-all"
+                  title={isAr ? 'إعادة ضبط الموضع للوسط' : 'Reset to Center'}
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVal(params.screen, `${params.id}_offset_y`, String(offsetY + 2))}
+                  className="p-1.5 bg-white/5 hover:bg-white/15 text-slate-200 rounded border border-white/10 text-xs font-bold transition-all"
+                  title={isAr ? 'تحريك لأسفل (2px+)' : 'Move Down'}
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVal(params.screen, `${params.id}_offset_x`, String(offsetX + 2))}
+                  className="p-1.5 bg-white/5 hover:bg-white/15 text-slate-200 rounded border border-white/10 text-xs font-bold transition-all"
+                  title={isAr ? 'تحريك يمين (2px+)' : 'Move Right'}
+                >
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Shape Presets */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setVal(params.screen, `${params.id}_radius`, '999')}
+                  className="px-2 py-1 rounded text-[10px] bg-white/5 hover:bg-purple-600/30 text-purple-300 border border-white/10"
+                  title={isAr ? 'دائري' : 'Circle'}
+                >
+                  ⚪ دائري
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVal(params.screen, `${params.id}_radius`, '16')}
+                  className="px-2 py-1 rounded text-[10px] bg-white/5 hover:bg-purple-600/30 text-purple-300 border border-white/10"
+                  title={isAr ? 'حواف ناعمة' : 'Soft Rounded'}
+                >
+                  🔲 ناعم
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVal(params.screen, `${params.id}_radius`, '0')}
+                  className="px-2 py-1 rounded text-[10px] bg-white/5 hover:bg-purple-600/30 text-purple-300 border border-white/10"
+                  title={isAr ? 'مربع' : 'Square'}
+                >
+                  ▫️ مربع
+                </button>
+              </div>
+            </div>
+
+            {/* Custom dimensions */}
+            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/5 text-[10px]">
+              <div>
+                <label className="text-slate-500 block mb-0.5">{isAr ? 'العرض W' : 'Width'}</label>
+                <input
+                  type="number"
+                  placeholder="تلقائي"
+                  value={width}
+                  onChange={e => setVal(params.screen, `${params.id}_width`, e.target.value)}
+                  className="w-full bg-[#1A1A1E] border border-white/10 rounded px-2 py-1 text-white text-[11px]"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 block mb-0.5">{isAr ? 'الارتفاع H' : 'Height'}</label>
+                <input
+                  type="number"
+                  placeholder="تلقائي"
+                  value={height}
+                  onChange={e => setVal(params.screen, `${params.id}_height`, e.target.value)}
+                  className="w-full bg-[#1A1A1E] border border-white/10 rounded px-2 py-1 text-white text-[11px]"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 block mb-0.5">{isAr ? 'استدارة R' : 'Radius'}</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={radius}
+                  onChange={e => setVal(params.screen, `${params.id}_radius`, e.target.value)}
+                  className="w-full bg-[#1A1A1E] border border-white/10 rounded px-2 py-1 text-white text-[11px]"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   };
+
+  // Alias for backward compatibility
+  const renderDualField = renderElementEditor;
 
   return (
     <div className="space-y-6">
@@ -1714,7 +1938,302 @@ export default function AppDesignCenter() {
           )}
 
           {/* ================================================================= */}
-          {/* SECTION 11: GLOBAL COLORS & TEXTS                                */}
+          {/* SECTION 11: UNIONS & FAMILIES SCREEN                              */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'unions') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-lg">
+                  🏰
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '11. شاشة العائلات والنقابات' : '11. Unions & Families Screen'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr ? 'تخصيص نصوص وألوان وخلفيات وكروت نقابات وعائلات التطبيق' : 'Customize union headers, creation buttons, rank cards, and member badges'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'unionsMainBg',
+                  category: 'unions',
+                  screen: 'unions',
+                  labelAr: 'خلفية شاشة النقابات بالكامل',
+                  labelEn: 'Unions Screen Background',
+                  hasColor: true,
+                  colorKey: 'backgroundColor',
+                  defaultColor: '#0F172A',
+                  hasImage: true,
+                  imageKey: 'backgroundImage',
+                })}
+
+                {renderDualField({
+                  id: 'unionsHeaderTitle',
+                  category: 'unions',
+                  screen: 'unions',
+                  labelAr: 'عنوان شاشة النقابات',
+                  labelEn: 'Unions Screen Title',
+                  hasText: true,
+                  textKey: 'titleText',
+                  defaultText: 'نقابات وعائلات التطبيق',
+                  textColorKey: 'titleTextColor',
+                  defaultTextColor: '#FFFFFF',
+                })}
+
+                {renderDualField({
+                  id: 'unionsCreateBtn',
+                  category: 'unions',
+                  screen: 'unions',
+                  labelAr: 'زر إنشاء نقابة جديدة',
+                  labelEn: 'Create Union Button',
+                  hasText: true,
+                  textKey: 'createBtnText',
+                  defaultText: 'إنشاء نقابة جديدة',
+                  textColorKey: 'createBtnTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasColor: true,
+                  colorKey: 'createBtnBg',
+                  defaultColor: '#6366F1',
+                  hasImage: true,
+                  imageKey: 'createBtnBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'unionsCardBg',
+                  category: 'unions',
+                  screen: 'unions',
+                  labelAr: 'كارت تفاصيل النقابة',
+                  labelEn: 'Union Info Card Background',
+                  hasColor: true,
+                  colorKey: 'cardBgColor',
+                  defaultColor: '#1E293B',
+                  hasImage: true,
+                  imageKey: 'cardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'unionsRankingCard',
+                  category: 'unions',
+                  screen: 'unions',
+                  labelAr: 'كارت قائمة ترتيب النقابات',
+                  labelEn: 'Union Rankings Card Background',
+                  hasColor: true,
+                  colorKey: 'rankingCardBg',
+                  defaultColor: '#1E293B',
+                  hasImage: true,
+                  imageKey: 'rankingCardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'unionsMembersLabel',
+                  category: 'unions',
+                  screen: 'unions',
+                  labelAr: 'نص وألوان عداد الأعضاء',
+                  labelEn: 'Members Count Label',
+                  hasText: true,
+                  textKey: 'membersLabelText',
+                  defaultText: 'الأعضاء النشطين',
+                  textColorKey: 'membersLabelColor',
+                  defaultTextColor: '#94A3B8',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 12: SETTINGS & SECURITY SCREEN                            */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'settings') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-slate-500/20 text-slate-300 flex items-center justify-center font-bold text-lg">
+                  ⚙️
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '12. شاشة الإعدادات والأمان والنظام' : '12. Settings & Security Screen'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr ? 'تخصيص نصوص وألوان وخلفيات شاشة الإعدادات والحساب ومركز الأمان' : 'Customize settings rows, backgrounds, and titles'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'settingsMainBg',
+                  category: 'settings',
+                  screen: 'settings',
+                  labelAr: 'خلفية شاشة الإعدادات بالكامل',
+                  labelEn: 'Settings Screen Background',
+                  hasColor: true,
+                  colorKey: 'backgroundColor',
+                  defaultColor: '#121316',
+                  hasImage: true,
+                  imageKey: 'backgroundImage',
+                })}
+
+                {renderDualField({
+                  id: 'settingsTitle',
+                  category: 'settings',
+                  screen: 'settings',
+                  labelAr: 'عنوان شاشة الإعدادات',
+                  labelEn: 'Settings Title',
+                  hasText: true,
+                  textKey: 'settingsTitle',
+                  defaultText: 'الإعدادات العامة',
+                  textColorKey: 'titleColor',
+                  defaultTextColor: '#FFFFFF',
+                })}
+
+                {renderDualField({
+                  id: 'settingsAccountSecurity',
+                  category: 'settings',
+                  screen: 'settings',
+                  labelAr: 'كارت الحساب والأمان',
+                  labelEn: 'Account & Security Row',
+                  hasText: true,
+                  textKey: 'securityTitle',
+                  defaultText: 'الحساب والأمان',
+                  hasColor: true,
+                  colorKey: 'cardBgColor',
+                  defaultColor: '#1F2026',
+                  hasImage: true,
+                  imageKey: 'cardBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'settingsLanguage',
+                  category: 'settings',
+                  screen: 'settings',
+                  labelAr: 'كارت لغة التطبيق',
+                  labelEn: 'App Language Row',
+                  hasText: true,
+                  textKey: 'languageTitle',
+                  defaultText: 'لغة التطبيق',
+                  hasColor: true,
+                  colorKey: 'langCardBgColor',
+                  defaultColor: '#1F2026',
+                })}
+
+                {renderDualField({
+                  id: 'settingsPrivacy',
+                  category: 'settings',
+                  screen: 'settings',
+                  labelAr: 'كارت سياسة الخصوصية والشروط',
+                  labelEn: 'Privacy & Terms Row',
+                  hasText: true,
+                  textKey: 'privacyTitle',
+                  defaultText: 'الخصوصية وشروط الاستخدام',
+                  hasColor: true,
+                  colorKey: 'privacyCardBgColor',
+                  defaultColor: '#1F2026',
+                })}
+
+                {renderDualField({
+                  id: 'settingsLogoutBtn',
+                  category: 'settings',
+                  screen: 'settings',
+                  labelAr: 'زر تسجيل الخروج',
+                  labelEn: 'Logout Button',
+                  hasText: true,
+                  textKey: 'logoutText',
+                  defaultText: 'تسجيل الخروج من الحساب',
+                  textColorKey: 'logoutTextColor',
+                  defaultTextColor: '#F87171',
+                  hasColor: true,
+                  colorKey: 'logoutBtnBg',
+                  defaultColor: '#2D1515',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 13: GIFT BANNERS & VISUAL ALERTS                          */}
+          {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'gift_banners') && (
+            <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center font-bold text-lg">
+                  🎁
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {isAr ? '13. بانرات ولافتات إرسال الهدايا والتنبيهات' : '13. Gift Banners & Visual Alerts'}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {isAr ? 'تخصيص لافتات إرسال الهدايا، بطاقات الإشعار في الغرفة، وألوان نصوص التهاني' : 'Customize gift announcement banners, notification cards, and congratulations'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderDualField({
+                  id: 'giftBannerBar',
+                  category: 'gift_banners',
+                  screen: 'giftBanner',
+                  labelAr: 'شريط لافتة الهدية العريض في الروم',
+                  labelEn: 'Room Gift Banner Bar',
+                  hasColor: true,
+                  colorKey: 'bannerBgColor',
+                  defaultColor: '#2A0845',
+                  hasImage: true,
+                  imageKey: 'bannerBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'giftBannerCongratText',
+                  category: 'gift_banners',
+                  screen: 'giftBanner',
+                  labelAr: 'نص التهنئة والإهداء الافتراضي',
+                  labelEn: 'Gift Banner Congratulations Text',
+                  hasText: true,
+                  textKey: 'congratText',
+                  defaultText: 'أرسل هدية فاخرة إلى',
+                  textColorKey: 'congratTextColor',
+                  defaultTextColor: '#FDE047',
+                })}
+
+                {renderDualField({
+                  id: 'giftComboBadge',
+                  category: 'gift_banners',
+                  screen: 'giftBanner',
+                  labelAr: 'شارة مضاعف الهدية (Combo x10/x100)',
+                  labelEn: 'Gift Combo Multiplier Badge',
+                  hasText: true,
+                  textKey: 'comboText',
+                  defaultText: 'COMBO',
+                  textColorKey: 'comboTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasColor: true,
+                  colorKey: 'comboBadgeColor',
+                  defaultColor: '#E11D48',
+                  hasImage: true,
+                  imageKey: 'comboBadgeImage',
+                })}
+
+                {renderDualField({
+                  id: 'giftNotificationCard',
+                  category: 'gift_banners',
+                  screen: 'giftBanner',
+                  labelAr: 'كارت إشعار الهدية في شات الغرفة',
+                  labelEn: 'Room Chat Gift Notification Card',
+                  hasColor: true,
+                  colorKey: 'chatAlertCardBg',
+                  defaultColor: '#1E1B4B',
+                  hasImage: true,
+                  imageKey: 'chatAlertCardBgImage',
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* SECTION 14: GLOBAL COLORS & BOTTOM NAVIGATION                     */}
           {/* ================================================================= */}
           {(activeSection === 'all' || activeSection === 'global') && (
             <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
@@ -1724,7 +2243,7 @@ export default function AppDesignCenter() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    {isAr ? '11. ألوان ونصوص النظام العامة والشريط السفلي' : '11. Global App System Colors & Navigation'}
+                    {isAr ? '14. ألوان ونصوص النظام العامة والشريط السفلي' : '14. Global App System Colors & Navigation'}
                   </h3>
                   <p className="text-slate-400 text-xs">
                     {isAr ? 'التحكم العام بألوان الخط الأساسي، الخط الثانوي، الأزرار، الترويسة، وتبويبات الشريط السفلي' : 'Change global font colors, buttons, header, and bottom navigation bar'}
@@ -1803,12 +2322,122 @@ export default function AppDesignCenter() {
                   colorKey: 'goldColor',
                   defaultColor: '#DE880F',
                 })}
+
+                {renderDualField({
+                  id: 'bottomNavBg',
+                  category: 'global',
+                  screen: 'global',
+                  labelAr: 'خلفية الشريط السفلي للتنقل (Bottom Nav)',
+                  labelEn: 'Bottom Navigation Bar Background',
+                  hasColor: true,
+                  colorKey: 'bottomNavBgColor',
+                  defaultColor: '#121316',
+                  hasImage: true,
+                  imageKey: 'bottomNavBgImage',
+                })}
+
+                {renderDualField({
+                  id: 'bottomNavActiveColor',
+                  category: 'global',
+                  screen: 'global',
+                  labelAr: 'لون الأيقونة والنص المختار في الشريط السفلي',
+                  labelEn: 'Bottom Nav Active Tab Color',
+                  hasColor: true,
+                  colorKey: 'bottomNavActiveColor',
+                  defaultColor: '#8B5CF6',
+                })}
+
+                {renderDualField({
+                  id: 'bottomNavInactiveColor',
+                  category: 'global',
+                  screen: 'global',
+                  labelAr: 'لون الأيقونة والنص غير المختار في الشريط السفلي',
+                  labelEn: 'Bottom Nav Inactive Tab Color',
+                  hasColor: true,
+                  colorKey: 'bottomNavInactiveColor',
+                  defaultColor: '#64748B',
+                })}
+
+                {renderDualField({
+                  id: 'bottomNavHome',
+                  category: 'global',
+                  screen: 'global',
+                  labelAr: 'تبويب الرئيسية في الشريط السفلي',
+                  labelEn: 'Bottom Nav: Home Tab',
+                  hasText: true,
+                  textKey: 'navHomeText',
+                  defaultText: 'الرئيسية',
+                  textColorKey: 'navHomeTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasIcon: true,
+                  iconKey: 'navHomeIcon',
+                })}
+
+                {renderDualField({
+                  id: 'bottomNavRooms',
+                  category: 'global',
+                  screen: 'global',
+                  labelAr: 'تبويب الغرف الصوتية في الشريط السفلي',
+                  labelEn: 'Bottom Nav: Rooms Tab',
+                  hasText: true,
+                  textKey: 'navRoomsText',
+                  defaultText: 'الغرف',
+                  textColorKey: 'navRoomsTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasIcon: true,
+                  iconKey: 'navRoomsIcon',
+                })}
+
+                {renderDualField({
+                  id: 'bottomNavMessages',
+                  category: 'global',
+                  screen: 'global',
+                  labelAr: 'تبويب الرسائل في الشريط السفلي',
+                  labelEn: 'Bottom Nav: Messages Tab',
+                  hasText: true,
+                  textKey: 'navMessagesText',
+                  defaultText: 'الرسائل',
+                  textColorKey: 'navMessagesTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasIcon: true,
+                  iconKey: 'navMessagesIcon',
+                })}
+
+                {renderDualField({
+                  id: 'bottomNavStore',
+                  category: 'global',
+                  screen: 'global',
+                  labelAr: 'تبويب المتجر في الشريط السفلي',
+                  labelEn: 'Bottom Nav: Store Tab',
+                  hasText: true,
+                  textKey: 'navStoreText',
+                  defaultText: 'المتجر',
+                  textColorKey: 'navStoreTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasIcon: true,
+                  iconKey: 'navStoreIcon',
+                })}
+
+                {renderDualField({
+                  id: 'bottomNavProfile',
+                  category: 'global',
+                  screen: 'global',
+                  labelAr: 'تبويب حسابي / ملفي في الشريط السفلي',
+                  labelEn: 'Bottom Nav: Profile Tab',
+                  hasText: true,
+                  textKey: 'navProfileText',
+                  defaultText: 'حسابي',
+                  textColorKey: 'navProfileTextColor',
+                  defaultTextColor: '#FFFFFF',
+                  hasIcon: true,
+                  iconKey: 'navProfileIcon',
+                })}
               </div>
             </div>
           )}
 
           {/* ================================================================= */}
-          {/* SECTION 12: UNLIMITED CUSTOM DYNAMIC STRINGS                      */}
+          {/* SECTION 15: UNLIMITED CUSTOM DYNAMIC STRINGS                      */}
           {/* ================================================================= */}
           <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -1818,7 +2447,7 @@ export default function AppDesignCenter() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    {isAr ? '12. إضافة أي نص أو كلمة مخصصة جديدة للتطبيق (Custom Dynamic Strings)' : '12. Custom Dynamic Strings (Add Any Key)'}
+                    {isAr ? '15. إضافة أي نص أو كلمة مخصصة جديدة للتطبيق (Custom Dynamic Strings)' : '15. Custom Dynamic Strings (Add Any Key)'}
                   </h3>
                   <p className="text-slate-400 text-xs">
                     {isAr
