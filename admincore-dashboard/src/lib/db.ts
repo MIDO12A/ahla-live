@@ -2797,16 +2797,16 @@ export async function sendSystemNotification(data: {
 export async function getUserOriginalCustomId(uid: string): Promise<string> {
   const client = getAdminSupabase() || supabase;
   try {
-    const { data: user } = await client.from('users').select('custom_id, original_custom_id').eq('uid', uid).maybeSingle();
-    if (user?.original_custom_id) {
-      return String(user.original_custom_id).trim();
-    }
     const { data: cfg } = await client.from('app_config').select('value').eq('key', `orig_cid_${uid}`).maybeSingle();
     if (cfg?.value?.originalId) {
       return String(cfg.value.originalId).trim();
     }
     if (typeof cfg?.value === 'string' && cfg.value.trim()) {
       return cfg.value.trim();
+    }
+    const { data: user } = await client.from('users').select('custom_id').eq('uid', uid).maybeSingle();
+    if (user?.custom_id) {
+      return String(user.custom_id).trim();
     }
   } catch (e) {
     console.warn('getUserOriginalCustomId error:', e);
