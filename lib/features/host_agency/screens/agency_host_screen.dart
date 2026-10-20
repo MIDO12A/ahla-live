@@ -600,6 +600,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                   value: '$curTargetDia 💎',
                   bgColor: cfg.getScreenColor('hostAgency', 'targetCardBg', const Color(0xFFF9FAFB)),
                   valColor: cfg.getScreenColor('hostAgency', 'targetCardValColor', const Color(0xFF1F2937)),
+                  bgImage: cfg.getScreenImage('hostAgency', 'targetCardBgImage', cfg.getScreenImage('agency', 'targetCardBgImage', '')),
                 ),
               ),
               const SizedBox(width: 10),
@@ -609,6 +610,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                   value: '$currentDiamonds 💎',
                   bgColor: cfg.getScreenColor('hostAgency', 'balanceCardBg', const Color(0xFFECFDF5)),
                   valColor: cfg.getScreenColor('hostAgency', 'balanceCardValColor', const Color(0xFF059669)),
+                  bgImage: cfg.getScreenImage('hostAgency', 'balanceCardBgImage', cfg.getScreenImage('agency', 'balanceCardBgImage', '')),
                 ),
               ),
             ],
@@ -647,6 +649,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                   value: '$nextTargetDia 💎',
                   bgColor: cfg.getScreenColor('hostAgency', 'nextTargetCardBg', const Color(0xFFF9FAFB)),
                   valColor: cfg.getScreenColor('hostAgency', 'nextTargetCardValColor', const Color(0xFF6B7280)),
+                  bgImage: cfg.getScreenImage('hostAgency', 'nextTargetCardBgImage', cfg.getScreenImage('agency', 'nextTargetCardBgImage', '')),
                   isDashed: true,
                 ),
               ),
@@ -657,6 +660,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                   value: '${(nextTargetDia - currentDiamonds).clamp(0, nextTargetDia)} 💎',
                   bgColor: cfg.getScreenColor('hostAgency', 'nextRemainingCardBg', const Color(0xFFFFFBEB)),
                   valColor: cfg.getScreenColor('hostAgency', 'nextRemainingCardValColor', const Color(0xFFD97706)),
+                  bgImage: cfg.getScreenImage('hostAgency', 'nextRemainingCardBgImage', cfg.getScreenImage('agency', 'nextRemainingCardBgImage', '')),
                   isDashed: true,
                 ),
               ),
@@ -672,12 +676,15 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
     required String value,
     required Color bgColor,
     required Color valColor,
+    String? bgImage,
     bool isDashed = false,
   }) {
+    final cfg = DynamicConfigService.instance;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: bgColor,
+        image: cfg.getDecorationImage(bgImage),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isDashed ? Colors.grey.withOpacity(0.3) : const Color(0xFFE5E7EB),

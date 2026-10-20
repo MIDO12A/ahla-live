@@ -197,6 +197,10 @@ class _AuthGateState extends State<_AuthGate> {
         (route) => false,
       );
     } else if (mounted) {
+
+
+
+
       await Provider.of<UserProvider>(context, listen: false).loadUser(uid);
     }
   }
