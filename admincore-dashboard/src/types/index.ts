@@ -883,3 +883,18 @@ export interface GiftedItem {
   sentAt: number;
   expiresAt: number;
 }
+
+export interface AgencyLevelModel {
+  id: string;
+  level: number;
+  title: string;
+  required_exp: number;
+  icon_url?: string;
+  badge_url?: string;
+  reward_coins_per_host: number;
+  reward_diamonds_per_host: number;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+

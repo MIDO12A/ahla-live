@@ -1754,7 +1754,6 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final normCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : (rawAgencyRate > 0 ? rawAgencyRate : 0.10);
 
     for (final a in _anchors) {
-      if (a.role == 'owner') continue;
       // نعتمد الألماس الفعلي المحقق للشهر (بما فيه المفكوك) لضمان حماية عمولة وكيل المضيفين بنسبة 100%
       final hostMonthlyDiamonds = a.effectiveDiamonds;
       final hostDays = a.days;
@@ -1789,7 +1788,25 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       }
     }
     final rawTransfer = info?.transferMoney ?? 0;
-    final totalAgencyDiamonds = rawTransfer > 0 ? rawTransfer : totalAnchorsDiamonds;
+    final monthlyFromInfo = info?.totalDiamondsMonthly ?? 0;
+    final totalAgencyDiamonds = [rawTransfer, monthlyFromInfo, totalAnchorsDiamonds].reduce((curr, next) => curr > next ? curr : next);
+
+    if (totalCommissionUsd == 0 && totalAgencyDiamonds > 0 && (info?.milestones?.isNotEmpty ?? false)) {
+      Map<String, dynamic>? agencyMilestone;
+      for (final m in info!.milestones) {
+        final tDia = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
+        if (totalAgencyDiamonds >= tDia && tDia > 0) {
+          agencyMilestone = m;
+        }
+      }
+      if (agencyMilestone != null) {
+        final rewardVal = (agencyMilestone['reward_value'] ?? agencyMilestone['rewardValue'] ?? agencyMilestone['reward'] as num?)?.toDouble() ?? 2.0;
+        final rawComm = (agencyMilestone['agent_commission_rate'] as num?)?.toDouble() ?? normCommRate;
+        final milestoneNormRate = rawComm > 1.0 ? (rawComm / 100.0) : (rawComm > 0 ? rawComm : normCommRate);
+        totalCommissionUsd = rewardVal * milestoneNormRate;
+      }
+    }
+
     final ownerCommissionUsd = totalCommissionUsd > 0
         ? (totalCommissionUsd % 1 == 0 ? totalCommissionUsd.toInt().toString() : totalCommissionUsd.toStringAsFixed(2))
         : '0.00';

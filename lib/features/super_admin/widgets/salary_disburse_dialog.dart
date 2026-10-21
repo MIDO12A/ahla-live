@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/ui/in_app_toast.dart';
 import '../../../models/user_model.dart';
@@ -80,11 +80,32 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
     });
 
     try {
-      final res = await _sb
-          .from('users')
-          .select('uid, id, custom_id, name, photo_url, is_recharge_agent, recharge_agency_name, coins')
-          .or('custom_id.eq.$query,uid.eq.$query,id.eq.$query')
-          .maybeSingle();
+      final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(query);
+      Map<String, dynamic>? res;
+      if (isUuid) {
+        res = await _sb
+            .from('users')
+            .select('uid, id, custom_id, name, photo_url, is_recharge_agent, recharge_agency_name, coins')
+            .or('uid.eq.$query,id.eq.$query,custom_id.eq.$query')
+            .maybeSingle();
+      } else {
+        res = await _sb
+            .from('users')
+            .select('uid, id, custom_id, name, photo_url, is_recharge_agent, recharge_agency_name, coins')
+            .eq('custom_id', query)
+            .maybeSingle();
+        if (res == null) {
+          final list = await _sb
+              .from('users')
+              .select('uid, id, custom_id, name, photo_url, is_recharge_agent, recharge_agency_name, coins')
+              .ilike('name', '%$query%')
+              .eq('is_recharge_agent', true)
+              .limit(1);
+          if (list.isNotEmpty) {
+            res = Map<String, dynamic>.from(list.first as Map);
+          }
+        }
+      }
 
       if (res == null) {
         setState(() {

@@ -951,19 +951,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (_cachedRoomSeatStyle.containsKey(widget.roomId)) {
       _roomSeatStyle = _cachedRoomSeatStyle[widget.roomId]!;
     }
-    SharedPreferences.getInstance().then((prefs) {
-      final savedStyleIdx = prefs.getInt('room_seat_style_${widget.roomId}');
-      final savedCount = prefs.getInt('room_seat_count_${widget.roomId}');
-      if (mounted) {
+    SupabaseDataService().getRoom(widget.roomId).then((room) {
+      if (room != null && mounted) {
         setState(() {
-          if (savedStyleIdx != null && savedStyleIdx >= 0 && savedStyleIdx < seat_model.SeatStyle.values.length) {
-            _roomSeatStyle = seat_model.SeatStyle.values[savedStyleIdx];
-            _cachedRoomSeatStyle[widget.roomId] = _roomSeatStyle;
-          }
-          if (savedCount != null && savedCount > 0 && savedCount != _seats.length) {
-            _cachedRoomSeatCount[widget.roomId] = savedCount;
+          _currentRoom = room;
+          _roomSeatStyle = room.seatStyle;
+          _cachedRoomSeatStyle[widget.roomId] = room.seatStyle;
+          if (room.seatCount > 0 && room.seatCount != _seats.length) {
+            _cachedRoomSeatCount[widget.roomId] = room.seatCount;
             final old = _seats;
-            _seats = List.generate(savedCount, (i) => i < old.length ? old[i] : SeatModel(index: i));
+            _seats = List.generate(room.seatCount, (i) => i < old.length ? old[i] : SeatModel(index: i));
           }
         });
       }
@@ -1913,7 +1910,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final idx = entry.key;
       if (idx < 0 || idx >= newSeats.length) continue;
       final data = entry.value;
-      final uid = data['uid']?.toString();
+      final rawUid = data['uid']?.toString();
+      final uid = (rawUid != null && rawUid.trim().isNotEmpty && rawUid.trim() != 'null') ? rawUid.trim() : null;
       if (uid != null) {
         final isMuted = data['is_muted'] == true;
         if (uid == _currentUserId) {
@@ -3154,6 +3152,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           });
           _firebaseService.updateRoomSeatStyle(widget.roomId, newSeatStyle.index);
           _firebaseService.updateRoomSeatCount(widget.roomId, count);
+          unawaited(SupabaseDataService().updateRoom(widget.roomId, {
+            'seat_style': newSeatStyle.index,
+            'seat_count': count,
+          }));
           // Clean up removed seats in Firebase
           if (count < _seats.length) {
             for (int i = count; i < _seats.length; i++) {
@@ -3180,6 +3182,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       builder: (_) => RoomBackgroundBottomSheet(
         roomId: widget.roomId,
         currentBackground: _currentRoom?.bgImage ?? '',
+        onBackgroundSelected: (url) {
+          if (mounted) {
+            setState(() {
+              if (_currentRoom != null) {
+                _currentRoom = _currentRoom!.copyWith(bgImage: url);
+              }
+            });
+          }
+        },
       ),
     );
   }
@@ -6346,49 +6357,58 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   Future<void> _leaveRoomSession() async {
     final uid = _currentUserId ?? Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
-    if (uid == null || uid.isEmpty) return;
-    final name = _currentUserName;
     final roomId = widget.roomId;
+    final name = _currentUserName;
+
+    final mySeatIdx = _currentUserSeatIndex;
+    _currentUserSeatIndex = null;
+    _takingSeat = false;
+    _pendingSeatIndex = null;
 
     for (int i = 0; i < _seats.length; i++) {
-      if (_seats[i].user?.id == uid) {
+      if ((uid != null && _seats[i].user?.id == uid) || (mySeatIdx != null && i == mySeatIdx)) {
         _seats[i].state = SeatState.empty;
         _seats[i].user = null;
+        _seats[i].isMuted = false;
         try {
           await _firebaseService.leaveSeat(roomId, i);
+        } catch (_) {}
+        try {
+          await SupabaseDataService().leaveSeat(roomId, i);
         } catch (_) {}
       }
     }
 
-    try {
-      await _firebaseService.leaveSeatForUser(roomId, uid);
-    } catch (_) {}
-
-    try {
-      await SupabaseService().leaveSeatForUser(roomId, uid);
-    } catch (_) {}
-
-    try {
-      await SupabaseDataService().leaveSeatForUser(roomId, uid);
-    } catch (_) {}
-
-    try {
-      await Supabase.instance.client
-          .from('room_members')
-          .delete()
-          .eq('room_id', roomId)
-          .eq('uid', uid);
-    } catch (_) {}
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        await _firebaseService.leaveSeatForUser(roomId, uid);
+      } catch (_) {}
+      try {
+        await SupabaseService().leaveSeatForUser(roomId, uid);
+      } catch (_) {}
+      try {
+        await SupabaseDataService().leaveSeatForUser(roomId, uid);
+      } catch (_) {}
+      try {
+        await SupabaseDataService().leaveRoom(roomId, uid);
+      } catch (_) {}
+      try {
+        await Supabase.instance.client
+            .from('room_members')
+            .delete()
+            .eq('room_id', roomId)
+            .eq('uid', uid);
+      } catch (_) {}
+      try {
+        await _firebaseService.leaveRoom(roomId, uid);
+      } catch (_) {}
+    }
 
     if (name != null && name.isNotEmpty) {
       try {
         await _firebaseService.logExit(roomId, name);
       } catch (_) {}
     }
-
-    try {
-      await _firebaseService.leaveRoom(roomId, uid);
-    } catch (_) {}
   }
 
   void _cleanupUserSession() {
@@ -6437,7 +6457,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       setState(() => _showExit = false);
     }
     RoomMusicPlayerService().stop();
+    _isMicOn = false;
     try {
+      _roomAudio.toggleMic(false);
+      _roomAudio.stopPublishingIfActive();
       _roomAudio.leaveChannel();
     } catch (_) {}
     await _leaveRoomSession();

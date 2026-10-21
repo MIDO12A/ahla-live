@@ -13,7 +13,6 @@ import 'agent_recharge/tabs/agent_dashboard_tab.dart';
 import 'agent_recharge/tabs/agent_recharge_tab.dart';
 import 'agent_recharge/tabs/agent_history_tab.dart';
 import 'agent_recharge/tabs/agent_diamond_tab.dart';
-import 'agent_recharge/tabs/agent_usd_tab.dart';
 import 'agent_recharge_widgets.dart';
 import '../../services/dynamic_config_service.dart';
 
@@ -23,7 +22,6 @@ import '../../services/dynamic_config_service.dart';
 //  ► Tab 1: 💸 شحن مستخدم   → AgentRechargeTab
 //  ► Tab 2: 📋 سجل العمليات  → AgentHistoryTab
 //  ► Tab 3: 💎 ألماسي        → AgentDiamondWalletTab
-//  ► Tab 4: 💵 الدولار       → AgentUsdWalletTab
 // ══════════════════════════════════════════════════════════════════════
 class AgentRechargePortalScreen extends StatefulWidget {
   const AgentRechargePortalScreen({super.key});
@@ -42,7 +40,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 5, vsync: this);
+    _tabs = TabController(length: 4, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) {
         _loadDashboard();
@@ -141,23 +139,67 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
               userProvider.setUser(sbUser);
             }
 
+            int todayTotal = 0;
+            int todayCount = 0;
+            int weekTotal = 0;
+            int weekCount = 0;
+            int monthTotal = 0;
+            int monthCount = 0;
+            int allTotal = 0;
+            int allCount = 0;
+
+            try {
+              final txns = await Supabase.instance.client
+                  .from('agent_recharge_transactions')
+                  .select('amount_coins, created_at')
+                  .eq('agent_id', uid);
+
+              final now = DateTime.now();
+              final todayStart = DateTime(now.year, now.month, now.day);
+              final weekStart = todayStart.subtract(Duration(days: (now.weekday % 7)));
+              final monthStart = DateTime(now.year, now.month, 1);
+
+              for (final t in (txns as List<dynamic>)) {
+                final amt = (t['amount_coins'] as num?)?.toInt() ?? 0;
+                final dt = DateTime.tryParse(t['created_at']?.toString() ?? '')?.toLocal();
+                allTotal += amt;
+                allCount++;
+                if (dt != null) {
+                  if (dt.isAfter(monthStart) || dt.isAtSameMomentAs(monthStart)) {
+                    monthTotal += amt;
+                    monthCount++;
+                  }
+                  if (dt.isAfter(weekStart) || dt.isAtSameMomentAs(weekStart)) {
+                    weekTotal += amt;
+                    weekCount++;
+                  }
+                  if (dt.isAfter(todayStart) || dt.isAtSameMomentAs(todayStart)) {
+                    todayTotal += amt;
+                    todayCount++;
+                  }
+                }
+              }
+            } catch (e) {
+              debugPrint('[agent_recharge] stats error: $e');
+            }
+
             setState(() {
               _isAgent = true;
               _dashboard = AgentDashboardData(
                 enabled: true,
                 pinSet: pin != null && pin.isNotEmpty,
-                dailyLimit: 10000000,
+                dailyLimit: 999999999,
                 agencyGold: agencyCoins,
                 agentPublicId: customId,
-                todayTotal: 0,
-                todayCount: 0,
-                todayRemaining: 10000000,
-                weekTotal: 0,
-                weekCount: 0,
-                monthTotal: 0,
-                monthCount: 0,
-                allTotal: 0,
-                allCount: 0,
+                todayTotal: todayTotal,
+                todayCount: todayCount,
+                todayRemaining: 999999999,
+                weekTotal: weekTotal,
+                weekCount: weekCount,
+                monthTotal: monthTotal,
+                monthCount: monthCount,
+                allTotal: allTotal,
+                allCount: allCount,
                 weekChart: const [],
                 recentTxns: const [],
                 quickAmounts: const [1000, 5000, 10000, 50000, 100000],
@@ -242,7 +284,6 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
             Tab(text: dc.agentRechargeTabRecharge),
             Tab(text: dc.agentRechargeTabHistory),
             Tab(text: dc.agentRechargeTabDiamond),
-            Tab(text: dc.agentRechargeTabUsd),
           ],
         ),
       ),
@@ -271,7 +312,6 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
               ),
               const AgentHistoryTab(),
               const AgentDiamondWalletTab(),
-              const AgentUsdWalletTab(),
             ],
           ),
         ),

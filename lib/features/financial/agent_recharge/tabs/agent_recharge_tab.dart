@@ -812,13 +812,9 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     }
 
     if (!_isWithdrawMode) {
-      // وضع الشحن: التحقق من رصيد الوكيل والحد اليومي
+      // وضع الشحن: التحقق من رصيد محفظة الوكالة
       if (amount > widget.agencyGold) {
         _showSnack('رصيد الوكالة غير كافٍ للشحن (رصيدك الحالي: ${widget.agencyGold} كوين)');
-        return;
-      }
-      if (amount > widget.dailyRemaining) {
-        _showSnack('يتجاوز الحد اليومي المتبقي (${widget.dailyRemaining} كوين)');
         return;
       }
     } else {

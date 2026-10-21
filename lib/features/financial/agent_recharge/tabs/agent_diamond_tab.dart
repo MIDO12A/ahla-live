@@ -989,9 +989,15 @@ class _ExchangeBottomSheetContentState
             const Expanded(child: Center(child: CircularProgressIndicator(color: Color(0xFFFFD700))))
           else
             Expanded(
-              child: ListView.separated(
+              child: GridView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 1.0,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
                 itemCount: _tiers.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (ctx, i) {
                   final t = _tiers[i];
                   final cost = (t['diamonds_cost'] as num?)?.toInt() ?? 0;
@@ -1001,104 +1007,171 @@ class _ExchangeBottomSheetContentState
                   final usd = t['usd_amount'] != null ? '\$${t['usd_amount']}' : '';
                   final canAfford = widget.currentBalance >= cost;
 
-                  return Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1B1D2A),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: canAfford ? const Color(0xFFFFD700).withValues(alpha: 0.3) : Colors.white10,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        // USD pill
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFD700).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.4)),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            usd,
-                            style: GoogleFonts.tajawal(
-                              color: const Color(0xFFFFD700),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        if (canAfford) {
+                          _handleExchange(t);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'ليس لديك ماس كافي للتحويل',
+                                style: GoogleFonts.tajawal(fontWeight: FontWeight.bold),
+                              ),
+                              backgroundColor: Colors.redAccent,
+                              duration: const Duration(seconds: 2),
                             ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: canAfford
+                                ? [const Color(0xFF1E2235), const Color(0xFF181B2B)]
+                                : [const Color(0xFF161722), const Color(0xFF11121A)],
                           ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: canAfford
+                                ? const Color(0xFFFFD700).withValues(alpha: 0.4)
+                                : Colors.white10,
+                            width: canAfford ? 1.5 : 1,
+                          ),
+                          boxShadow: canAfford
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(0xFFFFD700).withValues(alpha: 0.08),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
+                              : null,
                         ),
-                        const SizedBox(width: 12),
-
-                        // Info
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    title,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Top Row: USD + Badge
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.3)),
+                                  ),
+                                  child: Text(
+                                    usd,
                                     style: GoogleFonts.tajawal(
-                                      color: Colors.white,
-                                      fontSize: 14,
+                                      color: const Color(0xFFFFD700),
                                       fontWeight: FontWeight.bold,
+                                      fontSize: 11,
                                     ),
                                   ),
-                                  if (badge != null && badge.isNotEmpty) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: Colors.amber.withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(6),
+                                ),
+                                if (badge != null && badge.isNotEmpty)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      badge,
+                                      style: GoogleFonts.tajawal(
+                                        color: Colors.amber,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                                      child: Text(
-                                        badge,
-                                        style: GoogleFonts.tajawal(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                              ],
+                            ),
+
+                            // Middle: Coins Received + Title
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.tajawal(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text('🪙', style: TextStyle(fontSize: 14)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$coins',
+                                      style: GoogleFonts.tajawal(
+                                        color: const Color(0xFFFFD700),
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 17,
                                       ),
                                     ),
                                   ],
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Text(
-                                    'خصم: $cost 💎',
-                                    style: GoogleFonts.tajawal(color: Colors.cyanAccent, fontSize: 12),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'خصم: $cost 💎',
+                                  style: GoogleFonts.tajawal(
+                                    color: Colors.cyanAccent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
                                   ),
-                                  const SizedBox(width: 8),
-                                  const Icon(Icons.arrow_forward_rounded, size: 12, color: Colors.white38),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'استلام: $coins 🪙',
-                                    style: GoogleFonts.tajawal(color: const Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+                                ),
+                              ],
+                            ),
 
-                        // Action button
-                        ElevatedButton(
-                          onPressed: canAfford ? () => _handleExchange(t) : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: canAfford ? const Color(0xFFFFD700) : Colors.white12,
-                            foregroundColor: canAfford ? Colors.black : Colors.white38,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: Text(
-                            canAfford ? 'صرف' : 'غير كافٍ',
-                            style: GoogleFonts.tajawal(fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
+                            // Bottom Button / Status
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 5),
+                              decoration: BoxDecoration(
+                                color: canAfford
+                                    ? const Color(0xFFFFD700)
+                                    : Colors.white.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              alignment: Alignment.center,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    canAfford ? Icons.flash_on_rounded : Icons.lock_outline_rounded,
+                                    size: 13,
+                                    color: canAfford ? Colors.black : Colors.white38,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    canAfford ? 'صرف الآن' : 'غير كافٍ',
+                                    style: GoogleFonts.tajawal(
+                                      color: canAfford ? Colors.black : Colors.white38,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   );
                 },

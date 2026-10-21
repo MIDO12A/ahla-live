@@ -37,6 +37,8 @@ class AgentInfoModel {
   final String periodType;
   final List<Map<String, dynamic>> milestones;
 
+  int get totalDiamondsMonthly => transferMoney;
+
   const AgentInfoModel({
     this.userId = 0,
     this.agentBean = 0,

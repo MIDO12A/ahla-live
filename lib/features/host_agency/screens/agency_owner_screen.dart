@@ -1659,9 +1659,13 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   Widget _buildAgencySalaryTab(AgentInfoModel info, DynamicConfigService cfg) {
     int totalMembersDiamonds = 0;
     for (final m in _members) {
-      if (m.role != 'owner') {
-        totalMembersDiamonds += m.effectiveDiamonds;
-      }
+      totalMembersDiamonds += m.effectiveDiamonds;
+    }
+    if (info.totalDiamondsMonthly > totalMembersDiamonds) {
+      totalMembersDiamonds = info.totalDiamondsMonthly;
+    }
+    if (info.transferMoney > totalMembersDiamonds) {
+      totalMembersDiamonds = info.transferMoney;
     }
     
     // مستهدف الوكالة مأخوذ مباشرة من تارجت لوحة التحكم ولا يعود لمليون أبداً
@@ -1695,8 +1699,8 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
           .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
 
+    // فحص جميع الأعضاء المحققين للتارجت
     for (final m in _members) {
-      if (m.role == 'owner') continue;
       // نعتمد الألماس الفعلي المحقق (شاملاً المفكوك) لتبقى عمولة الوكيل 100% محفوظة ولا تتأثر بالفك إطلاقاً
       final hostDia = m.effectiveDiamonds;
       final hostDays = m.days;
@@ -1732,6 +1736,25 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         final normCommRate = rawComm > 1.0 ? (rawComm / 100.0) : (rawComm > 0 ? rawComm : 0.10);
         final hostCommissionUsd = rewardVal * normCommRate;
         totalCommissionUsd += hostCommissionUsd;
+      }
+    }
+
+    // إذا لم يكن هناك أعضاء محققين فردياً لكن الوكالة حققت ألماس إجمالي
+    if (totalCommissionUsd == 0 && totalMembersDiamonds > 0 && sortedMilestones.isNotEmpty) {
+      Map<String, dynamic>? agencyMilestone;
+      for (final ms in sortedMilestones) {
+        final tDia = (ms['target_diamonds'] ?? ms['targetDiamonds'] as num?)?.toInt() ?? 0;
+        if (totalMembersDiamonds >= tDia && tDia > 0) {
+          agencyMilestone = ms;
+        }
+      }
+      if (agencyMilestone != null) {
+        final rewardVal = (agencyMilestone['reward_value'] ?? agencyMilestone['rewardValue'] ?? agencyMilestone['reward'] as num?)?.toDouble() ?? 2.0;
+        final rawComm = (agencyMilestone['agent_commission_rate'] as num?)?.toDouble() ?? agencyCommRate;
+        final normCommRate = rawComm > 1.0 ? (rawComm / 100.0) : (rawComm > 0 ? rawComm : 0.10);
+        totalCommissionUsd = rewardVal * normCommRate;
+        totalDueSalaries = rewardVal;
+        completedHostsCount = 1;
       }
     }
 

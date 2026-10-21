@@ -15,11 +15,13 @@ import 'svga_player.dart';
 class RoomBackgroundBottomSheet extends StatefulWidget {
   final String roomId;
   final String currentBackground;
+  final ValueChanged<String>? onBackgroundSelected;
   
   const RoomBackgroundBottomSheet({
     super.key,
     required this.roomId,
     required this.currentBackground,
+    this.onBackgroundSelected,
   });
 
   @override
@@ -95,6 +97,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
   void _applyBackground(String url) async {
     try {
       await _db.updateRoomBackground(widget.roomId, url);
+      widget.onBackgroundSelected?.call(url);
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(

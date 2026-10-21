@@ -28,14 +28,6 @@ class AgentDashboardTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = dashboard;
-    final pct = d.dailyLimit > 0
-        ? (d.todayTotal / d.dailyLimit).clamp(0.0, 1.0)
-        : 0.0;
-    final barColor = pct < 0.7
-        ? const Color(0xFF4CAF50)
-        : pct < 0.9
-            ? const Color(0xFFFF9800)
-            : Colors.red;
 
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
@@ -43,7 +35,7 @@ class AgentDashboardTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
         children: [
-          _buildDailyLimitCard(d, pct, barColor),
+          _buildAgencySummaryCard(d),
           const SizedBox(height: 14),
           _buildKpiGrid(d),
           const SizedBox(height: 14),
@@ -57,91 +49,112 @@ class AgentDashboardTab extends StatelessWidget {
     );
   }
 
-  // ─── Daily Limit Card ────────────────────────────────────────────
-  Widget _buildDailyLimitCard(AgentDashboardData d, double pct, Color barColor) {
+  // ─── Agency Wallet Summary Card ──────────────────────────────────
+  Widget _buildAgencySummaryCard(AgentDashboardData d) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF1a0a2e), Color(0xFF2d1b69)],
+          colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2d1b69).withValues(alpha: 0.4),
+            color: const Color(0xFF16213E).withValues(alpha: 0.4),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
+        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.3)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('الحد اليومي للشحن',
-              style: GoogleFonts.tajawal(
-                  fontSize: 13,
-                  color: Colors.white60,
-                  fontWeight: FontWeight.w700)),
+          Row(
+            children: [
+              const Text('🏅', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 6),
+              Text(
+                'رصيد محفظة وكالة الشحن',
+                style: GoogleFonts.tajawal(
+                  fontSize: 14,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: barColor.withValues(alpha: 0.2),
+              color: const Color(0xFFFFD700).withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: barColor.withValues(alpha: 0.5)),
+              border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5)),
             ),
-            child: Text('${(pct * 100).toStringAsFixed(0)}%',
-                style: GoogleFonts.tajawal(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: barColor)),
+            child: Text(
+              'وكالة نشطة ⚡',
+              style: GoogleFonts.tajawal(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                color: const Color(0xFFFFD700),
+              ),
+            ),
           ),
         ]),
         const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_fmt(d.todayTotal),
-                  style: GoogleFonts.tajawal(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white)),
-              Text('كوين شُحن اليوم',
-                  style: GoogleFonts.tajawal(fontSize: 11, color: Colors.white54)),
-            ]),
-          ),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('المتبقي',
-                style: GoogleFonts.tajawal(fontSize: 10, color: Colors.white38)),
-            Text(_fmt(d.todayRemaining),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                '${_fmt(d.agencyGold)} 🪙',
                 style: GoogleFonts.tajawal(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: const Color(0xFF4CAF50))),
-            Text('من ${_fmt(d.dailyLimit)}',
-                style: GoogleFonts.tajawal(fontSize: 10, color: Colors.white38)),
-          ]),
-        ]),
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFFFFD700),
+                ),
+              ),
+              Text(
+                'كوين متاح لشحن المستخدمين',
+                style: GoogleFonts.tajawal(fontSize: 11, color: Colors.white54),
+              ),
+            ]),
+            ElevatedButton.icon(
+              onPressed: onGoRecharge,
+              icon: const Icon(Icons.send_rounded, size: 14),
+              label: Text('شحن فوري', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold, fontSize: 12)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFD700),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 14),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: pct,
-            backgroundColor: Colors.white12,
-            valueColor: AlwaysStoppedAnimation(barColor),
-            minHeight: 8,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '⚡ إجمالي شحن اليوم: ${_fmt(d.todayTotal)} كوين',
+                style: GoogleFonts.tajawal(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                '${d.todayCount} عملية اليوم',
+                style: GoogleFonts.tajawal(fontSize: 11, color: Colors.white70),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('${d.todayCount} معاملة اليوم',
-              style: GoogleFonts.tajawal(fontSize: 11, color: Colors.white54)),
-          Text('محفظة الوكالة: 🏅 ${_fmt(d.agencyGold)}',
-              style: GoogleFonts.tajawal(
-                  fontSize: 11,
-                  color: const Color(0xFFFFB800),
-                  fontWeight: FontWeight.w700)),
-        ]),
       ]),
     );
   }

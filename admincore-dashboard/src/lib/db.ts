@@ -10,6 +10,7 @@ import type {
   AgencyJoinRequestModel, AgencyLedgerEntryModel, AgencyWithdrawalRequestModel,
   HostAgencyModel, CpGiftModel, CpCarModel, CpEventSettings, CpRankRewardModel,
   SigninRewardModel, AgencyApplicationModel, HostRechargeRecord,
+  AgencyLevelModel,
 } from '../types'
 
 // ---- Auth Admin ----
@@ -6779,4 +6780,161 @@ export async function getSalaryTransfers(): Promise<SalaryTransferRequest[]> {
     return [];
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+//  AGENCY LEVELS, EXP, AND HOST LEVEL-UP REWARDS
+// ══════════════════════════════════════════════════════════════
+
+export async function getAgencyLevels(): Promise<AgencyLevelModel[]> {
+  try {
+    const raw = await getAppConfig<AgencyLevelModel[]>('agency_levels_config');
+    if (raw && Array.isArray(raw) && raw.length > 0) {
+      return raw.sort((a, b) => a.level - b.level);
+    }
+  } catch (e) {
+    console.error('getAgencyLevels error:', e);
+  }
+
+  // Default levels if not yet configured
+  return [
+    {
+      id: 'lvl_1',
+      level: 1,
+      title: 'وكالة برونزية (Bronze)',
+      required_exp: 0,
+      reward_coins_per_host: 0,
+      reward_diamonds_per_host: 0,
+      description: 'المستوى الافتراضي عند فتح الوكالة',
+    },
+    {
+      id: 'lvl_2',
+      level: 2,
+      title: 'وكالة فضية (Silver)',
+      required_exp: 50000,
+      reward_coins_per_host: 500,
+      reward_diamonds_per_host: 0,
+      description: 'مكافأة 500 كوين لكل مضيف نشط بالوكالة',
+    },
+    {
+      id: 'lvl_3',
+      level: 3,
+      title: 'وكالة ذهبية (Gold)',
+      required_exp: 200000,
+      reward_coins_per_host: 1500,
+      reward_diamonds_per_host: 0,
+      description: 'مكافأة 1,500 كوين لكل مضيف نشط بالوكالة',
+    },
+    {
+      id: 'lvl_4',
+      level: 4,
+      title: 'وكالة بلاتينية (Platinum)',
+      required_exp: 500000,
+      reward_coins_per_host: 3000,
+      reward_diamonds_per_host: 0,
+      description: 'مكافأة 3,000 كوين لكل مضيف نشط بالوكالة',
+    },
+    {
+      id: 'lvl_5',
+      level: 5,
+      title: 'وكالة ماسية (Diamond)',
+      required_exp: 1000000,
+      reward_coins_per_host: 10000,
+      reward_diamonds_per_host: 0,
+      description: 'مكافأة 10,000 كوين لكل مضيف نشط بالوكالة',
+    },
+  ];
+}
+
+export async function saveAgencyLevels(levels: AgencyLevelModel[]): Promise<boolean> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const sorted = [...levels].sort((a, b) => a.level - b.level);
+    await client.from('app_config').upsert({
+      key: 'agency_levels_config',
+      value: sorted,
+    });
+    return true;
+  } catch (e) {
+    console.error('saveAgencyLevels error:', e);
+    return false;
+  }
+}
+
+export async function distributeAgencyLevelReward(
+  agencyId: string,
+  level: AgencyLevelModel
+): Promise<{ count: number; coins: number; diamonds: number }> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    // 1. Get all active members/hosts of this agency
+    const { data: members, error: mErr } = await client
+      .from('host_agency_members')
+      .select('host_uid, user_id, role, status')
+      .eq('agency_id', agencyId)
+      .eq('status', 'active');
+
+    if (mErr || !members || members.length === 0) {
+      return { count: 0, coins: 0, diamonds: 0 };
+    }
+
+    const hostUids = members
+      .map((m: any) => m.host_uid || m.user_id)
+      .filter((u: string) => Boolean(u));
+
+    const coinReward = Number(level.reward_coins_per_host || 0);
+    const diamondReward = Number(level.reward_diamonds_per_host || 0);
+
+    let distributedCount = 0;
+
+    for (const uid of hostUids) {
+      try {
+        const { data: uData } = await client.from('users').select('coins, diamonds').eq('uid', uid).maybeSingle();
+        if (uData) {
+          const newCoins = Number(uData.coins || 0) + coinReward;
+          const newDiamonds = Number(uData.diamonds || 0) + diamondReward;
+          await client.from('users').update({
+            coins: newCoins,
+            diamonds: newDiamonds,
+          }).eq('uid', uid);
+
+          // Send notification to each host
+          await sendSystemNotification(
+            uid,
+            'مكافأة ارتقاء مستوى الوكالة 🏆🎉',
+            `مبروك! وصلت وكالتك للمستوى ${level.level} (${level.title}). تم إيداع مكافأتك ${coinReward > 0 ? coinReward + ' كوينز 🪙' : ''} ${diamondReward > 0 ? diamondReward + ' ماسة 💎' : ''} في محفظتك!`
+          );
+
+          distributedCount++;
+        }
+      } catch (err) {
+        console.warn(`Failed to distribute reward to host ${uid}:`, err);
+      }
+    }
+
+    // Update agency level in host_agencies
+    await client
+      .from('host_agencies')
+      .update({ level: level.level, updated_at: new Date().toISOString() })
+      .eq('id', agencyId);
+
+    // Record in agency ledger
+    try {
+      await client.from('agency_ledger').insert({
+        id: `lvl_rew_${Date.now()}_${agencyId}`,
+        agency_id: agencyId,
+        entry_type: 'level_reward',
+        amount: coinReward * distributedCount,
+        currency: 'coins',
+        description: `توزيع مكافأة المستوى ${level.level} (${level.title}) على ${distributedCount} مضيف`,
+        created_at: new Date().toISOString(),
+      });
+    } catch (_) {}
+
+    return { count: distributedCount, coins: coinReward * distributedCount, diamonds: diamondReward * distributedCount };
+  } catch (e) {
+    console.error('distributeAgencyLevelReward error:', e);
+    throw e;
+  }
+}
+
 

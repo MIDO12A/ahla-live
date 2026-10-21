@@ -614,7 +614,9 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
         final kid = (agent['kayan_id'] ?? '').toString().toLowerCase();
         final name = (agent['display_name'] ?? '').toString().toLowerCase();
         final agName = (agent['recharge_agency_name'] ?? '').toString().toLowerCase();
-        return kid.contains(query) || name.contains(query) || agName.contains(query);
+        final phone = (agent['whatsapp_number'] ?? '').toString().toLowerCase();
+        final uid = (agent['id'] ?? agent['uid'] ?? '').toString().toLowerCase();
+        return kid.contains(query) || name.contains(query) || agName.contains(query) || phone.contains(query) || uid.contains(query);
       }).toList();
     });
   }

@@ -130,7 +130,13 @@ class MinimizedRoomService extends ChangeNotifier {
         await SupabaseService().leaveSeatForUser(oldRoomId, userId);
       } catch (_) {}
       try {
+        await SupabaseDataService().leaveSeatForUser(oldRoomId, userId);
+      } catch (_) {}
+      try {
         await SupabaseService().leaveRoom(oldRoomId, userId);
+      } catch (_) {}
+      try {
+        await SupabaseDataService().leaveRoom(oldRoomId, userId);
       } catch (_) {}
       try {
         await RoomAudioService().leaveChannel();

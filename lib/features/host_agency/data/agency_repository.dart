@@ -1518,8 +1518,8 @@ abstract final class AgencyRepository {
     try {
       final uResp = await _sb
           .from('users')
-          .select('id, uid, name, avatar, custom_id, is_recharge_agent, is_agent, recharge_agency_name, recharge_agency_logo, whatsapp_number')
-          .or('is_recharge_agent.eq.true,is_agent.eq.true')
+          .select('id, uid, name, avatar, photo_url, custom_id, is_recharge_agent, recharge_agency_name, recharge_agency_logo, whatsapp_number')
+          .eq('is_recharge_agent', true)
           .limit(100);
 
       for (final e in (uResp as List<dynamic>)) {
@@ -1547,10 +1547,12 @@ abstract final class AgencyRepository {
         addAgent({
           'id': m['uid'] ?? m['id'],
           'display_name': agentName,
-          'avatar_url': m['avatar'] ?? '',
+          'avatar_url': (m['avatar'] != null && m['avatar'].toString().trim().isNotEmpty)
+              ? m['avatar'].toString()
+              : (m['photo_url']?.toString() ?? ''),
           'kayan_id': customId,
           'recharge_agency_name': agencyName,
-          'recharge_agency_logo': logo,
+          'recharge_agency_logo': logo.isNotEmpty ? logo : (m['photo_url']?.toString() ?? ''),
           'whatsapp_number': m['whatsapp_number'] ?? '',
         });
       }

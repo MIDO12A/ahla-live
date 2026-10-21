@@ -3,6 +3,7 @@ import {
   HostAgencyModel, HostAgencyMemberModel, CommissionSettingModel,
   HostMilestoneModel, AgencyJoinRequestModel, AgencyLedgerEntryModel,
   AgencyWithdrawalRequestModel, AgencyApplicationModel, HostRechargeRecord,
+  AgencyLevelModel,
 } from '../types';
 import {
   getHostAgencies, createHostAgency, updateHostAgency, deleteHostAgency,
@@ -21,6 +22,7 @@ import {
   getAgencyLedger, getWithdrawalRequests, approveWithdrawal, rejectWithdrawal,
   getAppConfig, updateAppConfig,
   searchUserProfile, sendSystemNotification, sendAgencyInvitation,
+  getAgencyLevels, saveAgencyLevels, distributeAgencyLevelReward,
 } from '../lib/db';
 import { uploadStoreItem } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -31,7 +33,7 @@ import { canUserAccess } from '../lib/permissions';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
 import {
-  Handshake, Users, UserPlus, Wallet, Target, Settings, Sparkles,
+  Handshake, Users, UserPlus, Wallet, Target, Settings, Sparkles, Award,
   Save, CheckCircle2, RefreshCw, ClipboardCheck, Plus, Trash2, Edit3,
   XCircle, Check, ShieldCheck, UserMinus, Eye, ExternalLink,
   ArrowRightLeft, RotateCcw, Coins, FileText, AlertTriangle,
@@ -124,6 +126,7 @@ function UserSearchPreview({ query, onSelect }: { query?: string | null; onSelec
 
 const tabs = [
   { key: 'agencies', permKey: 'agency', label: 'الوكالات', labelKey: 'agency.agencies', icon: Handshake },
+  { key: 'agency_levels', permKey: 'agency', label: 'مستويات ونقاط خبرة الوكالة والمكافآت', labelKey: 'agency.levels', icon: Award },
   { key: 'recharge_agencies', permKey: 'agency_recharge', label: 'وكالات الشحن والرواتب', labelKey: 'agency.rechargeAgencies', icon: Wallet },
   { key: 'agency_requests', permKey: 'agency_requests', label: 'طلبات فتح الوكالات', labelKey: 'agency.agencyRequests', icon: ClipboardCheck },
   { key: 'milestones', permKey: 'agency_milestones', label: 'المراحل والتارجت والرواتب', labelKey: 'agency.milestones', icon: Target },
@@ -187,6 +190,7 @@ export default function AgencyPage() {
             ))}
           </div>
           {tab === 'agencies' && canUserAccess(currentUser, 'agency') && <AgenciesTab onViewMembers={handleViewAgencyMembers} />}
+          {tab === 'agency_levels' && canUserAccess(currentUser, 'agency') && <AgencyLevelsTab />}
           {tab === 'recharge_agencies' && canUserAccess(currentUser, 'agency_recharge') && <RechargeAgenciesTab />}
           {tab === 'agency_requests' && canUserAccess(currentUser, 'agency_requests') && <AgencyRequestsTab />}
           {tab === 'milestones' && canUserAccess(currentUser, 'agency_milestones') && <MilestonesTab />}
@@ -3735,6 +3739,431 @@ function AgencyRecordModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* =============================================================
+   AGENCY LEVELS & HOST LEVEL-UP REWARDS TAB
+   ============================================================= */
+function AgencyLevelsTab() {
+  const [levels, setLevels] = useState<AgencyLevelModel[]>([]);
+  const [agencies, setAgencies] = useState<HostAgencyModel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Form state
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formLevel, setFormLevel] = useState<number>(1);
+  const [formTitle, setFormTitle] = useState('');
+  const [formExp, setFormExp] = useState<number>(50000);
+  const [formCoins, setFormCoins] = useState<number>(500);
+  const [formDiamonds, setFormDiamonds] = useState<number>(0);
+  const [formDesc, setFormDesc] = useState('');
+  const [formIcon, setFormIcon] = useState('');
+
+  // Reward distribution modal
+  const [rewardLevel, setRewardLevel] = useState<AgencyLevelModel | null>(null);
+  const [targetAgencyId, setTargetAgencyId] = useState('');
+  const [distributing, setDistributing] = useState(false);
+  const [distributeResult, setDistributeResult] = useState<string | null>(null);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [lvls, ags] = await Promise.all([
+        getAgencyLevels(),
+        getHostAgencies(),
+      ]);
+      setLevels(lvls);
+      setAgencies(ags);
+    } catch (e: any) {
+      setMsg({ type: 'error', text: 'فشل تحميل بيانات مستويات الوكالة: ' + e?.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleOpenAdd = () => {
+    const nextLevel = levels.length > 0 ? Math.max(...levels.map(l => l.level)) + 1 : 1;
+    setEditingId(null);
+    setFormLevel(nextLevel);
+    setFormTitle(`وكالة مستوى ${nextLevel}`);
+    setFormExp(nextLevel * 100000);
+    setFormCoins(nextLevel * 1000);
+    setFormDiamonds(0);
+    setFormDesc(`مكافأة ارتقاء لمستوى ${nextLevel}`);
+    setFormIcon('');
+    setShowForm(true);
+    setMsg(null);
+  };
+
+  const handleOpenEdit = (lvl: AgencyLevelModel) => {
+    setEditingId(lvl.id);
+    setFormLevel(lvl.level);
+    setFormTitle(lvl.title);
+    setFormExp(lvl.required_exp);
+    setFormCoins(lvl.reward_coins_per_host);
+    setFormDiamonds(lvl.reward_diamonds_per_host || 0);
+    setFormDesc(lvl.description || '');
+    setFormIcon(lvl.icon_url || '');
+    setShowForm(true);
+    setMsg(null);
+  };
+
+  const handleSaveLevel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formTitle.trim()) {
+      setMsg({ type: 'error', text: 'يرجى إدخال اسم المستوى' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let updated: AgencyLevelModel[];
+      if (editingId) {
+        updated = levels.map(l => l.id === editingId ? {
+          ...l,
+          level: Number(formLevel),
+          title: formTitle.trim(),
+          required_exp: Number(formExp),
+          reward_coins_per_host: Number(formCoins),
+          reward_diamonds_per_host: Number(formDiamonds),
+          description: formDesc.trim(),
+          icon_url: formIcon.trim(),
+          updated_at: new Date().toISOString(),
+        } : l);
+      } else {
+        const newLvl: AgencyLevelModel = {
+          id: `lvl_${Date.now()}`,
+          level: Number(formLevel),
+          title: formTitle.trim(),
+          required_exp: Number(formExp),
+          reward_coins_per_host: Number(formCoins),
+          reward_diamonds_per_host: Number(formDiamonds),
+          description: formDesc.trim(),
+          icon_url: formIcon.trim(),
+          created_at: new Date().toISOString(),
+        };
+        updated = [...levels, newLvl];
+      }
+
+      await saveAgencyLevels(updated);
+      setLevels(updated.sort((a, b) => a.level - b.level));
+      setShowForm(false);
+      setEditingId(null);
+      setMsg({ type: 'success', text: 'تم حفظ المستوى بنجاح!' });
+    } catch (e: any) {
+      setMsg({ type: 'error', text: 'تعذر حفظ المستوى: ' + e?.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteLevel = async (id: string) => {
+    if (!window.confirm('هل أنت متأكد من حذف هذا المستوى؟')) return;
+    setSaving(true);
+    try {
+      const updated = levels.filter(l => l.id !== id);
+      await saveAgencyLevels(updated);
+      setLevels(updated);
+      setMsg({ type: 'success', text: 'تم حذف المستوى بنجاح!' });
+    } catch (e: any) {
+      setMsg({ type: 'error', text: 'تعذر الحذف: ' + e?.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDistributeReward = async () => {
+    if (!rewardLevel || !targetAgencyId) {
+      setMsg({ type: 'error', text: 'يرجى اختيار الوكالة المستحقة' });
+      return;
+    }
+    setDistributing(true);
+    setDistributeResult(null);
+    try {
+      const res = await distributeAgencyLevelReward(targetAgencyId, rewardLevel);
+      setDistributeResult(`✅ تم بنجاح توزيع ${res.coins.toLocaleString()} كوينز على ${res.count} مضيف نشط في الوكالة، وتم رفع مستوى الوكالة وإرسال الإشعارات.`);
+      loadData();
+    } catch (e: any) {
+      setDistributeResult(`❌ فشل توزيع المكافأة: ${e?.message}`);
+    } finally {
+      setDistributing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-12 text-center text-slate-400">
+        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-400" />
+        جاري تحميل مستويات ونقاط خبرة الوكالة...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header card */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-purple-500/10 border border-amber-500/20 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 className="text-white text-base font-bold flex items-center gap-2">
+            <Award className="w-5 h-5 text-amber-400" />
+            إدارة مستويات ونقاط خبرة الوكالة (EXP) ومكافآت المضيفين
+          </h3>
+          <p className="text-slate-400 text-xs mt-1">
+            حدد نقاط الخبرة المطلوبة لكل مستوى، وأضف مستويات جديدة، وحدد المكافآت التي تنزل لجميع مضيفي الوكالة عند بلوغ المستوى.
+          </p>
+        </div>
+        <button
+          onClick={handleOpenAdd}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold text-xs rounded-xl shadow-lg transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          إضافة مستوى وكالة جديد
+        </button>
+      </div>
+
+      {msg && (
+        <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${msg.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'}`}>
+          {msg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+          <span>{msg.text}</span>
+        </div>
+      )}
+
+      {/* Levels Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {levels.map((lvl) => (
+          <div
+            key={lvl.id}
+            className="p-5 rounded-2xl bg-[#141417] border border-white/5 hover:border-amber-500/30 transition-all flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  المستوى {lvl.level}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleOpenEdit(lvl)}
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300"
+                    title="تعديل"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteLevel(lvl.id)}
+                    className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400"
+                    title="حذف"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <h4 className="text-white font-bold text-base mb-1">{lvl.title}</h4>
+              <p className="text-slate-400 text-xs mb-3">{lvl.description || 'لا يوجد وصف'}</p>
+
+              <div className="space-y-2 py-3 border-y border-white/5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">نقاط الخبرة المطلوبة:</span>
+                  <span className="text-indigo-400 font-mono font-bold">⚡ {lvl.required_exp.toLocaleString()} EXP</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">مكافأة كل مضيف بالوكالة:</span>
+                  <span className="text-amber-400 font-bold">🪙 {lvl.reward_coins_per_host.toLocaleString()} كوين</span>
+                </div>
+                {lvl.reward_diamonds_per_host ? (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">مكافأة الماس لكل مضيف:</span>
+                    <span className="text-cyan-400 font-bold">💎 {lvl.reward_diamonds_per_host.toLocaleString()}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3">
+              <button
+                onClick={() => {
+                  setRewardLevel(lvl);
+                  setTargetAgencyId(agencies[0]?.id || '');
+                  setDistributeResult(null);
+                }}
+                className="w-full py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl border border-indigo-500/30 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                توزيع مكافأة هذا المستوى للوكالة الآن
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Add / Edit Modal */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#18181b] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-white text-base font-bold flex items-center gap-2">
+              <Award className="w-4 h-4 text-amber-400" />
+              {editingId ? 'تعديل مستوى الوكالة' : 'إضافة مستوى وكالة جديد'}
+            </h3>
+
+            <form onSubmit={handleSaveLevel} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">رقم المستوى</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={formLevel}
+                    onChange={e => setFormLevel(parseInt(e.target.value) || 1)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">نقاط الخبرة (EXP)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    value={formExp}
+                    onChange={e => setFormExp(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 block mb-1">اسم / لقب المستوى</label>
+                <input
+                  type="text"
+                  value={formTitle}
+                  onChange={e => setFormTitle(e.target.value)}
+                  placeholder="مثال: وكالة ذهبية (Gold)"
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">مكافأة الكوينز لكل مضيف</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formCoins}
+                    onChange={e => setFormCoins(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-amber-400 font-bold text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">مكافأة الماس لكل مضيف</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formDiamonds}
+                    onChange={e => setFormDiamonds(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-cyan-400 font-bold text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 block mb-1">وصف المستوى والمكافأة</label>
+                <textarea
+                  value={formDesc}
+                  onChange={e => setFormDesc(e.target.value)}
+                  placeholder="وصف اختياري للمستوى والمميزات..."
+                  rows={2}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs rounded-xl"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl flex items-center gap-1.5"
+                >
+                  {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  حفظ المستوى
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Distribute Reward Modal */}
+      {rewardLevel && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#18181b] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-white text-base font-bold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              توزيع مكافأة المستوى {rewardLevel.level} ({rewardLevel.title})
+            </h3>
+
+            <p className="text-xs text-slate-300">
+              اختر الوكالة التي حققت هذا المستوى لصرف المكافأة الجماعية (🪙 {rewardLevel.reward_coins_per_host.toLocaleString()} كوينز لكل مضيف) وإرسال إشعار فوري لجميع مضيفي الوكالة.
+            </p>
+
+            <div>
+              <label className="text-xs text-slate-300 block mb-1">الوكالة المستفيدة</label>
+              <select
+                value={targetAgencyId}
+                onChange={e => setTargetAgencyId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+              >
+                {agencies.map(ag => (
+                  <option key={ag.id} value={ag.id}>
+                    {ag.name} (كود: {ag.agency_code}) - المستوى الحالي: {ag.level || 1}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {distributeResult && (
+              <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs text-slate-200">
+                {distributeResult}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setRewardLevel(null)}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs rounded-xl"
+              >
+                إغلاق
+              </button>
+              <button
+                type="button"
+                onClick={handleDistributeReward}
+                disabled={distributing}
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold text-xs rounded-xl flex items-center gap-1.5"
+              >
+                {distributing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                صرف المكافأة لجميع المضيفين الآن
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
