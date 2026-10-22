@@ -869,6 +869,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _isFollowed = false;
   int _msgCount = 0;
   final List<MessageModel> _chatMessages = [];
+  int _chatTabIndex = 0; // 0: الكل, 1: الدردشة, 2: الهدايا
+
+  List<MessageModel> get _filteredChatMessages {
+    if (_chatTabIndex == 1) {
+      // الدردشة: الرسائل النصية الخاصة بالمستخدمين فقط
+      return _chatMessages.where((m) => m.type == 'text' || m.type.isEmpty).toList();
+    } else if (_chatTabIndex == 2) {
+      // الهدايا: إرسال الهدايا، فوز الحظ، المضاعفات والمظاريف
+      return _chatMessages.where((m) =>
+          m.type == 'gift' ||
+          m.type == 'lucky_gift' ||
+          m.type == 'gift_multiplier' ||
+          m.type == 'lucky_bag').toList();
+    }
+    // الكل: جميع الرسائل في الغرفة
+    return _chatMessages;
+  }
   int _giftCount = 1;
   int _onlineCount = 0;
 
@@ -1292,9 +1309,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final clearedAt = _currentRoom?.chatClearedAt ?? 0;
         final minTime = clearedAt > _sessionJoinedAt ? clearedAt : _sessionJoinedAt;
         final currentSessionMsgs = msgs.where((m) => m.timestamp >= minTime).toList();
-        _chatMessages
-          ..clear()
-          ..addAll(currentSessionMsgs);
+
+        // إزالة الرسائل التي مسحت قبل clearedAt فقط
+        if (clearedAt > 0) {
+          _chatMessages.removeWhere((m) => m.timestamp < clearedAt);
+        }
+
+        // الحفاظ على كامل الرسائل السابقة أثناء الجلسة دون حذفها عند السحب للأعلى
+        final Set<String> existingIds = _chatMessages
+            .map((e) => e.msgId.isNotEmpty ? e.msgId : '${e.timestamp}_${e.senderUid}_${e.text}')
+            .toSet();
+        for (final m in currentSessionMsgs) {
+          final id = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}_${m.text}';
+          if (!existingIds.contains(id)) {
+            _chatMessages.add(m);
+            existingIds.add(id);
+          }
+        }
+        _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
         _msgCount = _chatMessages.length;
         _chatUpdateNotifier.value++;
 
@@ -4426,25 +4458,106 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildChatTabs() {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+    final tabs = [
+      {'index': 0, 'label': isAr ? 'الكل' : 'All'},
+      {'index': 1, 'label': isAr ? 'الدردشة' : 'Chat'},
+      {'index': 2, 'label': isAr ? 'الهدايا' : 'Gifts'},
+    ];
+
+    return Container(
+      margin: const EdgeInsetsDirectional.only(start: 4, bottom: 6),
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: tabs.map((tab) {
+          final idx = tab['index'] as int;
+          final isSelected = _chatTabIndex == idx;
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _chatTabIndex = idx;
+              });
+              _chatUpdateNotifier.value++;
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Text(
+                tab['label'] as String,
+                style: TextStyle(
+                  color: isSelected ? Colors.black : Colors.white70,
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildStaticGiftIcon(String? iconUrl, {double size = 40}) {
+    if (iconUrl == null || iconUrl.isEmpty) {
+      return Icon(Icons.card_giftcard, color: const Color(0xFFFFEB3B), size: size * 0.8);
+    }
+    final lower = iconUrl.toLowerCase();
+    if (lower.endsWith('.vap') || lower.endsWith('.mp4') || lower.endsWith('.svga') ||
+        lower.contains('.vap?') || lower.contains('.mp4?') || lower.contains('.svga?')) {
+      return Icon(Icons.card_giftcard, color: const Color(0xFFFFEB3B), size: size * 0.8);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Image(
+        image: R.cachedImage(iconUrl),
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => Icon(Icons.card_giftcard, color: const Color(0xFFFFEB3B), size: size * 0.8),
+      ),
+    );
+  }
+
   // ── Chat area (uses Firebase messages) ──────────────────────
   Widget _buildChatArea() {
     return Padding(
-      padding: const EdgeInsets.only(right: 80),
+      padding: const EdgeInsetsDirectional.only(start: 4, end: 70),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildChatTabs(),
           Expanded(
             child: ValueListenableBuilder<int>(
               valueListenable: _chatUpdateNotifier,
               builder: (_, __, ___) {
-                if (_chatMessages.isEmpty) return const SizedBox.shrink();
+                final displayMsgs = _filteredChatMessages;
+                if (displayMsgs.isEmpty) return const SizedBox.shrink();
                 return ListView.builder(
                   controller: _chatScroll,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  itemCount: _chatMessages.length,
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  itemCount: displayMsgs.length,
                   itemBuilder: (_, i) {
-                    final m = _chatMessages[i];
+                    final m = displayMsgs[i];
                     final userProvider = Provider.of<UserProvider>(context, listen: false);
                     final isMe = m.senderUid == userProvider.currentUser?.uid;
                     return _buildChatMsg(m, isMe);
@@ -4568,18 +4681,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             // iv_gift_icon (40×40)
-                            if (giftIcon != null && giftIcon.isNotEmpty)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: R.loadImage(
-                                  giftIcon,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.contain,
-                                ),
-                              )
-                            else
-                              const Icon(Icons.card_giftcard, color: Color(0xFFFFEB3B), size: 32),
+                            _buildStaticGiftIcon(giftIcon, size: 40),
                             const SizedBox(width: 8),
                             // tv_gift_num (13sp, color #FFEB3B)
                             Text(
@@ -4712,18 +4814,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             // iv_gift_icon (40×40)
-                            if (giftIcon != null && giftIcon.isNotEmpty)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: R.loadImage(
-                                  giftIcon,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.contain,
-                                ),
-                              )
-                            else
-                              const Icon(Icons.stars_rounded, color: Color(0xFFFFD700), size: 32),
+                            _buildStaticGiftIcon(giftIcon, size: 40),
                             const SizedBox(width: 8),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../../core/supabase_compat.dart';
 import '../../../../core/cache/encrypted_image_provider.dart';
+import '../../../../services/supabase_auth_service.dart';
 import '../../../host_agency/data/agency_repository.dart';
 
 import '../../agent_recharge_widgets.dart';
@@ -41,17 +42,51 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
   }
 
   Future<void> _load() async {
-    final uid = Supabase.instance.client.auth.currentUser?.id;
-    if (uid != null) {
-      try {
-        final pending = await AgencyRepository.getAgentPendingWithdrawals(uid);
-        if (mounted) setState(() => _pendingWithdrawals = pending);
-      } catch (e) {
-        debugPrint('[DiamondWalletTab] pending withdrawals error: $e');
-      }
+    final uid = SupabaseAuthService().currentUid ?? Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
     }
 
     try {
+      final pending = await AgencyRepository.getAgentPendingWithdrawals(uid);
+      if (mounted) setState(() => _pendingWithdrawals = pending);
+    } catch (e) {
+      debugPrint('[DiamondWalletTab] pending withdrawals error: $e');
+    }
+
+    try {
+      // 1. استعلام محفظة وكالة الشحن مباشرة لضمان ظهور الرصيد دون الحاجة لـ auth.uid() الخاص بـ RPC
+      final walletRow = await Supabase.instance.client
+          .from('agency_wallets')
+          .select('*')
+          .eq('agency_profile_id', uid)
+          .maybeSingle();
+
+      final txnsRows = await Supabase.instance.client
+          .from('agent_diamond_transactions')
+          .select('*')
+          .eq('agent_id', uid)
+          .order('created_at', ascending: false)
+          .limit(50);
+
+      final List<Map<String, dynamic>> parsedTxns = (txnsRows as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      if (walletRow != null) {
+        if (!mounted) return;
+        setState(() {
+          _balance = (walletRow['diamond_balance'] as num?)?.toInt() ?? 0;
+          _received = (walletRow['total_received'] as num?)?.toInt() ?? 0;
+          _withdrawn = (walletRow['total_withdrawn'] as num?)?.toInt() ?? 0;
+          _txns = parsedTxns;
+          _loading = false;
+        });
+        return;
+      }
+
+      // Fallback to RPC if row not yet created
       final res =
           await Supabase.instance.client.rpc('agent_get_diamond_wallet');
       if (!mounted) return;
@@ -77,7 +112,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
   }
 
   Future<void> _handleWithdrawalAction(String requestId, bool approve) async {
-    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final uid = SupabaseAuthService().currentUid ?? Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
 
     if (!approve) {
@@ -181,10 +216,21 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
   }
 
   void _subscribeRealtime() {
-    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final uid = SupabaseAuthService().currentUid ?? Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
     _rt = Supabase.instance.client
         .channel('agent_diamond_wallet_$uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'agency_wallets',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'agency_profile_id',
+            value: uid,
+          ),
+          callback: (_) => _load(),
+        )
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',

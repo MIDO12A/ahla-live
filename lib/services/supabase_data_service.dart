@@ -2260,6 +2260,39 @@ class SupabaseDataService {
     return [];
   }
 
+  Future<List<Map<String, dynamic>>> getMutualFriends(String uid) async {
+    try {
+      final fFollowingUrl = Uri.parse('$_baseUrl/rest/v1/follows?follower_uid=eq.$uid&select=following_uid&limit=200');
+      final fFollowersUrl = Uri.parse('$_baseUrl/rest/v1/follows?following_uid=eq.$uid&select=follower_uid&limit=200');
+
+      final resList = await Future.wait([
+        http.get(fFollowingUrl, headers: _headers),
+        http.get(fFollowersUrl, headers: _headers),
+      ]);
+
+      if (resList[0].statusCode == 200 && resList[1].statusCode == 200) {
+        final List list1 = jsonDecode(resList[0].body);
+        final List list2 = jsonDecode(resList[1].body);
+
+        final followingUids = list1
+            .map((e) => e['following_uid']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet();
+        final followerUids = list2
+            .map((e) => e['follower_uid']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet();
+
+        final mutualUids = followingUids.intersection(followerUids).toList();
+        if (mutualUids.isEmpty) return [];
+        return await _getUsersByIds(mutualUids);
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getMutualFriends error: $e');
+    }
+    return [];
+  }
+
   Future<List<Map<String, dynamic>>> _getUsersByIds(List<String> uids) async {
     if (uids.isEmpty) return [];
     try {
@@ -2268,10 +2301,10 @@ class SupabaseDataService {
 
       // 1. PostgREST REST API batch query
       final filter = cleanUids.join(',');
-      var url = Uri.parse('$_baseUrl/rest/v1/users?or=(uid.in.($filter),id.in.($filter))&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id');
+      var url = Uri.parse('$_baseUrl/rest/v1/users?or=(uid.in.($filter),id.in.($filter))&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id,updated_at,is_online');
       var res = await http.get(url, headers: _headers);
       if (res.statusCode != 200) {
-        url = Uri.parse('$_baseUrl/rest/v1/users?id=in.($filter)&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id');
+        url = Uri.parse('$_baseUrl/rest/v1/users?id=in.($filter)&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id,updated_at,is_online');
         res = await http.get(url, headers: _headers);
       }
       if (res.statusCode == 200) {
@@ -2291,6 +2324,8 @@ class SupabaseDataService {
               'level': (m['level'] as num?)?.toInt() ?? 1,
               'country_idx': (m['country_idx'] as num?)?.toInt() ?? 0,
               'custom_id': m['custom_id'] ?? '',
+              'updated_at': m['updated_at']?.toString(),
+              'is_online': m['is_online'] == true,
             };
           }).toList();
         }

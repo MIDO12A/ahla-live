@@ -28,11 +28,57 @@ class RoomDiscoverScreen extends StatefulWidget {
   State<RoomDiscoverScreen> createState() => _RoomDiscoverScreenState();
 }
 
+class _AudioWaveIndicator extends StatefulWidget {
+  const _AudioWaveIndicator();
+  @override
+  State<_AudioWaveIndicator> createState() => _AudioWaveIndicatorState();
+}
+
+class _AudioWaveIndicatorState extends State<_AudioWaveIndicator>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 700))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final v = _ctrl.value;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Container(width: 2.5, height: 4 + (v * 8), decoration: BoxDecoration(color: const Color(0xFFFFD700), borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 2),
+            Container(width: 2.5, height: 12 - (v * 8), decoration: BoxDecoration(color: const Color(0xFFFFD700), borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 2),
+            Container(width: 2.5, height: 6 + (v * 6), decoration: BoxDecoration(color: const Color(0xFFFFD700), borderRadius: BorderRadius.circular(2))),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     with SingleTickerProviderStateMixin {
   final SupabaseService _firebaseService = SupabaseService();
   late final Stream<List<RoomModel>> _roomsStream;
   List<RoomModel>? _cachedRooms;
+  RoomModel? _myRoom;
   late TabController _tabController;
   int _selectedTabIndex = 1;
   String _searchQuery = '';
@@ -48,6 +94,30 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
         setState(() => _selectedTabIndex = _tabController.index);
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMyRoom());
+  }
+
+  Future<void> _loadMyRoom() async {
+    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+    if (user == null) return;
+    try {
+      RoomModel? room;
+      if (user.hostedRoomId != null && user.hostedRoomId!.isNotEmpty && user.hostedRoomId != 'null') {
+        room = await _firebaseService.getRoom(user.hostedRoomId!);
+      }
+      if (room == null) {
+        room = await _firebaseService.getRoomByHost(user.uid);
+      }
+      if (room == null && user.customId.isNotEmpty) {
+        room = await _firebaseService.getRoomByHost(user.customId);
+      }
+      if (room == null) {
+        room = await SupabaseDataService().getRoomByHostUid(user.uid);
+      }
+      if (mounted && room != null) {
+        setState(() => _myRoom = room);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -274,7 +344,6 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
         body: Column(
           children: [
             _buildHeader(),
-            const _BannerCarousel(),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
@@ -391,10 +460,232 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     );
   }
 
+  Widget _buildMyRoomCard(dynamic user) {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+    final cfg = DynamicConfigService();
+
+    final Color bgColor = cfg.discoverFollowCardBgColor;
+    final Color borderColor = cfg.discoverFollowCardBorderColor;
+    final Color btnColor = cfg.discoverFollowCardBtnColor;
+
+    final room = _myRoom;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: room != null
+          ? Row(
+              children: [
+                // 1. Room Photo with Sound Wave Animation
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: btnColor, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: btnColor.withOpacity(0.35),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: room.roomPhotoUrl.isNotEmpty
+                            ? CachedNetImage(
+                                room.roomPhotoUrl,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                error: (_, __, ___) => Image.asset(R.avaBoy, width: 50, height: 50, fit: BoxFit.cover),
+                              )
+                            : Image.asset(R.avaBoy, width: 50, height: 50, fit: BoxFit.cover),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.65),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const _AudioWaveIndicator(),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                // 2. Room Name and Room ID
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              room.name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: btnColor.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: btnColor.withOpacity(0.6), width: 0.5),
+                            ),
+                            child: Text(
+                              isAr ? 'غرفتي' : 'My Room',
+                              style: TextStyle(
+                                color: btnColor,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'ID: ${room.roomId}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // 3. Yellow "Enter" (دخول) Button
+                ElevatedButton(
+                  onPressed: () {
+                    navigateToRoom(
+                      context,
+                      roomName: room.name,
+                      hostName: room.hostName,
+                      hostUid: room.hostUid,
+                      roomId: room.roomId,
+                      roomPassword: room.password,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: btnColor,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 3,
+                  ),
+                  child: Text(
+                    isAr ? 'دخول' : 'Enter',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.add_home_work_rounded, color: Colors.white70, size: 28),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isAr ? 'ليس لديك غرفة بعد' : 'No Room Created Yet',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isAr ? 'ابدأ الآن بإنشاء غرفتك الخاصة وتحدث مع أصدقائك' : 'Create your room and start chatting',
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _goToCreateOrMyRoom,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: btnColor,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 3,
+                  ),
+                  child: Text(
+                    isAr ? 'إنشاء روم' : 'Create Room',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
   Widget _buildDiscoverContent({required bool isFollowTab, dynamic user}) {
     return Column(
       children: [
-        if (!isFollowTab) ...[
+        if (isFollowTab) ...[
+          _buildMyRoomCard(user),
+          _buildCountrySection(),
+        ] else ...[
+          const _BannerCarousel(),
           _buildCountrySection(),
         ],
         const SizedBox(height: 8),
@@ -426,7 +717,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                 }).toList();
               }
 
-              if (!isFollowTab && _selectedCountry != null && _selectedCountry!.isNotEmpty && _selectedCountry != 'الكل') {
+              if (_selectedCountry != null && _selectedCountry!.isNotEmpty && _selectedCountry != 'الكل') {
                 rooms = rooms.where((room) => _roomMatchesCountry(room, _selectedCountry)).toList();
               }
 

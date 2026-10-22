@@ -62,7 +62,7 @@ class _MessageScreenState extends State<MessageScreen>
     if (user == null) return;
     setState(() => _loadingFriends = true);
     try {
-      final list = await _supabaseService.getFollowing(user.uid);
+      final list = await _supabaseService.getMutualFriends(user.uid);
       if (mounted) {
         setState(() {
           _friends = list;
@@ -72,6 +72,21 @@ class _MessageScreenState extends State<MessageScreen>
     } catch (_) {
       if (mounted) setState(() => _loadingFriends = false);
     }
+  }
+
+  bool _isUserOnline(Map<String, dynamic> friend) {
+    if (friend['is_online'] == true) return true;
+    final updatedStr = friend['updated_at']?.toString();
+    if (updatedStr != null && updatedStr.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(updatedStr).toUtc();
+        final now = DateTime.now().toUtc();
+        if (now.difference(dt).inMinutes <= 5) {
+          return true;
+        }
+      } catch (_) {}
+    }
+    return false;
   }
 
   @override
@@ -582,6 +597,7 @@ class _MessageScreenState extends State<MessageScreen>
 
   /// Tab 1: Friends Tab
   Widget _buildFriendsTab(bool isAr) {
+    final user = Provider.of<UserProvider>(context, listen: false).currentUser;
     if (_loadingFriends) {
       return const Center(
         child: CircularProgressIndicator(color: Color(0xFFFFD700)),
@@ -627,6 +643,8 @@ class _MessageScreenState extends State<MessageScreen>
         final photo = friend['photo_url'] as String? ?? '';
         final bio = friend['bio'] as String? ?? '';
 
+        final isOnline = _isUserOnline(friend);
+
         return ListTile(
           onTap: () {
             if (uid.isNotEmpty) {
@@ -638,58 +656,117 @@ class _MessageScreenState extends State<MessageScreen>
               );
             }
           },
-          leading: ClipOval(
-            child: photo.isNotEmpty
-                ? Image(
-                    image: R.cachedImage(photo),
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Image.asset(
-                      R.avaBoy,
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : Image.asset(
-                    R.avaBoy,
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
+          leading: Stack(
+            children: [
+              ClipOval(
+                child: photo.isNotEmpty
+                    ? Image(
+                        image: R.cachedImage(photo),
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Image.asset(
+                          R.avaBoy,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    : Image.asset(
+                        R.avaBoy,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                      ),
+              ),
+              Positioned(
+                bottom: 1,
+                right: 1,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: isOnline ? const Color(0xFF00E676) : Colors.grey.shade400,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
                   ),
+                ),
+              ),
+            ],
           ),
-          title: Text(
-            name,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF3D3D3D),
-            ),
-          ),
-          subtitle: bio.isNotEmpty
-              ? Text(
-                  bio,
+          title: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  name,
                   style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF9BA1B6),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF3D3D3D),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                )
-              : null,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF81C784), width: 0.8),
+                ),
+                child: Text(
+                  isAr ? 'صديق' : 'Friend',
+                  style: const TextStyle(
+                    color: Color(0xFF2E7D32),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          subtitle: Row(
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: isOnline ? const Color(0xFF00E676) : Colors.grey.shade400,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                isOnline
+                    ? (isAr ? 'نشط الآن' : 'Active now')
+                    : (isAr ? 'غير نشط' : 'Offline'),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isOnline ? const Color(0xFF2E7D32) : const Color(0xFF9BA1B6),
+                  fontWeight: isOnline ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
           trailing: IconButton(
             icon: const Icon(
-              Icons.chat_outlined,
+              Icons.chat_bubble_rounded,
               color: Color(0xFF1E90FF),
-              size: 20,
+              size: 22,
             ),
+            tooltip: isAr ? 'مراسلة خاصة' : 'Direct Message',
             onPressed: () {
+              final myUid = user?.uid ?? '';
+              final convId = (myUid.isNotEmpty && uid.isNotEmpty)
+                  ? (myUid.compareTo(uid) < 0 ? '${myUid}_$uid' : '${uid}_$myUid')
+                  : '';
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => MessageReplyDetailScreen(
-                    conversationId: '',
+                    conversationId: convId,
                     otherUid: uid,
                     otherName: name,
                     otherPhotoUrl: photo,

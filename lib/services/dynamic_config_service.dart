@@ -920,6 +920,9 @@ class DynamicConfigService extends ChangeNotifier {
   Color get discoverTextColor => _screenColor('discover', 'textColor', const Color(0xFF16151A));
   Color get discoverSubTextColor => _screenColor('discover', 'subTextColor', const Color(0xFF9BA1B6));
   Color get discoverCardBgColor => _screenColor('discover', 'cardBgColor', const Color(0xFFF7F7F8));
+  Color get discoverFollowCardBgColor => _screenColor('discover', 'followCardBgColor', const Color(0x59000000));
+  Color get discoverFollowCardBorderColor => _screenColor('discover', 'followCardBorderColor', const Color(0x33FFFFFF));
+  Color get discoverFollowCardBtnColor => _screenColor('discover', 'followCardBtnColor', const Color(0xFFFFD700));
 
   // Message screen visuals
   String get messageBackgroundImage => _screenStr('message', 'backgroundImage', '');

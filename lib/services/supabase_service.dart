@@ -1272,6 +1272,8 @@ class SupabaseService {
 
   Future<List<Map<String, dynamic>>> getFans(String uid) => _ds.getFollowerUsers(uid);
 
+  Future<List<Map<String, dynamic>>> getMutualFriends(String uid) => _ds.getMutualFriends(uid);
+
   Future<List<Map<String, dynamic>>> getVisitors(String uid) => _ds.getVisitorUsers(uid);
 
   Future<List<Map<String, dynamic>>> getReports() async {

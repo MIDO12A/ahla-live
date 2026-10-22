@@ -39,18 +39,33 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
   late String _otherName;
   late String _otherPhotoUrl;
 
+  late String _conversationId;
+
   @override
   void initState() {
     super.initState();
     _otherName = widget.otherName;
     _otherPhotoUrl = widget.otherPhotoUrl;
 
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final myUid = userProvider.currentUser?.uid ?? '';
+
+    if (widget.conversationId.isNotEmpty) {
+      _conversationId = widget.conversationId;
+    } else if (myUid.isNotEmpty && widget.otherUid.isNotEmpty) {
+      _conversationId = myUid.compareTo(widget.otherUid) < 0
+          ? '${myUid}_${widget.otherUid}'
+          : '${widget.otherUid}_$myUid';
+    } else {
+      _conversationId = widget.conversationId;
+    }
+
     if (_otherName.isEmpty || _otherName == 'مستخدم' || _otherPhotoUrl.isEmpty) {
       _loadOtherUserProfile();
     }
 
     _messagesSub = _firebaseService
-        .privateMessagesStream(widget.conversationId)
+        .privateMessagesStream(_conversationId)
         .listen((msgs) {
       if (mounted) {
         setState(() => _messages = msgs);
@@ -59,10 +74,9 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      if (userProvider.currentUser != null) {
+      if (userProvider.currentUser != null && _conversationId.isNotEmpty) {
         _firebaseService.markConversationRead(
-            userProvider.currentUser!.uid, widget.conversationId);
+            userProvider.currentUser!.uid, _conversationId);
       }
     });
   }
@@ -139,6 +153,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
 
     try {
       await _firebaseService.sendPrivateMessage(
+        conversationId: _conversationId,
         senderId: user.uid,
         senderName: user.name ?? '',
         senderPhotoUrl: user.photoUrl ?? '',
@@ -174,6 +189,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
       );
 
       await _firebaseService.sendPrivateMessage(
+        conversationId: _conversationId,
         senderId: user.uid,
         senderName: user.name ?? '',
         senderPhotoUrl: user.photoUrl ?? '',

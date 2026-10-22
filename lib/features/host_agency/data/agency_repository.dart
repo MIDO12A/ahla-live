@@ -946,13 +946,35 @@ abstract final class AgencyRepository {
 
         final oBal = (memberRow?['diamonds_balance'] as num?)?.toInt() ?? 
                      (memberRow?['diamonds'] as num?)?.toInt() ?? 0;
-        final effectiveBal = oBal > 0 ? oBal : userDiamonds;
+
+        // حساب عمولة الوكيل المكتسبة من تارجت المضيفين لتكون مشمولة بالسحب بالكامل
+        int hostCommissionDiamonds = 0;
+        if (agencyId.isNotEmpty) {
+          try {
+            final agRes = await _sb.from('host_agencies').select('commission_rate').eq('id', agencyId).maybeSingle();
+            final agencyRate = (agRes?['commission_rate'] as num?)?.toDouble() ?? 0.15;
+            final members = await _sb
+                .from('host_agency_members')
+                .select('diamonds_balance, diamonds, diamonds_earned_monthly, diamonds_earned_cumulative')
+                .eq('agency_id', agencyId);
+            for (final m in (members as List<dynamic>)) {
+              final hostDia = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? 
+                              (m['diamonds_earned_cumulative'] as num?)?.toInt() ?? 
+                              (m['diamonds_balance'] as num?)?.toInt() ?? 0;
+              if (hostDia > 0) {
+                hostCommissionDiamonds += (hostDia * agencyRate).toInt();
+              }
+            }
+          } catch (_) {}
+        }
+
+        final effectiveBal = (oBal > 0 ? oBal : userDiamonds) + hostCommissionDiamonds;
 
         if (effectiveBal < diamonds) {
           return {
             'status': 'error',
             'success': false,
-            'message': 'رصيد أرباح الوكالة المتاح لديك لا يكفي ($effectiveBal 💎)',
+            'message': 'رصيد أرباح وعمولة الوكالة المتاح لديك لا يكفي ($effectiveBal 💎)',
           };
         }
 
@@ -1292,6 +1314,26 @@ abstract final class AgencyRepository {
         } catch (_) {}
       }
 
+      // 2.5. حساب عمولة الوكالة المكتسبة من تارجت المضيفين
+      int hostCommissionDiamonds = 0;
+      try {
+        final members = await _sb
+            .from('host_agency_members')
+            .select('diamonds_balance, diamonds, diamonds_earned_monthly, diamonds_earned_cumulative')
+            .eq('agency_id', agencyId);
+        for (final m in (members as List<dynamic>)) {
+          final hostDia = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? 
+                          (m['diamonds_earned_cumulative'] as num?)?.toInt() ?? 
+                          (m['diamonds_balance'] as num?)?.toInt() ?? 0;
+          if (hostDia > 0) {
+            hostCommissionDiamonds += (hostDia * agencyRate).toInt();
+          }
+        }
+      } catch (_) {}
+
+      final totalAvailable = ownerBalance + hostCommissionDiamonds;
+      final totalEarned = (earnedCumulative > ownerBalance ? earnedCumulative : ownerBalance) + hostCommissionDiamonds;
+
       // 3. Check agency_diamond_ledger
       final List<AgencyOwnerLedgerEntry> ledgerEntries = [];
       try {
@@ -1310,7 +1352,7 @@ abstract final class AgencyRepository {
             txnType: r['txn_type']?.toString() ?? 'commission',
             amount: amt,
             direction: dir,
-            balanceAfter: ownerBalance,
+            balanceAfter: totalAvailable,
             note: r['gift_name']?.toString() ?? r['note']?.toString() ?? (r['sender_name'] != null ? 'من المضيف: ${r['sender_name']}' : null),
             createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ?? DateTime.now(),
           ));
@@ -1319,10 +1361,10 @@ abstract final class AgencyRepository {
 
       return AgencyOwnerDashboard(
         wallet: AgencyOwnerWallet(
-          balance: ownerBalance,
-          available: ownerBalance,
+          balance: totalAvailable,
+          available: totalAvailable,
           pending: 0,
-          earnedTotal: earnedCumulative > ownerBalance ? earnedCumulative : ownerBalance,
+          earnedTotal: totalEarned,
         ),
         rates: AgencyEngineSettings.fromMap({
           'diamond_to_coin_rate': 1.0,
