@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zego_express_engine/zego_express_engine.dart';
 import '../config/app_config.dart';
@@ -338,32 +338,26 @@ class RoomAudioService {
     _isPublishing = false;
   }
 
-  /// Pause mic publishing when the app goes to the background to save battery
-  /// and avoid Zego SIGSEGV on some devices. Remote audio (listening) keeps
-  /// running so the minimized room stays audible.
+  /// Keep mic publishing and audio listening active when the app goes to background
+  /// (e.g. WhatsApp, Home Screen) without terminating or cutting off after 30 seconds.
   void pauseForBackground() async {
-    if (!_isPublishing || !_initialized || effectiveAppSign.isEmpty) return;
-    try {
-      final engine = ZegoExpressEngine.instance;
-      await engine.stopPublishingStream();
-      _isPublishing = false;
-      debugPrint('[RoomAudioService] Publishing paused for background');
-    } catch (e) {
-      debugPrint('[RoomAudioService] pauseForBackground failed: $e');
-    }
+    debugPrint('[RoomAudioService] App backgrounded: maintaining active voice stream and listening');
   }
 
-  /// Restore mic publishing when the app returns to the foreground.
+  /// Restore mic publishing if it was interrupted when returning to foreground.
   Future<void> resumeFromBackground() async {
-    if (!_initialized || _currentRoomId == null || _currentUid == null || _isPublishing || effectiveAppSign.isEmpty) return;
-    try {
-      final engine = ZegoExpressEngine.instance;
-      final streamId = 'audio_${_currentUid}_$_currentRoomId';
-      await engine.startPublishingStream(streamId);
-      _isPublishing = true;
-      debugPrint('[RoomAudioService] Publishing resumed from background');
-    } catch (e) {
-      debugPrint('[RoomAudioService] resumeFromBackground failed: $e');
+    if (!_initialized || _currentRoomId == null || _currentUid == null || effectiveAppSign.isEmpty) return;
+    if (!_isPublishing) {
+      try {
+        final streamId = 'audio_${_currentUid}_$_currentRoomId';
+        final engine = ZegoExpressEngine.instance;
+        await engine.startPublishingStream(streamId);
+        _isPublishing = true;
+        await toggleMic(_micEnabled);
+        debugPrint('[RoomAudioService] Restored publishing from background');
+      } catch (e) {
+        debugPrint('[RoomAudioService] resumeFromBackground failed: $e');
+      }
     }
   }
 

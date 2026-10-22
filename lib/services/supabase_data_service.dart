@@ -643,7 +643,16 @@ class SupabaseDataService {
         );
       }
       debugPrint('[SupabaseDataService] updateUser ($uid) status: ${res.statusCode}');
-      return res.statusCode >= 200 && res.statusCode < 300;
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        if (clean.containsKey('custom_id') && !clean.containsKey('hosted_room_id')) {
+          final newCid = clean['custom_id']?.toString() ?? '';
+          if (newCid.isNotEmpty) {
+            await migrateUserRoomId(uid, newCid);
+          }
+        }
+        return true;
+      }
+      return false;
     } catch (e) {
       debugPrint('[SupabaseDataService] updateUser error: $e');
       return false;
@@ -1154,10 +1163,32 @@ class SupabaseDataService {
     return purgeUserAccount(uid);
   }
 
-  /// Full purge of user account from database and all related tables
+  /// Full purge of user account from database and all related tables (including hosted rooms)
   Future<bool> purgeUserAccount(String uid) async {
     try {
-      // 1. Remove from rooms and seats
+      // 0. Find and delete user's hosted room(s) and their seats/members/messages
+      try {
+        final roomQueryUrl = Uri.parse('$_baseUrl/rest/v1/rooms?or=(host_uid.eq.$uid,owner_id.eq.$uid)&select=room_id');
+        final roomRes = await http.get(roomQueryUrl, headers: _headers);
+        if (roomRes.statusCode == 200) {
+          final List roomList = jsonDecode(roomRes.body);
+          for (final item in roomList) {
+            final rid = item['room_id']?.toString() ?? '';
+            if (rid.isNotEmpty) {
+              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/room_members?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/room_messages?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/sent_gifts?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/rooms?or=(host_uid.eq.$uid,owner_id.eq.$uid)'), headers: _headers);
+      } catch (_) {}
+
+      // 1. Remove from rooms and seats where user was a guest/seat occupant
       try {
         await http.delete(Uri.parse('$_baseUrl/rest/v1/room_members?uid=eq.$uid'), headers: _headers);
       } catch (_) {}
@@ -1172,12 +1203,15 @@ class SupabaseDataService {
       try {
         await http.delete(Uri.parse('$_baseUrl/rest/v1/recharge_event_progress?user_id=eq.$uid'), headers: _headers);
       } catch (_) {}
-      // 4. Remove agency membership & join requests
+      // 4. Remove agency membership & join requests & agency wallet
       try {
         await http.delete(Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(user_id.eq.$uid,host_uid.eq.$uid)'), headers: _headers);
       } catch (_) {}
       try {
         await http.delete(Uri.parse('$_baseUrl/rest/v1/host_agency_join_requests?user_id=eq.$uid'), headers: _headers);
+      } catch (_) {}
+      try {
+        await http.delete(Uri.parse('$_baseUrl/rest/v1/agency_wallets?or=(user_id.eq.$uid,owner_uid.eq.$uid)'), headers: _headers);
       } catch (_) {}
       // 5. Remove CP relationships & requests
       try {
@@ -1906,7 +1940,11 @@ class SupabaseDataService {
           'custom_id': newCustomId,
         }),
       );
-      return res.statusCode >= 200 && res.statusCode < 300;
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        await migrateUserRoomId(uid, newCustomId);
+        return true;
+      }
+      return false;
     } catch (e) {
       debugPrint('[SupabaseDataService] updateUserCustomId error: $e');
       return false;

@@ -1,8 +1,50 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../config/r.dart';
+import '../../services/supabase_service.dart';
 
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
+
+  @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  String _title = 'أحلى لايف - Ahla Live';
+  String _description = 'تطبيق أحلى لايف هو منصة تواصل اجتماعي تتيح لك التعرف على أصدقاء جدد، وإنشاء غرف صوتية، والمشاركة في الفعاليات المختلفة. استمتع بتجربة تواصل فريدة وآمنة.';
+  String _copyright = 'جميع الحقوق محفوظة © 2026';
+  String _version = 'الإصدار 1.0.0';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final pkg = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _version = 'الإصدار ${pkg.version}+${pkg.buildNumber}');
+    } catch (_) {}
+
+    try {
+      final doc = await SupabaseService().getDoc('app_config', 'about_app_config');
+      if (doc != null && doc['value'] != null) {
+        final val = doc['value'] is Map ? doc['value'] : (doc['value'] is String ? jsonDecode(doc['value']) : null);
+        if (val is Map) {
+          if (mounted) {
+            setState(() {
+              if (val['title'] != null && val['title'].toString().isNotEmpty) _title = val['title'].toString();
+              if (val['description'] != null && val['description'].toString().isNotEmpty) _description = val['description'].toString();
+              if (val['copyright'] != null && val['copyright'].toString().isNotEmpty) _copyright = val['copyright'].toString();
+            });
+          }
+        }
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,18 +62,19 @@ class AboutScreen extends StatelessWidget {
                     const SizedBox(height: 32),
                     R.image(R.splashImgLogo, width: 80, height: 80),
                     const SizedBox(height: 16),
-                    const Text(
-                      'بيت النجمة',
-                      style: TextStyle(
+                    Text(
+                      _title,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF16151A),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'الإصدار 1.0.0',
-                      style: TextStyle(
+                    Text(
+                      _version,
+                      style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF9BA1B6),
                       ),
@@ -39,13 +82,10 @@ class AboutScreen extends StatelessWidget {
                     const SizedBox(height: 24),
                     _buildSocialRow(),
                     const SizedBox(height: 24),
-                    const Text(
-                      'تطبيق بيت النجمة هو منصة تواصل اجتماعي تتيح لك '
-                      'التعرف على أصدقاء جدد، وإنشاء غرف صوتية، '
-                      'والمشاركة في المجتمعات المختلفة. استمتع بتجربة '
-                      'تواصل فريدة وآمنة.',
+                    Text(
+                      _description,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF6B7280),
                         height: 1.6,
@@ -63,9 +103,9 @@ class AboutScreen extends StatelessWidget {
                   top: BorderSide(color: Color(0xFFF0F0F0)),
                 ),
               ),
-              child: const Text(
-                'جميع الحقوق محفوظة © 2024',
-                style: TextStyle(
+              child: Text(
+                _copyright,
+                style: const TextStyle(
                   fontSize: 12,
                   color: Color(0xFF9BA1B6),
                 ),

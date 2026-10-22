@@ -204,6 +204,22 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                     child: TextButton(
                       onPressed: () {
                         UpdateService.instance.sessionUpdateDismissed = true;
+                        if (!UpdateService.instance.isDownloading && !UpdateService.instance.isDownloaded) {
+                          UpdateService.instance.startDownloadInBackground(
+                            widget.info.apkUrl,
+                            buildNumber: widget.info.buildNumber,
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'جاري تنزيل التحديث في الخلفية... سيظهر إشعار التثبيت فور اكتماله.',
+                                textAlign: TextAlign.center,
+                              ),
+                              backgroundColor: Color(0xFF1E1528),
+                              duration: Duration(seconds: 4),
+                            ),
+                          );
+                        }
                         Navigator.of(context).pop();
                       },
                       style: TextButton.styleFrom(foregroundColor: Colors.black54),

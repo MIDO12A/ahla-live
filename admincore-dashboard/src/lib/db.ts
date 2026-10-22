@@ -721,10 +721,42 @@ export async function getUserDiamondLogs(uid: string, limit: number = 50): Promi
 export async function deleteUser(uid: string) {
   console.log('Starting complete user deletion for:', uid)
 
+  // Step 0: Find and completely delete user's hosted/owned room(s) and their seats/members/messages
+  try {
+    const { data: userRooms } = await supabase
+      .from('rooms')
+      .select('room_id')
+      .or(`host_uid.eq.${uid},owner_id.eq.${uid}`);
+
+    if (userRooms && userRooms.length > 0) {
+      for (const r of userRooms) {
+        const rid = r.room_id;
+        if (rid) {
+          await supabase.from('room_seats').delete().eq('room_id', rid);
+          await supabase.from('room_members').delete().eq('room_id', rid);
+          await supabase.from('room_messages').delete().eq('room_id', rid);
+          await supabase.from('sent_gifts').delete().eq('room_id', rid);
+          await supabase.from('rooms').delete().eq('room_id', rid);
+        }
+      }
+    }
+    // Also fallback delete any room where host_uid = uid or owner_id = uid
+    await supabase.from('rooms').delete().or(`host_uid.eq.${uid},owner_id.eq.${uid}`);
+  } catch (rErr) {
+    console.warn('Error deleting user rooms:', rErr);
+  }
+
   // Step 1: Clean up related collections (best-effort, mirror of old FK-safe RPC)
   const related: { col: string; field: string }[] = [
     { col: 'user_wallets', field: 'user_id' },
     { col: 'user_wallets', field: 'uid' },
+    { col: 'user_backpack', field: 'user_id' },
+    { col: 'recharge_event_progress', field: 'user_id' },
+    { col: 'host_agency_members', field: 'user_id' },
+    { col: 'host_agency_members', field: 'host_uid' },
+    { col: 'host_agency_join_requests', field: 'user_id' },
+    { col: 'agency_wallets', field: 'user_id' },
+    { col: 'agency_wallets', field: 'owner_uid' },
     { col: 'notifications', field: 'target' },
     { col: 'notifications', field: 'uid' },
     { col: 'sent_gifts', field: 'sender_id' },
@@ -745,6 +777,8 @@ export async function deleteUser(uid: string) {
     { col: 'profile_visits', field: 'visitor_uid' },
     { col: 'private_messages', field: 'sender_uid' },
     { col: 'private_messages', field: 'receiver_uid' },
+    { col: 'conversations', field: 'uid' },
+    { col: 'device_registrations', field: 'uid' },
   ]
   for (const { col, field } of related) {
     try {

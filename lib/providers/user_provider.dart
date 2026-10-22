@@ -103,8 +103,9 @@ class UserProvider extends ChangeNotifier {
           if (orig != null && orig.isNotEmpty && orig != gift.itemId) {
             needsUpdate['custom_id'] = orig;
             changed = true;
-          } else if (user.uid.length >= 8) {
-            needsUpdate['custom_id'] = user.uid.substring(0, 8);
+          } else {
+            final nextNumericId = UserIdGenerator.extractIdFromUid(user.uid);
+            needsUpdate['custom_id'] = nextNumericId;
             changed = true;
           }
         }

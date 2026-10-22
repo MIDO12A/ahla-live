@@ -55,7 +55,102 @@ export default function Settings() {
         });
       }
     });
+
+    // تحميل إعدادات عن التطبيق
+    supabase.from('app_config').select('value').eq('key', 'about_app_config').maybeSingle().then(res => {
+      if (res?.data?.value) {
+        const val = typeof res.data.value === 'string' ? JSON.parse(res.data.value) : res.data.value;
+        if (val.title) setAboutTitle(val.title);
+        if (val.description) setAboutDescription(val.description);
+        if (val.copyright) setAboutCopyright(val.copyright);
+      }
+    });
+
+    // تحميل سياسة الخصوصية
+    supabase.from('app_config').select('value').eq('key', 'privacy_policy_config').maybeSingle().then(res => {
+      if (res?.data?.value) {
+        const val = typeof res.data.value === 'string' ? JSON.parse(res.data.value) : res.data.value;
+        if (typeof val === 'string') setPrivacyPolicyContent(val);
+        else if (val.content) setPrivacyPolicyContent(val.content);
+      }
+    });
+
+    // تحميل إعدادات شاشة تسجيل الدخول
+    supabase.from('app_config').select('value').eq('key', 'login_screen_config').maybeSingle().then(res => {
+      if (res?.data?.value) {
+        const val = typeof res.data.value === 'string' ? JSON.parse(res.data.value) : res.data.value;
+        if (val.bgUrl) setLoginBgUrl(val.bgUrl);
+        if (val.bgType) setLoginBgType(val.bgType);
+      }
+    });
   }, []);
+
+  // حالات صفحات التطبيق وسياسة الخصوصية وخلفية الدخول
+  const [aboutTitle, setAboutTitle] = useState('أحلى لايف - Ahla Live');
+  const [aboutDescription, setAboutDescription] = useState('تطبيق أحلى لايف هو منصة تواصل اجتماعي رائدة تتيح لك التعرف على أصدقاء جدد، وإنشاء غرف صوتية ممتعة ومميزة.');
+  const [aboutCopyright, setAboutCopyright] = useState('جميع الحقوق محفوظة © 2026');
+  const [aboutSaving, setAboutSaving] = useState(false);
+
+  const [privacyPolicyContent, setPrivacyPolicyContent] = useState('مرحباً بك في تطبيق أحلى لايف (Ahla Live). نحن نحرص بشدة على حماية خصوصيتك وبياناتك الشخصية وتقديم بيئة آمنة لجميع المستخدمين وفقاً لمعايير Google Play الدولية.');
+  const [privacySaving, setPrivacySaving] = useState(false);
+
+  const [loginBgUrl, setLoginBgUrl] = useState('');
+  const [loginBgType, setLoginBgType] = useState<'image' | 'video' | 'vap' | 'gif'>('image');
+  const [loginSaving, setLoginSaving] = useState(false);
+
+  const handleSaveAboutApp = async () => {
+    setAboutSaving(true);
+    try {
+      await supabase.from('app_config').upsert({
+        key: 'about_app_config',
+        value: {
+          title: aboutTitle,
+          description: aboutDescription,
+          copyright: aboutCopyright,
+          updated_at: new Date().toISOString(),
+        }
+      }, { onConflict: 'key' });
+      alert('تم حفظ بيانات شاشة عن التطبيق بنجاح ✓');
+    } catch (e) {
+      alert('فشل الحفظ: ' + (e as Error).message);
+    }
+    setAboutSaving(false);
+  };
+
+  const handleSavePrivacyPolicy = async () => {
+    setPrivacySaving(true);
+    try {
+      await supabase.from('app_config').upsert({
+        key: 'privacy_policy_config',
+        value: {
+          content: privacyPolicyContent,
+          updated_at: new Date().toISOString(),
+        }
+      }, { onConflict: 'key' });
+      alert('تم حفظ نص سياسة الخصوصية بنجاح ✓');
+    } catch (e) {
+      alert('فشل الحفظ: ' + (e as Error).message);
+    }
+    setPrivacySaving(false);
+  };
+
+  const handleSaveLoginConfig = async () => {
+    setLoginSaving(true);
+    try {
+      await supabase.from('app_config').upsert({
+        key: 'login_screen_config',
+        value: {
+          bgUrl: loginBgUrl.trim(),
+          bgType: loginBgType,
+          updated_at: new Date().toISOString(),
+        }
+      }, { onConflict: 'key' });
+      alert('تم حفظ إعدادات خلفية شاشة تسجيل الدخول بنجاح ✓');
+    } catch (e) {
+      alert('فشل الحفظ: ' + (e as Error).message);
+    }
+    setLoginSaving(false);
+  };
 
   const handleSaveCloudinary = () => {
     setSaving(true);
@@ -365,6 +460,122 @@ export default function Settings() {
               setTimeout(() => window.location.reload(), 500);
             }} disabled={supabaseSaving} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-[10px] text-white font-semibold rounded-lg flex items-center gap-1">
               <Save className="w-3 h-3" /> {supabaseSaving ? t('saving') : 'Save Supabase Key'}
+            </button>
+          </div>
+        </div>
+
+        {/* About App Configuration */}
+        <div>
+          <label className="block text-[10px] uppercase text-sky-400 font-bold mb-2 flex items-center gap-1">
+            📱 معلومات التطبيق (شاشة عن التطبيق) / About App Screen
+          </label>
+          <div className="bg-[#161618] rounded-xl border border-sky-500/20 p-4 space-y-3">
+            <div>
+              <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">اسم وعنوان التطبيق</label>
+              <input
+                type="text"
+                value={aboutTitle}
+                onChange={e => setAboutTitle(e.target.value)}
+                className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white"
+                placeholder="أحلى لايف - Ahla Live"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">نص وتفاصيل عن التطبيق</label>
+              <textarea
+                rows={4}
+                value={aboutDescription}
+                onChange={e => setAboutDescription(e.target.value)}
+                className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-2 px-3 text-xs text-white leading-relaxed"
+                placeholder="اكتب نبذة عن التطبيق ومميزاته ورؤيته..."
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">حقوق الملكية والنشر</label>
+              <input
+                type="text"
+                value={aboutCopyright}
+                onChange={e => setAboutCopyright(e.target.value)}
+                className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white"
+                placeholder="جميع الحقوق محفوظة © 2026"
+              />
+            </div>
+            <button
+              onClick={handleSaveAboutApp}
+              disabled={aboutSaving}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-xs text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5" /> {aboutSaving ? 'جاري الحفظ...' : 'حفظ بيانات عن التطبيق'}
+            </button>
+          </div>
+        </div>
+
+        {/* Privacy Policy Configuration */}
+        <div>
+          <label className="block text-[10px] uppercase text-emerald-400 font-bold mb-2 flex items-center gap-1">
+            📜 سياسة الخصوصية وشروط الاستخدام / Privacy Policy
+          </label>
+          <div className="bg-[#161618] rounded-xl border border-emerald-500/20 p-4 space-y-3">
+            <div>
+              <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">نص بنود سياسة الخصوصية والشروط</label>
+              <textarea
+                rows={6}
+                value={privacyPolicyContent}
+                onChange={e => setPrivacyPolicyContent(e.target.value)}
+                className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-2 px-3 text-xs text-white font-sans leading-relaxed"
+                placeholder="اكتب بنود سياسة الخصوصية وحماية بيانات المستخدمين..."
+              />
+            </div>
+            <button
+              onClick={handleSavePrivacyPolicy}
+              disabled={privacySaving}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-xs text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5" /> {privacySaving ? 'جاري الحفظ...' : 'حفظ سياسة الخصوصية'}
+            </button>
+          </div>
+        </div>
+
+        {/* Login Screen Background Configuration */}
+        <div>
+          <label className="block text-[10px] uppercase text-amber-400 font-bold mb-2 flex items-center gap-1">
+            🎬 خلفية وتخصيص شاشة تسجيل الدخول / Login Screen Customization
+          </label>
+          <div className="bg-[#161618] rounded-xl border border-amber-500/20 p-4 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="md:col-span-2">
+                <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">رابط ملف الخلفية (URL فيديو MP4 / VAP / GIF / صورة)</label>
+                <input
+                  type="url"
+                  value={loginBgUrl}
+                  onChange={e => setLoginBgUrl(e.target.value)}
+                  className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white font-mono"
+                  placeholder="https://res.cloudinary.com/.../login_bg.mp4"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">نوع الخلفية</label>
+                <select
+                  value={loginBgType}
+                  onChange={e => setLoginBgType(e.target.value as any)}
+                  className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white"
+                >
+                  <option value="image">صورة ثابتة (Image)</option>
+                  <option value="video">فيديو (MP4 Video)</option>
+                  <option value="vap">مؤثر متحرك (VAP)</option>
+                  <option value="gif">صورة متحركة (GIF)</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              يمكنك وضع رابط فيديو MP4 يتم تكراره تلقائياً، أو ملف VAP، أو GIF، أو صورة عالية الدقة لتكون خلفية متحركة لشاشة تسجيل الدخول في التطبيق. إذا تركت الرابط فارغاً فسيتم استخدام الخلفية الافتراضية.
+            </p>
+            <button
+              onClick={handleSaveLoginConfig}
+              disabled={loginSaving}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-xs text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5" /> {loginSaving ? 'جاري الحفظ...' : 'حفظ إعدادات شاشة الدخول'}
             </button>
           </div>
         </div>

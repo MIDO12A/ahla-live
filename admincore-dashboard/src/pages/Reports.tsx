@@ -44,23 +44,54 @@ export default function Reports() {
     }
   };
 
+  const [filterType, setFilterType] = useState<'all' | 'feedback' | 'reports'>('all');
+
+  const filteredReports = reports.filter(r => {
+    const isFeedback = (r.reason || '').includes('شكوى') || (r.reason || '').includes('اقتراح') || r.reportedUid === 'ADMIN_FEEDBACK';
+    if (filterType === 'feedback') return isFeedback;
+    if (filterType === 'reports') return !isFeedback;
+    return true;
+  });
+
   return (
     <div className="space-y-6" dir="rtl">
-      <div>
-        <h2 className="text-white text-lg font-semibold flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5 text-rose-500" />
-          البلاغات (Reports)
-        </h2>
-        <p className="text-slate-500 text-xs mt-0.5">مراجعة البلاغات المقدمة من المستخدمين وحظر المخالفين.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-white text-lg font-semibold flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5 text-rose-500" />
+            البلاغات والشكاوى والاقتراحات (Reports & Feedback)
+          </h2>
+          <p className="text-slate-500 text-xs mt-0.5">مراجعة شكاوى واقتراحات المستخدمين وبلاغات المخالفين وحظرهم.</p>
+        </div>
+        <div className="flex bg-[#141417] border border-white/10 rounded-lg p-1 text-xs">
+          <button
+            onClick={() => setFilterType('all')}
+            className={`px-3 py-1.5 rounded-md font-bold transition-colors ${filterType === 'all' ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'}`}
+          >
+            الكل ({reports.length})
+          </button>
+          <button
+            onClick={() => setFilterType('feedback')}
+            className={`px-3 py-1.5 rounded-md font-bold transition-colors ${filterType === 'feedback' ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'}`}
+          >
+            الشكاوى والاقتراحات ({reports.filter(r => (r.reason || '').includes('شكوى') || (r.reason || '').includes('اقتراح') || r.reportedUid === 'ADMIN_FEEDBACK').length})
+          </button>
+          <button
+            onClick={() => setFilterType('reports')}
+            className={`px-3 py-1.5 rounded-md font-bold transition-colors ${filterType === 'reports' ? 'bg-amber-500 text-black' : 'text-slate-400 hover:text-white'}`}
+          >
+            بلاغات الأعضاء ({reports.filter(r => !((r.reason || '').includes('شكوى') || (r.reason || '').includes('اقتراح') || r.reportedUid === 'ADMIN_FEEDBACK')).length})
+          </button>
+        </div>
       </div>
 
       {loading ? (
         <div className="text-slate-500 text-sm text-center py-10">جاري التحميل...</div>
-      ) : reports.length === 0 ? (
-        <div className="text-slate-500 text-sm text-center py-10">لا توجد بلاغات حالياً.</div>
+      ) : filteredReports.length === 0 ? (
+        <div className="text-slate-500 text-sm text-center py-10">لا توجد بلاغات أو شكاوى حالياً في هذا القسم.</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {reports.map(r => (
+          {filteredReports.map(r => (
             <div key={r.id} className="bg-[#141417] rounded-xl border border-white/5 p-4 flex flex-col gap-3">
               <div className="flex justify-between items-start">
                 <div>
@@ -101,9 +132,21 @@ export default function Reports() {
 
               {r.status === 'pending' && (
                 <div className="flex gap-2 mt-auto pt-2">
-                  <button onClick={() => handleBan(r)} className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-lg flex justify-center items-center gap-1 transition-colors">
-                    <Ban className="w-4 h-4" /> حظر المستخدم
-                  </button>
+                  {r.reportedUid === 'ADMIN_FEEDBACK' ? (
+                    <button
+                      onClick={async () => {
+                        await updateReportStatus(r.id, 'resolved');
+                        await loadReports();
+                      }}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex justify-center items-center gap-1 transition-colors"
+                    >
+                      <CheckCircle className="w-4 h-4" /> تمت المعالجة
+                    </button>
+                  ) : (
+                    <button onClick={() => handleBan(r)} className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-lg flex justify-center items-center gap-1 transition-colors">
+                      <Ban className="w-4 h-4" /> حظر المستخدم
+                    </button>
+                  )}
                   <button onClick={() => handleDismiss(r)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold py-2 rounded-lg flex justify-center items-center gap-1 transition-colors">
                     <CheckCircle className="w-4 h-4" /> تجاهل
                   </button>

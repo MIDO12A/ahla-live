@@ -43,6 +43,17 @@ class SupabaseService {
     debugPrint('[SupabaseService] Initialized with Supabase URL: $_baseUrl');
   }
 
+  /// جلب مستند إعدادات أو صف من جدول عبر مفتاح key
+  Future<Map<String, dynamic>?> getDoc(String table, String key) async {
+    try {
+      final res = await _sb.from(table).select().eq('key', key).maybeSingle();
+      return res != null ? Map<String, dynamic>.from(res) : null;
+    } catch (e) {
+      debugPrint('[SupabaseService] getDoc error ($table, $key): $e');
+      return null;
+    }
+  }
+
   // ═══════════════════════════════════════════════════════
   // USER OPERATIONS (SUPABASE)
   // ═══════════════════════════════════════════════════════

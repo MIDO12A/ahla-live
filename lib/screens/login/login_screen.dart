@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 import '../../providers/user_provider.dart';
 import '../../models/user_model.dart';
 import '../../config/r.dart';
@@ -9,6 +12,7 @@ import '../main_screen/main_screen.dart';
 import 'setup_profile_screen.dart';
 import 'banned_screen.dart';
 import 'widgets/phone_login_sheet.dart';
+import '../../services/account_switch_service.dart';
 import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/device_service.dart';
@@ -23,6 +27,68 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
+  Map<String, dynamic>? _lastAccount;
+  String? _bgUrl;
+  String _bgType = 'image';
+  VideoPlayerController? _videoController;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedAccount();
+    _loadLoginConfig();
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSavedAccount() async {
+    try {
+      final accounts = await AccountSwitchService.getSavedAccounts();
+      if (mounted && accounts.isNotEmpty) {
+        setState(() => _lastAccount = accounts.first);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadLoginConfig() async {
+    try {
+      final doc = await SupabaseService().getDoc('app_config', 'login_screen_config');
+      if (doc != null && doc['value'] != null) {
+        final val = doc['value'] is Map ? doc['value'] : (doc['value'] is String ? jsonDecode(doc['value']) : null);
+        if (val is Map) {
+          final url = val['bgUrl']?.toString().trim() ?? '';
+          final type = val['bgType']?.toString().trim() ?? 'image';
+          if (url.isNotEmpty) {
+            _bgUrl = url;
+            _bgType = type;
+            if (type == 'video' || url.toLowerCase().endsWith('.mp4')) {
+              _initVideo(url);
+            }
+            if (mounted) setState(() {});
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _initVideo(String url) {
+    try {
+      _videoController?.dispose();
+      _videoController = VideoPlayerController.networkUrl(Uri.parse(url))
+        ..initialize().then((_) {
+          _videoController?.setLooping(true);
+          _videoController?.setVolume(0);
+          _videoController?.play();
+          if (mounted) setState(() {});
+        }).catchError((e) {
+          debugPrint('Login background video error: $e');
+        });
+    } catch (_) {}
+  }
 
   Future<void> _handleSignIn(AppAuthUser user) async {
     try {
@@ -73,6 +139,27 @@ class _LoginScreenState extends State<LoginScreen> {
         await SupabaseService().updateUser(user.uid, deviceInfo.toMap());
         await DeviceService().saveDeviceRegistration(user.uid, email: user.email, info: deviceInfo);
       } catch (_) {}
+
+      // 4. Save account for quick 1-tap re-login
+      try {
+        final userData = await SupabaseService().getUser(user.uid);
+        await AccountSwitchService.saveAccount(
+          uid: user.uid,
+          name: userData?.name ?? user.displayName,
+          photoUrl: userData?.photoUrl ?? user.photoUrl,
+          customId: userData?.customId,
+          email: user.email,
+          phone: user.phoneNumber,
+        );
+      } catch (_) {
+        await AccountSwitchService.saveAccount(
+          uid: user.uid,
+          name: user.displayName,
+          photoUrl: user.photoUrl,
+          email: user.email,
+          phone: user.phoneNumber,
+        );
+      }
 
       if (user.isNewUser) {
         // NEW USER: Go to SetupProfileScreen so the user can enter their name, picture, gender and get a custom ID
@@ -257,6 +344,41 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Widget _buildBackground() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Fallback static background
+        R.image(
+          'assets/mipmap-xxhdpi/bg_login.webp',
+          fit: BoxFit.cover,
+        ),
+        // Dynamic background (video / VAP / GIF / image)
+        if (_bgUrl != null && _bgUrl!.isNotEmpty)
+          Positioned.fill(
+            child: (_bgType == 'video' || _bgUrl!.toLowerCase().endsWith('.mp4'))
+                ? (_videoController != null && _videoController!.value.isInitialized
+                    ? SizedBox.expand(
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          child: SizedBox(
+                            width: _videoController!.value.size.width,
+                            height: _videoController!.value.size.height,
+                            child: VideoPlayer(_videoController!),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink())
+                : R.loadImage(
+                    _bgUrl!,
+                    fit: BoxFit.cover,
+                    loops: true,
+                  ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -264,10 +386,7 @@ class _LoginScreenState extends State<LoginScreen> {
         fit: StackFit.expand,
         children: [
           // Background
-          R.image(
-            'assets/mipmap-xxhdpi/bg_login.webp',
-            fit: BoxFit.cover,
-          ),
+          _buildBackground(),
           // Content
           SafeArea(
             child: Padding(
@@ -277,12 +396,102 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   // Welcome Logo
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 65),
+                    padding: const EdgeInsets.only(bottom: 50),
                     child: R.loadImage(
                       'assets/mipmap-xxhdpi/login_welcome_ic.webp',
                       fit: BoxFit.contain,
                     ),
                   ),
+                  // Quick Login Card for Saved Account
+                  if (_lastAccount != null) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFFFFCC80).withOpacity(0.7),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(22),
+                            child: SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: (_lastAccount!['photoUrl'] != null &&
+                                      _lastAccount!['photoUrl'].toString().isNotEmpty)
+                                  ? CachedNetworkImage(
+                                      imageUrl: _lastAccount!['photoUrl'],
+                                      fit: BoxFit.cover,
+                                      placeholder: (_, __) => const CircularProgressIndicator(strokeWidth: 2),
+                                      errorWidget: (_, __, ___) => Image.asset(R.avaBoy, fit: BoxFit.cover),
+                                    )
+                                  : Image.asset(R.avaBoy, fit: BoxFit.cover),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  (_lastAccount!['name']?.toString().isNotEmpty == true)
+                                      ? _lastAccount!['name']
+                                      : 'مستخدم',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'ID: ${_lastAccount!['customId'] ?? _lastAccount!['uid'] ?? ''}',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.7),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFCC80),
+                              foregroundColor: const Color(0xFF894916),
+                              elevation: 2,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            icon: const Icon(Icons.bolt_rounded, size: 16),
+                            label: const Text(
+                              'دخول مباشر',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            onPressed: _isLoading
+                                ? null
+                                : () => AccountSwitchService.switchToAccount(context, _lastAccount!),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   // Google Login Button
                   GestureDetector(
                     onTap: _isLoading ? null : _signInWithGoogle,
@@ -434,60 +643,75 @@ class _LoginScreenState extends State<LoginScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.75,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (_, scrollCtrl) => Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      builder: (ctx) => FutureBuilder<Map<String, dynamic>?>(
+        future: SupabaseService().getDoc('app_config', 'privacy_policy_config'),
+        builder: (context, snapshot) {
+          String content = 'مرحباً بك في تطبيق أحلى لايف (Ahla Live). نحن نحرص بشدة على حماية خصوصيتك وبياناتك الشخصية وتقديم بيئة آمنة لجميع المستخدمين وفقاً لمعايير Google Play الدولية:\n\n'
+              '1. جمع البيانات:\n'
+              'نقوم بجمع الحد الأدنى من البيانات الضرورية لتشغيل الحساب (الاسم، البريد الإلكتروني، رقم الهاتف عند التسجيل، ومعرف الجهاز لحماية الحساب من الاحتيال).\n\n'
+              '2. أذونات التطبيق:\n'
+              'يطلب التطبيق أذونات التسجيل الصوتي والكاميرا فقط عند فتح غرف البث المباشر أو المحادثة الصوتية بموافقتك الصريحة، ولا يتم تسجيل أو مشاركة محادثاتك مع أطراف ثالثة.\n\n'
+              '3. حماية البيانات والأمان:\n'
+              'يتم تشفير وتأمين جميع الاتصالات والبيانات عبر بروتوكولات SSL/TLS مشفرة بأعلى معايير الأمان.\n\n'
+              '4. سلوك المجتمع والمحتوى المحظور:\n'
+              'يُحظر تماماً أي محتوى مسيء، خطاب كراهية، مضايقة أو محتوى غير لائق. يحتفظ التطبيق بحق حظر أي حساب يخالف إرشادات المجتمع فوراً.\n\n'
+              '5. حذف الحساب والبيانات:\n'
+              'يمكنك في أي وقت طلب حذف حسابك وبياناتك بالكامل من خلال إعدادات الحساب داخل التطبيق.';
+
+          final doc = snapshot.data;
+          if (doc != null && doc['value'] != null) {
+            final val = doc['value'];
+            if (val is Map && val['content'] != null && val['content'].toString().trim().isNotEmpty) {
+              content = val['content'].toString();
+            } else if (val is String && val.trim().isNotEmpty) {
+              content = val;
+            }
+          }
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.75,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (_, scrollCtrl) => Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
                 children: [
-                  const Text(
-                    'سياسة الخصوصية وشروط الاستخدام',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white70),
-                    onPressed: () => Navigator.pop(ctx),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'سياسة الخصوصية وشروط الاستخدام',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white70),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              const Divider(color: Colors.white12),
-              Expanded(
-                child: ListView(
-                  controller: scrollCtrl,
-                  children: [
-                    const Text(
-                      'مرحباً بك في تطبيق أحلى لايف (Ahla Live). نحن نحرص بشدة على حماية خصوصيتك وبياناتك الشخصية وتقديم بيئة آمنة لجميع المستخدمين وفقاً لمعايير Google Play الدولية:\n\n'
-                      '1. جمع البيانات:\n'
-                      'نقوم بجمع الحد الأدنى من البيانات الضرورية لتشغيل الحساب (الاسم، البريد الإلكتروني، رقم الهاتف عند التسجيل، ومعرف الجهاز لحماية الحساب من الاحتيال).\n\n'
-                      '2. أذونات التطبيق:\n'
-                      'يطلب التطبيق أذونات التسجيل الصوتي والكاميرا فقط عند فتح غرف البث المباشر أو المحادثة الصوتية بموافقتك الصريحة، ولا يتم تسجيل أو مشاركة محادثاتك مع أطراف ثالثة.\n\n'
-                      '3. حماية البيانات والأمان:\n'
-                      'يتم تشفير وتأمين جميع الاتصالات والبيانات عبر بروتوكولات SSL/TLS مشفرة بأعلى معايير الأمان.\n\n'
-                      '4. سلوك المجتمع والمحتوى المحظور:\n'
-                      'يُحظر تماماً أي محتوى مسيء، خطاب كراهية، مضايقة أو محتوى غير لائق. يحتفظ التطبيق بحق حظر أي حساب يخالف إرشادات المجتمع فوراً.\n\n'
-                      '5. حذف الحساب والبيانات:\n'
-                      'يمكنك في أي وقت طلب حذف حسابك وبياناتك بالكامل من خلال إعدادات الحساب داخل التطبيق.',
-                      style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
-                    ),
+                  const Divider(color: Colors.white12),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollCtrl,
+                      children: [
+                        Text(
+                          content,
+                          style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
+                        ),
                     const SizedBox(height: 20),
                     ElevatedButton.icon(
                       onPressed: () async {
@@ -514,7 +738,9 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  ),
+);
+}
 }
