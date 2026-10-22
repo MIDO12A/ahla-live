@@ -61,7 +61,10 @@ jobs:
       - name: Build release APKs
         run: flutter build apk --release --split-per-abi --build-name=${{ steps.ver.outputs.ver }} --build-number=${{ steps.ver.outputs.build }}
 
-      - name: Rename APKs
+      - name: Build release App Bundle (AAB for Google Play)
+        run: flutter build appbundle --release --build-name=${{ steps.ver.outputs.ver }} --build-number=${{ steps.ver.outputs.build }}
+
+      - name: Rename APKs and AABs
         run: |
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ahla-live.apk
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk ahla-live-arm32.apk
@@ -69,7 +72,9 @@ jobs:
           cp ahla-live.apk zero-app.apk
           cp ahla-live-arm32.apk zero-app-arm32.apk
           cp ahla-live-x86_64.apk zero-app-x86_64.apk
-          ls -lh *.apk
+          cp build/app/outputs/bundle/release/app-release.aab ahla-live.aab
+          cp ahla-live.aab zero-app.aab
+          ls -lh *.apk *.aab
 
       - name: Create build info
         env:
@@ -91,6 +96,8 @@ jobs:
             zero-app.apk
             zero-app-arm32.apk
             zero-app-x86_64.apk
+            ahla-live.aab
+            zero-app.aab
             build_info.json
           retention-days: 30
 
@@ -111,5 +118,7 @@ jobs:
             zero-app.apk
             zero-app-arm32.apk
             zero-app-x86_64.apk
+            ahla-live.aab
+            zero-app.aab
             build_info.json
           token: ${{ secrets.GITHUB_TOKEN }}
