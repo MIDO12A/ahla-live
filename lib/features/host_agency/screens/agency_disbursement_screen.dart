@@ -9,6 +9,7 @@ import '../../../providers/user_provider.dart';
 import 'agent_withdrawal_waiting_screen.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
+import '../../../services/dynamic_config_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyDisbursementScreen — شاشة صرف الأرباح والرواتب
@@ -52,7 +53,12 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this, initialIndex: widget.initialTab.clamp(0, 1));
+    final isReview = DynamicConfigService.instance.isReviewMode;
+    _tabCtrl = TabController(
+      length: isReview ? 1 : 2,
+      vsync: this,
+      initialIndex: isReview ? 0 : widget.initialTab.clamp(0, 1),
+    );
     _loadAll();
   }
 
@@ -174,17 +180,19 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
             onPressed: _loadAll,
           ),
         ],
-        bottom: TabBar(
-          controller: _tabCtrl,
-          indicatorColor: _gold,
-          labelColor: _gold,
-          unselectedLabelColor: Colors.white38,
-          labelStyle: const TextStyle(fontFamily: 'Tajawal', fontWeight: FontWeight.bold, fontSize: 14),
-          tabs: const [
-            Tab(text: '🏛️ صرف إلى الإدارة'),
-            Tab(text: '⚡ صرف إلى وكيل الشحن'),
-          ],
-        ),
+        bottom: DynamicConfigService.instance.isReviewMode
+            ? null
+            : TabBar(
+                controller: _tabCtrl,
+                indicatorColor: _gold,
+                labelColor: _gold,
+                unselectedLabelColor: Colors.white38,
+                labelStyle: const TextStyle(fontFamily: 'Tajawal', fontWeight: FontWeight.bold, fontSize: 14),
+                tabs: const [
+                  Tab(text: '🏛️ صرف إلى الإدارة'),
+                  Tab(text: '⚡ صرف إلى وكيل الشحن'),
+                ],
+              ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: _gold))
@@ -203,12 +211,13 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
                             engine: _engine,
                             onSuccess: _loadAll,
                           ),
-                          _DisburseToRechargeAgentTab(
-                            availableDiamonds: _availableDiamonds,
-                            initialDiamonds: widget.initialDiamonds,
-                            agencyId: widget.agencyId,
-                            onSuccess: _loadAll,
-                          ),
+                          if (!DynamicConfigService.instance.isReviewMode)
+                            _DisburseToRechargeAgentTab(
+                              availableDiamonds: _availableDiamonds,
+                              initialDiamonds: widget.initialDiamonds,
+                              agencyId: widget.agencyId,
+                              onSuccess: _loadAll,
+                            ),
                         ],
                       ),
                     ),

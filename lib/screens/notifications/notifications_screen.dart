@@ -12,6 +12,7 @@ import '../../features/financial/agent_recharge_portal_screen.dart';
 import 'package:uuid/uuid.dart';
 import '../../features/host_agency/screens/agency_join_requests_screen.dart';
 import '../../features/host_agency/data/agency_repository.dart';
+import '../../services/dynamic_config_service.dart';
 
 /// Replicates [chat_activity_system_notification.xml] and [chat_adapter_activity_item.xml]
 /// from the original decompiled app (F:\Medal\New folder\nu).
@@ -291,11 +292,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
                         ),
 
-                      // Recharge Agency Action Button
-                      if (action == 'recharge_agency_approved' ||
-                          notif.type == 'agency_recharge_approved' ||
-                          notif.title.contains('تفعيل وكالة الشحن') ||
-                          notif.title.contains('وكالة الشحن'))
+                      // Recharge Agency Action Button (مخفية في وضع مراجعة جوجل)
+                      if (!DynamicConfigService().isReviewMode &&
+                          (action == 'recharge_agency_approved' ||
+                              notif.type == 'agency_recharge_approved' ||
+                              notif.title.contains('تفعيل وكالة الشحن') ||
+                              notif.title.contains('وكالة الشحن')))
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
                           child: InkWell(

@@ -1303,8 +1303,8 @@ class ProfileScreen extends StatelessWidget {
               },
             ),
 
-            // 10. بوابة شحن الوكلاء والرواتب (خاص بالوكلاء المعتمدين)
-            if (isAgent)
+            // 10. بوابة شحن الوكلاء والرواتب (خاص بالوكلاء المعتمدين - مخفية في وضع مراجعة جوجل)
+            if (isAgent && !DynamicConfigService().isReviewMode)
               _buildFunctionItem(
                 icon: DynamicConfigService().profileRechargeAgentIcon,
                 title: DynamicConfigService().profileRechargeAgentTitle,

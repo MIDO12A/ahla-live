@@ -314,8 +314,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 },
               ),
 
-            // 2. Vodafone Cash
-            if (_gatewayConfig['vodafoneCashEnabled'] != false) ...[
+            // 2. Vodafone Cash (مخفي أثناء وضع مراجعة جوجل)
+            if (!DynamicConfigService().isReviewMode && _gatewayConfig['vodafoneCashEnabled'] != false) ...[
               const SizedBox(height: 10),
               _buildGatewayTile(
                 icon: Icons.phone_android_rounded,
@@ -329,8 +329,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               ),
             ],
 
-            // 3. Binance Pay
-            if (_gatewayConfig['binanceEnabled'] != false) ...[
+            // 3. Binance Pay (مخفي أثناء وضع مراجعة جوجل)
+            if (!DynamicConfigService().isReviewMode && _gatewayConfig['binanceEnabled'] != false) ...[
               const SizedBox(height: 10),
               _buildGatewayTile(
                 icon: Icons.currency_bitcoin,

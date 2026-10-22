@@ -6,6 +6,7 @@ import '../../../../providers/user_provider.dart';
 import '../../../../services/supabase_data_service.dart';
 import '../../../../core/ui/in_app_toast.dart';
 import '../host_agency_screen.dart';
+import '../../../../services/dynamic_config_service.dart';
 
 /// شاشة انتظار موافقة الإدارة على فتح الوكالة
 class AgencyPendingApprovalScreen extends StatefulWidget {
@@ -379,7 +380,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
                       label: isAr ? 'الدولة' : 'Country',
                       value: country,
                     ),
-                    if (whatsapp.isNotEmpty) ...[
+                    if (!DynamicConfigService().isReviewMode && whatsapp.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       _buildDetailRow(
                         icon: Icons.phone_android,

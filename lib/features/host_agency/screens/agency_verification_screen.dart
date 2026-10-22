@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
+import '../../../services/dynamic_config_service.dart';
 
 class AgencyVerificationScreen extends StatefulWidget {
   const AgencyVerificationScreen({super.key});
@@ -182,8 +183,10 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
                     _buildDailyHoursSelector(),
                     const SizedBox(height: 12),
                     _buildTextField(_countryController, 'الدولة / المنطقة'),
-                    const SizedBox(height: 12),
-                    _buildTextField(_whatsappController, 'رقم WhatsApp للتواصل الرسمي'),
+                    if (!DynamicConfigService().isReviewMode) ...[
+                      const SizedBox(height: 12),
+                      _buildTextField(_whatsappController, 'رقم WhatsApp للتواصل الرسمي'),
+                    ],
                     const SizedBox(height: 24),
                     _buildSubmitButton(),
                     const SizedBox(height: 40),

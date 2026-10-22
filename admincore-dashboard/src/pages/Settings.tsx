@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { I18nContext, langs } from '../lib/i18n';
 import { getCloudinaryStatus, saveCloudinaryConfig } from '../lib/storage';
 import { supabase, isAdminConnected } from '../lib/supabase';
-import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame, Palette } from 'lucide-react';
+import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame, Palette, ShieldAlert, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -16,6 +16,11 @@ export default function Settings() {
   const [vipSaving, setVipSaving] = useState(false);
   const [supabaseServiceKey, setSupabaseServiceKey] = useState('');
   const [supabaseSaving, setSupabaseSaving] = useState(false);
+
+  // Google Play Review Mode State
+  const [reviewModeEnabled, setReviewModeEnabled] = useState<boolean>(false);
+  const [reviewModeSaving, setReviewModeSaving] = useState<boolean>(false);
+  const [reviewModeLoaded, setReviewModeLoaded] = useState<boolean>(false);
 
   const [luckyGiftTargetPct, setLuckyGiftTargetPct] = useState<number>(10.0);
   const [luckySaving, setLuckySaving] = useState(false);
@@ -83,7 +88,50 @@ export default function Settings() {
         if (val.bgType) setLoginBgType(val.bgType);
       }
     });
+
+    // تحميل وضع مراجعة Google Play
+    supabase.from('app_config').select('value').eq('key', 'google_review_mode').maybeSingle().then(res => {
+      if (res?.data?.value !== undefined && res?.data?.value !== null) {
+        let val = res.data.value;
+        if (typeof val === 'string') {
+          try { val = JSON.parse(val); } catch (_) {}
+        }
+        if (typeof val === 'boolean') {
+          setReviewModeEnabled(val);
+        } else if (typeof val === 'object' && val !== null) {
+          setReviewModeEnabled((val as any).enabled === true || (val as any).enabled === 'true');
+        } else if (typeof val === 'string') {
+          setReviewModeEnabled(val === 'true' || val === '1');
+        }
+      }
+      setReviewModeLoaded(true);
+    });
   }, []);
+
+  const handleToggleReviewMode = async (nextState: boolean) => {
+    setReviewModeSaving(true);
+    try {
+      const payload = {
+        enabled: nextState,
+        hide_external_contacts: nextState,
+        hide_recharge_agents: nextState,
+        hide_unofficial_gateways: nextState,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('app_config').upsert(
+        { key: 'google_review_mode', value: payload },
+        { onConflict: 'key' }
+      );
+      if (error) throw error;
+      setReviewModeEnabled(nextState);
+      alert(nextState 
+        ? 'تم تفعيل وضع مراجعة Google Play بنجاح 🛡️\nالتطبيق الآن يخفي جميع أرقام الواتساب ووكلاء الشحن وبوابات الدفع غير الرسمية ويظهر باقات جوجل الرسمية فقط.' 
+        : 'تم إيقاف وضع المراجعة وتفعيل الوضع الحي (Live) 🚀\nتظهر الآن لجميع المستخدمين شاشات الوكلاء وقنوات الشحن والتواصل بشكل طبيعي.');
+    } catch (e) {
+      alert('فشل حفظ حالة وضع المراجعة: ' + (e as Error).message);
+    }
+    setReviewModeSaving(false);
+  };
 
   // حالات صفحات التطبيق وسياسة الخصوصية وخلفية الدخول
   const [aboutTitle, setAboutTitle] = useState('أحلى لايف - Ahla Live');
@@ -241,6 +289,107 @@ export default function Settings() {
             ))}
           </div>
           <p className="text-[9px] text-slate-600 mt-1.5">Change dashboard interface language</p>
+        </div>
+
+        {/* Google Play Review Mode Switch Card */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[11px] uppercase tracking-wider font-bold flex items-center gap-2 text-amber-400">
+              <ShieldAlert className="w-4 h-4 text-amber-400" />
+              <span>وضع مراجعة متجر Google Play (Google Play Review Mode)</span>
+            </label>
+            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+              reviewModeEnabled 
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse' 
+                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+            }`}>
+              {reviewModeEnabled ? '🟡 وضع المراجعة مفعّل (Review Active)' : '🟢 الوضع الحي شغال (Live Active)'}
+            </span>
+          </div>
+
+          <div className={`rounded-xl border p-5 transition-all shadow-xl ${
+            reviewModeEnabled 
+              ? 'bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-[#161618] border-amber-500/40 shadow-amber-500/10' 
+              : 'bg-gradient-to-r from-emerald-950/30 via-slate-900 to-[#161618] border-emerald-500/30 shadow-emerald-500/10'
+          }`}>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+              <div className="flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 border shadow-lg ${
+                  reviewModeEnabled 
+                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-amber-500/20' 
+                    : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-emerald-500/20'
+                }`}>
+                  {reviewModeEnabled ? '🛡️' : '🚀'}
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>{reviewModeEnabled ? 'وضع المراجعة مفعّل حالياً' : 'وضع التطبيق الحي (Live Mode)'}</span>
+                    <span className="text-xs text-slate-400">
+                      {reviewModeEnabled ? '(Google Play Reviewing)' : '(Public Live App)'}
+                    </span>
+                  </h4>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                    {reviewModeEnabled ? (
+                      <>
+                        <strong className="text-amber-300">أثناء المراجعة:</strong> يتم إخفاء أرقام الواتساب وروابط التواصل الخارجي، وتخفى شاشات وكلاء الشحن وبوابات فودافون كاش وبينانس باي عن مراجع متجر جوجل. يرى المراجع تطبيقاً ترفيهياً نظيفاً يحتوي فقط على شحن Google Play الرسمي أو نظام الصرف الداخلي.
+                      </>
+                    ) : (
+                      <>
+                        <strong className="text-emerald-300">التطبيق الحي:</strong> يظهر لجميع المستخدمين شاشات وكلاء الشحن المعتمدين، وقنوات صرف الأرباح إلى الوكلاء، وأرقام الواتساب المعتمدة، وبوابات الدفع بالكامل بدون أي قيود.
+                      </>
+                    )}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-400">
+                    <span className="inline-flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
+                      <span>واتساب الوكلاء:</span>
+                      <strong className={reviewModeEnabled ? 'text-amber-400' : 'text-emerald-400'}>
+                        {reviewModeEnabled ? 'مخفي 🔒' : 'ظاهر ✓'}
+                      </strong>
+                    </span>
+                    <span className="inline-flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
+                      <span>شاشات وكلاء الشحن:</span>
+                      <strong className={reviewModeEnabled ? 'text-amber-400' : 'text-emerald-400'}>
+                        {reviewModeEnabled ? 'مخفية 🔒' : 'ظاهرة ✓'}
+                      </strong>
+                    </span>
+                    <span className="inline-flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-md border border-white/5">
+                      <span>بوابات الدفع غير الرسمية:</span>
+                      <strong className={reviewModeEnabled ? 'text-amber-400' : 'text-emerald-400'}>
+                        {reviewModeEnabled ? 'معطلة 🔒' : 'مفعلة ✓'}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3 self-end lg:self-center flex-shrink-0">
+                <button
+                  type="button"
+                  disabled={reviewModeSaving}
+                  onClick={() => handleToggleReviewMode(!reviewModeEnabled)}
+                  className={`px-5 py-3 rounded-xl font-bold text-xs flex items-center gap-2.5 shadow-lg transition-all cursor-pointer whitespace-nowrap ${
+                    reviewModeEnabled
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30'
+                      : 'bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white shadow-amber-600/30'
+                  }`}
+                >
+                  {reviewModeSaving ? (
+                    <span>جاري التحديث...</span>
+                  ) : reviewModeEnabled ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>إيقاف وضع المراجعة وتفعيل التطبيق الحي (Live) 🚀</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-4 h-4" />
+                      <span>تفعيل وضع مراجعة Google Play 🛡️</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Unified Design & Customization Center Card */}

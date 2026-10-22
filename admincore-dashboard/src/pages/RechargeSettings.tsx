@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Coins, Diamond, CreditCard, Save, RefreshCw, Plus, Trash2, 
   CheckCircle2, ArrowRightLeft, Sparkles, Smartphone, Globe, 
-  ShieldCheck, Clock, Check, X, Building2, User, ExternalLink,
+  ShieldCheck, ShieldAlert, Clock, Check, X, Building2, User, ExternalLink,
   RotateCcw, Search, Eye, AlertTriangle
 } from 'lucide-react';
 import { 
@@ -58,6 +58,10 @@ export default function RechargeSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Google Play Review Mode State
+  const [reviewModeEnabled, setReviewModeEnabled] = useState<boolean>(false);
+  const [reviewModeSaving, setReviewModeSaving] = useState<boolean>(false);
 
   // 1. Diamond Exchange State
   const [exchangeConfig, setExchangeConfig] = useState<DiamondExchangeConfig>({
@@ -117,6 +121,20 @@ export default function RechargeSettings() {
     try {
       const cfg: any = await getAppConfig();
       if (cfg) {
+        if (cfg.google_review_mode !== undefined && cfg.google_review_mode !== null) {
+          let grm = cfg.google_review_mode;
+          if (typeof grm === 'string') {
+            try { grm = JSON.parse(grm); } catch (_) {}
+          }
+          if (typeof grm === 'boolean') {
+            setReviewModeEnabled(grm);
+          } else if (typeof grm === 'object' && grm !== null) {
+            setReviewModeEnabled(grm.enabled === true || grm.enabled === 'true');
+          } else if (typeof grm === 'string') {
+            setReviewModeEnabled(grm === 'true' || grm === '1');
+          }
+        }
+
         if (cfg.diamond_exchange_config) {
           setExchangeConfig({
             coinsPerDiamond: Number(cfg.diamond_exchange_config.coinsPerDiamond ?? 1.0),
@@ -345,6 +363,27 @@ export default function RechargeSettings() {
 
   const filteredPlans = plans.filter(p => p.currency === plansCurrencyTab);
 
+  const handleToggleReviewMode = async (nextState: boolean) => {
+    setReviewModeSaving(true);
+    try {
+      const payload = {
+        enabled: nextState,
+        hide_external_contacts: nextState,
+        hide_recharge_agents: nextState,
+        hide_unofficial_gateways: nextState,
+        updated_at: new Date().toISOString(),
+      };
+      await updateAppConfig('google_review_mode', payload);
+      setReviewModeEnabled(nextState);
+      alert(nextState 
+        ? 'تم تفعيل وضع مراجعة Google Play بنجاح 🛡️\nالتطبيق الآن يخفي جميع أرقام الواتساب ووكلاء الشحن وبوابات الدفع غير الرسمية.' 
+        : 'تم إيقاف وضع المراجعة وتفعيل الوضع الحي (Live) 🚀\nتظهر الآن لجميع المستخدمين شاشات الوكلاء وقنوات الشحن والتواصل بشكل طبيعي.');
+    } catch (e) {
+      alert('فشل حفظ حالة وضع المراجعة: ' + (e as Error).message);
+    }
+    setReviewModeSaving(false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -409,6 +448,77 @@ export default function RechargeSettings() {
               </>
             )}
           </button>
+        </div>
+      </div>
+
+      {/* Google Play Review Mode Switch Card */}
+      <div className={`rounded-2xl border p-5 transition-all shadow-xl ${
+        reviewModeEnabled 
+          ? 'bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-[#161618] border-amber-500/40 shadow-amber-500/10' 
+          : 'bg-gradient-to-r from-emerald-950/30 via-slate-900 to-[#161618] border-emerald-500/30 shadow-emerald-500/10'
+      }`}>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="flex items-start gap-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 border shadow-lg ${
+              reviewModeEnabled 
+                ? 'bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-amber-500/20' 
+                : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-emerald-500/20'
+            }`}>
+              {reviewModeEnabled ? '🛡️' : '🚀'}
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5">
+                <h4 className="text-sm font-bold text-white">
+                  وضع مراجعة متجر Google Play: {reviewModeEnabled ? 'مفعّل حالياً' : 'معطّل (الوضع الحي)'}
+                </h4>
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  reviewModeEnabled 
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse' 
+                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                }`}>
+                  {reviewModeEnabled ? '🟡 Review Mode Active' : '🟢 Live Mode'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                {reviewModeEnabled ? (
+                  <>
+                    <strong className="text-amber-300">أثناء المراجعة:</strong> يخفي التطبيق تلقائياً كافة أرقام هواتف وواتساب الوكلاء، ويعطل ظهور شاشات وكلاء الشحن وبوابات الدفع غير الرسمية لمراجعي متجر جوجل.
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-emerald-300">الوضع الحي:</strong> تظهر شاشات وكلاء الشحن وبوابات الدفع وقنوات سحب وصرف الأرباح بشكل طبيعي لكافة المستخدمين.
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 self-end lg:self-center flex-shrink-0">
+            <button
+              type="button"
+              disabled={reviewModeSaving}
+              onClick={() => handleToggleReviewMode(!reviewModeEnabled)}
+              className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg transition-all cursor-pointer whitespace-nowrap ${
+                reviewModeEnabled
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30'
+                  : 'bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white shadow-amber-600/30'
+              }`}
+            >
+              {reviewModeSaving ? (
+                <span>جاري التحديث...</span>
+              ) : reviewModeEnabled ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>إيقاف المراجعة وتفعيل الوضع الحي 🚀</span>
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>تفعيل وضع مراجعة Google Play 🛡️</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

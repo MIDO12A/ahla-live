@@ -233,6 +233,29 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (DynamicConfigService().isReviewMode) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF16151A),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            'بوابة الشحن',
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ),
+        body: const Center(
+          child: Text(
+            'هذه الخدمة غير متاحة حالياً',
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+        ),
+      );
+    }
     if (_loading) {
       return const Scaffold(
           body: Center(child: CircularProgressIndicator()));

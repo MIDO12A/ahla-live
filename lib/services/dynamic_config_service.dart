@@ -118,6 +118,10 @@ class DynamicConfigService extends ChangeNotifier {
   bool _diamondExchangeEnabled = true;
   int _roomBgPrice = 100;
 
+  // Google Play Review Mode (وضع مراجعة متجر جوجل بلاي)
+  bool _googleReviewMode = false;
+  bool get isReviewMode => _googleReviewMode;
+
   // Room theme gradients (from app_config.roomGradients)
   Map<String, List<Color>> _roomGradients = {};
   Map<String, String> _roomBgImages = {};
@@ -1324,6 +1328,19 @@ class DynamicConfigService extends ChangeNotifier {
 
     _appName = _rawConfig['appName'] as String? ?? _appName;
     _logoUrl = _rawConfig['logoUrl'] as String? ?? _logoUrl;
+
+    final grm = _rawConfig['google_review_mode'];
+    if (grm != null) {
+      if (grm is bool) {
+        _googleReviewMode = grm;
+      } else if (grm is Map) {
+        _googleReviewMode = grm['enabled'] == true ||
+            grm['enabled'] == 'true' ||
+            grm['enabled'] == 1;
+      } else if (grm is String) {
+        _googleReviewMode = grm.toLowerCase() == 'true' || grm == '1';
+      }
+    }
     _splashEnabled = _rawConfig['splash_enabled'] == true ||
         _rawConfig['splash_enabled'] == 'true' ||
         _rawConfig['splashEnabled'] == true ||

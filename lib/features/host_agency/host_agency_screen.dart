@@ -1389,8 +1389,10 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             items: _countries.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
             onChanged: (v) => setState(() => _selectedCountry = v),
           ),
-          const SizedBox(height: 12),
-          _field(_phoneCtrl, 'رقم الهاتف / واتساب (اختياري)', Icons.phone_rounded, keyboardType: TextInputType.phone),
+          if (!cfg.isReviewMode) ...[
+            const SizedBox(height: 12),
+            _field(_phoneCtrl, 'رقم الهاتف / واتساب (اختياري)', Icons.phone_rounded, keyboardType: TextInputType.phone),
+          ],
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
