@@ -672,6 +672,7 @@ abstract final class AgencyRepository {
   }
 
   /// تحويل ألماس وسحب الراتب الفعلي لمحفظة وكيل الشحن أو الإدارة
+  /// تحويل ألماس وسحب الراتب الفعلي لمحفظة وكيل الشحن أو الإدارة
   /// p_source: 'host' للمضيف، 'agency_owner' لمالك الوكالة
   static Future<Map<String, dynamic>> transferDiamondsToAgentWallet({
     required String agentId,
@@ -679,13 +680,46 @@ abstract final class AgencyRepository {
     required String idempotencyKey,
     String source = 'host',
     String? senderUid,
+    double? stageUsd,
   }) async {
+    // Determine milestone USD if not passed
+    double effectiveStageUsd = stageUsd ?? 0.0;
+    if (effectiveStageUsd <= 0 && source == 'host') {
+      try {
+        final cfgRow = await _sb.from('app_config').select('value').eq('key', 'host_milestones_list').maybeSingle();
+        if (cfgRow != null && cfgRow['value'] != null) {
+          final rawVal = cfgRow['value'];
+          List mList = [];
+          if (rawVal is String) {
+            try {
+              final p = jsonDecode(rawVal);
+              if (p is List) mList = p;
+            } catch (_) {}
+          } else if (rawVal is List) {
+            mList = rawVal;
+          }
+          for (final item in mList) {
+            final tDia = (item['target_diamonds'] ?? item['targetDiamonds'] as num?)?.toInt() ?? 0;
+            if (tDia == diamonds) {
+              final rVal = (item['reward_value'] ?? item['rewardValue'] as num?)?.toDouble();
+              if (rVal != null && rVal > 0) {
+                effectiveStageUsd = rVal;
+                break;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     try {
       final resp = await _sb.rpc('host_transfer_diamonds_to_agent', params: {
         'p_agent_id':         agentId,
         'p_diamonds':         diamonds,
         'p_idempotency_key':  idempotencyKey,
         'p_source':           source,
+        'p_host_uid':         senderUid ?? _sb.auth.currentUser?.id,
+        'p_stage_usd':        effectiveStageUsd,
       });
       if (resp != null && (resp['status'] == 'ok' || resp['ok'] == true || resp['success'] == true)) {
         return Map<String, dynamic>.from(resp as Map);
@@ -739,44 +773,32 @@ abstract final class AgencyRepository {
           return {'status': 'error', 'message': 'رصيد الألماس المتاح غير كافٍ لإتمام السحب'};
         }
 
-        // Fetch agency owner
-        String ownerId = '';
+        // Fetch agency name
         String agencyName = 'الوكالة';
         if (agencyId.isNotEmpty) {
           final agRow = await _sb
               .from('host_agencies')
-              .select('id, name, owner_id, owner_uid')
+              .select('id, name')
               .eq('id', agencyId)
               .maybeSingle();
-          ownerId = agRow?['owner_id']?.toString() ?? agRow?['owner_uid']?.toString() ?? '';
           agencyName = agRow?['name']?.toString() ?? 'الوكالة';
         }
 
-        // Fetch general agency commission rate from commission_settings
-        double agencyRate = 0.15; // default 15%
-        try {
-          final commRow = await _sb
-              .from('commission_settings')
-              .select('percentage, value')
-              .eq('key', 'agency_rate')
-              .maybeSingle();
-          if (commRow != null) {
-            final raw = commRow['percentage'] ?? commRow['value'];
-            if (raw is num && raw > 0) {
-              agencyRate = raw > 1 ? (raw.toDouble() / 100.0) : raw.toDouble();
-            }
-          }
-        } catch (_) {}
-
-        final int agentCommissionDiamonds = (diamonds * agencyRate).round();
-
-        // 1. Zero out / deduct host diamonds in users table
+        // 1. Deduct host diamonds in users table using exact eq
         final newHostDiamonds = (userDiamonds - diamonds).clamp(0, 999999999);
-        await _sb.from('users').update({
-          'diamonds': newHostDiamonds,
-        }).or('uid.eq.$uid,id.eq.$uid');
+        try {
+          await _sb.from('users').update({
+            'diamonds': newHostDiamonds,
+          }).eq('uid', uid);
+        } catch (_) {
+          try {
+            await _sb.from('users').update({
+              'diamonds': newHostDiamonds,
+            }).eq('id', uid);
+          } catch (_) {}
+        }
 
-        // 2. Zero out host's target & deduct available diamonds in host_agency_members
+        // 2. Deduct host's target & available diamonds in host_agency_members
         if (memberRow != null && memberRow['id'] != null) {
           final curBal = (memberRow['diamonds_balance'] as num?)?.toInt() ?? (memberRow['diamonds'] as num?)?.toInt() ?? userDiamonds;
           final curMonthly = (memberRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
@@ -786,7 +808,7 @@ abstract final class AgencyRepository {
             'diamonds': updatedBal,
             'diamonds_balance': updatedBal,
             'diamonds_available': updatedBal,
-            'diamonds_earned_monthly': updatedMonthly, // تصفير / خصم التارجت فوراً عند الصرف
+            'diamonds_earned_monthly': updatedMonthly,
           }).eq('id', memberRow['id']);
 
           // تصفير الراتب المستحق للمضيف في جدول الرواتب
@@ -798,115 +820,8 @@ abstract final class AgencyRepository {
           } catch (_) {}
         }
 
-        // 3. Add Agent Commission to Agency Owner wallet & member record & agency target
-        if (ownerId.isNotEmpty && agentCommissionDiamonds > 0) {
-          try {
-            // Update owner record in host_agency_members
-            final ownerMem = await _sb
-                .from('host_agency_members')
-                .select('*')
-                .eq('agency_id', agencyId)
-                .or('user_id.eq.$ownerId,host_uid.eq.$ownerId')
-                .maybeSingle();
-            int oDia = 0;
-            int oBal = 0;
-            int oEarnedMonthly = 0;
-            int oEarnedCumulative = 0;
-            if (ownerMem != null) {
-              oDia = (ownerMem['diamonds'] as num?)?.toInt() ?? 0;
-              oBal = (ownerMem['diamonds_balance'] as num?)?.toInt() ?? oDia;
-              oEarnedMonthly = (ownerMem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-              oEarnedCumulative = (ownerMem['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
-              await _sb.from('host_agency_members').update({
-                'diamonds': oDia + agentCommissionDiamonds,
-                'diamonds_balance': oBal + agentCommissionDiamonds,
-                'diamonds_earned_monthly': oEarnedMonthly + agentCommissionDiamonds,
-                'diamonds_earned_cumulative': oEarnedCumulative + agentCommissionDiamonds,
-              }).eq('id', ownerMem['id']);
-            }
-
-            // Update owner user diamonds in users table
-            try {
-              final uRow = await _sb.from('users').select('diamonds').eq('uid', ownerId).maybeSingle();
-              if (uRow != null) {
-                final uDia = (uRow['diamonds'] as num?)?.toInt() ?? 0;
-                await _sb.from('users').update({
-                  'diamonds': uDia + agentCommissionDiamonds,
-                }).eq('uid', ownerId);
-              }
-            } catch (_) {}
-
-            // Update host_agencies monthly & cumulative target diamonds so agent target reflects commission
-            try {
-              final agRow = await _sb.from('host_agencies').select('monthly_diamonds, total_diamonds_monthly, total_diamonds_cumulative').eq('id', agencyId).maybeSingle();
-              if (agRow != null) {
-                final curMonthly = (agRow['monthly_diamonds'] as num?)?.toInt() ?? 0;
-                final curTotMonthly = (agRow['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
-                final curTotCum = (agRow['total_diamonds_cumulative'] as num?)?.toInt() ?? 0;
-                await _sb.from('host_agencies').update({
-                  'monthly_diamonds': curMonthly + agentCommissionDiamonds,
-                  'total_diamonds_monthly': curTotMonthly + agentCommissionDiamonds,
-                  'total_diamonds_cumulative': curTotCum + agentCommissionDiamonds,
-                }).eq('id', agencyId);
-              }
-            } catch (_) {}
-
-            // Update agency_wallets if table exists
-            try {
-              final aw = await _sb
-                  .from('agency_wallets')
-                  .select('diamond_balance')
-                  .eq('agency_profile_id', ownerId)
-                  .maybeSingle();
-              final curOwnerDia = (aw?['diamond_balance'] as num?)?.toInt() ?? 0;
-              if (aw != null) {
-                await _sb.from('agency_wallets').update({
-                  'diamond_balance': curOwnerDia + agentCommissionDiamonds,
-                  'updated_at': DateTime.now().toIso8601String(),
-                }).eq('agency_profile_id', ownerId);
-              } else {
-                await _sb.from('agency_wallets').insert({
-                  'agency_profile_id': ownerId,
-                  'diamond_balance': agentCommissionDiamonds,
-                  'gold_balance': 0,
-                  'total_earnings': agentCommissionDiamonds,
-                  'updated_at': DateTime.now().toIso8601String(),
-                });
-              }
-            } catch (_) {}
-
-            // Log commission to agency_diamond_ledger
-            try {
-              await _sb.from('agency_diamond_ledger').insert({
-                'agency_id': agencyId,
-                'user_id': ownerId,
-                'sender_id': uid,
-                'sender_name': userName,
-                'txn_type': 'commission',
-                'amount': agentCommissionDiamonds,
-                'direction': 1,
-                'balance_after': oBal + agentCommissionDiamonds,
-                'gift_name': 'عمولة الوكيل (${(agencyRate * 100).toInt()}%) من سحب المضيف $userName',
-                'created_at': DateTime.now().toIso8601String(),
-              });
-            } catch (_) {}
-
-            // Send private message to agency owner
-            try {
-              await _sb.from('private_messages').insert({
-                'sender_id': 'system',
-                'receiver_id': ownerId,
-                'text': 'مبروك! تمت إضافة عمولة بقيمة $agentCommissionDiamonds ماسة إلى محفظة وكالتك من سحب المضيف $userName.',
-                'type': 'system',
-                'created_at': DateTime.now().toIso8601String(),
-              });
-            } catch (_) {}
-          } catch (e) {
-            debugPrint('[AgencyRepository] error crediting owner commission: $e');
-          }
-        }
-
-        // 4. Deposit diamonds into Recharge Agency Wallet (agency_wallets)
+        // 3. Deposit diamonds into Recharge Agency Wallet (agency_wallets)
+        int agentBalAfter = diamonds;
         if (agentId.isNotEmpty && agentId != 'admin') {
           try {
             final agentRow = await _sb
@@ -916,17 +831,20 @@ abstract final class AgencyRepository {
                 .maybeSingle();
             final aId = agentRow?['uid']?.toString() ?? agentRow?['id']?.toString() ?? agentId;
 
-            // إيداع الألماس حصراً في محفظة وكالة الشحن (وليس المحفظة الشخصية)
+            // إيداع الألماس حصراً في محفظة وكالة الشحن
             final aw = await _sb
                 .from('agency_wallets')
-                .select('id, diamond_balance')
+                .select('id, diamond_balance, total_received')
                 .eq('agency_profile_id', aId)
                 .maybeSingle();
 
             if (aw != null) {
               final curDia = (aw['diamond_balance'] as num?)?.toInt() ?? 0;
+              final curRec = (aw['total_received'] as num?)?.toInt() ?? 0;
+              agentBalAfter = curDia + diamonds;
               await _sb.from('agency_wallets').update({
-                'diamond_balance': curDia + diamonds,
+                'diamond_balance': agentBalAfter,
+                'total_received': curRec + diamonds,
                 'updated_at': DateTime.now().toIso8601String(),
               }).eq('agency_profile_id', aId);
             } else {
@@ -934,12 +852,14 @@ abstract final class AgencyRepository {
                 'agency_profile_id': aId,
                 'diamond_balance': diamonds,
                 'gold_balance': 0,
+                'total_received': diamonds,
+                'total_withdrawn': 0,
                 'total_earnings': diamonds,
                 'updated_at': DateTime.now().toIso8601String(),
               });
             }
 
-            // تسجيل العملية في سجل معاملات ألماس وكيل الشحن
+            // تسجيل العملية في سجل معاملات ألماس وكيل الشحن مع مبلغ المرحلة بالدولار
             try {
               await _sb.from('agent_diamond_transactions').insert({
                 'agent_id': aId,
@@ -949,17 +869,22 @@ abstract final class AgencyRepository {
                 'sender_kayan_id': userRow?['custom_id'],
                 'txn_type': 'received_from_host',
                 'diamonds_amount': diamonds,
-                'notes': 'استلام راتب من المضيف $userName (وكالة: $agencyName)',
+                'coins_amount': 0,
+                'usd_amount': effectiveStageUsd,
+                'balance_after': agentBalAfter,
+                'notes': 'استلام راتب من المضيف $userName (وكالة: $agencyName) - $diamonds ماسة' + (effectiveStageUsd > 0 ? ' ($effectiveStageUsd\$)' : ''),
                 'created_at': DateTime.now().toIso8601String(),
               });
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[AgencyRepository] error logging agent_diamond_transactions: $e');
+            }
 
             // إرسال إشعار فوري لوكيل الشحن
             try {
               await _sb.from('private_messages').insert({
                 'sender_id': 'system',
                 'receiver_id': aId,
-                'text': '⚡ تم إيداع $diamonds ماسة في محفظة وكالة الشحن الخاصة بك من سحب المضيف $userName (وكالة: $agencyName).',
+                'text': '⚡ تم إيداع $diamonds ماسة' + (effectiveStageUsd > 0 ? ' ($effectiveStageUsd\$)' : '') + ' في محفظة وكالة الشحن الخاصة بك من سحب المضيف $userName (وكالة: $agencyName).',
                 'type': 'system',
                 'created_at': DateTime.now().toIso8601String(),
               });
@@ -993,9 +918,7 @@ abstract final class AgencyRepository {
             'details': {
               'agent_id': agentId,
               'diamonds': diamonds,
-              'coins': diamonds,
-              'agent_commission': agentCommissionDiamonds,
-              'agency_rate': agencyRate,
+              'stage_usd': effectiveStageUsd,
               'idempotency_key': idempotencyKey,
               'source': 'host',
               'user_name': userName,
@@ -1008,9 +931,9 @@ abstract final class AgencyRepository {
         return {
           'status': 'ok',
           'success': true,
-          'coins': diamonds,
-          'agent_commission': agentCommissionDiamonds,
-          'message': 'تم السحب والتحويل بنجاح وتصفير رصيد المضيف مع احتساب عمولة الوكيل',
+          'diamonds': diamonds,
+          'usd_amount': effectiveStageUsd,
+          'message': 'تم سحب الراتب والتحويل لمحفظة وكالة الشحن بنجاح',
         };
       } else {
         // source == 'agency_owner'
@@ -1049,7 +972,7 @@ abstract final class AgencyRepository {
           final curUDia = (userRow?['diamonds'] as num?)?.toInt() ?? userDiamonds;
           await _sb.from('users').update({
             'diamonds': (curUDia - diamonds).clamp(0, 999999999),
-          }).or('uid.eq.$uid,id.eq.$uid');
+          }).eq('uid', uid);
         } catch (_) {}
 
         // Deduct from agency_wallets if table exists
@@ -1606,6 +1529,7 @@ abstract final class AgencyRepository {
     String? hostAvatar,
     String? agencyId,
     String? agencyName,
+    double? milestoneUsd,
   }) async {
     try {
       final agentId = agent['id']?.toString() ?? agent['uid']?.toString() ?? '';
@@ -1617,7 +1541,39 @@ abstract final class AgencyRepository {
       }
 
       final requestId = 'host_wdr_${DateTime.now().millisecondsSinceEpoch}_${hostUid.substring(0, 4)}';
-      final approxUsd = diamonds / 100.0; // معدل تقريبي
+
+      // جلب مكافأة المرحلة المحددة بالدولار من إعدادات المراحل
+      double stageUsd = milestoneUsd ?? 0.0;
+      if (stageUsd <= 0) {
+        try {
+          final cfgRow = await _sb.from('app_config').select('value').eq('key', 'host_milestones_list').maybeSingle();
+          if (cfgRow != null && cfgRow['value'] != null) {
+            final rawVal = cfgRow['value'];
+            List mList = [];
+            if (rawVal is String) {
+              try {
+                final p = jsonDecode(rawVal);
+                if (p is List) mList = p;
+              } catch (_) {}
+            } else if (rawVal is List) {
+              mList = rawVal;
+            }
+            for (final item in mList) {
+              final tDia = (item['target_diamonds'] ?? item['targetDiamonds'] as num?)?.toInt() ?? 0;
+              if (tDia == diamonds) {
+                final rVal = (item['reward_value'] ?? item['rewardValue'] as num?)?.toDouble();
+                if (rVal != null && rVal > 0) {
+                  stageUsd = rVal;
+                  break;
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      if (stageUsd <= 0) {
+        stageUsd = diamonds / 100.0; // معدل تقريبي كحل أخير
+      }
 
       final accountDetails = {
         'request_type': 'host_diamonds_withdrawal',
@@ -1626,6 +1582,7 @@ abstract final class AgencyRepository {
         'host_custom_id': hostCustomId ?? '',
         'host_avatar': hostAvatar ?? '',
         'diamonds': diamonds,
+        'stage_usd': stageUsd,
         'agency_id': agencyId ?? '',
         'agency_name': agencyName ?? 'وكالة المضيف',
         'agent_custom_id': agent['kayan_id']?.toString() ?? '',
@@ -1637,7 +1594,7 @@ abstract final class AgencyRepository {
         'id': requestId,
         'agent_id': agentId,
         'agent_name': agent['display_name'] ?? 'وكيل شحن',
-        'amount_usd': approxUsd,
+        'amount_usd': stageUsd,
         'payment_method': 'host_diamonds',
         'account_details': accountDetails,
         'status': 'pending',
@@ -1650,7 +1607,7 @@ abstract final class AgencyRepository {
           'uid': agentId,
           'target': agentId,
           'title': 'طلب سحب ألماس جديد 💎',
-          'body': 'طلب المضيف $hostName سحب $diamonds ماسة عبر وكالتك. يرجى الدخول لبوابة الشحن للموافقة أو الرفض.',
+          'body': 'طلب المضيف $hostName سحب $diamonds ماسة ($stageUsd\$) عبر وكالتك. يرجى الدخول لبوابة الشحن للموافقة أو الرفض.',
           'type': 'agent_host_withdrawal_request',
           'actor_uid': hostUid,
           'data': {
@@ -1658,6 +1615,7 @@ abstract final class AgencyRepository {
             'host_uid': hostUid,
             'host_name': hostName,
             'diamonds': diamonds,
+            'stage_usd': stageUsd,
             'action_required': true,
           },
           'sent_at': DateTime.now().toIso8601String(),
@@ -1697,7 +1655,8 @@ abstract final class AgencyRepository {
             'host_name': details['host_name'] ?? 'مضيف',
             'host_custom_id': details['host_custom_id'] ?? '',
             'host_avatar': details['host_avatar'] ?? '',
-            'diamonds': (details['diamonds'] as num?)?.toInt() ?? ((m['amount_usd'] as num?)?.toInt() ?? 0) * 100,
+            'diamonds': (details['diamonds'] as num?)?.toInt() ?? 0,
+            'amount_usd': (details['stage_usd'] as num?)?.toDouble() ?? (m['amount_usd'] as num?)?.toDouble() ?? 0.0,
             'agency_name': details['agency_name'] ?? '',
             'created_at': m['created_at'],
             'status': m['status'],
@@ -1738,6 +1697,7 @@ abstract final class AgencyRepository {
       final details = reqRow['account_details'] is Map ? Map<String, dynamic>.from(reqRow['account_details']) : {};
       final hostUid = details['host_uid']?.toString() ?? '';
       final diamonds = (details['diamonds'] as num?)?.toInt() ?? 0;
+      final stageUsd = (details['stage_usd'] as num?)?.toDouble() ?? (reqRow['amount_usd'] as num?)?.toDouble() ?? 0.0;
 
       if (approve) {
         // تنفيذ التحويل الفعلي للألماس
@@ -1748,6 +1708,7 @@ abstract final class AgencyRepository {
           idempotencyKey: key,
           source: 'host',
           senderUid: hostUid,
+          stageUsd: stageUsd,
         );
 
         if (txRes['status'] != 'ok' && txRes['success'] != true) {
