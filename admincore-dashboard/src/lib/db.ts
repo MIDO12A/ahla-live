@@ -473,11 +473,249 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
       }
     }
 
+    // Automatically sync updated user diamonds to agency records
+    if (data.diamonds !== undefined) {
+      try {
+        const newDia = Number(data.diamonds);
+        const { data: member } = await client
+          .from('host_agency_members')
+          .select('*')
+          .or(`user_id.eq.${uid},host_uid.eq.${uid}`)
+          .maybeSingle();
+
+        if (member) {
+          const oldDia = Number(member.diamonds || 0);
+          const diff = newDia - oldDia;
+          const newBal = Math.max(0, Number(member.diamonds_balance ?? oldDia) + diff);
+          const newMonthly = diff >= 0
+            ? Number(member.diamonds_earned_monthly || 0) + diff
+            : Math.max(0, Number(member.diamonds_earned_monthly || 0) + diff);
+          const newCum = diff >= 0
+            ? Number(member.diamonds_earned_cumulative || 0) + diff
+            : Math.max(0, Number(member.diamonds_earned_cumulative || 0) + diff);
+
+          await client.from('host_agency_members').update({
+            diamonds: newDia,
+            diamonds_balance: newBal,
+            diamonds_available: newBal,
+            diamonds_earned_monthly: newMonthly,
+            diamonds_earned_cumulative: newCum,
+          }).eq('id', member.id);
+
+          if (member.agency_id) {
+            const { data: ag } = await client
+              .from('host_agencies')
+              .select('total_diamonds_monthly, total_diamonds_cumulative')
+              .eq('id', member.agency_id)
+              .maybeSingle();
+
+            if (ag) {
+              const agM = diff >= 0 ? Number(ag.total_diamonds_monthly || 0) + diff : Math.max(0, Number(ag.total_diamonds_monthly || 0) + diff);
+              const agC = diff >= 0 ? Number(ag.total_diamonds_cumulative || 0) + diff : Math.max(0, Number(ag.total_diamonds_cumulative || 0) + diff);
+              await client.from('host_agencies').update({
+                total_diamonds_monthly: agM,
+                total_diamonds_cumulative: agC,
+                monthly_diamonds: agM,
+              }).eq('id', member.agency_id);
+            }
+          }
+        }
+      } catch (agSyncErr) {
+        console.warn('Error syncing updated user diamonds to agency:', agSyncErr);
+      }
+    }
 
   } catch (e) {
     console.error('updateUser failed:', e)
     throw e
   }
+}
+
+export async function adjustUserDiamonds(
+  uid: string,
+  amount: number,
+  type: 'add' | 'deduct',
+  reason: string = '',
+  adminName: string = 'الإدارة'
+): Promise<{ success: boolean; newDiamonds: number; error?: string }> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    const absAmount = Math.abs(amount);
+    if (absAmount <= 0) throw new Error('الكمية يجب أن تكون أكبر من صفر');
+
+    // 1. Fetch current user diamonds
+    const { data: userRow, error: uErr } = await client
+      .from('users')
+      .select('uid, diamonds, name, custom_id')
+      .eq('uid', uid)
+      .maybeSingle();
+
+    if (uErr || !userRow) {
+      throw new Error('لم يتم العثور على المستخدم');
+    }
+
+    const currentDiamonds = Number(userRow.diamonds || 0);
+    const diff = type === 'add' ? absAmount : -absAmount;
+    const newDiamonds = Math.max(0, currentDiamonds + diff);
+
+    // 2. Update users table
+    const { error: updErr } = await client
+      .from('users')
+      .update({ diamonds: newDiamonds })
+      .eq('uid', uid);
+
+    if (updErr) throw updErr;
+
+    // 3. Sync to host_agency_members if user is in an agency
+    try {
+      const { data: member } = await client
+        .from('host_agency_members')
+        .select('*')
+        .or(`user_id.eq.${uid},host_uid.eq.${uid}`)
+        .maybeSingle();
+
+      if (member) {
+        const curMonthly = Number(member.diamonds_earned_monthly || 0);
+        const curCum = Number(member.diamonds_earned_cumulative || 0);
+        const curBal = Number(member.diamonds_balance ?? member.diamonds ?? 0);
+
+        const newBal = Math.max(0, curBal + diff);
+        const newMonthly = type === 'add' ? curMonthly + absAmount : Math.max(0, curMonthly - absAmount);
+        const newCum = type === 'add' ? curCum + absAmount : Math.max(0, curCum - absAmount);
+
+        await client
+          .from('host_agency_members')
+          .update({
+            diamonds: newDiamonds,
+            diamonds_balance: newBal,
+            diamonds_available: newBal,
+            diamonds_earned_monthly: newMonthly,
+            diamonds_earned_cumulative: newCum,
+          })
+          .eq('id', member.id);
+
+        // Sync agency targets
+        if (member.agency_id) {
+          const { data: ag } = await client
+            .from('host_agencies')
+            .select('monthly_diamonds, total_diamonds_monthly, total_diamonds_cumulative')
+            .eq('id', member.agency_id)
+            .maybeSingle();
+
+          if (ag) {
+            const agMonthly = type === 'add'
+              ? Number(ag.total_diamonds_monthly || 0) + absAmount
+              : Math.max(0, Number(ag.total_diamonds_monthly || 0) - absAmount);
+            const agCum = type === 'add'
+              ? Number(ag.total_diamonds_cumulative || 0) + absAmount
+              : Math.max(0, Number(ag.total_diamonds_cumulative || 0) - absAmount);
+
+            await client
+              .from('host_agencies')
+              .update({
+                total_diamonds_monthly: agMonthly,
+                total_diamonds_cumulative: agCum,
+                monthly_diamonds: agMonthly,
+              })
+              .eq('id', member.agency_id);
+          }
+
+          // Also log to agency_diamond_ledger
+          try {
+            await client.from('agency_diamond_ledger').insert({
+              agency_id: member.agency_id,
+              user_id: uid,
+              sender_id: 'admin',
+              sender_name: adminName,
+              txn_type: type === 'add' ? 'admin_credit' : 'admin_deduct',
+              amount: absAmount,
+              direction: type === 'add' ? 1 : -1,
+              balance_after: newDiamonds,
+              gift_name: reason || (type === 'add' ? `إضافة ${absAmount.toLocaleString()} ماسة من الإدارة` : `خصم ${absAmount.toLocaleString()} ماسة من الإدارة`),
+              created_at: new Date().toISOString(),
+            });
+          } catch (_) {}
+        }
+      }
+    } catch (agErr) {
+      console.warn('Error syncing diamonds to agency:', agErr);
+    }
+
+    // 4. Log to user_diamond_logs
+    try {
+      await client.from('user_diamond_logs').insert({
+        user_id: uid,
+        amount: diff,
+        type: type === 'add' ? 'admin_add' : 'admin_deduct',
+        balance_before: currentDiamonds,
+        balance_after: newDiamonds,
+        admin_name: adminName,
+        reason: reason || (type === 'add' ? `إضافة ${absAmount.toLocaleString()} ماسة يدوية من لوحة التحكم` : `خصم ${absAmount.toLocaleString()} ماسة يدوية من لوحة التحكم`),
+        created_at: new Date().toISOString(),
+      });
+    } catch (lErr) {
+      console.warn('Could not insert to user_diamond_logs:', lErr);
+    }
+
+    // 5. Send notification to user
+    try {
+      await sendSystemNotification({
+        userId: uid,
+        title: type === 'add' ? '💎 إضافة رصيد ألماس لحسابك' : '💎 تعديل رصيد الألماس',
+        body: type === 'add'
+          ? `مبروك! تم تزويد حسابك بـ ${absAmount.toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${newDiamonds.toLocaleString()} ماسة.`
+          : `تم خصم ${absAmount.toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${newDiamonds.toLocaleString()} ماسة.`,
+        type: 'system',
+        action: 'diamonds_adjusted',
+        extraData: { amount: diff, new_balance: newDiamonds },
+      });
+    } catch (_) {}
+
+    return { success: true, newDiamonds };
+  } catch (e: any) {
+    console.error('adjustUserDiamonds error:', e);
+    return { success: false, newDiamonds: 0, error: e?.message || String(e) };
+  }
+}
+
+export async function getUserDiamondLogs(uid: string, limit: number = 50): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from('user_diamond_logs')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (!error && data && data.length > 0) {
+      return data;
+    }
+  } catch (_) {}
+
+  // Fallback to agency_diamond_ledger if table user_diamond_logs not yet created
+  try {
+    const { data } = await supabase
+      .from('agency_diamond_ledger')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (data && data.length > 0) {
+      return data.map((d: any) => ({
+        id: d.id,
+        user_id: d.user_id,
+        amount: d.direction < 0 ? -Math.abs(d.amount) : Math.abs(d.amount),
+        type: d.direction < 0 ? 'admin_deduct' : 'admin_add',
+        balance_after: d.balance_after,
+        reason: d.gift_name || d.note || '',
+        admin_name: d.sender_name || 'الإدارة',
+        created_at: d.created_at,
+      }));
+    }
+  } catch (_) {}
+
+  return [];
 }
 
 export async function deleteUser(uid: string) {
@@ -1566,7 +1804,25 @@ export async function updateCommissionSetting(id: string, value: number): Promis
       
       if (id === 'host_rate') current.host_rate_pct = value;
       else if (id === 'host_target_exchange_rate') current.host_target_exchange_rate_pct = value;
-      else if (id === 'agency_rate') current.agency_rate_pct = value;
+      else if (id === 'agency_rate') {
+        current.agency_rate_pct = value;
+        try {
+          const { data: hmCfg } = await supabase.from('app_config').select('value').eq('key', 'host_milestones_list').maybeSingle();
+          if (hmCfg && hmCfg.value) {
+            let mList = typeof hmCfg.value === 'string' ? JSON.parse(hmCfg.value) : hmCfg.value;
+            if (Array.isArray(mList)) {
+              mList = mList.map((m: any) => ({
+                ...m,
+                agent_commission_rate: value / 100,
+              }));
+              await supabase.from('app_config').upsert({
+                key: 'host_milestones_list',
+                value: mList,
+              });
+            }
+          }
+        } catch (_) {}
+      }
       else if (id === 'recharge_agent_host_rate') current.recharge_agent_host_rate_pct = value;
       else if (id === 'recharge_agent_agency_rate') current.recharge_agent_agency_rate_pct = value;
       else if (id === 'platform_rate') current.platform_rate_pct = value;

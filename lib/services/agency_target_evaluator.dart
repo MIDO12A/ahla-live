@@ -214,10 +214,14 @@ class AgencyTargetEvaluator {
     final rewardType = targetData['reward_type']?.toString() ?? 'salary_usd';
     final rawRewardValue = (targetData['reward_value'] as num?)?.toDouble() ?? 0.0;
     final rewardItemId = targetData['reward_item_id']?.toString() ?? '';
+    final cfg = DynamicConfigService();
+    final double configAgencyRate = cfg.agencyRatePercentage > 0 ? (cfg.agencyRatePercentage / 100.0) : 0.0;
     final num? rawCommissionRate = targetData['agent_commission_rate'] as num?;
     final num? rawProfitPercent = targetData['agency_profit_percent'] as num?;
-    final double agentCommissionRate = rawCommissionRate?.toDouble() ??
-        (rawProfitPercent != null ? (rawProfitPercent.toDouble() / 100.0) : 0.1);
+    final double agentCommissionRate = (configAgencyRate > 0)
+        ? configAgencyRate
+        : (rawCommissionRate?.toDouble() ??
+            (rawProfitPercent != null ? (rawProfitPercent.toDouble() / 100.0) : 0.1));
     final rewardFrameId = targetData['reward_frame_id']?.toString() ?? (rewardType == 'frame' ? rewardItemId : null);
     final rewardBadgeId = targetData['reward_badge_id']?.toString() ?? (rewardType == 'badge' ? rewardItemId : null);
     final rewardDurationDays = (targetData['reward_duration_days'] as num?)?.toInt() ?? 30;

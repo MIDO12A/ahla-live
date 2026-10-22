@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { UserModel } from '../types';
-import { getUsers, deleteUser, updateUser, updateUserPassword, getAuthUsers, getAuthUser, syncAllAuthUsersToDB, sendSystemNotification } from '../lib/db';
+import { getUsers, deleteUser, updateUser, updateUserPassword, getAuthUsers, getAuthUser, syncAllAuthUsersToDB, sendSystemNotification, adjustUserDiamonds, getUserDiamondLogs } from '../lib/db';
 import { uploadUserPhoto } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
-import { Coins, Gem, X, Save, Search, Ban, Shield, Phone, Globe, Key, Ruler, ChevronDown, RefreshCw, AlertTriangle, CheckCircle, ArrowRightCircle } from 'lucide-react';
+import { Coins, Gem, X, Save, Search, Ban, Shield, Phone, Globe, Key, Ruler, ChevronDown, RefreshCw, AlertTriangle, CheckCircle, ArrowRightCircle, PlusCircle, MinusCircle, History } from 'lucide-react';
 import { supabase, isAdminConnected } from '../lib/supabase';
 
 export default function UsersPage() {
@@ -21,6 +21,15 @@ export default function UsersPage() {
   const [activeTab, setActiveTab] = useState<'info' | 'levels' | 'currency' | 'network'>('info');
   const [msg, setMsg] = useState('');
   const [rechargeInput, setRechargeInput] = useState('1');
+
+  // Diamond Management States
+  const [diamondMode, setDiamondMode] = useState<'add' | 'deduct'>('add');
+  const [diamondAmount, setDiamondAmount] = useState<string>('10000');
+  const [diamondReason, setDiamondReason] = useState<string>('');
+  const [diamondLogs, setDiamondLogs] = useState<any[]>([]);
+  const [loadingDiamondLogs, setLoadingDiamondLogs] = useState<boolean>(false);
+  const [diamondConfirmOpen, setDiamondConfirmOpen] = useState<boolean>(false);
+  const [diamondSubmitting, setDiamondSubmitting] = useState<boolean>(false);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -60,6 +69,50 @@ export default function UsersPage() {
       showMsg(`✅ تم شحن ${amount.toLocaleString()} كوينز للمستخدم وإرسال إشعار فوري له بنجاح!`);
     } catch (e: any) {
       showMsg('⚠️ فشل الشحن: ' + (e?.message || e));
+    }
+  };
+
+  useEffect(() => {
+    if (editing?.uid && activeTab === 'currency') {
+      setLoadingDiamondLogs(true);
+      getUserDiamondLogs(editing.uid).then(logs => {
+        setDiamondLogs(logs);
+        setLoadingDiamondLogs(false);
+      });
+    }
+  }, [editing?.uid, activeTab]);
+
+  const handleExecuteDiamondAdjustment = async () => {
+    if (!editing) return;
+    const amt = parseInt(diamondAmount) || 0;
+    if (amt <= 0) {
+      alert('الرجاء إدخال كمية صالحة أكبر من صفر');
+      return;
+    }
+    setDiamondSubmitting(true);
+    try {
+      const res = await adjustUserDiamonds(
+        editing.uid,
+        amt,
+        diamondMode,
+        diamondReason,
+        'المدير العام'
+      );
+      if (res.success) {
+        const updated = { ...editing, diamonds: res.newDiamonds };
+        setEditing(updated);
+        setUsers(prev => prev.map(u => u.uid === editing.uid ? updated : u));
+        showMsg(`✅ تم ${diamondMode === 'add' ? 'إضافة' : 'خصم'} ${amt.toLocaleString()} ماسة بنجاح وتحديث بيانات الوكالة!`);
+        setDiamondConfirmOpen(false);
+        setDiamondReason('');
+        getUserDiamondLogs(editing.uid).then(logs => setDiamondLogs(logs));
+      } else {
+        alert('⚠️ فشلت العملية: ' + (res.error || 'خطأ غير معروف'));
+      }
+    } catch (err: any) {
+      alert('⚠️ خطأ: ' + (err?.message || err));
+    } finally {
+      setDiamondSubmitting(false);
     }
   };
 
@@ -451,20 +504,287 @@ export default function UsersPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-[10px] uppercase text-amber-400 font-bold mb-1 flex items-center gap-1"><Coins className="w-3 h-3" /> تعديل الرصيد الإجمالي يدوياً (Coins)</label>
-                    <input type="number" value={String(editing.coins ?? 0)} onChange={e => handleUpdate('coins', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase text-cyan-400 font-bold mb-1 flex items-center gap-1"><Gem className="w-3 h-3" /> تعديل الألماس (Diamonds)</label>
-                    <div className="flex gap-1 mb-1">
-                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10</button>
-                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 100)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+100</button>
-                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 1000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+1K</button>
-                      <button onClick={() => handleUpdate('diamonds', editing.diamonds + 10000)} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] rounded hover:bg-cyan-500/20">+10K</button>
+                {/* Diamond Management & History Section */}
+                <div className="bg-[#121215] border border-cyan-500/20 rounded-2xl p-5 space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-xl">
+                        <Gem className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                          إدارة وشحن ألماس المستخدم والوكالة
+                        </h4>
+                        <p className="text-[11px] text-slate-400">
+                          يتم مزامنة أي إضافة أو خصم تلقائياً مع وكالة المضيف وتوثيقها في السجل
+                        </p>
+                      </div>
                     </div>
-                    <input type="number" value={String(editing.diamonds ?? 0)} onChange={e => handleUpdate('diamonds', Number(e.target.value))} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" />
+                    <div className="flex items-center gap-2 bg-black/40 border border-white/5 px-3 py-1.5 rounded-xl self-start sm:self-auto">
+                      <span className="text-[11px] text-slate-400">الرصيد الحالي:</span>
+                      <span className="text-cyan-300 font-bold font-mono text-sm flex items-center gap-1">
+                        {(editing.diamonds ?? 0).toLocaleString()} 💎
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    {/* Left: Adjustment Controls */}
+                    <div className="lg:col-span-7 space-y-4">
+                      {/* Operation Type Toggle */}
+                      <div>
+                        <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1.5">
+                          نوع العملية
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setDiamondMode('add')}
+                            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                              diamondMode === 'add'
+                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 border border-emerald-500'
+                                : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-white/5'
+                            }`}
+                          >
+                            <PlusCircle className="w-4 h-4" />
+                            إضافة ألماس (+)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDiamondMode('deduct')}
+                            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                              diamondMode === 'deduct'
+                                ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 border border-red-500'
+                                : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-white/5'
+                            }`}
+                          >
+                            <MinusCircle className="w-4 h-4" />
+                            خصم / سحب ألماس (-)
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quick Amount Buttons */}
+                      <div>
+                        <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1.5 flex items-center justify-between">
+                          <span>مبالغ سريعة (10K إلى 100M)</span>
+                          <span className="text-[10px] text-cyan-400 font-mono">
+                            المحدد: {Number(diamondAmount || 0).toLocaleString()} 💎
+                          </span>
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { label: '10K', value: 10000 },
+                            { label: '50K', value: 50000 },
+                            { label: '100K', value: 100000 },
+                            { label: '500K', value: 500000 },
+                            { label: '1M', value: 1000000 },
+                            { label: '10M', value: 10000000 },
+                            { label: '100M', value: 100000000 },
+                          ].map(item => (
+                            <button
+                              key={item.label}
+                              type="button"
+                              onClick={() => setDiamondAmount(String(item.value))}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
+                                diamondAmount === String(item.value)
+                                  ? 'bg-cyan-500 text-black shadow-md shadow-cyan-500/20'
+                                  : 'bg-white/5 text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/20'
+                              }`}
+                            >
+                              {diamondMode === 'add' ? `+${item.label}` : `-${item.label}`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Custom Amount Input */}
+                      <div>
+                        <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">
+                          كمية الألماس المخصصة
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="1"
+                            value={diamondAmount}
+                            onChange={e => setDiamondAmount(e.target.value)}
+                            placeholder="أدخل كمية الألماس..."
+                            className="w-full bg-[#161618] border border-cyan-500/30 rounded-xl py-2 px-3 pl-16 text-sm text-white font-mono focus:border-cyan-400 focus:outline-none"
+                          />
+                          <div className="absolute left-3 top-2.5 text-xs text-cyan-400 font-bold">
+                            ماسة 💎
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Reason & Presets */}
+                      <div>
+                        <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">
+                          سبب العملية وملاحظات (تظهر في السجل)
+                        </label>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {[
+                            'شحن ماس إداري',
+                            'مكافأة تارجت مضيف',
+                            'تصحيح رصيد بالوكالة',
+                            'خصم مخالفة إدارية',
+                            'تسوية حساب الوكالة',
+                          ].map(r => (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => setDiamondReason(r)}
+                              className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 text-[10px] text-slate-300 border border-white/5"
+                            >
+                              {r}
+                            </button>
+                          ))}
+                        </div>
+                        <input
+                          type="text"
+                          value={diamondReason}
+                          onChange={e => setDiamondReason(e.target.value)}
+                          placeholder="اكتب سبب العملية أو اختر من الأعلى..."
+                          className="w-full bg-[#161618] border border-white/10 rounded-xl py-2 px-3 text-xs text-white focus:border-white/20 focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Confirmation Trigger Button */}
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const amt = parseInt(diamondAmount) || 0;
+                            if (amt <= 0) {
+                              alert('يرجى تحديد كمية ألماس صالحة أكبر من 0');
+                              return;
+                            }
+                            setDiamondConfirmOpen(true);
+                          }}
+                          className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${
+                            diamondMode === 'add'
+                              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/30'
+                              : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-red-600/30'
+                          }`}
+                        >
+                          <Gem className="w-4 h-4" />
+                          <span>
+                            زر تأكيد الإرسال ({diamondMode === 'add' ? 'إضافة' : 'خصم'}{' '}
+                            {Number(diamondAmount || 0).toLocaleString()} 💎)
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right: Transaction History Log Table */}
+                    <div className="lg:col-span-5 flex flex-col bg-black/40 border border-white/5 rounded-xl p-3.5">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                          <History className="w-4 h-4 text-cyan-400" />
+                          <span>سجل إضافة وخصم الماس</span>
+                          <span className="text-[10px] bg-white/10 text-slate-400 px-1.5 py-0.5 rounded-full font-mono">
+                            {diamondLogs.length}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (editing?.uid) {
+                              setLoadingDiamondLogs(true);
+                              getUserDiamondLogs(editing.uid).then(logs => {
+                                setDiamondLogs(logs);
+                                setLoadingDiamondLogs(false);
+                              });
+                            }
+                          }}
+                          className="p-1 hover:bg-white/10 text-slate-400 hover:text-white rounded transition-colors"
+                          title="تحديث السجل"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${loadingDiamondLogs ? 'animate-spin text-cyan-400' : ''}`} />
+                        </button>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto max-h-[340px] space-y-2 pr-1">
+                        {loadingDiamondLogs ? (
+                          <div className="py-8 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
+                            <RefreshCw className="w-5 h-5 animate-spin text-cyan-400" />
+                            <span>جاري تحميل سجل الألماس...</span>
+                          </div>
+                        ) : diamondLogs.length === 0 ? (
+                          <div className="py-8 text-center text-xs text-slate-500">
+                            لا توجد عمليات ماس مسجلة لهذا الحساب حتى الآن
+                          </div>
+                        ) : (
+                          diamondLogs.map(log => {
+                            const isAdd = log.type === 'add' || log.type === 'credit' || log.type === 'deposit';
+                            return (
+                              <div
+                                key={log.id}
+                                className="bg-white/5 hover:bg-white/[0.07] border border-white/5 rounded-lg p-2.5 text-xs transition-colors space-y-1"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${
+                                      isAdd
+                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                        : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                    }`}
+                                  >
+                                    {isAdd ? '+' : '-'}{Number(log.amount).toLocaleString()} 💎
+                                  </span>
+                                  <span className="text-[10px] text-slate-500">
+                                    {new Date(log.created_at).toLocaleDateString('ar-EG', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px] text-slate-300">
+                                  <span className="truncate max-w-[150px] text-slate-300">
+                                    {log.reason || log.notes || 'تعديل رصيد'}
+                                  </span>
+                                  {log.balance_after != null && (
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      بعد: {Number(log.balance_after).toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                                {log.created_by && (
+                                  <div className="text-[9px] text-slate-500 text-left font-mono">
+                                    بواسطة: {log.created_by}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manual Coins Edit Box */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                  <label className="block text-[10px] uppercase text-amber-400 font-bold mb-1.5 flex items-center gap-1.5">
+                    <Coins className="w-3.5 h-3.5" /> تعديل الرصيد الإجمالي للعملات يدوياً (Coins)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={String(editing.coins ?? 0)}
+                      onChange={e => handleUpdate('coins', Number(e.target.value))}
+                      className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white font-mono focus:border-amber-500/40 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleUpdate('coins', Number(editing.coins ?? 0))}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg whitespace-nowrap"
+                    >
+                      حفظ العملات
+                    </button>
                   </div>
                 </div>
               </div>
@@ -697,6 +1017,105 @@ export default function UsersPage() {
                 className={`px-5 py-1.5 text-xs font-bold rounded-lg ${editing.banned ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white shadow-lg`}
               >
                 {editing.banned ? 'تأكيد إلغاء الحظر' : 'تأكيد الحظر'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Diamond Adjustment Confirmation Modal */}
+      {diamondConfirmOpen && editing && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#18181b] border border-cyan-500/30 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <div className={`p-2 rounded-xl ${diamondMode === 'add' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                  <Gem className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">تأكيد عملية الألماس</h3>
+                  <p className="text-[11px] text-slate-400">يرجى مراجعة تفاصيل العملية قبل التأكيد</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDiamondConfirmOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2 text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="text-slate-400">المستخدم:</span>
+                <span className="text-white font-medium">{editing.name} (#{editing.customId})</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="text-slate-400">نوع العملية:</span>
+                <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                  diamondMode === 'add' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
+                }`}>
+                  {diamondMode === 'add' ? '➕ إضافة رصيد ألماس' : '➖ خصم / سحب ألماس'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="text-slate-400">الكمية:</span>
+                <span className="text-cyan-300 font-bold font-mono text-sm">
+                  {Number(diamondAmount || 0).toLocaleString()} 💎
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="text-slate-400">الرصيد الحالي:</span>
+                <span className="text-slate-300 font-mono">
+                  {(editing.diamonds ?? 0).toLocaleString()} 💎
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-white/5">
+                <span className="text-slate-400">الرصيد بعد التنفيذ:</span>
+                <span className="text-emerald-300 font-bold font-mono">
+                  {(diamondMode === 'add'
+                    ? (editing.diamonds ?? 0) + (parseInt(diamondAmount) || 0)
+                    : Math.max(0, (editing.diamonds ?? 0) - (parseInt(diamondAmount) || 0))
+                  ).toLocaleString()} 💎
+                </span>
+              </div>
+              {diamondReason && (
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">السبب / الملاحظة:</span>
+                  <span className="text-slate-200">{diamondReason}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-[11px] text-cyan-300 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-cyan-400" />
+              <span>
+                سيتم حفظ العملية في السجل وتحديث رصيد المضيف، ومزامنة إجماليات وكالة المضيف التابع لها المستخدم تلقائياً.
+              </span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+              <button
+                type="button"
+                disabled={diamondSubmitting}
+                onClick={() => setDiamondConfirmOpen(false)}
+                className="px-4 py-2 border border-white/10 text-xs text-slate-400 rounded-xl hover:bg-white/5 disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={diamondSubmitting}
+                onClick={handleExecuteDiamondAdjustment}
+                className={`px-5 py-2 text-xs font-bold rounded-xl text-white shadow-lg flex items-center gap-1.5 disabled:opacity-50 ${
+                  diamondMode === 'add'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'
+                    : 'bg-red-600 hover:bg-red-700 shadow-red-600/30'
+                }`}
+              >
+                {diamondSubmitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                {diamondSubmitting ? 'جاري التنفيذ...' : 'تأكيد الإرسال الآن'}
               </button>
             </div>
           </div>

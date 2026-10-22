@@ -337,16 +337,23 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
     final cfg = DynamicConfigService.instance;
     final rawAgencyRate = (_agencyInfo?.commissionRate ?? 0) > 0 
         ? _agencyInfo!.commissionRate 
-        : (cfg.agencyRatePercentage / 100.0);
-    final agencyCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : (rawAgencyRate > 0 ? rawAgencyRate : 0.10);
+        : (cfg.agencyRatePercentage > 0 ? (cfg.agencyRatePercentage / 100.0) : 0.0);
+    final agencyCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : rawAgencyRate;
 
     final rewardVal = (highest['reward_value'] ?? 
                        highest['rewardValue'] ?? 
                        highest['reward'] as num?)?.toDouble() ?? 
                       (((highest['target_diamonds'] as num?)?.toDouble() ?? 40000) / (cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 15000.0));
 
-    final rawComm = (highest['agent_commission_rate'] as num?)?.toDouble() ?? agencyCommRate;
-    final normCommRate = rawComm > 1.0 ? (rawComm / 100.0) : (rawComm > 0 ? rawComm : 0.10);
+    final double normCommRate;
+    if (agencyCommRate > 0) {
+      normCommRate = agencyCommRate;
+    } else {
+      final rawComm = (highest['agent_commission_rate'] as num?)?.toDouble();
+      normCommRate = (rawComm != null && rawComm > 0)
+          ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
+          : 0.10;
+    }
 
     return rewardVal * normCommRate;
   }
@@ -1732,8 +1739,15 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         totalDueSalaries += hostSalary;
 
         // عمولة وكيل المضيفين: نسبة مئوية مباشرة من راتب/مكافأة المضيف الكاملة ولا تتأثر بالفك
-        final rawComm = (highestAchievedMilestone['agent_commission_rate'] as num?)?.toDouble() ?? agencyCommRate;
-        final normCommRate = rawComm > 1.0 ? (rawComm / 100.0) : (rawComm > 0 ? rawComm : 0.10);
+        final double normCommRate;
+        if (agencyCommRate > 0) {
+          normCommRate = agencyCommRate;
+        } else {
+          final rawComm = (highestAchievedMilestone['agent_commission_rate'] as num?)?.toDouble();
+          normCommRate = (rawComm != null && rawComm > 0)
+              ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
+              : 0.10;
+        }
         final hostCommissionUsd = rewardVal * normCommRate;
         totalCommissionUsd += hostCommissionUsd;
       }
@@ -1750,8 +1764,15 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       }
       if (agencyMilestone != null) {
         final rewardVal = (agencyMilestone['reward_value'] ?? agencyMilestone['rewardValue'] ?? agencyMilestone['reward'] as num?)?.toDouble() ?? 2.0;
-        final rawComm = (agencyMilestone['agent_commission_rate'] as num?)?.toDouble() ?? agencyCommRate;
-        final normCommRate = rawComm > 1.0 ? (rawComm / 100.0) : (rawComm > 0 ? rawComm : 0.10);
+        final double normCommRate;
+        if (agencyCommRate > 0) {
+          normCommRate = agencyCommRate;
+        } else {
+          final rawComm = (agencyMilestone['agent_commission_rate'] as num?)?.toDouble();
+          normCommRate = (rawComm != null && rawComm > 0)
+              ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
+              : 0.10;
+        }
         totalCommissionUsd = rewardVal * normCommRate;
         totalDueSalaries = rewardVal;
         completedHostsCount = 1;
