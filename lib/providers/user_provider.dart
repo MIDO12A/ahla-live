@@ -326,6 +326,13 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void deductDiamondsLocally(int amount) {
+    if (_currentUser == null || amount <= 0) return;
+    final newDiamonds = (_currentUser!.diamonds - amount).clamp(0, 999999999);
+    _currentUser = _currentUser!.copyWith(diamonds: newDiamonds);
+    notifyListeners();
+  }
+
   Future<bool> purchaseItem(StoreItemModel item) async {
     if (_currentUser == null) return false;
     final success = await _supabaseService.purchaseItem(_currentUser!.uid, item);

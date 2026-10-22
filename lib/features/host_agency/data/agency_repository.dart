@@ -799,26 +799,40 @@ abstract final class AgencyRepository {
         }
 
         // 2. Deduct host's target & available diamonds in host_agency_members
-        if (memberRow != null && memberRow['id'] != null) {
-          final curBal = (memberRow['diamonds_balance'] as num?)?.toInt() ?? (memberRow['diamonds'] as num?)?.toInt() ?? userDiamonds;
-          final curMonthly = (memberRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-          final updatedBal = (curBal - diamonds).clamp(0, 999999999);
-          final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
-          await _sb.from('host_agency_members').update({
-            'diamonds': updatedBal,
-            'diamonds_balance': updatedBal,
-            'diamonds_available': updatedBal,
-            'diamonds_earned_monthly': updatedMonthly,
-          }).eq('id', memberRow['id']);
+        final curBal = memberRow != null 
+            ? ((memberRow['diamonds_balance'] as num?)?.toInt() ?? (memberRow['diamonds'] as num?)?.toInt() ?? userDiamonds)
+            : userDiamonds;
+        final curMonthly = memberRow != null 
+            ? ((memberRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0)
+            : 0;
+        final updatedBal = (curBal - diamonds).clamp(0, 999999999);
+        final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
 
-          // تصفير الراتب المستحق للمضيف في جدول الرواتب
+        final updatePayload = {
+          'diamonds': updatedBal,
+          'diamonds_balance': updatedBal,
+          'diamonds_available': updatedBal,
+          'diamonds_earned_monthly': updatedMonthly,
+          'daily_target': 0,
+          'monthly_target': 0,
+        };
+
+        if (memberRow != null && memberRow['id'] != null) {
           try {
-            await _sb.from('host_salaries').update({
-              'status': 'disbursed',
-              'disbursed_at': DateTime.now().toIso8601String(),
-            }).eq('user_id', uid).eq('status', 'pending');
+            await _sb.from('host_agency_members').update(updatePayload).eq('id', memberRow['id']);
           } catch (_) {}
         }
+        try {
+          await _sb.from('host_agency_members').update(updatePayload).or('user_id.eq.$uid,host_uid.eq.$uid');
+        } catch (_) {}
+
+        // تصفير الراتب المستحق للمضيف في جدول الرواتب
+        try {
+          await _sb.from('host_salaries').update({
+            'status': 'disbursed',
+            'disbursed_at': DateTime.now().toIso8601String(),
+          }).or('user_id.eq.$uid,host_uid.eq.$uid').eq('status', 'pending');
+        } catch (_) {}
 
         // 3. Deposit diamonds into Recharge Agency Wallet (agency_wallets)
         int agentBalAfter = diamonds;
@@ -1668,11 +1682,47 @@ abstract final class AgencyRepository {
         debugPrint('[AgencyRepository] send notification error: $ne');
       }
 
-      return {'success': true, 'requestId': requestId};
+      return {
+        'success': true,
+        'requestId': requestId,
+        'stage_usd': stageUsd,
+        'diamonds': diamonds,
+      };
     } catch (e) {
       debugPrint('[AgencyRepository] requestHostWithdrawalToAgent error: $e');
       return {'success': false, 'message': e.toString()};
     }
+  }
+
+  // ─── جلب أحدث طلب سحب معلق للمضيف (إن وجد) ──────────────────────────────────
+  static Future<Map<String, dynamic>?> getHostPendingWithdrawal(String hostUid) async {
+    try {
+      final res = await _sb
+          .from('agent_withdrawal_requests')
+          .select('*')
+          .eq('status', 'pending')
+          .order('created_at', ascending: false)
+          .limit(20);
+      for (final row in (res as List)) {
+        final m = Map<String, dynamic>.from(row as Map);
+        final details = m['account_details'] is Map ? Map<String, dynamic>.from(m['account_details']) : {};
+        if (details['host_uid'] == hostUid) {
+          return {
+            'id': m['id'],
+            'agent_id': m['agent_id'],
+            'agent_name': m['agent_name'],
+            'amount_usd': (m['amount_usd'] as num?)?.toDouble() ?? (details['stage_usd'] as num?)?.toDouble() ?? 0.0,
+            'diamonds': (details['diamonds'] as num?)?.toInt() ?? 0,
+            'status': m['status'],
+            'created_at': m['created_at'],
+            'account_details': details,
+          };
+        }
+      }
+    } catch (e) {
+      debugPrint('[AgencyRepository] getHostPendingWithdrawal error: $e');
+    }
+    return null;
   }
 
   // ─── جلب طلبات السحب الواردة لوكيل الشحن (Pending Host Withdrawals) ───────────

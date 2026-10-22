@@ -21,6 +21,7 @@ import 'agency_item_detail_screen.dart';
 import 'agency_join_requests_screen.dart';
 import 'agency_owner_screen.dart';
 import 'agency_host_screen.dart';
+import 'agent_withdrawal_waiting_screen.dart';
 import '../../../../services/dynamic_config_service.dart';
 
 /// شاشة وكيل المضيفين وإدارة الوكالة (AnchorAgentActivity)
@@ -3945,37 +3946,43 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
     try {
       final user = Provider.of<UserProvider>(context, listen: false).currentUser;
       final uid = user?.uid ?? Supabase.instance.client.auth.currentUser?.id ?? '';
-      final agentId = _selectedAgent!['id']?.toString() ?? _selectedAgent!['uid']?.toString() ?? '';
-      final idempotencyKey = '${uid}_host_txfr_${DateTime.now().millisecondsSinceEpoch}';
-
-      final res = await AgencyRepository.transferDiamondsToAgentWallet(
-        agentId: agentId,
+      final res = await AgencyRepository.requestHostWithdrawalToAgent(
+        agent: _selectedAgent!,
         diamonds: _diamonds,
-        idempotencyKey: idempotencyKey,
-        source: 'host',
+        hostUid: uid,
+        hostName: user?.name ?? 'مضيف',
+        hostCustomId: user?.customId,
+        hostAvatar: user?.photoUrl,
+        agencyId: widget.agencyId,
       );
 
-      if (res['status'] == 'ok' || res['ok'] == true || res['success'] == true) {
-        if (!mounted) return;
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isAr
-                  ? '✅ تم تحويل $_diamonds ماسة بنجاح إلى وكيل الشحن [$agentName] وتم إشعاره فوراً!'
-                  : '✅ Successfully transferred $_diamonds diamonds to $agentName!',
-            ),
-            backgroundColor: const Color(0xFF00C853),
-          ),
-        );
-        widget.onSuccess();
-      } else {
-        if (!mounted) return;
-        final msg = res['message']?.toString() ?? res['error']?.toString() ?? (isAr ? 'فشل تحويل الراتب' : 'Transfer failed');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
-        );
+      if (res['success'] != true) {
+        throw Exception(res['message'] ?? (isAr ? 'فشل إرسال طلب السحب للوكيل' : 'Failed to request withdrawal'));
       }
+
+      final reqId = res['requestId']?.toString() ?? '';
+      final agentData = _selectedAgent!;
+      final stageUsd = (res['stage_usd'] as num?)?.toDouble() ?? 0.0;
+
+      if (!mounted) return;
+      Navigator.pop(context); // إغلاق المودال
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AgentWithdrawalWaitingScreen(
+            requestId: reqId,
+            diamonds: _diamonds,
+            usdAmount: stageUsd,
+            agentName: agentData['display_name'] ?? agentData['name'] ?? 'وكيل شحن',
+            agentId: agentData['id']?.toString() ?? agentData['uid']?.toString() ?? '',
+            agentAvatar: agentData['photo_url'] ?? agentData['avatar'] ?? '',
+            agentKayanId: (agentData['kayan_id'] ?? agentData['custom_id'] ?? '').toString(),
+            agencyName: agentData['recharge_agency_name'] ?? 'وكالة الشحن',
+            onSuccess: widget.onSuccess,
+          ),
+        ),
+      );
+      widget.onSuccess();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

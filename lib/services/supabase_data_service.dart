@@ -1092,11 +1092,11 @@ class SupabaseDataService {
                 final sec = (m['live_seconds_monthly'] as num?)?.toDouble() ?? 0.0;
                 final hrs = (m['live_hours_monthly'] as num?)?.toDouble() ?? 0.0;
                 m['minute'] = (m['minute'] as num?)?.toDouble() ?? (sec > 0 ? (sec / 60.0) : (hrs * 60.0));
-                final monthlyEarned = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? int.tryParse(m['diamonds_earned_monthly']?.toString() ?? '') ?? 0;
-                final directDiamonds = (m['diamonds'] as num?)?.toInt() ?? int.tryParse(m['diamonds']?.toString() ?? '') ?? 0;
-                final userDiamonds = (uData?['diamonds'] as num?)?.toInt() ?? int.tryParse(uData?['diamonds']?.toString() ?? '') ?? 0;
-                final bestDiamonds = [monthlyEarned, directDiamonds, userDiamonds].reduce((curr, next) => curr > next ? curr : next);
-                m['diamonds'] = bestDiamonds.toString();
+                // رصيد الألماس الفعلي والتارجت المحقق بعد أي سحب أو تصفير
+                final memberBal = (m['diamonds_balance'] as num?)?.toInt() ?? (m['diamonds'] as num?)?.toInt();
+                final userDia = (uData?['diamonds'] as num?)?.toInt();
+                final actualDiamonds = memberBal ?? userDia ?? (m['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+                m['diamonds'] = actualDiamonds.toString();
                 m['unpacked_target_diamonds'] = (m['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
                 m['target_diamonds'] = (m['target_diamonds'] as num?)?.toInt() ?? 100000;
               }

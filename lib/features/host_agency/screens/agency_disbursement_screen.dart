@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
 import '../../../core/utils/server_time_service.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/user_provider.dart';
+import 'agent_withdrawal_waiting_screen.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 
@@ -392,25 +395,54 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
       try {
         final mRow = await Supabase.instance.client
             .from('host_agency_members')
-            .select('id, diamonds_earned_monthly, diamonds_balance')
+            .select('id, diamonds_earned_monthly, diamonds_balance, diamonds')
             .or('user_id.eq.$uid,host_uid.eq.$uid')
             .maybeSingle();
 
-        if (mRow != null) {
-          final curM = (mRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-          final curB = (mRow['diamonds_balance'] as num?)?.toInt() ?? 0;
-          await Supabase.instance.client.from('host_agency_members').update({
-            'diamonds_earned_monthly': (curM - amount).clamp(0, 999999999),
-            'diamonds_balance': (curB - amount).clamp(0, 999999999),
-            'diamonds': (curB - amount).clamp(0, 999999999),
-          }).eq('id', mRow['id']);
+        final curM = (mRow?['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        final curB = (mRow?['diamonds_balance'] as num?)?.toInt() ?? (mRow?['diamonds'] as num?)?.toInt() ?? widget.availableDiamonds;
+        final newBal = (curB - amount).clamp(0, 999999999);
+        final newMonthly = (curM - amount).clamp(0, 999999999);
+
+        final updatePayload = {
+          'diamonds_earned_monthly': newMonthly,
+          'diamonds_balance': newBal,
+          'diamonds': newBal,
+          'diamonds_available': newBal,
+          'daily_target': 0,
+          'monthly_target': 0,
+        };
+
+        if (mRow != null && mRow['id'] != null) {
+          try {
+            await Supabase.instance.client.from('host_agency_members').update(updatePayload).eq('id', mRow['id']);
+          } catch (_) {}
         }
+        try {
+          await Supabase.instance.client.from('host_agency_members').update(updatePayload).or('user_id.eq.$uid,host_uid.eq.$uid');
+        } catch (_) {}
+
+        // خصم الألماس من جدول المستخدمين users
+        try {
+          final uRow = await Supabase.instance.client.from('users').select('diamonds').eq('uid', uid).maybeSingle();
+          final curUDia = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
+          await Supabase.instance.client.from('users').update({
+            'diamonds': (curUDia - amount).clamp(0, 999999999),
+          }).or('uid.eq.$uid,id.eq.$uid');
+        } catch (_) {}
+
+        // تحديث الـ UserProvider محلياً فوراً
+        try {
+          Provider.of<UserProvider>(context, listen: false).deductDiamondsLocally(amount);
+        } catch (_) {}
 
         // تصفير الرواتب المستحقة في جدول الرواتب
-        await Supabase.instance.client.from('host_salaries').update({
-          'status': 'disbursed',
-          'disbursed_at': DateTime.now().toIso8601String(),
-        }).eq('user_id', uid).eq('status', 'pending');
+        try {
+          await Supabase.instance.client.from('host_salaries').update({
+            'status': 'disbursed',
+            'disbursed_at': DateTime.now().toIso8601String(),
+          }).or('user_id.eq.$uid,host_uid.eq.$uid').eq('status', 'pending');
+        } catch (_) {}
       } catch (_) {}
 
       if (!mounted) return;
@@ -713,10 +745,30 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
         throw Exception(res['message'] ?? 'فشل إرسال طلب السحب للوكيل');
       }
 
-      if (!mounted) return;
-      _snack('✅ تم إرسال طلب الصرف إلى الوكيل بنجاح! سيتم التحويل بمجرد موافقته.', ok: true);
+      final reqId = res['requestId']?.toString() ?? '';
+      final agentData = _selectedAgent!;
+      final stageUsd = (res['stage_usd'] as num?)?.toDouble() ?? 0.0;
       _diamondsCtrl.clear();
       setState(() => _selectedAgent = null);
+
+      if (!mounted) return;
+      // فتح شاشة الانتظار لموافقة الوكيل
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AgentWithdrawalWaitingScreen(
+            requestId: reqId,
+            diamonds: diamonds,
+            usdAmount: stageUsd,
+            agentName: agentData['display_name'] ?? agentData['name'] ?? 'وكيل شحن',
+            agentId: agentData['id']?.toString() ?? agentData['uid']?.toString() ?? '',
+            agentAvatar: agentData['photo_url'] ?? agentData['avatar'] ?? '',
+            agentKayanId: (agentData['kayan_id'] ?? agentData['custom_id'] ?? '').toString(),
+            agencyName: agentData['recharge_agency_name'] ?? 'وكالة الشحن',
+            onSuccess: widget.onSuccess,
+          ),
+        ),
+      );
       widget.onSuccess();
     } catch (e) {
       if (mounted) _snack('فشل إرسال الطلب: $e');

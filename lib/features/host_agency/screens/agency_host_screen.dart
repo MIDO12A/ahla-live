@@ -22,6 +22,7 @@ import '../../../../services/supabase_service.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 import '../data/anchor_agent_model.dart';
+import 'agent_withdrawal_waiting_screen.dart';
 
 class AgencyHostScreen extends StatefulWidget {
   final String? agencyId;
@@ -1184,29 +1185,46 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
     try {
       final user = Provider.of<UserProvider>(context, listen: false).currentUser;
       final uid = user?.uid ?? Supabase.instance.client.auth.currentUser?.id ?? '';
-      final agentId = _selectedAgent!['id']?.toString() ?? _selectedAgent!['uid']?.toString() ?? '';
-      final idempotencyKey = '${uid}_host_wd_${DateTime.now().millisecondsSinceEpoch}';
-
-      final res = await AgencyRepository.transferDiamondsToAgentWallet(
-        agentId: agentId,
+      final res = await AgencyRepository.requestHostWithdrawalToAgent(
+        agent: _selectedAgent!,
         diamonds: _diamonds,
-        idempotencyKey: idempotencyKey,
-        source: 'host',
+        hostUid: uid,
+        hostName: user?.name ?? 'مضيف',
+        hostCustomId: user?.customId,
+        hostAvatar: user?.photoUrl,
+        agencyId: widget.agencyId,
       );
 
-      if (res['status'] == 'ok' || res['ok'] == true || res['success'] == true) {
-        if (!mounted) return;
-        Navigator.pop(context);
-        KayanInAppToast.success('✅ تم سحب الراتب بنجاح وتحويل $_diamonds كوينز لوكالة الشحن واحتساب عمولة الوكيل!');
-        widget.onSuccess();
-      } else {
-        if (!mounted) return;
-        final msg = res['message']?.toString() ?? 'فشل طلب السحب';
-        KayanInAppToast.error(msg);
+      if (res['success'] != true) {
+        throw Exception(res['message'] ?? 'فشل إرسال طلب السحب للوكيل');
       }
+
+      final reqId = res['requestId']?.toString() ?? '';
+      final agentData = _selectedAgent!;
+      final stageUsd = (res['stage_usd'] as num?)?.toDouble() ?? 0.0;
+
+      if (!mounted) return;
+      Navigator.pop(context); // إغلاق النافذة السفلية
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AgentWithdrawalWaitingScreen(
+            requestId: reqId,
+            diamonds: _diamonds,
+            usdAmount: stageUsd,
+            agentName: agentData['display_name'] ?? agentData['name'] ?? 'وكيل شحن',
+            agentId: agentData['id']?.toString() ?? agentData['uid']?.toString() ?? '',
+            agentAvatar: agentData['photo_url'] ?? agentData['avatar'] ?? '',
+            agentKayanId: (agentData['kayan_id'] ?? agentData['custom_id'] ?? '').toString(),
+            agencyName: agentData['recharge_agency_name'] ?? 'وكالة الشحن',
+            onSuccess: widget.onSuccess,
+          ),
+        ),
+      );
+      widget.onSuccess();
     } catch (e) {
       if (!mounted) return;
-      KayanInAppToast.error('خطأ أثناء السحب: $e');
+      KayanInAppToast.error('خطأ أثناء إرسال الطلب: $e');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
