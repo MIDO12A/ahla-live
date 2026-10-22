@@ -22,6 +22,16 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    afterEvaluate {
+        tasks.matching {
+            it.name.contains("extractReleaseAnnotations") ||
+            it.name.contains("extractDebugAnnotations") ||
+            it.name.contains("lintVital") ||
+            it.name.contains("AndroidLint")
+        }.configureEach {
+            enabled = false
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

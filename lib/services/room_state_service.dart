@@ -84,7 +84,7 @@ class MinimizedRoomService extends ChangeNotifier {
     final uid = _userId;
     if (rid == null || uid == null || !_isActive) return;
     try {
-      SupabaseDataService().sendPresencePing(rid, uid).catchError((_) {});
+      SupabaseDataService().sendPresencePing(rid, uid).catchError((_) => false);
     } catch (_) {}
   }
 
@@ -126,20 +126,20 @@ class MinimizedRoomService extends ChangeNotifier {
     final oldRoomId = _roomId;
     deactivate();
     if (oldRoomId != null) {
+      Future<void> safeCall(Future Function() fn) async {
+        try {
+          await fn();
+        } catch (_) {}
+      }
+      final tasks = <Future>[
+        safeCall(() => SupabaseService().leaveSeatForUser(oldRoomId, userId)),
+        safeCall(() => SupabaseDataService().leaveSeatForUser(oldRoomId, userId)),
+        safeCall(() => SupabaseService().leaveRoom(oldRoomId, userId)),
+        safeCall(() => SupabaseDataService().leaveRoom(oldRoomId, userId)),
+        safeCall(() => RoomAudioService().leaveChannel()),
+      ];
       try {
-        await SupabaseService().leaveSeatForUser(oldRoomId, userId);
-      } catch (_) {}
-      try {
-        await SupabaseDataService().leaveSeatForUser(oldRoomId, userId);
-      } catch (_) {}
-      try {
-        await SupabaseService().leaveRoom(oldRoomId, userId);
-      } catch (_) {}
-      try {
-        await SupabaseDataService().leaveRoom(oldRoomId, userId);
-      } catch (_) {}
-      try {
-        await RoomAudioService().leaveChannel();
+        await Future.wait(tasks).timeout(const Duration(seconds: 4));
       } catch (_) {}
     }
   }

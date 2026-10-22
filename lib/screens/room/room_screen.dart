@@ -6365,48 +6365,44 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _takingSeat = false;
     _pendingSeatIndex = null;
 
+    final List<Future> cleanupTasks = [];
+    Future<void> safeCall(Future Function() fn) async {
+      try {
+        await fn();
+      } catch (_) {}
+    }
+
     for (int i = 0; i < _seats.length; i++) {
       if ((uid != null && _seats[i].user?.id == uid) || (mySeatIdx != null && i == mySeatIdx)) {
         _seats[i].state = SeatState.empty;
         _seats[i].user = null;
         _seats[i].isMuted = false;
-        try {
-          await _firebaseService.leaveSeat(roomId, i);
-        } catch (_) {}
-        try {
-          await SupabaseDataService().leaveSeat(roomId, i);
-        } catch (_) {}
+        final seatIdx = i;
+        cleanupTasks.add(safeCall(() => _firebaseService.leaveSeat(roomId, seatIdx)));
+        cleanupTasks.add(safeCall(() => SupabaseDataService().leaveSeat(roomId, seatIdx)));
       }
     }
 
     if (uid != null && uid.isNotEmpty) {
-      try {
-        await _firebaseService.leaveSeatForUser(roomId, uid);
-      } catch (_) {}
-      try {
-        await SupabaseService().leaveSeatForUser(roomId, uid);
-      } catch (_) {}
-      try {
-        await SupabaseDataService().leaveSeatForUser(roomId, uid);
-      } catch (_) {}
-      try {
-        await SupabaseDataService().leaveRoom(roomId, uid);
-      } catch (_) {}
-      try {
-        await Supabase.instance.client
-            .from('room_members')
-            .delete()
-            .eq('room_id', roomId)
-            .eq('uid', uid);
-      } catch (_) {}
-      try {
-        await _firebaseService.leaveRoom(roomId, uid);
-      } catch (_) {}
+      cleanupTasks.add(safeCall(() => _firebaseService.leaveSeatForUser(roomId, uid)));
+      cleanupTasks.add(safeCall(() => SupabaseService().leaveSeatForUser(roomId, uid)));
+      cleanupTasks.add(safeCall(() => SupabaseDataService().leaveSeatForUser(roomId, uid)));
+      cleanupTasks.add(safeCall(() => SupabaseDataService().leaveRoom(roomId, uid)));
+      cleanupTasks.add(safeCall(() => Supabase.instance.client
+          .from('room_members')
+          .delete()
+          .eq('room_id', roomId)
+          .eq('uid', uid)));
+      cleanupTasks.add(safeCall(() => _firebaseService.leaveRoom(roomId, uid)));
     }
 
     if (name != null && name.isNotEmpty) {
+      cleanupTasks.add(safeCall(() => _firebaseService.logExit(roomId, name)));
+    }
+
+    if (cleanupTasks.isNotEmpty) {
       try {
-        await _firebaseService.logExit(roomId, name);
+        await Future.wait(cleanupTasks).timeout(const Duration(seconds: 4));
       } catch (_) {}
     }
   }
@@ -6453,23 +6449,29 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _exitRoom() async {
+    // 1. Dismiss UI immediately — 0ms instant visual response!
     if (mounted) {
       setState(() => _showExit = false);
+      Navigator.of(context).pop();
     }
+    // 2. Stop audio, mic & music engine immediately
     RoomMusicPlayerService().stop();
     _isMicOn = false;
     try {
       _roomAudio.toggleMic(false);
       _roomAudio.stopPublishingIfActive();
       _roomAudio.leaveChannel();
-    } catch (_) {}
-    await _leaveRoomSession();
-    try {
       _roomAudio.dispose();
     } catch (_) {}
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
+    // 3. Immediately clean up minimized room if active
+    try {
+      final uid = _currentUserId ?? Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+      if (uid != null) {
+        MinimizedRoomService().exitRoom(uid);
+      }
+    } catch (_) {}
+    // 4. Run seat & server session cleanups concurrently in background
+    unawaited(_leaveRoomSession());
   }
 
   void _checkRoomBan(String uid) {
