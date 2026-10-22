@@ -3304,19 +3304,27 @@ export async function updateRechargeAgency(userId: string, data: {
       recharge_agency_name: agencyName,
       recharge_agency_logo: data.recharge_agency_logo || '',
       whatsapp_number: data.whatsapp_number || '',
-      recharge_commission_rate: data.recharge_commission_rate ?? 5,
       updated_at: nowIso,
     };
 
-    // Write metadata to users in Supabase
+    // Write metadata to users in Supabase safely (prevent 400 Bad Request)
     try {
-      await client.from('users').update(userUpdate).eq('uid', resolvedUid);
-      await client.from('users').update(userUpdate).eq('id', resolvedUid);
-      if (u?.custom_id) {
-        await client.from('users').update(userUpdate).eq('custom_id', u.custom_id);
+      const { error: uidErr } = await client.from('users').update(userUpdate).eq('uid', resolvedUid);
+      if (uidErr) {
+        await client.from('users').update(userUpdate).eq('id', resolvedUid);
       }
     } catch (sbErr) {
       console.warn('updateRechargeAgency supabase warning:', sbErr);
+    }
+
+    // Persist commission rate in app_config
+    if (data.recharge_commission_rate !== undefined) {
+      try {
+        await client.from('app_config').upsert({
+          key: `recharge_agent_rate_${resolvedUid}`,
+          value: { rate: data.recharge_commission_rate, updated_at: nowIso },
+        });
+      } catch (_) {}
     }
 
     // 2. Manage Agency Gold & Diamond Wallets strictly in agency_wallets (SEPARATED FROM personal users.coins)
@@ -3514,11 +3522,25 @@ export async function getRechargeAgentsWithWallets(): Promise<any[]> {
       } catch (_) {}
     }
 
+    let ratesMap: Record<string, number> = {};
+    if (userIds.length > 0) {
+      try {
+        const rateKeys = userIds.map((id: string) => `recharge_agent_rate_${id}`);
+        const { data: cfgList } = await client.from('app_config').select('key, value').in('key', rateKeys);
+        (cfgList || []).forEach((c: any) => {
+          const uId = c.key.replace('recharge_agent_rate_', '');
+          const r = c.value?.rate ?? c.value;
+          if (r !== undefined) ratesMap[uId] = Number(r);
+        });
+      } catch (_) {}
+    }
+
     return users.map((u: any) => {
       const uId = u.uid || u.id;
       const w = walletsMap[uId] || { gold_balance: 0, diamond_balance: 0 };
       return {
         ...u,
+        recharge_commission_rate: ratesMap[uId] ?? u.recharge_commission_rate ?? 5,
         agency_gold_balance: w.gold_balance,
         agency_diamond_balance: w.diamond_balance,
       };
@@ -3542,10 +3564,9 @@ export async function revokeRechargeAgency(userId: string): Promise<boolean> {
     };
 
     try {
-      await client.from('users').update(userUpdate).eq('uid', resolvedUid);
-      await client.from('users').update(userUpdate).eq('id', resolvedUid);
-      if (u?.custom_id) {
-        await client.from('users').update(userUpdate).eq('custom_id', u.custom_id);
+      const { error: uidErr } = await client.from('users').update(userUpdate).eq('uid', resolvedUid);
+      if (uidErr) {
+        await client.from('users').update(userUpdate).eq('id', resolvedUid);
       }
     } catch (_) {}
 
