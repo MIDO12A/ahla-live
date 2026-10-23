@@ -10,7 +10,7 @@ import type {
   AgencyJoinRequestModel, AgencyLedgerEntryModel, AgencyWithdrawalRequestModel,
   HostAgencyModel, CpGiftModel, CpCarModel, CpEventSettings, CpRankRewardModel,
   SigninRewardModel, AgencyApplicationModel, HostRechargeRecord,
-  AgencyLevelModel,
+  AgencyLevelModel, AgencyExpTaskConfig,
 } from '../types'
 
 // ---- Auth Admin ----
@@ -7174,7 +7174,7 @@ export async function saveAgencyLevels(levels: AgencyLevelModel[]): Promise<bool
 export async function distributeAgencyLevelReward(
   agencyId: string,
   level: AgencyLevelModel
-): Promise<{ count: number; coins: number; diamonds: number }> {
+): Promise<{ count: number; coins: number; diamonds: number; storeItemsGranted: number }> {
   const client = getAdminSupabase() || supabase;
   try {
     // 1. Get all active members/hosts of this agency
@@ -7185,7 +7185,7 @@ export async function distributeAgencyLevelReward(
       .eq('status', 'active');
 
     if (mErr || !members || members.length === 0) {
-      return { count: 0, coins: 0, diamonds: 0 };
+      return { count: 0, coins: 0, diamonds: 0, storeItemsGranted: 0 };
     }
 
     const hostUids = members
@@ -7194,25 +7194,81 @@ export async function distributeAgencyLevelReward(
 
     const coinReward = Number(level.reward_coins_per_host || 0);
     const diamondReward = Number(level.reward_diamonds_per_host || 0);
+    const storeRewards = Array.isArray(level.store_reward_items) ? level.store_reward_items : [];
 
     let distributedCount = 0;
+    let totalStoreItemsGranted = 0;
 
     for (const uid of hostUids) {
       try {
-        const { data: uData } = await client.from('users').select('coins, diamonds').eq('uid', uid).maybeSingle();
+        const { data: uData } = await client.from('users').select('coins, diamonds, owned_items').eq('uid', uid).maybeSingle();
         if (uData) {
           const newCoins = Number(uData.coins || 0) + coinReward;
           const newDiamonds = Number(uData.diamonds || 0) + diamondReward;
+          let currentOwned: string[] = Array.isArray(uData.owned_items) ? [...uData.owned_items] : [];
+
+          // 2. Grant each store item reward to this host
+          for (const item of storeRewards) {
+            if (item.item_id && !currentOwned.includes(item.item_id)) {
+              currentOwned.push(item.item_id);
+            }
+
+            const days = Number(item.days || 0);
+            const expiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
+            const giftId = `lvl_gift_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+            // Add to user_backpack
+            try {
+              await client.from('user_backpack').upsert({
+                user_id: uid,
+                item_id: item.item_id,
+                item_type: item.category || 'frame',
+                expires_at: expiresAt > 0 ? new Date(expiresAt).toISOString() : null,
+              });
+            } catch (bpErr) {
+              console.warn('user_backpack upsert warning:', bpErr);
+            }
+
+            // Add to gifted_items
+            try {
+              await client.from('gifted_items').insert({
+                id: giftId,
+                uid,
+                item_id: item.item_id,
+                item_category: item.category || 'frame',
+                item_name: item.item_name,
+                item_icon: item.item_icon || '',
+                svga_asset: item.svga_asset || null,
+                video_asset: item.video_asset || null,
+                sent_by: 'system',
+                sent_by_name: 'إدارة أهلاً لايف (مكافأة ارتقاء الوكالة)',
+                sent_at: Date.now(),
+                expires_at: expiresAt,
+              });
+              totalStoreItemsGranted++;
+            } catch (giErr) {
+              console.warn('gifted_items insert warning:', giErr);
+            }
+          }
+
+          // Update user record with coins, diamonds and owned_items
           await client.from('users').update({
             coins: newCoins,
             diamonds: newDiamonds,
+            owned_items: currentOwned,
           }).eq('uid', uid);
+
+          // Build item names string for notification
+          const itemNamesText = storeRewards.length > 0
+            ? ` وعناصر المتجر: (${storeRewards.map(i => i.item_name).join(', ')})`
+            : '';
+          const reasonText = level.reward_reason ? `\nالسبب: ${level.reward_reason}` : '';
 
           // Send notification to each host
           await sendSystemNotification(
             uid,
             'مكافأة ارتقاء مستوى الوكالة 🏆🎉',
-            `مبروك! وصلت وكالتك للمستوى ${level.level} (${level.title}). تم إيداع مكافأتك ${coinReward > 0 ? coinReward + ' كوينز 🪙' : ''} ${diamondReward > 0 ? diamondReward + ' ماسة 💎' : ''} في محفظتك!`
+            `مبروك! حققت وكالتك المستوى ${level.level} (${level.title}).${reasonText}\nتم إيداع مكافأتك: ${coinReward > 0 ? coinReward.toLocaleString() + ' كوينز 🪙 ' : ''}${diamondReward > 0 ? diamondReward.toLocaleString() + ' ماسة 💎 ' : ''}${itemNamesText} في محفظتك وحقيبتك مباشرة!`
           );
 
           distributedCount++;
@@ -7236,16 +7292,99 @@ export async function distributeAgencyLevelReward(
         entry_type: 'level_reward',
         amount: coinReward * distributedCount,
         currency: 'coins',
-        description: `توزيع مكافأة المستوى ${level.level} (${level.title}) على ${distributedCount} مضيف`,
+        description: `توزيع مكافأة المستوى ${level.level} (${level.title}) على ${distributedCount} مضيف (كوينز: ${coinReward * distributedCount}، عناصر متجر: ${storeRewards.length})`,
         created_at: new Date().toISOString(),
       });
     } catch (_) {}
 
-    return { count: distributedCount, coins: coinReward * distributedCount, diamonds: diamondReward * distributedCount };
+    return {
+      count: distributedCount,
+      coins: coinReward * distributedCount,
+      diamonds: diamondReward * distributedCount,
+      storeItemsGranted: totalStoreItemsGranted,
+    };
   } catch (e) {
     console.error('distributeAgencyLevelReward error:', e);
     throw e;
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+//  AGENCY EXP GROWTH TASKS CONFIG
+// ══════════════════════════════════════════════════════════════
+
+export async function getAgencyExpTasks(): Promise<AgencyExpTaskConfig[]> {
+  try {
+    const raw = await getAppConfig<AgencyExpTaskConfig[]>('agency_exp_tasks_config');
+    if (raw && Array.isArray(raw) && raw.length > 0) {
+      return raw;
+    }
+  } catch (e) {
+    console.error('getAgencyExpTasks error:', e);
+  }
+
+  // Default tasks if not yet set
+  return [
+    {
+      key: 'seat_mic',
+      title: 'الجلوس على مقعد المايك والتفاعل',
+      title_ar: 'الذهاب إلى المقعد / المايك',
+      description: 'جلوس المضيف على مقعد المايك والتفاعل الصوتي مع المستخدمين داخل الغرفة يمنح نقاط خبرة للوكالة.',
+      exp_rate_desc: '10 EXP لكل 10 دقائق جلوس على المايك',
+      exp_per_unit: 10,
+      daily_max_exp: 500,
+      is_enabled: true,
+      icon_name: 'Mic',
+    },
+    {
+      key: 'lucky_games',
+      title: 'المشاركة في ألعاب الحظ',
+      title_ar: 'ألعاب الحظ (عجلة الحظ / الروليت)',
+      description: 'لعب وتدوير ألعاب الحظ داخل التطبيق يرفع نقاط خبرة الوكالة بشكل كبير.',
+      exp_rate_desc: '1 EXP لكل 10 كوينز لعب بألعاب الحظ',
+      exp_per_unit: 1,
+      daily_max_exp: 2000,
+      is_enabled: true,
+      icon_name: 'Dices',
+    },
+    {
+      key: 'recharge',
+      title: 'الشحن المالي للرصيد',
+      title_ar: 'الشحن المالي للكوينز',
+      description: 'عمليات شحن الكوينز التي ينفذها أعضاء ومضيفو الوكالة تمنح الوكالة دفعة نمو فورية.',
+      exp_rate_desc: '1 EXP لكل 1 كوين مشحون',
+      exp_per_unit: 1,
+      daily_max_exp: 0,
+      is_enabled: true,
+      icon_name: 'CreditCard',
+    },
+    {
+      key: 'send_gifts',
+      title: 'إرسال الهدايا داخل الغرف',
+      title_ar: 'إرسال الهدايا داخل الغرفة',
+      description: 'إرسال الهدايا الصوتية والتفاعلية داخل الغرف من أعضاء ومضيفي الوكالة.',
+      exp_rate_desc: '1 EXP لكل 1 كوين من قيمة الهدايا المرسلة',
+      exp_per_unit: 1,
+      daily_max_exp: 0,
+      is_enabled: true,
+      icon_name: 'Gift',
+    },
+  ];
+}
+
+export async function saveAgencyExpTasks(tasks: AgencyExpTaskConfig[]): Promise<boolean> {
+  const client = getAdminSupabase() || supabase;
+  try {
+    await client.from('app_config').upsert({
+      key: 'agency_exp_tasks_config',
+      value: tasks,
+    });
+    return true;
+  } catch (e) {
+    console.error('saveAgencyExpTasks error:', e);
+    return false;
+  }
+}
+
 
 

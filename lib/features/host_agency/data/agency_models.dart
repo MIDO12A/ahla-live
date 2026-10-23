@@ -709,6 +709,32 @@ class HostVerificationModel {
 }
 
 // ─── 2. مستويات وامتيازات الوكالة (Agency Level & Tier Privileges) ─────────────
+class AgencyLevelStoreReward {
+  final String itemId;
+  final String itemName;
+  final String itemIcon;
+  final String category;
+  final int days; // 0 for permanent
+
+  const AgencyLevelStoreReward({
+    required this.itemId,
+    required this.itemName,
+    required this.itemIcon,
+    required this.category,
+    this.days = 7,
+  });
+
+  factory AgencyLevelStoreReward.fromMap(Map<String, dynamic> m) {
+    return AgencyLevelStoreReward(
+      itemId:   m['item_id']?.toString() ?? '',
+      itemName: m['item_name']?.toString() ?? 'عنصر متجر',
+      itemIcon: m['item_icon']?.toString() ?? '',
+      category: m['category']?.toString() ?? 'frame',
+      days:     (m['days'] as num?)?.toInt() ?? 7,
+    );
+  }
+}
+
 class AgencyLevelConfigModel {
   final int level;
   final String levelName;
@@ -717,6 +743,10 @@ class AgencyLevelConfigModel {
   final int membersLimit;
   final double maintainExpPercentage; // 30.0%
   final String? badgeIconUrl;
+  final int rewardCoins;
+  final int rewardDiamonds;
+  final String? rewardReason;
+  final List<AgencyLevelStoreReward> storeRewardItems;
 
   const AgencyLevelConfigModel({
     required this.level,
@@ -726,22 +756,80 @@ class AgencyLevelConfigModel {
     required this.membersLimit,
     this.maintainExpPercentage = 30.0,
     this.badgeIconUrl,
+    this.rewardCoins = 0,
+    this.rewardDiamonds = 0,
+    this.rewardReason,
+    this.storeRewardItems = const [],
   });
 
   int get maintainExpThreshold => (minExp * (maintainExpPercentage / 100)).round();
 
   factory AgencyLevelConfigModel.fromMap(Map<String, dynamic> m) {
+    final rawStore = m['store_reward_items'];
+    final storeList = <AgencyLevelStoreReward>[];
+    if (rawStore is List) {
+      for (final s in rawStore) {
+        if (s is Map) {
+          storeList.add(AgencyLevelStoreReward.fromMap(Map<String, dynamic>.from(s)));
+        }
+      }
+    }
+
     return AgencyLevelConfigModel(
       level:                 (m['level'] as num?)?.toInt() ?? 1,
-      levelName:             m['level_name'] as String? ?? 'مستوى ${m['level']}',
-      minExp:                (m['min_exp'] as num?)?.toInt() ?? 0,
+      levelName:             m['title'] as String? ?? m['level_name'] as String? ?? 'مستوى ${m['level']}',
+      minExp:                (m['required_exp'] as num?)?.toInt() ?? (m['min_exp'] as num?)?.toInt() ?? 0,
       adminLimit:            (m['admin_limit'] as num?)?.toInt() ?? 2,
       membersLimit:          (m['members_limit'] as num?)?.toInt() ?? 20,
       maintainExpPercentage: (m['maintain_exp_percentage'] as num?)?.toDouble() ?? 30.0,
-      badgeIconUrl:          m['badge_icon_url'] as String?,
+      badgeIconUrl:          (m['icon_url'] as String?) ?? (m['badge_icon_url'] as String?),
+      rewardCoins:           (m['reward_coins_per_host'] as num?)?.toInt() ?? (m['reward_coins'] as num?)?.toInt() ?? 0,
+      rewardDiamonds:        (m['reward_diamonds_per_host'] as num?)?.toInt() ?? (m['reward_diamonds'] as num?)?.toInt() ?? 0,
+      rewardReason:          m['reward_reason'] as String?,
+      storeRewardItems:      storeList,
     );
   }
 }
+
+// ─── مهام نمو نقاط الخبرة للوكالة (Agency EXP Growth Tasks) ───────────────────
+class AgencyExpTaskModel {
+  final String key;
+  final String title;
+  final String titleAr;
+  final String description;
+  final String expRateDesc;
+  final int expPerUnit;
+  final int dailyMaxExp;
+  final bool isEnabled;
+  final String iconName;
+
+  const AgencyExpTaskModel({
+    required this.key,
+    required this.title,
+    required this.titleAr,
+    required this.description,
+    required this.expRateDesc,
+    this.expPerUnit = 1,
+    this.dailyMaxExp = 0,
+    this.isEnabled = true,
+    this.iconName = 'Zap',
+  });
+
+  factory AgencyExpTaskModel.fromMap(Map<String, dynamic> m) {
+    return AgencyExpTaskModel(
+      key:         m['key']?.toString() ?? '',
+      title:       m['title']?.toString() ?? '',
+      titleAr:     m['title_ar']?.toString() ?? m['title']?.toString() ?? '',
+      description: m['description']?.toString() ?? '',
+      expRateDesc: m['exp_rate_desc']?.toString() ?? '',
+      expPerUnit:  (m['exp_per_unit'] as num?)?.toInt() ?? 1,
+      dailyMaxExp: (m['daily_max_exp'] as num?)?.toInt() ?? 0,
+      isEnabled:   m['is_enabled'] != false,
+      iconName:    m['icon_name']?.toString() ?? 'Zap',
+    );
+  }
+}
+
 
 // ─── 3. تتبع ساعات البث اليومية والتارجت (Daily Live Hours Target) ───────────
 class AgencyDailyHoursTarget {

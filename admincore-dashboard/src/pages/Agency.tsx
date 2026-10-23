@@ -3,7 +3,7 @@ import {
   HostAgencyModel, HostAgencyMemberModel, CommissionSettingModel,
   HostMilestoneModel, AgencyJoinRequestModel, AgencyLedgerEntryModel,
   AgencyWithdrawalRequestModel, AgencyApplicationModel, HostRechargeRecord,
-  AgencyLevelModel,
+  AgencyLevelModel, AgencyExpTaskConfig, AgencyLevelRewardItem,
 } from '../types';
 import {
   getHostAgencies, createHostAgency, updateHostAgency, deleteHostAgency,
@@ -23,6 +23,7 @@ import {
   getAppConfig, updateAppConfig,
   searchUserProfile, sendSystemNotification, sendAgencyInvitation,
   getAgencyLevels, saveAgencyLevels, distributeAgencyLevelReward,
+  getAgencyExpTasks, saveAgencyExpTasks,
 } from '../lib/db';
 import { uploadStoreItem } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -37,6 +38,7 @@ import {
   Save, CheckCircle2, RefreshCw, ClipboardCheck, Plus, Trash2, Edit3,
   XCircle, Check, ShieldCheck, UserMinus, Eye, ExternalLink,
   ArrowRightLeft, RotateCcw, Coins, FileText, AlertTriangle,
+  Mic, Dices, CreditCard, Gift, Clock, Package, Search, Zap,
 } from 'lucide-react';
 
 /* =============================================================
@@ -3744,16 +3746,20 @@ function AgencyRecordModal({
 }
 
 /* =============================================================
-   AGENCY LEVELS & HOST LEVEL-UP REWARDS TAB
+   AGENCY LEVELS, STORE REWARDS & EXP GROWTH TASKS TAB
    ============================================================= */
 function AgencyLevelsTab() {
+  const [activeSubTab, setActiveSubTab] = useState<'levels' | 'tasks'>('levels');
   const [levels, setLevels] = useState<AgencyLevelModel[]>([]);
   const [agencies, setAgencies] = useState<HostAgencyModel[]>([]);
+  const [allStoreItems, setAllStoreItems] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<AgencyExpTaskConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingTasks, setSavingTasks] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Form state
+  // Form state for Level
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formLevel, setFormLevel] = useState<number>(1);
@@ -3762,7 +3768,14 @@ function AgencyLevelsTab() {
   const [formCoins, setFormCoins] = useState<number>(500);
   const [formDiamonds, setFormDiamonds] = useState<number>(0);
   const [formDesc, setFormDesc] = useState('');
+  const [formRewardReason, setFormRewardReason] = useState('');
   const [formIcon, setFormIcon] = useState('');
+  const [formStoreRewards, setFormStoreRewards] = useState<AgencyLevelRewardItem[]>([]);
+
+  // Store Item Picker Modal state
+  const [showItemPicker, setShowItemPicker] = useState(false);
+  const [itemSearch, setItemSearch] = useState('');
+  const [itemCategoryFilter, setItemCategoryFilter] = useState('all');
 
   // Reward distribution modal
   const [rewardLevel, setRewardLevel] = useState<AgencyLevelModel | null>(null);
@@ -3773,12 +3786,18 @@ function AgencyLevelsTab() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [lvls, ags] = await Promise.all([
+      const [lvls, ags, expTasks, storeRes] = await Promise.all([
         getAgencyLevels(),
         getHostAgencies(),
+        getAgencyExpTasks(),
+        supabase.from('store_items').select('*'),
       ]);
       setLevels(lvls);
       setAgencies(ags);
+      setTasks(expTasks);
+      if (storeRes.data) {
+        setAllStoreItems(storeRes.data);
+      }
     } catch (e: any) {
       setMsg({ type: 'error', text: 'فشل تحميل بيانات مستويات الوكالة: ' + e?.message });
     } finally {
@@ -3799,7 +3818,9 @@ function AgencyLevelsTab() {
     setFormCoins(nextLevel * 1000);
     setFormDiamonds(0);
     setFormDesc(`مكافأة ارتقاء لمستوى ${nextLevel}`);
+    setFormRewardReason('مكافأة تشجيعية لتحقيق نمو رائع للوكالة والوصول للمستوى المطلوب');
     setFormIcon('');
+    setFormStoreRewards([]);
     setShowForm(true);
     setMsg(null);
   };
@@ -3812,7 +3833,9 @@ function AgencyLevelsTab() {
     setFormCoins(lvl.reward_coins_per_host);
     setFormDiamonds(lvl.reward_diamonds_per_host || 0);
     setFormDesc(lvl.description || '');
+    setFormRewardReason(lvl.reward_reason || 'مكافأة ارتقاء مستوى الوكالة وتكريم للمضيفين');
     setFormIcon(lvl.icon_url || '');
+    setFormStoreRewards(Array.isArray(lvl.store_reward_items) ? [...lvl.store_reward_items] : []);
     setShowForm(true);
     setMsg(null);
   };
@@ -3835,6 +3858,8 @@ function AgencyLevelsTab() {
           required_exp: Number(formExp),
           reward_coins_per_host: Number(formCoins),
           reward_diamonds_per_host: Number(formDiamonds),
+          store_reward_items: formStoreRewards,
+          reward_reason: formRewardReason.trim(),
           description: formDesc.trim(),
           icon_url: formIcon.trim(),
           updated_at: new Date().toISOString(),
@@ -3847,6 +3872,8 @@ function AgencyLevelsTab() {
           required_exp: Number(formExp),
           reward_coins_per_host: Number(formCoins),
           reward_diamonds_per_host: Number(formDiamonds),
+          store_reward_items: formStoreRewards,
+          reward_reason: formRewardReason.trim(),
           description: formDesc.trim(),
           icon_url: formIcon.trim(),
           created_at: new Date().toISOString(),
@@ -3858,7 +3885,7 @@ function AgencyLevelsTab() {
       setLevels(updated.sort((a, b) => a.level - b.level));
       setShowForm(false);
       setEditingId(null);
-      setMsg({ type: 'success', text: 'تم حفظ المستوى بنجاح!' });
+      setMsg({ type: 'success', text: 'تم حفظ المستوى ومكافآت المتجر بنجاح!' });
     } catch (e: any) {
       setMsg({ type: 'error', text: 'تعذر حفظ المستوى: ' + e?.message });
     } finally {
@@ -3881,6 +3908,45 @@ function AgencyLevelsTab() {
     }
   };
 
+  const handleSaveExpTasks = async () => {
+    setSavingTasks(true);
+    try {
+      const ok = await saveAgencyExpTasks(tasks);
+      if (ok) {
+        setMsg({ type: 'success', text: 'تم حفظ إعدادات مهام نمو نقاط الخبرة (EXP) بنجاح!' });
+      } else {
+        setMsg({ type: 'error', text: 'فشل حفظ مهام النمو' });
+      }
+    } catch (e: any) {
+      setMsg({ type: 'error', text: 'خطأ أثناء الحفظ: ' + e?.message });
+    } finally {
+      setSavingTasks(false);
+    }
+  };
+
+  const handleToggleStoreItem = (item: any) => {
+    const id = item.item_id || item.id;
+    const exists = formStoreRewards.some(r => r.item_id === id);
+    if (exists) {
+      setFormStoreRewards(formStoreRewards.filter(r => r.item_id !== id));
+    } else {
+      const newItem: AgencyLevelRewardItem = {
+        item_id: id,
+        item_name: item.name || item.name_ar || 'عنصر متجر',
+        item_icon: item.icon_url || item.iconAsset || item.icon || '',
+        category: item.category || 'frame',
+        days: 7, // default 7 days
+        svga_asset: item.svga_asset || item.svgaAsset || '',
+        video_asset: item.video_asset || item.videoAsset || '',
+      };
+      setFormStoreRewards([...formStoreRewards, newItem]);
+    }
+  };
+
+  const handleUpdateItemDays = (itemId: string, days: number) => {
+    setFormStoreRewards(formStoreRewards.map(r => r.item_id === itemId ? { ...r, days } : r));
+  };
+
   const handleDistributeReward = async () => {
     if (!rewardLevel || !targetAgencyId) {
       setMsg({ type: 'error', text: 'يرجى اختيار الوكالة المستحقة' });
@@ -3890,12 +3956,32 @@ function AgencyLevelsTab() {
     setDistributeResult(null);
     try {
       const res = await distributeAgencyLevelReward(targetAgencyId, rewardLevel);
-      setDistributeResult(`✅ تم بنجاح توزيع ${res.coins.toLocaleString()} كوينز على ${res.count} مضيف نشط في الوكالة، وتم رفع مستوى الوكالة وإرسال الإشعارات.`);
+      setDistributeResult(`✅ تم بنجاح صرف المكافأة لـ ${res.count} مضيف نشط بالوكالة!\n🪙 إجمالي الكوينز: ${res.coins.toLocaleString()} كوينز\n🎁 إجمالي عناصر المتجر المودعة بالحقائب: ${res.storeItemsGranted} عنصر\nتم ترقية مستوى الوكالة وإرسال إشعارات التهنئة لجميع المضيفين.`);
       loadData();
     } catch (e: any) {
       setDistributeResult(`❌ فشل توزيع المكافأة: ${e?.message}`);
     } finally {
       setDistributing(false);
+    }
+  };
+
+  // Filtered store items for the picker modal
+  const filteredStoreItems = allStoreItems.filter(item => {
+    const nameMatch = !itemSearch ||
+      (item.name || '').toLowerCase().includes(itemSearch.toLowerCase()) ||
+      (item.name_ar || '').toLowerCase().includes(itemSearch.toLowerCase()) ||
+      (item.item_id || item.id || '').toLowerCase().includes(itemSearch.toLowerCase());
+    const catMatch = itemCategoryFilter === 'all' || (item.category || '').toLowerCase() === itemCategoryFilter.toLowerCase();
+    return nameMatch && catMatch;
+  });
+
+  const getTaskIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'Mic': return <Mic className="w-5 h-5 text-amber-400" />;
+      case 'Dices': return <Dices className="w-5 h-5 text-purple-400" />;
+      case 'CreditCard': return <CreditCard className="w-5 h-5 text-emerald-400" />;
+      case 'Gift': return <Gift className="w-5 h-5 text-rose-400" />;
+      default: return <Zap className="w-5 h-5 text-cyan-400" />;
     }
   };
 
@@ -3910,7 +3996,7 @@ function AgencyLevelsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header card */}
+      {/* Header and Sub-Tabs Navigation */}
       <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-purple-500/10 border border-amber-500/20 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 className="text-white text-base font-bold flex items-center gap-2">
@@ -3918,15 +4004,55 @@ function AgencyLevelsTab() {
             إدارة مستويات ونقاط خبرة الوكالة (EXP) ومكافآت المضيفين
           </h3>
           <p className="text-slate-400 text-xs mt-1">
-            حدد نقاط الخبرة المطلوبة لكل مستوى، وأضف مستويات جديدة، وحدد المكافآت التي تنزل لجميع مضيفي الوكالة عند بلوغ المستوى.
+            تحكم بنقاط الخبرة المطلوبة، ومكافآت الكوينز والألماس وعناصر المتجر المتعددة لكل مستوى، واضبط مهام النمو (المقعد، الحظ، الشحن، الهدايا).
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          {activeSubTab === 'levels' && (
+            <button
+              onClick={handleOpenAdd}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold text-xs rounded-xl shadow-lg transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              إضافة مستوى وكالة جديد
+            </button>
+          )}
+          {activeSubTab === 'tasks' && (
+            <button
+              onClick={handleSaveExpTasks}
+              disabled={savingTasks}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-black font-bold text-xs rounded-xl shadow-lg transition-all"
+            >
+              {savingTasks ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              حفظ مهام نمو الـ EXP
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sub Tabs Selector */}
+      <div className="flex items-center gap-2 border-b border-white/10 pb-2">
         <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold text-xs rounded-xl shadow-lg transition-all"
+          onClick={() => setActiveSubTab('levels')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            activeSubTab === 'levels'
+              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          إضافة مستوى وكالة جديد
+          <Award className="w-4 h-4" />
+          مستويات الوكالة ومكافآت المتجر والكوينز ({levels.length})
+        </button>
+        <button
+          onClick={() => setActiveSubTab('tasks')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            activeSubTab === 'tasks'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Zap className="w-4 h-4" />
+          مهام نمو نقاط الخبرة (EXP Tasks) (المقعد، الحظ، الشحن، الهدايا)
         </button>
       </div>
 
@@ -3937,84 +4063,251 @@ function AgencyLevelsTab() {
         </div>
       )}
 
-      {/* Levels Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {levels.map((lvl) => (
-          <div
-            key={lvl.id}
-            className="p-5 rounded-2xl bg-[#141417] border border-white/5 hover:border-amber-500/30 transition-all flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  المستوى {lvl.level}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => handleOpenEdit(lvl)}
-                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300"
-                    title="تعديل"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteLevel(lvl.id)}
-                    className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400"
-                    title="حذف"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              <h4 className="text-white font-bold text-base mb-1">{lvl.title}</h4>
-              <p className="text-slate-400 text-xs mb-3">{lvl.description || 'لا يوجد وصف'}</p>
-
-              <div className="space-y-2 py-3 border-y border-white/5 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">نقاط الخبرة المطلوبة:</span>
-                  <span className="text-indigo-400 font-mono font-bold">⚡ {lvl.required_exp.toLocaleString()} EXP</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">مكافأة كل مضيف بالوكالة:</span>
-                  <span className="text-amber-400 font-bold">🪙 {lvl.reward_coins_per_host.toLocaleString()} كوين</span>
-                </div>
-                {lvl.reward_diamonds_per_host ? (
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">مكافأة الماس لكل مضيف:</span>
-                    <span className="text-cyan-400 font-bold">💎 {lvl.reward_diamonds_per_host.toLocaleString()}</span>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3">
-              <button
-                onClick={() => {
-                  setRewardLevel(lvl);
-                  setTargetAgencyId(agencies[0]?.id || '');
-                  setDistributeResult(null);
-                }}
-                className="w-full py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl border border-indigo-500/30 transition-all flex items-center justify-center gap-1.5"
+      {/* ═══════════ SUB-TAB 1: LEVELS & STORE REWARDS ═══════════ */}
+      {activeSubTab === 'levels' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {levels.map((lvl) => {
+            const storeRewards = Array.isArray(lvl.store_reward_items) ? lvl.store_reward_items : [];
+            return (
+              <div
+                key={lvl.id}
+                className="p-5 rounded-2xl bg-[#141417] border border-white/5 hover:border-amber-500/30 transition-all flex flex-col justify-between"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                توزيع مكافأة هذا المستوى للوكالة الآن
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      المستوى {lvl.level}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEdit(lvl)}
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300"
+                        title="تعديل المستوى والمكافآت"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLevel(lvl.id)}
+                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400"
+                        title="حذف"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <h4 className="text-white font-bold text-base mb-1">{lvl.title}</h4>
+                  <p className="text-slate-400 text-xs mb-2">{lvl.description || 'لا يوجد وصف للمستوى'}</p>
+
+                  {lvl.reward_reason && (
+                    <div className="mb-3 p-2 bg-amber-500/5 border border-amber-500/20 rounded-lg text-[11px] text-amber-300/90 flex items-start gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                      <span><strong>سبب المكافأة:</strong> {lvl.reward_reason}</span>
+                    </div>
+                  )}
+
+                  {/* Requirements & Currencies */}
+                  <div className="space-y-2 py-3 border-y border-white/5 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">نقاط الخبرة المطلوبة:</span>
+                      <span className="text-indigo-400 font-mono font-bold">⚡ {lvl.required_exp.toLocaleString()} EXP</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">مكافأة الكوينز لكل مضيف:</span>
+                      <span className="text-amber-400 font-bold">🪙 {lvl.reward_coins_per_host.toLocaleString()} كوين</span>
+                    </div>
+                    {lvl.reward_diamonds_per_host ? (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">مكافأة الماس لكل مضيف:</span>
+                        <span className="text-cyan-400 font-bold">💎 {lvl.reward_diamonds_per_host.toLocaleString()}</span>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* Store Items Rewards Section */}
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs mb-2">
+                      <span className="text-slate-300 font-bold flex items-center gap-1">
+                        <Package className="w-3.5 h-3.5 text-purple-400" />
+                        مكافآت المتجر ({storeRewards.length}):
+                      </span>
+                    </div>
+
+                    {storeRewards.length === 0 ? (
+                      <div className="p-2.5 rounded-xl bg-black/20 border border-dashed border-white/10 text-center text-[11px] text-slate-500">
+                        لم يتم اختيار عناصر من المتجر لهذا المستوى
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 bg-black/20 rounded-xl border border-white/5">
+                        {storeRewards.map((it, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px]"
+                          >
+                            {it.item_icon ? (
+                              <img src={it.item_icon} alt="" className="w-5 h-5 rounded object-contain" />
+                            ) : (
+                              <Package className="w-4 h-4 text-purple-400" />
+                            )}
+                            <span className="text-white font-medium max-w-[90px] truncate">{it.item_name}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-300 font-bold">
+                              {it.days === 0 ? 'دائم' : `${it.days} يوم`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-white/5">
+                  <button
+                    onClick={() => {
+                      setRewardLevel(lvl);
+                      setTargetAgencyId(agencies[0]?.id || '');
+                      setDistributeResult(null);
+                    }}
+                    className="w-full py-2 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 hover:from-indigo-500/30 hover:to-purple-500/30 text-indigo-300 font-bold text-xs rounded-xl border border-indigo-500/30 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    صرف مكافأة هذا المستوى للوكالة الآن
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ═══════════ SUB-TAB 2: EXP GROWTH TASKS ═══════════ */}
+      {activeSubTab === 'tasks' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 space-y-1">
+            <p className="font-bold">⚡ كيف تنمو مستويات الوكالة في نقاط الخبرة (EXP)؟</p>
+            <p className="text-slate-300">
+              يقوم مضيفو وأعضاء الوكالة بجمع نقاط الـ EXP للوكالة من خلال المهام الأربع التالية. يمكنك هنا تعيين معدل احتساب النقاط لكل مهمة، وتحديد الحد الأقصى اليومي، وتفعيل أو تعطيل أي مهمة بما يناسب سياسة تطبيقك.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {tasks.map((task, index) => (
+              <div
+                key={task.key}
+                className="p-5 rounded-2xl bg-[#141417] border border-white/5 hover:border-indigo-500/30 transition-all space-y-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                      {getTaskIcon(task.icon_name)}
+                    </div>
+                    <div>
+                      <h4 className="text-white font-bold text-sm">{task.title_ar}</h4>
+                      <p className="text-slate-400 text-xs mt-0.5">{task.title}</p>
+                    </div>
+                  </div>
+
+                  {/* Enable / Disable Toggle */}
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={task.is_enabled}
+                      onChange={(e) => {
+                        const updated = [...tasks];
+                        updated[index] = { ...updated[index], is_enabled: e.target.checked };
+                        setTasks(updated);
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+
+                <p className="text-slate-300 text-xs leading-relaxed bg-black/20 p-2.5 rounded-xl border border-white/5">
+                  {task.description}
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="text-slate-400 block mb-1">معدل نقاط الخبرة (EXP)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={task.exp_per_unit}
+                      onChange={(e) => {
+                        const updated = [...tasks];
+                        updated[index] = { ...updated[index], exp_per_unit: parseInt(e.target.value) || 1 };
+                        setTasks(updated);
+                      }}
+                      className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-indigo-400 font-bold font-mono text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 block mb-1">الحد الأقصى اليومي (0 = غير محدود)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={task.daily_max_exp}
+                      onChange={(e) => {
+                        const updated = [...tasks];
+                        updated[index] = { ...updated[index], daily_max_exp: parseInt(e.target.value) || 0 };
+                        setTasks(updated);
+                      }}
+                      className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-amber-400 font-bold font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1 text-xs">نص الشرح الظاهر للمستخدمين في شاشة الوكالة</label>
+                  <input
+                    type="text"
+                    value={task.exp_rate_desc}
+                    onChange={(e) => {
+                      const updated = [...tasks];
+                      updated[index] = { ...updated[index], exp_rate_desc: e.target.value };
+                      setTasks(updated);
+                    }}
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+                    placeholder="مثال: 10 EXP لكل 10 دقائق جلوس على المايك"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={handleSaveExpTasks}
+              disabled={savingTasks}
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-black font-bold text-xs rounded-xl shadow-lg transition-all"
+            >
+              {savingTasks ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              حفظ جميع إعدادات مهام النمو (EXP Tasks)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ ADD / EDIT LEVEL MODAL ═══════════ */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#18181b] border border-white/10 rounded-2xl w-full max-w-lg p-6 space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-white text-base font-bold flex items-center gap-2">
+                <Award className="w-5 h-5 text-amber-400" />
+                {editingId ? 'تعديل مستوى الوكالة ومكافآت المضيفين' : 'إضافة مستوى وكالة جديد ومكافآته'}
+              </h3>
+              <button
+                onClick={() => setShowForm(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+              >
+                <XCircle className="w-5 h-5" />
               </button>
             </div>
-          </div>
-        ))}
-      </div>
 
-      {/* Add / Edit Modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#18181b] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-white text-base font-bold flex items-center gap-2">
-              <Award className="w-4 h-4 text-amber-400" />
-              {editingId ? 'تعديل مستوى الوكالة' : 'إضافة مستوى وكالة جديد'}
-            </h3>
-
-            <form onSubmit={handleSaveLevel} className="space-y-3">
+            <form onSubmit={handleSaveLevel} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-300 block mb-1">رقم المستوى</label>
@@ -4023,19 +4316,19 @@ function AgencyLevelsTab() {
                     min={1}
                     value={formLevel}
                     onChange={e => setFormLevel(parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs font-bold"
                     required
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-300 block mb-1">نقاط الخبرة (EXP)</label>
+                  <label className="text-xs text-slate-300 block mb-1">نقاط الخبرة المطلوبة (EXP)</label>
                   <input
                     type="number"
                     min={0}
                     step={1000}
                     value={formExp}
                     onChange={e => setFormExp(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs font-mono"
+                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-indigo-400 text-xs font-mono font-bold"
                     required
                   />
                 </div>
@@ -4048,36 +4341,126 @@ function AgencyLevelsTab() {
                   value={formTitle}
                   onChange={e => setFormTitle(e.target.value)}
                   placeholder="مثال: وكالة ذهبية (Gold)"
-                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs font-bold"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-300 block mb-1">مكافأة الكوينز لكل مضيف</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={formCoins}
-                    onChange={e => setFormCoins(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-amber-400 font-bold text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-300 block mb-1">مكافأة الماس لكل مضيف</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={formDiamonds}
-                    onChange={e => setFormDiamonds(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-cyan-400 font-bold text-xs"
-                  />
+              {/* Currency Rewards */}
+              <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/15 space-y-3">
+                <h5 className="text-xs text-amber-300 font-bold flex items-center gap-1.5">
+                  <Coins className="w-4 h-4 text-amber-400" />
+                  مكافآت العملات لكل مضيف نشط بالوكالة:
+                </h5>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-300 block mb-1">الكوينز لكل مضيف 🪙</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={formCoins}
+                      onChange={e => setFormCoins(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-amber-400 font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-300 block mb-1">الألماس لكل مضيف 💎</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={50}
+                      value={formDiamonds}
+                      onChange={e => setFormDiamonds(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-cyan-400 font-bold text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 
+              {/* Store Items Rewards Selection */}
+              <div className="p-3.5 rounded-xl bg-purple-500/5 border border-purple-500/15 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs text-purple-300 font-bold flex items-center gap-1.5">
+                    <Package className="w-4 h-4 text-purple-400" />
+                    مكافآت المتجر المختارة ({formStoreRewards.length} عناصر):
+                  </h5>
+                  <button
+                    type="button"
+                    onClick={() => setShowItemPicker(true)}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] rounded-lg transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    اختيار عناصر من المتجر
+                  </button>
+                </div>
+
+                {formStoreRewards.length === 0 ? (
+                  <p className="text-[11px] text-slate-500 text-center py-2">
+                    اضغط على "اختيار عناصر من المتجر" لإضافة إطارات رأس، سيارات، مؤثرات دخول، أو فقاعات كمكافآت مجانية لجميع المضيفين.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto p-1">
+                    {formStoreRewards.map((it) => (
+                      <div
+                        key={it.item_id}
+                        className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-white/10 text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          {it.item_icon ? (
+                            <img src={it.item_icon} alt="" className="w-7 h-7 rounded-lg object-contain bg-white/5" />
+                          ) : (
+                            <Package className="w-6 h-6 text-purple-400" />
+                          )}
+                          <div>
+                            <span className="text-white font-bold block">{it.item_name}</span>
+                            <span className="text-[10px] text-slate-400">{it.category}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="text-[11px] text-slate-400">المدة:</label>
+                          <select
+                            value={it.days}
+                            onChange={(e) => handleUpdateItemDays(it.item_id, parseInt(e.target.value) || 0)}
+                            className="bg-slate-800 text-white text-[11px] px-2 py-1 rounded-lg border border-white/10"
+                          >
+                            <option value={3}>3 أيام</option>
+                            <option value={7}>7 أيام</option>
+                            <option value={15}>15 يوماً</option>
+                            <option value={30}>30 يوماً</option>
+                            <option value={0}>دائم (بدون انتهاء)</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => setFormStoreRewards(formStoreRewards.filter(r => r.item_id !== it.item_id))}
+                            className="p-1 rounded-lg text-rose-400 hover:bg-rose-500/20"
+                            title="إزالة هذا العنصر"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Reward Reason / Explanation */}
               <div>
-                <label className="text-xs text-slate-300 block mb-1">وصف المستوى والمكافأة</label>
+                <label className="text-xs text-slate-300 block mb-1">سبب ومبرر منح المكافأة (يظهر للمضيفين في الإشعار)</label>
+                <input
+                  type="text"
+                  value={formRewardReason}
+                  onChange={e => setFormRewardReason(e.target.value)}
+                  placeholder="مثال: مكافأة تشجيعية لتحقيق نمو رائع للوكالة والوصول للمستوى المطلوب"
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 block mb-1">وصف المستوى وامتيازاته الإدارية</label>
                 <textarea
                   value={formDesc}
                   onChange={e => setFormDesc(e.target.value)}
@@ -4087,7 +4470,7 @@ function AgencyLevelsTab() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+              <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
@@ -4098,10 +4481,10 @@ function AgencyLevelsTab() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl flex items-center gap-1.5"
+                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold text-xs rounded-xl flex items-center gap-1.5"
                 >
                   {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  حفظ المستوى
+                  حفظ المستوى ومكافآته
                 </button>
               </div>
             </form>
@@ -4109,21 +4492,169 @@ function AgencyLevelsTab() {
         </div>
       )}
 
-      {/* Distribute Reward Modal */}
+      {/* ═══════════ STORE ITEMS SELECTOR MODAL ═══════════ */}
+      {showItemPicker && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#18181b] border border-white/10 rounded-2xl w-full max-w-2xl p-6 space-y-4 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h4 className="text-white text-base font-bold flex items-center gap-2">
+                  <Package className="w-5 h-5 text-purple-400" />
+                  اختيار عناصر ومكافآت المتجر (Store Items)
+                </h4>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  حدد أي عدد من العناصر ليتم إيداعها تلقائياً لجميع مضيفي الوكالة عند استحقاق المستوى.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowItemPicker(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search & Category Filter */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="ابحث باسم العنصر أو المعرف..."
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  className="w-full pr-9 pl-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+                />
+              </div>
+
+              <select
+                value={itemCategoryFilter}
+                onChange={(e) => setItemCategoryFilter(e.target.value)}
+                className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-xs"
+              >
+                <option value="all">جميع التصنيفات</option>
+                <option value="frame">إطارات الرأس (frame)</option>
+                <option value="car">المركبات والسيارات (car)</option>
+                <option value="entrance">مؤثرات الدخول (entrance)</option>
+                <option value="bubble">الفقاعات (bubble)</option>
+                <option value="cover">أغلفة الملف الشخصي (cover)</option>
+                <option value="ring">الخواتم (ring)</option>
+                <option value="badge">الشارات (badge)</option>
+                <option value="gift">هدايا المتجر (gift)</option>
+              </select>
+            </div>
+
+            {/* Items Grid */}
+            <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-1">
+              {filteredStoreItems.map((item) => {
+                const id = item.item_id || item.id;
+                const isSelected = formStoreRewards.some(r => r.item_id === id);
+                return (
+                  <div
+                    key={id}
+                    onClick={() => handleToggleStoreItem(item)}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col items-center justify-between text-center relative ${
+                      isSelected
+                        ? 'bg-purple-600/20 border-purple-500 shadow-lg shadow-purple-500/20'
+                        : 'bg-white/5 border-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    {isSelected && (
+                      <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-purple-500 text-white flex items-center justify-center text-xs font-bold shadow">
+                        ✓
+                      </span>
+                    )}
+
+                    <div className="w-14 h-14 rounded-xl bg-black/30 flex items-center justify-center p-1 mb-2">
+                      {item.icon_url || item.iconAsset || item.icon ? (
+                        <img
+                          src={item.icon_url || item.iconAsset || item.icon}
+                          alt={item.name}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <Package className="w-7 h-7 text-slate-500" />
+                      )}
+                    </div>
+
+                    <div className="w-full">
+                      <p className="text-white text-xs font-bold truncate">{item.name || item.name_ar || id}</p>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">{item.category || 'عام'}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={`mt-2 w-full py-1 rounded-lg text-[10px] font-bold transition-all ${
+                        isSelected
+                          ? 'bg-purple-500 text-white'
+                          : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                      }`}
+                    >
+                      {isSelected ? 'محدد' : 'اختيار'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-3 border-t border-white/10">
+              <span className="text-xs text-purple-300 font-bold">
+                تم اختيار: {formStoreRewards.length} عناصر
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowItemPicker(false)}
+                className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg"
+              >
+                تأكيد الاختيار ({formStoreRewards.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ DISTRIBUTE REWARD MODAL ═══════════ */}
       {rewardLevel && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#18181b] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#18181b] border border-white/10 rounded-2xl w-full max-w-lg p-6 space-y-4">
             <h3 className="text-white text-base font-bold flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400" />
+              <Sparkles className="w-5 h-5 text-amber-400" />
               توزيع مكافأة المستوى {rewardLevel.level} ({rewardLevel.title})
             </h3>
 
-            <p className="text-xs text-slate-300">
-              اختر الوكالة التي حققت هذا المستوى لصرف المكافأة الجماعية (🪙 {rewardLevel.reward_coins_per_host.toLocaleString()} كوينز لكل مضيف) وإرسال إشعار فوري لجميع مضيفي الوكالة.
-            </p>
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-2">
+              <p className="text-amber-200 font-bold">📋 تفاصيل المكافأة التي ستصل لكل مضيف نشط بالوكالة:</p>
+              <div className="grid grid-cols-2 gap-2 text-white">
+                <div>🪙 الكوينز: <span className="text-amber-400 font-bold">{rewardLevel.reward_coins_per_host.toLocaleString()}</span></div>
+                {rewardLevel.reward_diamonds_per_host ? (
+                  <div>💎 الألماس: <span className="text-cyan-400 font-bold">{rewardLevel.reward_diamonds_per_host.toLocaleString()}</span></div>
+                ) : null}
+              </div>
+
+              {rewardLevel.reward_reason && (
+                <p className="text-slate-300 text-[11px]">
+                  <strong>سبب المكافأة:</strong> {rewardLevel.reward_reason}
+                </p>
+              )}
+
+              {/* Store items preview */}
+              {rewardLevel.store_reward_items && rewardLevel.store_reward_items.length > 0 && (
+                <div>
+                  <p className="text-purple-300 font-bold text-[11px] mb-1">🎁 عناصر المتجر المودعة بالحقيبة ({rewardLevel.store_reward_items.length}):</p>
+                  <div className="flex flex-wrap gap-1">
+                    {rewardLevel.store_reward_items.map((it, idx) => (
+                      <span key={idx} className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-200 text-[10px] border border-purple-500/30">
+                        {it.item_name} ({it.days === 0 ? 'دائم' : `${it.days} يوم`})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div>
-              <label className="text-xs text-slate-300 block mb-1">الوكالة المستفيدة</label>
+              <label className="text-xs text-slate-300 block mb-1">اختر الوكالة المستحقة</label>
               <select
                 value={targetAgencyId}
                 onChange={e => setTargetAgencyId(e.target.value)}
@@ -4138,7 +4669,7 @@ function AgencyLevelsTab() {
             </div>
 
             {distributeResult && (
-              <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs text-slate-200">
+              <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs text-slate-200 whitespace-pre-line">
                 {distributeResult}
               </div>
             )}
@@ -4158,7 +4689,7 @@ function AgencyLevelsTab() {
                 className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold text-xs rounded-xl flex items-center gap-1.5"
               >
                 {distributing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                صرف المكافأة لجميع المضيفين الآن
+                صرف المكافأة الجماعية الآن
               </button>
             </div>
           </div>
@@ -4167,3 +4698,4 @@ function AgencyLevelsTab() {
     </div>
   );
 }
+

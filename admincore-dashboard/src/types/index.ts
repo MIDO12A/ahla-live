@@ -884,6 +884,17 @@ export interface GiftedItem {
   expiresAt: number;
 }
 
+export interface AgencyLevelRewardItem {
+  item_id: string;
+  item_name: string;
+  item_icon: string;
+  category: string;
+  days: number; // 0 for permanent, or number of days (e.g. 7, 30)
+  quantity?: number;
+  svga_asset?: string;
+  video_asset?: string;
+}
+
 export interface AgencyLevelModel {
   id: string;
   level: number;
@@ -893,8 +904,22 @@ export interface AgencyLevelModel {
   badge_url?: string;
   reward_coins_per_host: number;
   reward_diamonds_per_host: number;
+  store_reward_items?: AgencyLevelRewardItem[];
+  reward_reason?: string;
   description?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface AgencyExpTaskConfig {
+  key: string; // 'seat_mic' | 'lucky_games' | 'recharge' | 'send_gifts' | custom
+  title: string;
+  title_ar: string;
+  description: string;
+  exp_rate_desc: string;
+  exp_per_unit: number; // e.g. 10 EXP per 10 mins or 1 EXP per 1 coin
+  daily_max_exp: number; // 0 for unlimited
+  is_enabled: boolean;
+  icon_name: string;
 }
 

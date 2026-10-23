@@ -1965,6 +1965,27 @@ abstract final class AgencyRepository {
   //  2. مستويات وامتيازات الوكالة (Agency Levels & Tier Config)
   // ═══════════════════════════════════════════════════════════════════
   static Future<List<AgencyLevelConfigModel>> getAgencyLevelConfigs() async {
+    // 1. القراءة من app_config -> agency_levels_config (المعدّل من لوحة التحكم)
+    try {
+      final configRow = await _sb
+          .from('app_config')
+          .select('value')
+          .eq('key', 'agency_levels_config')
+          .maybeSingle();
+      if (configRow != null && configRow['value'] != null) {
+        final val = configRow['value'];
+        final List list = val is String ? jsonDecode(val) : (val as List);
+        if (list.isNotEmpty) {
+          final res = list.map((e) => AgencyLevelConfigModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+          res.sort((a, b) => a.level.compareTo(b.level));
+          return res;
+        }
+      }
+    } catch (e) {
+      debugPrint('[AgencyRepository] app_config levels error: $e');
+    }
+
+    // 2. محاولة القراءة من جدول agency_level_config
     try {
       final rows = await _sb
           .from('agency_level_config')
@@ -1979,11 +2000,77 @@ abstract final class AgencyRepository {
     }
 
     return const [
-      AgencyLevelConfigModel(level: 1, levelName: 'برونز', minExp: 0, adminLimit: 2, membersLimit: 20),
-      AgencyLevelConfigModel(level: 2, levelName: 'فضي', minExp: 50000, adminLimit: 3, membersLimit: 50),
-      AgencyLevelConfigModel(level: 3, levelName: 'ذهبي', minExp: 200000, adminLimit: 5, membersLimit: 100),
-      AgencyLevelConfigModel(level: 4, levelName: 'بلاتيني', minExp: 800000, adminLimit: 8, membersLimit: 200),
-      AgencyLevelConfigModel(level: 5, levelName: 'ألماسي', minExp: 2500000, adminLimit: 12, membersLimit: 500),
+      AgencyLevelConfigModel(level: 1, levelName: 'وكالة برونزية', minExp: 0, adminLimit: 2, membersLimit: 20, rewardCoins: 0),
+      AgencyLevelConfigModel(level: 2, levelName: 'وكالة فضية', minExp: 50000, adminLimit: 3, membersLimit: 50, rewardCoins: 500),
+      AgencyLevelConfigModel(level: 3, levelName: 'وكالة ذهبية', minExp: 200000, adminLimit: 5, membersLimit: 100, rewardCoins: 1500),
+      AgencyLevelConfigModel(level: 4, levelName: 'وكالة بلاتينية', minExp: 500000, adminLimit: 8, membersLimit: 200, rewardCoins: 3000),
+      AgencyLevelConfigModel(level: 5, levelName: 'وكالة ماسية', minExp: 1000000, adminLimit: 12, membersLimit: 500, rewardCoins: 10000),
+    ];
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  مهام نمو نقاط الخبرة للوكالة (EXP Growth Tasks)
+  // ═══════════════════════════════════════════════════════════════════
+  static Future<List<AgencyExpTaskModel>> getAgencyExpTasks() async {
+    try {
+      final configRow = await _sb
+          .from('app_config')
+          .select('value')
+          .eq('key', 'agency_exp_tasks_config')
+          .maybeSingle();
+      if (configRow != null && configRow['value'] != null) {
+        final val = configRow['value'];
+        final List list = val is String ? jsonDecode(val) : (val as List);
+        if (list.isNotEmpty) {
+          final res = list.map((e) => AgencyExpTaskModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+          return res.where((t) => t.isEnabled).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[AgencyRepository] getAgencyExpTasks error: $e');
+    }
+
+    return const [
+      AgencyExpTaskModel(
+        key: 'seat_mic',
+        title: 'الجلوس والتفاعل على المايك',
+        titleAr: 'الذهاب إلى المقعد / المايك',
+        description: 'جلوس المضيف على مقعد المايك والتفاعل الصوتي مع المستخدمين داخل الغرفة يمنح نقاط خبرة للوكالة.',
+        expRateDesc: '10 EXP لكل 10 دقائق جلوس على المايك',
+        expPerUnit: 10,
+        dailyMaxExp: 500,
+        iconName: 'Mic',
+      ),
+      AgencyExpTaskModel(
+        key: 'lucky_games',
+        title: 'المشاركة في ألعاب الحظ',
+        titleAr: 'ألعاب الحظ (عجلة الحظ / الروليت)',
+        description: 'لعب وتدوير ألعاب الحظ داخل التطبيق يرفع نقاط خبرة الوكالة بشكل كبير.',
+        expRateDesc: '1 EXP لكل 10 كوينز لعب بألعاب الحظ',
+        expPerUnit: 1,
+        dailyMaxExp: 2000,
+        iconName: 'Dices',
+      ),
+      AgencyExpTaskModel(
+        key: 'recharge',
+        title: 'الشحن المالي للرصيد',
+        titleAr: 'الشحن المالي للكوينز',
+        description: 'عمليات شحن الكوينز التي ينفذها أعضاء ومضيفو الوكالة تمنح الوكالة دفعة نمو فورية.',
+        expRateDesc: '1 EXP لكل 1 كوين مشحون',
+        expPerUnit: 1,
+        dailyMaxExp: 0,
+        iconName: 'CreditCard',
+      ),
+      AgencyExpTaskModel(
+        key: 'send_gifts',
+        title: 'إرسال الهدايا داخل الغرف',
+        titleAr: 'إرسال الهدايا داخل الغرفة',
+        description: 'إرسال الهدايا الصوتية والتفاعلية داخل الغرف من أعضاء ومضيفي الوكالة.',
+        expRateDesc: '1 EXP لكل 1 كوين من قيمة الهدايا المرسلة',
+        expPerUnit: 1,
+        dailyMaxExp: 0,
+        iconName: 'Gift',
+      ),
     ];
   }
 
