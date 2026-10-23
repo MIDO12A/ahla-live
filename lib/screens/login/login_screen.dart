@@ -30,6 +30,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Map<String, dynamic>? _lastAccount;
   String? _bgUrl;
   String _bgType = 'image';
+  String _welcomeTitle = 'Welcome';
+  String _welcomeSubtitle = 'AHLA LIVE';
+  String? _welcomeLogoUrl;
+  bool _showWelcome = true;
   VideoPlayerController? _videoController;
 
   @override
@@ -62,14 +66,23 @@ class _LoginScreenState extends State<LoginScreen> {
         if (val is Map) {
           final url = val['bgUrl']?.toString().trim() ?? '';
           final type = val['bgType']?.toString().trim() ?? 'image';
+          final wTitle = val['welcomeTitle']?.toString().trim();
+          final wSubtitle = val['welcomeSubtitle']?.toString().trim();
+          final wLogo = val['welcomeLogoUrl']?.toString().trim();
+          if (wTitle != null && wTitle.isNotEmpty) _welcomeTitle = wTitle;
+          if (wSubtitle != null && wSubtitle.isNotEmpty) _welcomeSubtitle = wSubtitle;
+          if (wLogo != null && wLogo.isNotEmpty) _welcomeLogoUrl = wLogo;
+          if (val['showWelcome'] != null) {
+            _showWelcome = val['showWelcome'] == true || val['showWelcome'].toString() == 'true';
+          }
           if (url.isNotEmpty) {
             _bgUrl = url;
             _bgType = type;
             if (type == 'video' || url.toLowerCase().endsWith('.mp4')) {
               _initVideo(url);
             }
-            if (mounted) setState(() {});
           }
+          if (mounted) setState(() {});
         }
       }
     } catch (_) {}
@@ -379,6 +392,67 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildWelcomeHeader() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 45),
+      child: (_welcomeLogoUrl != null && _welcomeLogoUrl!.isNotEmpty)
+          ? CachedNetworkImage(
+              imageUrl: _welcomeLogoUrl!,
+              height: 75,
+              fit: BoxFit.contain,
+              placeholder: (_, __) => const SizedBox(height: 75),
+              errorWidget: (_, __, ___) => _buildDefaultWelcomeTypography(),
+            )
+          : _buildDefaultWelcomeTypography(),
+    );
+  }
+
+  Widget _buildDefaultWelcomeTypography() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _welcomeTitle.isNotEmpty ? _welcomeTitle : 'Welcome',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w400,
+            color: Colors.white.withOpacity(0.92),
+            letterSpacing: 3,
+            shadows: [
+              Shadow(
+                color: Colors.black.withOpacity(0.85),
+                offset: const Offset(0, 2),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _welcomeSubtitle.isNotEmpty ? _welcomeSubtitle : 'AHLA LIVE',
+          style: TextStyle(
+            fontSize: 34,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            letterSpacing: 4,
+            shadows: [
+              Shadow(
+                color: Colors.black.withOpacity(0.95),
+                offset: const Offset(0, 3),
+                blurRadius: 14,
+              ),
+              Shadow(
+                color: const Color(0xFFFFB300).withOpacity(0.6),
+                offset: const Offset(0, 0),
+                blurRadius: 20,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -394,14 +468,9 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Welcome Logo
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 50),
-                    child: R.loadImage(
-                      'assets/mipmap-xxhdpi/login_welcome_ic.webp',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
+                  // Welcome Header (Ahla Live Branding)
+                  if (_showWelcome)
+                    _buildWelcomeHeader(),
                   // Quick Login Card for Saved Account
                   if (_lastAccount != null) ...[
                     Container(

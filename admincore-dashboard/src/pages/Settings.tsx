@@ -1,9 +1,10 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { I18nContext, langs } from '../lib/i18n';
-import { getCloudinaryStatus, saveCloudinaryConfig } from '../lib/storage';
+import { getCloudinaryStatus, saveCloudinaryConfig, uploadLoginMedia, uploadLoginLogo } from '../lib/storage';
 import { supabase, isAdminConnected } from '../lib/supabase';
-import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame, Palette, ShieldAlert, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame, Palette, ShieldAlert, ShieldCheck, CheckCircle2, Upload, Film, Image as ImageIcon, Trash2, Eye, Play, Check, FileCode, Video } from 'lucide-react';
+
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -86,6 +87,10 @@ export default function Settings() {
         const val = typeof res.data.value === 'string' ? JSON.parse(res.data.value) : res.data.value;
         if (val.bgUrl) setLoginBgUrl(val.bgUrl);
         if (val.bgType) setLoginBgType(val.bgType);
+        if (val.welcomeTitle !== undefined) setLoginWelcomeTitle(val.welcomeTitle);
+        if (val.welcomeSubtitle !== undefined) setLoginWelcomeSubtitle(val.welcomeSubtitle);
+        if (val.welcomeLogoUrl !== undefined) setLoginWelcomeLogoUrl(val.welcomeLogoUrl);
+        if (val.showWelcome !== undefined) setLoginShowWelcome(val.showWelcome !== false);
       }
     });
 
@@ -144,7 +149,50 @@ export default function Settings() {
 
   const [loginBgUrl, setLoginBgUrl] = useState('');
   const [loginBgType, setLoginBgType] = useState<'image' | 'video' | 'vap' | 'gif'>('image');
+  const [loginWelcomeTitle, setLoginWelcomeTitle] = useState('Welcome');
+  const [loginWelcomeSubtitle, setLoginWelcomeSubtitle] = useState('AHLA LIVE');
+  const [loginWelcomeLogoUrl, setLoginWelcomeLogoUrl] = useState('');
+  const [loginShowWelcome, setLoginShowWelcome] = useState(true);
+  const [loginUploading, setLoginUploading] = useState(false);
+  const [loginProgress, setLoginProgress] = useState(0);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoProgress, setLogoProgress] = useState(0);
   const [loginSaving, setLoginSaving] = useState(false);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleMediaFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoginUploading(true);
+    setLoginProgress(0);
+    try {
+      const res = await uploadLoginMedia(file, pct => setLoginProgress(pct));
+      setLoginBgUrl(res.url);
+      setLoginBgType(res.type);
+    } catch (err: any) {
+      alert('فشل رفع الملف من جهازك: ' + (err?.message || err));
+    } finally {
+      setLoginUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    setLogoProgress(0);
+    try {
+      const url = await uploadLoginLogo(file, pct => setLogoProgress(pct));
+      setLoginWelcomeLogoUrl(url);
+    } catch (err: any) {
+      alert('فشل رفع الشعار من جهازك: ' + (err?.message || err));
+    } finally {
+      setLogoUploading(false);
+      e.target.value = '';
+    }
+  };
 
   const handleSaveAboutApp = async () => {
     setAboutSaving(true);
@@ -190,10 +238,14 @@ export default function Settings() {
         value: {
           bgUrl: loginBgUrl.trim(),
           bgType: loginBgType,
+          welcomeTitle: loginWelcomeTitle.trim(),
+          welcomeSubtitle: loginWelcomeSubtitle.trim(),
+          welcomeLogoUrl: loginWelcomeLogoUrl.trim(),
+          showWelcome: loginShowWelcome,
           updated_at: new Date().toISOString(),
         }
       }, { onConflict: 'key' });
-      alert('تم حفظ إعدادات خلفية شاشة تسجيل الدخول بنجاح ✓');
+      alert('تم حفظ إعدادات شاشة الدخول وشعار Welcome Ahla Live بنجاح ✓');
     } catch (e) {
       alert('فشل الحفظ: ' + (e as Error).message);
     }
@@ -685,47 +737,328 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Login Screen Background Configuration */}
+        {/* Login Screen Customization (Background & Welcome Header) */}
         <div>
-          <label className="block text-[10px] uppercase text-amber-400 font-bold mb-2 flex items-center gap-1">
-            🎬 خلفية وتخصيص شاشة تسجيل الدخول / Login Screen Customization
+          <label className="block text-[10px] uppercase text-amber-400 font-bold mb-2 flex items-center gap-1.5">
+            <Film className="w-3.5 h-3.5" />
+            <span>خلفية وتخصيص شاشة تسجيل الدخول وشعار الترحيب (Login Screen & Welcome Ahla Live)</span>
           </label>
-          <div className="bg-[#161618] rounded-xl border border-amber-500/20 p-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="md:col-span-2">
-                <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">رابط ملف الخلفية (URL فيديو MP4 / VAP / GIF / صورة)</label>
-                <input
-                  type="url"
-                  value={loginBgUrl}
-                  onChange={e => setLoginBgUrl(e.target.value)}
-                  className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white font-mono"
-                  placeholder="https://res.cloudinary.com/.../login_bg.mp4"
-                />
+          <div className="bg-[#161618] rounded-xl border border-amber-500/30 p-5 space-y-5 shadow-lg">
+            
+            {/* القسم الأول: رفع ملف الخلفية من جهاز الكمبيوتر */}
+            <div className="space-y-3 pb-4 border-b border-white/5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h5 className="text-xs font-bold text-white flex items-center gap-2">
+                    <Video className="w-4 h-4 text-amber-400" />
+                    <span>خلفية شاشة الدخول (فيديو MP4، صورة، GIF، أو VAP)</span>
+                  </h5>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    يمكنك رفع فيديو MP4 متحرك أو صورة عالية الدقة أو GIF أو VAP مباشرة من جهازك لتعمل كخلفية تفاعلية.
+                  </p>
+                </div>
+                {loginBgUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginBgUrl('');
+                      setLoginBgType('image');
+                    }}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 px-2.5 py-1 rounded bg-rose-500/10 border border-rose-500/20 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>مسح الخلفية والرجوع للافتراضي</span>
+                  </button>
+                )}
               </div>
-              <div>
-                <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">نوع الخلفية</label>
-                <select
-                  value={loginBgType}
-                  onChange={e => setLoginBgType(e.target.value as any)}
-                  className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white"
-                >
-                  <option value="image">صورة ثابتة (Image)</option>
-                  <option value="video">فيديو (MP4 Video)</option>
-                  <option value="vap">مؤثر متحرك (VAP)</option>
-                  <option value="gif">صورة متحركة (GIF)</option>
-                </select>
+
+              {/* منطقة الرفع المباشر من الجهاز */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <input
+                    type="file"
+                    ref={mediaFileInputRef}
+                    onChange={handleMediaFileUpload}
+                    accept="video/mp4,video/webm,video/quicktime,image/*,.vap,.svga,.gif,.webp"
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={loginUploading}
+                    onClick={() => mediaFileInputRef.current?.click()}
+                    className="w-full h-32 border-2 border-dashed border-amber-500/40 hover:border-amber-400 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 flex flex-col items-center justify-center gap-2 transition-all cursor-pointer group"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      {loginUploading ? (
+                        <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Upload className="w-5 h-5" />
+                      )}
+                    </div>
+                    <div className="text-center">
+                      <span className="text-xs font-bold text-white block">
+                        {loginUploading ? `جاري الرفع من جهازك... (${loginProgress}%)` : 'اضغط لاختيار فيديو أو صورة من جهازك'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block font-sans">
+                        يدعم: MP4, MOV, WEBM, GIF, PNG, JPG, VAP, SVGA
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* شريط تقدم الرفع */}
+                  {loginUploading && (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between text-[10px] text-amber-400 font-mono">
+                        <span>جاري معالجة ورفع الملف...</span>
+                        <span>{loginProgress}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-200"
+                          style={{ width: `${loginProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* خيار إدخال الرابط يدوياً */}
+                  <div className="mt-3 space-y-1">
+                    <label className="block text-[10px] uppercase text-slate-400 font-bold">
+                      أو أدخل رابط الملف مباشرة (URL):
+                    </label>
+                    <input
+                      type="url"
+                      value={loginBgUrl}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setLoginBgUrl(val);
+                        if (val.toLowerCase().endsWith('.mp4') || val.toLowerCase().endsWith('.mov')) {
+                          setLoginBgType('video');
+                        } else if (val.toLowerCase().endsWith('.vap')) {
+                          setLoginBgType('vap');
+                        } else if (val.toLowerCase().endsWith('.gif')) {
+                          setLoginBgType('gif');
+                        }
+                      }}
+                      className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white font-mono"
+                      placeholder="https://res.cloudinary.com/.../login_bg.mp4"
+                    />
+                  </div>
+
+                  <div className="mt-2">
+                    <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">نوع الملف المحدد</label>
+                    <select
+                      value={loginBgType}
+                      onChange={e => setLoginBgType(e.target.value as any)}
+                      className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white"
+                    >
+                      <option value="video">فيديو متحرك (MP4 Video)</option>
+                      <option value="image">صورة ثابتة عالية الدقة (Image)</option>
+                      <option value="gif">صورة متحركة (GIF Animation)</option>
+                      <option value="vap">مؤثر متحرك شفاف (VAP)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* صندوق المعاينة الحية */}
+                <div className="bg-black/30 rounded-xl border border-white/5 p-3 flex flex-col items-center justify-center min-h-[160px] text-center relative overflow-hidden">
+                  <span className="text-[10px] uppercase text-slate-500 font-bold absolute top-2 right-3">
+                    معاينة الخلفية الحالية
+                  </span>
+
+                  {loginBgUrl ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                      {loginBgType === 'video' || loginBgUrl.toLowerCase().endsWith('.mp4') ? (
+                        <div className="relative w-full max-h-44 rounded-lg overflow-hidden border border-amber-500/30">
+                          <video
+                            src={loginBgUrl}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full max-h-44 object-cover"
+                          />
+                          <span className="absolute bottom-2 left-2 bg-black/70 backdrop-blur text-amber-400 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            <Play className="w-3 h-3 fill-amber-400" /> فيديو شغال تلقائياً
+                          </span>
+                        </div>
+                      ) : loginBgType === 'vap' ? (
+                        <div className="p-4 rounded-lg bg-pink-500/10 border border-pink-500/30 text-pink-300">
+                          <Film className="w-8 h-8 mx-auto mb-1 text-pink-400" />
+                          <span className="text-xs font-bold block">ملف VAP شفاف</span>
+                          <span className="text-[10px] text-slate-400 font-mono truncate max-w-xs block mt-1">
+                            {loginBgUrl}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="relative max-h-44 rounded-lg overflow-hidden border border-white/10">
+                          <img
+                            src={loginBgUrl}
+                            alt="Login BG"
+                            className="max-h-44 object-cover rounded-lg"
+                          />
+                          <span className="absolute bottom-2 left-2 bg-black/70 backdrop-blur text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                            {loginBgType === 'gif' ? 'GIF متحرك' : 'صورة ثابتة'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-slate-500 space-y-1 py-4">
+                      <Film className="w-8 h-8 mx-auto opacity-40 text-slate-400" />
+                      <p className="text-xs">يتم استخدام الخلفية الافتراضية للتطبيق</p>
+                      <p className="text-[10px] text-slate-600">ارفع فيديو أو صورة لعرض المعاينة هنا فوراً</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400">
-              يمكنك وضع رابط فيديو MP4 يتم تكراره تلقائياً، أو ملف VAP، أو GIF، أو صورة عالية الدقة لتكون خلفية متحركة لشاشة تسجيل الدخول في التطبيق. إذا تركت الرابط فارغاً فسيتم استخدام الخلفية الافتراضية.
-            </p>
-            <button
-              onClick={handleSaveLoginConfig}
-              disabled={loginSaving}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-xs text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Save className="w-3.5 h-3.5" /> {loginSaving ? 'جاري الحفظ...' : 'حفظ إعدادات شاشة الدخول'}
-            </button>
+
+            {/* القسم الثاني: شعار وترويسة الترحيب (Welcome Ahla Live - إزالة YOPPO نهائياً) */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h5 className="text-xs font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-yellow-400" />
+                    <span>نص وشعار الترحيب (Welcome Ahla Live - بديل YOPPO)</span>
+                  </h5>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    تم إزالة شعار (Welcome YOPPO) القديم. يمكنك الآن تعديل عبارة الترحيب، أو رفع شعار مخصص لتطبيقك.
+                  </p>
+                </div>
+
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-300 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/10 transition">
+                  <input
+                    type="checkbox"
+                    checked={loginShowWelcome}
+                    onChange={e => setLoginShowWelcome(e.target.checked)}
+                    className="accent-amber-500 w-4 h-4 rounded"
+                  />
+                  <span>إظهار الترحيب في الشاشة</span>
+                </label>
+              </div>
+
+              {loginShowWelcome && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-black/20 p-4 rounded-xl border border-white/5">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">
+                          عنوان الترحيب الأول (Title)
+                        </label>
+                        <input
+                          type="text"
+                          value={loginWelcomeTitle}
+                          onChange={e => setLoginWelcomeTitle(e.target.value)}
+                          className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white"
+                          placeholder="Welcome"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">
+                          عنوان التطبيق الرئيسي (Subtitle)
+                        </label>
+                        <input
+                          type="text"
+                          value={loginWelcomeSubtitle}
+                          onChange={e => setLoginWelcomeSubtitle(e.target.value)}
+                          className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-amber-300 font-bold"
+                          placeholder="AHLA LIVE"
+                        />
+                      </div>
+                    </div>
+
+                    {/* خيار رفع صورة لوجو بديلة من الجهاز */}
+                    <div>
+                      <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">
+                        أو ارفع صورة شعار مخصص من جهازك (PNG شفاف / WEBP):
+                      </label>
+                      <input
+                        type="file"
+                        ref={logoFileInputRef}
+                        onChange={handleLogoFileUpload}
+                        accept="image/*,.png,.webp,.svg"
+                        className="hidden"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={logoUploading}
+                          onClick={() => logoFileInputRef.current?.click()}
+                          className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{logoUploading ? `جاري الرفع... (${logoProgress}%)` : 'رفع شعار من جهازك 🖼️'}</span>
+                        </button>
+                        {loginWelcomeLogoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setLoginWelcomeLogoUrl('')}
+                            className="text-[11px] text-rose-400 hover:text-rose-300 px-2 py-1"
+                          >
+                            إلغاء الشعار المرفوع
+                          </button>
+                        )}
+                      </div>
+                      {loginWelcomeLogoUrl && (
+                        <input
+                          type="url"
+                          value={loginWelcomeLogoUrl}
+                          onChange={e => setLoginWelcomeLogoUrl(e.target.value)}
+                          className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1 px-2 text-[11px] text-slate-400 font-mono mt-1.5"
+                          placeholder="https://..."
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* معاينة ترويسة الترحيب المباشرة كما تظهر في التطبيق */}
+                  <div className="bg-gradient-to-b from-slate-900/90 to-black/95 rounded-xl border border-white/10 p-5 flex flex-col items-center justify-center text-center relative shadow-inner">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold absolute top-2 right-3">
+                      معاينة في شاشة الدخول
+                    </span>
+
+                    {loginWelcomeLogoUrl ? (
+                      <div className="py-2">
+                        <img
+                          src={loginWelcomeLogoUrl}
+                          alt="Welcome Logo"
+                          className="max-h-16 object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
+                        />
+                      </div>
+                    ) : (
+                      <div className="py-2 space-y-1">
+                        <div className="text-lg font-light tracking-[0.25em] text-white/90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                          {loginWelcomeTitle || 'Welcome'}
+                        </div>
+                        <div className="text-2xl font-black tracking-[0.2em] text-white drop-shadow-[0_3px_12px_rgba(255,179,0,0.6)]">
+                          {loginWelcomeSubtitle || 'AHLA LIVE'}
+                        </div>
+                      </div>
+                    )}
+                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 mt-1">
+                      ✓ تظهر فوق الفيديو/الصورة بنقاء فائق
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* زر حفظ إعدادات شاشة الدخول */}
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-[10px] text-slate-400">
+                التغييرات تنعكس فورياً في تطبيق جميع المستخدمين دون الحاجة لإعادة رفع التطبيق.
+              </p>
+              <button
+                onClick={handleSaveLoginConfig}
+                disabled={loginSaving}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 disabled:opacity-50 text-xs text-white font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-amber-600/30 transition-all cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>{loginSaving ? 'جاري الحفظ...' : 'حفظ إعدادات شاشة الدخول وشعار الترحيب 💾'}</span>
+              </button>
+            </div>
+
           </div>
         </div>
 

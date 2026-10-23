@@ -298,3 +298,30 @@ export async function uploadSplash(file: File, splashId: string, onProgress?: (p
 export async function uploadSound(file: File, soundId: string, onProgress?: (pct: number) => void): Promise<string> {
   return uploadAny(file, FOLDERS.appSound, onProgress);
 }
+
+export async function uploadLoginMedia(
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<{ url: string; type: 'image' | 'video' | 'vap' | 'gif' }> {
+  const typeStr = detectAssetType(file.name);
+  let resolvedType: 'image' | 'video' | 'vap' | 'gif' = 'image';
+  if (typeStr === 'mp4' || typeStr === 'webm' || typeStr === 'mov' || file.type.startsWith('video/')) {
+    resolvedType = 'video';
+  } else if (typeStr === 'vap') {
+    resolvedType = 'vap';
+  } else if (typeStr === 'gif' || file.type === 'image/gif') {
+    resolvedType = 'gif';
+  } else {
+    resolvedType = 'image';
+  }
+  const url = await uploadAny(file, 'login_assets', onProgress);
+  return { url, type: resolvedType };
+}
+
+export async function uploadLoginLogo(
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<string> {
+  return uploadAny(file, 'login_assets', onProgress);
+}
+
