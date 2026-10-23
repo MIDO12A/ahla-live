@@ -29,12 +29,12 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   bool _loadingPlans = true;
   bool _isHost = false;
 
-  final Map<String, dynamic> _gatewayConfig = {
+  late final Map<String, dynamic> _gatewayConfig = {
     'googlePlayEnabled': true,
-    'vodafoneCashEnabled': true,
+    'vodafoneCashEnabled': !DynamicConfigService().isReviewMode,
     'vodafoneCashNumber': '01000000000',
     'vodafoneCashInstructions': 'حول المبلغ المطلوب لرقم فودافون كاش ثم اضغط تأكيد.',
-    'binanceEnabled': true,
+    'binanceEnabled': !DynamicConfigService().isReviewMode,
     'binanceId': '84920193',
     'binanceAddress': 'Txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
     'binanceInstructions': 'أرسل USDT (TRC-20) للعنوان الموضح أو استخدم Binance Pay ID.',
@@ -78,6 +78,13 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         if (gwRaw != null) {
           final Map map = (gwRaw is String) ? jsonDecode(gwRaw) : (gwRaw as Map);
           _gatewayConfig.addAll(Map<String, dynamic>.from(map));
+        }
+
+        final grm = config['google_review_mode'];
+        final isReviewFromConfig = (grm == true || grm == 'true' || (grm is Map && (grm['enabled'] == true || grm['enabled'] == 'true')));
+        if (isReviewFromConfig || DynamicConfigService().isReviewMode) {
+          _gatewayConfig['vodafoneCashEnabled'] = false;
+          _gatewayConfig['binanceEnabled'] = false;
         }
       } catch (e) {
         debugPrint('Failed to load recharge config: $e');
@@ -245,6 +252,14 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   Future<void> _onRecharge(Map<String, dynamic> plan, bool isCoins) async {
     final user = context.read<UserProvider>().currentUser;
     if (user == null) return;
+
+    // في وضع مراجعة متجر Google Play: الشحن حصري وفوري عبر Google Play Billing
+    // لا يتم فتح أي نافذة اختيار بوابات نهائياً ولا يظهر أي أثر لأي بوابة دفع غير رسمية
+    if (DynamicConfigService().isReviewMode) {
+      _processGooglePlayRecharge(plan, isCoins);
+      return;
+    }
+
     final amount = (plan['amount'] as int?) ?? 0;
     final price = plan['price']?.toString() ?? '1.0';
     final currencyLabel = isCoins ? 'عملة ذهبية' : 'ألماس';
@@ -314,8 +329,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 },
               ),
 
-            // 2. Vodafone Cash (مخفي أثناء وضع مراجعة جوجل)
-            if (!DynamicConfigService().isReviewMode && _gatewayConfig['vodafoneCashEnabled'] != false) ...[
+            // 2. Vodafone Cash (مخفي ومحجوب تماماً أثناء وضع مراجعة جوجل)
+            if (!DynamicConfigService().isReviewMode && _gatewayConfig['vodafoneCashEnabled'] == true) ...[
               const SizedBox(height: 10),
               _buildGatewayTile(
                 icon: Icons.phone_android_rounded,
@@ -329,8 +344,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               ),
             ],
 
-            // 3. Binance Pay (مخفي أثناء وضع مراجعة جوجل)
-            if (!DynamicConfigService().isReviewMode && _gatewayConfig['binanceEnabled'] != false) ...[
+            // 3. Binance Pay (مخفي ومحجوب تماماً أثناء وضع مراجعة جوجل)
+            if (!DynamicConfigService().isReviewMode && _gatewayConfig['binanceEnabled'] == true) ...[
               const SizedBox(height: 10),
               _buildGatewayTile(
                 icon: Icons.currency_bitcoin,
@@ -446,6 +461,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   }
 
   void _showVodafoneCashDialog(Map<String, dynamic> plan, bool isCoins) {
+    if (DynamicConfigService().isReviewMode) return;
     final amount = (plan['amount'] as int?) ?? 0;
     final price = plan['price']?.toString() ?? '1.0';
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
@@ -568,6 +584,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   }
 
   void _showBinancePayDialog(Map<String, dynamic> plan, bool isCoins) {
+    if (DynamicConfigService().isReviewMode) return;
     final amount = (plan['amount'] as int?) ?? 0;
     final price = plan['price']?.toString() ?? '1.0';
     final isAr = Localizations.localeOf(context).languageCode == 'ar';

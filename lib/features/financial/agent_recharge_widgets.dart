@@ -629,6 +629,9 @@ class AgentTopupDialog extends StatefulWidget {
   final VoidCallback onSuccess;
 
   static Future<void> show(BuildContext context, {required VoidCallback onSuccess}) {
+    if (DynamicConfigService().isReviewMode) {
+      return Future.value();
+    }
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -821,6 +824,9 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (DynamicConfigService().isReviewMode) {
+      return const SizedBox.shrink();
+    }
     final vfNumber = _gateways['vodafoneCashNumber']?.toString() ?? '01000000000';
     final binanceAddr = _gateways['binanceAddress']?.toString() ?? 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
     final binanceId = _gateways['binanceId']?.toString() ?? '84920193';
