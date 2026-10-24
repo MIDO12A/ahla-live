@@ -240,6 +240,12 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> reloadUser() async {
+    if (_currentUser != null) {
+      await loadUser(_currentUser!.uid);
+    }
+  }
+
   Future<void> _checkExpiredBackpackItems(String uid) async {
     try {
       final items = await SupabaseDataService().getUserBackpack(uid);
