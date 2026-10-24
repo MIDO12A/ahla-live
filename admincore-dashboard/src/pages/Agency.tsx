@@ -219,7 +219,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [ownerId, setOwnerId] = useState('');
-  const [commissionRate, setCommissionRate] = useState('10');
+  const [generalAgencyRate, setGeneralAgencyRate] = useState<number>(20);
   const [specialty, setSpecialty] = useState('mixed');
   const [description, setDescription] = useState('');
   const [country, setCountry] = useState('');
@@ -229,18 +229,26 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
   const [sendInviteMode, setSendInviteMode] = useState(false);
   const [resolvedOwnerUser, setResolvedOwnerUser] = useState<any>(null);
 
-  const load = () => { setLoading(true); getHostAgencies().then(d => { setAgencies(d); setLoading(false); }); };
+  const load = () => {
+    setLoading(true);
+    getHostAgencies().then(d => { setAgencies(d); setLoading(false); });
+    getCommissionSettings().then(cs => {
+      const ar = cs.find(c => c.key === 'agency_rate')?.value;
+      if (ar != null && !isNaN(Number(ar))) {
+        setGeneralAgencyRate(Number(ar));
+      }
+    }).catch(() => {});
+  };
   useEffect(() => { load(); }, []);
 
   const resetForm = () => {
-    setEditId(null); setName(''); setOwnerId(''); setCommissionRate('10');
+    setEditId(null); setName(''); setOwnerId('');
     setSpecialty('mixed'); setTier('bronze'); setDescription(''); setCountry(''); setPhotoUrl('');
     setIsActive(true); setSendInviteMode(false); setResolvedOwnerUser(null);
   };
 
   const openEdit = (a: HostAgencyModel) => {
     setEditId(a.id); setName(a.name); setOwnerId(a.owner_id);
-    setCommissionRate(String((a.commission_rate ?? 0.1) * 100));
     setSpecialty(a.specialty ?? 'mixed'); setTier(a.tier ?? 'bronze');
     setDescription(a.description ?? ''); setCountry(a.country ?? '');
     setPhotoUrl(a.photo_url ?? ''); setIsActive(a.is_active ?? true);
@@ -268,7 +276,7 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
     const payload = {
       name: name.trim(),
       owner_id: finalOwnerId,
-      commission_rate: (parseFloat(commissionRate) || 10) / 100,
+      commission_rate: (generalAgencyRate || 20) / 100,
       specialty: specialty as any,
       description: description.trim() || null,
       country: country.trim() || null,
@@ -333,9 +341,14 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">نسبة العمولة (%)</label>
-              <input type="number" value={commissionRate} onChange={e => setCommissionRate(e.target.value)} placeholder="10"
-                className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-600" />
+              <label className="text-[10px] text-amber-400 block mb-1 font-semibold flex items-center justify-between">
+                <span>نسبة العمولة (%)</span>
+                <span className="text-[9px] text-emerald-400 font-normal">موحدة مع العمولات العامة</span>
+              </label>
+              <div className="w-full bg-[#161618] border border-amber-500/30 rounded-lg py-1.5 px-3 text-xs text-amber-300 font-bold flex items-center justify-between">
+                <span>{generalAgencyRate}%</span>
+                <span className="text-[9px] text-slate-400 font-normal">(تُدار من تبويب العمولات العامة)</span>
+              </div>
             </div>
             <div>
               <label className="text-[10px] text-slate-400 block mb-1">التخصص</label>
@@ -434,7 +447,12 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
             const s = (a as HostAgencyModel).specialty;
             return <span className="text-slate-400">{t(`agency.specialty.${s}` as any)}</span>;
           }},
-          { key: 'commission_rate', label: t('agency.col.commission'), sortable: true, render: a => <span className="text-amber-400 font-semibold">{((a as HostAgencyModel).commission_rate ?? 0.1) * 100}%</span> },
+          { key: 'commission_rate', label: t('agency.col.commission'), sortable: true, render: () => (
+            <div className="flex items-center gap-1.5">
+              <span className="text-amber-400 font-bold">{generalAgencyRate}%</span>
+              <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-normal">موحدة</span>
+            </div>
+          ) },
           { key: 'member_count', label: t('agency.col.members'), sortable: true, render: a => {
             const h = a as HostAgencyModel;
             return (

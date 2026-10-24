@@ -630,7 +630,6 @@ export async function adjustUserDiamonds(
               txn_type: type === 'add' ? 'admin_credit' : 'admin_deduct',
               amount: absAmount,
               direction: type === 'add' ? 1 : -1,
-              balance_after: newDiamonds,
               gift_name: reason || (type === 'add' ? `إضافة ${absAmount.toLocaleString()} ماسة من الإدارة` : `خصم ${absAmount.toLocaleString()} ماسة من الإدارة`),
               created_at: new Date().toISOString(),
             });
@@ -4556,9 +4555,7 @@ async function sendGiftSystemNotification(params: {
   sentByName: string;
 }) {
   try {
-    const notifId = 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     await params.client.from('notifications').insert({
-      id: notifId,
       uid: params.uid,
       target: params.uid,
       type: 'system',
