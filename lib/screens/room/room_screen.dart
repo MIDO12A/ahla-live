@@ -6658,9 +6658,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     return FutureBuilder<Map<String, dynamic>>(
       future: RoomCupService().fetchRoomCupStatus(widget.roomId, isWeekly: true),
       builder: (context, snapshot) {
-        final data = snapshot.data ?? {};
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final data = snapshot.data!;
+        // Hide completely if disabled from dashboard
+        if (data['enabled'] == false) return const SizedBox.shrink();
+
         final totalCoins = (data['roomTotalCoins'] as num?)?.toInt() ?? 0;
         final profitCoins = (data['ownerProfitCoins'] as num?)?.toInt() ?? 0;
+        final appliedPercentage = (data['appliedPercentage'] as num?)?.toDouble() ?? 0.0;
+        final matchedTierName = data['matchedTierName']?.toString() ?? '';
+        final nextTierName = data['nextTierName']?.toString() ?? '';
+        final nextTierCoins = (data['nextTierCoins'] as num?)?.toInt() ?? 0;
+        final isQualified = data['isQualified'] == true;
 
         return Container(
           margin: const EdgeInsets.only(top: 14),
@@ -6701,19 +6710,42 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          isAr ? 'كأس الغرفة ومكافآت المالك 🏆' : 'Room Cup & Owner Rewards 🏆',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFFFD54F),
+                        Row(
+                          children: [
+                            Text(
+                              isAr ? 'كأس الغرفة ومكافآت المالك 🏆' : 'Room Cup & Owner Rewards 🏆',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFFFD54F),
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+                              ),
+                              child: Text(
+                                '$appliedPercentage%',
+                                style: const TextStyle(
+                                  color: Color(0xFFFFD54F),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (matchedTierName.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            isAr ? 'المستوى المحقق: $matchedTierName' : 'Achieved: $matchedTierName',
+                            style: const TextStyle(fontSize: 11, color: Colors.amberAccent, fontWeight: FontWeight.w600),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          isAr ? 'مكافآت دعم الغرفة المستحقة' : 'Eligible room support rewards',
-                          style: const TextStyle(fontSize: 11, color: Colors.white70),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -6734,7 +6766,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       style: const TextStyle(fontSize: 11, color: Colors.white70),
                     ),
                     Text(
-                      '$totalCoins',
+                      '$totalCoins 🪙',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amberAccent),
                     ),
                   ],
@@ -6751,22 +6783,46 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      isAr ? 'المكافأة المستحقة' : 'Claimable Reward',
+                      isAr ? 'المكافأة المستحقة لصاحب الغرفة' : 'Owner Reward',
                       style: const TextStyle(fontSize: 11, color: Colors.white70),
                     ),
                     Text(
-                      '$profitCoins',
+                      '+$profitCoins 🪙',
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.greenAccent),
                     ),
                   ],
                 ),
               ),
+              if (nextTierName.isNotEmpty && nextTierCoins > totalCoins) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.arrow_upward, size: 13, color: Colors.amberAccent),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          isAr 
+                            ? 'الهدف القادم: $nextTierName (متبقي ${(nextTierCoins - totalCoins)} كوينز)'
+                            : 'Next target: $nextTierName (${(nextTierCoins - totalCoins)} coins left)',
+                          style: const TextStyle(fontSize: 10, color: Colors.white60),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 height: 40,
                 child: ElevatedButton(
-                  onPressed: (_isOwner && profitCoins > 0)
+                  onPressed: (_isOwner && profitCoins > 0 && isQualified)
                       ? () async {
                           final res = await RoomCupService().settleRoomCupForOwner(
                             roomId: widget.roomId,
@@ -6793,8 +6849,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 ),
                                 content: Text(
                                   isAr
-                                      ? 'تم إيداع مكافآت كأس الغرفة (${res['ownerProfitCoins']} كوينز) في محفظتك بنجاح!'
-                                      : 'Room Cup rewards (${res['ownerProfitCoins']} coins) deposited to your wallet!',
+                                      ? 'تم إيداع مكافآت كأس الغرفة (+${res['ownerProfitCoins']} كوينز) في محفظتك بنجاح 🎁!'
+                                      : 'Room Cup rewards (+${res['ownerProfitCoins']} coins) deposited to your wallet 🎁!',
                                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                                 ),
                                 actions: [
@@ -6807,26 +6863,32 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             );
                           } else if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(res['message'] ?? (isAr ? 'لا توجد مكافآت مستحقة للاستلام حالياً' : 'No claimable rewards'))),
+                              SnackBar(
+                                content: Text(res['message']?.toString() ?? (isAr ? 'لم تصل الغرفة للحد الأدنى للتأهل بعد' : 'Not qualified yet')),
+                                backgroundColor: Colors.redAccent,
+                              ),
                             );
                           }
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFFD54F),
+                    foregroundColor: Colors.black,
                     disabledBackgroundColor: Colors.white12,
+                    disabledForegroundColor: Colors.white38,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   child: Text(
                     !_isOwner
                         ? (isAr ? 'مكافآت خاصة بمالك الغرفة' : 'Owner Exclusive Reward')
-                        : (profitCoins > 0
-                            ? (isAr ? 'استلام المكافآت' : 'Claim Rewards')
-                            : (isAr ? 'لا توجد مكافآت جاهزة' : 'No Rewards Available')),
-                    style: TextStyle(
+                        : (!isQualified
+                            ? (isAr ? 'الغرفة لم تتأهل بعد للحد الأدنى' : 'Not Qualified Yet')
+                            : (profitCoins > 0
+                                ? (isAr ? 'استلام المكافآت' : 'Claim Rewards')
+                                : (isAr ? 'لا توجد مكافآت جاهزة' : 'No Rewards Available'))),
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: (_isOwner && profitCoins > 0) ? Colors.black : Colors.white38,
                     ),
                   ),
                 ),
@@ -6835,7 +6897,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           ),
         );
       },
-    );
   }
 
   Widget _memberAvatar(String? avatar, double size) {

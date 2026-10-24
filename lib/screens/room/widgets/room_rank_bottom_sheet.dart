@@ -671,15 +671,6 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
       ),
     );
   }
-
-  void _showRoomCupRewardsDialog(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => const _RoomCupRewardsSheet(),
-    );
-  }
 }
 
 // ══════════════════════════════════════════════════════════════════════
