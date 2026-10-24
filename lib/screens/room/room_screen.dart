@@ -4580,19 +4580,39 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildStaticGiftIcon(String? iconUrl, {double size = 40}) {
-    if (iconUrl == null || iconUrl.isEmpty) {
-      return Icon(Icons.card_giftcard, color: const Color(0xFFFFEB3B), size: size * 0.8);
+  Widget _buildStaticGiftIcon(String? iconUrl, {double size = 40, String? giftName, String? giftId}) {
+    String? resolved = iconUrl;
+    if (resolved != null) {
+      final lower = resolved.toLowerCase();
+      if (lower.endsWith('.vap') || lower.endsWith('.mp4') || lower.endsWith('.svga') ||
+          lower.contains('.vap?') || lower.contains('.mp4?') || lower.contains('.svga?')) {
+        resolved = null;
+      }
     }
-    final lower = iconUrl.toLowerCase();
-    if (lower.endsWith('.vap') || lower.endsWith('.mp4') || lower.endsWith('.svga') ||
-        lower.contains('.vap?') || lower.contains('.mp4?') || lower.contains('.svga?')) {
+    if (resolved == null || resolved.isEmpty) {
+      if (giftId != null && _cachedGiftItems.containsKey(giftId)) {
+        final g = _cachedGiftItems[giftId]!;
+        resolved = (g.defaultImage?.isNotEmpty == true && !g.defaultImage!.endsWith('.svga'))
+            ? g.defaultImage
+            : g.iconAsset;
+      } else if (giftName != null && giftName.isNotEmpty) {
+        for (final g in _cachedGiftItems.values) {
+          if (g.name.toLowerCase() == giftName.toLowerCase() || (g.nameAr != null && g.nameAr == giftName)) {
+            resolved = (g.defaultImage?.isNotEmpty == true && !g.defaultImage!.endsWith('.svga'))
+                ? g.defaultImage
+                : g.iconAsset;
+            break;
+          }
+        }
+      }
+    }
+    if (resolved == null || resolved.isEmpty) {
       return Icon(Icons.card_giftcard, color: const Color(0xFFFFEB3B), size: size * 0.8);
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
       child: Image(
-        image: R.cachedImage(iconUrl),
+        image: R.cachedImage(resolved),
         width: size,
         height: size,
         fit: BoxFit.contain,
@@ -6671,6 +6691,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final nextTierName = data['nextTierName']?.toString() ?? '';
         final nextTierCoins = (data['nextTierCoins'] as num?)?.toInt() ?? 0;
         final isQualified = data['isQualified'] == true;
+        final isPeriodCompleted = data['isPeriodCompleted'] == true;
+        final remainingDays = (data['remainingDays'] as num?)?.toInt() ?? 0;
+        final remainingHours = (data['remainingHours'] as num?)?.toInt() ?? 0;
 
         return Container(
           margin: const EdgeInsets.only(top: 14),
@@ -6823,52 +6846,69 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 width: double.infinity,
                 height: 40,
                 child: ElevatedButton(
-                  onPressed: (_isOwner && profitCoins > 0 && isQualified)
+                  onPressed: (_isOwner && profitCoins > 0 && isQualified && !_isClaimingCupReward)
                       ? () async {
-                          final res = await RoomCupService().settleRoomCupForOwner(
-                            roomId: widget.roomId,
-                            isWeekly: true,
-                            force: true,
-                          );
-                          if (res['ok'] == true && mounted) {
-                            final userProvider = Provider.of<UserProvider>(context, listen: false);
-                            await userProvider.reloadUser();
-                            setState(() {});
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                backgroundColor: const Color(0xFF1E1724),
-                                title: Row(
-                                  children: [
-                                    const Icon(Icons.check_circle, color: Colors.greenAccent, size: 24),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      isAr ? 'تم استلام المكافآت بنجاح' : 'Claim Successful',
-                                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                          if (_isClaimingCupReward) return;
+                          setState(() => _isClaimingCupReward = true);
+                          try {
+                            final res = await RoomCupService().settleRoomCupForOwner(
+                              roomId: widget.roomId,
+                              isWeekly: true,
+                              force: false,
+                            );
+                            if (res['ok'] == true && mounted) {
+                              final userProvider = Provider.of<UserProvider>(context, listen: false);
+                              final profit = (res['ownerProfitCoins'] as num?)?.toInt() ?? profitCoins;
+                              final newBal = (res['newBalance'] as num?)?.toInt();
+                              if (newBal != null) {
+                                userProvider.updateCoinsImmediately(newBal);
+                              } else if (profit > 0 && userProvider.currentUser != null) {
+                                userProvider.updateCoinsImmediately(userProvider.currentUser!.coins + profit);
+                              }
+                              await userProvider.reloadUser();
+                              setState(() {});
+                              if (mounted) {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    backgroundColor: const Color(0xFF1E1724),
+                                    title: Row(
+                                      children: [
+                                        const Icon(Icons.check_circle, color: Colors.greenAccent, size: 24),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          isAr ? 'تم استلام المكافآت بنجاح' : 'Claim Successful',
+                                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                                content: Text(
-                                  isAr
-                                      ? 'تم إيداع مكافآت كأس الغرفة (+${res['ownerProfitCoins']} كوينز) في محفظتك بنجاح 🎁!'
-                                      : 'Room Cup rewards (+${res['ownerProfitCoins']} coins) deposited to your wallet 🎁!',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: Text(isAr ? 'حسناً' : 'OK', style: const TextStyle(color: Color(0xFFFFD54F))),
+                                    content: Text(
+                                      isAr
+                                          ? 'تم إيداع مكافآت كأس الغرفة (+${res['ownerProfitCoins'] ?? profit} كوينز) في محفظتك بنجاح 🎁! وتم تصفير العداد للدورة القادمة.'
+                                          : 'Room Cup rewards (+${res['ownerProfitCoins'] ?? profit} coins) deposited to your wallet 🎁! Counter reset for the next cycle.',
+                                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        child: Text(isAr ? 'حسناً' : 'OK', style: const TextStyle(color: Color(0xFFFFD54F))),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            );
-                          } else if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(res['message']?.toString() ?? (isAr ? 'لم تصل الغرفة للحد الأدنى للتأهل بعد' : 'Not qualified yet')),
-                                backgroundColor: Colors.redAccent,
-                              ),
-                            );
+                                );
+                              }
+                            } else if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(res['message']?.toString() ?? (isAr ? 'لم ينتهِ الأسبوع الحالي بعد أو لم تتأهل الغرفة' : 'Week not completed yet or not qualified')),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => _isClaimingCupReward = false);
+                            }
                           }
                         }
                       : null,
@@ -6879,25 +6919,32 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     disabledForegroundColor: Colors.white38,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: Text(
-                    !_isOwner
-                        ? (isAr ? 'مكافآت خاصة بمالك الغرفة' : 'Owner Exclusive Reward')
-                        : (!isQualified
-                            ? (isAr ? 'الغرفة لم تتأهل بعد للحد الأدنى' : 'Not Qualified Yet')
-                            : (profitCoins > 0
-                                ? (isAr ? 'استلام المكافآت' : 'Claim Rewards')
-                                : (isAr ? 'لا توجد مكافآت جاهزة' : 'No Rewards Available'))),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isClaimingCupReward
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                      : Text(
+                          !_isOwner
+                              ? (isAr ? 'مكافآت خاصة بمالك الغرفة' : 'Owner Exclusive Reward')
+                              : (!isPeriodCompleted
+                                  ? (isAr
+                                      ? (remainingDays > 0 ? 'متبقي $remainingDays يوم لاكتمال الأسبوع' : 'متبقي $remainingHours ساعة لاكتمال الدورة')
+                                      : (remainingDays > 0 ? '$remainingDays days left in week' : '$remainingHours hrs left'))
+                                  : (!isQualified
+                                      ? (isAr ? 'الغرفة لم تتأهل بعد للحد الأدنى' : 'Not Qualified Yet')
+                                      : (profitCoins > 0
+                                          ? (isAr ? 'استلام المكافآت' : 'Claim Rewards')
+                                          : (isAr ? 'لا توجد مكافآت جاهزة' : 'No Rewards Available')))),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
             ],
           ),
         );
       },
+    );
   }
 
   Widget _memberAvatar(String? avatar, double size) {
