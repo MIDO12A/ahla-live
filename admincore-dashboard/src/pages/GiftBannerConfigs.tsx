@@ -86,7 +86,8 @@ export default function GiftBannerConfigsPage() {
             <div>
               <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Gift Category</label>
               <select value={form.categoryId} onChange={e => updateField('categoryId', e.target.value)} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white">
-                <option value="">All Categories</option>
+                <option value="">All Categories (عام لكافة الهدايا)</option>
+                <option value="lucky_bag">🧧 حقيبة الحظ (Lucky Bag Banner)</option>
                 {categories.map(cat => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
@@ -140,7 +141,11 @@ export default function GiftBannerConfigsPage() {
               <div className="flex-1 min-w-0">
                   <div className="text-white text-xs font-medium truncate">{c.id}</div>
                   <div className="text-[10px] text-slate-500 mt-1">
-                    {c.categoryId ? <span className="text-indigo-400 font-mono">{categories.find(cat => cat.id === c.categoryId)?.name || c.categoryId}</span> : <span className="text-slate-500">All Categories</span>}
+                    {c.categoryId ? (
+                      <span className="text-indigo-400 font-mono">
+                        {c.categoryId === 'lucky_bag' ? '🧧 حقيبة الحظ (Lucky Bag)' : (categories.find(cat => cat.id === c.categoryId)?.name || c.categoryId)}
+                      </span>
+                    ) : <span className="text-slate-500">All Categories (عام)</span>}
                     <span className="mx-1.5">·</span>
                     Threshold: <span className="text-amber-400 font-mono">{c.thresholdCoins}</span> coins
                     <span className={`ml-2 text-[9px] px-1.5 py-0.5 rounded-full ${c.isActive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-500'}`}>{c.isActive ? 'Active' : 'Inactive'}</span>

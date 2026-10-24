@@ -331,31 +331,32 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   }
 
   double _calculateHostCommissionUsd(AnchorAgentUserInfoDataModel member) {
-    final highest = _getHighestAchievedMilestone(member);
-    if (highest == null) return 0.0;
-
     final cfg = DynamicConfigService.instance;
     final rawAgencyRate = (_agencyInfo?.commissionRate ?? 0) > 0 
         ? _agencyInfo!.commissionRate 
-        : (cfg.agencyRatePercentage > 0 ? (cfg.agencyRatePercentage / 100.0) : 0.0);
-    final agencyCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : rawAgencyRate;
+        : (cfg.agencyRatePercentage > 0 ? (cfg.agencyRatePercentage / 100.0) : 0.10);
+    final agencyCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : (rawAgencyRate > 0 ? rawAgencyRate : 0.10);
 
-    final rewardVal = (highest['reward_value'] ?? 
-                       highest['rewardValue'] ?? 
-                       highest['reward'] as num?)?.toDouble() ?? 
-                      (((highest['target_diamonds'] as num?)?.toDouble() ?? 40000) / (cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 15000.0));
-
-    final double normCommRate;
-    if (agencyCommRate > 0) {
-      normCommRate = agencyCommRate;
-    } else {
-      final rawComm = (highest['agent_commission_rate'] as num?)?.toDouble();
-      normCommRate = (rawComm != null && rawComm > 0)
-          ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
-          : 0.10;
+    final highest = _getHighestAchievedMilestone(member);
+    if (highest != null) {
+      final rewardVal = (highest['reward_value'] ?? 
+                         highest['rewardValue'] ?? 
+                         highest['reward'] as num?)?.toDouble() ?? 
+                        (((highest['target_diamonds'] as num?)?.toDouble() ?? 40000) / (cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 15000.0));
+      return rewardVal * agencyCommRate;
     }
 
-    return rewardVal * normCommRate;
+    // إذا لم يصل المضيف للتارجت بعد، تُحسب العمولة مباشرة من ألماس المضيف الفعلي
+    final int hostDia = member.effectiveDiamonds > 0 
+        ? member.effectiveDiamonds 
+        : (int.tryParse(member.diamonds) ?? 0);
+    if (hostDia > 0) {
+      final commDia = hostDia * agencyCommRate;
+      final rateCoins = cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 15000.0;
+      return commDia / rateCoins;
+    }
+
+    return 0.0;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1874,6 +1875,15 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                         style: const TextStyle(
                           color: Color(0xFF10B981),
                           fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'عمولة الوكيل: $agentCommissionDiamonds 💎',
+                        style: const TextStyle(
+                          color: Color(0xFFD97706),
+                          fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

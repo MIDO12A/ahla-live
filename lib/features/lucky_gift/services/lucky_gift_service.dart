@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/lucky_gift_model.dart';
 import '../widgets/lucky_card_flip_layout.dart';
@@ -54,21 +54,22 @@ class LuckyGiftService {
       }
     });
 
-    // 1. إذا كان هناك فوز بمضاعف (5X فما فوق) أو SVGA مخصص، نشغل أنيميشن مكسب الحظ في الروم فقط لمنع تشغيل اثنين SVGA معاً
+    // 1. إذا كان المستخدم هو المرسل نفسه حصرياً، نشغل أنيميشن مكسب الحظ في الروم أو رقم الكومبو
     final bool hasWin = LuckyRoomWinSvgaOverlay.hasWinSvga(nextData.maxMultiplier, customUrl: nextData.customSvgaUrl);
-    if (hasWin) {
-      showRoomWinSvgaOverlay(
-        context,
-        multiplier: nextData.maxMultiplier,
-        wonCoins: nextData.totalWonCoins,
-        giftName: nextData.gift.giftNameAr.isNotEmpty ? nextData.gift.giftNameAr : nextData.gift.giftName,
-        senderName: nextData.senderName,
-        senderAvatar: nextData.senderAvatar,
-        customSvgaUrl: nextData.customSvgaUrl,
-      );
-    } else if (LuckyComboSvgaOverlay.hasSvgaForCount(nextData.comboCount)) {
-      // نشغل أنيميشن رقم الكومبو فقط إذا لم يكن هناك فوز مضاعف تجنباً لتشنج الـ GPU
-      showComboSvgaOverlay(context, nextData.comboCount);
+    if (nextData.isSender) {
+      if (hasWin) {
+        showRoomWinSvgaOverlay(
+          context,
+          multiplier: nextData.maxMultiplier,
+          wonCoins: nextData.totalWonCoins,
+          giftName: nextData.gift.giftNameAr.isNotEmpty ? nextData.gift.giftNameAr : nextData.gift.giftName,
+          senderName: nextData.senderName,
+          senderAvatar: nextData.senderAvatar,
+          customSvgaUrl: nextData.customSvgaUrl,
+        );
+      } else if (LuckyComboSvgaOverlay.hasSvgaForCount(nextData.comboCount)) {
+        showComboSvgaOverlay(context, nextData.comboCount);
+      }
     }
 
     // 2. إذا كان فوزاً كبيراً بمضاعف 100X فما فوق، نعرض بانر الفوز العام الأسطوري لكافة الغرف

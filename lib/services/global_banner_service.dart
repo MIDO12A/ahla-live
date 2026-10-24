@@ -75,6 +75,12 @@ class GlobalBannerService extends ChangeNotifier {
       if (_seenBroadcastIds.contains(bId)) continue;
       _seenBroadcastIds.add(bId);
 
+      final isLuckyBag = b['type'] == 'lucky_bag' || b['is_lucky_bag'] == true;
+      if (isLuckyBag) {
+        triggerLuckyBagBanner(b);
+        continue;
+      }
+
       final isLucky = b['is_lucky'] == true || b['type'] == 'lucky_gift';
       final multiplier = (b['multiplier'] as num?)?.toInt() ?? 0;
 
@@ -115,19 +121,6 @@ class GlobalBannerService extends ChangeNotifier {
             'userLKey': matchingConfig.userLKey,
             'numberKey': matchingConfig.numberKey,
             'giftKey': matchingConfig.giftKey,
-          });
-        } else if (totalCost >= 500) {
-          // الشريطة الافتراضية للهدايا الكبيرة
-          showGiftBanner({
-            'animationAsset': 'assets/svga/gift_banner_strip.svga',
-            'senderPhotoUrl': b['sender_photo_url']?.toString(),
-            'receiverPhotoUrl': b['receiver_photo_url']?.toString(),
-            'defaultImage': b['default_image']?.toString() ?? b['gift_icon']?.toString(),
-            'giftCount': giftCount,
-            'userRKey': 'user_r',
-            'userLKey': 'user_l',
-            'numberKey': 'number',
-            'giftKey': 'gift',
           });
         }
       }
@@ -226,7 +219,7 @@ class GlobalBannerService extends ChangeNotifier {
     }
   }
 
-  /// تفعيل محلي فوري عند الإرسال من قبل المستخدم لمنع أي انتظار
+  /// تفعيل محلي فوري عند الإرسال من قبل المستخدم لمنع أي انتظار (وفق إعدادات لوحة التحكم حصراً)
   void triggerGiftBannerLocally(Map<String, dynamic> data) {
     final giftValue = (data['giftValue'] as num?)?.toInt() ?? 0;
     final giftCount = (data['giftCount'] as num?)?.toInt() ?? 1;
@@ -246,19 +239,52 @@ class GlobalBannerService extends ChangeNotifier {
         'numberKey': config.numberKey,
         'giftKey': config.giftKey,
       });
-    } else if (totalCost >= 500) {
+    }
+  }
+
+  /// إظهار لافتة حقيبة الحظ في جميع الغرف والشاشات وفق إعدادات لافتات الهدايا في لوحة التحكم
+  void triggerLuckyBagBanner(Map<String, dynamic> bagData) {
+    final totalCoins = (bagData['total_value'] as num?)?.toInt() ??
+        (bagData['totalCoins'] as num?)?.toInt() ??
+        (bagData['total_cost'] as num?)?.toInt() ??
+        (((bagData['value'] as num?)?.toInt() ?? 0) * ((bagData['total_bags'] as num?)?.toInt() ?? (bagData['count'] as num?)?.toInt() ?? 1));
+
+    // 1. البحث عن لافتة مخصصة لحقيبة الحظ تم ضبطها في لوحة التحكم (categoryId == 'lucky_bag')
+    GiftBannerConfig? luckyBagConfig = _bannerConfigs
+        .where((c) => c.isActive && c.categoryId == 'lucky_bag' && totalCoins >= c.thresholdCoins)
+        .firstOrNull;
+
+    // 2. إذا لم توجد لافتة مخصصة لحقيبة الحظ، البحث عن لافتة عامة نشطة تتجاوز الحد الأدنى
+    luckyBagConfig ??= _bannerConfigs
+        .where((c) => c.isActive && (c.categoryId == null || c.categoryId!.isEmpty) && totalCoins >= c.thresholdCoins)
+        .firstOrNull;
+
+    if (luckyBagConfig != null) {
       showGiftBanner({
-        'animationAsset': 'assets/svga/gift_banner_strip.svga',
-        'senderPhotoUrl': data['senderPhotoUrl']?.toString(),
-        'receiverPhotoUrl': data['receiverPhotoUrl']?.toString(),
-        'defaultImage': data['defaultImage']?.toString(),
-        'giftCount': giftCount,
-        'userRKey': 'user_r',
-        'userLKey': 'user_l',
-        'numberKey': 'number',
-        'giftKey': 'gift',
+        'animationAsset': luckyBagConfig.svgaUrl,
+        'senderPhotoUrl': bagData['owner_photo']?.toString() ?? bagData['ownerAvatar']?.toString() ?? bagData['sender_photo_url']?.toString(),
+        'receiverPhotoUrl': bagData['room_photo_url']?.toString() ?? '',
+        'defaultImage': 'assets/images/ic_luckybag.png',
+        'giftCount': (bagData['total_bags'] as num?)?.toInt() ?? (bagData['count'] as num?)?.toInt() ?? 1,
+        'userRKey': luckyBagConfig.userRKey,
+        'userLKey': luckyBagConfig.userLKey,
+        'numberKey': luckyBagConfig.numberKey,
+        'giftKey': luckyBagConfig.giftKey,
+        'isLuckyBag': true,
+        'roomName': bagData['room_name']?.toString() ?? '',
+        'roomId': bagData['room_id']?.toString() ?? bagData['roomId']?.toString(),
       });
     }
+
+    // إظهار شريط الماركي التنبيهي لجميع الغرف
+    showMarquee({
+      'type': 'lucky_bag',
+      'sender_name': bagData['owner_name'] ?? bagData['ownerName'] ?? bagData['sender_name'] ?? 'مستخدم',
+      'sender_photo_url': bagData['owner_photo'] ?? bagData['ownerAvatar'] ?? bagData['sender_photo_url'] ?? '',
+      'gift_name': 'حقيبة الحظ 🧧',
+      'total_cost': totalCoins,
+      'text': '🧧 أطلق حقيبة حظ بقيمة $totalCoins 🪙!',
+    });
   }
 
   @override

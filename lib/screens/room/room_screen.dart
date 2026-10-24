@@ -764,6 +764,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 isBigWin: mult >= 50,
                 comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
                 comboCount: comboMultiplier,
+                isSender: true,
               );
 
               if (mounted) {
@@ -1517,9 +1518,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 }
               }
             } catch (_) {}
-          } else if (m.type == 'lucky_bag' && m.luckyBagPayload != null) {
+          } else if (m.type == 'lucky_bag' && (m.luckyBagPayload != null || m.giftPayload != null)) {
             try {
-              final bag = LuckyBagModel.fromJson(m.luckyBagPayload!);
+              final payload = m.luckyBagPayload ?? m.giftPayload!;
+              final bag = LuckyBagModel.fromJson(payload);
+              LuckyBagService().registerActiveBag(bag.bagId, payload);
               LuckyBagService().showGrabBanner(
                 context,
                 roomId: widget.roomId,
@@ -3905,6 +3908,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       isBigWin: maxMult >= 50,
                                       comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
                                       comboCount: (data['giftCount'] as num?)?.toInt() ?? 1,
+                                      isSender: true,
                                     );
                                     if (mounted) {
                                       LuckyGiftService().enqueueLuckyGift(context, localData);

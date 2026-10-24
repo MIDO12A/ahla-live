@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/supabase_config.dart';
@@ -2658,6 +2659,61 @@ class SupabaseDataService {
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       return false;
+    }
+  }
+
+  /// جلب بيانات محفظة الحظ بالسيرفر
+  Future<Map<String, dynamic>?> getLuckyPool() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/rest/v1/lucky_pools?id=eq.main&select=*'),
+        headers: _headers,
+      );
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        if (list.isNotEmpty) return Map<String, dynamic>.from(list.first as Map);
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getLuckyPool error: $e');
+    }
+    return null;
+  }
+
+  /// خصم أرباح الفوز من محفظة الحظ وتسجيلها في السجلات
+  Future<void> deductLuckyPoolPayout(int amount, int multiplier, String userId) async {
+    try {
+      final pool = await getLuckyPool();
+      if (pool != null) {
+        final currentBal = (pool['balance'] as num?)?.toInt() ?? 0;
+        final currentPaid = (pool['total_paid_out'] as num?)?.toInt() ?? 0;
+        final newBal = math.max(0, currentBal - amount);
+        final newPaid = currentPaid + amount;
+
+        await http.patch(
+          Uri.parse('$_baseUrl/rest/v1/lucky_pools?id=eq.main'),
+          headers: _headers,
+          body: jsonEncode({
+            'balance': newBal,
+            'total_paid_out': newPaid,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          }),
+        );
+
+        await http.post(
+          Uri.parse('$_baseUrl/rest/v1/lucky_pool_logs'),
+          headers: _headers,
+          body: jsonEncode({
+            'pool_id': 'main',
+            'log_type': 'payout',
+            'amount': amount,
+            'balance_before': currentBal,
+            'balance_after': newBal,
+            'note': 'صرف أرباح فوز للاعب $userId بمضاعف $multiplier X (تطبيق)',
+          }),
+        );
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] deductLuckyPoolPayout error: $e');
     }
   }
 }

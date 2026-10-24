@@ -1,10 +1,11 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../models/message_model.dart';
 import '../../../services/api_service.dart';
+import '../../../services/global_banner_service.dart';
 import '../../../services/supabase_data_service.dart';
 import '../../../services/supabase_service.dart';
 import '../models/lucky_bag_model.dart';
@@ -106,7 +107,12 @@ class LuckyBagService {
 
       _localActiveBags[bagId] = bagPayload;
 
-      // بث رسالة في الغرفة
+      // تحديث حالة الغرفة في Supabase لتظهر شارة كيس الحظ في الاستكشاف لجميع المستخدمين
+      unawaited(ds.updateRoom(roomId, {
+        'has_lucky_bag': true,
+      }).catchError((_) => false));
+
+      // بث رسالة في الغرفة تحتوي على luckyBagPayload
       unawaited(ds.sendMessage(MessageModel(
         msgId: const Uuid().v4(),
         roomId: roomId,
@@ -115,9 +121,25 @@ class LuckyBagService {
         senderPhotoUrl: user?.photoUrl ?? '',
         type: 'lucky_bag',
         text: '🧧 أرسل حقيبة حظ بقيمة $cost 🪙 (${count ?? 1} حقيبة)',
+        luckyBagPayload: bagPayload,
         giftPayload: bagPayload,
         timestamp: DateTime.now().millisecondsSinceEpoch,
       )).catchError((_) => false));
+
+      // بث عبر البث العام لتشغيل لافتة الهدية في جميع الشاشات والغرف
+      unawaited(_fb.sendGlobalBroadcast(
+        senderUid: uid,
+        senderName: user?.name ?? 'مستخدم',
+        senderPhotoUrl: user?.photoUrl ?? '',
+        roomId: roomId,
+        roomName: 'الغرفة',
+        content: 'أطلق حقيبة حظ بقيمة $cost 🪙 (${count ?? 1} حقيبة)',
+        giftIcon: 'assets/images/ic_luckybag.png',
+        type: 'lucky_bag',
+      ).catchError((_) => false));
+
+      // تفعيل لافتة حقيبة الحظ فوراً وفق إعدادات لوحة التحكم
+      GlobalBannerService.instance.triggerLuckyBagBanner(bagPayload);
 
       return {
         'success': true,
@@ -165,9 +187,6 @@ class LuckyBagService {
 
       final bagData = _localActiveBags[targetBagId];
       if (bagData != null) {
-        if (bagData['owner_id'] == uid) {
-          return const LuckyBagClaimResult(success: false, error: 'cannot_claim_own_bag');
-        }
         final claims = _localBagClaims.putIfAbsent(targetBagId, () => []);
         if (claims.any((c) => c['claimer_id'] == uid)) {
           return const LuckyBagClaimResult(success: false, error: 'already_claimed');
@@ -180,6 +199,7 @@ class LuckyBagService {
 
         if (remainingVal <= 0 || claimedShares >= totalShares) {
           bagData['status'] = 'done';
+          unawaited(ds.updateRoom(roomId, {'has_lucky_bag': false}).catchError((_) => false));
           return const LuckyBagClaimResult(success: false, error: 'bag_empty');
         }
 
@@ -198,6 +218,7 @@ class LuckyBagService {
         bagData['claimed_shares'] = claimedShares + 1;
         if (claimedShares + 1 >= totalShares || (remainingVal - wonAmount) <= 0) {
           bagData['status'] = 'done';
+          unawaited(ds.updateRoom(roomId, {'has_lucky_bag': false}).catchError((_) => false));
         }
 
         // إيداع العملات للفائز
@@ -240,6 +261,13 @@ class LuckyBagService {
     }
 
     return const LuckyBagClaimResult(success: false, error: 'network_error');
+  }
+
+  /// تسجيل حقيبة حظ نشطة محلياً عند استلامها من رسائل الغرفة
+  void registerActiveBag(String bagId, Map<String, dynamic> bagPayload) {
+    if (!_localActiveBags.containsKey(bagId)) {
+      _localActiveBags[bagId] = Map<String, dynamic>.from(bagPayload);
+    }
   }
 
   /// جلب تفاصيل المظروف وقائمة الفائزين بالكامل

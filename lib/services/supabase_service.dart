@@ -221,42 +221,39 @@ class SupabaseService {
   // LUCKY GIFTS & RTP ALGORITHM (AUTHENTIC 82.5%)
   // ═══════════════════════════════════════════════════════
 
-  List<int> drawLuckyMultipliers(int count, {int cardCount = 4}) {
+  List<int> drawLuckyMultipliers(int count, {int cardCount = 4, double? customWinRate}) {
     final random = math.Random.secure();
 
-    // جدول نسب الفوز والخسارة المعياري العالمي (RTP: 82.5%، نسبة الخسارة: 58.3%)
-    // - خسارة (0X): 58.296% (58,296 / 100,000)
-    // - استرداد التكلفة / تعادل (1X): 28.000% (28,000 / 100,000)
-    // - ربح مضاعف (2X): 10.000% (10,000 / 100,000)
-    // - ربح جيد (5X): 2.500% (2,500 / 100,000)
-    // - ربح كبير (10X): 0.800% (800 / 100,000)
-    // - ربح فائق (20X): 0.300% (300 / 100,000)
-    // - بيج وين (50X): 0.080% (80 / 100,000)
-    // - جاكبوت (100X): 0.020% (20 / 100,000)
-    // - سوبر جاكبوت (500X): 0.004% (4 / 100,000)
+    // حساب نسبة الفوز والخسارة بناء على إعدادات لوحة التحكم
+    final winRate = customWinRate ?? 15.0;
+    final lossThreshold = math.min(100000, math.max(0, ((100.0 - winRate) / 100.0 * 100000).round()));
     final effectiveCount = count > 0 ? count : 1;
     final wonMultipliers = <int>[];
+
     for (int c = 0; c < effectiveCount; c++) {
       final roll = random.nextInt(100000);
       int mult;
-      if (roll < 58296) {
+      if (roll < lossThreshold) {
         mult = 0;
-      } else if (roll < 86296) {
-        mult = 1;
-      } else if (roll < 96296) {
-        mult = 2;
-      } else if (roll < 98796) {
-        mult = 5;
-      } else if (roll < 99596) {
-        mult = 10;
-      } else if (roll < 99896) {
-        mult = 20;
-      } else if (roll < 99976) {
-        mult = 50;
-      } else if (roll < 99996) {
-        mult = 100;
       } else {
-        mult = 500;
+        final winRoll = random.nextInt(100000);
+        if (winRoll < 65000) {
+          mult = 1;
+        } else if (winRoll < 88000) {
+          mult = 2;
+        } else if (winRoll < 96000) {
+          mult = 5;
+        } else if (winRoll < 98800) {
+          mult = 10;
+        } else if (winRoll < 99700) {
+          mult = 20;
+        } else if (winRoll < 99950) {
+          mult = 50;
+        } else if (winRoll < 99990) {
+          mult = 100;
+        } else {
+          mult = 500;
+        }
       }
       if (mult > 0) {
         wonMultipliers.add(mult);
@@ -320,6 +317,7 @@ class SupabaseService {
           'p_receiver_id': receiverId,
           'p_gift_id': giftId,
           'p_count': count,
+          'p_unit_price': value,
         }),
       ).timeout(const Duration(seconds: 8));
 
@@ -349,7 +347,7 @@ class SupabaseService {
       }
 
       if (!rpcSucceeded) {
-        // Fallback آمن يضمن خصم الكوينز وحساب الحظ دون تعليق
+        // Fallback آمن مرتبط بمحفظة الحظ ونسب الفوز/الخسارة من لوحة التحكم
         debugPrint('[SupabaseService] process_lucky_gift fallback triggered');
         final sUser = await _ds.getUser(senderId);
         final currentCoins = sUser?.coins ?? 0;
@@ -358,10 +356,24 @@ class SupabaseService {
           return null;
         }
 
-        multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count);
+        // استعلام إعدادات المحفظة ونسبة الفوز المضبوطة من لوحة التحكم
+        double poolWinRate = 15.0;
+        int poolBalance = 0;
+        try {
+          final pool = await _ds.getLuckyPool();
+          if (pool != null) {
+            poolWinRate = (pool['win_rate'] as num?)?.toDouble() ?? 15.0;
+            poolBalance = (pool['balance'] as num?)?.toInt() ?? 0;
+          }
+        } catch (_) {}
+
+        multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count, customWinRate: poolWinRate);
         for (final m in multipliers) {
-          totalWonCoins += (value * m);
-          if (m > maxMultiplier) maxMultiplier = m;
+          final wonAmount = (value * m);
+          if (wonAmount <= poolBalance || poolBalance > 0) {
+            totalWonCoins += wonAmount;
+            if (m > maxMultiplier) maxMultiplier = m;
+          }
         }
         isBigWin = maxMultiplier >= 50;
         serverNewBalance = math.max(0, currentCoins - totalCost + totalWonCoins);
@@ -370,6 +382,11 @@ class SupabaseService {
           'coins': serverNewBalance,
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
         });
+
+        // خصم أرباح الفوز من محفظة الحظ بالسيرفر وتحديث السجلات
+        if (totalWonCoins > 0) {
+          unawaited(_ds.deductLuckyPoolPayout(totalWonCoins, maxMultiplier, senderId));
+        }
       }
 
       // 2. توزيع الماس والتارجت للمستلم لهدايا الحظ حسب نسبة التارجت (تعمل في كل الحالات)

@@ -106,16 +106,6 @@ class ProfileScreen extends StatelessWidget {
                     // 5. بطاقة مركز VIP (cl_vip)
                     _buildVipBanner(context, user),
 
-                    if (user?.isSuperAdmin == true || user?.role == 'super_admin' || user?.role == 'superadmin') ...[
-                      const SizedBox(height: 12),
-                      _buildSuperAdminBanner(context, user),
-                    ],
-
-                    if (user?.isAdmin == true || user?.role == 'admin') ...[
-                      const SizedBox(height: 12),
-                      _buildAdminBanner(context, user),
-                    ],
-
                     if (user?.isBd == true || user?.role == 'bd') ...[
                       const SizedBox(height: 12),
                       _buildBdBanner(context, user),
@@ -389,9 +379,6 @@ class ProfileScreen extends StatelessWidget {
 
                 // صف الأوسمة والمستوى (level_view)
                 _buildRankLevelView(context, user),
-
-                // صف القلادات الفاخرة البارزة
-                _buildNecklacesRow(user),
               ],
             ),
           ),
@@ -459,12 +446,6 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
-          ],
-
-          // قلادة VIP بحجم مكافئ ومحترم
-          if (_hasVipNecklace(user, vipLevel)) ...[
-            const SizedBox(width: 6),
-            _buildVipNecklaceBadge(user, vipLevel),
           ],
         ],
       ),
@@ -1329,31 +1310,6 @@ class ProfileScreen extends StatelessWidget {
                 },
               ),
 
-            // 12. لوحة السوبر أدمن (Super Admin)
-            if (user?.isSuperAdmin == true || user?.role == 'super_admin' || user?.role == 'superadmin')
-              _buildFunctionItem(
-                icon: 'assets/mipmap-xxhdpi/union_admin_center.webp',
-                title: 'لوحة السوبر أدمن (Super Admin)',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => SuperAdminCenterScreen(currentUser: user!)),
-                  );
-                },
-              ),
-
-            // 13. لوحة الإدارة (Admin)
-            if (user?.isAdmin == true || user?.role == 'admin')
-              _buildFunctionItem(
-                icon: 'assets/mipmap-xxhdpi/union_admin_center.webp',
-                title: 'لوحة الإدارة (Admin)',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => AdminCenterScreen(currentUser: user!)),
-                  );
-                },
-              ),
 
             // 7. الشكاوى والاقتراحات (cl_feedback)
             _buildFunctionItem(

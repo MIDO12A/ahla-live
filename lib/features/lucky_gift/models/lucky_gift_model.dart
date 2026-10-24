@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 
 /// كائن بيانات هدية الحظ
 class LuckyGiftModel {
@@ -107,6 +107,7 @@ class LuckyGiftBroadcastData {
   final String? customSvgaUrl;
   final String comboId;
   final int comboCount;
+  final bool isSender;
 
   LuckyGiftBroadcastData({
     required this.roomId,
@@ -121,6 +122,7 @@ class LuckyGiftBroadcastData {
     this.customSvgaUrl,
     required this.comboId,
     required this.comboCount,
+    this.isSender = false,
   });
 
   factory LuckyGiftBroadcastData.fromJson(Map<dynamic, dynamic> json) {
