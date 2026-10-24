@@ -211,7 +211,8 @@ class DynamicConfigService extends ChangeNotifier {
   Color get rankSilverColor => _parseColor(_rankSilverColor, const Color(0xFFC0C0C0));
   Color get rankBronzeColor => _parseColor(_rankBronzeColor, const Color(0xFFCD7F32));
   Color get rankPointsColor => _parseColor(_rankPointsColor, const Color(0xFFFFD700));
-  String get rankTrophyIcon => _rankTrophyIcon;
+  String get rankTrophyIcon => _rankTrophyIcon.isNotEmpty ? _rankTrophyIcon : 'assets/images/ic_rank_cup_gold.png';
+  String get roomRankIcon => getAssetUrl('room_rank_icon') ?? getAssetUrl('rank_icon') ?? _screenStr('room', 'roomRankIcon', 'assets/images/ic_rank_cup_gold.png');
   String get rankEmptyText => _rankEmptyText;
   Color get rankTextColor => _parseColor(_rankTextColor, Colors.white);
   Color get rankSubTextColor => _parseColor(_rankSubTextColor, Colors.white60);

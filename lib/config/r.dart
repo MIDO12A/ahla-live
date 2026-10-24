@@ -238,7 +238,8 @@ class R {
   // Tab assets
   static const String tabDiscoverNor = '$_m/tab_discover_nor.webp';
   static const String tabDiscoverPre = '$_m/tab_discover_pre.webp';
-  static const String tabRankingNor = '$_m/tab_discover_nor.webp';
+  static const String tabRankingNor = 'assets/images/ic_rank_cup_gold.png';
+  static const String roomRankCupIcon = 'assets/images/ic_rank_cup_gold.png';
   static const String tabRankingPre = '$_m/tab_discover_pre.webp';
   static const String tabMessageNor = '$_m/tab_message_nor.webp';
   static const String tabMessagePre = '$_m/tab_message_pre.webp';

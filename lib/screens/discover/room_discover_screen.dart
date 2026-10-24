@@ -409,7 +409,14 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                       context,
                       MaterialPageRoute(builder: (_) => const RankScreen()),
                     ),
-                    child: R.image(R.tabRankingNor, width: 28, height: 28),
+                    child: R.loadAsset(
+                      DynamicConfigService.instance.getAssetUrl('room_rank_icon') ??
+                          DynamicConfigService.instance.getAssetUrl('rank_icon') ??
+                          'assets/images/ic_rank_cup_gold.png',
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(

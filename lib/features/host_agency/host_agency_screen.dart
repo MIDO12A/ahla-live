@@ -1170,10 +1170,13 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset(
-                'assets/mipmap-xxhdpi/union_rank_start.webp',
-                height: 14,
-                errorBuilder: (_, __, ___) => const SizedBox(),
+              R.loadAsset(
+                DynamicConfigService.instance.getAssetUrl('room_rank_icon') ??
+                    DynamicConfigService.instance.getAssetUrl('rank_icon') ??
+                    'assets/images/ic_rank_cup_gold.png',
+                width: 22,
+                height: 22,
+                fit: BoxFit.contain,
               ),
               const SizedBox(width: 8),
               const Text(
@@ -1185,10 +1188,13 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              Image.asset(
-                'assets/mipmap-xxhdpi/union_rank_end.webp',
-                height: 14,
-                errorBuilder: (_, __, ___) => const SizedBox(),
+              R.loadAsset(
+                DynamicConfigService.instance.getAssetUrl('room_rank_icon') ??
+                    DynamicConfigService.instance.getAssetUrl('rank_icon') ??
+                    'assets/images/ic_rank_cup_gold.png',
+                width: 22,
+                height: 22,
+                fit: BoxFit.contain,
               ),
             ],
           ),

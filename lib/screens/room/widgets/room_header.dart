@@ -89,6 +89,8 @@ class RoomHeader extends StatelessWidget {
                     children: [
                       _buildOnlineButton(),
                       const SizedBox(width: 8),
+                      _buildRankButton(),
+                      const SizedBox(width: 8),
                       _buildExitButton(),
                     ],
                   ),
@@ -310,19 +312,21 @@ class RoomHeader extends StatelessWidget {
   }
 
   Widget _buildRankButton() {
+    final rankIcon = DynamicConfigService.instance.getAssetUrl('room_rank_icon') ??
+        DynamicConfigService.instance.getAssetUrl('rank_icon') ??
+        'assets/images/ic_rank_cup_gold.png';
+
     return GestureDetector(
       onTap: onRank,
       child: Container(
         width: 28,
         height: 28,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.black26,
-        ),
-        child: const Icon(
-          Icons.emoji_events,
-          color: Color(0xFFFFD54F),
-          size: 18,
+        alignment: Alignment.center,
+        child: R.loadAsset(
+          rankIcon,
+          width: 26,
+          height: 26,
+          fit: BoxFit.contain,
         ),
       ),
     );
