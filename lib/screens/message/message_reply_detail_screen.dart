@@ -468,8 +468,14 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
                   controller: _msgController,
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => _sendMessage(),
+                  style: const TextStyle(
+                    color: Color(0xFF16151A),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                   decoration: const InputDecoration(
-                    hintText: 'Type a message...',
+                    hintText: 'اكتب رسالة...',
+                    hintStyle: TextStyle(color: Color(0xFF9BA1B6), fontSize: 13),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   ),

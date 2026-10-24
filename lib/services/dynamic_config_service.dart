@@ -1206,6 +1206,8 @@ class DynamicConfigService extends ChangeNotifier {
   Color get giftPanelDurationBadgeBg => _screenColor('giftPanel', 'durationBadgeBg', const Color(0xFFE91E63));
   String get giftPanelLuckyBadgeImage => _screenStr('giftPanel', 'luckyBadgeImage', '');
   String get giftPanelStarBadgeImage => _screenStr('giftPanel', 'starBadgeImage', '');
+  String get giftPanelSendBtnImage => _screenStr('giftPanel', 'sendBtnImage', '');
+  String get giftPanelCountBtnImage => _screenStr('giftPanel', 'countBtnImage', '');
 
   // Wallet screen visuals
   String get walletBackgroundImage => _screenStr('wallet', 'backgroundImage', '');

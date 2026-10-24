@@ -81,6 +81,7 @@ import '../../features/lucky_bag/widgets/lucky_bag_floating_widget.dart';
 import '../../features/tasks/services/task_service.dart';
 import '../../core/widgets/user_id_display_widget.dart';
 import '../../widgets/user_id_widget.dart';
+import '../../services/room_cup_service.dart';
 import 'package:just_audio/just_audio.dart';
 
 /// Helper to navigate to a room, exiting any minimized room first
@@ -807,9 +808,46 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final startOffset = Offset(screenSize.width * 0.8, screenSize.height - 60);
     final targets = <Offset>[];
 
-    final headerH = statusH + 50.0;
-    final colWidth = (screenSize.width - 16.0) / 5.0;
-    const rowHeight = 94.0;
+    final headerH = statusH + 50.0 + 32.0 + 4.0;
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode == 'ar';
+    final isCircle = _roomSeatStyle == seat_model.SeatStyle.circle;
+
+    Offset getSeatOffset(int seatIdx) {
+      if (isCircle) {
+        final centerX = screenSize.width / 2.0;
+        final centerY = headerH + 210.0;
+        const radius = 140.0;
+        if (seatIdx == 0) {
+          return Offset(centerX, centerY);
+        }
+        double angle = 0.0;
+        switch (seatIdx) {
+          case 2: angle = -90 * math.pi / 180; break;
+          case 3: angle = -50 * math.pi / 180; break;
+          case 4: angle = -10 * math.pi / 180; break;
+          case 5: angle = 30 * math.pi / 180; break;
+          case 6: angle = 70 * math.pi / 180; break;
+          case 7: angle = 110 * math.pi / 180; break;
+          case 8: angle = 150 * math.pi / 180; break;
+          case 9: angle = 190 * math.pi / 180; break;
+          case 1: angle = 230 * math.pi / 180; break;
+          default: angle = 0.0;
+        }
+        final dx = radius * math.cos(angle);
+        final dy = radius * math.sin(angle);
+        final x = isAr ? (centerX - dx) : (centerX + dx);
+        final y = centerY + dy;
+        return Offset(x, y);
+      } else {
+        final colWidth = (screenSize.width - 16.0) / 5.0;
+        const rowHeight = 94.0;
+        final row = seatIdx ~/ 5;
+        final col = seatIdx % 5;
+        final targetX = 8.0 + (col * colWidth) + (colWidth / 2.0);
+        final targetY = headerH + 6.0 + (row * rowHeight) + 38.0;
+        return Offset(targetX, targetY);
+      }
+    }
 
     final targetIds = <String>{};
     if (receiverIds != null && receiverIds.isNotEmpty) {
@@ -822,28 +860,20 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       for (final id in targetIds) {
         final seatIdx = _seats.indexWhere((s) => s.user?.id == id);
         if (seatIdx >= 0) {
-          final row = seatIdx ~/ 5;
-          final col = seatIdx % 5;
-          final targetX = 8.0 + (col * colWidth) + (colWidth / 2.0);
-          final targetY = headerH + 6.0 + (row * rowHeight) + 38.0;
-          targets.add(Offset(targetX, targetY));
+          targets.add(getSeatOffset(seatIdx));
         }
       }
     } else {
       // All occupied seats
       for (int i = 0; i < _seats.length; i++) {
         if (_seats[i].isOccupied && _seats[i].user != null) {
-          final row = i ~/ 5;
-          final col = i % 5;
-          final targetX = 8.0 + (col * colWidth) + (colWidth / 2.0);
-          final targetY = headerH + 6.0 + (row * rowHeight) + 38.0;
-          targets.add(Offset(targetX, targetY));
+          targets.add(getSeatOffset(i));
         }
       }
     }
 
     if (targets.isEmpty) {
-      targets.add(Offset(screenSize.width / 2.0, headerH + 60.0));
+      targets.add(Offset(screenSize.width / 2.0, headerH + 120.0));
     }
 
     if (mounted) {
@@ -3796,6 +3826,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                               });
                             }
 
+                            // إطلاق تأثير طيران الهدية إلى المقاعد فور الإرسال
+                            final flyIcon = defImg ?? iconUrl;
+                            if (flyIcon.isNotEmpty) {
+                              _triggerGiftFlight(
+                                iconUrl: flyIcon,
+                                receiverId: data['receiverId']?.toString(),
+                                receiverIds: (data['receiverIds'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
+                              );
+                            }
+
                             // إطلاق أنيميشن الهدية الكبيرة وزر الكومبو فوراً دون أي انتظار
                             if (animAsset.isNotEmpty && mounted) {
                               _triggerGiftAnim(
@@ -5687,6 +5727,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       ],
                                     ),
                                   ),
+                                  _buildRoomCupCard(isAr),
                                   const SizedBox(height: 24),
                                   // room_owner_title
                                   Text(
@@ -6610,6 +6651,190 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     userProvider.toggleFollowedRoom(widget.roomId, willFollow);
     setState(() => _isFollowed = willFollow);
+  }
+
+  Widget _buildRoomCupCard(bool isAr) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: RoomCupService().fetchRoomCupStatus(widget.roomId, isWeekly: true),
+      builder: (context, snapshot) {
+        final data = snapshot.data ?? {};
+        final totalCoins = (data['roomTotalCoins'] as num?)?.toInt() ?? 0;
+        final profitCoins = (data['ownerProfitCoins'] as num?)?.toInt() ?? 0;
+
+        return Container(
+          margin: const EdgeInsets.only(top: 14),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF2A1B0E), Color(0xFF1E1724)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFFFD54F).withValues(alpha: 0.35), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFD54F).withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFFFD54F), Color(0xFFDE880F)],
+                      ),
+                    ),
+                    child: const Icon(Icons.emoji_events, color: Colors.black, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isAr ? 'كأس الغرفة ومكافآت المالك 🏆' : 'Room Cup & Owner Rewards 🏆',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFFD54F),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isAr ? 'مكافآت دعم الغرفة المستحقة' : 'Eligible room support rewards',
+                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      isAr ? 'إجمالي دعم الغرفة' : 'Room Total Support',
+                      style: const TextStyle(fontSize: 11, color: Colors.white70),
+                    ),
+                    Text(
+                      '$totalCoins',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      isAr ? 'المكافأة المستحقة' : 'Claimable Reward',
+                      style: const TextStyle(fontSize: 11, color: Colors.white70),
+                    ),
+                    Text(
+                      '$profitCoins',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 40,
+                child: ElevatedButton(
+                  onPressed: (_isOwner && profitCoins > 0)
+                      ? () async {
+                          final res = await RoomCupService().settleRoomCupForOwner(
+                            roomId: widget.roomId,
+                            isWeekly: true,
+                            force: true,
+                          );
+                          if (res['ok'] == true && mounted) {
+                            final userProvider = Provider.of<UserProvider>(context, listen: false);
+                            await userProvider.reloadUser();
+                            setState(() {});
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: const Color(0xFF1E1724),
+                                title: Row(
+                                  children: [
+                                    const Icon(Icons.check_circle, color: Colors.greenAccent, size: 24),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      isAr ? 'تم استلام المكافآت بنجاح' : 'Claim Successful',
+                                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                                    ),
+                                  ],
+                                ),
+                                content: Text(
+                                  isAr
+                                      ? 'تم إيداع مكافآت كأس الغرفة (${res['ownerProfitCoins']} كوينز) في محفظتك بنجاح!'
+                                      : 'Room Cup rewards (${res['ownerProfitCoins']} coins) deposited to your wallet!',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx),
+                                    child: Text(isAr ? 'حسناً' : 'OK', style: const TextStyle(color: Color(0xFFFFD54F))),
+                                  ),
+                                ],
+                              ),
+                            );
+                          } else if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(res['message'] ?? (isAr ? 'لا توجد مكافآت مستحقة للاستلام حالياً' : 'No claimable rewards'))),
+                            );
+                          }
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFD54F),
+                    disabledBackgroundColor: Colors.white12,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Text(
+                    !_isOwner
+                        ? (isAr ? 'مكافآت خاصة بمالك الغرفة' : 'Owner Exclusive Reward')
+                        : (profitCoins > 0
+                            ? (isAr ? 'استلام المكافآت' : 'Claim Rewards')
+                            : (isAr ? 'لا توجد مكافآت جاهزة' : 'No Rewards Available')),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: (_isOwner && profitCoins > 0) ? Colors.black : Colors.white38,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Widget _memberAvatar(String? avatar, double size) {

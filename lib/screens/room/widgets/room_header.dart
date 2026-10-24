@@ -89,8 +89,6 @@ class RoomHeader extends StatelessWidget {
                     children: [
                       _buildOnlineButton(),
                       const SizedBox(width: 8),
-                      _buildRankButton(),
-                      const SizedBox(width: 8),
                       _buildExitButton(),
                     ],
                   ),

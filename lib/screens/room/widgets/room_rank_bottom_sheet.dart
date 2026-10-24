@@ -141,45 +141,6 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
             ),
           ),
 
-          // Room Cup Rewards & Rules button (matching Hayuki's rankActEntranceIv)
-          Positioned(
-            top: 16,
-            right: 16,
-            child: GestureDetector(
-              onTap: () => _showRoomCupRewardsDialog(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFFD54F), Color(0xFFF57F17)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFFD54F).withOpacity(0.35),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.emoji_events, color: Colors.black, size: 15),
-                    SizedBox(width: 4),
-                    Text(
-                      'كأس ومكافآت',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
 
           Column(
             children: [

@@ -253,4 +253,60 @@ class RoomCupService {
       return {'ok': false, 'error': e.toString()};
     }
   }
+
+  /// جلب تفاصيل وإحصائيات كأس الغرفة وأرباح صاحب الغرفة الجاهزة للاستلام
+  Future<Map<String, dynamic>> fetchRoomCupStatus(String roomId, {bool isWeekly = true}) async {
+    try {
+      final cfg = await getConfig();
+      final periodConfig = isWeekly ? cfg.weekly : cfg.daily;
+      final sb = Supabase.instance.client;
+
+      final roomData = await sb.from('rooms').select('room_id, name, host_uid, host_name').eq('room_id', roomId).maybeSingle();
+      if (roomData == null) return {'ok': false};
+
+      final ownerUid = roomData['host_uid']?.toString() ?? '';
+      final now = DateTime.now().toUtc();
+      final cutoff = isWeekly ? now.subtract(const Duration(days: 7)) : now.subtract(const Duration(days: 1));
+
+      final res = await sb
+          .from('sent_gifts')
+          .select('count, value')
+          .eq('room_id', roomId)
+          .gte('created_at', cutoff.toIso8601String());
+
+      final gifts = (res as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      int roomTotalCoins = 0;
+      for (final g in gifts) {
+        final count = (g['count'] as num?)?.toInt() ?? 1;
+        final value = (g['value'] as num?)?.toInt() ?? 0;
+        roomTotalCoins += (count * value);
+      }
+
+      double appliedPercentage = periodConfig.basePercentage;
+      if (periodConfig.useMilestones && periodConfig.milestones.isNotEmpty) {
+        final sorted = [...periodConfig.milestones]..sort((a, b) => b.minCoins.compareTo(a.minCoins));
+        final match = sorted.firstWhere((m) => roomTotalCoins >= m.minCoins, orElse: () => sorted.last);
+        if (roomTotalCoins >= match.minCoins) {
+          appliedPercentage = match.percentage;
+        }
+      }
+
+      final ownerProfitCoins = ((roomTotalCoins * appliedPercentage) / 100).round();
+      final isQualified = roomTotalCoins >= periodConfig.minRoomCoinsToQualify;
+
+      return {
+        'ok': true,
+        'enabled': periodConfig.enabled,
+        'roomTotalCoins': roomTotalCoins,
+        'minToQualify': periodConfig.minRoomCoinsToQualify,
+        'appliedPercentage': appliedPercentage,
+        'ownerProfitCoins': ownerProfitCoins,
+        'isQualified': isQualified,
+        'ownerUid': ownerUid,
+      };
+    } catch (e) {
+      return {'ok': false, 'error': e.toString()};
+    }
+  }
 }
+

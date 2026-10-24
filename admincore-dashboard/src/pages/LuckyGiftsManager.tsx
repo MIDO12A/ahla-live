@@ -20,10 +20,41 @@ import {
   Flame,
   Globe,
   Upload,
+  Coins,
+  Wallet,
+  AlertTriangle,
+  TrendingUp,
+  History,
+  RefreshCw,
+  Check,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import ImageUpload from '../components/ImageUpload';
 import { uploadGiftIcon, uploadGiftAnimation } from '../lib/storage';
+
+interface LuckyPool {
+  id: string;
+  balance: number;
+  total_deposited: number;
+  total_paid_out: number;
+  min_reserve: number;
+  auto_refill_amount: number;
+  auto_refill_enabled: boolean;
+  win_rate: number;
+  loss_rate: number;
+  is_active: boolean;
+}
+
+interface LuckyPoolLog {
+  id: string;
+  pool_id: string;
+  log_type: string;
+  amount: number;
+  balance_before: number;
+  balance_after: number;
+  note?: string;
+  created_at: string;
+}
 
 interface MultiplierTier {
   id: string;
@@ -76,10 +107,32 @@ interface SvgaFileRecord {
 }
 
 export default function LuckyGiftsManager() {
-  const [activeTab, setActiveTab] = useState<'visuals' | 'odds' | 'gifts' | 'svga_library' | 'rules'>('visuals');
+  const [activeTab, setActiveTab] = useState<'visuals' | 'odds' | 'gifts' | 'svga_library' | 'rules' | 'pool'>('visuals');
   const [loading, setLoading] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isFlippedPreview, setIsFlippedPreview] = useState(false);
+
+  // حالة محفظة الحظ بالسيرفر
+  const [poolState, setPoolState] = useState<LuckyPool>({
+    id: 'main',
+    balance: 100000,
+    total_deposited: 100000,
+    total_paid_out: 0,
+    min_reserve: 10000,
+    auto_refill_amount: 50000,
+    auto_refill_enabled: true,
+    win_rate: 15.0,
+    loss_rate: 85.0,
+    is_active: true,
+  });
+  const [poolLogs, setPoolLogs] = useState<LuckyPoolLog[]>([]);
+  const [refillAmount, setRefillAmount] = useState<number>(50000);
+  const [refillNote, setRefillNote] = useState<string>('');
+  const [refilling, setRefilling] = useState(false);
+
+  // صور أزرار صندوق الهدايا
+  const [sendBtnImage, setSendBtnImage] = useState<string>('');
+  const [countBtnImage, setCountBtnImage] = useState<string>('');
 
   // إعدادات المظهر
   const [visuals, setVisuals] = useState<CardVisualSettings>({
@@ -270,6 +323,48 @@ export default function LuckyGiftsManager() {
           setTargetPercentage(val);
         }
       }
+
+      // 3. تحميل بيانات محفظة الحظ بالسيرفر وسجل النفاذ
+      try {
+        const { data: poolData } = await supabase
+          .from('lucky_pools')
+          .select('*')
+          .eq('id', 'main')
+          .maybeSingle();
+
+        if (poolData) {
+          setPoolState(poolData);
+          if (poolData.win_rate !== undefined && poolData.win_rate !== null) {
+            setWinRate(Number(poolData.win_rate));
+          }
+        }
+
+        const { data: logsData } = await supabase
+          .from('lucky_pool_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (logsData) {
+          setPoolLogs(logsData);
+        }
+
+        const { data: sendBtnData } = await supabase
+          .from('app_config')
+          .select('value')
+          .eq('key', 'gift_panel_send_btn_image')
+          .maybeSingle();
+        if (sendBtnData?.value) setSendBtnImage(String(sendBtnData.value));
+
+        const { data: countBtnData } = await supabase
+          .from('app_config')
+          .select('value')
+          .eq('key', 'gift_panel_count_btn_image')
+          .maybeSingle();
+        if (countBtnData?.value) setCountBtnImage(String(countBtnData.value));
+      } catch (poolErr) {
+        console.warn('Lucky pool load error:', poolErr);
+      }
     } catch (e) {
       console.log('Settings load fallback:', e);
     }
@@ -350,6 +445,59 @@ export default function LuckyGiftsManager() {
     setWinRate(Number(Math.max(0, Math.min(100, 100 - lossProb)).toFixed(1)));
   };
 
+  const handleRefillPool = async (customAmt?: number) => {
+    const amt = customAmt ?? refillAmount;
+    if (!amt || amt <= 0) {
+      alert('يرجى تحديد مبلغ تعبئة صحيح');
+      return;
+    }
+    setRefilling(true);
+    try {
+      const { data, error } = await supabase.rpc('refill_lucky_pool', {
+        p_amount: amt,
+        p_type: 'manual_refill',
+        p_note: refillNote || 'شحن يدوي من لوحة Lucky Studio'
+      });
+
+      if (error) {
+        console.warn('RPC refill_lucky_pool error, falling back to direct upsert:', error);
+        const curBal = Number(poolState.balance) || 0;
+        const newBal = curBal + amt;
+        const newDep = (Number(poolState.total_deposited) || 0) + amt;
+        await supabase.from('lucky_pools').upsert({
+          id: 'main',
+          balance: newBal,
+          total_deposited: newDep,
+          updated_at: new Date().toISOString()
+        });
+        await supabase.from('lucky_pool_logs').insert({
+          pool_id: 'main',
+          log_type: 'manual_refill',
+          amount: amt,
+          balance_before: curBal,
+          balance_after: newBal,
+          note: refillNote || 'شحن يدوي من لوحة Lucky Studio'
+        });
+      }
+
+      // Refresh pool and logs
+      const { data: pData } = await supabase.from('lucky_pools').select('*').eq('id', 'main').maybeSingle();
+      if (pData) setPoolState(pData);
+      const { data: lData } = await supabase.from('lucky_pool_logs').select('*').order('created_at', { ascending: false }).limit(50);
+      if (lData) setPoolLogs(lData);
+
+      setRefillNote('');
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+      alert(`تم شحن محفظة الحظ بنجاح بمبلغ ${amt.toLocaleString()} كوينز!`);
+    } catch (e: any) {
+      console.error('Refill error:', e);
+      alert('حدث خطأ أثناء الشحن: ' + (e?.message || e));
+    } finally {
+      setRefilling(false);
+    }
+  };
+
   const handleSave = async () => {
     setLoading(true);
     setSavedSuccess(false);
@@ -375,6 +523,28 @@ export default function LuckyGiftsManager() {
         await supabase.from('app_config').upsert({
           key: 'lucky_gift_target_percentage',
           value: targetPercentage,
+        }, { onConflict: 'key' });
+
+        // Save pool configuration
+        await supabase.from('lucky_pools').upsert({
+          id: 'main',
+          min_reserve: poolState.min_reserve,
+          auto_refill_amount: poolState.auto_refill_amount,
+          auto_refill_enabled: poolState.auto_refill_enabled,
+          win_rate: winRate,
+          loss_rate: Number((100 - winRate).toFixed(1)),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+        // Save custom gift panel buttons
+        await supabase.from('app_config').upsert({
+          key: 'gift_panel_send_btn_image',
+          value: sendBtnImage,
+        }, { onConflict: 'key' });
+
+        await supabase.from('app_config').upsert({
+          key: 'gift_panel_count_btn_image',
+          value: countBtnImage,
         }, { onConflict: 'key' });
       } catch (sErr) {
         console.warn('Supabase lucky_box_config save error:', sErr);
@@ -489,6 +659,18 @@ export default function LuckyGiftsManager() {
         >
           <Sliders className="w-4 h-4" />
           إعدادات الكومبو والمؤقتات
+        </button>
+
+        <button
+          onClick={() => setActiveTab('pool')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+            activeTab === 'pool'
+              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Coins className="w-4 h-4" />
+          محفظة الحظ بالسيرفر وسجل النفاذ
         </button>
       </div>
 
@@ -1323,6 +1505,499 @@ export default function LuckyGiftsManager() {
                   </div>
                 </label>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: SERVER LUCKY POOL & LOGS */}
+      {activeTab === 'pool' && (
+        <div className="space-y-6">
+          {/* Critical Alerts */}
+          {Number(poolState.balance) <= 0 ? (
+            <div className="bg-rose-500/15 border-2 border-rose-500/50 rounded-2xl p-5 flex items-start gap-4 animate-pulse">
+              <div className="p-3 bg-rose-500/20 text-rose-400 rounded-xl shrink-0">
+                <AlertTriangle className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-rose-300">
+                  🚨 تنبيه حرج: رصيد محفظة الحظ بالسيرفر نفذ بالكامل (0 كوينز)!
+                </h4>
+                <p className="text-xs text-rose-200/90 leading-relaxed">
+                  تم إيقاف صرف أي جوائز أو مضاعفات فوز في التطبيق والسيرفر تلقائياً. أي مستخدم يرسل هدية حظ سيحصل على 
+                  <strong className="text-white"> (حظ أوفر / 0X) </strong> 
+                  ولن يتم صرف كوينز من السيرفر حتى يتم شحن المحفظة برصيد جديد.
+                </p>
+              </div>
+            </div>
+          ) : Number(poolState.balance) <= Number(poolState.min_reserve) ? (
+            <div className="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-4 flex items-start gap-3">
+              <div className="p-2.5 bg-amber-500/20 text-amber-300 rounded-xl shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-amber-300">
+                  ⚠️ تحذير: رصيد محفظة الحظ وصل إلى الحد الأدنى للاحتياطي ({Number(poolState.balance).toLocaleString()} كوينز)
+                </h4>
+                <p className="text-[11px] text-amber-200/80 mt-0.5">
+                  يرجى شحن المحفظة أو التأكد من تفعيل خيار التعبئة التلقائية لتفادي نفاذ الرصيد وحظر الأرباح.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {/* 4 KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className={`border rounded-2xl p-5 relative overflow-hidden ${
+              Number(poolState.balance) <= 0 
+                ? 'bg-rose-500/10 border-rose-500/30' 
+                : Number(poolState.balance) <= Number(poolState.min_reserve)
+                ? 'bg-amber-500/10 border-amber-500/30'
+                : 'bg-[#121214] border-white/5'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">رصيد محفظة الحظ الحالي</span>
+                <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
+                  <Wallet className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <span className="text-2xl font-black text-white tracking-tight">
+                  {Number(poolState.balance).toLocaleString()}
+                </span>
+                <span className="text-xs text-amber-400 mr-1.5 font-bold">🪙 كوين</span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-[11px]">
+                {Number(poolState.balance) <= 0 ? (
+                  <span className="text-rose-400 font-bold">● فارغة (أرباح موقوفة)</span>
+                ) : Number(poolState.balance) <= Number(poolState.min_reserve) ? (
+                  <span className="text-amber-400 font-bold">● تقترب من النفاذ</span>
+                ) : (
+                  <span className="text-emerald-400 font-bold">● المحفظة جاهزة ومتاحة</span>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-[#121214] border border-white/5 rounded-2xl p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">إجمالي المبالغ المودعة</span>
+                <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <span className="text-2xl font-black text-white tracking-tight">
+                  {Number(poolState.total_deposited).toLocaleString()}
+                </span>
+                <span className="text-xs text-emerald-400 mr-1.5 font-bold">🪙 كوين</span>
+              </div>
+              <span className="text-[11px] text-slate-500 block mt-2">
+                إجمالي الشحن اليدوي والتلقائي
+              </span>
+            </div>
+
+            <div className="bg-[#121214] border border-white/5 rounded-2xl p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">إجمالي الأرباح المصروفة</span>
+                <div className="p-2 bg-purple-500/10 text-purple-400 rounded-xl">
+                  <Coins className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <span className="text-2xl font-black text-white tracking-tight">
+                  {Number(poolState.total_paid_out).toLocaleString()}
+                </span>
+                <span className="text-xs text-purple-400 mr-1.5 font-bold">🪙 كوين</span>
+              </div>
+              <span className="text-[11px] text-slate-500 block mt-2">
+                الجوائز التي ربحها اللاعبون من المحفظة
+              </span>
+            </div>
+
+            <div className="bg-[#121214] border border-white/5 rounded-2xl p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">التعبئة التلقائية</span>
+                <div className={`p-2 rounded-xl ${poolState.auto_refill_enabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-400'}`}>
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <span className="text-lg font-bold text-white">
+                  {poolState.auto_refill_enabled ? 'مفعّلة تلقائياً' : 'معطّلة'}
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400 block mt-2">
+                {poolState.auto_refill_enabled 
+                  ? `تضخ ${Number(poolState.auto_refill_amount).toLocaleString()} كوين عند النفاذ`
+                  : 'يتطلب شحن يدوي عند نفاذ الرصيد'}
+              </span>
+            </div>
+          </div>
+
+          {/* Section: Win Rate & Loss Rate Interactive Controls */}
+          <div className="bg-[#121214] border border-white/5 rounded-2xl p-6 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Percent className="w-4 h-4 text-amber-400" />
+                  التحكم المباشر في نسبة المكسب والخسارة (Win Rate / Loss Rate)
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  التحكم الدقيق في احتمالية فوز اللاعبين. ربط مباشر بقاعدة البيانات وسيرفر هدايا الحظ.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-center">
+                  <span className="text-[10px] text-slate-400 block">نسبة المكسب</span>
+                  <span className="text-sm font-black text-emerald-400">{winRate}%</span>
+                </div>
+                <div className="bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl text-center">
+                  <span className="text-[10px] text-slate-400 block">نسبة الخسارة</span>
+                  <span className="text-sm font-black text-rose-400">{(100 - winRate).toFixed(1)}%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Slider */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-rose-400">خسارة تامة 100% (0% مكسب)</span>
+                <span className="text-amber-300 font-bold">المكسب الحالي: {winRate}%</span>
+                <span className="text-emerald-400">مكسب فوري 100% (0% خسارة)</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={0.5}
+                value={winRate}
+                onChange={e => applyWinRate(Number(e.target.value))}
+                className="w-full accent-amber-500 cursor-pointer h-2 bg-black/40 rounded-lg"
+              />
+            </div>
+
+            {/* Quick Presets */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              {[
+                { label: 'خسارة مؤكدة 100% (يخسرو يخسرو)', win: 0, color: 'text-rose-400 border-rose-500/30 hover:bg-rose-500/20' },
+                { label: 'مكسب 5% (خسارة 95%)', win: 5, color: 'text-slate-300 border-white/10 hover:border-amber-500' },
+                { label: 'مكسب 10% (خسارة 90%)', win: 10, color: 'text-slate-300 border-white/10 hover:border-amber-500' },
+                { label: 'مكسب 15% (الموصى بها - حماية فائقة)', win: 15, color: 'text-amber-300 border-amber-500/40 bg-amber-500/10' },
+                { label: 'مكسب 25% (خسارة 75%)', win: 25, color: 'text-slate-300 border-white/10 hover:border-amber-500' },
+                { label: 'مكسب 35% (متوازن)', win: 35, color: 'text-slate-300 border-white/10 hover:border-amber-500' },
+                { label: 'مكسب 50% (نصف بنصف)', win: 50, color: 'text-slate-300 border-white/10 hover:border-amber-500' },
+              ].map(preset => (
+                <button
+                  key={preset.win}
+                  type="button"
+                  onClick={() => applyWinRate(preset.win)}
+                  className={`text-xs px-3 py-1.5 rounded-xl border transition ${
+                    winRate === preset.win
+                      ? 'bg-amber-500 text-black font-extrabold border-amber-400 shadow-md shadow-amber-500/20'
+                      : `bg-black/30 ${preset.color}`
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Section: Manual Refill & Auto Refill Settings Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 1. Manual Refill */}
+            <div className="bg-[#121214] border border-white/5 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">تعبئة رصيد محفظة الحظ يدوياً</h3>
+                  <p className="text-xs text-slate-400">إيداع كوينز مباشرة في محفظة السيرفر لتغذية جوائز الحظ</p>
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {[10000, 50000, 100000, 500000, 1000000].map(amt => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setRefillAmount(amt)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                      refillAmount === amt
+                        ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/20'
+                        : 'bg-black/40 text-slate-300 border-white/10 hover:border-emerald-500/50'
+                    }`}
+                  >
+                    +{amt.toLocaleString()} كوين
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="text-xs text-slate-300 font-medium block mb-1">
+                    المبلغ المراد شحنه (كوينز)
+                  </label>
+                  <input
+                    type="number"
+                    value={refillAmount}
+                    onChange={e => setRefillAmount(Math.max(0, Number(e.target.value)))}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 outline-none"
+                    placeholder="مثال: 50000"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-medium block mb-1">
+                    ملاحظة العملية (تظهر في سجل العمليات)
+                  </label>
+                  <input
+                    type="text"
+                    value={refillNote}
+                    onChange={e => setRefillNote(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-emerald-500 outline-none"
+                    placeholder="مثال: شحن رصيد للأسبوع الجديد"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleRefillPool()}
+                  disabled={refilling || refillAmount <= 0}
+                  className="w-full mt-2 flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-black font-extrabold px-5 py-2.5 rounded-xl text-xs transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 cursor-pointer"
+                >
+                  <Coins className="w-4 h-4" />
+                  {refilling ? 'جارٍ الشحن وإيداع الكوينز...' : `تعبئة المحفظة الآن بـ (${refillAmount.toLocaleString()} كوين) ⚡`}
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Auto Refill Settings */}
+            <div className="bg-[#121214] border border-white/5 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl">
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">إعدادات التعبئة التلقائية وحماية الرصيد</h3>
+                  <p className="text-xs text-slate-400">إعادة شحن المحفظة تلقائياً في السيرفر عند اقتراب الرصيد من النفاذ</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <label className="flex items-center gap-3 cursor-pointer bg-black/30 p-3 rounded-xl border border-white/5">
+                  <input
+                    type="checkbox"
+                    checked={poolState.auto_refill_enabled}
+                    onChange={e => setPoolState({ ...poolState, auto_refill_enabled: e.target.checked })}
+                    className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
+                  />
+                  <div>
+                    <span className="text-xs text-white font-bold block">تفعيل التعبئة التلقائية عند النفاذ</span>
+                    <span className="text-[11px] text-slate-400 block">
+                      عند انخفاض الرصيد عن الحد الأدنى، يقوم السيرفر بضخ كوينز تلقائياً مع تسجيل ذلك.
+                    </span>
+                  </div>
+                </label>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-medium block mb-1">
+                    الحد الأدنى للاحتياطي (Min Reserve)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={poolState.min_reserve}
+                      onChange={e => setPoolState({ ...poolState, min_reserve: Math.max(0, Number(e.target.value)) })}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-amber-500 outline-none"
+                    />
+                    <span className="text-xs text-slate-400 shrink-0">كوين</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 block mt-1">
+                    إذا قل رصيد المحفظة عن هذا الحد يتم إطلاق تنبيه أو تفعيل الشحن التلقائي.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-medium block mb-1">
+                    مبلغ التعبئة التلقائية (Auto Refill Amount)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={poolState.auto_refill_amount}
+                      onChange={e => setPoolState({ ...poolState, auto_refill_amount: Math.max(0, Number(e.target.value)) })}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-amber-500 outline-none"
+                    />
+                    <span className="text-xs text-slate-400 shrink-0">كوين</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 block mt-1">
+                    المبلغ الذي يضاف للمحفظة فورياً في السيرفر عند التعبئة التلقائية.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Custom Gift Panel Buttons (زر الإرسال وزر العداد x1) */}
+          <div className="bg-[#121214] border border-white/5 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-3">
+              <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl">
+                <ImageIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">تخصيص صور أزرار صندوق الهدايا داخل الروم</h3>
+                <p className="text-xs text-slate-400">
+                  يمكنك رفع صور مخصصة من الجهاز لزر الإرسال وزر العداد (x1) لتظهر مباشرة لجميع المستخدمين في التطبيق
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              {/* Send Button Image */}
+              <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3">
+                <label className="text-xs text-amber-300 font-bold block">
+                  صورة زر الإرسال (Send Button Image)
+                </label>
+                <ImageUpload
+                  currentUrl={sendBtnImage}
+                  onUpload={file => uploadGiftIcon(file, `gift_send_btn_${Date.now()}`)}
+                  onUrlChange={url => setSendBtnImage(url)}
+                  label="رفع صورة زر الإرسال من الجهاز"
+                />
+                <input
+                  type="text"
+                  value={sendBtnImage}
+                  onChange={e => setSendBtnImage(e.target.value)}
+                  placeholder="أو أدخل رابط الصورة المباشر هنا..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-amber-500"
+                />
+                <p className="text-[10px] text-slate-400">
+                  إذا تركت فارغة، سيتم استخدام التصميم الافتراضي للزر الذهبي الأنيق.
+                </p>
+              </div>
+
+              {/* Count Button Image */}
+              <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3">
+                <label className="text-xs text-amber-300 font-bold block">
+                  صورة زر العداد (x1 Count Button Image)
+                </label>
+                <ImageUpload
+                  currentUrl={countBtnImage}
+                  onUpload={file => uploadGiftIcon(file, `gift_count_btn_${Date.now()}`)}
+                  onUrlChange={url => setCountBtnImage(url)}
+                  label="رفع صورة زر العداد من الجهاز"
+                />
+                <input
+                  type="text"
+                  value={countBtnImage}
+                  onChange={e => setCountBtnImage(e.target.value)}
+                  placeholder="أو أدخل رابط الصورة المباشر هنا..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-amber-500"
+                />
+                <p className="text-[10px] text-slate-400">
+                  إذا تركت فارغة، سيتم استخدام زر العداد الشفاف الافتراضي (x1).
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Logs Table (سجل عمليات ونفاذ محفظة الحظ) */}
+          <div className="bg-[#121214] border border-white/5 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">سجل عمليات وتعبئة ونفاذ محفظة الحظ بالسيرفر</h3>
+                  <p className="text-xs text-slate-400">سجل لحظي موثق لجميع حركات الإيداع والنفاذ وصرف الأرباح</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  const { data } = await supabase.from('lucky_pool_logs').select('*').order('created_at', { ascending: false }).limit(50);
+                  if (data) setPoolLogs(data);
+                }}
+                className="flex items-center gap-1.5 text-xs bg-white/5 hover:bg-white/10 text-slate-300 px-3 py-1.5 rounded-xl border border-white/10 transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                تحديث السجل
+              </button>
+            </div>
+
+            <div className="overflow-x-auto border border-white/5 rounded-xl">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="bg-black/40 text-slate-400 border-b border-white/5">
+                    <th className="p-3 font-semibold">التاريخ والوقت</th>
+                    <th className="p-3 font-semibold">نوع العملية</th>
+                    <th className="p-3 font-semibold">المبلغ</th>
+                    <th className="p-3 font-semibold">الرصيد قبل</th>
+                    <th className="p-3 font-semibold">الرصيد بعد</th>
+                    <th className="p-3 font-semibold">الملاحظات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {poolLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-500">
+                        لا توجد سجلات بعد في محفظة الحظ.
+                      </td>
+                    </tr>
+                  ) : (
+                    poolLogs.map(log => {
+                      const isRefill = log.log_type === 'manual_refill' || log.log_type === 'auto_refill';
+                      const isDepleted = log.log_type === 'depleted';
+                      return (
+                        <tr key={log.id} className="hover:bg-white/[0.02] transition">
+                          <td className="p-3 text-slate-400 whitespace-nowrap" dir="ltr">
+                            {new Date(log.created_at).toLocaleString('ar-EG')}
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            {log.log_type === 'manual_refill' ? (
+                              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg font-bold">
+                                ⚡ شحن يدوي
+                              </span>
+                            ) : log.log_type === 'auto_refill' ? (
+                              <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2.5 py-1 rounded-lg font-bold">
+                                🔄 شحن تلقائي
+                              </span>
+                            ) : log.log_type === 'depleted' ? (
+                              <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-lg font-bold">
+                                🚨 نفاذ الرصيد
+                              </span>
+                            ) : (
+                              <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2.5 py-1 rounded-lg font-bold">
+                                🎁 صرف أرباح
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 font-extrabold whitespace-nowrap">
+                            <span className={isRefill ? 'text-emerald-400' : isDepleted ? 'text-rose-400' : 'text-purple-400'}>
+                              {isRefill ? '+' : '-'}{Number(log.amount || 0).toLocaleString()} 🪙
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-400 whitespace-nowrap">
+                            {Number(log.balance_before || 0).toLocaleString()} 🪙
+                          </td>
+                          <td className="p-3 text-white font-bold whitespace-nowrap">
+                            {Number(log.balance_after || 0).toLocaleString()} 🪙
+                          </td>
+                          <td className="p-3 text-slate-300 max-w-xs truncate">
+                            {log.note || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

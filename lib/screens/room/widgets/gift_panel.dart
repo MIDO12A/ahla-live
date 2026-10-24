@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../config/r.dart';
@@ -340,7 +340,7 @@ class _GiftPanelState extends State<GiftPanel> {
                 GestureDetector(
                   onTap: _toggleSelectAll,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
                     margin: const EdgeInsets.only(right: 6),
                     decoration: BoxDecoration(
                       gradient: _isAllSelected
@@ -348,15 +348,15 @@ class _GiftPanelState extends State<GiftPanel> {
                               colors: [Color(0xFFFFD700), Color(0xFFDE880F)],
                             )
                           : null,
-                      color: _isAllSelected ? null : Colors.white.withValues(alpha: 0.08),
+                      color: _isAllSelected ? null : Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(14),
                       border: _isAllSelected
                           ? Border.all(color: Colors.amberAccent, width: 1.5)
-                          : Border.all(color: Colors.white12, width: 0.5),
+                          : Border.all(color: Colors.white24, width: 0.8),
                       boxShadow: _isAllSelected
                           ? [
                               BoxShadow(
-                                color: const Color(0xFFFFD700).withValues(alpha: 0.3),
+                                color: const Color(0xFFFFD700).withValues(alpha: 0.4),
                                 blurRadius: 6,
                               )
                             ]
@@ -364,11 +364,11 @@ class _GiftPanelState extends State<GiftPanel> {
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      'الكل',
+                      isAr ? (_isAllSelected ? '✓ تحديد الكل' : 'تحديد الكل') : (_isAllSelected ? '✓ All' : 'All'),
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight: _isAllSelected ? FontWeight.bold : FontWeight.normal,
-                        color: _isAllSelected ? Colors.black87 : Colors.white70,
+                        fontWeight: FontWeight.bold,
+                        color: _isAllSelected ? Colors.black87 : Colors.white,
                       ),
                     ),
                   ),
@@ -1308,31 +1308,39 @@ class _GiftPanelState extends State<GiftPanel> {
                         height: 30,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: dc.giftPanelCountBtnBgColor,
+                          color: dc.giftPanelCountBtnImage.isEmpty ? dc.giftPanelCountBtnBgColor : null,
+                          image: dc.giftPanelCountBtnImage.isNotEmpty
+                              ? DecorationImage(
+                                  image: R.cachedImage(dc.giftPanelCountBtnImage),
+                                  fit: BoxFit.contain,
+                                )
+                              : null,
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(8),
                             bottomLeft: Radius.circular(8),
                           ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${widget.selectedCount}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: dc.giftPanelCountBtnTextColor,
-                                fontWeight: FontWeight.bold,
+                        child: dc.giftPanelCountBtnImage.isNotEmpty
+                            ? const SizedBox.shrink()
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    '${widget.selectedCount}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: dc.giftPanelCountBtnTextColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  R.image(
+                                    R.roomGiftNumOpenIc,
+                                    width: 10,
+                                    height: 10,
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 4),
-                            R.image(
-                              R.roomGiftNumOpenIc,
-                              width: 10,
-                              height: 10,
-                            ),
-                          ],
-                        ),
                       ),
                     ),
                     // Send button (tv_gift_send 72x30dp)
@@ -1349,13 +1357,21 @@ class _GiftPanelState extends State<GiftPanel> {
                         height: 30,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          gradient: canAfford
-                              ? LinearGradient(
-                                  colors: [dc.giftPanelSendBtnGradientStart, dc.giftPanelSendBtnGradientEnd],
+                          gradient: dc.giftPanelSendBtnImage.isEmpty
+                              ? (canAfford
+                                  ? LinearGradient(
+                                      colors: [dc.giftPanelSendBtnGradientStart, dc.giftPanelSendBtnGradientEnd],
+                                    )
+                                  : const LinearGradient(
+                                      colors: [Color(0xFF666666), Color(0xFF444444)],
+                                    ))
+                              : null,
+                          image: dc.giftPanelSendBtnImage.isNotEmpty
+                              ? DecorationImage(
+                                  image: R.cachedImage(dc.giftPanelSendBtnImage),
+                                  fit: BoxFit.contain,
                                 )
-                              : const LinearGradient(
-                                  colors: [Color(0xFF666666), Color(0xFF444444)],
-                                ),
+                              : null,
                           borderRadius: const BorderRadius.only(
                             topRight: Radius.circular(8),
                             bottomRight: Radius.circular(8),
@@ -1370,14 +1386,16 @@ class _GiftPanelState extends State<GiftPanel> {
                                   color: Colors.white,
                                 ),
                               )
-                            : Text(
-                                'إرسال',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: dc.giftPanelSendBtnTextColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                            : (dc.giftPanelSendBtnImage.isNotEmpty
+                                ? const SizedBox.shrink()
+                                : Text(
+                                    'إرسال',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: dc.giftPanelSendBtnTextColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  )),
                       ),
                     ),
                   ],

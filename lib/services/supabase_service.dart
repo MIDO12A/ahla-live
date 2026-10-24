@@ -1352,7 +1352,7 @@ class SupabaseService {
   Stream<List<MessageModel>> privateMessagesStream(String conversationId) async* {
     while (true) {
       try {
-        final url = Uri.parse('$_baseUrl/rest/v1/private_messages?conversation_id=eq.$conversationId&order=timestamp.asc');
+        final url = Uri.parse('$_baseUrl/rest/v1/private_messages?or=(conversation_id.eq.$conversationId,conv_id.eq.$conversationId)&order=created_at.asc');
         final res = await http.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
@@ -1388,22 +1388,57 @@ class SupabaseService {
 
       final msgId = const Uuid().v4();
       final now = DateTime.now().millisecondsSinceEpoch;
+      final isoNow = DateTime.now().toUtc().toIso8601String();
+
       await http.post(
         Uri.parse('$_baseUrl/rest/v1/private_messages'),
         headers: _headers,
         body: jsonEncode({
           'id': msgId,
           'conversation_id': effectiveConvId,
+          'conv_id': effectiveConvId,
           'sender_uid': effectiveSenderUid,
           'receiver_uid': effectiveReceiverUid,
+          'sender_name': senderName,
+          'sender_photo_url': senderPhotoUrl ?? '',
+          'receiver_name': receiverName ?? '',
+          'receiver_photo_url': receiverPhotoUrl ?? '',
           'text': text,
           'type': type,
           'image_url': imageUrl,
           'timestamp': now,
-          'created_at': DateTime.now().toUtc().toIso8601String(),
+          'created_at': isoNow,
         }),
       );
-    } catch (_) {}
+
+      // مزامنة المحادثات لكلا الطرفين (Conversations Sync)
+      if (effectiveSenderUid.isNotEmpty && effectiveReceiverUid.isNotEmpty) {
+        unawaited(http.post(
+          Uri.parse('$_baseUrl/rest/v1/conversations'),
+          headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
+          body: jsonEncode([
+            {
+              'uid': effectiveSenderUid,
+              'conv_id': effectiveConvId,
+              'last_message': text.isNotEmpty ? text : (type == 'image' ? '[صورة]' : ''),
+              'last_sender_uid': effectiveSenderUid,
+              'last_timestamp': isoNow,
+              'unread_count': 0,
+            },
+            {
+              'uid': effectiveReceiverUid,
+              'conv_id': effectiveConvId,
+              'last_message': text.isNotEmpty ? text : (type == 'image' ? '[صورة]' : ''),
+              'last_sender_uid': effectiveSenderUid,
+              'last_timestamp': isoNow,
+              'unread_count': 1,
+            }
+          ]),
+        ).catchError((_) => http.Response('', 500)));
+      }
+    } catch (e) {
+      debugPrint('[SupabaseService] sendPrivateMessage error: $e');
+    }
   }
 
   Future<void> markConversationRead(String uid, String conversationId) async {

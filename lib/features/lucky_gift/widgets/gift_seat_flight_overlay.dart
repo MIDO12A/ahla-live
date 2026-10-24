@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../config/r.dart';
@@ -142,45 +142,21 @@ class _GiftSeatFlightOverlayState extends State<GiftSeatFlightOverlay>
                         opacity: flightOpacity,
                         child: Transform.scale(
                           scale: flightScale,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Glow
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFFFD700).withOpacity(0.5 * flightOpacity),
-                                      blurRadius: 14,
-                                      spreadRadius: 3,
-                                    ),
-                                  ],
+                          child: widget.giftIconUrl.startsWith('http')
+                              ? Image(
+                                  image: R.cachedImage(widget.giftIconUrl),
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.amber, size: 36),
+                                )
+                              : Image.asset(
+                                  widget.giftIconUrl,
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.amber, size: 36),
                                 ),
-                              ),
-
-                              // Gift Icon
-                              ClipOval(
-                                child: widget.giftIconUrl.startsWith('http')
-                                    ? Image(
-                                        image: R.cachedImage(widget.giftIconUrl),
-                                        width: 48,
-                                        height: 48,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.amber, size: 36),
-                                      )
-                                    : Image.asset(
-                                        widget.giftIconUrl,
-                                        width: 48,
-                                        height: 48,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.amber, size: 36),
-                                      ),
-                              ),
-                            ],
-                          ),
                         ),
                       ),
 
