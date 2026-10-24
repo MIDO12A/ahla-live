@@ -261,14 +261,27 @@ class _MessageScreenState extends State<MessageScreen>
                   _buildEmptyConversationView(isAr)
                 else
                   ..._conversations.map((conv) {
+                    final convId = conv['conversationId']?.toString() ?? conv['conv_id']?.toString() ?? conv['conversation_id']?.toString() ?? '';
+                    final oUid = conv['otherUid']?.toString() ?? conv['other_uid']?.toString() ?? '';
+                    final oName = conv['otherName']?.toString() ?? conv['other_name']?.toString() ?? '';
+                    final oPhoto = conv['otherPhotoUrl']?.toString() ?? conv['other_photo_url']?.toString() ?? '';
+                    final lastMsg = conv['lastMessage']?.toString() ?? conv['last_message']?.toString() ?? '';
+                    final unread = (conv['unreadCount'] as num?)?.toInt() ?? (conv['unread_count'] as num?)?.toInt() ?? 0;
+                    int lastTime = 0;
+                    final rawTime = conv['lastMessageTime'] ?? conv['last_timestamp'] ?? conv['timestamp'] ?? conv['last_time'];
+                    if (rawTime is int) {
+                      lastTime = rawTime;
+                    } else if (rawTime != null) {
+                      lastTime = DateTime.tryParse(rawTime.toString())?.millisecondsSinceEpoch ?? 0;
+                    }
                     return _buildConversationItem(
-                      conversationId: conv['conversationId'] as String? ?? '',
-                      otherUid: conv['otherUid'] as String? ?? '',
-                      otherName: conv['otherName'] as String? ?? '',
-                      otherPhotoUrl: conv['otherPhotoUrl'] as String? ?? '',
-                      lastMessage: conv['lastMessage'] as String? ?? '',
-                      lastMessageTime: conv['lastMessageTime'] as int? ?? 0,
-                      unread: conv['unreadCount'] as int? ?? 0,
+                      conversationId: convId,
+                      otherUid: oUid,
+                      otherName: oName,
+                      otherPhotoUrl: oPhoto,
+                      lastMessage: lastMsg,
+                      lastMessageTime: lastTime,
+                      unread: unread,
                       isOnline: conv['isOnline'] as bool? ?? false,
                     );
                   }),

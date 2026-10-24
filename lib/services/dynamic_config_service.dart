@@ -1208,6 +1208,10 @@ class DynamicConfigService extends ChangeNotifier {
   String get giftPanelStarBadgeImage => _screenStr('giftPanel', 'starBadgeImage', '');
   String get giftPanelSendBtnImage => _screenStr('giftPanel', 'sendBtnImage', '');
   String get giftPanelCountBtnImage => _screenStr('giftPanel', 'countBtnImage', '');
+  String get giftPanelSeatsSelectedImage => _screenStr('giftPanel', 'seatsSelectedImage', '');
+  String get giftPanelSeatsUnselectedImage => _screenStr('giftPanel', 'seatsUnselectedImage', '');
+  String get giftPanelRoomSelectedImage => _screenStr('giftPanel', 'roomSelectedImage', '');
+  String get giftPanelRoomUnselectedImage => _screenStr('giftPanel', 'roomUnselectedImage', '');
 
   // Wallet screen visuals
   String get walletBackgroundImage => _screenStr('wallet', 'backgroundImage', '');

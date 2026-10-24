@@ -18,6 +18,8 @@ class GiftPanel extends StatefulWidget {
   final int selectedCount;
   final int coins;
   final List<Map<String, dynamic>> targetUsers;
+  final List<Map<String, dynamic>> seatUsers;
+  final List<Map<String, dynamic>> allRoomUsers;
   final String roomId;
   final VoidCallback? onSend;
   final ValueChanged<String?>? onSendGift;
@@ -31,6 +33,8 @@ class GiftPanel extends StatefulWidget {
     this.selectedCount = 1,
     this.coins = 0,
     this.targetUsers = const [],
+    this.seatUsers = const [],
+    this.allRoomUsers = const [],
     this.roomId = '',
     this.onSend,
     this.onSendGift,
@@ -68,18 +72,103 @@ class _GiftPanelState extends State<GiftPanel> {
     _loadGifts();
   }
 
+  List<Map<String, dynamic>> get _allAvailableUsers {
+    final map = <String, Map<String, dynamic>>{};
+    for (final u in widget.seatUsers) {
+      final id = u['id']?.toString() ?? '';
+      if (id.isNotEmpty) map[id] = u;
+    }
+    for (final u in widget.targetUsers) {
+      final id = u['id']?.toString() ?? '';
+      if (id.isNotEmpty && !map.containsKey(id)) map[id] = u;
+    }
+    for (final u in widget.allRoomUsers) {
+      final id = u['id']?.toString() ?? '';
+      if (id.isNotEmpty && !map.containsKey(id)) map[id] = u;
+    }
+    return map.values.toList();
+  }
+
+  List<Map<String, dynamic>> get _effectiveSeatUsers {
+    if (widget.seatUsers.isNotEmpty) return widget.seatUsers;
+    return widget.targetUsers;
+  }
+
+  List<Map<String, dynamic>> get _effectiveRoomUsers {
+    if (widget.allRoomUsers.isNotEmpty) return widget.allRoomUsers;
+    return _allAvailableUsers;
+  }
+
+  bool get _isAllSeatsSelected {
+    final seats = _effectiveSeatUsers;
+    if (seats.isEmpty) return false;
+    final seatIds = seats.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+    if (seatIds.isEmpty) return false;
+    return seatIds.every((id) => _selectedUserIds.contains(id));
+  }
+
+  bool get _isAllRoomSelected {
+    final room = _effectiveRoomUsers;
+    if (room.isEmpty) return false;
+    final roomIds = room.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+    if (roomIds.isEmpty) return false;
+    return roomIds.every((id) => _selectedUserIds.contains(id));
+  }
+
+  void _toggleSelectSeats() {
+    final seats = _effectiveSeatUsers;
+    final seatIds = seats.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+    if (seatIds.isEmpty) return;
+
+    setState(() {
+      if (_isAllSeatsSelected) {
+        for (final id in seatIds) {
+          _selectedUserIds.remove(id);
+        }
+        if (seatIds.isNotEmpty) {
+          _selectedUserIds.add(seatIds.first);
+        }
+      } else {
+        _selectedUserIds.addAll(seatIds);
+      }
+    });
+  }
+
+  void _toggleSelectRoom() {
+    final room = _effectiveRoomUsers;
+    final roomIds = room.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+    if (roomIds.isEmpty) return;
+
+    setState(() {
+      if (_isAllRoomSelected) {
+        for (final id in roomIds) {
+          _selectedUserIds.remove(id);
+        }
+        if (roomIds.isNotEmpty) {
+          _selectedUserIds.add(roomIds.first);
+        }
+      } else {
+        _selectedUserIds.addAll(roomIds);
+      }
+    });
+  }
+
   void _initSelection() {
     _selectedUserIds.clear();
     if (widget.receiverId != null && widget.receiverId!.isNotEmpty) {
       _selectedUserIds.add(widget.receiverId!);
       _isAllSelected = false;
     } else {
-      _isAllSelected = true;
-      _selectedUserIds.addAll(
-        widget.targetUsers
-            .map((u) => u['id']?.toString() ?? '')
-            .where((id) => id.isNotEmpty),
-      );
+      _isAllSelected = false;
+      final list = widget.seatUsers.isNotEmpty
+          ? widget.seatUsers
+          : (widget.targetUsers.isNotEmpty ? widget.targetUsers : widget.allRoomUsers);
+      if (list.isNotEmpty) {
+        final firstId = list.first['id']?.toString() ?? '';
+        if (firstId.isNotEmpty) {
+          _selectedUserIds.add(firstId);
+        }
+      }
     }
   }
 
@@ -173,22 +262,6 @@ class _GiftPanelState extends State<GiftPanel> {
     return _gifts.where((g) => g.categoryId == _selectedCategoryId || (g.categoryId != null && (g.categoryId!.toLowerCase() == sel || g.categoryId!.contains(_selectedCategoryId!)))).toList();
   }
 
-  void _toggleSelectAll() {
-    setState(() {
-      if (_isAllSelected) {
-        _isAllSelected = false;
-        _selectedUserIds.clear();
-      } else {
-        _isAllSelected = true;
-        _selectedUserIds.clear();
-        _selectedUserIds.addAll(
-          widget.targetUsers
-              .map((u) => u['id']?.toString() ?? '')
-              .where((id) => id.isNotEmpty),
-        );
-      }
-    });
-  }
 
   void _toggleUser(String uid) {
     if (uid.isEmpty) return;
@@ -286,9 +359,145 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
+    Widget _buildSeatsSelectButton(DynamicConfigService dc, bool isAr) {
+    final isSelected = _isAllSeatsSelected;
+    final customImg = isSelected
+        ? dc.giftPanelSeatsSelectedImage
+        : dc.giftPanelSeatsUnselectedImage;
+
+    return GestureDetector(
+      onTap: _toggleSelectSeats,
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        margin: const EdgeInsets.only(right: 6),
+        decoration: BoxDecoration(
+          image: customImg.isNotEmpty
+              ? DecorationImage(
+                  image: R.cachedImage(customImg),
+                  fit: BoxFit.contain,
+                )
+              : null,
+          gradient: customImg.isEmpty
+              ? (isSelected
+                  ? const LinearGradient(
+                      colors: [Color(0xFFFFD700), Color(0xFFDE880F)],
+                    )
+                  : null)
+              : null,
+          color: customImg.isEmpty && !isSelected
+              ? Colors.white.withValues(alpha: 0.12)
+              : null,
+          borderRadius: BorderRadius.circular(14),
+          border: isSelected
+              ? Border.all(color: Colors.amberAccent, width: 1.5)
+              : Border.all(color: Colors.white24, width: 0.8),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFFFD700).withValues(alpha: 0.4),
+                    blurRadius: 6,
+                  )
+                ]
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: customImg.isNotEmpty
+            ? const SizedBox(width: 38, height: 38)
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isSelected ? Icons.check_circle_rounded : Icons.mic_rounded,
+                    size: 13,
+                    color: isSelected ? Colors.black87 : Colors.white70,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isAr ? 'المقاعد' : 'Seats',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.black87 : Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildRoomSelectButton(DynamicConfigService dc, bool isAr) {
+    final isSelected = _isAllRoomSelected;
+    final customImg = isSelected
+        ? dc.giftPanelRoomSelectedImage
+        : dc.giftPanelRoomUnselectedImage;
+
+    return GestureDetector(
+      onTap: _toggleSelectRoom,
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        margin: const EdgeInsets.only(right: 6),
+        decoration: BoxDecoration(
+          image: customImg.isNotEmpty
+              ? DecorationImage(
+                  image: R.cachedImage(customImg),
+                  fit: BoxFit.contain,
+                )
+              : null,
+          gradient: customImg.isEmpty
+              ? (isSelected
+                  ? const LinearGradient(
+                      colors: [Color(0xFFE040FB), Color(0xFF7C4DFF)],
+                    )
+                  : null)
+              : null,
+          color: customImg.isEmpty && !isSelected
+              ? Colors.white.withValues(alpha: 0.12)
+              : null,
+          borderRadius: BorderRadius.circular(14),
+          border: isSelected
+              ? Border.all(color: Colors.purpleAccent, width: 1.5)
+              : Border.all(color: Colors.white24, width: 0.8),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFE040FB).withValues(alpha: 0.4),
+                    blurRadius: 6,
+                  )
+                ]
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: customImg.isNotEmpty
+            ? const SizedBox(width: 38, height: 38)
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isSelected ? Icons.check_circle_rounded : Icons.groups_rounded,
+                    size: 14,
+                    color: isSelected ? Colors.white : Colors.white70,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isAr ? 'كل الغرفة' : 'All Room',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
   Widget _buildHeader(DynamicConfigService dc) {
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
-    final users = widget.targetUsers;
+    final users = _allAvailableUsers.isNotEmpty ? _allAvailableUsers : widget.targetUsers;
     final List<GiftCategory> allTabs = [];
     allTabs.add(GiftCategory(id: 'all', name: isAr ? 'الكل' : 'All', sortOrder: -999));
 
@@ -337,42 +546,8 @@ class _GiftPanelState extends State<GiftPanel> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                GestureDetector(
-                  onTap: _toggleSelectAll,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    margin: const EdgeInsets.only(right: 6),
-                    decoration: BoxDecoration(
-                      gradient: _isAllSelected
-                          ? const LinearGradient(
-                              colors: [Color(0xFFFFD700), Color(0xFFDE880F)],
-                            )
-                          : null,
-                      color: _isAllSelected ? null : Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                      border: _isAllSelected
-                          ? Border.all(color: Colors.amberAccent, width: 1.5)
-                          : Border.all(color: Colors.white24, width: 0.8),
-                      boxShadow: _isAllSelected
-                          ? [
-                              BoxShadow(
-                                color: const Color(0xFFFFD700).withValues(alpha: 0.4),
-                                blurRadius: 6,
-                              )
-                            ]
-                          : null,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      isAr ? (_isAllSelected ? '✓ تحديد الكل' : 'تحديد الكل') : (_isAllSelected ? '✓ All' : 'All'),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: _isAllSelected ? Colors.black87 : Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
+                _buildSeatsSelectButton(dc, isAr),
+                _buildRoomSelectButton(dc, isAr),
                 for (int idx = 0; idx < users.length; idx++)
                   _buildHeaderUserItem(users[idx], idx),
               ],
@@ -762,7 +937,8 @@ class _GiftPanelState extends State<GiftPanel> {
     if (_sel < 0 || _sel >= _gifts.length) return;
 
     final gift = _gifts[_sel];
-    final selectedTargets = widget.targetUsers
+    final allUsers = _allAvailableUsers.isNotEmpty ? _allAvailableUsers : widget.targetUsers;
+    final selectedTargets = allUsers
         .where((u) => _selectedUserIds.contains(u['id']?.toString()))
         .toList();
 
@@ -1111,9 +1287,7 @@ class _GiftPanelState extends State<GiftPanel> {
 
   Widget _buildBottomOperate(DynamicConfigService dc) {
     final gift = _sel >= 0 && _sel < _gifts.length ? _gifts[_sel] : null;
-    final selectedTargetsCount = widget.targetUsers
-        .where((u) => _selectedUserIds.contains(u['id']?.toString()))
-        .length;
+    final selectedTargetsCount = _selectedUserIds.length;
     final totalCost = gift != null ? gift.value * widget.selectedCount * (selectedTargetsCount > 0 ? selectedTargetsCount : 1) : 0;
     final currUser = Provider.of<UserProvider>(context).currentUser;
     final liveCoins = currUser != null ? currUser.coins : widget.coins;

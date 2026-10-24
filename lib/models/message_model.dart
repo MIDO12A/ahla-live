@@ -1,4 +1,4 @@
-﻿class MessageModel {
+class MessageModel {
   final String msgId;
   final String roomId;
   final String senderUid;
@@ -53,9 +53,9 @@
             : null);
 
     return MessageModel(
-      msgId: map['msg_id']?.toString() ?? '',
-      roomId: map['room_id']?.toString() ?? '',
-      senderUid: map['sender_uid']?.toString() ?? '',
+      msgId: map['msg_id']?.toString() ?? map['id']?.toString() ?? '',
+      roomId: map['room_id']?.toString() ?? map['roomId']?.toString() ?? '',
+      senderUid: map['sender_uid']?.toString() ?? map['senderId']?.toString() ?? '',
       senderName: map['sender_name']?.toString() ?? '',
       senderPhotoUrl: map['sender_photo_url']?.toString() ?? '',
       text: textVal,

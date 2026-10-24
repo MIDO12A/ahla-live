@@ -151,6 +151,21 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
     final user = userProvider.currentUser;
     if (user == null) return;
 
+    // Optimistic UI insertion so message appears instantly
+    final tempMsg = MessageModel(
+      msgId: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      senderUid: user.uid,
+      senderName: user.name ?? '',
+      senderPhotoUrl: user.photoUrl ?? '',
+      text: text,
+      type: 'text',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+    setState(() {
+      _messages.add(tempMsg);
+    });
+    _scrollToBottom();
+
     try {
       await _firebaseService.sendPrivateMessage(
         conversationId: _conversationId,

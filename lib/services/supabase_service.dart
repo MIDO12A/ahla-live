@@ -323,32 +323,49 @@ class SupabaseService {
         }),
       ).timeout(const Duration(seconds: 8));
 
+      bool rpcSucceeded = false;
       if (rpcRes.statusCode >= 200 && rpcRes.statusCode < 300) {
-        final Map<String, dynamic> rpcData = jsonDecode(rpcRes.body) as Map<String, dynamic>;
-        if (rpcData['success'] != true) {
-          debugPrint('[SupabaseService] process_lucky_gift failed: ${rpcData['error']}');
+        try {
+          final Map<String, dynamic> rpcData = jsonDecode(rpcRes.body) as Map<String, dynamic>;
+          if (rpcData['success'] == true) {
+            totalWonCoins = (rpcData['won_coins'] as num?)?.toInt() ?? 0;
+            maxMultiplier = (rpcData['multiplier'] as num?)?.toInt() ?? 0;
+            isBigWin = rpcData['is_big_win'] == true || maxMultiplier >= 50;
+            serverNewBalance = (rpcData['new_balance'] as num?)?.toInt() ?? 0;
+            final rawMults = rpcData['multipliers'] as List<dynamic>?;
+            if (rawMults != null) {
+              multipliers = rawMults.map((e) => (e as num).toInt()).toList();
+            } else {
+              multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count);
+            }
+            rpcSucceeded = true;
+          } else {
+            debugPrint('[SupabaseService] process_lucky_gift returned error: ${rpcData['error']}');
+            if (rpcData['error']?.toString().contains('غير كاف') == true) {
+              return null; // Insufficient coins confirmed by database
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (!rpcSucceeded) {
+        // Fallback آمن يضمن خصم الكوينز وحساب الحظ دون تعليق
+        debugPrint('[SupabaseService] process_lucky_gift fallback triggered');
+        final sUser = await _ds.getUser(senderId);
+        final currentCoins = sUser?.coins ?? 0;
+        if (currentCoins < totalCost) {
+          debugPrint('[SupabaseService] Fallback insufficient coins: have $currentCoins, need $totalCost');
           return null;
         }
-        totalWonCoins = (rpcData['won_coins'] as num?)?.toInt() ?? 0;
-        maxMultiplier = (rpcData['multiplier'] as num?)?.toInt() ?? 0;
-        isBigWin = rpcData['is_big_win'] == true || maxMultiplier >= 50;
-        serverNewBalance = (rpcData['new_balance'] as num?)?.toInt() ?? 0;
-        final rawMults = rpcData['multipliers'] as List<dynamic>?;
-        if (rawMults != null) {
-          multipliers = rawMults.map((e) => (e as num).toInt()).toList();
-        } else {
-          multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count);
-        }
-      } else {
-        // Fallback في حال لم يتم تنفيذ الـ SQL بعد على السيرفر
-        debugPrint('[SupabaseService] RPC status ${rpcRes.statusCode}, using fallback');
+
         multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count);
         for (final m in multipliers) {
           totalWonCoins += (value * m);
+          if (m > maxMultiplier) maxMultiplier = m;
         }
-        final sUser = await _ds.getUser(senderId);
-        final currentCoins = sUser?.coins ?? 0;
+        isBigWin = maxMultiplier >= 50;
         serverNewBalance = math.max(0, currentCoins - totalCost + totalWonCoins);
+
         await _ds.updateUser(senderId, {
           'coins': serverNewBalance,
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
@@ -573,7 +590,14 @@ class SupabaseService {
       }
 
       // 3. تسجيل الهدية وبثها في الغرفة
-      final effectiveIcon = animationAsset ?? defaultImage ?? '';
+      final animAsset = animationAsset ?? '';
+      final staticCover = (defaultImage != null && defaultImage.isNotEmpty)
+          ? defaultImage!
+          : ((animAsset.isNotEmpty && !animAsset.endsWith('.svga') && !animAsset.endsWith('.vap') && !animAsset.endsWith('.mp4'))
+              ? animAsset
+              : '');
+      final effectiveIcon = animAsset.isNotEmpty ? animAsset : staticCover;
+
       unawaited(_ds.recordSentGift(
         roomId: roomId,
         giftId: giftId,
@@ -589,6 +613,18 @@ class SupabaseService {
       ).catchError((_) => false));
       unawaited(_ds.incrementRoomGifts(roomId, totalCost));
 
+      final giftPayload = {
+        'gift_id': giftId,
+        'gift_name': giftName,
+        'gift_icon': staticCover.isNotEmpty ? staticCover : effectiveIcon,
+        'image_url': staticCover.isNotEmpty ? staticCover : effectiveIcon,
+        'default_image': staticCover,
+        'count': count,
+        'value': value,
+        'receiver_name': receiverName,
+        'animation_asset': animAsset,
+      };
+
       unawaited(_ds.sendMessage(MessageModel(
         msgId: const Uuid().v4(),
         roomId: roomId,
@@ -597,7 +633,8 @@ class SupabaseService {
         senderPhotoUrl: senderPhotoUrl ?? '',
         type: 'gift',
         text: '$senderName أرسل $giftName x$count إلى $receiverName',
-        imageUrl: effectiveIcon,
+        imageUrl: staticCover.isNotEmpty ? staticCover : effectiveIcon,
+        giftPayload: giftPayload,
         timestamp: DateTime.now().millisecondsSinceEpoch,
       )).catchError((_) => false));
 
@@ -1352,7 +1389,16 @@ class SupabaseService {
   Stream<List<MessageModel>> privateMessagesStream(String conversationId) async* {
     while (true) {
       try {
-        final url = Uri.parse('$_baseUrl/rest/v1/private_messages?or=(conversation_id.eq.$conversationId,conv_id.eq.$conversationId)&order=created_at.asc');
+        final convParts = conversationId.split('_');
+        String filter = 'or=(conversation_id.eq.$conversationId,conv_id.eq.$conversationId';
+        if (convParts.length == 2 && convParts[0].isNotEmpty && convParts[1].isNotEmpty) {
+          final u1 = convParts[0];
+          final u2 = convParts[1];
+          filter += ',and(sender_uid.eq.$u1,receiver_uid.eq.$u2),and(sender_uid.eq.$u2,receiver_uid.eq.$u1)';
+        }
+        filter += ')&order=created_at.asc';
+
+        final url = Uri.parse('$_baseUrl/rest/v1/private_messages?$filter');
         final res = await http.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
@@ -1380,6 +1426,10 @@ class SupabaseService {
     try {
       final effectiveSenderUid = senderId ?? senderUid ?? '';
       final effectiveReceiverUid = receiverId ?? receiverUid ?? '';
+      if (effectiveSenderUid.isEmpty || effectiveReceiverUid.isEmpty) {
+        debugPrint('[SupabaseService] sendPrivateMessage aborted: empty sender ($effectiveSenderUid) or receiver ($effectiveReceiverUid)');
+        return;
+      }
       final effectiveConvId = (conversationId != null && conversationId.isNotEmpty)
           ? conversationId
           : (effectiveSenderUid.compareTo(effectiveReceiverUid) < 0
@@ -1390,52 +1440,71 @@ class SupabaseService {
       final now = DateTime.now().millisecondsSinceEpoch;
       final isoNow = DateTime.now().toUtc().toIso8601String();
 
-      await http.post(
+      final msgBody = {
+        'id': msgId,
+        'msg_id': msgId,
+        'conversation_id': effectiveConvId,
+        'conv_id': effectiveConvId,
+        'sender_uid': effectiveSenderUid,
+        'receiver_uid': effectiveReceiverUid,
+        'sender_name': senderName,
+        'sender_photo_url': senderPhotoUrl ?? '',
+        'receiver_name': receiverName ?? '',
+        'receiver_photo_url': receiverPhotoUrl ?? '',
+        'text': text,
+        'type': type,
+        'image_url': imageUrl,
+        'timestamp': now,
+        'created_at': isoNow,
+      };
+
+      final msgRes = await http.post(
         Uri.parse('$_baseUrl/rest/v1/private_messages'),
         headers: _headers,
-        body: jsonEncode({
-          'id': msgId,
-          'conversation_id': effectiveConvId,
-          'conv_id': effectiveConvId,
-          'sender_uid': effectiveSenderUid,
-          'receiver_uid': effectiveReceiverUid,
-          'sender_name': senderName,
-          'sender_photo_url': senderPhotoUrl ?? '',
-          'receiver_name': receiverName ?? '',
-          'receiver_photo_url': receiverPhotoUrl ?? '',
-          'text': text,
-          'type': type,
-          'image_url': imageUrl,
-          'timestamp': now,
-          'created_at': isoNow,
-        }),
+        body: jsonEncode(msgBody),
       );
 
-      // مزامنة المحادثات لكلا الطرفين (Conversations Sync)
-      if (effectiveSenderUid.isNotEmpty && effectiveReceiverUid.isNotEmpty) {
-        unawaited(http.post(
-          Uri.parse('$_baseUrl/rest/v1/conversations'),
-          headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
-          body: jsonEncode([
-            {
-              'uid': effectiveSenderUid,
-              'conv_id': effectiveConvId,
-              'last_message': text.isNotEmpty ? text : (type == 'image' ? '[صورة]' : ''),
-              'last_sender_uid': effectiveSenderUid,
-              'last_timestamp': isoNow,
-              'unread_count': 0,
-            },
-            {
-              'uid': effectiveReceiverUid,
-              'conv_id': effectiveConvId,
-              'last_message': text.isNotEmpty ? text : (type == 'image' ? '[صورة]' : ''),
-              'last_sender_uid': effectiveSenderUid,
-              'last_timestamp': isoNow,
-              'unread_count': 1,
-            }
-          ]),
-        ).catchError((_) => http.Response('', 500)));
+      if (msgRes.statusCode < 200 || msgRes.statusCode >= 300) {
+        debugPrint('[SupabaseService] private_messages HTTP status: ${msgRes.statusCode} - ${msgRes.body}');
+        try {
+          await Supabase.instance.client.from('private_messages').insert(msgBody);
+        } catch (err) {
+          debugPrint('[SupabaseService] private_messages SDK insert fallback: $err');
+        }
       }
+
+      // مزامنة المحادثات لكلا الطرفين (Conversations Sync)
+      final lastMsgText = text.isNotEmpty ? text : (type == 'image' ? '[صورة]' : '');
+      final senderConv = {
+        'uid': effectiveSenderUid,
+        'conv_id': effectiveConvId,
+        'conversation_id': effectiveConvId,
+        'other_uid': effectiveReceiverUid,
+        'other_name': receiverName ?? '',
+        'other_photo_url': receiverPhotoUrl ?? '',
+        'last_message': lastMsgText,
+        'last_sender_uid': effectiveSenderUid,
+        'last_timestamp': isoNow,
+        'unread_count': 0,
+      };
+      final receiverConv = {
+        'uid': effectiveReceiverUid,
+        'conv_id': effectiveConvId,
+        'conversation_id': effectiveConvId,
+        'other_uid': effectiveSenderUid,
+        'other_name': senderName,
+        'other_photo_url': senderPhotoUrl ?? '',
+        'last_message': lastMsgText,
+        'last_sender_uid': effectiveSenderUid,
+        'last_timestamp': isoNow,
+        'unread_count': 1,
+      };
+
+      unawaited(http.post(
+        Uri.parse('$_baseUrl/rest/v1/conversations'),
+        headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
+        body: jsonEncode([senderConv, receiverConv]),
+      ).catchError((_) => http.Response('', 500)));
     } catch (e) {
       debugPrint('[SupabaseService] sendPrivateMessage error: $e');
     }

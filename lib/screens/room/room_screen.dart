@@ -991,6 +991,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Timer? _taskStayTimer; // ✅ تتبع مدة التواجد في الغرفة والمايك للمهام اليومية
   final RoomAudioService _roomAudio = RoomAudioService();
   bool _takingSeat = false;
+  bool _isClaimingCupReward = false;
   int? _pendingSeatIndex;
   int? _currentUserSeatIndex;
   Map<int, Map<String, dynamic>>? _lastProcessedSeatMap;
@@ -4744,7 +4745,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             // iv_gift_icon (40×40)
-                            _buildStaticGiftIcon(giftIcon, size: 40),
+                            _buildStaticGiftIcon(giftIcon, size: 40, giftName: giftName, giftId: giftId),
                             const SizedBox(width: 8),
                             // tv_gift_num (13sp, color #FFEB3B)
                             Text(

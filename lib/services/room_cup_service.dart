@@ -117,6 +117,7 @@ class RoomCupService {
   factory RoomCupService() => _instance;
   RoomCupService._internal();
 
+  static final Set<String> _claimingRooms = {};
   RoomOwnerCupConfig? _cachedConfig;
   DateTime? _lastFetch;
 
@@ -156,19 +157,26 @@ class RoomCupService {
     required bool isWeekly,
     bool force = false,
   }) async {
+    if (_claimingRooms.contains(roomId)) {
+      return {'ok': false, 'message': 'جاري استلام المكافأة، يرجى الانتظار...'};
+    }
+    _claimingRooms.add(roomId);
+
     final cfg = await getConfig(refresh: true);
     final periodConfig = isWeekly ? cfg.weekly : cfg.daily;
 
     if (!periodConfig.enabled && !force) {
+      _claimingRooms.remove(roomId);
       return {'ok': false, 'message': 'نظام كأس الغرفة معطل حالياً'};
     }
 
     try {
       final sb = Supabase.instance.client;
 
-      // 1. Fetch Room Owner (host_uid)
-      final roomData = await sb.from('rooms').select('room_id, name, host_uid, host_name').eq('room_id', roomId).maybeSingle();
+      // 1. Fetch Room Owner (host_uid) and last claim timestamp
+      final roomData = await sb.from('rooms').select('room_id, name, host_uid, host_name, last_cup_claim_at, created_at').eq('room_id', roomId).maybeSingle();
       if (roomData == null) {
+        _claimingRooms.remove(roomId);
         return {'ok': false, 'message': 'الغرفة غير موجودة'};
       }
 
@@ -177,10 +185,11 @@ class RoomCupService {
       final ownerName = roomData['host_name']?.toString() ?? 'مالك الغرفة';
 
       if (ownerUid.isEmpty) {
+        _claimingRooms.remove(roomId);
         return {'ok': false, 'message': 'لا يوجد معرف مالك محدد للغرفة'};
       }
 
-      // 2. Fetch sent gifts in timeframe according to schedule
+      // 2. Fetch sent gifts strictly since last claim or within cutoff
       final now = DateTime.now().toUtc();
       final Duration timeframe = periodConfig.disbursementSchedule == 'daily'
           ? const Duration(days: 1)
@@ -190,7 +199,38 @@ class RoomCupService {
                   ? Duration(days: periodConfig.customDays > 0 ? periodConfig.customDays : 7)
                   : const Duration(days: 7);
 
-      final cutoff = now.subtract(timeframe);
+      DateTime cutoff = now.subtract(timeframe);
+      final lastClaimStr = roomData['last_cup_claim_at']?.toString();
+      DateTime? lastClaim;
+      if (lastClaimStr != null && lastClaimStr.isNotEmpty) {
+        lastClaim = DateTime.tryParse(lastClaimStr)?.toUtc();
+        if (lastClaim != null && lastClaim.isAfter(cutoff)) {
+          cutoff = lastClaim; // Only count gifts since the last claim!
+        }
+      }
+
+      // Period completion check
+      final roomCreatedAtStr = roomData['created_at']?.toString();
+      final roomCreatedAt = (roomCreatedAtStr != null && roomCreatedAtStr.isNotEmpty) ? DateTime.tryParse(roomCreatedAtStr)?.toUtc() : null;
+      final periodAnchor = lastClaim ?? roomCreatedAt;
+
+      if (!force && periodAnchor != null) {
+        if (periodConfig.disbursementSchedule == 'weekly') {
+          final diffDays = now.difference(periodAnchor).inDays;
+          if (diffDays < 7) {
+            final daysRem = 7 - diffDays;
+            _claimingRooms.remove(roomId);
+            return {'ok': false, 'message': 'يتاح استلام مكافأة كأس الأسبوع بعد اكتمال 7 أيام بالكامل (متبقي $daysRem يوم)'};
+          }
+        } else if (periodConfig.disbursementSchedule == 'daily') {
+          final diffHours = now.difference(periodAnchor).inHours;
+          if (diffHours < 24) {
+            final hoursRem = 24 - diffHours;
+            _claimingRooms.remove(roomId);
+            return {'ok': false, 'message': 'يتاح استلام مكافأة كأس اليوم بعد اكتمال 24 ساعة (متبقي $hoursRem ساعة)'};
+          }
+        }
+      }
 
       final res = await sb
           .from('sent_gifts')
@@ -212,6 +252,7 @@ class RoomCupService {
           : periodConfig.minRoomCoinsToQualify;
 
       if (roomTotalCoins < minCoinsToQualify && !force) {
+        _claimingRooms.remove(roomId);
         return {
           'ok': false,
           'message': 'إجمالي كوينز الغرفة ($roomTotalCoins) لم يصل للحد الأدنى ($minCoinsToQualify)'
@@ -237,40 +278,49 @@ class RoomCupService {
 
       final ownerProfitCoins = ((roomTotalCoins * appliedPercentage) / 100).round() + bonusCoins;
 
-      if (ownerProfitCoins > 0) {
-        // 3. Deposit coins directly to Room Owner
-        final uData = await sb.from('users').select('coins').or('uid.eq.$ownerUid,id.eq.$ownerUid').maybeSingle();
-        final curCoins = (uData?['coins'] as num?)?.toInt() ?? 0;
-        await sb.from('users').update({'coins': curCoins + ownerProfitCoins}).or('uid.eq.$ownerUid,id.eq.$ownerUid');
-
-        // 4. Deliver trophy frame or badge to Owner's backpack
-        if (periodConfig.svgaFrame.isNotEmpty || periodConfig.badgeIcon.isNotEmpty) {
-          final expiresAt = DateTime.now().add(Duration(days: periodConfig.daysValid)).toIso8601String();
-          await sb.from('user_backpack').insert({
-            'user_id': ownerUid,
-            'item_id': 'owner_cup_${isWeekly ? 'weekly' : 'daily'}_${DateTime.now().millisecondsSinceEpoch}',
-            'item_name': 'كأس الغرفة - $roomName',
-            'item_type': periodConfig.svgaFrame.isNotEmpty ? 'frame' : 'badge',
-            'item_icon': periodConfig.badgeIcon,
-            'item_svga': periodConfig.svgaFrame,
-            'duration_days': periodConfig.daysValid,
-            'expires_at': expiresAt,
-            'created_at': DateTime.now().toIso8601String(),
-            'is_equipped': true,
-            'source': 'owner_room_cup_${isWeekly ? 'weekly' : 'daily'}',
-          });
-        }
-
-        // 5. Send official system notification to the Owner
-        final tierLabel = matchedMilestone?.label.isNotEmpty == true ? ' [${matchedMilestone!.label}]' : '';
-        await SupabaseDataService().sendNotification(
-          uid: ownerUid,
-          type: 'room_cup_award',
-          actorUid: ownerUid,
-          title: '🏆 مبروك! أرباح كأس الغرفة لغرفتك$tierLabel',
-          body: 'تهانينا لمالك غرفة "$roomName"! حققت غرفتك إجمالي دعم $roomTotalCoins كوينز، وتم إيداع أرباح الكأس بنسبة $appliedPercentage% بإجمالي: +$ownerProfitCoins كوينز في محفظتك بنجاح 🎁!',
-        );
+      if (ownerProfitCoins <= 0) {
+        _claimingRooms.remove(roomId);
+        return {'ok': false, 'message': 'لا توجد أرباح كوينز مؤهلة للاستلام حالياً'};
       }
+
+      // 3. Deposit coins directly to Room Owner
+      final uData = await sb.from('users').select('coins').or('uid.eq.$ownerUid,id.eq.$ownerUid').maybeSingle();
+      final curCoins = (uData?['coins'] as num?)?.toInt() ?? 0;
+      final newTotalBalance = curCoins + ownerProfitCoins;
+      await sb.from('users').update({'coins': newTotalBalance}).or('uid.eq.$ownerUid,id.eq.$ownerUid');
+
+      // 4. RESET COUNTER: Stamp last_cup_claim_at on room so counter is immediately zeroed out
+      await sb.from('rooms').update({
+        'last_cup_claim_at': now.toIso8601String(),
+      }).eq('room_id', roomId);
+
+      // 5. Deliver trophy frame or badge to Owner's backpack
+      if (periodConfig.svgaFrame.isNotEmpty || periodConfig.badgeIcon.isNotEmpty) {
+        final expiresAt = DateTime.now().add(Duration(days: periodConfig.daysValid)).toIso8601String();
+        unawaited(sb.from('user_backpack').insert({
+          'user_id': ownerUid,
+          'item_id': 'owner_cup_${isWeekly ? 'weekly' : 'daily'}_${DateTime.now().millisecondsSinceEpoch}',
+          'item_name': 'كأس الغرفة - $roomName',
+          'item_type': periodConfig.svgaFrame.isNotEmpty ? 'frame' : 'badge',
+          'item_icon': periodConfig.badgeIcon,
+          'item_svga': periodConfig.svgaFrame,
+          'duration_days': periodConfig.daysValid,
+          'expires_at': expiresAt,
+          'created_at': DateTime.now().toIso8601String(),
+          'is_equipped': true,
+          'source': 'owner_room_cup_${isWeekly ? 'weekly' : 'daily'}',
+        }));
+      }
+
+      // 6. Send official system notification to the Owner
+      final tierLabel = matchedMilestone?.label.isNotEmpty == true ? ' [${matchedMilestone!.label}]' : '';
+      unawaited(SupabaseDataService().sendNotification(
+        uid: ownerUid,
+        type: 'room_cup_award',
+        actorUid: ownerUid,
+        title: '🏆 مبروك! أرباح كأس الغرفة لغرفتك$tierLabel',
+        body: 'تهانينا لمالك غرفة "$roomName"! حققت غرفتك إجمالي دعم $roomTotalCoins كوينز، وتم إيداع أرباح الكأس بنسبة $appliedPercentage% بإجمالي: +$ownerProfitCoins كوينز في محفظتك بنجاح 🎁!',
+      ));
 
       return {
         'ok': true,
@@ -279,11 +329,14 @@ class RoomCupService {
         'ownerName': ownerName,
         'appliedPercentage': appliedPercentage,
         'ownerProfitCoins': ownerProfitCoins,
+        'newBalance': newTotalBalance,
         'matchedTierName': matchedMilestone?.label ?? '',
       };
     } catch (e) {
       debugPrint('[RoomCupService] Settlement error: $e');
       return {'ok': false, 'error': e.toString()};
+    } finally {
+      _claimingRooms.remove(roomId);
     }
   }
 
@@ -294,7 +347,7 @@ class RoomCupService {
       final periodConfig = isWeekly ? cfg.weekly : cfg.daily;
       final sb = Supabase.instance.client;
 
-      final roomData = await sb.from('rooms').select('room_id, name, host_uid, host_name').eq('room_id', roomId).maybeSingle();
+      final roomData = await sb.from('rooms').select('room_id, name, host_uid, host_name, last_cup_claim_at, created_at').eq('room_id', roomId).maybeSingle();
       if (roomData == null) return {'ok': false};
 
       final ownerUid = roomData['host_uid']?.toString() ?? '';
@@ -307,7 +360,39 @@ class RoomCupService {
                   ? Duration(days: periodConfig.customDays > 0 ? periodConfig.customDays : 7)
                   : const Duration(days: 7);
 
-      final cutoff = now.subtract(timeframe);
+      DateTime cutoff = now.subtract(timeframe);
+      final lastClaimStr = roomData['last_cup_claim_at']?.toString();
+      DateTime? lastClaim;
+      if (lastClaimStr != null && lastClaimStr.isNotEmpty) {
+        lastClaim = DateTime.tryParse(lastClaimStr)?.toUtc();
+        if (lastClaim != null && lastClaim.isAfter(cutoff)) {
+          cutoff = lastClaim; // Tally is zeroed out since last claim!
+        }
+      }
+
+      // Check period completion status
+      final roomCreatedAtStr = roomData['created_at']?.toString();
+      final roomCreatedAt = (roomCreatedAtStr != null && roomCreatedAtStr.isNotEmpty) ? DateTime.tryParse(roomCreatedAtStr)?.toUtc() : null;
+      final periodAnchor = lastClaim ?? roomCreatedAt;
+      bool isPeriodCompleted = true;
+      int remainingDays = 0;
+      int remainingHours = 0;
+
+      if (periodAnchor != null) {
+        if (periodConfig.disbursementSchedule == 'weekly') {
+          final diffDays = now.difference(periodAnchor).inDays;
+          if (diffDays < 7) {
+            isPeriodCompleted = false;
+            remainingDays = 7 - diffDays;
+          }
+        } else if (periodConfig.disbursementSchedule == 'daily') {
+          final diffHours = now.difference(periodAnchor).inHours;
+          if (diffHours < 24) {
+            isPeriodCompleted = false;
+            remainingHours = 24 - diffHours;
+          }
+        }
+      }
 
       final res = await sb
           .from('sent_gifts')
@@ -355,7 +440,7 @@ class RoomCupService {
           ? periodConfig.milestones.map((m) => m.minCoins).reduce((a, b) => a < b ? a : b)
           : periodConfig.minRoomCoinsToQualify;
 
-      final isQualified = roomTotalCoins >= minCoinsToQualify;
+      final isQualified = roomTotalCoins >= minCoinsToQualify && isPeriodCompleted;
 
       return {
         'ok': true,
@@ -365,12 +450,16 @@ class RoomCupService {
         'appliedPercentage': appliedPercentage,
         'ownerProfitCoins': ownerProfitCoins,
         'isQualified': isQualified,
+        'isPeriodCompleted': isPeriodCompleted,
+        'lastClaimAt': lastClaimStr,
         'ownerUid': ownerUid,
         'matchedTierName': matchedMilestone?.label ?? '',
         'matchedTierMinCoins': matchedMilestone?.minCoins ?? 0,
         'nextTierName': nextMilestone?.label ?? '',
         'nextTierCoins': nextMilestone?.minCoins ?? 0,
         'disbursementSchedule': periodConfig.disbursementSchedule,
+        'remainingDays': remainingDays,
+        'remainingHours': remainingHours,
         'payoutMethod': periodConfig.payoutMethod,
       };
     } catch (e) {
@@ -378,4 +467,3 @@ class RoomCupService {
     }
   }
 }
-
