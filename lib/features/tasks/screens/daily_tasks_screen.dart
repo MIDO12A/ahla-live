@@ -47,6 +47,10 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final uid = userProvider.currentUser?.uid ?? '';
 
+    if (uid.isNotEmpty) {
+      await TaskService().recordActionByType(uid, 'login');
+    }
+
     final banner = await TaskService().fetchEventBanner();
     final list = await TaskService().fetchTasks(uid);
 
@@ -60,7 +64,25 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
   }
 
   List<TaskModel> _filterByGroup(String group) {
+    if (group == 'daily') {
+      return _tasks.where((t) => t.group == 'daily').toList();
+    }
+    if (group == 'host') {
+      return _tasks.where((t) => t.group == 'host' || t.group == 'growth' || t.titleAr.contains('مضيف') || t.descriptionAr.contains('مضيف')).toList();
+    }
+    if (group == 'agency') {
+      return _tasks.where((t) => t.group == 'agency' || t.group == 'lucky' || t.titleAr.contains('وكيل') || t.descriptionAr.contains('وكيل')).toList();
+    }
     return _tasks.where((t) => t.group == group).toList();
+  }
+
+  Future<void> _claimAll() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final uid = userProvider.currentUser?.uid ?? '';
+    if (uid.isEmpty) return;
+
+    await TaskService().claimAllAvailableRewards(context, uid, _tasks);
+    await _loadData();
   }
 
   void _handleTaskAction(TaskModel task) {
@@ -279,71 +301,114 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
     );
   }
 
-  /// رصيد المستخدم من العملات ونقاط الخبرة
+  /// رصيد المستخدم من العملات ونقاط الخبرة وزر استلام الكل
   Widget _buildUserHeader(dynamic user) {
     final coins = user?.coins ?? 0;
     final exp = user?.experience ?? 0;
+    final canClaimAny = _tasks.any((t) => t.canClaim);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 15),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFF9FAFC),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFEAEFF5)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Row(
-            children: [
-              R.loadAsset(
-                'assets/images/ic_min_coins.png',
-                width: 22,
-                height: 22,
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('العملات الذهبية', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
-                  Text(
-                    '$coins',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFFFB606),
+          Expanded(
+            child: Row(
+              children: [
+                R.loadAsset(
+                  'assets/images/ic_min_coins.png',
+                  width: 22,
+                  height: 22,
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('العملات الذهبية', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
+                    Text(
+                      '$coins',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFFFB606),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
           Container(width: 1, height: 26, color: const Color(0xFFE2E7ED)),
-          Row(
-            children: [
-              R.loadAsset(
-                'assets/images/sunlight_task.png',
-                width: 22,
-                height: 22,
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('نقاط الخبرة EXP', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
-                  Text(
-                    '$exp',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF00B0FF),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Row(
+              children: [
+                R.loadAsset(
+                  'assets/images/sunlight_task.png',
+                  width: 22,
+                  height: 22,
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('نقاط الخبرة EXP', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
+                    Text(
+                      '$exp',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF00B0FF),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
+          if (canClaimAny) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _claimAll,
+              child: Container(
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF8800), Color(0xFFFFB606)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF8800).withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.stars_rounded, color: Colors.white, size: 16),
+                    SizedBox(width: 4),
+                    Text(
+                      'استلام الكل',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -25,7 +25,7 @@ interface TaskAdminItem {
   title_en: string;
   description_ar: string;
   description_en: string;
-  group: 'daily' | 'growth' | 'lucky';
+  group: 'daily' | 'host' | 'growth' | 'agency' | 'lucky';
   target_count: number;
   coins_reward: number;
   exp_reward: number;
@@ -43,7 +43,7 @@ interface StoreItemOption {
 }
 
 export default function TasksManager() {
-  const [activeTab, setActiveTab] = useState<'daily' | 'growth' | 'lucky' | 'banner'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'host' | 'growth' | 'agency' | 'lucky' | 'banner'>('daily');
   const [tasks, setTasks] = useState<TaskAdminItem[]>([]);
   const [storeItems, setStoreItems] = useState<StoreItemOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,10 +227,10 @@ export default function TasksManager() {
       </div>
 
       {/* تبويبات الإدارة */}
-      <div className="flex items-center gap-2 border-b border-white/5 pb-3">
+      <div className="flex items-center gap-2 border-b border-white/5 pb-3 overflow-x-auto">
         <button
           onClick={() => setActiveTab('daily')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === 'daily'
               ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
               : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -241,8 +241,20 @@ export default function TasksManager() {
         </button>
 
         <button
+          onClick={() => setActiveTab('host')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            activeTab === 'host'
+              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Star className="w-4 h-4" />
+          🎙️ مهام المضيف ({tasks.filter(t => t.group === 'host').length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('growth')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === 'growth'
               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
               : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -253,8 +265,20 @@ export default function TasksManager() {
         </button>
 
         <button
+          onClick={() => setActiveTab('agency')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            activeTab === 'agency'
+              ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <CheckSquare className="w-4 h-4" />
+          🏢 مهام الوكالة ({tasks.filter(t => t.group === 'agency').length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('lucky')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === 'lucky'
               ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
               : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -266,7 +290,7 @@ export default function TasksManager() {
 
         <button
           onClick={() => setActiveTab('banner')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === 'banner'
               ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
               : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -421,7 +445,9 @@ export default function TasksManager() {
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
                   >
                     <option value="daily">🌟 نشاط يومي (Daily)</option>
+                    <option value="host">🎙️ مهام المضيف (Host)</option>
                     <option value="growth">🌱 نمو ومستوى (Growth)</option>
+                    <option value="agency">🏢 مهام الوكالة (Agency)</option>
                     <option value="lucky">🍀 فعاليات الحظ (Lucky)</option>
                   </select>
                 </div>

@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/user_model.dart';
 import '../../core/supabase_compat.dart';
 import '../../features/events/screens/recharge_event_screen.dart';
+import '../../features/tasks/services/task_service.dart';
 
 class WalletMainScreen extends StatefulWidget {
   const WalletMainScreen({super.key});
@@ -766,6 +767,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     try {
       // 1. Insert into Supabase recharge_requests
       await Supabase.instance.client.from('recharge_requests').insert(reqMap);
+      // تسجيل تقدم مهمة الشحن اليومية
+      await TaskService().recordActionByType(user.uid, 'recharge', amount: 1);
     } catch (e) {
       debugPrint('[Wallet] Supabase recharge_requests error: $e');
     }
@@ -961,6 +964,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         );
         userProvider.updateUser(updated);
         await userProvider.loadUser(user.uid);
+        await TaskService().recordActionByType(user.uid, 'recharge', amount: 1);
         if (mounted) {
           setState(() {
             _exchangeDiamondAmount = 0;

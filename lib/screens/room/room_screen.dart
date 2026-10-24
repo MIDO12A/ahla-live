@@ -78,6 +78,7 @@ import '../../features/lucky_bag/widgets/lucky_bag_send_dialog.dart';
 import '../../services/room_music_player_service.dart';
 import '../../features/lucky_bag/widgets/lucky_bag_claim_dialog.dart';
 import '../../features/lucky_bag/widgets/lucky_bag_floating_widget.dart';
+import '../../features/tasks/services/task_service.dart';
 import '../../core/widgets/user_id_display_widget.dart';
 import '../../widgets/user_id_widget.dart';
 import 'package:just_audio/just_audio.dart';
@@ -956,6 +957,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Timer? _seatsRefreshTimer;
   Timer? _bannerHideTimer;
   Timer? _presencePingTimer; // ✅ ping دوري للـ presence — يكتشف الخروج الصامت
+  Timer? _taskStayTimer; // ✅ تتبع مدة التواجد في الغرفة والمايك للمهام اليومية
   final RoomAudioService _roomAudio = RoomAudioService();
   bool _takingSeat = false;
   int? _pendingSeatIndex;
@@ -965,6 +967,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    // تتبع مدة البقاء في الغرفة والتحدث على المايك كل دقيقة للمهام اليومية
+    _taskStayTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (!mounted) return;
+      final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+      if (user != null && user.uid.isNotEmpty) {
+        TaskService().recordActionByType(user.uid, 'room_stay', amount: 1);
+        if (_currentUserSeatIndex != null && _currentUserSeatIndex! >= 0 && _isMicOn) {
+          TaskService().recordActionByType(user.uid, 'mic', amount: 1);
+        }
+      }
+    });
     if (_cachedRoomSeatStyle.containsKey(widget.roomId)) {
       _roomSeatStyle = _cachedRoomSeatStyle[widget.roomId]!;
     }
@@ -2191,6 +2204,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _membersSub?.cancel();
     _seatsRefreshTimer?.cancel();
     _presencePingTimer?.cancel();
+    _taskStayTimer?.cancel();
     _giftAnimWatchdog?.cancel();
     final gap = _giftAudioPlayer;
     _giftAudioPlayer = null;
@@ -2381,6 +2395,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.currentUser;
     if (user != null) {
+      TaskService().recordActionByType(user.uid, 'chat');
       _firebaseService.sendMessage(
         widget.roomId,
         t,
@@ -3744,6 +3759,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             final iconUrl = data['defaultImage']?.toString() ?? data['animationAsset']?.toString() ?? '';
                             final animAsset = data['animationAsset']?.toString() ?? _giftAnimAsset ?? '';
                             final currUser = Provider.of<UserProvider>(context, listen: false).currentUser;
+                            if (currUser != null && currUser.uid.isNotEmpty) {
+                              final count = (data['giftCount'] as num?)?.toInt() ?? 1;
+                              TaskService().recordActionByType(currUser.uid, 'gift', amount: count);
+                              if (data['isLucky'] == true) {
+                                TaskService().recordActionByType(currUser.uid, 'lucky_gift', amount: count);
+                              }
+                            }
                             final sName = data['senderName']?.toString() ?? currUser?.name ?? '';
                             final sPhoto = data['senderPhotoUrl']?.toString() ?? currUser?.photoUrl ?? '';
                             final defImg = data['defaultImage']?.toString();

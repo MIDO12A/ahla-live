@@ -96,12 +96,69 @@ class TaskService {
     } catch (_) {}
   }
 
+  /// زيادة التقدم التلقائي لجميع المهام التي تطابق نوع النشاط
+  /// الأنواع المدعومة: 'login' | 'mic' | 'room_stay' | 'gift' | 'lucky_gift' | 'recharge' | 'chat'
+  Future<void> recordActionByType(String userId, String actionType, {int amount = 1}) async {
+    if (userId.isEmpty) return;
+    try {
+      final tasks = await fetchTasks(userId);
+      final act = actionType.toLowerCase().trim();
+
+      for (final t in tasks) {
+        if (t.isCompleted) continue;
+
+        bool matches = false;
+        final route = t.actionRoute.toLowerCase().trim();
+        final id = t.id.toLowerCase().trim();
+        final title = (t.titleAr + ' ' + t.titleEn).toLowerCase();
+        final desc = (t.descriptionAr + ' ' + t.descriptionEn).toLowerCase();
+
+        if (act == 'gift') {
+          // إرسال هدية عادية (لا تشمل مهام الحظ الحصرية)
+          final isLuckyOnly = route == 'lucky_gift' || title.contains('حظ') || id.contains('lucky');
+          if (!isLuckyOnly) {
+            matches = route == 'gift' || id.contains('gift') || title.contains('هد') || title.contains('gift') || desc.contains('هد');
+          }
+        } else if (act == 'lucky_gift') {
+          // إرسال هدية حظ (يشمل مهام الحظ ومهام الهدايا العامة)
+          matches = route == 'lucky_gift' || route == 'lucky' || id.contains('lucky') || title.contains('حظ') || title.contains('lucky') || desc.contains('حظ') ||
+                    route == 'gift' || id.contains('gift') || title.contains('هد');
+        } else if (act == 'mic') {
+          // التحدث على المايك
+          matches = (route == 'room' && (title.contains('ميك') || title.contains('مايك') || title.contains('تحدث') || title.contains('mic') || id.contains('mic'))) ||
+                    id.contains('mic') || title.contains('ميك') || title.contains('مايك') || desc.contains('ميك') || desc.contains('مايك');
+        } else if (act == 'room_stay') {
+          // التواجد بالغرفة
+          matches = (route == 'room' && (title.contains('غرف') || title.contains('تواجد') || title.contains('stay') || id.contains('stay'))) ||
+                    id.contains('stay') || desc.contains('تواجد') || desc.contains('غرف');
+        } else if (act == 'recharge') {
+          // الشحن
+          matches = route == 'recharge' || route == 'wallet' || id.contains('recharge') || title.contains('شحن') || title.contains('charge') || desc.contains('شحن');
+        } else if (act == 'login') {
+          // تسجيل الدخول
+          matches = id.contains('login') || title.contains('دخول') || title.contains('check-in') || desc.contains('دخول');
+        } else if (act == 'chat') {
+          // إرسال رسائل في الروم
+          matches = id.contains('message') || id.contains('chat') || title.contains('رسائل') || title.contains('رسالة') || title.contains('chat') || desc.contains('رسائل');
+        } else if (t.id == act || route == act) {
+          matches = true;
+        }
+
+        if (matches) {
+          await recordTaskAction(userId, t.id, amount: amount, isGrowth: t.group == 'growth');
+        }
+      }
+    } catch (e) {
+      debugPrint('[TaskService] recordActionByType error: $e');
+    }
+  }
+
   /// استلام مكافأة المهمة وإيداع الجوائز فوراً
   Future<bool> claimTaskReward(BuildContext context, String userId, TaskModel task) async {
     if (!task.canClaim) return false;
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final today = _getTodayKey();
-    final isGrowth = task.group != 'daily';
+    final isGrowth = task.group == 'growth';
 
     try {
       // 1. تحديث حالة الاستلام في Supabase
@@ -112,7 +169,7 @@ class TaskService {
         dateKey: today,
       );
 
-      // 2. إيداع العملات ونقاط EXP في حساب المستخدم في Supabase و Firestore
+      // 2. إيداع العملات ونقاط EXP في حساب المستخدم
       final currentCoins = userProvider.currentUser?.coins ?? 0;
       final currentExp = userProvider.currentUser?.experience ?? 0;
       final supaUpdates = <String, dynamic>{};
@@ -123,30 +180,50 @@ class TaskService {
         supaUpdates['experience'] = currentExp + task.expReward;
         supaUpdates['exp'] = currentExp + task.expReward;
       }
+
+      // 3. إيداع عنصر المتجر في حقيبة المستخدم إذا وجد
+      if (task.storeItemId != null && task.storeItemId!.isNotEmpty) {
+        try {
+          final curOwned = List<String>.from(userProvider.currentUser?.ownedItems ?? []);
+          if (!curOwned.contains(task.storeItemId!)) {
+            curOwned.add(task.storeItemId!);
+            supaUpdates['owned_items'] = curOwned;
+          }
+
+          final giftId = 'task_gift_${DateTime.now().millisecondsSinceEpoch}_${task.id}';
+          final expiresAt = DateTime.now().millisecondsSinceEpoch + (7 * 86400000); // 7 أيام
+
+          await Supabase.instance.client.from('gifted_items').insert({
+            'id': giftId,
+            'uid': userId,
+            'item_id': task.storeItemId!,
+            'item_category': 'frame',
+            'item_name': task.storeItemName ?? 'جائزة إنجاز مهمة',
+            'item_icon': task.storeItemIcon ?? '',
+            'sent_by': 'system',
+            'sent_by_name': 'مركز المهام اليومية',
+            'sent_at': DateTime.now().millisecondsSinceEpoch,
+            'expires_at': expiresAt,
+          });
+
+          await Supabase.instance.client.from('user_backpack').upsert({
+            'user_id': userId,
+            'item_id': task.storeItemId!,
+            'item_type': 'backpack',
+            'expires_at': DateTime.fromMillisecondsSinceEpoch(expiresAt).toIso8601String(),
+          });
+        } catch (itemErr) {
+          debugPrint('[TaskService] store item reward error: $itemErr');
+        }
+      }
+
       if (supaUpdates.isNotEmpty) {
         await SupabaseDataService().updateUser(userId, supaUpdates);
         await userProvider.loadUser(userId);
       }
 
-      // 3. إيداع عنصر المتجر في حقيبة المستخدم إذا وجد
-      if (task.storeItemId != null && task.storeItemId!.isNotEmpty) {
-        try {
-          await SupabaseDataService().addInventoryItem(
-            uid: userId,
-            itemId: task.storeItemId!,
-            itemType: 'backpack',
-            name: task.storeItemName ?? '',
-            icon: task.storeItemIcon ?? '',
-          );
-        } catch (_) {}
-      }
-
-      // 4. تحديث بروفايدر المستخدم
+      // 4. عرض نافذة استلام المكافآت الاحتفالية
       if (context.mounted) {
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
-        await userProvider.loadUser(userId);
-
-        // 5. عرض نافذة استلام المكافآت الاحتفالية
         showDialog(
           context: context,
           barrierDismissible: true,
@@ -159,6 +236,98 @@ class TaskService {
       debugPrint('[TaskService] claimTaskReward error: $e');
       return false;
     }
+  }
+
+  /// استلام كافة المكافآت الجاهزة دفعة واحدة مع نافذة احتفالية موحدة
+  Future<int> claimAllAvailableRewards(BuildContext context, String userId, List<TaskModel> tasks) async {
+    final readyTasks = tasks.where((t) => t.canClaim).toList();
+    if (readyTasks.isEmpty) return 0;
+
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final today = _getTodayKey();
+    int totalCoins = 0;
+    int totalExp = 0;
+    final List<String> storeItemNames = [];
+
+    for (final task in readyTasks) {
+      final isGrowth = task.group == 'growth';
+      await SupabaseDataService().claimTask(
+        userId,
+        task.id,
+        isGrowth: isGrowth,
+        dateKey: today,
+      );
+      totalCoins += task.coinsReward;
+      totalExp += task.expReward;
+
+      if (task.storeItemId != null && task.storeItemId!.isNotEmpty) {
+        try {
+          final giftId = 'task_gift_${DateTime.now().millisecondsSinceEpoch}_${task.id}';
+          final expiresAt = DateTime.now().millisecondsSinceEpoch + (7 * 86400000);
+
+          await Supabase.instance.client.from('gifted_items').insert({
+            'id': giftId,
+            'uid': userId,
+            'item_id': task.storeItemId!,
+            'item_category': 'frame',
+            'item_name': task.storeItemName ?? 'جائزة إنجاز مهمة',
+            'item_icon': task.storeItemIcon ?? '',
+            'sent_by': 'system',
+            'sent_by_name': 'مركز المهام اليومية',
+            'sent_at': DateTime.now().millisecondsSinceEpoch,
+            'expires_at': expiresAt,
+          });
+
+          await Supabase.instance.client.from('user_backpack').upsert({
+            'user_id': userId,
+            'item_id': task.storeItemId!,
+            'item_type': 'backpack',
+            'expires_at': DateTime.fromMillisecondsSinceEpoch(expiresAt).toIso8601String(),
+          });
+          if (task.storeItemName != null && task.storeItemName!.isNotEmpty) {
+            storeItemNames.add(task.storeItemName!);
+          }
+        } catch (_) {}
+      }
+    }
+
+    final currentCoins = userProvider.currentUser?.coins ?? 0;
+    final currentExp = userProvider.currentUser?.experience ?? 0;
+    final supaUpdates = <String, dynamic>{};
+    if (totalCoins > 0) supaUpdates['coins'] = currentCoins + totalCoins;
+    if (totalExp > 0) {
+      supaUpdates['experience'] = currentExp + totalExp;
+      supaUpdates['exp'] = currentExp + totalExp;
+    }
+    if (supaUpdates.isNotEmpty) {
+      await SupabaseDataService().updateUser(userId, supaUpdates);
+      await userProvider.loadUser(userId);
+    }
+
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) => TaskRewardDialog(
+          task: TaskModel(
+            id: 'batch_claim',
+            titleAr: 'تم استلام كافة المكافآت المكتملة!',
+            titleEn: 'All completed tasks claimed!',
+            descriptionAr: storeItemNames.isNotEmpty ? 'العناصر: ${storeItemNames.join(", ")}' : 'تم إضافة العملات والخبرة بنجاح إلى حسابك',
+            descriptionEn: 'Coins & EXP added to your account',
+            group: 'daily',
+            targetCount: readyTasks.length,
+            currentCount: readyTasks.length,
+            coinsReward: totalCoins,
+            expReward: totalExp,
+            actionRoute: '',
+            isClaimed: true,
+          ),
+        ),
+      );
+    }
+
+    return readyTasks.length;
   }
 
   /// جلب رابط بانر الفعالية لمركز المهام
