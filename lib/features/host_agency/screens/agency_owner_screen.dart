@@ -1698,6 +1698,10 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
     final rawAgencyRate = info.commissionRate > 0 ? info.commissionRate : (cfg.agencyRatePercentage / 100.0);
     final agencyCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : (rawAgencyRate > 0 ? rawAgencyRate : 0.10);
 
+    // حساب إجمالي ألماس الوكالة شاملاً عمولة الوكيل المعتمدة من النسب العامة
+    final int agentCommissionDiamonds = (totalMembersDiamonds * agencyCommRate).round();
+    final int totalAgencyAchievedDiamonds = totalMembersDiamonds + agentCommissionDiamonds;
+
     double totalDueSalaries = 0.0;
     double totalCommissionUsd = 0.0;
     int completedHostsCount = 0;
@@ -1866,7 +1870,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       const Text('المحقق حالياً', style: TextStyle(color: Colors.grey, fontSize: 11)),
                       const SizedBox(height: 4),
                       Text(
-                        '$totalMembersDiamonds 💎',
+                        '$totalAgencyAchievedDiamonds 💎',
                         style: const TextStyle(
                           color: Color(0xFF10B981),
                           fontSize: 15,

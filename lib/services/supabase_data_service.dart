@@ -1281,59 +1281,89 @@ class SupabaseDataService {
                 final ag = Map<String, dynamic>.from(agList.first as Map);
                 final agMonthly = (ag['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
                 final agCumul = (ag['total_diamonds_cumulative'] as num?)?.toInt() ?? 0;
+                // وكيل المضيف: يحصل على نسبة عمولته المحددة من لوحة التحكم (يُضاف لرصيده دون الخصم من المضيف)
+                final agencyRatePct = DynamicConfigService().agencyRatePercentage;
+                final agentSalary = (diamondsToAdd * (agencyRatePct / 100.0)).round();
+                final totalAgencyCredit = diamondsToAdd + agentSalary;
+
                 await http.patch(
                   Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
                   headers: _headers,
                   body: jsonEncode({
-                    'total_diamonds_monthly': agMonthly + diamondsToAdd,
-                    'total_diamonds_cumulative': agCumul + diamondsToAdd,
+                    'total_diamonds_monthly': agMonthly + totalAgencyCredit,
+                    'total_diamonds_cumulative': agCumul + totalAgencyCredit,
                   }),
                 );
 
-                // وكيل المضيف: يحصل على نسبة عمولته المحددة من لوحة التحكم (يُضاف لرصيده دون الخصم من المضيف)
                 final ownerUid = (ag['owner_uid'] ?? ag['owner_id'])?.toString() ?? '';
-                if (ownerUid.isNotEmpty && ownerUid != hostUid) {
-                  final agencyRatePct = DynamicConfigService().agencyRatePercentage;
-                  final agentSalary = (diamondsToAdd * (agencyRatePct / 100.0)).round();
-                  if (agentSalary > 0) {
-                    final ownerMemUrl = Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&or=(host_uid.eq.$ownerUid,user_id.eq.$ownerUid)&select=*&limit=1');
-                    final oRes = await http.get(ownerMemUrl, headers: _headers);
-                    if (oRes.statusCode == 200) {
-                      final List oList = jsonDecode(oRes.body);
-                      if (oList.isNotEmpty) {
-                        final oMem = Map<String, dynamic>.from(oList.first as Map);
-                        final oMemId = oMem['id'];
-                        final oCurBal = (oMem['diamonds_balance'] as num?)?.toInt() ?? 0;
-                        final oCurMonthly = (oMem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-                        final oCurCumul = (oMem['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
-
+                if (ownerUid.isNotEmpty && ownerUid != hostUid && agentSalary > 0) {
+                  // تحديث محفظة الوكالة agency_wallets بالعمولة
+                  try {
+                    final awUrl = Uri.parse('$_baseUrl/rest/v1/agency_wallets?agency_id=eq.$agencyId&select=*&limit=1');
+                    final awRes = await http.get(awUrl, headers: _headers);
+                    if (awRes.statusCode == 200) {
+                      final List awList = jsonDecode(awRes.body);
+                      if (awList.isNotEmpty) {
+                        final curBal = (awList.first['diamond_balance'] as num?)?.toInt() ?? 0;
                         await http.patch(
-                          Uri.parse('$_baseUrl/rest/v1/host_agency_members?id=eq.$oMemId'),
+                          Uri.parse('$_baseUrl/rest/v1/agency_wallets?agency_id=eq.$agencyId'),
+                          headers: _headers,
+                          body: jsonEncode({'diamond_balance': curBal + agentSalary}),
+                        );
+                      } else {
+                        await http.post(
+                          Uri.parse('$_baseUrl/rest/v1/agency_wallets'),
                           headers: _headers,
                           body: jsonEncode({
-                            'diamonds_balance': oCurBal + agentSalary,
-                            'diamonds_earned_monthly': oCurMonthly + agentSalary,
-                            'diamonds_earned_cumulative': oCurCumul + agentSalary,
+                            'agency_id': agencyId,
+                            'diamond_balance': agentSalary,
+                            'gold_balance': 0,
                           }),
                         );
                       }
                     }
+                  } catch (e) {
+                    debugPrint('[SupabaseDataService] error updating agency_wallets: $e');
+                  }
 
-                    // تحديث رصيد الوكيل في users أيضاً
-                    final oUserUrl = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$ownerUid&select=diamonds&limit=1');
-                    final ouRes = await http.get(oUserUrl, headers: _headers);
-                    if (ouRes.statusCode == 200) {
-                      final List ouList = jsonDecode(ouRes.body);
-                      if (ouList.isNotEmpty) {
-                        final curD = (ouList.first['diamonds'] as num?)?.toInt() ?? 0;
-                        await http.patch(
-                          Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$ownerUid'),
-                          headers: _headers,
-                          body: jsonEncode({
-                            'diamonds': curD + agentSalary,
-                          }),
-                        );
-                      }
+                  // تحديث عضوية مالك الوكالة في host_agency_members
+                  final ownerMemUrl = Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&or=(host_uid.eq.$ownerUid,user_id.eq.$ownerUid)&select=*&limit=1');
+                  final oRes = await http.get(ownerMemUrl, headers: _headers);
+                  if (oRes.statusCode == 200) {
+                    final List oList = jsonDecode(oRes.body);
+                    if (oList.isNotEmpty) {
+                      final oMem = Map<String, dynamic>.from(oList.first as Map);
+                      final oMemId = oMem['id'];
+                      final oCurBal = (oMem['diamonds_balance'] as num?)?.toInt() ?? 0;
+                      final oCurMonthly = (oMem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+                      final oCurCumul = (oMem['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
+
+                      await http.patch(
+                        Uri.parse('$_baseUrl/rest/v1/host_agency_members?id=eq.$oMemId'),
+                        headers: _headers,
+                        body: jsonEncode({
+                          'diamonds_balance': oCurBal + agentSalary,
+                          'diamonds_earned_monthly': oCurMonthly + agentSalary,
+                          'diamonds_earned_cumulative': oCurCumul + agentSalary,
+                        }),
+                      );
+                    }
+                  }
+
+                  // تحديث رصيد الوكيل في users أيضاً
+                  final oUserUrl = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$ownerUid&select=diamonds&limit=1');
+                  final ouRes = await http.get(oUserUrl, headers: _headers);
+                  if (ouRes.statusCode == 200) {
+                    final List ouList = jsonDecode(ouRes.body);
+                    if (ouList.isNotEmpty) {
+                      final curD = (ouList.first['diamonds'] as num?)?.toInt() ?? 0;
+                      await http.patch(
+                        Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$ownerUid'),
+                        headers: _headers,
+                        body: jsonEncode({
+                          'diamonds': curD + agentSalary,
+                        }),
+                      );
                     }
                   }
                 }

@@ -1813,6 +1813,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final rawTransfer = info?.transferMoney ?? 0;
     final monthlyFromInfo = info?.totalDiamondsMonthly ?? 0;
     final totalAgencyDiamonds = [rawTransfer, monthlyFromInfo, totalAnchorsDiamonds].reduce((curr, next) => curr > next ? curr : next);
+    final agentCommissionDiamonds = (totalAgencyDiamonds * normCommRate).round();
+    final totalAgencyDiamondsWithComm = totalAgencyDiamonds + agentCommissionDiamonds;
 
     if (totalCommissionUsd == 0 && totalAgencyDiamonds > 0 && (info?.milestones?.isNotEmpty ?? false)) {
       Map<String, dynamic>? agencyMilestone;
@@ -1849,7 +1851,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         ? _myAnchor!.effectiveDiamonds
         : (user?.diamonds ?? 0);
     final hostHours = ((_myAnchor?.minute ?? 0.0) / 60.0);
-    final effectiveDiamonds = _isAgencyOwner ? totalAgencyDiamonds : hostDiamonds;
+    final effectiveDiamonds = _isAgencyOwner ? totalAgencyDiamondsWithComm : hostDiamonds;
     final hostDollar = (hostDiamonds / 1000).toStringAsFixed(1);
 
     final milestonesList = (info?.milestones ?? []).toList();
