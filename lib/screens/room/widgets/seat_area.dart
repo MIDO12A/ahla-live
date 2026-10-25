@@ -54,6 +54,7 @@ class SeatArea extends StatelessWidget {
   final Set<String>? moderators;
   final String? hostUid;
   final SeatStyle seatStyle;
+  final Map<int, GlobalKey>? seatKeys;
 
   const SeatArea({
     super.key,
@@ -233,7 +234,7 @@ class SeatArea extends StatelessWidget {
                       onTap: () => onSeatTap(i + j),
                       onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(i + j) : null,
                       child: _NormalSeat(
-                        key: ValueKey('seat_${rowItems[j].index}'),
+                        key: seatKeys?[i + j] ?? ValueKey('seat_${rowItems[j].index}'),
                         seat: rowItems[j],
                         emoji: seatEmojis?[i + j],
                         isModerator: rowItems[j].user != null ? moderators?.contains(rowItems[j].user!.id) ?? false : false,
@@ -269,7 +270,7 @@ class SeatArea extends StatelessWidget {
                     onTap: () => onSeatTap(i + j),
                     onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(i + j) : null,
                     child: _NormalSeat(
-                      key: ValueKey('seat_${rowItems[j].index}'),
+                      key: seatKeys?[i + j] ?? ValueKey('seat_${rowItems[j].index}'),
                       seat: rowItems[j],
                       emoji: seatEmojis?[i + j],
                       isModerator: rowItems[j].user != null
