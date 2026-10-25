@@ -66,6 +66,7 @@ class SeatArea extends StatelessWidget {
     this.moderators,
     this.hostUid,
     this.seatStyle = SeatStyle.classic,
+    this.seatKeys,
   });
 
   @override
@@ -145,7 +146,7 @@ class SeatArea extends StatelessWidget {
       onTap: () => onSeatTap(idx),
       onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(idx) : null,
       child: _NormalSeat(
-        key: ValueKey('seat_$idx'),
+        key: seatKeys?[idx] ?? ValueKey('seat_$idx'),
         seat: seats[idx],
         emoji: seatEmojis?[idx],
         isModerator: seats[idx].user != null
@@ -180,7 +181,7 @@ class SeatArea extends StatelessWidget {
                   onTap: () => onSeatTap(0),
                   onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(0) : null,
                   child: _NormalSeat(
-                    key: ValueKey('seat_${items[0].index}'),
+                    key: seatKeys?[0] ?? ValueKey('seat_${items[0].index}'),
                     seat: items[0],
                     emoji: seatEmojis?[0],
                     isModerator: items[0].user != null ? moderators?.contains(items[0].user!.id) ?? false : false,
@@ -199,7 +200,7 @@ class SeatArea extends StatelessWidget {
                   onTap: () => onSeatTap(1),
                   onLongPress: onSeatLongPress != null ? () => onSeatLongPress!(1) : null,
                   child: _NormalSeat(
-                    key: ValueKey('seat_${items[1].index}'),
+                    key: seatKeys?[1] ?? ValueKey('seat_${items[1].index}'),
                     seat: items[1],
                     emoji: seatEmojis?[1],
                     isModerator: items[1].user != null ? moderators?.contains(items[1].user!.id) ?? false : false,
@@ -560,53 +561,29 @@ class _NormalSeat extends StatelessWidget {
         ),
       );
     } else if (seatStyle == SeatStyle.heart) {
-      // VIP style: thick metallic gold ring
-      baseAvatar = Container(
+      // VIP style: clean circular avatar without metallic gold ring
+      baseAvatar = SizedBox(
         width: borderSize,
         height: borderSize,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFFFFF275),
-              Color(0xFFD4AF37),
-              Color(0xFF8C6200),
-              Color(0xFFFFF9C4),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        alignment: Alignment.center,
-        child: ClipOval(
+        child: Center(
           child: SizedBox(
-            width: borderSize - 8.0,
-            height: borderSize - 8.0,
+            width: borderSize,
+            height: borderSize,
             child: avatarWidget,
           ),
         ),
       );
     } else {
-      // Classic style: thin gold border (original)
+      // Classic style: clean circular avatar without golden border
       baseAvatar = SizedBox(
         width: borderSize,
         height: borderSize,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            avatarWidget,
-            Container(
-              width: borderSize,
-              height: borderSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.goldLight.withValues(alpha: 0.45),
-                  width: 1.5,
-                ),
-              ),
-            ),
-          ],
+        child: Center(
+          child: SizedBox(
+            width: borderSize,
+            height: borderSize,
+            child: avatarWidget,
+          ),
         ),
       );
     }

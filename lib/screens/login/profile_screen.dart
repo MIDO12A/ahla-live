@@ -682,10 +682,25 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  static String _formatCompactNumber(num number) {
+    if (number >= 1000000000) {
+      final val = number / 1000000000.0;
+      return '${val.toStringAsFixed(val >= 10 ? 0 : 1)}B';
+    }
+    if (number >= 1000000) {
+      final val = number / 1000000.0;
+      return '${val.toStringAsFixed(val >= 10 ? 0 : 1)}M';
+    }
+    if (number >= 1000) {
+      final val = number / 1000.0;
+      return '${val.toStringAsFixed(val >= 10 ? 0 : 1)}K';
+    }
+    return number.toString();
+  }
+
   /// بطاقة المحفظة البيضاء ll_wallet_info المطابقة لـ fragment_mine.xml
   Widget _buildWalletCard(BuildContext context, UserModel? user) {
     final coins = user?.coins ?? 0;
-    final diamonds = user?.diamonds ?? 0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -754,7 +769,7 @@ class ProfileScreen extends StatelessWidget {
 
             const Divider(height: 1, color: Color(0xFFF4F5F8), indent: 16, endIndent: 16),
 
-            // السطر 2: الرصيد بالعملات الذهبية والماسات (cl_coin)
+            // السطر 2: الرصيد بالعملات الذهبية المطابق لـ cl_coin
             InkWell(
               onTap: () {
                 Navigator.push(
@@ -776,31 +791,13 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '$coins',
+                      _formatCompactNumber(coins),
                       style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF000000),
                       ),
                     ),
-                    if (diamonds > 0) ...[
-                      const Spacer(),
-                      R.loadAsset(
-                        'assets/mipmap-xxhdpi/common_diamond_ic.webp',
-                        width: 20,
-                        height: 20,
-                        fit: BoxFit.contain,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '$diamonds',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF000000),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),

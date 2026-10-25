@@ -1246,23 +1246,30 @@ class _BannerCarousel extends StatefulWidget {
 
 class _BannerCarouselState extends State<_BannerCarousel> {
   final SupabaseService _firebaseService = SupabaseService();
+  static List<BannerConfig> _cachedBanners = [];
   late PageController _bannerController;
-  late Timer _bannerTimer;
+  Timer? _bannerTimer;
   late final Stream<List<BannerConfig>> _bannersStream;
   int _currentBannerPage = 0;
   List<BannerConfig> _banners = [];
+  bool _initializedPage = false;
 
   @override
   void initState() {
     super.initState();
+    _banners = _cachedBanners;
     _bannersStream = _firebaseService.bannersStream().asBroadcastStream();
-    _bannerController = PageController(initialPage: 0);
+    final initial = _banners.isNotEmpty ? _banners.length * 1000 : 5000;
+    _bannerController = PageController(initialPage: initial);
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _bannerTimer?.cancel();
     _bannerTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (_bannerController.hasClients && _banners.length > 1) {
-        final next = (_currentBannerPage + 1) % _banners.length;
-        _bannerController.animateToPage(
-          next,
-          duration: const Duration(milliseconds: 400),
+        _bannerController.nextPage(
+          duration: const Duration(milliseconds: 450),
           curve: Curves.easeInOut,
         );
       }
@@ -1271,7 +1278,7 @@ class _BannerCarouselState extends State<_BannerCarousel> {
 
   @override
   void dispose() {
-    _bannerTimer.cancel();
+    _bannerTimer?.cancel();
     _bannerController.dispose();
     super.dispose();
   }
@@ -1281,8 +1288,24 @@ class _BannerCarouselState extends State<_BannerCarousel> {
     return StreamBuilder<List<BannerConfig>>(
       stream: _bannersStream,
       builder: (context, snapshot) {
-        _banners = snapshot.data ?? [];
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          _cachedBanners = snapshot.data!;
+          _banners = _cachedBanners;
+          if (!_initializedPage && _banners.isNotEmpty) {
+            _initializedPage = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_bannerController.hasClients) {
+                final target = _banners.length * 1000;
+                _bannerController.jumpToPage(target);
+              }
+            });
+          }
+        } else if (_banners.isEmpty && _cachedBanners.isNotEmpty) {
+          _banners = _cachedBanners;
+        }
+
         if (_banners.isEmpty) return const SizedBox.shrink();
+
         return Column(
           children: [
             SizedBox(
@@ -1290,11 +1313,10 @@ class _BannerCarouselState extends State<_BannerCarousel> {
               child: PageView.builder(
                 controller: _bannerController,
                 onPageChanged: (page) {
-                  setState(() => _currentBannerPage = page);
+                  setState(() => _currentBannerPage = page % _banners.length);
                 },
-                itemCount: _banners.length,
                 itemBuilder: (context, index) {
-                  final banner = _banners[index];
+                  final banner = _banners[index % _banners.length];
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
                     child: ClipRRect(

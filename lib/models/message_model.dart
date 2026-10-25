@@ -1,4 +1,4 @@
-class MessageModel {
+﻿class MessageModel {
   final String msgId;
   final String roomId;
   final String senderUid;
@@ -45,10 +45,16 @@ class MessageModel {
 
     final rawImage = map['image_url'] ?? map['imageUrl'];
     final textVal = map['text']?.toString() ?? '';
-    final typeVal = map['type']?.toString() ?? 'text';
-    final resolvedImage = rawImage != null
+    var typeVal = map['type']?.toString() ?? 'text';
+    final isUrl = textVal.startsWith('http://') || textVal.startsWith('https://') || textVal.startsWith('assets/');
+    final isMediaFile = textVal.contains('.png') || textVal.contains('.jpg') || textVal.contains('.jpeg') || textVal.contains('.webp') || textVal.contains('.gif') || textVal.contains('.svga');
+    final isEmojiPath = textVal.contains('emoji') || (rawImage != null && rawImage.toString().contains('emoji'));
+    if (isEmojiPath && typeVal == 'text') {
+      typeVal = 'emoji';
+    }
+    final resolvedImage = (rawImage != null && rawImage.toString().isNotEmpty)
         ? rawImage.toString()
-        : (typeVal == 'image' && (textVal.startsWith('http://') || textVal.startsWith('https://'))
+        : (((typeVal == 'image' || typeVal == 'emoji') || isMediaFile || isEmojiPath) && isUrl
             ? textVal
             : null);
 

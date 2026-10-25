@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -1060,8 +1060,8 @@ class SupabaseService {
     ));
   }
 
-  Future<void> sendImageMessage(String roomId, String imageUrl, String senderUid, String senderName, String senderPhotoUrl) {
-    return sendMessage(roomId, '', senderUid, senderName, senderPhotoUrl, type: 'image', imageUrl: imageUrl);
+  Future<void> sendImageMessage(String roomId, String imageUrl, String senderUid, String senderName, String senderPhotoUrl, {String type = 'image'}) {
+    return sendMessage(roomId, imageUrl, senderUid, senderName, senderPhotoUrl, type: type, imageUrl: imageUrl);
   }
 
   Stream<List<MessageModel>> messagesStream(String roomId, {String? since}) async* {

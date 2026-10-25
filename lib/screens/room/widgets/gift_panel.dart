@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../config/r.dart';
@@ -122,13 +122,12 @@ class _GiftPanelState extends State<GiftPanel> {
 
     setState(() {
       if (_isAllSeatsSelected) {
-        for (final id in seatIds) {
-          _selectedUserIds.remove(id);
-        }
+        _selectedUserIds.clear();
         if (seatIds.isNotEmpty) {
           _selectedUserIds.add(seatIds.first);
         }
       } else {
+        _selectedUserIds.clear();
         _selectedUserIds.addAll(seatIds);
       }
     });
@@ -141,13 +140,12 @@ class _GiftPanelState extends State<GiftPanel> {
 
     setState(() {
       if (_isAllRoomSelected) {
-        for (final id in roomIds) {
-          _selectedUserIds.remove(id);
-        }
+        _selectedUserIds.clear();
         if (roomIds.isNotEmpty) {
           _selectedUserIds.add(roomIds.first);
         }
       } else {
+        _selectedUserIds.clear();
         _selectedUserIds.addAll(roomIds);
       }
     });
@@ -359,7 +357,7 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
-    Widget _buildSeatsSelectButton(DynamicConfigService dc, bool isAr) {
+  Widget _buildSeatsSelectButton(DynamicConfigService dc, bool isAr) {
     final isSelected = _isAllSeatsSelected;
     final customImg = isSelected
         ? dc.giftPanelSeatsSelectedImage
@@ -368,61 +366,69 @@ class _GiftPanelState extends State<GiftPanel> {
     return GestureDetector(
       onTap: _toggleSelectSeats,
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        margin: const EdgeInsets.only(right: 6),
-        decoration: BoxDecoration(
-          image: customImg.isNotEmpty
-              ? DecorationImage(
-                  image: R.cachedImage(customImg),
-                  fit: BoxFit.contain,
-                )
-              : null,
-          gradient: customImg.isEmpty
-              ? (isSelected
-                  ? const LinearGradient(
-                      colors: [Color(0xFFFFD700), Color(0xFFDE880F)],
-                    )
-                  : null)
-              : null,
-          color: customImg.isEmpty && !isSelected
-              ? Colors.white.withValues(alpha: 0.12)
-              : null,
-          borderRadius: BorderRadius.circular(14),
-          border: isSelected
-              ? Border.all(color: Colors.amberAccent, width: 1.5)
-              : Border.all(color: Colors.white24, width: 0.8),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFFFFD700).withValues(alpha: 0.4),
-                    blurRadius: 6,
-                  )
-                ]
-              : null,
-        ),
-        alignment: Alignment.center,
-        child: customImg.isNotEmpty
-            ? const SizedBox(width: 38, height: 38)
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isSelected ? Icons.check_circle_rounded : Icons.mic_rounded,
-                    size: 13,
-                    color: isSelected ? Colors.black87 : Colors.white70,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    isAr ? 'المقاعد' : 'Seats',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.black87 : Colors.white,
-                    ),
-                  ),
-                ],
+        margin: const EdgeInsets.only(right: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: customImg.isNotEmpty
+                    ? DecorationImage(
+                        image: R.cachedImage(customImg),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+                gradient: customImg.isEmpty
+                    ? (isSelected
+                        ? const LinearGradient(
+                            colors: [Color(0xFFFFD700), Color(0xFFDE880F)],
+                          )
+                        : const LinearGradient(
+                            colors: [Color(0x33FFFFFF), Color(0x22FFFFFF)],
+                          ))
+                    : null,
+                border: Border.all(
+                  color: isSelected ? const Color(0xFFFFD700) : Colors.white24,
+                  width: isSelected ? 2.0 : 1.0,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFFFD700).withValues(alpha: 0.4),
+                          blurRadius: 6,
+                        )
+                      ]
+                    : null,
               ),
+              alignment: Alignment.center,
+              child: customImg.isEmpty
+                  ? Icon(
+                      isSelected ? Icons.check_circle_rounded : Icons.mic_rounded,
+                      size: 18,
+                      color: isSelected ? Colors.black87 : Colors.white,
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 2),
+            SizedBox(
+              width: 44,
+              child: Text(
+                isAr ? 'المقاعد' : 'Seats',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? const Color(0xFFFFD700) : Colors.white70,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -436,61 +442,69 @@ class _GiftPanelState extends State<GiftPanel> {
     return GestureDetector(
       onTap: _toggleSelectRoom,
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        margin: const EdgeInsets.only(right: 6),
-        decoration: BoxDecoration(
-          image: customImg.isNotEmpty
-              ? DecorationImage(
-                  image: R.cachedImage(customImg),
-                  fit: BoxFit.contain,
-                )
-              : null,
-          gradient: customImg.isEmpty
-              ? (isSelected
-                  ? const LinearGradient(
-                      colors: [Color(0xFFE040FB), Color(0xFF7C4DFF)],
-                    )
-                  : null)
-              : null,
-          color: customImg.isEmpty && !isSelected
-              ? Colors.white.withValues(alpha: 0.12)
-              : null,
-          borderRadius: BorderRadius.circular(14),
-          border: isSelected
-              ? Border.all(color: Colors.purpleAccent, width: 1.5)
-              : Border.all(color: Colors.white24, width: 0.8),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFFE040FB).withValues(alpha: 0.4),
-                    blurRadius: 6,
-                  )
-                ]
-              : null,
-        ),
-        alignment: Alignment.center,
-        child: customImg.isNotEmpty
-            ? const SizedBox(width: 38, height: 38)
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isSelected ? Icons.check_circle_rounded : Icons.groups_rounded,
-                    size: 14,
-                    color: isSelected ? Colors.white : Colors.white70,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    isAr ? 'كل الغرفة' : 'All Room',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
+        margin: const EdgeInsets.only(right: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: customImg.isNotEmpty
+                    ? DecorationImage(
+                        image: R.cachedImage(customImg),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+                gradient: customImg.isEmpty
+                    ? (isSelected
+                        ? const LinearGradient(
+                            colors: [Color(0xFFE040FB), Color(0xFF7C4DFF)],
+                          )
+                        : const LinearGradient(
+                            colors: [Color(0x33FFFFFF), Color(0x22FFFFFF)],
+                          ))
+                    : null,
+                border: Border.all(
+                  color: isSelected ? Colors.purpleAccent : Colors.white24,
+                  width: isSelected ? 2.0 : 1.0,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFE040FB).withValues(alpha: 0.4),
+                          blurRadius: 6,
+                        )
+                      ]
+                    : null,
               ),
+              alignment: Alignment.center,
+              child: customImg.isEmpty
+                  ? Icon(
+                      isSelected ? Icons.check_circle_rounded : Icons.groups_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 2),
+            SizedBox(
+              width: 44,
+              child: Text(
+                isAr ? 'الغرفة' : 'Room',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? Colors.purpleAccent : Colors.white70,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -717,7 +731,7 @@ class _GiftPanelState extends State<GiftPanel> {
           crossAxisCount: 4,
           crossAxisSpacing: 4,
           mainAxisSpacing: 4,
-          childAspectRatio: 80 / 93,
+          childAspectRatio: 82 / 96,
         ),
         itemCount: items.length,
         itemBuilder: (_, i) => _buildGiftItem(i, dc),

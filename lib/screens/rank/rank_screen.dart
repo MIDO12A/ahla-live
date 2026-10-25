@@ -109,115 +109,18 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
       var roomsWeekly = List<Map<String, dynamic>>.from(results[7] as List? ?? []);
       var roomsMonthly = List<Map<String, dynamic>>.from(results[8] as List? ?? []);
 
-      if (wealthDaily.isEmpty || wealthWeekly.isEmpty || wealthMonthly.isEmpty) {
-        try {
-          var topWealthUsers = await sb
-              .from('users')
-              .select('uid,id,name,custom_id,photo_url,avatar,total_gifts_sent,level')
-              .gt('total_gifts_sent', 0)
-              .order('total_gifts_sent', ascending: false)
-              .limit(50);
-          if ((topWealthUsers as List).isEmpty) {
-            topWealthUsers = await sb
-                .from('users')
-                .select('uid,id,name,custom_id,photo_url,avatar,total_gifts_sent,level,coins')
-                .order('coins', ascending: false)
-                .limit(50);
-          }
-          final mapped = (topWealthUsers as List).map((u) {
-            final m = Map<String, dynamic>.from(u as Map);
-            m['uid'] = m['uid'] ?? m['id'];
-            m['photo_url'] = (m['photo_url']?.toString().isNotEmpty == true)
-                ? m['photo_url']
-                : (m['avatar'] ?? '');
-            m['photoUrl'] = m['photo_url'];
-            m['points'] = (m['total_gifts_sent'] as num?)?.toInt() ?? (m['coins'] as num?)?.toInt() ?? 0;
-            m['amount'] = m['points'];
-            return m;
-          }).toList();
-          if (wealthDaily.isEmpty) wealthDaily = mapped;
-          if (wealthWeekly.isEmpty) wealthWeekly = mapped;
-          if (wealthMonthly.isEmpty) wealthMonthly = mapped;
-        } catch (_) {}
-      }
+      // حساب الترتيب الدوري الفعلي من جدول الهدايا مع احترام فترات التصفير (يومي 24س، أسبوعي من الاثنين، شهري كل شهر)
+      if (wealthDaily.isEmpty) wealthDaily = await FirebaseService().getGlobalRankings(isWealth: true, timeframe: 'daily');
+      if (wealthWeekly.isEmpty) wealthWeekly = await FirebaseService().getGlobalRankings(isWealth: true, timeframe: 'weekly');
+      if (wealthMonthly.isEmpty) wealthMonthly = await FirebaseService().getGlobalRankings(isWealth: true, timeframe: 'monthly');
 
-      if (charmDaily.isEmpty || charmWeekly.isEmpty || charmMonthly.isEmpty) {
-        try {
-          var topCharmUsers = await sb
-              .from('users')
-              .select('uid,id,name,custom_id,photo_url,avatar,total_gifts_received,diamonds,level')
-              .gt('total_gifts_received', 0)
-              .order('total_gifts_received', ascending: false)
-              .limit(50);
-          if ((topCharmUsers as List).isEmpty) {
-            topCharmUsers = await sb
-                .from('users')
-                .select('uid,id,name,custom_id,photo_url,avatar,total_gifts_received,diamonds,level')
-                .order('diamonds', ascending: false)
-                .limit(50);
-          }
-          final mapped = (topCharmUsers as List).map((u) {
-            final m = Map<String, dynamic>.from(u as Map);
-            m['uid'] = m['uid'] ?? m['id'];
-            m['photo_url'] = (m['photo_url']?.toString().isNotEmpty == true)
-                ? m['photo_url']
-                : (m['avatar'] ?? '');
-            m['photoUrl'] = m['photo_url'];
-            m['points'] = (m['total_gifts_received'] as num?)?.toInt() ?? (m['diamonds'] as num?)?.toInt() ?? 0;
-            m['amount'] = m['points'];
-            return m;
-          }).toList();
-          if (charmDaily.isEmpty) charmDaily = mapped;
-          if (charmWeekly.isEmpty) charmWeekly = mapped;
-          if (charmMonthly.isEmpty) charmMonthly = mapped;
-        } catch (_) {}
-      }
+      if (charmDaily.isEmpty) charmDaily = await FirebaseService().getGlobalRankings(isWealth: false, timeframe: 'daily');
+      if (charmWeekly.isEmpty) charmWeekly = await FirebaseService().getGlobalRankings(isWealth: false, timeframe: 'weekly');
+      if (charmMonthly.isEmpty) charmMonthly = await FirebaseService().getGlobalRankings(isWealth: false, timeframe: 'monthly');
 
-      if (roomsDaily.isEmpty || roomsWeekly.isEmpty || roomsMonthly.isEmpty) {
-        try {
-          // 1. حساب الغرف الأعلى استلاماً للهدايا مباشرة من جدول sent_gifts
-          final dailyFromGifts = await FirebaseService().getRoomGlobalRanking(timeframe: 'daily');
-          final weeklyFromGifts = await FirebaseService().getRoomGlobalRanking(timeframe: 'weekly');
-          final monthlyFromGifts = await FirebaseService().getRoomGlobalRanking(timeframe: 'monthly');
-
-          if (roomsDaily.isEmpty && dailyFromGifts.isNotEmpty) roomsDaily = dailyFromGifts;
-          if (roomsWeekly.isEmpty && weeklyFromGifts.isNotEmpty) roomsWeekly = weeklyFromGifts;
-          if (roomsMonthly.isEmpty && monthlyFromGifts.isNotEmpty) roomsMonthly = monthlyFromGifts;
-        } catch (_) {}
-      }
-
-      if (roomsDaily.isEmpty || roomsWeekly.isEmpty || roomsMonthly.isEmpty) {
-        try {
-          var topRooms = await sb
-              .from('rooms')
-              .select('room_id,id,name,room_photo_url,bg_image,host_uid,host_name,hot_value,total_gifts')
-              .order('total_gifts', ascending: false)
-              .limit(50);
-          if ((topRooms as List).isEmpty) {
-            topRooms = await sb
-                .from('rooms')
-                .select('room_id,id,name,room_photo_url,bg_image,host_uid,host_name,hot_value,total_gifts')
-                .order('hot_value', ascending: false)
-                .limit(50);
-          }
-          final mapped = (topRooms as List).map((r) {
-            final m = Map<String, dynamic>.from(r as Map);
-            m['room_id'] = m['room_id'] ?? m['id'];
-            m['photo_url'] = (m['room_photo_url']?.toString().isNotEmpty == true)
-                ? m['room_photo_url']
-                : (m['bg_image'] ?? '');
-            m['photoUrl'] = m['photo_url'];
-            final tg = (m['total_gifts'] as num?)?.toInt() ?? 0;
-            final hv = (m['hot_value'] as num?)?.toInt() ?? 0;
-            m['points'] = tg > 0 ? tg : (hv > 0 ? hv : 1);
-            m['amount'] = m['points'];
-            return m;
-          }).toList();
-          if (roomsDaily.isEmpty) roomsDaily = mapped;
-          if (roomsWeekly.isEmpty) roomsWeekly = mapped;
-          if (roomsMonthly.isEmpty) roomsMonthly = mapped;
-        } catch (_) {}
-      }
+      if (roomsDaily.isEmpty) roomsDaily = await FirebaseService().getRoomGlobalRanking(timeframe: 'daily');
+      if (roomsWeekly.isEmpty) roomsWeekly = await FirebaseService().getRoomGlobalRanking(timeframe: 'weekly');
+      if (roomsMonthly.isEmpty) roomsMonthly = await FirebaseService().getRoomGlobalRanking(timeframe: 'monthly');
 
       if (mounted) {
         setState(() {

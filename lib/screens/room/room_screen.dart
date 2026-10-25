@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:math' as math;
@@ -815,6 +815,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final isCircle = _roomSeatStyle == seat_model.SeatStyle.circle;
 
     Offset getSeatOffset(int seatIdx) {
+      final key = _seatKeys[seatIdx];
+      if (key?.currentContext != null) {
+        final renderBox = key!.currentContext!.findRenderObject() as RenderBox?;
+        if (renderBox != null && renderBox.hasSize) {
+          final pos = renderBox.localToGlobal(Offset(renderBox.size.width / 2, renderBox.size.height / 2));
+          return pos;
+        }
+      }
       if (isCircle) {
         final centerX = screenSize.width / 2.0;
         final centerY = headerH + 210.0;
@@ -969,6 +977,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   final Set<String> _seenInviteIds = {};
 
   // Track total gifts received per seat user ID
+  final Map<int, GlobalKey> _seatKeys = { for (int i = 0; i < 25; i++) i: GlobalKey() };
   final Map<String?, int> _giftReceiverTotals = {};
   StreamSubscription? _giftSub;
   StreamSubscription? _seatsSub;
@@ -1353,7 +1362,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
       if (mounted) {
         final clearedAt = _currentRoom?.chatClearedAt ?? 0;
-        final minTime = clearedAt > _sessionJoinedAt ? clearedAt : _sessionJoinedAt;
+        final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24)).millisecondsSinceEpoch;
+        final minTime = clearedAt > oneDayAgo ? clearedAt : oneDayAgo;
         final currentSessionMsgs = msgs.where((m) => m.timestamp >= minTime).toList();
 
         // إزالة الرسائل التي مسحت قبل clearedAt فقط
@@ -2279,6 +2289,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _showChatInput = false;
         _showNotifications = false;
         _showProfile = false;
+        _showRoomInfo = false;
       });
 
   void _openMessageSettings() {
@@ -3619,6 +3630,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               // SeatArea — 21 seats
               SeatArea(
                 seats: _seats,
+                seatKeys: _seatKeys,
                 onSeatTap: _onSeatTap,
                 onSeatLongPress: _onSeatLongPress,
                 seatEmojis: _seatEmojis,
@@ -3773,6 +3785,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           }
                           return list;
                         }(),
+                        seatUsers: _seats
+                            .asMap()
+                            .entries
+                            .where((e) => e.value.isOccupied && e.value.user != null)
+                            .map((e) => {
+                                  'id': e.value.user!.id ?? '',
+                                  'name': e.value.user!.name,
+                                  'photoUrl': e.value.user!.avatar,
+                                  'seatIndex': e.key + 1,
+                                })
+                            .toList(),
+                        allRoomUsers: _roomMembers
+                            .map((u) => {
+                                  'id': u.id,
+                                  'name': u.name,
+                                  'photoUrl': u.avatar,
+                                })
+                            .toList(),
                         receiverId: _selectedSeatIdx != null &&
                                 _seats[_selectedSeatIdx!].isOccupied &&
                                 _seats[_selectedSeatIdx!].user != null
@@ -4553,9 +4583,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               });
               _chatUpdateNotifier.value++;
             },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 48),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: isSelected ? Colors.white : Colors.transparent,
                 borderRadius: BorderRadius.circular(14),
@@ -4571,10 +4602,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               ),
               child: Text(
                 tab['label'] as String,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: isSelected ? Colors.black : Colors.white70,
                   fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -4586,25 +4618,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   Widget _buildStaticGiftIcon(String? iconUrl, {double size = 40, String? giftName, String? giftId}) {
     String? resolved = iconUrl;
-    if (resolved != null) {
-      final lower = resolved.toLowerCase();
-      if (lower.endsWith('.vap') || lower.endsWith('.mp4') || lower.endsWith('.svga') ||
-          lower.contains('.vap?') || lower.contains('.mp4?') || lower.contains('.svga?')) {
-        resolved = null;
-      }
-    }
     if (resolved == null || resolved.isEmpty) {
       if (giftId != null && _cachedGiftItems.containsKey(giftId)) {
         final g = _cachedGiftItems[giftId]!;
-        resolved = (g.defaultImage?.isNotEmpty == true && !g.defaultImage!.endsWith('.svga'))
+        resolved = (g.defaultImage?.isNotEmpty == true)
             ? g.defaultImage
-            : g.iconAsset;
+            : (g.iconAsset.isNotEmpty ? g.iconAsset : g.animationAsset);
       } else if (giftName != null && giftName.isNotEmpty) {
         for (final g in _cachedGiftItems.values) {
           if (g.name.toLowerCase() == giftName.toLowerCase() || (g.nameAr != null && g.nameAr == giftName)) {
-            resolved = (g.defaultImage?.isNotEmpty == true && !g.defaultImage!.endsWith('.svga'))
+            resolved = (g.defaultImage?.isNotEmpty == true)
                 ? g.defaultImage
-                : g.iconAsset;
+                : (g.iconAsset.isNotEmpty ? g.iconAsset : g.animationAsset);
             break;
           }
         }
@@ -4612,6 +4637,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     if (resolved == null || resolved.isEmpty) {
       return Icon(Icons.card_giftcard, color: const Color(0xFFFFEB3B), size: size * 0.8);
+    }
+    final isSvga = resolved.toLowerCase().contains('.svga');
+    if (isSvga) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: SvgaPlayer(
+          assetPath: resolved,
+          loops: true,
+          fit: BoxFit.contain,
+        ),
+      );
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
@@ -4699,15 +4736,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           payload?['gift']?['iconAsset']?.toString() ??
           payload?['gift']?['default_image']?.toString() ??
           m.imageUrl;
-      if (rawIcon != null && (rawIcon.endsWith('.svga') || rawIcon.endsWith('.vap') || rawIcon.endsWith('.mp4'))) {
-        rawIcon = null;
-      }
-      String? giftIcon = rawIcon ?? cachedGift?.iconAsset;
-      if (giftIcon == null || giftIcon.endsWith('.svga') || giftIcon.endsWith('.vap') || giftIcon.endsWith('.mp4')) {
-        giftIcon = (cachedGift?.defaultImage != null && !cachedGift!.defaultImage!.endsWith('.svga') && !cachedGift!.defaultImage!.endsWith('.vap'))
-            ? cachedGift.defaultImage
-            : null;
-      }
+      String? giftIcon = rawIcon ?? cachedGift?.iconAsset ?? cachedGift?.defaultImage ?? cachedGift?.animationAsset;
       final count = payload?['count'] ?? 1;
 
       return Padding(
@@ -5087,7 +5116,29 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   ],
                 ),
                 const SizedBox(height: 9),
-                if (m.type == 'image' || (m.imageUrl != null && m.imageUrl!.isNotEmpty))
+                if (m.type == 'emoji' || (m.imageUrl != null && m.imageUrl!.contains('emoji')) || m.text.contains('emoji'))
+                  () {
+                    final imgUrl = (m.imageUrl != null && m.imageUrl!.isNotEmpty)
+                        ? m.imageUrl!
+                        : m.text;
+                    final isSvga = imgUrl.toLowerCase().contains('.svga');
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: isSvga
+                          ? SizedBox(
+                              width: 56,
+                              height: 56,
+                              child: SvgaPlayer(assetPath: imgUrl, loops: true, fit: BoxFit.contain),
+                            )
+                          : R.loadImage(
+                              imgUrl,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.contain,
+                            ),
+                    );
+                  }()
+                else if (m.type == 'image' || (m.imageUrl != null && m.imageUrl!.isNotEmpty))
                   () {
                     final imgUrl = (m.imageUrl != null && m.imageUrl!.isNotEmpty)
                         ? m.imageUrl!
@@ -5260,14 +5311,20 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     }
     
-    return Positioned(
-      bottom: navH + 63,
-      left: 0,
-      right: 0,
+    return Positioned.fill(
       child: GestureDetector(
-        onTap: () {},
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _showEmoj = false),
         child: Container(
-          height: 220,
+          color: Colors.transparent,
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: navH + 63),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {},
+              child: Container(
+                height: 220,
           decoration: const BoxDecoration(
             color: Color(0xF51D1111),
             borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
@@ -5334,18 +5391,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 });
                               }
                               
-                              // Send emoji directly to chat
+                              // Send emoji directly to chat as emoji type
                               if (user != null) {
-                                if (chosenEmoji.startsWith('http')) {
-                                  _firebaseService.sendImageMessage(
-                                    widget.roomId, chosenEmoji, user.uid, user.name, user.photoUrl,
-                                  );
-                                } else {
-                                  _firebaseService.sendMessage(
-                                    widget.roomId, chosenEmoji, user.uid, user.name, user.photoUrl,
-                                    activeBubble: user.activeBubble,
-                                  );
-                                }
+                                _firebaseService.sendImageMessage(
+                                  widget.roomId,
+                                  chosenEmoji,
+                                  user.uid,
+                                  user.name ?? '',
+                                  user.photoUrl ?? '',
+                                  type: 'emoji',
+                                );
                               }
                               
                               setState(() => _showEmoj = false);
@@ -5363,7 +5418,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           ),
         ),
       ),
-    );
+    ),
+  ),
+),
+);
   }
 
   // ── Chat input bar ────────────────────────────────────────────
@@ -5542,14 +5600,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         ? _currentRoom!.bgImage
         : 'assets/images/room_bg_friend.webp';
 
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
+    return Positioned.fill(
       child: GestureDetector(
-        onTap: () {},
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _showRoomInfo = false),
         child: Container(
-          height: sizeH * 0.80,
+          color: Colors.black45,
+          alignment: Alignment.bottomCenter,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: Container(
+              height: sizeH * 0.80,
           decoration: const BoxDecoration(
             color: Color(0xFF0F0909), // room_info_owner_bg
             borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
@@ -6009,6 +6071,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   _buildDataCoinRow(isAr ? 'هذا الشهر' : 'This Month', monthCoins),
                                   const SizedBox(height: 10),
                                   _buildDataCoinRow(isAr ? 'الكل' : 'All Time', totalCoins),
+                                  const SizedBox(height: 14),
+                                  _buildRoomCupCard(isAr),
                                 ],
                               ),
                             ),
@@ -6023,7 +6087,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   // adapter_room_owner_data_coin_item.xml

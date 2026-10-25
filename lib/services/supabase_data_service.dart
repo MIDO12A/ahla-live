@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -520,7 +520,7 @@ class SupabaseDataService {
     }
   }
 
-  Future<List<MessageModel>> getRoomMessages(String roomId, {int limit = 60, int? sinceMs}) async {
+  Future<List<MessageModel>> getRoomMessages(String roomId, {int limit = 250, int? sinceMs}) async {
     try {
       String query = 'room_id=eq.$roomId&select=*&order=created_at.desc&limit=$limit';
       if (sinceMs != null && sinceMs > 0) {
@@ -1520,7 +1520,7 @@ class SupabaseDataService {
     }
   }
 
-  Future<List<gm.SentGiftModel>> getSentGifts(String roomId, {int limit = 50}) async {
+  Future<List<gm.SentGiftModel>> getSentGifts(String roomId, {int limit = 500}) async {
     try {
       final roomFilter = roomId.isNotEmpty ? 'room_id=eq.$roomId&' : '';
       final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?${roomFilter}select=*&order=created_at.desc&limit=$limit');
