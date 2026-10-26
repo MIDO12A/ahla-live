@@ -31,10 +31,7 @@ import '../data/anchor_agent_model.dart';
 import 'agency_join_requests_screen.dart';
 import 'agency_leaderboard_screen.dart';
 import 'agency_level_desc_screen.dart';
-import 'agency_owner_wallet_screen.dart';
-import 'agency_withdrawal_screen.dart';
 import 'agency_disbursement_screen.dart';
-import 'agency_exit_screen.dart';
 
 class AgencyOwnerScreen extends StatefulWidget {
   final String? agencyId;
@@ -1736,8 +1733,8 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
               ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
               : 0.10;
         }
-        final hostCommissionDiamonds = (tDia * normCommRate).round();
-        totalCommissionDiamonds += hostCommissionDiamonds;
+        final int hostCommissionDiamonds = (tDia * normCommRate).round().toInt();
+        totalCommissionDiamonds = (totalCommissionDiamonds + hostCommissionDiamonds).toInt();
         final hostCommissionUsd = rewardVal * normCommRate;
         totalCommissionUsd += hostCommissionUsd;
       }
