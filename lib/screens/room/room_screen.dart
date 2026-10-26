@@ -5815,7 +5815,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       ],
                                     ),
                                   ),
-                                  _buildRoomCupCard(isAr),
                                   const SizedBox(height: 24),
                                   // room_owner_title
                                   Text(
@@ -6005,6 +6004,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                             color: Color(0xFF979797),
                                           ),
                                         ),
+                                        _buildClaimRewardButtonInCoinCard(isAr),
                                       ],
                                     ),
                                   ),
@@ -6071,8 +6071,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   _buildDataCoinRow(isAr ? 'هذا الشهر' : 'This Month', monthCoins),
                                   const SizedBox(height: 10),
                                   _buildDataCoinRow(isAr ? 'الكل' : 'All Time', totalCoins),
-                                  const SizedBox(height: 14),
-                                  _buildRoomCupCard(isAr),
                                 ],
                               ),
                             ),
@@ -6745,6 +6743,139 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     setState(() => _isFollowed = willFollow);
   }
 
+  // ── زر استلام المكافأة داخل كرت إجمالي العملات التاريخية في بيانات الغرفة ──
+  Widget _buildClaimRewardButtonInCoinCard(bool isAr) {
+    if (!_isOwner) return const SizedBox.shrink();
+
+    return FutureBuilder<Map<String, dynamic>>(
+      future: RoomCupService().fetchRoomCupStatus(widget.roomId, isWeekly: true),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final data = snapshot.data!;
+        if (data['enabled'] == false) return const SizedBox.shrink();
+
+        final profitCoins = (data['ownerProfitCoins'] as num?)?.toInt() ?? 0;
+        final isQualified = data['isQualified'] == true;
+        final isPeriodCompleted = data['isPeriodCompleted'] == true;
+        final remainingDays = (data['remainingDays'] as num?)?.toInt() ?? 0;
+        final remainingHours = (data['remainingHours'] as num?)?.toInt() ?? 0;
+        final canClaim = _isOwner && profitCoins > 0 && isQualified && !_isClaimingCupReward;
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: SizedBox(
+            height: 38,
+            child: ElevatedButton(
+              onPressed: canClaim
+                  ? () async {
+                      if (_isClaimingCupReward) return;
+                      setState(() => _isClaimingCupReward = true);
+                      try {
+                        final res = await RoomCupService().settleRoomCupForOwner(
+                          roomId: widget.roomId,
+                          isWeekly: true,
+                          force: false,
+                        );
+                        if (res['ok'] == true && mounted) {
+                          final userProvider = Provider.of<UserProvider>(context, listen: false);
+                          final profit = (res['ownerProfitCoins'] as num?)?.toInt() ?? profitCoins;
+                          final newBal = (res['newBalance'] as num?)?.toInt();
+                          if (newBal != null) {
+                            userProvider.updateCoinsImmediately(newBal);
+                          } else if (profit > 0 && userProvider.currentUser != null) {
+                            userProvider.updateCoinsImmediately(userProvider.currentUser!.coins + profit);
+                          }
+                          await userProvider.reloadUser();
+                          setState(() {});
+                          if (mounted) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: const Color(0xFF1E1724),
+                                title: Row(
+                                  children: [
+                                    const Icon(Icons.check_circle, color: Colors.greenAccent, size: 24),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      isAr ? 'تم استلام المكافأة بنجاح' : 'Reward Claimed',
+                                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                                    ),
+                                  ],
+                                ),
+                                content: Text(
+                                  isAr
+                                      ? 'تم إيداع مكافآت الغرفة (+$profit كوينز) في محفظتك بنجاح 🎁!'
+                                      : 'Room rewards (+$profit coins) deposited to your wallet 🎁!',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx),
+                                    child: Text(isAr ? 'حسناً' : 'OK', style: const TextStyle(color: Color(0xFFFFD54F))),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                        } else if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(res['message']?.toString() ?? (isAr ? 'لم ينتهِ الأسبوع الحالي بعد أو لم تتأهل الغرفة' : 'Not qualified or week not ended yet')),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isClaimingCupReward = false);
+                        }
+                      }
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFCCE5E),
+                foregroundColor: Colors.black87,
+                disabledBackgroundColor: Colors.white.withValues(alpha: 0.15),
+                disabledForegroundColor: Colors.white54,
+                elevation: canClaim ? 2 : 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
+              child: _isClaimingCupReward
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black87))
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          canClaim ? Icons.redeem_rounded : Icons.lock_outline_rounded,
+                          size: 16,
+                          color: canClaim ? Colors.black87 : Colors.white54,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          canClaim
+                              ? (isAr ? 'استلام المكافأة (+$profitCoins 🪙)' : 'Claim Reward (+$profitCoins 🪙)')
+                              : (!isPeriodCompleted
+                                  ? (isAr
+                                      ? (remainingDays > 0 ? 'استلام المكافأة (متبقي $remainingDays يوم)' : 'استلام المكافأة (متبقي $remainingHours ساعة)')
+                                      : (remainingDays > 0 ? 'Claim ($remainingDays days left)' : 'Claim ($remainingHours hrs left)'))
+                                  : (!isQualified
+                                      ? (isAr ? 'غير مؤهل للمكافأة بعد' : 'Not Qualified Yet')
+                                      : (isAr ? 'لا توجد مكافآت جاهزة' : 'No Rewards Available'))),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: canClaim ? Colors.black87 : Colors.white54,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
   Widget _buildRoomCupCard(bool isAr) {
     return FutureBuilder<Map<String, dynamic>>(
       future: RoomCupService().fetchRoomCupStatus(widget.roomId, isWeekly: true),
