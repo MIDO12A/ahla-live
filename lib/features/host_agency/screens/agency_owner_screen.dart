@@ -593,26 +593,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
               ),
             ),
           ),
-          // Exit Agency Icon (الانسحاب من الوكالة)
-          IconButton(
-            icon: const Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 24),
-            tooltip: 'الانسحاب من الوكالة',
-            onPressed: () async {
-              final res = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AgencyExitScreen(
-                    agencyId: _agencyInfo?.agencyId ?? widget.agencyId,
-                  ),
-                ),
-              );
-              if (res == true && mounted) {
-                Navigator.pop(context);
-              } else if (mounted) {
-                _loadAllData(silent: true);
-              }
-            },
-          ),
+
           // Refresh Icon
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white, size: 22),
@@ -1275,55 +1256,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
             ],
           ),
 
-          const SizedBox(height: 8),
 
-          // 3. Exit / Leave Agency Button (الانسحاب من الوكالة)
-          GestureDetector(
-            onTap: () async {
-              final res = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AgencyExitScreen(
-                    agencyId: _agencyInfo?.agencyId ?? widget.agencyId,
-                  ),
-                ),
-              );
-              if (res == true && mounted) {
-                Navigator.pop(context);
-              } else if (mounted) {
-                _loadAllData(silent: true);
-              }
-            },
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2A1717),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.5)),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'الانسحاب من الوكالة (خروج / إنهاء الوكالة)',
-                        style: TextStyle(
-                          color: Color(0xFFFF5252),
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Icon(Icons.arrow_forward_ios, size: 13, color: Color(0xFFFF5252)),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -1721,15 +1654,10 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   // 9. TAB 1: AGENCY SALARY & STAGES (layout_union_agency_salary_panel.xml)
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildAgencySalaryTab(AgentInfoModel info, DynamicConfigService cfg) {
-    int totalMembersDiamonds = 0;
+    // إجمالي الألماس المحقق فعلياً من المضيفين
+    int hostsAchievedDiamonds = 0;
     for (final m in _members) {
-      totalMembersDiamonds += m.effectiveDiamonds;
-    }
-    if (info.totalDiamondsMonthly > totalMembersDiamonds) {
-      totalMembersDiamonds = info.totalDiamondsMonthly;
-    }
-    if (info.transferMoney > totalMembersDiamonds) {
-      totalMembersDiamonds = info.transferMoney;
+      hostsAchievedDiamonds += m.effectiveDiamonds;
     }
     
     // مستهدف الوكالة مأخوذ مباشرة من تارجت لوحة التحكم ولا يعود لمليون أبداً
@@ -1740,12 +1668,12 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
             .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
       for (final ms in sorted) {
         final t = (ms['target_diamonds'] ?? ms['targetDiamonds'] as num?)?.toInt() ?? 0;
-        if (totalMembersDiamonds < t) {
+        if (hostsAchievedDiamonds < t) {
           agencyTarget = t;
           break;
         }
       }
-      if (agencyTarget == 150000 && totalMembersDiamonds >= ((sorted.last['target_diamonds'] ?? sorted.last['targetDiamonds'] as num?)?.toInt() ?? 0)) {
+      if (agencyTarget == 150000 && hostsAchievedDiamonds >= ((sorted.last['target_diamonds'] ?? sorted.last['targetDiamonds'] as num?)?.toInt() ?? 0)) {
         agencyTarget = (sorted.last['target_diamonds'] ?? sorted.last['targetDiamonds'] as num?)?.toInt() ?? 150000;
       }
     } else if (info.targetDiamonds > 0 && info.targetDiamonds != 1000000) {
@@ -1758,6 +1686,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
     double totalDueSalaries = 0.0;
     double totalCommissionUsd = 0.0;
+    int totalCommissionDiamonds = 0;
     int completedHostsCount = 0;
 
     final sortedMilestones = List<Map<String, dynamic>>.from(_milestones)
@@ -1788,15 +1717,16 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
       if (highestAchievedMilestone != null) {
         completedHostsCount++;
+        final tDia = (highestAchievedMilestone['target_diamonds'] ?? highestAchievedMilestone['targetDiamonds'] as num?)?.toInt() ?? 0;
         final rewardVal = (highestAchievedMilestone['reward_value'] ?? 
                            highestAchievedMilestone['rewardValue'] ?? 
                            highestAchievedMilestone['reward'] as num?)?.toDouble() ?? 
-                          (((highestAchievedMilestone['target_diamonds'] as num?)?.toDouble() ?? 40000) / coinsPerUsd);
+                          (tDia > 0 ? tDia / coinsPerUsd : 40000.0 / coinsPerUsd);
         // راتب المضيف: يخصم 40% (يحصل على 60%) فقط في حال فك التارجت
         final hostSalary = m.unpackedDiamonds > 0 ? (rewardVal * 0.60) : rewardVal;
         totalDueSalaries += hostSalary;
 
-        // عمولة وكيل المضيفين: نسبة مئوية مباشرة من راتب/مكافأة المضيف الكاملة ولا تتأثر بالفك
+        // عمولة وكيل المضيفين: نسبة مئوية مباشرة من تارجت المضيف المحقق بالكامل ولا تتأثر بالفك
         final double normCommRate;
         if (agencyCommRate > 0) {
           normCommRate = agencyCommRate;
@@ -1806,34 +1736,73 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
               ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
               : 0.10;
         }
+        final hostCommissionDiamonds = (tDia * normCommRate).round();
+        totalCommissionDiamonds += hostCommissionDiamonds;
         final hostCommissionUsd = rewardVal * normCommRate;
         totalCommissionUsd += hostCommissionUsd;
       }
     }
 
-    // ربط إجمالي ألماس عمولة الوكيل بإجمالي العمولة بالدولار بدقة 100%
-    final int agentCommissionDiamonds = (totalCommissionUsd * coinsPerUsd).round();
+    // إجمالي عمولة الوكيل بالألماس والدولار مطابقة لنسبة لوحة التحكم 100% (مثال: 20% على 40000 = 8000 💎)
+    final int agentCommissionDiamonds = totalCommissionDiamonds > 0 
+        ? totalCommissionDiamonds 
+        : (totalCommissionUsd * coinsPerUsd).round();
 
     final String period = (_agencyCommissionPeriod.isNotEmpty && _agencyCommissionPeriod != 'monthly')
         ? _agencyCommissionPeriod 
         : cfg.agencyCommissionPeriod;
-    final double periodFactor;
     final String periodBadgeLabel;
     if (period == 'daily') {
-      final now = DateTime.now();
-      final day = now.day.clamp(1, 31);
-      periodFactor = 1.0 / day;
       periodBadgeLabel = 'دورة يومية ☀️';
     } else if (period == 'weekly') {
-      periodFactor = 0.25;
       periodBadgeLabel = 'دورة أسبوعية 📅';
     } else {
-      periodFactor = 1.0;
       periodBadgeLabel = 'دورة شهرية 🗓️';
     }
 
-    final int periodCommissionDiamonds = (agentCommissionDiamonds * periodFactor).round();
-    final double periodCommissionUsd = totalCommissionUsd * periodFactor;
+    // التحقق من اكتمال الدورة المحددة (يومي / أسبوعي / شهري)
+    final now = DateTime.now().toUtc();
+    bool isPeriodCompleted = false;
+    String periodRemainingText = '';
+
+    if (period == 'daily') {
+      final endOfDay = DateTime.utc(now.year, now.month, now.day, 23, 59, 59);
+      final remHours = endOfDay.difference(now).inHours;
+      final remMins = endOfDay.difference(now).inMinutes % 60;
+      if (remHours == 0 && remMins <= 5) {
+        isPeriodCompleted = true;
+      } else {
+        periodRemainingText = remHours > 0 ? 'متبقي $remHours ساعة' : 'متبقي $remMins دقيقة';
+      }
+    } else if (period == 'weekly') {
+      final daysUntilSunday = 7 - now.weekday;
+      if (daysUntilSunday == 0 && now.hour >= 23) {
+        isPeriodCompleted = true;
+      } else {
+        periodRemainingText = daysUntilSunday > 0 ? 'متبقي $daysUntilSunday يوم' : 'متبقي ساعات';
+      }
+    } else {
+      final lastDay = DateTime.utc(now.year, now.month + 1, 0).day;
+      final remDays = lastDay - now.day;
+      if (remDays == 0 && now.hour >= 23) {
+        isPeriodCompleted = true;
+      } else {
+        periodRemainingText = remDays > 0 ? 'متبقي $remDays يوم' : 'متبقي ساعات';
+      }
+    }
+
+    if (info.periodType.contains('completed') || info.tier.contains('completed')) {
+      isPeriodCompleted = true;
+    }
+
+    // أرباح التارجت المحققة: تظهر فقط ألماس المضيفين أثناء الدورة الجارية (40,000 💎)،
+    // وفور انتهاء الدورة المحددة (يومي/أسبوعي/شهري)، يتم إدراج عمولة الوكيل رسمياً لتصبح متاحة للصرف كراتب
+    final int targetAchievedDiamonds = isPeriodCompleted
+        ? (hostsAchievedDiamonds + agentCommissionDiamonds)
+        : hostsAchievedDiamonds;
+
+    final int periodCommissionDiamonds = agentCommissionDiamonds;
+    final double periodCommissionUsd = totalCommissionUsd;
 
     final totalSalary = totalDueSalaries > 0 
         ? (totalDueSalaries % 1 == 0 ? totalDueSalaries.toInt().toString() : totalDueSalaries.toStringAsFixed(2))
@@ -1922,7 +1891,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       const Text('أرباح التارجت المحققة', style: TextStyle(color: Colors.grey, fontSize: 11)),
                       const SizedBox(height: 4),
                       Text(
-                        '$totalMembersDiamonds 💎',
+                        '$targetAchievedDiamonds 💎',
                         style: const TextStyle(
                           color: Color(0xFF10B981),
                           fontSize: 15,
@@ -1967,7 +1936,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
           // Agent Salary and Commission Card with USD and Diamonds side-by-side
           Container(
-            height: 120,
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF00B5B3),
               borderRadius: BorderRadius.circular(10),
@@ -1984,7 +1953,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(4),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -2048,8 +2017,15 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       ),
                       const SizedBox(height: 6),
                       Text(
+                        isPeriodCompleted
+                            ? '✅ اكتملت الدورة: أُدرجت العمولة في التارجت المحقق ومتاحة للصرف كراتب'
+                            : '⏳ تُدرج العمولة في التارجت المحقق للصرف كراتب فور اكتمال الدورة ($periodRemainingText)',
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
                         'إجمالي رواتب المضيفين المستحقة: \$$totalSalary USD (المقفلين للتارجت: $completedHostsCount)',
-                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                        style: const TextStyle(color: Colors.white70, fontSize: 10),
                       ),
                     ],
                   ),

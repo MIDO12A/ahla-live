@@ -392,19 +392,6 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 22),
-              tooltip: 'الانسحاب من الوكالة',
-              onPressed: () {
-                final aid = _agencyInfo?.agencyId ?? widget.agencyId;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AgencyExitScreen(agencyId: aid),
-                  ),
-                ).then((_) => _loadHostData());
-              },
-            ),
-            IconButton(
               icon: const Icon(Icons.refresh, color: Color(0xFF333333), size: 22),
               onPressed: () => _loadHostData(silent: true),
             ),
@@ -450,43 +437,6 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
               _buildLiveStatsCard(),
 
               const SizedBox(height: 20),
-
-              // ── 7. Exit Agency Button ──
-              InkWell(
-                onTap: () {
-                  final aid = _agencyInfo?.agencyId ?? widget.agencyId;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AgencyExitScreen(agencyId: aid),
-                    ),
-                  ).then((_) => _loadHostData());
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.exit_to_app_rounded, color: Colors.redAccent, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'الانسحاب من الوكالة',
-                        style: TextStyle(
-                          color: Colors.redAccent,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
 
               const SizedBox(height: 30),
             ],

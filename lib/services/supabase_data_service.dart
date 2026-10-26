@@ -1285,7 +1285,7 @@ class SupabaseDataService {
                 // وكيل المضيف: يحصل على نسبة عمولته المحددة من لوحة التحكم (يُضاف لرصيده دون الخصم من المضيف)
                 final agencyRatePct = DynamicConfigService().agencyRatePercentage;
                 final agentSalary = (diamondsToAdd * (agencyRatePct / 100.0)).round();
-                final totalAgencyCredit = diamondsToAdd + agentSalary;
+                final totalAgencyCredit = diamondsToAdd;
 
                 await http.patch(
                   Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
