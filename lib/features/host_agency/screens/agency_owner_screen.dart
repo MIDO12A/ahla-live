@@ -1629,54 +1629,6 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     ),
                   ],
                 ),
-
-                const SizedBox(height: 6),
-
-                // Host Commission Banner (عمولة الوكيل المكتسبة من هذا المضيف)
-                Builder(
-                  builder: (_) {
-                    final commUsd = _calculateHostCommissionUsd(member);
-                    final commDia = (commUsd * (cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd : 15000)).round();
-                    final commUsdStr = commUsd > 0 
-                        ? (commUsd % 1 == 0 ? commUsd.toInt().toString() : commUsd.toStringAsFixed(2)) 
-                        : '0.00';
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFFFDE68A)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.monetization_on, size: 14, color: Color(0xFFD97706)),
-                              SizedBox(width: 4),
-                              Text(
-                                'عمولة الوكيل من هذا المضيف:',
-                                style: TextStyle(
-                                  color: Color(0xFF92400E),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            commDia > 0 ? '$commDia 💎 (\$$commUsdStr USD)' : '\$$commUsdStr USD',
-                            style: const TextStyle(
-                              color: Color(0xFFB45309),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
               ],
             ),
           ),
@@ -1736,10 +1688,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
     final rawAgencyRate = info.commissionRate > 0 ? info.commissionRate : (cfg.agencyRatePercentage / 100.0);
     final agencyCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : (rawAgencyRate > 0 ? rawAgencyRate : 0.10);
-
-    // إجمالي ألماس الوكالة الفعلي المحقق من المضيفين
-    final int agentCommissionDiamonds = (totalMembersDiamonds * agencyCommRate).round();
-    final int totalAgencyAchievedDiamonds = totalMembersDiamonds;
+    final double coinsPerUsd = cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 15000.0;
 
     double totalDueSalaries = 0.0;
     double totalCommissionUsd = 0.0;
@@ -1749,7 +1698,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
           .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
 
-    // فحص جميع الأعضاء المحققين للتارجت
+    // فحص جميع الأعضاء واحتساب رواتب المضيفين وعمولة الوكيل بدقة 100%
     for (final m in _members) {
       // نعتمد الألماس الفعلي المحقق (شاملاً المفكوك) لتبقى عمولة الوكيل 100% محفوظة ولا تتأثر بالفك إطلاقاً
       final hostDia = m.effectiveDiamonds;
@@ -1776,7 +1725,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         final rewardVal = (highestAchievedMilestone['reward_value'] ?? 
                            highestAchievedMilestone['rewardValue'] ?? 
                            highestAchievedMilestone['reward'] as num?)?.toDouble() ?? 
-                          (((highestAchievedMilestone['target_diamonds'] as num?)?.toDouble() ?? 40000) / (cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 15000.0));
+                          (((highestAchievedMilestone['target_diamonds'] as num?)?.toDouble() ?? 40000) / coinsPerUsd);
         // راتب المضيف: يخصم 40% (يحصل على 60%) فقط في حال فك التارجت
         final hostSalary = m.unpackedDiamonds > 0 ? (rewardVal * 0.60) : rewardVal;
         totalDueSalaries += hostSalary;
@@ -1793,6 +1742,10 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         }
         final hostCommissionUsd = rewardVal * normCommRate;
         totalCommissionUsd += hostCommissionUsd;
+      } else if (hostDia > 0) {
+        // المضيفين قيد التقدم: عمولة الوكيل تُحتسب بدقة فائقة من ألماس المضيف الفعلي
+        final hostCommDia = hostDia * agencyCommRate;
+        totalCommissionUsd += hostCommDia / coinsPerUsd;
       }
     }
 
@@ -1819,8 +1772,13 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         totalCommissionUsd = rewardVal * normCommRate;
         totalDueSalaries = rewardVal;
         completedHostsCount = 1;
+      } else {
+        totalCommissionUsd = (totalMembersDiamonds * agencyCommRate) / coinsPerUsd;
       }
     }
+
+    // ربط إجمالي ألماس عمولة الوكيل بإجمالي العمولة بالدولار بدقة 100%
+    final int agentCommissionDiamonds = (totalCommissionUsd * coinsPerUsd).round();
 
     final String period = (_agencyCommissionPeriod.isNotEmpty && _agencyCommissionPeriod != 'monthly')
         ? _agencyCommissionPeriod 
@@ -2956,19 +2914,6 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
               _buildDataRow('حالة المرحلة:', stageInfo['stageName'] ?? 'المرحلة 1'),
               _buildDataRow('اكتمال التارجت:', stageInfo['isCompleted'] == true ? 'مكتمل ✅' : 'قيد التقدم ⏳'),
               _buildDataRow('الماس المحقق:', '${member.diamonds} 💎'),
-              Builder(
-                builder: (_) {
-                  final commUsd = _calculateHostCommissionUsd(member);
-                  final commDia = (commUsd * (DynamicConfigService.instance.coinsPerUsd > 0 ? DynamicConfigService.instance.coinsPerUsd : 15000)).round();
-                  final commUsdStr = commUsd > 0 
-                      ? (commUsd % 1 == 0 ? commUsd.toInt().toString() : commUsd.toStringAsFixed(2)) 
-                      : '0.00';
-                  return _buildDataRow(
-                    'عمولة الوكيل من المضيف:',
-                    commDia > 0 ? '$commDia 💎 (\$$commUsdStr USD)' : '\$$commUsdStr USD',
-                  );
-                },
-              ),
               _buildDataRow('متبقي للمرحلة التالية:', '${stageInfo['remainingDiamonds']} 💎'),
               const Divider(),
               _buildDataRow('أيام البث الصالحة:', '${member.days} يوم'),

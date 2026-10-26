@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -1147,58 +1147,78 @@ class SupabaseService {
       return (success: false, coinsReceived: 0, error: 'الحد الأدنى للتبديل هو $effectiveMin ألماس');
     }
     try {
+      // 1. جلب رصيد المستخدم المحدث من قاعدة البيانات مباشرة
+      Map<String, dynamic>? uRow;
+      try {
+        uRow = await _sb.from('users').select('diamonds, coins').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
+      } catch (_) {}
+
       final user = await _ds.getUser(uid);
-      if (user == null || user.diamonds < diamonds) {
+      final curDiamonds = (uRow?['diamonds'] as num?)?.toInt() ?? user?.diamonds ?? 0;
+      final curCoins = (uRow?['coins'] as num?)?.toInt() ?? user?.coins ?? 0;
+
+      if (curDiamonds < diamonds) {
         return (success: false, coinsReceived: 0, error: 'رصيد الألماس غير كافٍ');
       }
 
-      // التحقق مما إذا كان المستخدم مضيفاً في وكالة
-      Map<String, dynamic>? hostMember;
-      try {
-        final memRes = await _sb.from('host_agency_members')
-            .select('id, diamonds_balance, diamonds, diamonds_earned_monthly')
-            .or('host_uid.eq.$uid,user_id.eq.$uid')
-            .maybeSingle();
-        if (memRes != null) hostMember = Map<String, dynamic>.from(memRes);
-      } catch (_) {}
-
-      // استبدال الألماس إلى كوينز بمعدل كامل 1:1 (المستخدم يستلم كامل الكوينز)
+      // استبدال الألماس إلى كوينز بمعدل كامل (المستخدم يستلم كامل الكوينز)
       final coinsToReceive = (diamonds * effectiveMultiplier).floor();
       if (coinsToReceive <= 0) {
         return (success: false, coinsReceived: 0, error: 'كمية الألماس غير كافية للحصول على كوينز');
       }
-      final newDiamonds = user.diamonds - diamonds;
-      final newCoins = user.coins + coinsToReceive;
+      final newDiamonds = (curDiamonds - diamonds).clamp(0, 999999999);
+      final newCoins = curCoins + coinsToReceive;
 
-      await _ds.updateUser(uid, {
-        'diamonds': newDiamonds,
-        'coins': newCoins,
-      });
+      // 2. تحديث جدول users باستخدام Supabase Client الموثق بالكامل
+      try {
+        await _sb.from('users').update({
+          'diamonds': newDiamonds,
+          'coins': newCoins,
+        }).or('uid.eq.$uid,id.eq.$uid');
+      } catch (e) {
+        debugPrint('[exchangeDiamondsToCoins] Supabase update users failed: $e');
+      }
 
-      // إذا كان مضيفاً:
-      // يتم خصم الألماس من رصيده المتاح (diamonds_balance)
+      // 3. احتياطياً تحديث عبر DataService
+      try {
+        await _ds.updateUser(uid, {
+          'diamonds': newDiamonds,
+          'coins': newCoins,
+        });
+      } catch (_) {}
+
+      // 4. إذا كان مضيفاً في وكالة:
+      // يتم خصم الألماس من رصيده المتاح (diamonds_balance و diamonds)
       // ويتم أيضاً خصمه من التارجت الشهري (diamonds_earned_monthly) ليتراجع التارجت بمقدار ما تم فكه
-      // ويتم تسجيل فك التارجت لاحتساب راتب التارجت بنسبة 60% لاحقاً (خصم 40% من الراتب)
+      // وتسجيل فك التارجت لاحتساب راتب التارجت بنسبة 60% لاحقاً (خصم 40% من الراتب)
       // مع الحفاظ الكامل على عمولة وكيل المضيفين دون أي مساس بها
-      if (hostMember != null) {
-        try {
-          final curBal = (hostMember['diamonds_balance'] as num?)?.toInt() ?? (hostMember['diamonds'] as num?)?.toInt() ?? 0;
-          final curMonthly = (hostMember['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-          final curUnpacked = (hostMember['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
-          final updatedBal = (curBal - diamonds).clamp(0, 999999999);
-          final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
+      try {
+        final memRes = await _sb.from('host_agency_members')
+            .select('id, diamonds_balance, diamonds, diamonds_earned_monthly, unpacked_target_diamonds')
+            .or('host_uid.eq.$uid,user_id.eq.$uid');
+        if (memRes is List && memRes.isNotEmpty) {
+          for (final rawMem in memRes) {
+            final hostMember = Map<String, dynamic>.from(rawMem as Map);
+            final curBal = (hostMember['diamonds_balance'] as num?)?.toInt() ?? (hostMember['diamonds'] as num?)?.toInt() ?? 0;
+            final curMonthly = (hostMember['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+            final curUnpacked = (hostMember['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
+            final updatedBal = (curBal - diamonds).clamp(0, 999999999);
+            final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
 
-          await _sb.from('host_agency_members').update({
-            'diamonds_balance': updatedBal,
-            'diamonds': updatedBal,
-            'diamonds_earned_monthly': updatedMonthly, // خصم الألماس من التارجت الشهري ليتراجع
-            'unpacked_target_diamonds': curUnpacked + diamonds, // تسجيل فك التارجت
-            'has_unpacked_target': true,
-          }).eq('id', hostMember['id']);
+            await _sb.from('host_agency_members').update({
+              'diamonds_balance': updatedBal,
+              'diamonds': updatedBal,
+              'diamonds_earned_monthly': updatedMonthly,
+              'unpacked_target_diamonds': curUnpacked + diamonds,
+              'has_unpacked_target': true,
+            }).eq('id', hostMember['id']);
+          }
 
-          // تحديث وإعادة تقييم التارجت ليتراجع فوراً
+          // إعادة تقييم التارجت ليتراجع فوراً للمضيف
           await AgencyTargetEvaluator.evaluateHostTargets(uid);
-        } catch (_) {}
+        }
+      } catch (e) {
+        debugPrint('[exchangeDiamondsToCoins] update host_agency_members error: $e');
       }
 
       return (success: true, coinsReceived: coinsToReceive, error: null);

@@ -1410,14 +1410,14 @@ abstract final class AgencyRepository {
           'diamonds_balance': newBal,
         }).eq('id', mem['id']);
       }
-      final uRes = await _sb.from('users').select('coins, diamonds').eq('uid', uid).maybeSingle();
+      final uRes = await _sb.from('users').select('coins, diamonds').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
       if (uRes != null) {
         final curCoins = (uRes['coins'] as num?)?.toInt() ?? 0;
         final curDia = (uRes['diamonds'] as num?)?.toInt() ?? 0;
         await _sb.from('users').update({
           'coins': curCoins + diamondsAmount,
           'diamonds': (curDia - diamondsAmount).clamp(0, 999999999),
-        }).eq('uid', uid);
+        }).or('uid.eq.$uid,id.eq.$uid');
       }
       return {'success': true, 'coins': diamondsAmount, 'coins_credited': diamondsAmount, 'new_balance': newBal};
     } catch (e) {

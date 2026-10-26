@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -17,6 +17,7 @@ import '../models/app_asset_model.dart';
 import '../models/notification_model.dart';
 import '../models/gifted_item_model.dart';
 import 'package:uuid/uuid.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dynamic_config_service.dart';
 
 class SupabaseDataService {
@@ -27,11 +28,17 @@ class SupabaseDataService {
   static const String _baseUrl = SupabaseConfig.projectUrl;
   static const String _anonKey = SupabaseConfig.anonKey;
 
-  static Map<String, String> get _headers => {
-        'apikey': _anonKey,
-        'Authorization': 'Bearer $_anonKey',
-        'Content-Type': 'application/json',
-      };
+  static Map<String, String> get _headers {
+    String? token;
+    try {
+      token = Supabase.instance.client.auth.currentSession?.accessToken;
+    } catch (_) {}
+    return {
+      'apikey': _anonKey,
+      'Authorization': 'Bearer ${token ?? _anonKey}',
+      'Content-Type': 'application/json',
+    };
+  }
 
   // ═══════════════════════════════════════════════════════
   // ROOMS
@@ -642,6 +649,11 @@ class SupabaseDataService {
           headers: _headers,
           body: jsonEncode(clean),
         );
+      }
+      try {
+        await Supabase.instance.client.from('users').update(clean).or('uid.eq.$uid,id.eq.$uid');
+      } catch (e) {
+        debugPrint('[SupabaseDataService] direct client updateUser: $e');
       }
       debugPrint('[SupabaseDataService] updateUser ($uid) status: ${res.statusCode}');
       if (res.statusCode >= 200 && res.statusCode < 300) {

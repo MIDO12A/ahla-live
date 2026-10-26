@@ -123,9 +123,19 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
         idempotencyKey: idempKey,
       );
       if (mounted) {
+        if (res['success'] == false) {
+          _show(res['error']?.toString() ?? 'فشل التبادل');
+          return;
+        }
         final coins = res['coins'] ?? 0;
         _show('✅ تم التبادل: ${_fmt(amount)} ألماس → ${_fmt(coins)} كوينز', ok: true);
         _exchangeCtrl.clear();
+        final uid = Supabase.instance.client.auth.currentUser?.id;
+        if (uid != null) {
+          try {
+            await context.read<UserProvider>().loadUser(uid);
+          } catch (_) {}
+        }
         await _load();
       }
     } catch (e) {

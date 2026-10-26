@@ -1423,52 +1423,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              // Agent Commission from this Host Banner (عمولة الوكيل المكتسبة من المضيف)
-              if (_isAgencyOwner && anchor.role != 'owner') ...[
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF2E2412), Color(0xFF1E190E)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0x55FFD700)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: const BoxDecoration(
-                          color: Color(0x33FFD700),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: 24),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isAr ? 'عمولة الوكالة المحتسبة من هذا المضيف ⚡' : 'Agency Commission from Host ⚡',
-                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '$agentEarnedDiamonds 💎  (~\$$agentEarnedUsd USD) • بنسبة ${((commRate) * 100).toInt()}%',
-                              style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.w900),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
+              const SizedBox(height: 10),
               // Performance Cards Grid
               Row(
                 children: [
