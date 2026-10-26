@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:math' as math;
@@ -212,6 +212,31 @@ class _RoomGiftNotice {
 class RoomScreen extends StatefulWidget {
   static DateTime _lastPushAt = DateTime.fromMillisecondsSinceEpoch(0);
   static String? _lastPushRoomId;
+  static final Map<String, int> cachedRoomSeatCount = {};
+  static final Map<String, seat_model.SeatStyle> cachedRoomSeatStyle = {};
+  static SharedPreferences? sharedPrefs;
+
+  static Future<void> initPrefs() async {
+    try {
+      sharedPrefs = await SharedPreferences.getInstance();
+      final keys = sharedPrefs?.getKeys() ?? {};
+      for (final k in keys) {
+        if (k.startsWith('room_seat_style_')) {
+          final rId = k.replaceFirst('room_seat_style_', '');
+          final val = sharedPrefs!.getInt(k);
+          if (val != null && val >= 0 && val < seat_model.SeatStyle.values.length) {
+            cachedRoomSeatStyle[rId] = seat_model.SeatStyle.values[val];
+          }
+        } else if (k.startsWith('room_seat_count_')) {
+          final rId = k.replaceFirst('room_seat_count_', '');
+          final count = sharedPrefs!.getInt(k);
+          if (count != null && count > 0) {
+            cachedRoomSeatCount[rId] = count;
+          }
+        }
+      }
+    } catch (_) {}
+  }
 
   /// Returns true if this push is allowed (debounces double-taps on the same
   /// room within 800ms, which would stack two RoomScreens and double-init Zego).
@@ -769,6 +794,78 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
               if (mounted) {
                 LuckyGiftService().enqueueLuckyGift(context, serverData);
+
+                // ✅ إضافة رسالة هدية الحظ فوراً في شات الغرفة للراسل (0ms تأخير)
+                final localMsgId = (res['msgId']?.toString()) ?? 'lucky_${DateTime.now().millisecondsSinceEpoch}_${user?.uid}';
+                final exists = _chatMessages.any((m) => m.msgId == localMsgId);
+                if (!exists) {
+                  final luckyPayload = (res['payload'] as Map<String, dynamic>?) ?? {
+                    'gift_icon': gift.iconAsset,
+                    'image_url': gift.iconAsset,
+                    'gift_name': gift.name,
+                    'count': count,
+                    'won_coins': won,
+                    'multiplier': mult,
+                    'receiver_name': receiverName,
+                    'roomId': roomId,
+                    'sender': {
+                      'id': user?.uid ?? '',
+                      'nickname': user?.name ?? '',
+                      'avatar': user?.photoUrl ?? '',
+                    },
+                    'receiver': {
+                      'id': receiverId,
+                      'nickname': receiverName,
+                    },
+                    'gift': {
+                      'id': gift.id,
+                      'giftName': gift.name,
+                      'giftNameAr': gift.name,
+                      'coinPrice': gift.value,
+                      'giftIconUrl': gift.iconAsset,
+                      'giftCoverUrl': cover,
+                      'giftBgUrl': cover,
+                      'svgaAnimUrl': gift.animationAsset,
+                    },
+                    'combo': {
+                      'comboId': 'combo_${DateTime.now().millisecondsSinceEpoch}',
+                      'comboCount': comboMultiplier,
+                      'times': count,
+                    },
+                    'results': {
+                      'multipliers': multList,
+                      'totalWonCoins': won,
+                      'maxMultiplier': mult,
+                      'isBigWin': mult >= 50,
+                    },
+                  };
+
+                  final winText = mult > 1
+                      ? '${user?.name ?? ""} 🍀 ${gift.name} x$count (فاز بـ $won 🪙 مضاعف ${mult}X)'
+                      : '${user?.name ?? ""} 🍀 ${gift.name} x$count';
+
+                  _chatMessages.add(MessageModel(
+                    msgId: localMsgId,
+                    roomId: roomId,
+                    senderUid: user?.uid ?? '',
+                    senderName: user?.name ?? '',
+                    senderPhotoUrl: user?.photoUrl ?? '',
+                    type: 'lucky_gift',
+                    text: winText,
+                    imageUrl: gift.iconAsset,
+                    giftPayload: luckyPayload,
+                    timestamp: DateTime.now().millisecondsSinceEpoch,
+                  ));
+                  _msgCount = _chatMessages.length;
+                  _chatUpdateNotifier.value++;
+                  if (_chatScroll.hasClients) {
+                    _chatScroll.animateTo(
+                      _chatScroll.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                }
               }
             }
           } else {
@@ -965,8 +1062,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   String? _currentUserId;
   String? _currentUserName;
   bool get _isOwnerOrModerator => _isOwner || _moderators.contains(_currentUserId);
-  static final Map<String, int> _cachedRoomSeatCount = {};
-  static final Map<String, seat_model.SeatStyle> _cachedRoomSeatStyle = {};
+  static Map<String, int> get _cachedRoomSeatCount => RoomScreen.cachedRoomSeatCount;
+  static Map<String, seat_model.SeatStyle> get _cachedRoomSeatStyle => RoomScreen.cachedRoomSeatStyle;
   seat_model.SeatStyle _roomSeatStyle = seat_model.SeatStyle.circle;
 
   // Current room data
@@ -1020,15 +1117,37 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         }
       }
     });
-    if (_cachedRoomSeatStyle.containsKey(widget.roomId)) {
-      _roomSeatStyle = _cachedRoomSeatStyle[widget.roomId]!;
+
+    // تحميل شكل وعدد المقاعد لحظياً بدون أي تأخير من الذاكرة أو التخزين الدائم
+    final savedStyle = _cachedRoomSeatStyle[widget.roomId] ??
+        (() {
+          final idx = RoomScreen.sharedPrefs?.getInt('room_seat_style_${widget.roomId}') ??
+              RoomScreen.sharedPrefs?.getInt('last_selected_room_seat_style');
+          if (idx != null && idx >= 0 && idx < seat_model.SeatStyle.values.length) {
+            return seat_model.SeatStyle.values[idx];
+          }
+          return null;
+        })();
+    if (savedStyle != null) {
+      _roomSeatStyle = savedStyle;
+      _cachedRoomSeatStyle[widget.roomId] = savedStyle;
     }
+
+    final savedCount = _cachedRoomSeatCount[widget.roomId] ??
+        RoomScreen.sharedPrefs?.getInt('room_seat_count_${widget.roomId}') ??
+        RoomScreen.sharedPrefs?.getInt('last_selected_room_seat_count');
+    if (savedCount != null && savedCount > 0) {
+      _cachedRoomSeatCount[widget.roomId] = savedCount;
+    }
+
     SupabaseDataService().getRoom(widget.roomId).then((room) {
       if (room != null && mounted) {
         setState(() {
           _currentRoom = room;
           _roomSeatStyle = room.seatStyle;
           _cachedRoomSeatStyle[widget.roomId] = room.seatStyle;
+          RoomScreen.sharedPrefs?.setInt('room_seat_style_${widget.roomId}', room.seatStyle.index);
+          RoomScreen.sharedPrefs?.setInt('room_seat_count_${widget.roomId}', room.seatCount);
           if (room.seatCount > 0 && room.seatCount != _seats.length) {
             _cachedRoomSeatCount[widget.roomId] = room.seatCount;
             final old = _seats;
@@ -1296,6 +1415,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           _roomSeatStyle = room.seatStyle;
           _cachedRoomSeatCount[widget.roomId] = room.seatCount;
           _cachedRoomSeatStyle[widget.roomId] = room.seatStyle;
+          RoomScreen.sharedPrefs?.setInt('room_seat_style_${widget.roomId}', room.seatStyle.index);
+          RoomScreen.sharedPrefs?.setInt('room_seat_count_${widget.roomId}', room.seatCount);
         });
         _resolveHostCustomId(room.hostUid);
       }
@@ -1362,8 +1483,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
       if (mounted) {
         final clearedAt = _currentRoom?.chatClearedAt ?? 0;
-        final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24)).millisecondsSinceEpoch;
-        final minTime = clearedAt > oneDayAgo ? clearedAt : oneDayAgo;
+        final minTime = clearedAt > _sessionJoinedAt ? clearedAt : _sessionJoinedAt;
         final currentSessionMsgs = msgs.where((m) => m.timestamp >= minTime).toList();
 
         // إزالة الرسائل التي مسحت قبل clearedAt فقط
@@ -2216,7 +2336,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // }
 
   List<SeatModel> _buildInitialSeats() {
-    final count = _cachedRoomSeatCount[widget.roomId] ?? 20;
+    final count = _cachedRoomSeatCount[widget.roomId] ??
+        RoomScreen.sharedPrefs?.getInt('room_seat_count_${widget.roomId}') ??
+        RoomScreen.sharedPrefs?.getInt('last_selected_room_seat_count') ??
+        20;
     final seats = <SeatModel>[];
     for (int i = 0; i < count; i++) {
       seats.add(SeatModel(index: i));
@@ -3239,10 +3362,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           }
           _cachedRoomSeatStyle[widget.roomId] = newSeatStyle;
           _cachedRoomSeatCount[widget.roomId] = count;
-          SharedPreferences.getInstance().then((prefs) {
-            prefs.setInt('room_seat_style_${widget.roomId}', newSeatStyle.index);
-            prefs.setInt('room_seat_count_${widget.roomId}', count);
-          });
+          RoomScreen.sharedPrefs?.setInt('room_seat_style_${widget.roomId}', newSeatStyle.index);
+          RoomScreen.sharedPrefs?.setInt('room_seat_count_${widget.roomId}', count);
+          RoomScreen.sharedPrefs?.setInt('last_selected_room_seat_style', newSeatStyle.index);
+          RoomScreen.sharedPrefs?.setInt('last_selected_room_seat_count', count);
           _firebaseService.updateRoomSeatStyle(widget.roomId, newSeatStyle.index);
           _firebaseService.updateRoomSeatCount(widget.roomId, count);
           unawaited(SupabaseDataService().updateRoom(widget.roomId, {
@@ -4677,15 +4800,33 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               builder: (_, __, ___) {
                 final displayMsgs = _filteredChatMessages;
                 if (displayMsgs.isEmpty) return const SizedBox.shrink();
-                return ListView.builder(
-                  controller: _chatScroll,
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  itemCount: displayMsgs.length,
-                  itemBuilder: (_, i) {
-                    final m = displayMsgs[i];
-                    final userProvider = Provider.of<UserProvider>(context, listen: false);
-                    final isMe = m.senderUid == userProvider.currentUser?.uid;
-                    return _buildChatMsg(m, isMe);
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: constraints.maxWidth,
+                        ),
+                        child: SizedBox(
+                          width: max(constraints.maxWidth, 380.0),
+                          height: constraints.maxHeight,
+                          child: ListView.builder(
+                            controller: _chatScroll,
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                            itemCount: displayMsgs.length,
+                            itemBuilder: (_, i) {
+                              final m = displayMsgs[i];
+                              final userProvider = Provider.of<UserProvider>(context, listen: false);
+                              final isMe = m.senderUid == userProvider.currentUser?.uid;
+                              return _buildChatMsg(m, isMe);
+                            },
+                          ),
+                        ),
+                      ),
+                    );
                   },
                 );
               },
@@ -6745,21 +6886,40 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   // ── زر استلام المكافأة داخل كرت إجمالي العملات التاريخية في بيانات الغرفة ──
   Widget _buildClaimRewardButtonInCoinCard(bool isAr) {
-    if (!_isOwner) return const SizedBox.shrink();
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final currentUser = userProvider.currentUser;
+    final isRoomOwner = _isOwner || (currentUser != null && (
+      currentUser.uid == _currentRoom?.hostUid ||
+      currentUser.uid == widget.hostUid ||
+      currentUser.hostedRoomId == widget.roomId
+    ));
+    if (!isRoomOwner) return const SizedBox.shrink();
 
     return FutureBuilder<Map<String, dynamic>>(
       future: RoomCupService().fetchRoomCupStatus(widget.roomId, isWeekly: true),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox.shrink();
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 14),
+            child: SizedBox(
+              height: 38,
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFF5AD)),
+                ),
+              ),
+            ),
+          );
+        }
         final data = snapshot.data!;
-        if (data['enabled'] == false) return const SizedBox.shrink();
-
         final profitCoins = (data['ownerProfitCoins'] as num?)?.toInt() ?? 0;
         final isQualified = data['isQualified'] == true;
         final isPeriodCompleted = data['isPeriodCompleted'] == true;
         final remainingDays = (data['remainingDays'] as num?)?.toInt() ?? 0;
         final remainingHours = (data['remainingHours'] as num?)?.toInt() ?? 0;
-        final canClaim = _isOwner && profitCoins > 0 && isQualified && !_isClaimingCupReward;
+        final canClaim = isRoomOwner && profitCoins > 0 && isQualified && !_isClaimingCupReward;
 
         return Padding(
           padding: const EdgeInsets.only(top: 14),
@@ -6792,6 +6952,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                               context: context,
                               builder: (ctx) => AlertDialog(
                                 backgroundColor: const Color(0xFF1E1724),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                 title: Row(
                                   children: [
                                     const Icon(Icons.check_circle, color: Colors.greenAccent, size: 24),
@@ -6804,14 +6965,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 ),
                                 content: Text(
                                   isAr
-                                      ? 'تم إيداع مكافآت الغرفة (+$profit كوينز) في محفظتك بنجاح 🎁!'
-                                      : 'Room rewards (+$profit coins) deposited to your wallet 🎁!',
+                                      ? 'تم إيداع مكافآت الغرفة (+$profit كوينز 🪙) في محفظتك بنجاح 🎁!'
+                                      : 'Room rewards (+$profit coins 🪙) deposited to your wallet 🎁!',
                                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                                 ),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(ctx),
-                                    child: Text(isAr ? 'حسناً' : 'OK', style: const TextStyle(color: Color(0xFFFFD54F))),
+                                    child: Text(isAr ? 'حسناً' : 'OK', style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold)),
                                   ),
                                 ],
                               ),
@@ -6854,7 +7015,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         const SizedBox(width: 6),
                         Text(
                           canClaim
-                              ? (isAr ? 'استلام المكافأة (+$profitCoins 🪙)' : 'Claim Reward (+$profitCoins 🪙)')
+                              ? (isAr ? 'استلام المكافأة (+$profitCoins كوينز 🪙)' : 'Claim Reward (+$profitCoins coins 🪙)')
                               : (!isPeriodCompleted
                                   ? (isAr
                                       ? (remainingDays > 0 ? 'استلام المكافأة (متبقي $remainingDays يوم)' : 'استلام المكافأة (متبقي $remainingHours ساعة)')
@@ -6871,277 +7032,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       ],
                     ),
             ),
-          ),
-        );
-      },
-    );
-  }
-  Widget _buildRoomCupCard(bool isAr) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: RoomCupService().fetchRoomCupStatus(widget.roomId, isWeekly: true),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox.shrink();
-        final data = snapshot.data!;
-        // Hide completely if disabled from dashboard
-        if (data['enabled'] == false) return const SizedBox.shrink();
-
-        final totalCoins = (data['roomTotalCoins'] as num?)?.toInt() ?? 0;
-        final profitCoins = (data['ownerProfitCoins'] as num?)?.toInt() ?? 0;
-        final appliedPercentage = (data['appliedPercentage'] as num?)?.toDouble() ?? 0.0;
-        final matchedTierName = data['matchedTierName']?.toString() ?? '';
-        final nextTierName = data['nextTierName']?.toString() ?? '';
-        final nextTierCoins = (data['nextTierCoins'] as num?)?.toInt() ?? 0;
-        final isQualified = data['isQualified'] == true;
-        final isPeriodCompleted = data['isPeriodCompleted'] == true;
-        final remainingDays = (data['remainingDays'] as num?)?.toInt() ?? 0;
-        final remainingHours = (data['remainingHours'] as num?)?.toInt() ?? 0;
-
-        return Container(
-          margin: const EdgeInsets.only(top: 14),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF2A1B0E), Color(0xFF1E1724)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFFFD54F).withValues(alpha: 0.35), width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFFD54F).withValues(alpha: 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [Color(0xFFFFD54F), Color(0xFFDE880F)],
-                      ),
-                    ),
-                    child: const Icon(Icons.emoji_events, color: Colors.black, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              isAr ? 'كأس الغرفة ومكافآت المالك 🏆' : 'Room Cup & Owner Rewards 🏆',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFFFD54F),
-                              ),
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
-                              ),
-                              child: Text(
-                                '$appliedPercentage%',
-                                style: const TextStyle(
-                                  color: Color(0xFFFFD54F),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (matchedTierName.isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          Text(
-                            isAr ? 'المستوى المحقق: $matchedTierName' : 'Achieved: $matchedTierName',
-                            style: const TextStyle(fontSize: 11, color: Colors.amberAccent, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      isAr ? 'إجمالي دعم الغرفة' : 'Room Total Support',
-                      style: const TextStyle(fontSize: 11, color: Colors.white70),
-                    ),
-                    Text(
-                      '$totalCoins 🪙',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amberAccent),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      isAr ? 'المكافأة المستحقة لصاحب الغرفة' : 'Owner Reward',
-                      style: const TextStyle(fontSize: 11, color: Colors.white70),
-                    ),
-                    Text(
-                      '+$profitCoins 🪙',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.greenAccent),
-                    ),
-                  ],
-                ),
-              ),
-              if (nextTierName.isNotEmpty && nextTierCoins > totalCoins) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.arrow_upward, size: 13, color: Colors.amberAccent),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          isAr 
-                            ? 'الهدف القادم: $nextTierName (متبقي ${(nextTierCoins - totalCoins)} كوينز)'
-                            : 'Next target: $nextTierName (${(nextTierCoins - totalCoins)} coins left)',
-                          style: const TextStyle(fontSize: 10, color: Colors.white60),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 40,
-                child: ElevatedButton(
-                  onPressed: (_isOwner && profitCoins > 0 && isQualified && !_isClaimingCupReward)
-                      ? () async {
-                          if (_isClaimingCupReward) return;
-                          setState(() => _isClaimingCupReward = true);
-                          try {
-                            final res = await RoomCupService().settleRoomCupForOwner(
-                              roomId: widget.roomId,
-                              isWeekly: true,
-                              force: false,
-                            );
-                            if (res['ok'] == true && mounted) {
-                              final userProvider = Provider.of<UserProvider>(context, listen: false);
-                              final profit = (res['ownerProfitCoins'] as num?)?.toInt() ?? profitCoins;
-                              final newBal = (res['newBalance'] as num?)?.toInt();
-                              if (newBal != null) {
-                                userProvider.updateCoinsImmediately(newBal);
-                              } else if (profit > 0 && userProvider.currentUser != null) {
-                                userProvider.updateCoinsImmediately(userProvider.currentUser!.coins + profit);
-                              }
-                              await userProvider.reloadUser();
-                              setState(() {});
-                              if (mounted) {
-                                showDialog(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    backgroundColor: const Color(0xFF1E1724),
-                                    title: Row(
-                                      children: [
-                                        const Icon(Icons.check_circle, color: Colors.greenAccent, size: 24),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          isAr ? 'تم استلام المكافآت بنجاح' : 'Claim Successful',
-                                          style: const TextStyle(color: Colors.white, fontSize: 16),
-                                        ),
-                                      ],
-                                    ),
-                                    content: Text(
-                                      isAr
-                                          ? 'تم إيداع مكافآت كأس الغرفة (+${res['ownerProfitCoins'] ?? profit} كوينز) في محفظتك بنجاح 🎁! وتم تصفير العداد للدورة القادمة.'
-                                          : 'Room Cup rewards (+${res['ownerProfitCoins'] ?? profit} coins) deposited to your wallet 🎁! Counter reset for the next cycle.',
-                                      style: const TextStyle(color: Colors.white70, fontSize: 13),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(ctx),
-                                        child: Text(isAr ? 'حسناً' : 'OK', style: const TextStyle(color: Color(0xFFFFD54F))),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-                            } else if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(res['message']?.toString() ?? (isAr ? 'لم ينتهِ الأسبوع الحالي بعد أو لم تتأهل الغرفة' : 'Week not completed yet or not qualified')),
-                                  backgroundColor: Colors.redAccent,
-                                ),
-                              );
-                            }
-                          } finally {
-                            if (mounted) {
-                              setState(() => _isClaimingCupReward = false);
-                            }
-                          }
-                        }
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD54F),
-                    foregroundColor: Colors.black,
-                    disabledBackgroundColor: Colors.white12,
-                    disabledForegroundColor: Colors.white38,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: _isClaimingCupReward
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                      : Text(
-                          !_isOwner
-                              ? (isAr ? 'مكافآت خاصة بمالك الغرفة' : 'Owner Exclusive Reward')
-                              : (!isPeriodCompleted
-                                  ? (isAr
-                                      ? (remainingDays > 0 ? 'متبقي $remainingDays يوم لاكتمال الأسبوع' : 'متبقي $remainingHours ساعة لاكتمال الدورة')
-                                      : (remainingDays > 0 ? '$remainingDays days left in week' : '$remainingHours hrs left'))
-                                  : (!isQualified
-                                      ? (isAr ? 'الغرفة لم تتأهل بعد للحد الأدنى' : 'Not Qualified Yet')
-                                      : (profitCoins > 0
-                                          ? (isAr ? 'استلام المكافآت' : 'Claim Rewards')
-                                          : (isAr ? 'لا توجد مكافآت جاهزة' : 'No Rewards Available')))),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-            ],
           ),
         );
       },

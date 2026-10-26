@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../config/r.dart';
@@ -63,6 +63,7 @@ class _GiftPanelState extends State<GiftPanel> {
   int _comboSeconds = 0;
   int _comboMultiplier = 0;
   int _comboRemainingMs = 0;
+  late final PageController _categoryPageController = PageController();
   final List<Timer> _pendingDelays = [];
 
   @override
@@ -175,6 +176,7 @@ class _GiftPanelState extends State<GiftPanel> {
     for (final t in _pendingDelays) {
       t.cancel();
     }
+    _categoryPageController.dispose();
     _comboTimer?.cancel();
     _giftSub?.cancel();
     _catSub?.cancel();
@@ -196,9 +198,12 @@ class _GiftPanelState extends State<GiftPanel> {
     // Instant initial load from Supabase directly
     SupabaseDataService().getGiftCategories().then((cats) {
       if (mounted && cats.isNotEmpty) {
+        final filteredCats = cats.where((c) => c.id.toLowerCase() != 'all').toList();
         setState(() {
-          _categories = cats;
-          _selectedCategoryId ??= 'all';
+          _categories = filteredCats;
+          if (_selectedCategoryId == null || _selectedCategoryId == 'all') {
+            _selectedCategoryId = filteredCats.isNotEmpty ? filteredCats.first.id : 'normal';
+          }
         });
       }
     }).catchError((_) {});
@@ -216,9 +221,12 @@ class _GiftPanelState extends State<GiftPanel> {
 
     _catSub = fb.giftCategoriesStream().listen((cats) {
       if (mounted) {
+        final filteredCats = cats.where((c) => c.id.toLowerCase() != 'all').toList();
         setState(() {
-          _categories = cats;
-          _selectedCategoryId ??= 'all';
+          _categories = filteredCats;
+          if (_selectedCategoryId == null || _selectedCategoryId == 'all') {
+            _selectedCategoryId = filteredCats.isNotEmpty ? filteredCats.first.id : 'normal';
+          }
         });
       }
     });
@@ -237,11 +245,11 @@ class _GiftPanelState extends State<GiftPanel> {
     });
   }
 
-  List<gm.GiftModel> get _filteredGifts {
-    if (_selectedCategoryId == null || _selectedCategoryId == 'all') {
+  List<gm.GiftModel> _getGiftsForCategory(String? categoryId) {
+    if (categoryId == null || categoryId == 'all') {
       return _gifts;
     }
-    final sel = _selectedCategoryId!.toLowerCase();
+    final sel = categoryId.toLowerCase();
     if (sel == 'backpack' || sel.contains('حقيبة')) {
       return _gifts.where((g) => g.packageCount > 0 || g.giftType == 4 || g.categoryId == 'backpack' || (g.categoryId?.toLowerCase().contains('حقيبة') ?? false)).toList();
     }
@@ -257,8 +265,10 @@ class _GiftPanelState extends State<GiftPanel> {
     if (sel == 'normal' || sel == 'popular') {
       return _gifts.where((g) => (g.giftType == 1 && !g.isLucky && !g.isCpGift) || g.categoryId == null || g.categoryId!.isEmpty || g.categoryId == 'normal' || g.categoryId == 'popular' || (g.categoryId?.toLowerCase().contains('شائع') ?? false) || (g.categoryId?.toLowerCase().contains('عادي') ?? false)).toList();
     }
-    return _gifts.where((g) => g.categoryId == _selectedCategoryId || (g.categoryId != null && (g.categoryId!.toLowerCase() == sel || g.categoryId!.contains(_selectedCategoryId!)))).toList();
+    return _gifts.where((g) => g.categoryId == categoryId || (g.categoryId != null && (g.categoryId!.toLowerCase() == sel || g.categoryId!.contains(categoryId)))).toList();
   }
+
+  List<gm.GiftModel> get _filteredGifts => _getGiftsForCategory(_selectedCategoryId);
 
 
   void _toggleUser(String uid) {
@@ -286,9 +296,37 @@ class _GiftPanelState extends State<GiftPanel> {
     });
   }
 
+  List<GiftCategory> _getAllTabs(bool isAr) {
+    final List<GiftCategory> tabs = [];
+    if (_categories.isNotEmpty) {
+      final sorted = List<GiftCategory>.from(_categories)..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      for (final c in sorted) {
+        if (c.id.toLowerCase() == 'all') continue;
+        tabs.add(c);
+      }
+      if (!tabs.any((t) => t.id.toLowerCase() == 'backpack' || t.name.toLowerCase().contains('حقيبة'))) {
+        tabs.add(GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 999));
+      }
+    } else {
+      tabs.addAll([
+        GiftCategory(id: 'normal', name: isAr ? 'شائع' : 'Popular', sortOrder: 1),
+        GiftCategory(id: 'luxury', name: isAr ? '👑 فاخر' : '👑 Luxury', sortOrder: 2),
+        GiftCategory(id: 'lucky', name: isAr ? '🍀 الحظ' : '🍀 Lucky', sortOrder: 3),
+        GiftCategory(id: 'cp', name: isAr ? '💍 الارتباط' : '💍 CP', sortOrder: 4),
+        GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 5),
+      ]);
+    }
+    return tabs;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     final dc = DynamicConfigService();
+    final allTabs = _getAllTabs(isAr);
+    if ((_selectedCategoryId == null || _selectedCategoryId == 'all') && allTabs.isNotEmpty) {
+      _selectedCategoryId = allTabs.first.id;
+    }
     // Auto-select first gift if none selected
     final filtered = _filteredGifts;
     if ((_sel < 0 || _sel >= _gifts.length) && filtered.isNotEmpty) {
@@ -331,7 +369,7 @@ class _GiftPanelState extends State<GiftPanel> {
                 ),
               ),
             Container(
-              height: 370,
+              height: 450,
               decoration: BoxDecoration(
                 color: dc.giftPanelBgColor,
                 image: dc.giftPanelBgImage.isNotEmpty
@@ -344,9 +382,9 @@ class _GiftPanelState extends State<GiftPanel> {
               ),
               child: Column(
                 children: [
-                  _buildHeader(dc),
+                  _buildHeader(dc, allTabs, isAr),
                   Container(height: 0.5, color: const Color(0x1AFFFFFF)),
-                  Expanded(child: _buildGrid(dc)),
+                  Expanded(child: _buildGrid(dc, allTabs)),
                   _buildBottomOperate(dc),
                 ],
               ),
@@ -509,30 +547,8 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
-  Widget _buildHeader(DynamicConfigService dc) {
-    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+  Widget _buildHeader(DynamicConfigService dc, List<GiftCategory> allTabs, bool isAr) {
     final users = _allAvailableUsers.isNotEmpty ? _allAvailableUsers : widget.targetUsers;
-    final List<GiftCategory> allTabs = [];
-    allTabs.add(GiftCategory(id: 'all', name: isAr ? 'الكل' : 'All', sortOrder: -999));
-
-    if (_categories.isNotEmpty) {
-      final sorted = List<GiftCategory>.from(_categories)..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      for (final c in sorted) {
-        if (c.id.toLowerCase() == 'all') continue;
-        allTabs.add(c);
-      }
-      if (!allTabs.any((t) => t.id.toLowerCase() == 'backpack' || t.name.toLowerCase().contains('حقيبة'))) {
-        allTabs.add(GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 999));
-      }
-    } else {
-      allTabs.addAll([
-        GiftCategory(id: 'normal', name: isAr ? 'شائع' : 'Popular', sortOrder: 1),
-        GiftCategory(id: 'luxury', name: isAr ? '👑 فاخر' : '👑 Luxury', sortOrder: 2),
-        GiftCategory(id: 'lucky', name: isAr ? '🍀 الحظ' : '🍀 Lucky', sortOrder: 3),
-        GiftCategory(id: 'cp', name: isAr ? '💍 الارتباط' : '💍 CP', sortOrder: 4),
-        GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 5),
-      ]);
-    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
@@ -576,9 +592,17 @@ class _GiftPanelState extends State<GiftPanel> {
                 for (final cat in allTabs)
                   GestureDetector(
                     onTap: () {
+                      final targetIdx = allTabs.indexWhere((t) => t.id == cat.id);
+                      if (targetIdx >= 0 && _categoryPageController.hasClients) {
+                        _categoryPageController.animateToPage(
+                          targetIdx,
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeInOut,
+                        );
+                      }
                       setState(() {
                         _selectedCategoryId = cat.id;
-                        final filtered = _filteredGifts;
+                        final filtered = _getGiftsForCategory(cat.id);
                         if (filtered.isNotEmpty) {
                           final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
                           if (idx >= 0) _sel = idx;
@@ -589,7 +613,7 @@ class _GiftPanelState extends State<GiftPanel> {
                       margin: const EdgeInsets.only(right: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        color: (_selectedCategoryId ?? 'all') == cat.id
+                        color: _selectedCategoryId == cat.id
                             ? dc.giftPanelTabColor
                             : Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(14),
@@ -599,10 +623,10 @@ class _GiftPanelState extends State<GiftPanel> {
                         cat.name,
                         style: TextStyle(
                           fontSize: 11,
-                          color: (_selectedCategoryId ?? 'all') == cat.id
+                          color: _selectedCategoryId == cat.id
                               ? Colors.black87
                               : dc.giftPanelTabInactiveColor,
-                          fontWeight: (_selectedCategoryId ?? 'all') == cat.id
+                          fontWeight: _selectedCategoryId == cat.id
                               ? FontWeight.bold
                               : FontWeight.normal,
                         ),
@@ -710,11 +734,35 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
-  Widget _buildGrid(DynamicConfigService dc) {
-    if (_selectedCategoryId == 'backpack') {
+  Widget _buildGrid(DynamicConfigService dc, List<GiftCategory> allTabs) {
+    return PageView.builder(
+      controller: _categoryPageController,
+      physics: const BouncingScrollPhysics(),
+      itemCount: allTabs.length,
+      onPageChanged: (pageIdx) {
+        if (pageIdx < 0 || pageIdx >= allTabs.length) return;
+        final newCat = allTabs[pageIdx];
+        setState(() {
+          _selectedCategoryId = newCat.id;
+          final filtered = _getGiftsForCategory(newCat.id);
+          if (filtered.isNotEmpty) {
+            final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
+            if (idx >= 0) _sel = idx;
+          }
+        });
+      },
+      itemBuilder: (_, pageIdx) {
+        final cat = allTabs[pageIdx];
+        return _buildCategoryGrid(cat, dc);
+      },
+    );
+  }
+
+  Widget _buildCategoryGrid(GiftCategory cat, DynamicConfigService dc) {
+    if (cat.id.toLowerCase() == 'backpack' || cat.name.toLowerCase().contains('حقيبة')) {
       return _buildBackpackGrid();
     }
-    final items = _filteredGifts;
+    final items = _getGiftsForCategory(cat.id);
     if (items.isEmpty) {
       return const Center(
         child: Text(
@@ -724,18 +772,32 @@ class _GiftPanelState extends State<GiftPanel> {
       );
     }
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: GridView.builder(
-        padding: const EdgeInsets.only(top: 4, bottom: 4),
+        padding: const EdgeInsets.only(top: 6, bottom: 50),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
           childAspectRatio: 82 / 96,
         ),
         itemCount: items.length,
-        itemBuilder: (_, i) => _buildGiftItem(i, dc),
+        itemBuilder: (_, i) => _buildGiftItemFromList(items, i, dc),
       ),
+    );
+  }
+
+  Widget _buildGiftItemFromList(List<gm.GiftModel> items, int i, DynamicConfigService dc) {
+    if (i >= items.length) return const SizedBox();
+    final g = items[i];
+    final sel = _sel >= 0 && _sel < _gifts.length && _gifts[_sel].id == g.id;
+
+    return GestureDetector(
+      onTap: () {
+        final idx = _gifts.indexWhere((x) => x.id == g.id);
+        setState(() => _sel = idx);
+      },
+      child: _buildGiftItemContent(g, sel, dc),
     );
   }
 

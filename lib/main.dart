@@ -40,6 +40,7 @@ await SupabaseAuthService().init();
   // ✅ تهيئة كاش الوسائط ← يحمّل فهرس القرص قبل أي طلب هدايا أو SVGA
   // هذا يضمن أن الملفات المُحمَّلة سابقاً تُستخدَم فوراً بدون إعادة تحميل من الإنترنت
   await MediaCacheService().init();
+  await RoomScreen.initPrefs();
 
   final localeProvider = LocaleProvider();
   await localeProvider.init();

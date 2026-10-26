@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/supabase_compat.dart';
@@ -244,7 +244,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                 Expanded(
                   child: TabBarView(
                     controller: _mainTabController,
-                    physics: const NeverScrollableScrollPhysics(),
+                    physics: const BouncingScrollPhysics(),
                     children: [
                       _buildRankPage('wealth', _wealthSubTabController),
                       _buildRankPage('charm', _charmSubTabController),

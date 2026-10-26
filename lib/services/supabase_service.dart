@@ -543,6 +543,8 @@ class SupabaseService {
         'maxMultiplier': maxMultiplier,
         'isBigWin': isBigWin,
         'newBalance': serverNewBalance,
+        'msgId': luckyMsgId,
+        'payload': luckyGiftPayload,
       };
     } catch (e) {
       debugPrint('[SupabaseService] sendLuckyGift error: $e');
@@ -1113,7 +1115,7 @@ class SupabaseService {
         final msgs = await _ds.getRoomMessages(roomId);
         yield msgs;
       } catch (_) {}
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(const Duration(milliseconds: 500));
     }
   }
 
