@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/ui/in_app_toast.dart';
@@ -6,6 +6,7 @@ import '../../../models/user_model.dart';
 import '../../../services/supabase_data_service.dart';
 import '../widgets/salary_disburse_dialog.dart';
 import '../widgets/store_gift_dialog.dart';
+import '../widgets/commission_period_dialog.dart';
 
 const Color _bgDeep    = Color(0xFF070A1E);
 const Color _bgCard    = Color(0xFF131835);
@@ -155,6 +156,13 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
 
   void _openStoreGift() {
     StoreGiftDialog.show(context, currentUser: widget.currentUser);
+  }
+
+  void _openCommissionPeriodDialog() {
+    CommissionPeriodDialog.show(
+      context,
+      onSaved: (_) => _fetchData(),
+    );
   }
 
   void _openInviteAgencyDialog() {
@@ -433,33 +441,50 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
   }
 
   Widget _buildActionButtonsRow() {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _buildQuickActionButton(
-            label: 'صرف الراتب',
-            icon: Icons.account_balance_wallet_rounded,
-            color: _gold,
-            onTap: _openDisburseSalary,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _buildQuickActionButton(
+                label: 'صرف الراتب',
+                icon: Icons.account_balance_wallet_rounded,
+                color: _gold,
+                onTap: _openDisburseSalary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildQuickActionButton(
+                label: 'دورة العمولة',
+                icon: Icons.date_range_rounded,
+                color: const Color(0xFFFF9D3E),
+                onTap: _openCommissionPeriodDialog,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildQuickActionButton(
-            label: 'دعوة وكالة',
-            icon: Icons.domain_add_rounded,
-            color: _cyan,
-            onTap: _openInviteAgencyDialog,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildQuickActionButton(
-            label: 'إهداء متجر',
-            icon: Icons.card_giftcard_rounded,
-            color: _green,
-            onTap: _openStoreGift,
-          ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildQuickActionButton(
+                label: 'دعوة وكالة',
+                icon: Icons.domain_add_rounded,
+                color: _cyan,
+                onTap: _openInviteAgencyDialog,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildQuickActionButton(
+                label: 'إهداء متجر',
+                icon: Icons.card_giftcard_rounded,
+                color: _green,
+                onTap: _openStoreGift,
+              ),
+            ),
+          ],
         ),
       ],
     );

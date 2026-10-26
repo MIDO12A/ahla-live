@@ -54,6 +54,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   List<AnchorAgentUserInfoDataModel> _members = [];
   List<Map<String, dynamic>> _milestones = [];
   int _pendingRequestsCount = 0;
+  String _agencyCommissionPeriod = 'monthly';
 
   // Search filter in members tab
   final TextEditingController _memberSearchCtrl = TextEditingController();
@@ -161,11 +162,48 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         } catch (_) {}
       }
 
+      // Fetch agency commission cycle period from control panel settings
+      String commPeriod = 'monthly';
+      try {
+        final pRes = await _sb
+            .from('commission_settings')
+            .select('description, value')
+            .eq('key', 'agency_commission_period')
+            .maybeSingle();
+        if (pRes != null) {
+          final desc = pRes['description']?.toString()?.toLowerCase() ?? '';
+          if (desc.contains('day') || desc.contains('يوم')) {
+            commPeriod = 'daily';
+          } else if (desc.contains('week') || desc.contains('أسبوع') || desc.contains('اسبوع')) {
+            commPeriod = 'weekly';
+          } else {
+            commPeriod = 'monthly';
+          }
+        } else {
+          final cRes = await _sb
+              .from('app_config')
+              .select('value')
+              .eq('key', 'agency_commission_period')
+              .maybeSingle();
+          if (cRes != null && cRes['value'] != null) {
+            final v = cRes['value'].toString().toLowerCase();
+            if (v.contains('day') || v.contains('يوم')) {
+              commPeriod = 'daily';
+            } else if (v.contains('week') || v.contains('أسبوع') || v.contains('اسبوع')) {
+              commPeriod = 'weekly';
+            } else {
+              commPeriod = 'monthly';
+            }
+          }
+        }
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _agencyInfo = infoModel;
           _members = rawAnchors;
           _pendingRequestsCount = pendingCount;
+          _agencyCommissionPeriod = commPeriod;
           _loading = false;
         });
       }
@@ -1784,11 +1822,32 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       }
     }
 
+    final String period = (_agencyCommissionPeriod.isNotEmpty && _agencyCommissionPeriod != 'monthly')
+        ? _agencyCommissionPeriod 
+        : cfg.agencyCommissionPeriod;
+    final double periodFactor;
+    final String periodBadgeLabel;
+    if (period == 'daily') {
+      final now = DateTime.now();
+      final day = now.day.clamp(1, 31);
+      periodFactor = 1.0 / day;
+      periodBadgeLabel = 'دورة يومية ☀️';
+    } else if (period == 'weekly') {
+      periodFactor = 0.25;
+      periodBadgeLabel = 'دورة أسبوعية 📅';
+    } else {
+      periodFactor = 1.0;
+      periodBadgeLabel = 'دورة شهرية 🗓️';
+    }
+
+    final int periodCommissionDiamonds = (agentCommissionDiamonds * periodFactor).round();
+    final double periodCommissionUsd = totalCommissionUsd * periodFactor;
+
     final totalSalary = totalDueSalaries > 0 
         ? (totalDueSalaries % 1 == 0 ? totalDueSalaries.toInt().toString() : totalDueSalaries.toStringAsFixed(2))
         : '0';
-    final commission = totalCommissionUsd > 0
-        ? (totalCommissionUsd % 1 == 0 ? totalCommissionUsd.toInt().toString() : totalCommissionUsd.toStringAsFixed(2))
+    final commission = periodCommissionUsd > 0
+        ? (periodCommissionUsd % 1 == 0 ? periodCommissionUsd.toInt().toString() : periodCommissionUsd.toStringAsFixed(2))
         : '0';
 
     return Container(
@@ -1856,7 +1915,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
               const SizedBox(width: 10),
 
-              // Balance
+              // Balance - Target Achieved ONLY (بدون إدراج عمولة الوكيل لتظل خاصة بالتارجت)
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(12),
@@ -1868,22 +1927,13 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('المحقق حالياً', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const Text('أرباح التارجت المحققة', style: TextStyle(color: Colors.grey, fontSize: 11)),
                       const SizedBox(height: 4),
                       Text(
                         '$totalMembersDiamonds 💎',
                         style: const TextStyle(
                           color: Color(0xFF10B981),
                           fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'عمولة الوكيل: $agentCommissionDiamonds 💎',
-                        style: const TextStyle(
-                          color: Color(0xFFD97706),
-                          fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1923,9 +1973,9 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
           const SizedBox(height: 12),
 
-          // Agent Salary and Overdraft Card (Teal #00b5b3 with ic_salary_panel2 watermark)
+          // Agent Salary and Commission Card with USD and Diamonds side-by-side
           Container(
-            height: 110,
+            height: 120,
             decoration: BoxDecoration(
               color: const Color(0xFF00B5B3),
               borderRadius: BorderRadius.circular(10),
@@ -1947,18 +1997,62 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        'أرباح عمولة الوكالة المحققة',
-                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'أرباح عمولة الوكالة المحققة',
+                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              periodBadgeLabel,
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '\$$commission USD',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Text(
+                            '\$$commission USD',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.25),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.6)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.diamond, color: Color(0xFFFFD700), size: 13),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$periodCommissionDiamonds 💎',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFD700),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 6),
                       Text(

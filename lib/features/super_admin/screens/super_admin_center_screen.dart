@@ -5,6 +5,7 @@ import '../../../models/user_model.dart';
 import '../../../services/supabase_data_service.dart';
 import '../widgets/salary_disburse_dialog.dart';
 import '../widgets/store_gift_dialog.dart';
+import '../widgets/commission_period_dialog.dart';
 
 class SuperAdminCenterScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -119,6 +120,13 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
     StoreGiftDialog.show(
       context,
       currentUser: widget.currentUser,
+    );
+  }
+
+  void _openCommissionPeriodDialog() {
+    CommissionPeriodDialog.show(
+      context,
+      onSaved: (_) => _loadData(),
     );
   }
 
@@ -605,6 +613,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
       runSpacing: 8,
       children: [
         _buildActionButton('صرف الراتب', Icons.currency_exchange, Colors.greenAccent, _openSalaryDisburse),
+        _buildActionButton('دورة العمولة', Icons.date_range_rounded, const Color(0xFF00D4FF), _openCommissionPeriodDialog),
         _buildActionButton('إهداء متجر', Icons.card_giftcard, const Color(0xFFFFD700), _openStoreGift),
         _buildActionButton('دعوة وكالة', Icons.add_business, Colors.amberAccent, _inviteUserToCreateAgency),
         _buildActionButton('تعيين Admin', Icons.security, Colors.blueAccent, _appointAdminDialog),

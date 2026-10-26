@@ -1792,6 +1792,25 @@ class DynamicConfigService extends ChangeNotifier {
     return 10.0; // 10% افتراضياً
   }
 
+  /// دورة احتساب وعرض عمولة الوكالة ('daily' | 'weekly' | 'monthly')
+  String get agencyCommissionPeriod {
+    final candidates = [
+      _rawConfig['agency_commission_period'],
+      _rawConfig['agencyCommissionPeriod'],
+      _rawConfig['commission_period'],
+      _rawConfig['commissionPeriod'],
+    ];
+    for (final c in candidates) {
+      if (c != null) {
+        final s = c.toString().toLowerCase();
+        if (s.contains('day') || s.contains('يوم')) return 'daily';
+        if (s.contains('week') || s.contains('أسبوع') || s.contains('اسبوع')) return 'weekly';
+        if (s.contains('month') || s.contains('شهر')) return 'monthly';
+      }
+    }
+    return 'monthly';
+  }
+
   /// نسبة راتب المضيف من الكوينز المستلمة (%)
   /// القيمة الافتراضية 100.0 (أي 100% كاملة)
   double get hostRatePercentage {
