@@ -34,6 +34,7 @@ import 'agency_level_desc_screen.dart';
 import 'agency_owner_wallet_screen.dart';
 import 'agency_withdrawal_screen.dart';
 import 'agency_disbursement_screen.dart';
+import 'agency_exit_screen.dart';
 
 class AgencyOwnerScreen extends StatefulWidget {
   final String? agencyId;
@@ -384,16 +385,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       return rewardVal * agencyCommRate;
     }
 
-    // إذا لم يصل المضيف للتارجت بعد، تُحسب العمولة مباشرة من ألماس المضيف الفعلي
-    final int hostDia = member.effectiveDiamonds > 0 
-        ? member.effectiveDiamonds 
-        : (int.tryParse(member.diamonds) ?? 0);
-    if (hostDia > 0) {
-      final commDia = hostDia * agencyCommRate;
-      final rateCoins = cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 15000.0;
-      return commDia / rateCoins;
-    }
-
+    // العمولة تُحتسب فقط على التارجت المقفلة (المراحل المحققة بالكامل)
     return 0.0;
   }
 
@@ -600,6 +592,26 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                 fontWeight: FontWeight.bold,
               ),
             ),
+          ),
+          // Exit Agency Icon (الانسحاب من الوكالة)
+          IconButton(
+            icon: const Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 24),
+            tooltip: 'الانسحاب من الوكالة',
+            onPressed: () async {
+              final res = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AgencyExitScreen(
+                    agencyId: _agencyInfo?.agencyId ?? widget.agencyId,
+                  ),
+                ),
+              );
+              if (res == true && mounted) {
+                Navigator.pop(context);
+              } else if (mounted) {
+                _loadAllData(silent: true);
+              }
+            },
           ),
           // Refresh Icon
           IconButton(
@@ -1161,100 +1173,154 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   Widget _buildWithdrawalPanels() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
+      child: Column(
         children: [
-          // 1. Withdrawal Account (حساب السحب)
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AgencyDisbursementScreen(
-                      agencyId: _agencyInfo?.agencyId ?? '',
+          Row(
+            children: [
+              // 1. Withdrawal Account (حساب السحب)
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AgencyDisbursementScreen(
+                          agencyId: _agencyInfo?.agencyId ?? '',
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    height: 46,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'حساب السحب',
+                          style: TextStyle(
+                            color: Color(0xFF222222),
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Image.asset(
+                          'assets/images/agency/ic_back_dark_right.png',
+                          width: 14,
+                          height: 14,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.arrow_forward_ios,
+                            size: 13,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-              child: Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'حساب السحب',
-                      style: TextStyle(
-                        color: Color(0xFF222222),
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Image.asset(
-                      'assets/images/agency/ic_back_dark_right.png',
-                      width: 14,
-                      height: 14,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 13,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
                 ),
               ),
-            ),
-          ),
 
-          const SizedBox(width: 10),
+              const SizedBox(width: 10),
 
-          // 2. Withdrawal Records (سجل السحب)
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AgencyDisbursementScreen(
-                      agencyId: _agencyInfo?.agencyId ?? '',
+              // 2. Withdrawal Records (سجل السحب)
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AgencyDisbursementScreen(
+                          agencyId: _agencyInfo?.agencyId ?? '',
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    height: 46,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'سجل السحب',
+                          style: TextStyle(
+                            color: Color(0xFF222222),
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Image.asset(
+                          'assets/images/agency/ic_back_dark_right.png',
+                          width: 14,
+                          height: 14,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.arrow_forward_ios,
+                            size: 13,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-              child: Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'سجل السحب',
-                      style: TextStyle(
-                        color: Color(0xFF222222),
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Image.asset(
-                      'assets/images/agency/ic_back_dark_right.png',
-                      width: 14,
-                      height: 14,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 13,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // 3. Exit / Leave Agency Button (الانسحاب من الوكالة)
+          GestureDetector(
+            onTap: () async {
+              final res = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AgencyExitScreen(
+                    agencyId: _agencyInfo?.agencyId ?? widget.agencyId,
+                  ),
                 ),
+              );
+              if (res == true && mounted) {
+                Navigator.pop(context);
+              } else if (mounted) {
+                _loadAllData(silent: true);
+              }
+            },
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A1717),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.5)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'الانسحاب من الوكالة (خروج / إنهاء الوكالة)',
+                        style: TextStyle(
+                          color: Color(0xFFFF5252),
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Icon(Icons.arrow_forward_ios, size: 13, color: Color(0xFFFF5252)),
+                ],
               ),
             ),
           ),
@@ -1742,38 +1808,6 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         }
         final hostCommissionUsd = rewardVal * normCommRate;
         totalCommissionUsd += hostCommissionUsd;
-      } else if (hostDia > 0) {
-        // المضيفين قيد التقدم: عمولة الوكيل تُحتسب بدقة فائقة من ألماس المضيف الفعلي
-        final hostCommDia = hostDia * agencyCommRate;
-        totalCommissionUsd += hostCommDia / coinsPerUsd;
-      }
-    }
-
-    // إذا لم يكن هناك أعضاء محققين فردياً لكن الوكالة حققت ألماس إجمالي
-    if (totalCommissionUsd == 0 && totalMembersDiamonds > 0 && sortedMilestones.isNotEmpty) {
-      Map<String, dynamic>? agencyMilestone;
-      for (final ms in sortedMilestones) {
-        final tDia = (ms['target_diamonds'] ?? ms['targetDiamonds'] as num?)?.toInt() ?? 0;
-        if (totalMembersDiamonds >= tDia && tDia > 0) {
-          agencyMilestone = ms;
-        }
-      }
-      if (agencyMilestone != null) {
-        final rewardVal = (agencyMilestone['reward_value'] ?? agencyMilestone['rewardValue'] ?? agencyMilestone['reward'] as num?)?.toDouble() ?? 2.0;
-        final double normCommRate;
-        if (agencyCommRate > 0) {
-          normCommRate = agencyCommRate;
-        } else {
-          final rawComm = (agencyMilestone['agent_commission_rate'] as num?)?.toDouble();
-          normCommRate = (rawComm != null && rawComm > 0)
-              ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
-              : 0.10;
-        }
-        totalCommissionUsd = rewardVal * normCommRate;
-        totalDueSalaries = rewardVal;
-        completedHostsCount = 1;
-      } else {
-        totalCommissionUsd = (totalMembersDiamonds * agencyCommRate) / coinsPerUsd;
       }
     }
 

@@ -464,6 +464,19 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       tooltip: isAr ? 'قوانين الوكالة' : 'Rules',
                       onPressed: () => _showRulesDialog(isAr),
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 24),
+                      tooltip: isAr ? 'الانسحاب من الوكالة' : 'Exit Agency',
+                      onPressed: () {
+                        final aid = _agentInfo?.agencyId ?? widget.agencyId;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AgencyExitScreen(agencyId: aid),
+                          ),
+                        ).then((_) => _loadAgencyData());
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -960,6 +973,47 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // زر الانسحاب من الوكالة (خروج / إنهاء الوكالة)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: InkWell(
+                    onTap: () {
+                      final aid = _agentInfo?.agencyId ?? widget.agencyId;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AgencyExitScreen(agencyId: aid),
+                        ),
+                      ).then((_) => _loadAgencyData());
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.redAccent.withOpacity(0.35)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            isAr ? 'الانسحاب من الوكالة (خروج / إنهاء)' : 'Exit / Terminate Agency',
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],

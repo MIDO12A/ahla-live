@@ -23,6 +23,7 @@ import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 import '../data/anchor_agent_model.dart';
 import 'agent_withdrawal_waiting_screen.dart';
+import 'agency_exit_screen.dart';
 
 class AgencyHostScreen extends StatefulWidget {
   final String? agencyId;
@@ -391,6 +392,19 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           ),
           actions: [
             IconButton(
+              icon: const Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 22),
+              tooltip: 'الانسحاب من الوكالة',
+              onPressed: () {
+                final aid = _agencyInfo?.agencyId ?? widget.agencyId;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AgencyExitScreen(agencyId: aid),
+                  ),
+                ).then((_) => _loadHostData());
+              },
+            ),
+            IconButton(
               icon: const Icon(Icons.refresh, color: Color(0xFF333333), size: 22),
               onPressed: () => _loadHostData(silent: true),
             ),
@@ -434,6 +448,45 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
 
               // ── 6. Daily & Weekly Streaming History (act_union_member_data.xml) ──
               _buildLiveStatsCard(),
+
+              const SizedBox(height: 20),
+
+              // ── 7. Exit Agency Button ──
+              InkWell(
+                onTap: () {
+                  final aid = _agencyInfo?.agencyId ?? widget.agencyId;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AgencyExitScreen(agencyId: aid),
+                    ),
+                  ).then((_) => _loadHostData());
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.exit_to_app_rounded, color: Colors.redAccent, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'الانسحاب من الوكالة',
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
               const SizedBox(height: 30),
             ],

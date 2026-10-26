@@ -739,18 +739,44 @@ class SupabaseService {
   Future<bool> deleteAndExitAgencyByOwner({required String agencyId, required String ownerUid}) async {
     try {
       if (agencyId.isNotEmpty) {
-        await http.delete(
-          Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
-          headers: _headers,
-        );
-        await http.delete(
-          Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId'),
-          headers: _headers,
-        );
+        try {
+          await _sb.from('host_agencies').delete().eq('id', agencyId);
+        } catch (_) {}
+        try {
+          await _sb.from('host_agency_members').delete().eq('agency_id', agencyId);
+        } catch (_) {}
+        try {
+          await _sb.from('agency_applications').delete().eq('agency_id', agencyId);
+        } catch (_) {}
+        try {
+          await _sb.from('users').update({
+            'agency_id': null,
+            'host_agency_id': null,
+          }).eq('agency_id', agencyId);
+        } catch (_) {}
+        try {
+          await http.delete(
+            Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
+            headers: _headers,
+          );
+          await http.delete(
+            Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId'),
+            headers: _headers,
+          );
+        } catch (_) {}
       }
+      try {
+        await _sb.from('users').update({
+          'agency_id': null,
+          'host_agency_id': null,
+          'is_agency_owner': false,
+          'is_host_agent': false,
+        }).or('uid.eq.$ownerUid,id.eq.$ownerUid');
+      } catch (_) {}
       await _ds.updateUser(ownerUid, {
         'agency_id': null,
         'is_agency_owner': false,
+        'is_host_agent': false,
       });
       return true;
     } catch (e) {
@@ -761,7 +787,15 @@ class SupabaseService {
 
   Future<bool> exitAgencyAsMember({required String agencyId, required String userId}) async {
     try {
-      // 1. Delete from host_agency_members using user_id, host_uid, and agency_id
+      // 1. Delete from host_agency_members via Supabase Client & REST
+      try {
+        if (agencyId.isNotEmpty) {
+          await _sb.from('host_agency_members').delete().eq('agency_id', agencyId).or('user_id.eq.$userId,host_uid.eq.$userId');
+        }
+        await _sb.from('host_agency_members').delete().or('user_id.eq.$userId,host_uid.eq.$userId');
+      } catch (e) {
+        debugPrint('[SupabaseService] delete host_agency_members client error: $e');
+      }
       try {
         if (agencyId.isNotEmpty) {
           await http.delete(
@@ -787,19 +821,28 @@ class SupabaseService {
 
       // 2. Delete any applications from agency_applications
       try {
+        if (agencyId.isNotEmpty) {
+          await _sb.from('agency_applications').delete().eq('agency_id', agencyId).or('user_id.eq.$userId,applicant_uid.eq.$userId');
+        }
+        await _sb.from('agency_applications').delete().or('user_id.eq.$userId,applicant_uid.eq.$userId');
+      } catch (_) {}
+      try {
         await http.delete(
           Uri.parse('$_baseUrl/rest/v1/agency_applications?user_id=eq.$userId'),
           headers: _headers,
         );
-        await http.delete(
-          Uri.parse('$_baseUrl/rest/v1/agency_applications?applicant_uid=eq.$userId'),
-          headers: _headers,
-        );
-      } catch (e) {
-        debugPrint('[SupabaseService] delete agency_applications error: $e');
-      }
+      } catch (_) {}
 
       // 3. Clear agency in users table completely
+      try {
+        await _sb.from('users').update({
+          'agency_id': null,
+          'host_agency_id': null,
+          'is_host_agent': false,
+        }).or('uid.eq.$userId,id.eq.$userId');
+      } catch (e) {
+        debugPrint('[SupabaseService] _sb updateUser agency error: $e');
+      }
       try {
         await _ds.updateUser(userId, {
           'agency_id': null,
