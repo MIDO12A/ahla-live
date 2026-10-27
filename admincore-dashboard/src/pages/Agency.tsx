@@ -2390,16 +2390,57 @@ function CommissionTab() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [simCoins, setSimCoins] = useState<number>(15000);
   const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
+  const [commissionPeriod, setCommissionPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [savingPeriod, setSavingPeriod] = useState(false);
 
   const load = () => {
     setLoading(true);
     getCommissionSettings().then(d => {
       setSettings(d);
+      const cp = d.find(x => x.key === 'agency_commission_period');
+      if (cp && cp.value && ['daily', 'weekly', 'monthly'].includes(String(cp.value))) {
+        setCommissionPeriod(String(cp.value) as any);
+      } else {
+        supabase.from('app_config').select('value').eq('key', 'agency_commission_period').maybeSingle().then(({ data: cfg }) => {
+          if (cfg?.value) {
+            const val = typeof cfg.value === 'string' ? cfg.value.replace(/"/g, '') : cfg.value;
+            if (['daily', 'weekly', 'monthly'].includes(val)) {
+              setCommissionPeriod(val as any);
+            }
+          }
+        });
+      }
       setLoading(false);
     }).catch(err => {
       console.warn('Failed to load commission settings:', err);
       setLoading(false);
     });
+  };
+
+  const handleSavePeriod = async (period: 'daily' | 'weekly' | 'monthly') => {
+    setSavingPeriod(true);
+    try {
+      await supabase.from('commission_settings').upsert({
+        key: 'agency_commission_period',
+        value: period,
+        description: 'دورة صرف وتأكيد عمولة الوكيل (daily / weekly / monthly)',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'key' });
+
+      await supabase.from('app_config').upsert({
+        key: 'agency_commission_period',
+        value: period,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'key' });
+
+      setCommissionPeriod(period);
+      alert(`✅ تم حفظ وتحديث دورة صرف عمولة الوكيل إلى (${period === 'daily' ? 'يومي' : period === 'weekly' ? 'أسبوعي' : 'شهري'}) بنجاح!`);
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء حفظ دورة الصرف');
+    } finally {
+      setSavingPeriod(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -2481,7 +2522,7 @@ function CommissionTab() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5 pt-2">
           {/* Card 1: Coins per USD */}
           <div className="bg-gradient-to-b from-amber-500/10 to-transparent border border-amber-500/20 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -2598,6 +2639,34 @@ function CommissionTab() {
               >
                 {savingKey === 'host_target_exchange_rate' ? '...' : 'حفظ'}
               </button>
+            </div>
+          </div>
+
+          {/* Card 5: Agency Commission Cycle */}
+          <div className="bg-gradient-to-b from-blue-500/10 to-transparent border border-blue-500/20 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-blue-300">📅 دورة صرف عمولة الوكيل</span>
+              <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-mono font-bold">
+                {commissionPeriod === 'daily' ? 'يومي' : commissionPeriod === 'weekly' ? 'أسبوعي' : 'شهري'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">موعد اعتماد وإيداع عمولة الوكيل بالمحفظة</p>
+            <div className="grid grid-cols-3 gap-1 bg-black/60 p-1 rounded-lg border border-white/10">
+              {(['daily', 'weekly', 'monthly'] as const).map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  disabled={savingPeriod}
+                  onClick={() => handleSavePeriod(p)}
+                  className={`py-1.5 text-xs font-bold rounded transition-all ${
+                    commissionPeriod === p
+                      ? 'bg-blue-500 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {p === 'daily' ? 'يومي' : p === 'weekly' ? 'أسبوعي' : 'شهري'}
+                </button>
+              ))}
             </div>
           </div>
         </div>

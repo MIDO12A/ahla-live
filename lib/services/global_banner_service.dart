@@ -19,6 +19,7 @@ class GlobalBannerService extends ChangeNotifier {
   Map<String, dynamic>? activeMarquee;
 
   final Set<String> _seenBroadcastIds = <String>{};
+  final int _sessionStartTime = DateTime.now().millisecondsSinceEpoch;
   Timer? _giftBannerHideTimer;
   Timer? _bigWinHideTimer;
   Timer? _marqueeHideTimer;
@@ -68,7 +69,9 @@ class GlobalBannerService extends ChangeNotifier {
     for (final b in broadcasts) {
       final bTs = (b['timestamp'] as num?)?.toInt() ??
           (DateTime.tryParse(b['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-      final isFresh = bTs == 0 || (nowMs - bTs).abs() < 90000;
+      // تجاهل أي بث تم إنشاؤه قبل فتح التطبيق أو غير صالح
+      if (bTs == 0 || bTs < _sessionStartTime - 10000) continue;
+      final isFresh = (nowMs - bTs).abs() < 60000;
       if (!isFresh) continue;
 
       final bId = b['id']?.toString() ?? '${bTs}_${b['sender_uid']}';
@@ -128,6 +131,9 @@ class GlobalBannerService extends ChangeNotifier {
   }
 
   void _handleIncomingBigWin(Map<String, dynamic> winData) {
+    final winTs = (winData['timestamp'] as num?)?.toInt() ??
+        (DateTime.tryParse(winData['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
+    if (winTs != 0 && winTs < _sessionStartTime - 10000) return;
     final mult = (winData['multiplier'] as num?)?.toInt() ?? 0;
     if (mult < 50) return;
     showBigWin({

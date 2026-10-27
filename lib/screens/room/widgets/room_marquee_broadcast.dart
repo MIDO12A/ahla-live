@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../room_screen.dart';
@@ -28,30 +28,43 @@ class RoomMarqueeBroadcast extends StatefulWidget {
 }
 
 class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
-  late Animation<Offset> _slideAnim;
+    with TickerProviderStateMixin {
+  late AnimationController _enterController;
+  late AnimationController _exitController;
+  late Animation<Offset> _enterAnim;
+  late Animation<Offset> _exitAnim;
   Timer? _dismissTimer;
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
+    _enterController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
-      reverseDuration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 380),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, -1.2),
+    _exitController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
+
+    // الدخول من أقصى اليمين نحو المنتصف
+    _enterAnim = Tween<Offset>(
+      begin: const Offset(1.3, 0.0),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
+    ).animate(CurvedAnimation(parent: _enterController, curve: Curves.easeOutCubic));
 
-    _animController.forward();
+    // الخروج بالمرور الكامل نحو أقصى اليسار
+    _exitAnim = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(-1.3, 0.0),
+    ).animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInCubic));
 
-    // Auto dismiss after 6 seconds
+    _enterController.forward();
+
+    // Auto dismiss after 6 seconds with smooth exit to the left
     _dismissTimer = Timer(const Duration(seconds: 6), () {
       if (mounted) {
-        _animController.reverse().then((_) {
+        _exitController.forward().then((_) {
           if (mounted) widget.onDismissed();
         });
       }
@@ -61,7 +74,8 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
   @override
   void dispose() {
     _dismissTimer?.cancel();
-    _animController.dispose();
+    _enterController.dispose();
+    _exitController.dispose();
     super.dispose();
   }
 
@@ -77,8 +91,10 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
 
     return RepaintBoundary(
       child: SlideTransition(
-        position: _slideAnim,
-        child: GestureDetector(
+        position: _exitAnim,
+        child: SlideTransition(
+          position: _enterAnim,
+          child: GestureDetector(
         onTap: () {
           if (roomId.isNotEmpty && mounted) {
             try {
@@ -216,6 +232,7 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
         ),
       ),
     ),
-  );
+  ),
+);
 }
 }

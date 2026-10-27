@@ -53,6 +53,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   List<Map<String, dynamic>> _milestones = [];
   int _pendingRequestsCount = 0;
   String _agencyCommissionPeriod = 'monthly';
+  double _generalAgencyRate = 0.0;
 
   // Search filter in members tab
   final TextEditingController _memberSearchCtrl = TextEditingController();
@@ -196,12 +197,29 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         }
       } catch (_) {}
 
+      // Fetch general agency commission rate from control panel settings
+      double generalRate = 0.0;
+      try {
+        final rateRes = await _sb
+            .from('commission_settings')
+            .select('value')
+            .eq('key', 'agency_rate')
+            .maybeSingle();
+        if (rateRes != null && rateRes['value'] != null) {
+          final r = double.tryParse(rateRes['value'].toString());
+          if (r != null && r > 0) {
+            generalRate = r > 1.0 ? r / 100.0 : r;
+          }
+        }
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _agencyInfo = infoModel;
           _members = rawAnchors;
           _pendingRequestsCount = pendingCount;
           _agencyCommissionPeriod = commPeriod;
+          _generalAgencyRate = generalRate;
           _loading = false;
         });
       }
@@ -1723,15 +1741,19 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         final hostSalary = m.unpackedDiamonds > 0 ? (rewardVal * 0.60) : rewardVal;
         totalDueSalaries += hostSalary;
 
-        // عمولة وكيل المضيفين: نسبة مئوية مباشرة من تارجت المضيف المحقق بالكامل ولا تتأثر بالفك
+        // عمولة وكيل المضيفين: نسبة مئوية مباشرة من تارجت المضيف المحقق بالكامل (الأولوية لنسبة المرحلة المحددة باللوحة، ثم النسبة العامة)
         final double normCommRate;
-        if (agencyCommRate > 0) {
+        final rawMilestoneComm = (highestAchievedMilestone['agent_commission_rate'] ?? 
+                                  highestAchievedMilestone['agentCommissionRate'] ??
+                                  highestAchievedMilestone['commission_rate'] as num?)?.toDouble();
+        if (rawMilestoneComm != null && rawMilestoneComm > 0) {
+          normCommRate = rawMilestoneComm > 1.0 ? (rawMilestoneComm / 100.0) : rawMilestoneComm;
+        } else if (_generalAgencyRate > 0) {
+          normCommRate = _generalAgencyRate;
+        } else if (agencyCommRate > 0) {
           normCommRate = agencyCommRate;
         } else {
-          final rawComm = (highestAchievedMilestone['agent_commission_rate'] as num?)?.toDouble();
-          normCommRate = (rawComm != null && rawComm > 0)
-              ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
-              : 0.10;
+          normCommRate = 0.20;
         }
         final int hostCommissionDiamonds = (tDia * normCommRate).round().toInt();
         totalCommissionDiamonds = (totalCommissionDiamonds + hostCommissionDiamonds).toInt();

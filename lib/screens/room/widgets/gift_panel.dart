@@ -64,6 +64,7 @@ class _GiftPanelState extends State<GiftPanel> {
   int _comboMultiplier = 0;
   int _comboRemainingMs = 0;
   late final PageController _categoryPageController = PageController();
+  late final ScrollController _tabScrollController = ScrollController();
   final List<Timer> _pendingDelays = [];
 
   @override
@@ -177,6 +178,7 @@ class _GiftPanelState extends State<GiftPanel> {
       t.cancel();
     }
     _categoryPageController.dispose();
+    _tabScrollController.dispose();
     _comboTimer?.cancel();
     _giftSub?.cancel();
     _catSub?.cancel();
@@ -547,6 +549,16 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
+  void _scrollToTab(int index) {
+    if (!_tabScrollController.hasClients) return;
+    final targetOffset = (index * 75.0) - 100.0;
+    _tabScrollController.animateTo(
+      targetOffset.clamp(0.0, _tabScrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
   Widget _buildHeader(DynamicConfigService dc, List<GiftCategory> allTabs, bool isAr) {
     final users = _allAvailableUsers.isNotEmpty ? _allAvailableUsers : widget.targetUsers;
 
@@ -587,51 +599,59 @@ class _GiftPanelState extends State<GiftPanel> {
           SizedBox(
             height: 28,
             child: ListView(
+              controller: _tabScrollController,
               scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
               children: [
-                for (final cat in allTabs)
-                  GestureDetector(
-                    onTap: () {
-                      final targetIdx = allTabs.indexWhere((t) => t.id == cat.id);
-                      if (targetIdx >= 0 && _categoryPageController.hasClients) {
-                        _categoryPageController.animateToPage(
-                          targetIdx,
-                          duration: const Duration(milliseconds: 260),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                      setState(() {
-                        _selectedCategoryId = cat.id;
-                        final filtered = _getGiftsForCategory(cat.id);
-                        if (filtered.isNotEmpty) {
-                          final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
-                          if (idx >= 0) _sel = idx;
-                        }
-                      });
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: _selectedCategoryId == cat.id
-                            ? dc.giftPanelTabColor
-                            : Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        cat.name,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: _selectedCategoryId == cat.id
-                              ? Colors.black87
-                              : dc.giftPanelTabInactiveColor,
-                          fontWeight: _selectedCategoryId == cat.id
-                              ? FontWeight.bold
-                              : FontWeight.normal,
+                for (int i = 0; i < allTabs.length; i++)
+                  Builder(
+                    builder: (context) {
+                      final cat = allTabs[i];
+                      final isSelected = _selectedCategoryId == cat.id;
+                      return GestureDetector(
+                        onTap: () {
+                          if (_categoryPageController.hasClients) {
+                            _categoryPageController.animateToPage(
+                              i,
+                              duration: const Duration(milliseconds: 260),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                          _scrollToTab(i);
+                          setState(() {
+                            _selectedCategoryId = cat.id;
+                            final filtered = _getGiftsForCategory(cat.id);
+                            if (filtered.isNotEmpty) {
+                              final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
+                              if (idx >= 0) _sel = idx;
+                            }
+                          });
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? dc.giftPanelTabColor
+                                : Colors.white.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            cat.name,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isSelected
+                                  ? Colors.black87
+                                  : dc.giftPanelTabInactiveColor,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
               ],
             ),
@@ -742,6 +762,7 @@ class _GiftPanelState extends State<GiftPanel> {
       onPageChanged: (pageIdx) {
         if (pageIdx < 0 || pageIdx >= allTabs.length) return;
         final newCat = allTabs[pageIdx];
+        _scrollToTab(pageIdx);
         setState(() {
           _selectedCategoryId = newCat.id;
           final filtered = _getGiftsForCategory(newCat.id);
@@ -760,18 +781,23 @@ class _GiftPanelState extends State<GiftPanel> {
 
   Widget _buildCategoryGrid(GiftCategory cat, DynamicConfigService dc) {
     if (cat.id.toLowerCase() == 'backpack' || cat.name.toLowerCase().contains('حقيبة')) {
-      return _buildBackpackGrid();
+      return KeyedSubtree(
+        key: ValueKey('backpack_grid_${cat.id}'),
+        child: _buildBackpackGrid(),
+      );
     }
     final items = _getGiftsForCategory(cat.id);
     if (items.isEmpty) {
-      return const Center(
-        child: Text(
+      return Center(
+        key: ValueKey('empty_${cat.id}'),
+        child: const Text(
           'لا توجد هدايا متاحة',
           style: TextStyle(color: Colors.white54, fontSize: 13),
         ),
       );
     }
     return Padding(
+      key: ValueKey('cat_grid_${cat.id}'),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: GridView.builder(
         padding: const EdgeInsets.only(top: 6, bottom: 50),

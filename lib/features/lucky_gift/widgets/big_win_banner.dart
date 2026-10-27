@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../../screens/room/widgets/svga_player.dart';
 
 /// بانر الفوز الأسطوري العالمي عبر SVGA (Global Big Win Broadcast)
@@ -49,35 +49,56 @@ class BigWinBanner extends StatefulWidget {
 }
 
 class _BigWinBannerState extends State<BigWinBanner>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _slideAnim;
+    with TickerProviderStateMixin {
+  late AnimationController _enterController;
+  late AnimationController _exitController;
+  late Animation<Offset> _enterAnim;
+  late Animation<Offset> _exitAnim;
+  bool _isDismissing = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _enterController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 450),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, -1.2),
+    _exitController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    _enterAnim = Tween<Offset>(
+      begin: const Offset(1.3, 0.0),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    ).animate(CurvedAnimation(parent: _enterController, curve: Curves.easeOutCubic));
 
-    _controller.forward();
+    _exitAnim = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(-1.3, 0.0),
+    ).animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInCubic));
+
+    _enterController.forward();
 
     // إغلاق البانر تلقائياً بعد 4.5 ثوانٍ
     Future.delayed(const Duration(milliseconds: 4500), () {
+      _dismissBanner();
+    });
+  }
+
+  void _dismissBanner() {
+    if (_isDismissing || !mounted) return;
+    _isDismissing = true;
+    _exitController.forward().then((_) {
       if (mounted) {
-        _controller.reverse().then((_) => widget.onDismiss());
+        widget.onDismiss();
       }
     });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _enterController.dispose();
+    _exitController.dispose();
     super.dispose();
   }
 
@@ -96,29 +117,30 @@ class _BigWinBannerState extends State<BigWinBanner>
 
     return IgnorePointer(
       child: SlideTransition(
-        position: _slideAnim,
-        child: SafeArea(
-          child: Container(
-            width: double.infinity,
-            height: 140,
-            alignment: Alignment.topCenter,
-            child: SvgaPlayer(
-              assetPath: svgaPath,
-              loops: false,
-              fit: BoxFit.contain,
-              textReplacement: {
-                'test': displayText,
-              },
-              imageReplacement: widget.senderAvatar.isNotEmpty
-                  ? {
-                      'Avatar': widget.senderAvatar,
-                    }
-                  : null,
-              onFinished: () {
-                if (mounted) {
-                  _controller.reverse().then((_) => widget.onDismiss());
-                }
-              },
+        position: _exitAnim,
+        child: SlideTransition(
+          position: _enterAnim,
+          child: SafeArea(
+            child: Container(
+              width: double.infinity,
+              height: 140,
+              alignment: Alignment.topCenter,
+              child: SvgaPlayer(
+                assetPath: svgaPath,
+                loops: false,
+                fit: BoxFit.contain,
+                textReplacement: {
+                  'test': displayText,
+                },
+                imageReplacement: widget.senderAvatar.isNotEmpty
+                    ? {
+                        'Avatar': widget.senderAvatar,
+                      }
+                    : null,
+                onFinished: () {
+                  _dismissBanner();
+                },
+              ),
             ),
           ),
         ),

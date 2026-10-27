@@ -180,13 +180,13 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     
     return data.where((e) {
       final points = type == 'wealth'
-          ? ((e['total_gifts_sent'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0)
-          : ((e['total_gifts_received'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0);
+          ? ((e['total_gifts_sent'] as num?)?.toInt() ?? (e['amount'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0)
+          : ((e['total_gifts_received'] as num?)?.toInt() ?? (e['amount'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0);
       return points > 0;
     }).map((e) {
       final points = type == 'wealth'
-          ? ((e['total_gifts_sent'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0)
-          : ((e['total_gifts_received'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0);
+          ? ((e['total_gifts_sent'] as num?)?.toInt() ?? (e['amount'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0)
+          : ((e['total_gifts_received'] as num?)?.toInt() ?? (e['amount'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0);
       final rawCustomId = (e['custom_id'] ?? e['display_id'] ?? '').toString();
       final rawId = (e['id'] ?? e['user_id'] ?? '').toString();
       final realUid = (e['uid'] ?? e['user_id'] ?? e['id'] ?? '').toString();
@@ -203,6 +203,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
         'photoUrl': photo,
         'photo_url': photo,
         'points': points,
+        'amount': points,
         'level': e['level'] ?? 1,
         'user_id': displayId,
         'custom_id': displayId,

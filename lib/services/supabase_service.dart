@@ -1621,23 +1621,91 @@ class SupabaseService {
 
   Future<List<Map<String, dynamic>>> getGlobalRankings({required bool isWealth, required String timeframe}) async {
     try {
-      final gifts = await _ds.getSentGifts('', limit: 200);
+      final gifts = await _ds.getSentGifts('', limit: 500);
+      final now = DateTime.now().toUtc();
+      DateTime? cutoff;
+      if (timeframe == 'daily') {
+        cutoff = now.subtract(const Duration(days: 1));
+      } else if (timeframe == 'weekly') {
+        cutoff = now.subtract(const Duration(days: 7));
+      } else if (timeframe == 'monthly') {
+        cutoff = now.subtract(const Duration(days: 30));
+      }
+
+      var filtered = gifts;
+      if (cutoff != null) {
+        final timeFiltered = gifts.where((g) => g.timestamp.isAfter(cutoff!)).toList();
+        if (timeFiltered.isNotEmpty) {
+          filtered = timeFiltered;
+        }
+      }
+
       final Map<String, int> totals = {};
       final Map<String, Map<String, dynamic>> userDetails = {};
-      for (final g in gifts) {
+      for (final g in filtered) {
         final uid = isWealth ? g.senderId : g.receiverId;
+        if (uid.isEmpty) continue;
         final name = isWealth ? g.senderName : g.receiverName;
+        final photo = isWealth ? (g.senderPhotoUrl ?? '') : '';
         final cost = (g.value * g.count).toInt();
         totals[uid] = (totals[uid] ?? 0) + cost;
-        userDetails[uid] = {'id': uid, 'name': name, 'photoUrl': isWealth ? g.senderPhotoUrl : ''};
+        if (!userDetails.containsKey(uid) || (userDetails[uid]!['photoUrl'] as String).isEmpty) {
+          userDetails[uid] = {
+            'id': uid,
+            'name': name.isNotEmpty ? name : 'مستخدم',
+            'photoUrl': photo,
+          };
+        }
       }
       final sortedKeys = totals.keys.toList()..sort((a, b) => totals[b]!.compareTo(totals[a]!));
-      return sortedKeys.map((uid) => {
+      final result = sortedKeys.map((uid) => {
         'id': uid,
-        'name': userDetails[uid]?['name'] ?? '',
+        'uid': uid,
+        'user_id': uid,
+        'name': userDetails[uid]?['name'] ?? 'مستخدم',
         'photoUrl': userDetails[uid]?['photoUrl'] ?? '',
+        'photo_url': userDetails[uid]?['photoUrl'] ?? '',
         'amount': totals[uid] ?? 0,
+        'points': totals[uid] ?? 0,
+        'score': totals[uid] ?? 0,
+        'total_gifts_sent': isWealth ? (totals[uid] ?? 0) : 0,
+        'total_gifts_received': !isWealth ? (totals[uid] ?? 0) : 0,
       }).toList();
+
+      // إذا كانت النتائج أقل من 3، نجلب من جدول users كـ fallback
+      if (result.length < 3) {
+        try {
+          final usersQuery = isWealth
+              ? await _sb.from('users').select('id, name, avatar, photo_url, total_gifts_sent, wealth_exp').order('total_gifts_sent', ascending: false).limit(10)
+              : await _sb.from('users').select('id, name, avatar, photo_url, total_gifts_received, charm').order('total_gifts_received', ascending: false).limit(10);
+          final existingIds = result.map((r) => r['id'].toString()).toSet();
+          for (final u in (usersQuery as List)) {
+            final uId = (u['id'] ?? '').toString();
+            if (uId.isEmpty || existingIds.contains(uId)) continue;
+            final pts = isWealth
+                ? ((u['total_gifts_sent'] as num?)?.toInt() ?? (u['wealth_exp'] as num?)?.toInt() ?? 0)
+                : ((u['total_gifts_received'] as num?)?.toInt() ?? (u['charm'] as num?)?.toInt() ?? 0);
+            if (pts > 0) {
+              final photo = (u['photo_url'] ?? u['avatar'] ?? '').toString();
+              result.add({
+                'id': uId,
+                'uid': uId,
+                'user_id': uId,
+                'name': (u['name'] ?? 'مستخدم').toString(),
+                'photoUrl': photo,
+                'photo_url': photo,
+                'amount': pts,
+                'points': pts,
+                'score': pts,
+                'total_gifts_sent': isWealth ? pts : 0,
+                'total_gifts_received': !isWealth ? pts : 0,
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
+      return result;
     } catch (_) {
       return [];
     }
