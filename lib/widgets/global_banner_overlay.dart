@@ -9,6 +9,10 @@ import '../screens/room/widgets/room_marquee_broadcast.dart';
 /// 1. لافتات الهدايا المخصصة SVGA (المضافة من لوحة التحكم)
 /// 2. بانرات فوز الحظ الكبرى الأسطورية (Big Win Banner)
 /// 3. شريط الإعلان الماركي لجميع الغرف القابل للنقر
+///
+/// جميع البانرات تعمل وفق نظام طابور موحد متتابع (FIFO Queue):
+/// - يظهر بانر واحد فقط في كل لحظة دون أي تكرار أو تراكم فوق بعضها.
+/// - كل بانر يدخل بسلاسة من اليمين إلى اليسار وينتهي ليأتي الذي بعده بانتظام.
 class GlobalBannerOverlay extends StatelessWidget {
   final Widget child;
 
@@ -20,93 +24,73 @@ class GlobalBannerOverlay extends StatelessWidget {
       listenable: GlobalBannerService.instance,
       builder: (context, _) {
         final svc = GlobalBannerService.instance;
-        final giftBanner = svc.activeGiftBanner;
-        final bigWin = svc.activeBigWin;
-        final marquee = svc.activeMarquee;
-
-        final hasGiftBanner = giftBanner != null;
-        final hasBigWin = bigWin != null;
+        final banner = svc.currentBanner;
         final topPadding = MediaQuery.of(context).padding.top;
-
-        String safeSenderPhoto = 'assets/mipmap-xxhdpi/ic_avatar_default.webp';
-        String safeReceiverPhoto = 'assets/mipmap-xxhdpi/ic_avatar_default.webp';
-        String safeGiftImage = 'assets/mipmap-xxhdpi/common_gold_ic_4.webp';
-
-        if (giftBanner != null) {
-          final s = giftBanner['senderPhotoUrl']?.toString();
-          if (s != null && s.trim().isNotEmpty) safeSenderPhoto = s;
-
-          final r = giftBanner['receiverPhotoUrl']?.toString();
-          if (r != null && r.trim().isNotEmpty) safeReceiverPhoto = r;
-
-          final g = giftBanner['defaultImage']?.toString() ?? giftBanner['giftImageUrl']?.toString();
-          if (g != null && g.trim().isNotEmpty) safeGiftImage = g;
-        }
 
         return Stack(
           textDirection: TextDirection.ltr,
           children: [
-            // الشاشة الأصلية
+            // الشاشة الأصلية للتطبيق
             child,
 
-            // 1. شريط ولافتة الهدية المخصصة SVGA / VAP مع Fallback كامل
-            if (hasGiftBanner)
+            // عرض البانر النشط الوحيد حالياً وفق نظام الطابور المنظم
+            if (banner != null)
               Positioned(
-                top: 0,
+                top: banner.type == GlobalBannerType.marquee
+                    ? (topPadding + 10)
+                    : 0,
                 left: 0,
                 right: 0,
-                child: GiftBannerOverlay(
-                  animationAsset: giftBanner['animationAsset']?.toString(),
-                  senderPhotoUrl: safeSenderPhoto,
-                  receiverPhotoUrl: safeReceiverPhoto,
-                  giftImageUrl: safeGiftImage,
-                  giftCount: (giftBanner['giftCount'] as num?)?.toInt() ?? 1,
-                  userRKey: giftBanner['userRKey']?.toString() ?? 'user_r',
-                  userLKey: giftBanner['userLKey']?.toString() ?? 'user_l',
-                  numberKey: giftBanner['numberKey']?.toString() ?? 'number',
-                  giftKey: giftBanner['giftKey']?.toString() ?? 'gift',
-                  onFinished: () => svc.dismissGiftBanner(),
-                ),
-              ),
-
-            // 2. بانر فوز الحظ الأسطوري (50X / 100X / 250X / 500X / 1000X)
-            if (hasBigWin)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: BigWinBanner(
-                  senderName: bigWin['senderName']?.toString() ?? 'مستخدم',
-                  senderAvatar: (bigWin['senderAvatar'] != null && bigWin['senderAvatar'].toString().isNotEmpty)
-                      ? bigWin['senderAvatar'].toString()
-                      : 'assets/mipmap-xxhdpi/ic_avatar_default.webp',
-                  giftName: bigWin['giftName']?.toString() ?? 'هدية الحظ',
-                  multiplier: (bigWin['multiplier'] as num?)?.toInt() ?? 100,
-                  totalWon: (bigWin['totalWon'] as num?)?.toInt() ?? 0,
-                  lang: Localizations.localeOf(context).languageCode == 'ar' ? 'ar' : 'en',
-                  onDismiss: () => svc.dismissBigWin(),
-                ),
-              ),
-
-            // 3. شريط الإعلان الماركي لجميع الغرف (قابلة للنقر للدخول السريع للروم)
-            if (marquee != null)
-              Positioned(
-                top: hasGiftBanner
-                    ? (topPadding + 115)
-                    : hasBigWin
-                        ? (topPadding + 145)
-                        : (topPadding + 10),
-                left: 0,
-                right: 0,
-                child: RoomMarqueeBroadcast(
-                  key: ValueKey(marquee['id'] ?? marquee['timestamp'] ?? DateTime.now().millisecondsSinceEpoch),
-                  broadcast: marquee,
-                  onDismissed: () => svc.dismissMarquee(),
-                ),
+                child: _buildBanner(context, banner, svc),
               ),
           ],
         );
       },
     );
+  }
+
+  Widget _buildBanner(BuildContext context, QueuedBannerItem banner, GlobalBannerService svc) {
+    switch (banner.type) {
+      case GlobalBannerType.giftBanner:
+        final gb = banner.data;
+        String safeSenderPhoto = gb['senderPhotoUrl']?.toString() ?? 'assets/mipmap-xxhdpi/ic_avatar_default.webp';
+        String safeReceiverPhoto = gb['receiverPhotoUrl']?.toString() ?? 'assets/mipmap-xxhdpi/ic_avatar_default.webp';
+        String safeGiftImage = gb['defaultImage']?.toString() ?? gb['giftImageUrl']?.toString() ?? 'assets/mipmap-xxhdpi/common_gold_ic_4.webp';
+        return GiftBannerOverlay(
+          key: ValueKey(banner.id),
+          animationAsset: gb['animationAsset']?.toString(),
+          senderPhotoUrl: safeSenderPhoto,
+          receiverPhotoUrl: safeReceiverPhoto,
+          giftImageUrl: safeGiftImage,
+          giftCount: (gb['giftCount'] as num?)?.toInt() ?? 1,
+          userRKey: gb['userRKey']?.toString() ?? 'user_r',
+          userLKey: gb['userLKey']?.toString() ?? 'user_l',
+          numberKey: gb['numberKey']?.toString() ?? 'number',
+          giftKey: gb['giftKey']?.toString() ?? 'gift',
+          onFinished: () => svc.nextBanner(),
+        );
+
+      case GlobalBannerType.bigWin:
+        final bw = banner.data;
+        return BigWinBanner(
+          key: ValueKey(banner.id),
+          senderName: bw['senderName']?.toString() ?? 'مستخدم',
+          senderAvatar: (bw['senderAvatar'] != null && bw['senderAvatar'].toString().isNotEmpty)
+              ? bw['senderAvatar'].toString()
+              : 'assets/mipmap-xxhdpi/ic_avatar_default.webp',
+          giftName: bw['giftName']?.toString() ?? 'هدية الحظ',
+          multiplier: (bw['multiplier'] as num?)?.toInt() ?? 100,
+          totalWon: (bw['totalWon'] as num?)?.toInt() ?? 0,
+          lang: Localizations.localeOf(context).languageCode == 'ar' ? 'ar' : 'en',
+          onDismiss: () => svc.nextBanner(),
+        );
+
+      case GlobalBannerType.marquee:
+        return RoomMarqueeBroadcast(
+          key: ValueKey(banner.id),
+          broadcast: banner.data,
+          onDismissed: () => svc.nextBanner(),
+        );
+    }
   }
 }

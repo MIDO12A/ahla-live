@@ -1087,7 +1087,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   StreamSubscription? _entranceSub;
   StreamSubscription? _userBanSub;
   StreamSubscription? _broadcastSub;
-  Map<String, dynamic>? _currentBroadcast;
   final ValueNotifier<Map<String, dynamic>?> _broadcastNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final ValueNotifier<Map<String, dynamic>?> _giftBannerNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final ValueNotifier<int> _chatUpdateNotifier = ValueNotifier<int>(0);
@@ -1437,7 +1436,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
         if (seenMsgIds.contains(bId)) continue;
         seenMsgIds.add(bId);
-        _currentBroadcast = latest;
         _broadcastNotifier.value = latest;
 
         // ✅ عرض الهدية/الفوز مباشرة في شات وتعليقات الغرفة تزامناً مع البانر
@@ -2116,77 +2114,98 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     bool isCurrentUserOnSeatNow = false;
     bool currentUserMuted = false;
 
+    // 🛡️ DEDUPLICATION: UID -> seat index (Each UID can ONLY be on ONE seat)
+    final Map<String, int> uidToSeat = {};
+
     for (final entry in seatMap.entries) {
       final idx = entry.key;
       if (idx < 0 || idx >= newSeats.length) continue;
       final data = entry.value;
       final rawUid = data['uid']?.toString();
       final uid = (rawUid != null && rawUid.trim().isNotEmpty && rawUid.trim() != 'null') ? rawUid.trim() : null;
-      if (uid != null) {
-        final isMuted = data['is_muted'] == true;
-        if (uid == _currentUserId) {
-          isCurrentUserOnSeatNow = true;
-          currentUserMuted = isMuted;
-          _currentUserSeatIndex = idx;
-          if (isMuted && _isMicOn) {
-            _isMicOn = false;
-            _roomAudio.toggleMic(false);
-          }
-        } else {
-          _roomAudio.muteRemoteAudio(uid, widget.roomId, isMuted);
-          final customId = data['custom_id']?.toString() ?? _cachedUsers[uid]?.customId;
-          if (customId != null && customId.isNotEmpty) {
-            _roomAudio.muteRemoteAudio(customId, widget.roomId, isMuted);
-          }
-        }
-        // Fetch full user data for frame asset resolution
-        if (!_cachedUsers.containsKey(uid)) {
-          _firebaseService.getUser(uid).then((user) {
-            if (user != null && mounted) {
-              setState(() {
-                _cachedUsers[uid] = user;
-                _processSeatMap(seatMap);
-              });
-            }
-          });
-        }
-        final cachedUser = _cachedUsers[uid];
-        final activeFrame = data['active_frame']?.toString() ?? cachedUser?.activeFrame ?? (uid == _currentUserId ? currentUser?.activeFrame : null);
-        final frameAsset = _resolveFrameAsset(activeFrame);
-        final activeCar = data['active_car']?.toString() ?? cachedUser?.activeCar;
-        final carStoreItem = activeCar != null && !activeCar.startsWith('http')
-            ? _storeItemsIndex[activeCar]
-            : null;
-        final carAsset = activeCar != null && activeCar.startsWith('http')
-            ? activeCar
-            : carStoreItem?.svgaAsset;
+      if (uid == null) continue;
 
-        final giftTotal = _giftReceiverTotals[uid] ?? 0;
-        final activeMicWave = data['active_mic_wave']?.toString() ?? cachedUser?.activeMicWave;
-        final gender = data['gender']?.toString() ?? cachedUser?.gender ?? 'male';
-        final country = data['country']?.toString() ?? data['country_code']?.toString() ?? cachedUser?.country ?? 'EG';
+      // إذا كان هذا المستخدم هو المستخدم الحالي، والمقعد الحالي لا يطابق المقعد المستهدف له، يتم تجاهله فوراً كـ مقعد قديم متخلف
+      if (uid == _currentUserId) {
+        final targetSeat = _pendingSeatIndex ?? _currentUserSeatIndex;
+        if (targetSeat != null && idx != targetSeat) {
+          continue; // تجاهل المقعد القديم تماماً لمنع ظهور نسختين من المستخدم
+        }
+      }
 
-        newSeats[idx] = SeatModel(
-          index: idx,
-          state: isMuted ? SeatState.muted : SeatState.occupied,
-          user: UserModel(
-            name: data['name']?.toString() ?? '',
-            avatar: data['photo_url']?.toString() ?? data['avatar']?.toString() ?? cachedUser?.photoUrl ?? (uid == _currentUserId ? currentUser?.photoUrl : null),
-            id: uid,
-            customId: cachedUser?.customId ?? data['custom_id']?.toString(),
-            activeMicWave: activeMicWave,
-            gender: gender,
-            country: country,
-            giftCount: giftTotal,
-            totalGiftsReceived: giftTotal,
-            charm: giftTotal.toString(),
-          ),
-          isMuted: isMuted,
-          hasFrame: frameAsset != null && frameAsset.isNotEmpty,
-          frameAsset: frameAsset,
-          carAsset: carAsset,
+      // فحص عدم تكرار أي UID على أكثر من مقعد
+      if (uidToSeat.containsKey(uid)) {
+        final prevSeatIdx = uidToSeat[uid]!;
+        newSeats[prevSeatIdx] = SeatModel(
+          index: prevSeatIdx,
+          isLocked: lockedIndices.contains(prevSeatIdx),
         );
       }
+      uidToSeat[uid] = idx;
+
+      final isMuted = data['is_muted'] == true;
+      if (uid == _currentUserId) {
+        isCurrentUserOnSeatNow = true;
+        currentUserMuted = isMuted;
+        _currentUserSeatIndex = idx;
+        if (isMuted && _isMicOn) {
+          _isMicOn = false;
+          _roomAudio.toggleMic(false);
+        }
+      } else {
+        _roomAudio.muteRemoteAudio(uid, widget.roomId, isMuted);
+        final customId = data['custom_id']?.toString() ?? _cachedUsers[uid]?.customId;
+        if (customId != null && customId.isNotEmpty) {
+          _roomAudio.muteRemoteAudio(customId, widget.roomId, isMuted);
+        }
+      }
+      // Fetch full user data for frame asset resolution
+      if (!_cachedUsers.containsKey(uid)) {
+        _firebaseService.getUser(uid).then((user) {
+          if (user != null && mounted) {
+            setState(() {
+              _cachedUsers[uid] = user;
+              _processSeatMap(seatMap);
+            });
+          }
+        });
+      }
+      final cachedUser = _cachedUsers[uid];
+      final activeFrame = data['active_frame']?.toString() ?? cachedUser?.activeFrame ?? (uid == _currentUserId ? currentUser?.activeFrame : null);
+      final frameAsset = _resolveFrameAsset(activeFrame);
+      final activeCar = data['active_car']?.toString() ?? cachedUser?.activeCar;
+      final carStoreItem = activeCar != null && !activeCar.startsWith('http')
+          ? _storeItemsIndex[activeCar]
+          : null;
+      final carAsset = activeCar != null && activeCar.startsWith('http')
+          ? activeCar
+          : carStoreItem?.svgaAsset;
+
+      final giftTotal = _giftReceiverTotals[uid] ?? 0;
+      final activeMicWave = data['active_mic_wave']?.toString() ?? cachedUser?.activeMicWave;
+      final gender = data['gender']?.toString() ?? cachedUser?.gender ?? 'male';
+      final country = data['country']?.toString() ?? data['country_code']?.toString() ?? cachedUser?.country ?? 'EG';
+
+      newSeats[idx] = SeatModel(
+        index: idx,
+        state: isMuted ? SeatState.muted : SeatState.occupied,
+        user: UserModel(
+          name: data['name']?.toString() ?? '',
+          avatar: data['photo_url']?.toString() ?? data['avatar']?.toString() ?? cachedUser?.photoUrl ?? (uid == _currentUserId ? currentUser?.photoUrl : null),
+          id: uid,
+          customId: cachedUser?.customId ?? data['custom_id']?.toString(),
+          activeMicWave: activeMicWave,
+          gender: gender,
+          country: country,
+          giftCount: giftTotal,
+          totalGiftsReceived: giftTotal,
+          charm: giftTotal.toString(),
+        ),
+        isMuted: isMuted,
+        hasFrame: frameAsset != null && frameAsset.isNotEmpty,
+        frameAsset: frameAsset,
+        carAsset: carAsset,
+      );
     }
 
     // 🛡️ CRITICAL PROTECTION: While the current user is moving/taking a seat or on a seat,
@@ -2194,10 +2213,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final protectedSeat = _pendingSeatIndex ?? _currentUserSeatIndex;
     if (protectedSeat != null && _currentUserId != null) {
       final pIdx = protectedSeat;
-      if (pIdx >= 0 && pIdx < newSeats.length && newSeats[pIdx].user?.id != _currentUserId) {
-        if (pIdx < _seats.length && _seats[pIdx].user?.id == _currentUserId) {
-          newSeats[pIdx] = _seats[pIdx];
+      if (pIdx >= 0 && pIdx < newSeats.length) {
+        if (newSeats[pIdx].user?.id != _currentUserId) {
+          if (pIdx < _seats.length && _seats[pIdx].user?.id == _currentUserId) {
+            newSeats[pIdx] = _seats[pIdx];
+            isCurrentUserOnSeatNow = true;
+          }
+        } else {
           isCurrentUserOnSeatNow = true;
+          currentUserMuted = newSeats[pIdx].isMuted;
+        }
+
+        // مسح قاطع لأي مقعد آخر يحتوي على _currentUserId لضمان عدم وجود نسختين للمستخدم
+        for (int i = 0; i < newSeats.length; i++) {
+          if (i != pIdx && newSeats[i].user?.id == _currentUserId) {
+            newSeats[i] = SeatModel(index: i, isLocked: lockedIndices.contains(i));
+          }
         }
       }
     }
@@ -2472,17 +2503,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _checkGiftBanner(Map<String, dynamic> data) {
-    // لا نستبدل شريطة ما زالت تُعرض بشريطة جديدة (يمنع تبادل الشرائط
-    // المتتالي الذي سبب تشوه العرض). تُستبدل فقط بعد انتهاء العرض.
-    if (_showGiftBanner) return;
-
     // شريط الهدايا العادية مخصص فقط للهدايا العادية ولا يعرض هدايا الحظ إطلاقاً
     if (data['isLucky'] == true || data['categoryId'] == 'lucky' || data['categoryId'] == 'حظ') return;
-
-    final giftValue = data['giftValue'] as int? ?? 0;
-    final giftCount = data['giftCount'] as int? ?? 1;
-    final categoryId = data['categoryId'] as String?;
-    final totalCost = giftValue * giftCount;
 
     // Get receiver photo from data, seat, or cached users
     String? receiverPhoto = data['receiverPhotoUrl']?.toString();
@@ -2499,56 +2521,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     }
 
-    // Find matching banner config by category, or fallback to any active
-    GiftBannerConfig? config;
-    if (categoryId != null) {
-      config = _bannerConfigs.where((c) => c.categoryId == categoryId).firstOrNull;
-    }
-    config ??= _bannerConfigs.isNotEmpty ? _bannerConfigs.first : null;
-
-    if (config != null && totalCost >= config.thresholdCoins) {
-      final cfg = config;
-      _showGiftBanner = true;
-      _giftBannerNotifier.value = {
-        'animationAsset': cfg.svgaUrl,
-        'senderPhotoUrl': data['senderPhotoUrl']?.toString(),
-        'receiverPhotoUrl': receiverPhoto,
-        'defaultImage': data['defaultImage']?.toString(),
-        'giftCount': giftCount,
-        'userRKey': cfg.userRKey,
-        'userLKey': cfg.userLKey,
-        'numberKey': cfg.numberKey,
-        'giftKey': cfg.giftKey,
-      };
-      // إخفاء إجباري حتى لو لم يُستدع onFinished (حماية من شريطة عالقة)
-      _bannerHideTimer?.cancel();
-      _bannerHideTimer = Timer(const Duration(seconds: 8), () {
-        _showGiftBanner = false;
-        _giftBannerNotifier.value = null;
-      });
-      return;
+    final enriched = Map<String, dynamic>.from(data);
+    if (receiverPhoto != null && receiverPhoto.isNotEmpty) {
+      enriched['receiverPhotoUrl'] = receiverPhoto;
     }
 
-    // لا نظهر شريط البانر للهدايا العادية الصغيرة (يظهر فقط للهدايا الكبيرة 500+ عملة)
-    if (totalCost >= 500) {
-      _showGiftBanner = true;
-      _giftBannerNotifier.value = {
-        'animationAsset': 'assets/svga/gift_banner_strip.svga',
-        'senderPhotoUrl': data['senderPhotoUrl']?.toString(),
-        'receiverPhotoUrl': receiverPhoto,
-        'defaultImage': data['defaultImage']?.toString(),
-        'giftCount': giftCount,
-        'userRKey': 'user_r',
-        'userLKey': 'user_l',
-        'numberKey': 'number',
-        'giftKey': 'gift',
-      };
-      _bannerHideTimer?.cancel();
-      _bannerHideTimer = Timer(const Duration(seconds: 8), () {
-        _showGiftBanner = false;
-        _giftBannerNotifier.value = null;
-      });
-    }
+    // إرسال اللافتة إلى خدمة الطابور الموحد العام المنظم (يمين لليسار وبالتتابع دون تداخل)
+    GlobalBannerService.instance.triggerGiftBannerLocally(enriched);
   }
 
   void _sendMessage() {
@@ -2636,11 +2615,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     } else {
       // Empty or locked seat
       if (!seat.isLocked) {
-        if (_isOwnerOrModerator) {
-          // المالك والمشرف: فتح قائمة إدارة المقعد (صعود، نزول، قفل المقعد، دعوة للمايك، كتم)
+        final isUserAlreadyOnSeat = _currentUserSeatIndex != null || _seats.any((s) => s.user?.id == _currentUserId);
+        if (_isOwnerOrModerator && !isUserAlreadyOnSeat) {
+          // المالك والمشرف عند عدم تواجده على المايك: فتح قائمة إدارة المقعد
           _showEmptyDialog(idx);
         } else {
-          // المستخدم العادي: صعود فوري بلمسة واحدة
+          // انتقال فوري وسلس بنقرة واحدة دون تأخير أو نوافذ منبثقة
           _takeMic(idx);
         }
       } else {
@@ -2718,28 +2698,41 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // ── Seat actions ──────────────────────────────────────────────
 
   Future<void> _takeMic(int idx) async {
-    if (_takingSeat) return;
     if (_currentUserId == null) return;
-    // If already on this seat, skip
-    if (idx < _seats.length && _seats[idx].user?.id == _currentUserId) return;
+    if (idx < 0 || idx >= _seats.length) return;
+    // إذا كان المستخدم بالفعل على هذا المقعد
+    if (_seats[idx].user?.id == _currentUserId) return;
+    if (_seats[idx].isLocked && !_isOwnerOrModerator) return;
+
     _takingSeat = true;
     _pendingSeatIndex = idx;
     _currentUserSeatIndex = idx;
+
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final currentUser = userProvider.currentUser;
     final name = currentUser?.name ?? 'Me';
-    // Remember the previous seat before overwriting local state
+    final optimisticFrame = _resolveFrameAsset(currentUser?.activeFrame);
+
+    // البحث عن المقعد السابق للمستخدم ومسحه فوراً
     int? previousIdx;
     for (int i = 0; i < _seats.length; i++) {
-      if (i != idx && _seats[i].user?.id == _currentUserId) {
+      if (_seats[i].user?.id == _currentUserId && i != idx) {
         previousIdx = i;
         break;
       }
     }
-    // Optimistic UI: place the user on the target seat immediately so the
-    // move feels instant; the seats stream reconciles with the server state.
-    final optimisticFrame = _resolveFrameAsset(currentUser?.activeFrame);
+
+    // ⚡ تحديث فوري 0ms: تفريغ أي مقاعد سابقة للمستخدم ووضعه في المقعد المستهدف فوراً
     setState(() {
+      for (int i = 0; i < _seats.length; i++) {
+        if (_seats[i].user?.id == _currentUserId && i != idx) {
+          _seats[i] = SeatModel(
+            index: i,
+            isLocked: _seats[i].isLocked,
+            isMuted: _seats[i].isMuted,
+          );
+        }
+      }
       _seats[idx] = SeatModel(
         index: idx,
         state: SeatState.occupied,
@@ -2756,14 +2749,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           country: currentUser?.country ?? 'EG',
         ),
       );
-      if (previousIdx != null) {
-        _seats[previousIdx] = SeatModel(index: previousIdx);
-      }
     });
+
+    // تشغيل الصوت والمايك
+    _roomAudio.startPublishing();
+    _roomAudio.toggleMic(!_seats[idx].isMuted);
 
     try {
       await Future.wait([
-        if (previousIdx != null) _firebaseService.leaveSeat(widget.roomId, previousIdx),
+        if (previousIdx != null && previousIdx != idx) _firebaseService.leaveSeat(widget.roomId, previousIdx),
         _firebaseService.takeSeat(widget.roomId, idx, app.UserModel(
           uid: _currentUserId!,
           customId: currentUser?.customId ?? '',
@@ -2779,7 +2773,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[takeMic] error: $e');
     } finally {
-      await Future.delayed(const Duration(milliseconds: 100));
       if (mounted) {
         setState(() {
           _takingSeat = false;
@@ -4006,9 +3999,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             _playGiftArrivalSound();
 
                             _startRoomComboTimer(data);
-                            _pendingBannerData = data;
                             _checkGiftBanner(data);
-                            GlobalBannerService.instance.triggerGiftBannerLocally(data);
 
                             // تحميل مسبق في الخلفية دون حظر واجهة المستخدم
                             if (animAsset.isNotEmpty && (animAsset.startsWith('http://') || animAsset.startsWith('https://'))) {
@@ -4356,43 +4347,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           defaultImage: _giftDefaultImage,
                         );
                       }
-                    });
-                    if (_pendingBannerData != null) {
-                      _checkGiftBanner(_pendingBannerData!);
-                      _pendingBannerData = null;
-                    }
                   }
                 },
               ),
             ),
-          // ── Gift banner strip (high-value gifts) ──
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: ValueListenableBuilder<Map<String, dynamic>?>(
-              valueListenable: _giftBannerNotifier,
-              builder: (context, bannerData, _) {
-                if (bannerData == null) return const SizedBox.shrink();
-                return GiftBannerOverlay(
-                  animationAsset: bannerData['animationAsset']?.toString(),
-                  senderPhotoUrl: bannerData['senderPhotoUrl']?.toString(),
-                  receiverPhotoUrl: bannerData['receiverPhotoUrl']?.toString(),
-                  giftImageUrl: bannerData['defaultImage']?.toString(),
-                  giftCount: (bannerData['giftCount'] as num?)?.toInt() ?? 1,
-                  userRKey: bannerData['userRKey']?.toString() ?? 'user_r',
-                  userLKey: bannerData['userLKey']?.toString() ?? 'user_l',
-                  numberKey: bannerData['numberKey']?.toString() ?? 'number',
-                  giftKey: bannerData['giftKey']?.toString() ?? 'gift',
-                  onFinished: () {
-                    _bannerHideTimer?.cancel();
-                    _showGiftBanner = false;
-                    _giftBannerNotifier.value = null;
-                  },
-                );
-              },
-            ),
-          ),
           // ── أنيميشن دخول الغرفة (car effect) ──
           if (_showEntranceAnim && _entranceAnimAsset != null)
             Positioned.fill(
@@ -4537,27 +4495,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 ),
               ),
             ),
-
-          // ── Global Marquee Broadcast (view_room_all_banner.xml) ──
-          ValueListenableBuilder<Map<String, dynamic>?>(
-            valueListenable: _broadcastNotifier,
-            builder: (context, broadcast, _) {
-              if (broadcast == null) return const SizedBox.shrink();
-              return Positioned(
-                top: MediaQuery.of(context).padding.top + 46,
-                left: 0,
-                right: 0,
-                child: RoomMarqueeBroadcast(
-                  key: ValueKey(broadcast['id'] ?? broadcast['timestamp'] ?? DateTime.now().millisecondsSinceEpoch),
-                  broadcast: broadcast,
-                  onDismissed: () {
-                    _currentBroadcast = null;
-                    _broadcastNotifier.value = null;
-                  },
-                ),
-              );
-            },
-          ),
 
           // ── Member Entrance Banner (layout_room_member_enter.xml) ──
           if (_currentEnterMember != null)

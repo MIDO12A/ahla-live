@@ -225,6 +225,10 @@ class SupabaseDataService {
     required UserModel user,
   }) async {
     try {
+      // حذف أي مقعد سابق لنفس المستخدم في هذه الغرفة لمنع أي تكرار
+      final clearOldUrl = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&uid=eq.${user.uid}&seat_index=neq.$seatIndex');
+      unawaited(http.delete(clearOldUrl, headers: _headers).catchError((_) => http.Response('', 500)));
+
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?on_conflict=room_id,seat_index');
       final body = jsonEncode({
         'room_id': roomId,

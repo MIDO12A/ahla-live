@@ -1842,7 +1842,7 @@ class _ImageGiftOverlayState extends State<_ImageGiftOverlay>
   }
 }
 
-class GiftBannerOverlay extends StatelessWidget {
+class GiftBannerOverlay extends StatefulWidget {
   final VoidCallback? onFinished;
   final String? animationAsset;
   final String? senderPhotoUrl;
@@ -1869,60 +1869,125 @@ class GiftBannerOverlay extends StatelessWidget {
   });
 
   @override
+  State<GiftBannerOverlay> createState() => _GiftBannerOverlayState();
+}
+
+class _GiftBannerOverlayState extends State<GiftBannerOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _enterController;
+  late AnimationController _exitController;
+  late Animation<Offset> _enterAnim;
+  late Animation<Offset> _exitAnim;
+  bool _isDismissing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _enterController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    _exitController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+
+    _enterAnim = Tween<Offset>(
+      begin: const Offset(1.3, 0.0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _enterController, curve: Curves.easeOutCubic));
+
+    _exitAnim = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(-1.3, 0.0),
+    ).animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInCubic));
+
+    _enterController.forward();
+
+    // إغلاق البانر تلقائياً بعد 6 ثوانٍ كحد أقصى إذا لم ينته الأنيميشن تلقائياً
+    Future.delayed(const Duration(milliseconds: 5500), () {
+      _dismiss();
+    });
+  }
+
+  void _dismiss() {
+    if (_isDismissing || !mounted) return;
+    _isDismissing = true;
+    _exitController.forward().then((_) {
+      if (mounted) {
+        widget.onFinished?.call();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _enterController.dispose();
+    _exitController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final aa = animationAsset;
+    final aa = widget.animationAsset;
     if (aa == null || aa.isEmpty) return const SizedBox.shrink();
 
     final imageReplacement = <String, String>{};
-    if (senderPhotoUrl != null && senderPhotoUrl!.isNotEmpty) {
-      imageReplacement[userRKey] = senderPhotoUrl!;
+    if (widget.senderPhotoUrl != null && widget.senderPhotoUrl!.isNotEmpty) {
+      imageReplacement[widget.userRKey] = widget.senderPhotoUrl!;
     }
-    if (receiverPhotoUrl != null && receiverPhotoUrl!.isNotEmpty) {
-      imageReplacement[userLKey] = receiverPhotoUrl!;
+    if (widget.receiverPhotoUrl != null && widget.receiverPhotoUrl!.isNotEmpty) {
+      imageReplacement[widget.userLKey] = widget.receiverPhotoUrl!;
     }
-    if (giftImageUrl != null && giftImageUrl!.isNotEmpty) {
-      imageReplacement[giftKey] = giftImageUrl!;
+    if (widget.giftImageUrl != null && widget.giftImageUrl!.isNotEmpty) {
+      imageReplacement[widget.giftKey] = widget.giftImageUrl!;
     }
 
     final textReplacement = <String, String>{};
-    textReplacement[numberKey] = '$giftCount';
+    textReplacement[widget.numberKey] = '${widget.giftCount}';
 
     final bannerHeight = 110.0;
     final topPadding = MediaQuery.of(context).padding.top;
 
     return RepaintBoundary(
-      child: GestureDetector(
-        onTap: onFinished,
-        child: SizedBox(
-          height: topPadding + bannerHeight,
-          child: Stack(
-            children: [
-              if (isVideoType(aa))
-                VapPlayer(
-                  url: aa,
-                  width: screenSize.width,
-                  height: topPadding + bannerHeight,
-                  loops: false,
-                  onFinished: onFinished,
-                  fit: BoxFit.contain,
-                )
-              else
-                SvgaPlayer(
-                  assetPath: aa,
-                  width: screenSize.width,
-                  height: topPadding + bannerHeight,
-                  loops: false,
-                  fit: BoxFit.contain,
-                  onFinished: onFinished,
-                  imageReplacement: imageReplacement.isNotEmpty
-                      ? imageReplacement
-                      : null,
-                  textReplacement: textReplacement.isNotEmpty
-                      ? textReplacement
-                      : null,
-                ),
-            ],
+      child: SlideTransition(
+        position: _exitAnim,
+        child: SlideTransition(
+          position: _enterAnim,
+          child: GestureDetector(
+            onTap: _dismiss,
+            child: SizedBox(
+              height: topPadding + bannerHeight,
+              child: Stack(
+                children: [
+                  if (isVideoType(aa))
+                    VapPlayer(
+                      url: aa,
+                      width: screenSize.width,
+                      height: topPadding + bannerHeight,
+                      loops: false,
+                      onFinished: _dismiss,
+                      fit: BoxFit.contain,
+                    )
+                  else
+                    SvgaPlayer(
+                      assetPath: aa,
+                      width: screenSize.width,
+                      height: topPadding + bannerHeight,
+                      loops: false,
+                      fit: BoxFit.contain,
+                      onFinished: _dismiss,
+                      imageReplacement: imageReplacement.isNotEmpty
+                          ? imageReplacement
+                          : null,
+                      textReplacement: textReplacement.isNotEmpty
+                          ? textReplacement
+                          : null,
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
