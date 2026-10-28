@@ -3748,15 +3748,15 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
   List<int> get _quickTargets {
     final ms = widget.milestones;
     if (ms != null && ms.isNotEmpty) {
-      final targets = ms
-          .map((m) => (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0)
-          .where((t) => t > 0)
+      final List<int> targets = ms
+          .map<int>((m) => ((m['target_diamonds'] ?? m['targetDiamonds']) as num?)?.toInt() ?? 0)
+          .where((int t) => t > 0)
           .toSet()
           .toList()
         ..sort();
       if (targets.isNotEmpty) return targets.take(12).toList();
     }
-    return [40000, 100000, 200000, 300000, 500000, 1000000, 2000000, 5000000];
+    return const [40000, 100000, 200000, 300000, 500000, 1000000, 2000000, 5000000];
   }
 
   @override
