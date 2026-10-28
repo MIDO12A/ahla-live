@@ -313,7 +313,7 @@ export default function SuperAdminManagement() {
   const handleSaveAgencyRate = async (agencyId: string) => {
     setSavingAgencyId(agencyId);
     try {
-      const rate = agencyRates[agencyId] ?? 10;
+      const rate = agencyRates[agencyId] ?? 20;
       await updateHostAgency(agencyId, { commission_rate: rate });
       setAgencySaveSuccess(agencyId);
       setTimeout(() => setAgencySaveSuccess(null), 3000);

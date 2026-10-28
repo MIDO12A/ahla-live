@@ -526,12 +526,17 @@ export function getMemberStageAndCommission(
     .filter(m => m.is_active !== false)
     .sort((a, b) => (Number(a.target_diamonds ?? (a as any).targetDiamonds ?? 0) - Number(b.target_diamonds ?? (b as any).targetDiamonds ?? 0)));
 
+  // Normalize agency commission rate (e.g. 20 -> 0.20, 0.2 -> 0.20)
+  const normAgencyRate = agencyCommissionRate != null
+    ? (Number(agencyCommissionRate) > 1.0 ? Number(agencyCommissionRate) / 100.0 : Number(agencyCommissionRate))
+    : 0.20;
+
   if (activeMilestones.length === 0) {
     return {
       stageTitle: 'تحت التارجت',
       targetDiamonds: 0,
       commissionDiamonds: 0,
-      rate: agencyCommissionRate ?? 0.2,
+      rate: normAgencyRate,
       isReached: false,
     };
   }
@@ -547,16 +552,19 @@ export function getMemberStageAndCommission(
   if (!highest) {
     const first = activeMilestones[0];
     const firstTarget = Number(first.target_diamonds ?? (first as any).targetDiamonds ?? 0);
+    const rawRate = first.agent_commission_rate ?? (first as any).agentCommissionRate ?? normAgencyRate;
+    const rate = Number(rawRate) > 1.0 ? Number(rawRate) / 100.0 : Number(rawRate || normAgencyRate);
     return {
       stageTitle: `تحت ${first.title || 'المرحلة 1'}`,
       targetDiamonds: firstTarget,
       commissionDiamonds: 0,
-      rate: Number(first.agent_commission_rate ?? agencyCommissionRate ?? 0.2),
+      rate,
       isReached: false,
     };
   }
 
-  const rate = Number(highest.agent_commission_rate ?? agencyCommissionRate ?? 0.2);
+  const rawRate = highest.agent_commission_rate ?? (highest as any).agentCommissionRate ?? normAgencyRate;
+  const rate = Number(rawRate) > 1.0 ? Number(rawRate) / 100.0 : Number(rawRate || normAgencyRate);
   const targetDiamonds = Number(highest.target_diamonds ?? (highest as any).targetDiamonds ?? 0);
   const commissionDiamonds = Math.round(targetDiamonds * rate);
 
@@ -3984,7 +3992,13 @@ function AgencyRecordModal({
             </div>
             <div className="text-left text-[11px] text-slate-400">
               <span className="block text-slate-500 text-[10px]">عمولة الوكالة</span>
-              <span className="text-amber-400 font-bold font-mono">{((agency.commission_rate ?? 0.2) * 100)}%</span>
+              <span className="text-amber-400 font-bold font-mono">
+                {(() => {
+                  const r = agency.commission_rate ?? 0.2;
+                  const pct = r > 1.0 ? Math.round(r) : Math.round(r * 100);
+                  return `${pct}%`;
+                })()}
+              </span>
             </div>
           </div>
 

@@ -276,6 +276,8 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         {'title': 'مستوي 19', 'target_diamonds': 8000000, 'reward_value': 400, 'agent_commission_rate': 0.2},
         {'title': 'مستوي 20', 'target_diamonds': 9000000, 'reward_value': 450, 'agent_commission_rate': 0.2},
         {'title': 'مستوي 21', 'target_diamonds': 10000000, 'reward_value': 500, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 22', 'target_diamonds': 11000000, 'reward_value': 550, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 23', 'target_diamonds': 12000000, 'reward_value': 650, 'agent_commission_rate': 0.2},
       ];
     }
 
