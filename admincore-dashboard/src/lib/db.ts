@@ -912,9 +912,26 @@ export async function addGift(id: string, data: GiftModel) {
 }
 
 export async function deleteGift(id: string) {
-
   try {
-    await supabase.from('gifts').delete().eq('id', id);
+    // 1. Unlink historical sent_gifts so foreign key constraint does not block deletion with 409 Conflict
+    try {
+      await supabase.from('sent_gifts').update({ gift_id: null }).eq('gift_id', id);
+    } catch (_) {}
+
+    // 2. Clean from backpack or temporary tables
+    try {
+      await supabase.from('backpack_items').delete().eq('gift_id', id);
+    } catch (_) {}
+    try {
+      await supabase.from('room_gifts').delete().eq('gift_id', id);
+    } catch (_) {}
+
+    // 3. Delete the gift itself
+    const { error } = await supabase.from('gifts').delete().eq('id', id);
+    if (error) {
+      console.warn('deleteGift error:', error);
+      throw error;
+    }
   } catch (e) {
     console.warn('deleteGift failed:', e);
   }
