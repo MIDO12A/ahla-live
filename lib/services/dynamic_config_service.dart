@@ -1738,6 +1738,8 @@ class DynamicConfigService extends ChangeNotifier {
   }
 
   /// سعر الصرف: عدد الكوينز لكل 1 دولار أمريكي (افتراضياً 15,000 كوينز)
+  int get diamondsPerUsd => coinsPerUsd;
+
   int get coinsPerUsd {
     final v = _rawConfig['coins_per_usd'] ?? _rawConfig['coinsPerUsd'];
     if (v is int && v > 0) return v;

@@ -1812,7 +1812,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
               : normCommRate;
           totalCommissionUsd += (rewardVal * milestoneNormRate);
-          totalAgencyCommDiamonds += (tDia * milestoneNormRate).round();
+          totalAgencyCommDiamonds = (totalAgencyCommDiamonds + (tDia * milestoneNormRate).round()).toInt();
         }
       }
     }
@@ -1839,16 +1839,16 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
               : normCommRate;
           totalCommissionUsd = rewardVal * milestoneNormRate;
-          totalAgencyCommDiamonds = (tDia * milestoneNormRate).round();
+          totalAgencyCommDiamonds = (tDia * milestoneNormRate).round().toInt();
         }
       }
       if (totalAgencyCommDiamonds == 0) {
-        totalAgencyCommDiamonds = (totalAgencyDiamonds * normCommRate).round();
+        totalAgencyCommDiamonds = (totalAgencyDiamonds * normCommRate).round().toInt();
       }
     }
 
     if (totalCommissionUsd == 0 && totalAgencyCommDiamonds > 0) {
-      final diaPerUsd = dc.diamondsPerUsd > 0 ? dc.diamondsPerUsd.toDouble() : 15000.0;
+      final diaPerUsd = dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 15000.0;
       totalCommissionUsd = totalAgencyCommDiamonds / diaPerUsd;
     }
 
