@@ -3327,6 +3327,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         agencyId: _agentInfo?.agencyId ?? widget.agencyId ?? '',
         availableDiamonds: availableDiamonds,
         isAr: isAr,
+        milestones: _agentInfo?.milestones,
         onSuccess: () {
           _loadAgencyData(silent: true);
         },
@@ -3718,12 +3719,14 @@ class _HostTransferSalaryModal extends StatefulWidget {
   final String agencyId;
   final int availableDiamonds;
   final bool isAr;
+  final List<dynamic>? milestones;
   final VoidCallback onSuccess;
 
   const _HostTransferSalaryModal({
     required this.agencyId,
     required this.availableDiamonds,
     required this.isAr,
+    this.milestones,
     required this.onSuccess,
   });
 
@@ -3742,7 +3745,19 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
   Timer? _debounce;
   int _diamonds = 0;
 
-  final List<int> _quickTargets = [100000, 300000, 500000, 1000000, 2000000, 5000000];
+  List<int> get _quickTargets {
+    final ms = widget.milestones;
+    if (ms != null && ms.isNotEmpty) {
+      final targets = ms
+          .map((m) => (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0)
+          .where((t) => t > 0)
+          .toSet()
+          .toList()
+        ..sort();
+      if (targets.isNotEmpty) return targets.take(12).toList();
+    }
+    return [40000, 100000, 200000, 300000, 500000, 1000000, 2000000, 5000000];
+  }
 
   @override
   void dispose() {
@@ -4314,7 +4329,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
 
   String _getAnchorStage(String diamondsStr, bool isAr) {
     final d = double.tryParse(diamondsStr) ?? 0.0;
-    final milestones = _agentInfo?.milestones ?? [];
+    final milestones = widget.milestones ?? [];
     if (milestones.isNotEmpty) {
       final sorted = List<Map<String, dynamic>>.from(milestones)
         ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
