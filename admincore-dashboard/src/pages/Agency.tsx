@@ -514,8 +514,61 @@ function AgenciesTab({ onViewMembers }: { onViewMembers: (agencyId: string) => v
 }
 
 /* =============================================================
-   2. MEMBERS TAB
+   HELPER: CALCULATE MEMBER STAGE & AGENT COMMISSION
    ============================================================= */
+export function getMemberStageAndCommission(
+  member: HostAgencyMemberModel | any,
+  milestones: HostMilestoneModel[],
+  agencyCommissionRate?: number
+) {
+  const diamonds = Number(member?.diamonds_earned_monthly ?? member?.diamondsEarnedMonthly ?? member?.diamonds ?? 0);
+  const activeMilestones = (milestones || [])
+    .filter(m => m.is_active !== false)
+    .sort((a, b) => (Number(a.target_diamonds ?? (a as any).targetDiamonds ?? 0) - Number(b.target_diamonds ?? (b as any).targetDiamonds ?? 0)));
+
+  if (activeMilestones.length === 0) {
+    return {
+      stageTitle: 'تحت التارجت',
+      targetDiamonds: 0,
+      commissionDiamonds: 0,
+      rate: agencyCommissionRate ?? 0.2,
+      isReached: false,
+    };
+  }
+
+  let highest: HostMilestoneModel | null = null;
+  for (const ms of activeMilestones) {
+    const t = Number(ms.target_diamonds ?? (ms as any).targetDiamonds ?? 0);
+    if (diamonds >= t && t > 0) {
+      highest = ms;
+    }
+  }
+
+  if (!highest) {
+    const first = activeMilestones[0];
+    const firstTarget = Number(first.target_diamonds ?? (first as any).targetDiamonds ?? 0);
+    return {
+      stageTitle: `تحت ${first.title || 'المرحلة 1'}`,
+      targetDiamonds: firstTarget,
+      commissionDiamonds: 0,
+      rate: Number(first.agent_commission_rate ?? agencyCommissionRate ?? 0.2),
+      isReached: false,
+    };
+  }
+
+  const rate = Number(highest.agent_commission_rate ?? agencyCommissionRate ?? 0.2);
+  const targetDiamonds = Number(highest.target_diamonds ?? (highest as any).targetDiamonds ?? 0);
+  const commissionDiamonds = Math.round(targetDiamonds * rate);
+
+  return {
+    stageTitle: highest.title || 'مرحلة محققة',
+    targetDiamonds,
+    commissionDiamonds,
+    rate,
+    isReached: true,
+  };
+}
+
 /* =============================================================
    2. MEMBERS TAB
    ============================================================= */
@@ -523,6 +576,7 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
   const { t } = useContext(I18nContext);
   const [members, setMembers] = useState<HostAgencyMemberModel[]>([]);
   const [agencies, setAgencies] = useState<HostAgencyModel[]>([]);
+  const [milestones, setMilestones] = useState<HostMilestoneModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterAgency, setFilterAgency] = useState(initialAgencyId || '');
 
@@ -546,8 +600,12 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
 
   const load = async () => {
     setLoading(true);
-    const [m, a] = await Promise.all([getHostAgencyMembers(filterAgency || undefined), getHostAgencies()]);
-    setMembers(m); setAgencies(a); setLoading(false);
+    const [m, a, ms] = await Promise.all([
+      getHostAgencyMembers(filterAgency || undefined),
+      getHostAgencies(),
+      getHostMilestones(),
+    ]);
+    setMembers(m); setAgencies(a); setMilestones(ms); setLoading(false);
   };
   useEffect(() => { load(); }, [filterAgency]);
 
@@ -676,6 +734,32 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
           { key: 'diamonds_earned_monthly', label: 'ألماس الشهر', sortable: true, render: m => {
             const v = (m as HostAgencyMemberModel).diamonds_earned_monthly;
             return <span className="text-amber-400 font-bold font-mono">{v?.toLocaleString() ?? '0'} 💎</span>;
+          }},
+          { key: 'current_stage', label: 'المرحلة / التارجت', sortable: true, render: m => {
+            const stage = getMemberStageAndCommission(m, milestones);
+            return stage.isReached ? (
+              <div className="flex flex-col">
+                <span className="text-emerald-400 font-bold text-xs bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 inline-block w-fit">
+                  {stage.stageTitle}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono mt-0.5">تارجت: {stage.targetDiamonds.toLocaleString()} 💎</span>
+              </div>
+            ) : (
+              <span className="text-slate-500 text-[11px]">{stage.stageTitle}</span>
+            );
+          }},
+          { key: 'agent_commission', label: 'عمولة الوكيل بالماس 💎', sortable: true, render: m => {
+            const member = m as HostAgencyMemberModel;
+            const agency = agencies.find(a => a.id === member.agency_id);
+            const stage = getMemberStageAndCommission(m, milestones, agency?.commission_rate);
+            return stage.commissionDiamonds > 0 ? (
+              <div className="flex flex-col">
+                <span className="text-cyan-400 font-bold font-mono text-xs">💎 {stage.commissionDiamonds.toLocaleString()}</span>
+                <span className="text-[10px] text-cyan-500/80">{Math.round(stage.rate * 100)}% من التارجت</span>
+              </div>
+            ) : (
+              <span className="text-slate-600 text-xs">0 💎</span>
+            );
           }},
           { key: 'diamonds_balance', label: 'الرصيد القابل للسحب', sortable: true, render: m => {
             const v = (m as HostAgencyMemberModel).diamonds_balance;
@@ -1073,25 +1157,66 @@ function JoinRequestsTab() {
    ============================================================= */
 function FinancialTab() {
   const { t } = useContext(I18nContext);
-  const [subTab, setSubTab] = useState<'ledger' | 'withdrawals'>('ledger');
+  const [subTab, setSubTab] = useState<'ledger' | 'withdrawals' | 'commissions'>('ledger');
   const [ledger, setLedger] = useState<AgencyLedgerEntryModel[]>([]);
   const [withdrawals, setWithdrawals] = useState<AgencyWithdrawalRequestModel[]>([]);
+  const [agencies, setAgencies] = useState<HostAgencyModel[]>([]);
+  const [allMembers, setAllMembers] = useState<HostAgencyMemberModel[]>([]);
+  const [milestones, setMilestones] = useState<HostMilestoneModel[]>([]);
+  const [commAgencyFilter, setCommAgencyFilter] = useState('');
+  const [commSearch, setCommSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingCommissions, setLoadingCommissions] = useState(false);
   const [wFilter, setWFilter] = useState('pending');
 
   const loadLedger = () => { getAgencyLedger().then(d => setLedger(d)); };
   const loadWithdrawals = () => { setLoading(true); getWithdrawalRequests(wFilter).then(d => { setWithdrawals(d); setLoading(false); }); };
+  const loadCommissions = async () => {
+    setLoadingCommissions(true);
+    const [ag, mem, ms] = await Promise.all([
+      getHostAgencies(),
+      getHostAgencyMembers(),
+      getHostMilestones(),
+    ]);
+    setAgencies(ag);
+    setAllMembers(mem);
+    setMilestones(ms);
+    setLoadingCommissions(false);
+  };
 
   useEffect(() => { loadLedger(); }, []);
   useEffect(() => { loadWithdrawals(); }, [wFilter]);
+  useEffect(() => {
+    if (subTab === 'commissions') {
+      loadCommissions();
+    }
+  }, [subTab]);
 
   const statusColors: Record<string, string> = {
     pending: 'text-yellow-400', approved: 'text-emerald-400', rejected: 'text-rose-400',
   };
 
+  const filteredCommissions = allMembers.filter(m => {
+    if (commAgencyFilter && m.agency_id !== commAgencyFilter) return false;
+    if (!commSearch.trim()) return true;
+    const q = commSearch.trim().toLowerCase();
+    return (
+      (m.user_name || '').toLowerCase().includes(q) ||
+      (m.custom_id || '').toLowerCase().includes(q) ||
+      (m.user_id || '').toLowerCase().includes(q)
+    );
+  });
+
+  const totalMonthlyDiamonds = filteredCommissions.reduce((sum, m) => sum + (m.diamonds_earned_monthly ?? 0), 0);
+  const totalCommDiamonds = filteredCommissions.reduce((sum, m) => {
+    const ag = agencies.find(a => a.id === m.agency_id);
+    const stage = getMemberStageAndCommission(m, milestones, ag?.commission_rate);
+    return sum + stage.commissionDiamonds;
+  }, 0);
+
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2 items-center">
         <button onClick={() => setSubTab('ledger')}
           className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${subTab === 'ledger' ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400 hover:text-white'}`}>
           {t('agency.diamondLedger')}
@@ -1099,6 +1224,11 @@ function FinancialTab() {
         <button onClick={() => setSubTab('withdrawals')}
           className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${subTab === 'withdrawals' ? 'bg-indigo-500/20 text-indigo-300' : 'text-slate-400 hover:text-white'}`}>
           {t('agency.withdrawalRequests')}
+        </button>
+        <button onClick={() => setSubTab('commissions')}
+          className={`text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${subTab === 'commissions' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm' : 'text-slate-400 hover:text-white border border-transparent'}`}>
+          <span>💎</span>
+          <span>سجل عمولات الوكلاء بالماس</span>
         </button>
       </div>
 
@@ -1169,6 +1299,125 @@ function FinancialTab() {
           />
         </div>
       )}
+
+      {subTab === 'commissions' && (
+        <div className="space-y-4">
+          {/* Quick Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-[#18181b] p-3 rounded-xl border border-white/5">
+              <span className="text-[10px] text-slate-400 block">👥 إجمالي المضيفين</span>
+              <span className="text-sm font-bold text-white font-mono">{filteredCommissions.length} مضيف</span>
+            </div>
+            <div className="bg-[#18181b] p-3 rounded-xl border border-white/5">
+              <span className="text-[10px] text-slate-400 block">💎 ألماس الإنتاج الشهري</span>
+              <span className="text-sm font-bold text-amber-400 font-mono">{totalMonthlyDiamonds.toLocaleString()} 💎</span>
+            </div>
+            <div className="bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 p-3 rounded-xl border border-cyan-500/30">
+              <span className="text-[10px] text-cyan-300 font-semibold block">💎 إجمالي عمولات الوكلاء المستحقة</span>
+              <span className="text-sm font-bold text-cyan-400 font-mono">{totalCommDiamonds.toLocaleString()} 💎</span>
+            </div>
+            <div className="bg-[#18181b] p-3 rounded-xl border border-white/5">
+              <span className="text-[10px] text-slate-400 block">🏢 الوكالات المشمولة</span>
+              <span className="text-sm font-bold text-indigo-400 font-mono">{commAgencyFilter ? 1 : agencies.length} وكالة</span>
+            </div>
+          </div>
+
+          {/* Filters Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#121214] p-3 rounded-xl border border-white/5">
+            <div className="flex items-center gap-3">
+              <label className="text-xs text-slate-400 font-bold">فلترة حسب الوكالة:</label>
+              <select
+                value={commAgencyFilter}
+                onChange={e => setCommAgencyFilter(e.target.value)}
+                className="bg-[#18181b] border border-white/10 rounded-lg py-1 px-3 text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                <option value="">جميع الوكالات ({agencies.length})</option>
+                {agencies.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+            <input
+              value={commSearch}
+              onChange={e => setCommSearch(e.target.value)}
+              placeholder="بحث باسم المضيف أو الـ ID..."
+              className="bg-[#18181b] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-500 w-64 focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
+          {/* DataTable */}
+          <DataTable
+            loading={loadingCommissions}
+            columns={[
+              { key: 'user_name', label: 'المضيف', sortable: true, render: m => {
+                const mem = m as HostAgencyMemberModel;
+                return (
+                  <div className="flex items-center gap-2.5">
+                    <img src={mem.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(mem.user_name || 'Host')}&background=random`} alt="" className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
+                    <div>
+                      <div className="text-white font-bold text-xs">{mem.user_name || 'مضيف'}</div>
+                      <div className="text-[10px] text-cyan-400 font-mono font-bold">ID: #{mem.custom_id || mem.user_id?.slice(0, 8)}</div>
+                    </div>
+                  </div>
+                );
+              }},
+              { key: 'agency_id', label: 'الوكالة التابع لها', sortable: true, render: m => {
+                const mem = m as HostAgencyMemberModel;
+                const ag = agencies.find(a => a.id === mem.agency_id);
+                return (
+                  <div>
+                    <div className="text-indigo-300 font-bold text-xs">{ag?.name ?? mem.agency_id?.slice(0, 8)}</div>
+                    <div className="text-[10px] text-slate-500">مالك: {ag?.owner_name || '—'}</div>
+                  </div>
+                );
+              }},
+              { key: 'diamonds_earned_monthly', label: 'ألماس المضيف هذا الشهر 💎', sortable: true, render: m => {
+                const v = (m as HostAgencyMemberModel).diamonds_earned_monthly;
+                return <span className="text-amber-400 font-bold font-mono text-xs">💎 {(v ?? 0).toLocaleString()}</span>;
+              }},
+              { key: 'stage', label: 'المرحلة والتارجت المحقق', sortable: true, render: m => {
+                const ag = agencies.find(a => a.id === (m as HostAgencyMemberModel).agency_id);
+                const stage = getMemberStageAndCommission(m, milestones, ag?.commission_rate);
+                return stage.isReached ? (
+                  <div className="flex flex-col">
+                    <span className="text-emerald-400 font-bold text-xs bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 inline-block w-fit">
+                      {stage.stageTitle}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono mt-0.5">تارجت: {stage.targetDiamonds.toLocaleString()} 💎</span>
+                  </div>
+                ) : (
+                  <span className="text-slate-500 text-xs">{stage.stageTitle}</span>
+                );
+              }},
+              { key: 'commission_rate', label: 'نسبة عمولة الوكيل', render: m => {
+                const ag = agencies.find(a => a.id === (m as HostAgencyMemberModel).agency_id);
+                const stage = getMemberStageAndCommission(m, milestones, ag?.commission_rate);
+                return <span className="text-cyan-400 font-bold text-xs">{Math.round(stage.rate * 100)}%</span>;
+              }},
+              { key: 'commission_diamonds', label: 'عمولة الوكيل بالماس 💎', sortable: true, render: m => {
+                const ag = agencies.find(a => a.id === (m as HostAgencyMemberModel).agency_id);
+                const stage = getMemberStageAndCommission(m, milestones, ag?.commission_rate);
+                return stage.commissionDiamonds > 0 ? (
+                  <div className="flex flex-col">
+                    <span className="text-cyan-400 font-bold font-mono text-xs">💎 {stage.commissionDiamonds.toLocaleString()}</span>
+                    <span className="text-[10px] text-cyan-500/80">من تارجت {stage.targetDiamonds.toLocaleString()}</span>
+                  </div>
+                ) : (
+                  <span className="text-slate-600 text-xs">0 💎 (لم يبلغ التارجت)</span>
+                );
+              }},
+              { key: 'role', label: 'الرتبة', render: m => {
+                const r = (m as HostAgencyMemberModel).role;
+                return r === 'owner' ? <span className="text-amber-400 text-xs font-bold">👑 مالك</span> :
+                       r === 'supervisor' ? <span className="text-cyan-400 text-xs font-bold">⭐ مشرف</span> :
+                       <span className="text-slate-400 text-xs">🎙️ مضيف</span>;
+              }},
+            ]}
+            data={filteredCommissions}
+            searchKeys={['user_name', 'custom_id', 'user_id']}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1191,7 +1440,10 @@ function MilestonesTab() {
   const [rewardItemId, setRewardItemId] = useState('');
   const [rewardImageUrl, setRewardImageUrl] = useState('');
   const [backgroundUrl, setBackgroundUrl] = useState('');
-  const [generalCommissionRate, setGeneralCommissionRate] = useState<number>(15);
+  const [generalCommissionRate, setGeneralCommissionRate] = useState<number>(20);
+  const [agentCommissionRate, setAgentCommissionRate] = useState<string>('20');
+  const [targetDays, setTargetDays] = useState<string>('0');
+  const [targetHours, setTargetHours] = useState<string>('0');
   const [periodType, setPeriodType] = useState('monthly');
   const [sortOrder, setSortOrder] = useState('0');
   const [isActive, setIsActive] = useState(true);
@@ -1202,7 +1454,10 @@ function MilestonesTab() {
     getHostMilestones().then(d => { setMilestones(d); setLoading(false); });
     getCommissionSettings().then(cs => {
       const ar = cs.find(c => c.key === 'agency_rate')?.value;
-      if (ar != null) setGeneralCommissionRate(ar);
+      if (ar != null) {
+        setGeneralCommissionRate(ar);
+        setAgentCommissionRate(String(ar));
+      }
     }).catch(err => {
       console.warn('Failed to load commission settings for agency rate:', err);
     });
@@ -1216,6 +1471,8 @@ function MilestonesTab() {
   const resetForm = () => {
     setTitle(''); setTargetDiamonds('1000000'); setRewardType('salary_usd');
     setRewardValue('100'); setRewardItemId(''); setRewardImageUrl(''); setBackgroundUrl('');
+    setAgentCommissionRate(String(generalCommissionRate || 20));
+    setTargetDays('0'); setTargetHours('0');
     setPeriodType('monthly'); setSortOrder('0'); setIsActive(true);
     setEditId(null); setShowItemPicker(false);
   };
@@ -1229,6 +1486,10 @@ function MilestonesTab() {
     setRewardItemId(m.reward_item_id ?? m.rewardItemId ?? '');
     setRewardImageUrl(m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? '');
     setBackgroundUrl(m.background_url ?? m.backgroundUrl ?? '');
+    const comm = m.agent_commission_rate ?? m.agentCommissionRate;
+    setAgentCommissionRate(comm != null ? String(Math.round(comm * 100)) : String(generalCommissionRate || 20));
+    setTargetDays(String(m.target_days ?? m.targetDays ?? 0));
+    setTargetHours(String(m.target_hours ?? m.targetHours ?? 0));
     setPeriodType(m.period_type ?? m.periodType ?? 'monthly');
     setSortOrder(String(m.sort_order ?? m.sortOrder ?? 0));
     setIsActive(m.is_active !== false && m.isActive !== false);
@@ -1237,6 +1498,7 @@ function MilestonesTab() {
 
   const handleSubmit = async () => {
     if (!title.trim()) return;
+    const commRateNum = (parseFloat(agentCommissionRate) || (generalCommissionRate || 20)) / 100;
     const payload = {
       title: title.trim(),
       target_diamonds: parseInt(targetDiamonds) || 0,
@@ -1245,7 +1507,9 @@ function MilestonesTab() {
       reward_item_id: rewardItemId.trim() || null,
       reward_image_url: rewardImageUrl.trim() || null,
       background_url: backgroundUrl.trim() || null,
-      agent_commission_rate: (generalCommissionRate || 15) / 100,
+      agent_commission_rate: commRateNum,
+      target_days: parseInt(targetDays) || 0,
+      target_hours: parseInt(targetHours) || 0,
       period_type: periodType as any,
       is_active: isActive,
       sort_order: parseInt(sortOrder) || 0,
@@ -1299,13 +1563,51 @@ function MilestonesTab() {
             </div>
           </div>
 
-          <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl px-3 py-2 text-xs flex items-center justify-between">
-            <span className="text-indigo-300 flex items-center gap-1.5 font-medium">
-              <span>🏦</span> يتم احتساب عمولة الوكيل تلقائياً بناءً على إعدادات العمولات العامة المعتمدة:
-            </span>
-            <span className="font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-              عمولة الوكيل الحالية: {generalCommissionRate}%
-            </span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3">
+            <div>
+              <label className="text-[11px] text-amber-300 font-bold block mb-1">
+                💎 نسبة عمولة الوكيل لهذه المرحلة (%) *
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={agentCommissionRate}
+                  onChange={e => setAgentCommissionRate(e.target.value)}
+                  placeholder="20"
+                  className="w-full bg-[#121214] border border-amber-500/30 rounded-xl py-2 px-3 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400"
+                />
+                <span className="text-xs text-slate-400 font-bold">%</span>
+              </div>
+              <span className="text-[10px] text-slate-400 block mt-1">
+                عمولة الوكيل: 💎 {Math.round(((parseInt(targetDiamonds) || 0) * (parseFloat(agentCommissionRate) || 0)) / 100).toLocaleString()}
+              </span>
+            </div>
+            <div>
+              <label className="text-[11px] text-indigo-300 font-bold block mb-1">
+                📅 أيام البث المطلوبة (Target Days)
+              </label>
+              <input
+                type="number"
+                value={targetDays}
+                onChange={e => setTargetDays(e.target.value)}
+                placeholder="0 (اختياري)"
+                className="w-full bg-[#121214] border border-indigo-500/30 rounded-xl py-2 px-3 text-xs text-indigo-200 font-bold focus:outline-none focus:border-indigo-400"
+              />
+              <span className="text-[10px] text-slate-500 block mt-1">0 = لا يشترط أيام محددة</span>
+            </div>
+            <div>
+              <label className="text-[11px] text-cyan-300 font-bold block mb-1">
+                ⏱️ ساعات البث المطلوبة (Target Hours)
+              </label>
+              <input
+                type="number"
+                value={targetHours}
+                onChange={e => setTargetHours(e.target.value)}
+                placeholder="0 (اختياري)"
+                className="w-full bg-[#121214] border border-cyan-500/30 rounded-xl py-2 px-3 text-xs text-cyan-200 font-bold focus:outline-none focus:border-cyan-400"
+              />
+              <span className="text-[10px] text-slate-500 block mt-1">0 = لا يشترط ساعات محددة</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1533,13 +1835,25 @@ function MilestonesTab() {
             if (rType === 'vip_days') return <span className="text-purple-400 font-bold">{rVal} يوم VIP 👑</span>;
             return <span className="text-indigo-400 font-bold">{rVal} ({rType})</span>;
           }},
-          { key: 'agent_commission_rate', label: `عمولة الوكيل (${generalCommissionRate}%)`, sortable: true, render: m => {
+          { key: 'agent_commission_rate', label: 'عمولة الوكيل بالماس 💎', sortable: true, render: m => {
             const tD = Number((m as any).target_diamonds ?? (m as any).targetDiamonds ?? 0);
-            const commVal = Math.round(tD * ((generalCommissionRate || 15) / 100));
+            const commRate = Number((m as any).agent_commission_rate ?? (m as any).agentCommissionRate ?? ((generalCommissionRate || 20) / 100));
+            const commVal = Math.round(tD * commRate);
             return (
               <div className="flex flex-col">
-                <span className="text-amber-400 font-bold">{commVal.toLocaleString()} 💎</span>
-                <span className="text-[10px] text-slate-500">حسب العمولات العامة ({generalCommissionRate}%)</span>
+                <span className="text-amber-400 font-bold font-mono">💎 {commVal.toLocaleString()}</span>
+                <span className="text-[10px] text-cyan-400 font-semibold">{Math.round(commRate * 100)}% من التارجت</span>
+              </div>
+            );
+          }},
+          { key: 'target_requirements', label: 'شروط البث', render: m => {
+            const days = Number((m as any).target_days ?? (m as any).targetDays ?? 0);
+            const hrs = Number((m as any).target_hours ?? (m as any).targetHours ?? 0);
+            if (days === 0 && hrs === 0) return <span className="text-slate-500 text-xs">—</span>;
+            return (
+              <div className="text-[11px] text-slate-300 flex flex-col gap-0.5">
+                {days > 0 && <span className="text-indigo-300 font-medium">📅 {days} يوم</span>}
+                {hrs > 0 && <span className="text-cyan-300 font-medium">⏱️ {hrs} ساعة</span>}
               </div>
             );
           }},
@@ -3577,6 +3891,7 @@ function AgencyRecordModal({
   onClose: () => void;
 }) {
   const [members, setMembers] = useState<HostAgencyMemberModel[]>([]);
+  const [milestones, setMilestones] = useState<HostMilestoneModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [transferTarget, setTransferTarget] = useState<HostAgencyMemberModel | null>(null);
@@ -3584,8 +3899,12 @@ function AgencyRecordModal({
 
   const loadMembers = async () => {
     setLoading(true);
-    const m = await getHostAgencyMembers(agency.id);
+    const [m, ms] = await Promise.all([
+      getHostAgencyMembers(agency.id),
+      getHostMilestones(),
+    ]);
     setMembers(m);
+    setMilestones(ms);
     setLoading(false);
   };
 
@@ -3610,6 +3929,11 @@ function AgencyRecordModal({
       (m.user_id || '').toLowerCase().includes(q)
     );
   });
+
+  const totalCommissionDiamonds = members.reduce((sum, m) => {
+    const stage = getMemberStageAndCommission(m, milestones, agency.commission_rate);
+    return sum + stage.commissionDiamonds;
+  }, 0);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -3639,7 +3963,7 @@ function AgencyRecordModal({
         </div>
 
         {/* Agency Owner & Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
           {/* Real In-App Owner ID Card */}
           <div className="md:col-span-2 bg-gradient-to-r from-amber-500/10 to-indigo-500/10 border border-amber-500/25 p-3 rounded-xl flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -3660,7 +3984,7 @@ function AgencyRecordModal({
             </div>
             <div className="text-left text-[11px] text-slate-400">
               <span className="block text-slate-500 text-[10px]">عمولة الوكالة</span>
-              <span className="text-amber-400 font-bold font-mono">{((agency.commission_rate ?? 0.1) * 100)}%</span>
+              <span className="text-amber-400 font-bold font-mono">{((agency.commission_rate ?? 0.2) * 100)}%</span>
             </div>
           </div>
 
@@ -3668,6 +3992,12 @@ function AgencyRecordModal({
           <div className="bg-[#1c1c20] p-3 rounded-xl border border-white/5 flex flex-col justify-center">
             <span className="text-[10px] text-slate-400">💎 ألماس الوكالة هذا الشهر</span>
             <span className="text-sm font-bold text-amber-400 font-mono">{(agency.monthly_diamonds ?? 0).toLocaleString()}</span>
+          </div>
+
+          {/* Total Agent Commission in Diamonds */}
+          <div className="bg-[#1c1c20] p-3 rounded-xl border border-cyan-500/20 flex flex-col justify-center bg-cyan-500/5">
+            <span className="text-[10px] text-cyan-300 font-semibold">💎 عمولة الوكيل المستحقة</span>
+            <span className="text-sm font-bold text-cyan-400 font-mono">{totalCommissionDiamonds.toLocaleString()} 💎</span>
           </div>
 
           {/* Total Members */}
@@ -3711,6 +4041,8 @@ function AgencyRecordModal({
                     <th className="py-2.5 px-3">آيدي التطبيق (Custom ID)</th>
                     <th className="py-2.5 px-3">الرتبة</th>
                     <th className="py-2.5 px-3">ألماس هذا الشهر</th>
+                    <th className="py-2.5 px-3">المرحلة / التارجت</th>
+                    <th className="py-2.5 px-3">عمولة الوكيل بالماس 💎</th>
                     <th className="py-2.5 px-3">رصيد الكوينز</th>
                     <th className="py-2.5 px-3">تاريخ الانضمام</th>
                     <th className="py-2.5 px-3 text-center">الإجراءات</th>
@@ -3748,6 +4080,37 @@ function AgencyRecordModal({
                       </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
                         💎 {(m.diamonds_earned_monthly ?? (m as any).diamondsEarnedMonthly ?? (m as any).diamonds ?? 0).toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {(() => {
+                          const stageInfo = getMemberStageAndCommission(m, milestones, agency.commission_rate);
+                          return stageInfo.isReached ? (
+                            <div className="flex flex-col">
+                              <span className="font-bold text-emerald-400 text-xs bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 inline-block w-fit">
+                                {stageInfo.stageTitle}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono mt-0.5">تارجت: {stageInfo.targetDiamonds.toLocaleString()} 💎</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col">
+                              <span className="text-slate-500 text-xs">{stageInfo.stageTitle}</span>
+                              <span className="text-[10px] text-slate-600 font-mono mt-0.5">تارجت: {stageInfo.targetDiamonds.toLocaleString()} 💎</span>
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold">
+                        {(() => {
+                          const stageInfo = getMemberStageAndCommission(m, milestones, agency.commission_rate);
+                          return stageInfo.commissionDiamonds > 0 ? (
+                            <div className="flex flex-col">
+                              <span className="text-cyan-400 text-xs font-mono font-bold">💎 {stageInfo.commissionDiamonds.toLocaleString()}</span>
+                              <span className="text-[10px] text-cyan-500/80 font-normal">{Math.round(stageInfo.rate * 100)}% من التارجت</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-600 text-xs font-normal">0 💎</span>
+                          );
+                        })()}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-amber-300">
                         🪙 {(m.coins ?? 0).toLocaleString()}

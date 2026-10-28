@@ -1097,13 +1097,13 @@ class SupabaseDataService {
                 final sec = (m['live_seconds_monthly'] as num?)?.toDouble() ?? 0.0;
                 final hrs = (m['live_hours_monthly'] as num?)?.toDouble() ?? 0.0;
                 m['minute'] = (m['minute'] as num?)?.toDouble() ?? (sec > 0 ? (sec / 60.0) : (hrs * 60.0));
-                // رصيد الألماس الفعلي والتارجت المحقق بعد أي سحب أو تصفير
+                // رصيد ألماس التارجت الشهري المحقق للمضيف في الوكالة (مطابق 100% للوحة التحكم)
+                final earnedMonthly = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? (m['monthly_diamonds'] as num?)?.toInt();
                 final memberBal = (m['diamonds_balance'] as num?)?.toInt() ?? (m['diamonds'] as num?)?.toInt();
-                final userDia = (uData?['diamonds'] as num?)?.toInt();
-                final actualDiamonds = memberBal ?? userDia ?? (m['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+                final actualDiamonds = earnedMonthly ?? memberBal ?? 0;
                 m['diamonds'] = actualDiamonds.toString();
                 m['unpacked_target_diamonds'] = (m['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
-                m['target_diamonds'] = (m['target_diamonds'] as num?)?.toInt() ?? 100000;
+                m['target_diamonds'] = (m['target_diamonds'] as num?)?.toInt() ?? 40000;
               }
             }
           } catch (_) {}

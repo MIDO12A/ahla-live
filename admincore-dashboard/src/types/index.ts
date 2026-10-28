@@ -659,6 +659,8 @@ export interface HostMilestoneModel {
   reward_image_url?: string | null;
   background_url?: string | null;
   agent_commission_rate?: number;
+  target_days?: number;
+  target_hours?: number;
   period_type: 'monthly' | 'weekly' | 'all_time';
   is_active: boolean;
   sort_order: number;

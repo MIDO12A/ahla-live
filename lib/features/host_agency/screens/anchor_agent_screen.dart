@@ -120,8 +120,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           agencyName: user?.name ?? 'وكالتي الرسمية',
           avatarUrl: user?.photoUrl ?? '',
           agentBean: user?.coins ?? 0,
-          transferMoney: user?.diamonds ?? 0,
-          transferDollar: ((user?.diamonds ?? 0) / 1000).toInt(),
+          transferMoney: 0,
+          transferDollar: 0,
           milestones: globalMilestones,
         );
       }
@@ -1769,7 +1769,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     }
     final rawTransfer = info?.transferMoney ?? 0;
     final monthlyFromInfo = info?.totalDiamondsMonthly ?? 0;
-    final totalAgencyDiamonds = [rawTransfer, monthlyFromInfo, totalAnchorsDiamonds].reduce((curr, next) => curr > next ? curr : next);
+    final totalAgencyDiamonds = totalAnchorsDiamonds > 0
+        ? totalAnchorsDiamonds
+        : (monthlyFromInfo > 0 ? monthlyFromInfo : rawTransfer);
     final agentCommissionDiamonds = (totalAgencyDiamonds * normCommRate).round();
     final totalAgencyDiamondsWithComm = totalAgencyDiamonds + agentCommissionDiamonds;
 
@@ -4312,12 +4314,33 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
 
   String _getAnchorStage(String diamondsStr, bool isAr) {
     final d = double.tryParse(diamondsStr) ?? 0.0;
-    if (d >= 5000000) return isAr ? 'المرحلة 7' : 'Stage 7';
-    if (d >= 2000000) return isAr ? 'المرحلة 6' : 'Stage 6';
-    if (d >= 1000000) return isAr ? 'المرحلة 5' : 'Stage 5';
-    if (d >= 500000) return isAr ? 'المرحلة 4' : 'Stage 4';
-    if (d >= 300000) return isAr ? 'المرحلة 3' : 'Stage 3';
+    final milestones = _agentInfo?.milestones ?? [];
+    if (milestones.isNotEmpty) {
+      final sorted = List<Map<String, dynamic>>.from(milestones)
+        ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
+            .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
+      Map<String, dynamic>? highest;
+      for (final m in sorted) {
+        final t = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
+        if (d >= t && t > 0) {
+          highest = m;
+        }
+      }
+      if (highest != null) {
+        return highest['title']?.toString() ?? (isAr ? 'مستوي 1' : 'Level 1');
+      }
+      return sorted.first['title']?.toString() ?? (isAr ? 'مستوي 1' : 'Level 1');
+    }
+
+    if (d >= 10000000) return isAr ? 'المرحلة 21' : 'Stage 21';
+    if (d >= 5000000) return isAr ? 'المرحلة 16' : 'Stage 16';
+    if (d >= 2000000) return isAr ? 'المرحلة 11' : 'Stage 11';
+    if (d >= 1000000) return isAr ? 'المرحلة 9' : 'Stage 9';
+    if (d >= 500000) return isAr ? 'المرحلة 6' : 'Stage 6';
+    if (d >= 300000) return isAr ? 'المرحلة 4' : 'Stage 4';
+    if (d >= 200000) return isAr ? 'المرحلة 3' : 'Stage 3';
     if (d >= 100000) return isAr ? 'المرحلة 2' : 'Stage 2';
+    if (d >= 40000) return isAr ? 'المرحلة 1' : 'Stage 1';
     return isAr ? 'المرحلة 1' : 'Stage 1';
   }
 }

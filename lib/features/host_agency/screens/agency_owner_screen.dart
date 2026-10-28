@@ -248,62 +248,48 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
     final currentDays = member.days;
     final currentHours = (member.minute / 60.0).round();
 
-    if (_milestones.isEmpty) {
-      // Default fallback stages if no milestones in DB
-      final s1Dia = 50000;
-      final s1Days = 10;
-      final s2Dia = 100000;
-      final s2Days = 15;
-
-      if (currentDiamonds >= s2Dia && currentDays >= s2Days) {
-        return {
-          'currentStage': 2,
-          'isCompleted': true,
-          'remainingDiamonds': 0,
-          'remainingDays': 0,
-          'remainingHours': 0,
-          'stageName': 'المرحلة 2',
-          'nextStageName': 'المرحلة القصوى',
-        };
-      } else if (currentDiamonds >= s1Dia && currentDays >= s1Days) {
-        return {
-          'currentStage': 1,
-          'isCompleted': true,
-          'remainingDiamonds': (s2Dia - currentDiamonds).clamp(0, s2Dia),
-          'remainingDays': (s2Days - currentDays).clamp(0, s2Days),
-          'remainingHours': 0,
-          'stageName': 'المرحلة 1',
-          'nextStageName': 'المرحلة 2',
-        };
-      } else {
-        return {
-          'currentStage': 1,
-          'isCompleted': false,
-          'remainingDiamonds': (s1Dia - currentDiamonds).clamp(0, s1Dia),
-          'remainingDays': (s1Days - currentDays).clamp(0, s1Days),
-          'remainingHours': 0,
-          'stageName': 'المرحلة 1',
-          'nextStageName': 'المرحلة 1',
-        };
-      }
+    final List<Map<String, dynamic>> sorted;
+    if (_milestones.isNotEmpty) {
+      sorted = List<Map<String, dynamic>>.from(_milestones)
+        ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
+            .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
+    } else {
+      sorted = [
+        {'title': 'مستوي 1', 'target_diamonds': 40000, 'reward_value': 2, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 2', 'target_diamonds': 100000, 'reward_value': 5, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 3', 'target_diamonds': 200000, 'reward_value': 10, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 4', 'target_diamonds': 300000, 'reward_value': 15, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 5', 'target_diamonds': 400000, 'reward_value': 20, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 6', 'target_diamonds': 500000, 'reward_value': 25, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 7', 'target_diamonds': 600000, 'reward_value': 30, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 8', 'target_diamonds': 800000, 'reward_value': 40, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 9', 'target_diamonds': 1000000, 'reward_value': 50, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 10', 'target_diamonds': 1400000, 'reward_value': 70, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 11', 'target_diamonds': 2000000, 'reward_value': 100, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 12', 'target_diamonds': 2400000, 'reward_value': 120, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 13', 'target_diamonds': 2800000, 'reward_value': 140, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 14', 'target_diamonds': 3000000, 'reward_value': 150, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 15', 'target_diamonds': 4000000, 'reward_value': 200, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 16', 'target_diamonds': 5000000, 'reward_value': 250, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 17', 'target_diamonds': 6000000, 'reward_value': 300, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 18', 'target_diamonds': 7000000, 'reward_value': 350, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 19', 'target_diamonds': 8000000, 'reward_value': 400, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 20', 'target_diamonds': 9000000, 'reward_value': 450, 'agent_commission_rate': 0.2},
+        {'title': 'مستوي 21', 'target_diamonds': 10000000, 'reward_value': 500, 'agent_commission_rate': 0.2},
+      ];
     }
-
-    // Sort milestones by target_diamonds ascending
-    final sorted = List<Map<String, dynamic>>.from(_milestones)
-      ..sort((a, b) => ((a['target_diamonds'] as num?)?.toInt() ?? 0)
-          .compareTo((b['target_diamonds'] as num?)?.toInt() ?? 0));
 
     int highestCompletedStageIndex = -1;
     for (int i = 0; i < sorted.length; i++) {
-      final tDia = (sorted[i]['target_diamonds'] as num?)?.toInt() ?? 0;
-      final tDays = (sorted[i]['target_days'] as num?)?.toInt() ?? 0;
-      final tHours = (sorted[i]['target_hours'] as num?)?.toInt() ?? 0;
+      final tDia = (sorted[i]['target_diamonds'] ?? sorted[i]['targetDiamonds'] as num?)?.toInt() ?? 0;
+      final tDays = (sorted[i]['target_days'] ?? sorted[i]['targetDays'] as num?)?.toInt() ?? 0;
+      final tHours = (sorted[i]['target_hours'] ?? sorted[i]['targetHours'] as num?)?.toInt() ?? 0;
 
       final diaOk = currentDiamonds >= tDia;
       final daysOk = tDays > 0 ? (currentDays >= tDays) : true;
       final hoursOk = tHours > 0 ? (currentHours >= tHours) : true;
 
-      if (diaOk && (daysOk || hoursOk)) {
+      if (diaOk && (daysOk || hoursOk) && tDia > 0) {
         highestCompletedStageIndex = i;
       }
     }
@@ -311,9 +297,10 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
     if (highestCompletedStageIndex == -1) {
       // Stage 1 in progress
       final first = sorted.first;
-      final tDia = (first['target_diamonds'] as num?)?.toInt() ?? 100000;
-      final tDays = (first['target_days'] as num?)?.toInt() ?? 10;
-      final tHours = (first['target_hours'] as num?)?.toInt() ?? 20;
+      final tDia = (first['target_diamonds'] ?? first['targetDiamonds'] as num?)?.toInt() ?? 40000;
+      final tDays = (first['target_days'] ?? first['targetDays'] as num?)?.toInt() ?? 0;
+      final tHours = (first['target_hours'] ?? first['targetHours'] as num?)?.toInt() ?? 0;
+      final title = first['title']?.toString() ?? first['name']?.toString() ?? 'مستوي 1';
 
       return {
         'currentStage': 1,
@@ -321,17 +308,19 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         'remainingDiamonds': (tDia - currentDiamonds).clamp(0, tDia),
         'remainingDays': (tDays - currentDays).clamp(0, tDays),
         'remainingHours': (tHours - currentHours).clamp(0, tHours),
-        'stageName': first['name']?.toString() ?? 'المرحلة 1',
-        'nextStageName': first['name']?.toString() ?? 'المرحلة 1',
+        'stageName': title,
+        'nextStageName': title,
       };
     } else if (highestCompletedStageIndex < sorted.length - 1) {
       // Completed current stage, working towards next
       final current = sorted[highestCompletedStageIndex];
       final next = sorted[highestCompletedStageIndex + 1];
 
-      final nextDia = (next['target_diamonds'] as num?)?.toInt() ?? 200000;
-      final nextDays = (next['target_days'] as num?)?.toInt() ?? 15;
-      final nextHours = (next['target_hours'] as num?)?.toInt() ?? 30;
+      final nextDia = (next['target_diamonds'] ?? next['targetDiamonds'] as num?)?.toInt() ?? 100000;
+      final nextDays = (next['target_days'] ?? next['targetDays'] as num?)?.toInt() ?? 0;
+      final nextHours = (next['target_hours'] ?? next['targetHours'] as num?)?.toInt() ?? 0;
+      final curTitle = current['title']?.toString() ?? current['name']?.toString() ?? 'مستوي ${highestCompletedStageIndex + 1}';
+      final nextTitle = next['title']?.toString() ?? next['name']?.toString() ?? 'مستوي ${highestCompletedStageIndex + 2}';
 
       return {
         'currentStage': highestCompletedStageIndex + 1,
@@ -339,20 +328,21 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         'remainingDiamonds': (nextDia - currentDiamonds).clamp(0, nextDia),
         'remainingDays': (nextDays - currentDays).clamp(0, nextDays),
         'remainingHours': (nextHours - currentHours).clamp(0, nextHours),
-        'stageName': current['name']?.toString() ?? 'المرحلة ${highestCompletedStageIndex + 1}',
-        'nextStageName': next['name']?.toString() ?? 'المرحلة ${highestCompletedStageIndex + 2}',
+        'stageName': curTitle,
+        'nextStageName': nextTitle,
       };
     } else {
       // Completed highest stage
       final current = sorted.last;
+      final curTitle = current['title']?.toString() ?? current['name']?.toString() ?? 'مستوي ${sorted.length}';
       return {
         'currentStage': sorted.length,
         'isCompleted': true,
         'remainingDiamonds': 0,
         'remainingDays': 0,
         'remainingHours': 0,
-        'stageName': current['name']?.toString() ?? 'المرحلة ${sorted.length}',
-        'nextStageName': 'الحد الأقصى',
+        'stageName': curTitle,
+        'nextStageName': 'الحد الأقصى 👑',
       };
     }
   }
