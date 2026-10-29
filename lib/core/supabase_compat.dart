@@ -305,6 +305,8 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
     return this;
   }
 
+  SupabaseQueryBuilder in_(String column, List<dynamic> values) => inFilter(column, values);
+
   SupabaseQueryBuilder like(String column, String pattern) {
     _wheres.add((column, 'like', pattern));
     return this;

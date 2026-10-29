@@ -1666,7 +1666,7 @@ class SupabaseService {
       // جلب الآيدي الرقمي الحقيقي (custom_id) والبروفايل لكافة المتصدرين
       if (topUids.isNotEmpty) {
         try {
-          final usersRes = await _sb.from('users').select('id, custom_id, name, avatar, photo_url').in_('id', topUids);
+          final usersRes = await _sb.from('users').select('id, custom_id, name, avatar, photo_url').inFilter('id', topUids);
           if (usersRes is List) {
             for (final u in usersRes) {
               final uMap = Map<String, dynamic>.from(u as Map);
