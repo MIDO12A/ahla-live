@@ -4394,7 +4394,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
 
   String _getAnchorStage(String diamondsStr, bool isAr) {
     final d = double.tryParse(diamondsStr) ?? 0.0;
-    final milestones = _agentInfo?.milestones ?? [];
+    final milestones = widget.milestones ?? [];
     if (milestones.isNotEmpty) {
       final sorted = List<Map<String, dynamic>>.from(milestones)
         ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
