@@ -5280,23 +5280,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   ],
                 ),
                 const SizedBox(height: 9),
-                final isStorageUrl = m.text.contains('/storage/') ||
-                    m.text.startsWith('http://') ||
-                    m.text.startsWith('https://') ||
-                    (m.imageUrl != null && (m.imageUrl!.contains('/storage/') || m.imageUrl!.startsWith('http')));
-                final isMediaExt = m.text.toLowerCase().contains('.png') ||
-                    m.text.toLowerCase().contains('.jpg') ||
-                    m.text.toLowerCase().contains('.jpeg') ||
-                    m.text.toLowerCase().contains('.webp') ||
-                    m.text.toLowerCase().contains('.gif') ||
-                    m.text.toLowerCase().contains('.svga');
-                final isEmojiMsg = m.type == 'emoji' ||
-                    (m.imageUrl != null && (m.imageUrl!.contains('emoji') || m.imageUrl!.contains('stickers'))) ||
-                    m.text.contains('emoji') ||
-                    (isStorageUrl && (m.text.contains('stickers') || m.text.contains('emojis')));
+                () {
+                  final isStorageUrl = m.text.contains('/storage/') ||
+                      m.text.startsWith('http://') ||
+                      m.text.startsWith('https://') ||
+                      (m.imageUrl != null && (m.imageUrl!.contains('/storage/') || m.imageUrl!.startsWith('http')));
+                  final isMediaExt = m.text.toLowerCase().contains('.png') ||
+                      m.text.toLowerCase().contains('.jpg') ||
+                      m.text.toLowerCase().contains('.jpeg') ||
+                      m.text.toLowerCase().contains('.webp') ||
+                      m.text.toLowerCase().contains('.gif') ||
+                      m.text.toLowerCase().contains('.svga');
+                  final isEmojiMsg = m.type == 'emoji' ||
+                      (m.imageUrl != null && (m.imageUrl!.contains('emoji') || m.imageUrl!.contains('stickers'))) ||
+                      m.text.contains('emoji') ||
+                      (isStorageUrl && (m.text.contains('stickers') || m.text.contains('emojis')));
 
-                if (isEmojiMsg || (!isStorageUrl && isMediaExt && m.type != 'image'))
-                  () {
+                  if (isEmojiMsg || (!isStorageUrl && isMediaExt && m.type != 'image')) {
                     final imgUrl = (m.imageUrl != null && m.imageUrl!.isNotEmpty)
                         ? m.imageUrl!
                         : m.text;
@@ -5318,9 +5318,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 ))
                           : Text(imgUrl, style: const TextStyle(fontSize: 32)),
                     );
-                  }()
-                else if (m.type == 'image' || (m.imageUrl != null && m.imageUrl!.isNotEmpty) || (isStorageUrl && isMediaExt))
-                  () {
+                  } else if (m.type == 'image' || (m.imageUrl != null && m.imageUrl!.isNotEmpty) || (isStorageUrl && isMediaExt)) {
                     final imgUrl = (m.imageUrl != null && m.imageUrl!.isNotEmpty)
                         ? m.imageUrl!
                         : m.text;
@@ -5336,13 +5334,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         ),
                       ),
                     );
-                  }()
-                else
-                  _buildChatBubble(
-                    text: m.text,
-                    isMe: isMe,
-                    activeBubble: m.activeBubble,
-                  ),
+                  } else {
+                    return _buildChatBubble(
+                      text: m.text,
+                      isMe: isMe,
+                      activeBubble: m.activeBubble,
+                    );
+                  }
+                }(),
               ],
             ),
           ),

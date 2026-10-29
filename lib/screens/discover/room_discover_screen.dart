@@ -701,7 +701,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
             color: const Color(0xFFFF9D3E),
             onRefresh: () async {
               setState(() {
-                _roomsStream = FirebaseService().roomsStream();
+                _roomsStream = _firebaseService.allRoomsStream().asBroadcastStream();
               });
               await _loadMyRoom();
             },
