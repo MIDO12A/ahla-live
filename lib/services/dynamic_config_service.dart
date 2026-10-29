@@ -1216,8 +1216,15 @@ class DynamicConfigService extends ChangeNotifier {
   String get giftPanelAllSelectedImage => _screenStr('giftPanel', 'allSelectedImage', 'assets/images/ic_gift_select_all.png');
   String get giftPanelAllUnselectedImage => _screenStr('giftPanel', 'allUnselectedImage', 'assets/images/ic_gift_select_all.png');
   double get giftPanelOpacity {
-    final v = _screenNum('giftPanel', 'opacity', _rawConfig['giftPanelOpacity'] ?? _rawConfig['gift_panel_opacity'] ?? 0.95);
-    return v.toDouble().clamp(0.0, 1.0);
+    final strVal = _screenStr('giftPanel', 'opacity', '');
+    if (strVal.isNotEmpty) {
+      final parsed = double.tryParse(strVal);
+      if (parsed != null) return parsed.clamp(0.0, 1.0);
+    }
+    final raw = _rawConfig['giftPanelOpacity'] ?? _rawConfig['gift_panel_opacity'];
+    if (raw is num) return raw.toDouble().clamp(0.0, 1.0);
+    if (raw is String) return (double.tryParse(raw) ?? 0.95).clamp(0.0, 1.0);
+    return 0.95;
   }
 
   // Wallet screen visuals

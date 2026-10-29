@@ -53,7 +53,6 @@ class _GiftPanelState extends State<GiftPanel> {
   bool _sending = false;
   String? _errorMsg;
   final Set<String> _selectedUserIds = {};
-  bool _isAllSelected = false;
   List<gm.GiftModel> _gifts = [];
   List<GiftCategory> _categories = [];
   String? _selectedCategoryId;
