@@ -187,14 +187,16 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
       final points = type == 'wealth'
           ? ((e['total_gifts_sent'] as num?)?.toInt() ?? (e['amount'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0)
           : ((e['total_gifts_received'] as num?)?.toInt() ?? (e['amount'] as num?)?.toInt() ?? (e['points'] as num?)?.toInt() ?? (e['score'] as num?)?.toInt() ?? (e['total_value'] as num?)?.toInt() ?? 0);
-      final rawCustomId = (e['custom_id'] ?? e['display_id'] ?? '').toString();
-      final rawId = (e['id'] ?? e['user_id'] ?? '').toString();
-      final realUid = (e['uid'] ?? e['user_id'] ?? e['id'] ?? '').toString();
-      final displayId = rawCustomId.isNotEmpty
-          ? rawCustomId
-          : (!rawId.contains('-') && rawId.length < 20 && rawId.isNotEmpty
-              ? rawId
-              : (rawCustomId.isNotEmpty ? rawCustomId : realUid));
+      final rawCustomId = (e['custom_id'] ?? e['display_id'] ?? '').toString().trim();
+      final rawId = (e['id'] ?? e['user_id'] ?? '').toString().trim();
+      final realUid = (e['uid'] ?? e['user_id'] ?? e['id'] ?? '').toString().trim();
+      // الآيدي المعروض يجب أن يكون رقمياً فقط ومطابقاً للبروفايل، بدون أحرف أو شرطات الـ UUID
+      String displayId = '';
+      if (rawCustomId.isNotEmpty && !rawCustomId.contains('-')) {
+        displayId = rawCustomId;
+      } else if (rawId.isNotEmpty && !rawId.contains('-') && RegExp(r'^\d+$').hasMatch(rawId)) {
+        displayId = rawId;
+      }
       final photo = (e['photo_url'] ?? e['photoUrl'] ?? e['avatar'] ?? '').toString();
       final name = (e['name'] ?? e['user_name'] ?? 'مستخدم').toString();
       return {
@@ -205,7 +207,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
         'points': points,
         'amount': points,
         'level': e['level'] ?? 1,
-        'user_id': displayId,
+        'user_id': realUid,
         'custom_id': displayId,
         'display_id': displayId,
       };
@@ -474,11 +476,13 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     final double width = isGold ? 130 : 100;
     final double avatarSize = isGold ? 60 : 50;
     final String photo = (item['photoUrl'] ?? item['photo_url'] ?? '').toString();
-    final String rawCid = (item['custom_id'] ?? item['display_id'] ?? '').toString();
-    final String rawId = (item['room_id'] ?? item['user_id'] ?? item['id'] ?? '').toString();
-    final String displayId = rawCid.isNotEmpty 
+    final String rawCid = (item['custom_id'] ?? item['display_id'] ?? '').toString().trim();
+    final String rawId = (item['room_id'] ?? item['user_id'] ?? item['id'] ?? '').toString().trim();
+    final String displayId = rawCid.isNotEmpty && !rawCid.contains('-') 
         ? rawCid 
-        : (type == 'rooms' ? rawId : (rawId.contains('-') && rawId.length > 20 ? '' : rawId));
+        : (type == 'rooms'
+            ? (!rawId.contains('-') ? rawId : '')
+            : (!rawId.contains('-') && RegExp(r'^\d+$').hasMatch(rawId) ? rawId : ''));
 
     return GestureDetector(
       onTap: () {
@@ -542,7 +546,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                     const SizedBox(height: 1),
                     if (displayId.isNotEmpty)
                       Text(
-                        'ID: $displayId',
+                        'ID: #$displayId',
                         style: const TextStyle(color: Colors.white70, fontSize: 10),
                       ),
                     const SizedBox(height: 3),
@@ -625,11 +629,13 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     final remoteBg = config.globalRankListBg;
     final localBg = 'assets/mipmap-xxhdpi/global_rank_list_bg.png';
     final String photo = (item['photoUrl'] ?? item['photo_url'] ?? '').toString();
-    final String rawCid = (item['custom_id'] ?? item['display_id'] ?? '').toString();
-    final String rawId = (item['room_id'] ?? item['user_id'] ?? item['id'] ?? '').toString();
-    final String displayId = rawCid.isNotEmpty 
+    final String rawCid = (item['custom_id'] ?? item['display_id'] ?? '').toString().trim();
+    final String rawId = (item['room_id'] ?? item['user_id'] ?? item['id'] ?? '').toString().trim();
+    final String displayId = rawCid.isNotEmpty && !rawCid.contains('-') 
         ? rawCid 
-        : (type == 'rooms' ? rawId : (rawId.contains('-') && rawId.length > 20 ? '' : rawId));
+        : (type == 'rooms'
+            ? (!rawId.contains('-') ? rawId : '')
+            : (!rawId.contains('-') && RegExp(r'^\d+$').hasMatch(rawId) ? rawId : ''));
 
     return GestureDetector(
       onTap: () {
@@ -727,7 +733,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                       ),
                       if (displayId.isNotEmpty)
                         Text(
-                          'ID: $displayId',
+                          'ID: #$displayId',
                           style: const TextStyle(color: Colors.white70, fontSize: 11),
                         ),
                     ],

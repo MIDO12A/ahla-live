@@ -2069,29 +2069,31 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               backgroundColor: const Color(0xFFE91E63),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
               final now = DateTime.now().millisecondsSinceEpoch;
-              _firebaseService.updateRoom(widget.roomId, {'charisma_cleared_at': now});
-              setState(() {
-                _giftReceiverTotals.clear();
-                for (final seat in _seats) {
-                  if (seat.user != null) {
-                    seat.user = seat.user!.copyWith(
-                      giftCount: 0,
-                      totalGiftsReceived: 0,
-                      charm: '0',
-                    );
+              await _firebaseService.clearRoomCharisma(widget.roomId);
+              if (mounted) {
+                setState(() {
+                  _giftReceiverTotals.clear();
+                  for (final seat in _seats) {
+                    if (seat.user != null) {
+                      seat.user = seat.user!.copyWith(
+                        giftCount: 0,
+                        totalGiftsReceived: 0,
+                        charm: '0',
+                      );
+                    }
                   }
-                }
-                _currentRoom = _currentRoom?.copyWith(charismaClearedAt: now);
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(isAr ? 'تم تصفير كاريزما المقاعد بنجاح' : 'Seats charisma cleared successfully'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+                  _currentRoom = _currentRoom?.copyWith(charismaClearedAt: now);
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(isAr ? 'تم تصفير وحذف كاريزما المقاعد نهائياً بنجاح' : 'Seats charisma cleared permanently'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
             },
             child: Text(isAr ? 'تأكيد الحذف' : 'Confirm', style: const TextStyle(color: Colors.white)),
           ),

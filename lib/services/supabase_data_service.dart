@@ -1525,10 +1525,31 @@ class SupabaseDataService {
     }
   }
 
-  Future<List<gm.SentGiftModel>> getSentGifts(String roomId, {int limit = 500}) async {
+  Future<bool> clearRoomCharisma(String roomId) async {
     try {
-      final roomFilter = roomId.isNotEmpty ? 'room_id=eq.$roomId&' : '';
-      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?${roomFilter}select=*&order=created_at.desc&limit=$limit');
+      final now = DateTime.now().millisecondsSinceEpoch;
+      // 1. Permanently delete all sent_gifts for this room from Supabase
+      if (roomId.isNotEmpty) {
+        final delUrl = Uri.parse('$_baseUrl/rest/v1/sent_gifts?room_id=eq.$roomId');
+        await http.delete(delUrl, headers: _headers);
+      }
+      // 2. Persist charisma_cleared_at timestamp in rooms table
+      await updateRoom(roomId, {
+        'charisma_cleared_at': now,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] clearRoomCharisma error: $e');
+      return false;
+    }
+  }
+
+  Future<List<gm.SentGiftModel>> getSentGifts(String roomId, {int limit = 500, DateTime? after}) async {
+    try {
+      var query = '';
+      if (roomId.isNotEmpty) query += 'room_id=eq.$roomId&';
+      if (after != null) query += 'created_at=gte.${after.toUtc().toIso8601String()}&';
+      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?${query}select=*&order=created_at.desc&limit=$limit');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);

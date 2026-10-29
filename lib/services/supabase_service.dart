@@ -1004,6 +1004,8 @@ class SupabaseService {
 
   Future<bool> updateRoom(String roomId, Map<String, dynamic> updates) => _ds.updateRoom(roomId, updates);
 
+  Future<bool> clearRoomCharisma(String roomId) => _ds.clearRoomCharisma(roomId);
+
   Future<void> updateRoomBackground(String roomId, String bgUrl) async {
     await _ds.updateRoom(roomId, {'bg_image': bgUrl});
   }
@@ -1624,24 +1626,18 @@ class SupabaseService {
 
   Future<List<Map<String, dynamic>>> getGlobalRankings({required bool isWealth, required String timeframe}) async {
     try {
-      final gifts = await _ds.getSentGifts('', limit: 500);
       final now = DateTime.now().toUtc();
       DateTime? cutoff;
       if (timeframe == 'daily') {
-        cutoff = now.subtract(const Duration(days: 1));
+        cutoff = now.subtract(const Duration(hours: 24));
       } else if (timeframe == 'weekly') {
         cutoff = now.subtract(const Duration(days: 7));
       } else if (timeframe == 'monthly') {
         cutoff = now.subtract(const Duration(days: 30));
       }
 
-      var filtered = gifts;
-      if (cutoff != null) {
-        final timeFiltered = gifts.where((g) => g.timestamp.isAfter(cutoff!)).toList();
-        if (timeFiltered.isNotEmpty) {
-          filtered = timeFiltered;
-        }
-      }
+      // Fetch gifts filtered by timeframe directly from Supabase
+      final filtered = await _ds.getSentGifts('', limit: 3000, after: cutoff);
 
       final Map<String, int> totals = {};
       final Map<String, Map<String, dynamic>> userDetails = {};
@@ -1660,27 +1656,67 @@ class SupabaseService {
           };
         }
       }
+
       final sortedKeys = totals.keys.toList()..sort((a, b) => totals[b]!.compareTo(totals[a]!));
-      final result = sortedKeys.map((uid) => {
-        'id': uid,
-        'uid': uid,
-        'user_id': uid,
-        'name': userDetails[uid]?['name'] ?? 'مستخدم',
-        'photoUrl': userDetails[uid]?['photoUrl'] ?? '',
-        'photo_url': userDetails[uid]?['photoUrl'] ?? '',
-        'amount': totals[uid] ?? 0,
-        'points': totals[uid] ?? 0,
-        'score': totals[uid] ?? 0,
-        'total_gifts_sent': isWealth ? (totals[uid] ?? 0) : 0,
-        'total_gifts_received': !isWealth ? (totals[uid] ?? 0) : 0,
+      final topUids = sortedKeys.take(50).toList();
+
+      // جلب الآيدي الرقمي الحقيقي (custom_id) والبروفايل لكافة المتصدرين
+      if (topUids.isNotEmpty) {
+        try {
+          final usersRes = await _sb.from('users').select('id, custom_id, name, avatar, photo_url').in_('id', topUids);
+          if (usersRes is List) {
+            for (final u in usersRes) {
+              final uMap = Map<String, dynamic>.from(u as Map);
+              final uId = uMap['id']?.toString() ?? '';
+              if (uId.isNotEmpty) {
+                final cId = (uMap['custom_id'] ?? '').toString();
+                final uName = (uMap['name'] ?? '').toString();
+                final uPhoto = (uMap['photo_url'] ?? uMap['avatar'] ?? '').toString();
+                if (userDetails.containsKey(uId)) {
+                  userDetails[uId]!['custom_id'] = cId;
+                  if (uName.isNotEmpty) userDetails[uId]!['name'] = uName;
+                  if (uPhoto.isNotEmpty) userDetails[uId]!['photoUrl'] = uPhoto;
+                } else {
+                  userDetails[uId] = {
+                    'id': uId,
+                    'custom_id': cId,
+                    'name': uName,
+                    'photoUrl': uPhoto,
+                  };
+                }
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('[getGlobalRankings] fetch users custom_id error: $e');
+        }
+      }
+
+      final result = sortedKeys.map((uid) {
+        final cId = userDetails[uid]?['custom_id']?.toString() ?? '';
+        return {
+          'id': uid,
+          'uid': uid,
+          'user_id': uid,
+          'custom_id': cId,
+          'display_id': cId,
+          'name': userDetails[uid]?['name'] ?? 'مستخدم',
+          'photoUrl': userDetails[uid]?['photoUrl'] ?? '',
+          'photo_url': userDetails[uid]?['photoUrl'] ?? '',
+          'amount': totals[uid] ?? 0,
+          'points': totals[uid] ?? 0,
+          'score': totals[uid] ?? 0,
+          'total_gifts_sent': isWealth ? (totals[uid] ?? 0) : 0,
+          'total_gifts_received': !isWealth ? (totals[uid] ?? 0) : 0,
+        };
       }).toList();
 
-      // إذا كانت النتائج أقل من 3، نجلب من جدول users كـ fallback
+      // إذا كانت النتائج أقل من 3، نجلب من جدول users مع الحفاظ على custom_id
       if (result.length < 3) {
         try {
           final usersQuery = isWealth
-              ? await _sb.from('users').select('id, name, avatar, photo_url, total_gifts_sent, wealth_exp').order('total_gifts_sent', ascending: false).limit(10)
-              : await _sb.from('users').select('id, name, avatar, photo_url, total_gifts_received, charm').order('total_gifts_received', ascending: false).limit(10);
+              ? await _sb.from('users').select('id, custom_id, name, avatar, photo_url, total_gifts_sent, wealth_exp').order('total_gifts_sent', ascending: false).limit(10)
+              : await _sb.from('users').select('id, custom_id, name, avatar, photo_url, total_gifts_received, charm').order('total_gifts_received', ascending: false).limit(10);
           final existingIds = result.map((r) => r['id'].toString()).toSet();
           for (final u in (usersQuery as List)) {
             final uId = (u['id'] ?? '').toString();
@@ -1690,10 +1726,13 @@ class SupabaseService {
                 : ((u['total_gifts_received'] as num?)?.toInt() ?? (u['charm'] as num?)?.toInt() ?? 0);
             if (pts > 0) {
               final photo = (u['photo_url'] ?? u['avatar'] ?? '').toString();
+              final cId = (u['custom_id'] ?? '').toString();
               result.add({
                 'id': uId,
                 'uid': uId,
                 'user_id': uId,
+                'custom_id': cId,
+                'display_id': cId,
                 'name': (u['name'] ?? 'مستخدم').toString(),
                 'photoUrl': photo,
                 'photo_url': photo,
@@ -1703,6 +1742,7 @@ class SupabaseService {
                 'total_gifts_sent': isWealth ? pts : 0,
                 'total_gifts_received': !isWealth ? pts : 0,
               });
+              existingIds.add(uId);
             }
           }
         } catch (_) {}
@@ -1716,24 +1756,17 @@ class SupabaseService {
 
   Future<List<Map<String, dynamic>>> getRoomGlobalRanking({required String timeframe}) async {
     try {
-      final gifts = await _ds.getSentGifts('', limit: 500);
       final now = DateTime.now().toUtc();
       DateTime? cutoff;
       if (timeframe == 'daily') {
-        cutoff = now.subtract(const Duration(days: 1));
+        cutoff = now.subtract(const Duration(hours: 24));
       } else if (timeframe == 'weekly') {
         cutoff = now.subtract(const Duration(days: 7));
       } else if (timeframe == 'monthly') {
         cutoff = now.subtract(const Duration(days: 30));
       }
 
-      var filtered = gifts;
-      if (cutoff != null) {
-        final timeFiltered = gifts.where((g) => g.timestamp.isAfter(cutoff!)).toList();
-        if (timeFiltered.isNotEmpty) {
-          filtered = timeFiltered;
-        }
-      }
+      final filtered = await _ds.getSentGifts('', limit: 3000, after: cutoff);
 
       final Map<String, int> roomTotals = {};
       for (final g in filtered) {
@@ -1765,6 +1798,39 @@ class SupabaseService {
           'hot_value': amt,
         });
       }
+
+      // إذا كانت قائمة الغرف أقل من 3، نجلب كـ fallback من جدول rooms
+      if (result.length < 3) {
+        try {
+          final topRooms = await _sb.from('rooms').select('*').order('total_gifts', ascending: false).limit(10);
+          final existingRids = result.map((r) => r['room_id'].toString()).toSet();
+          for (final r in (topRooms as List)) {
+            final rid = (r['room_id'] ?? r['id'] ?? '').toString();
+            if (rid.isEmpty || existingRids.contains(rid)) continue;
+            final amt = (r['total_gifts'] as num?)?.toInt() ?? (r['hot_value'] as num?)?.toInt() ?? 0;
+            final photo = (r['room_photo_url'] ?? r['bg_image'] ?? '').toString();
+            result.add({
+              'id': rid,
+              'uid': rid,
+              'roomId': rid,
+              'room_id': rid,
+              'name': (r['name'] ?? 'غرفة #$rid').toString(),
+              'photoUrl': photo,
+              'photo_url': photo,
+              'room_photo_url': photo,
+              'host_name': (r['host_name'] ?? '').toString(),
+              'password': (r['password'] ?? '').toString(),
+              'amount': amt,
+              'points': amt,
+              'total_value': amt,
+              'total_gifts': amt,
+              'hot_value': amt,
+            });
+            existingRids.add(rid);
+          }
+        } catch (_) {}
+      }
+
       return result;
     } catch (_) {
       return [];

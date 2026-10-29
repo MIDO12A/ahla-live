@@ -1935,12 +1935,13 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
     const usersMap: Record<string, any> = {};
     if (userIds.length > 0) {
       try {
-        const { data: usersData } = await supabase.from('users').select('*').in('uid', userIds);
+        const { data: usersData } = await supabase.from('users').select('*').in('id', userIds);
         (usersData ?? []).forEach((u: any) => {
-          const resolvedId = u.uid || u.id;
+          const resolvedId = u.id || u.uid;
           const mapped = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
           usersMap[resolvedId] = mapped;
           if (u.custom_id) usersMap[u.custom_id] = mapped;
+          if (u.uid) usersMap[u.uid] = mapped;
         });
       } catch (_) {}
 
@@ -1980,8 +1981,8 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         coins: Number(u?.coins || 0),
         diamonds_earned_monthly: monthlyDiamonds,
         diamondsEarnedMonthly: monthlyDiamonds,
-        diamonds_balance: Number(u?.diamonds ?? m.diamonds_balance ?? m.diamonds ?? 0),
-        diamondsBalance: Number(u?.diamonds ?? m.diamonds_balance ?? m.diamonds ?? 0),
+        diamonds_balance: Number(m.diamonds_balance ?? u?.diamonds ?? m.diamonds ?? 0),
+        diamondsBalance: Number(m.diamonds_balance ?? u?.diamonds ?? m.diamonds ?? 0),
         joined_at: joinedDate,
         joinedAt: joinedDate,
       };
