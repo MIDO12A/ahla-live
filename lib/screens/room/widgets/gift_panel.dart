@@ -253,23 +253,14 @@ class _GiftPanelState extends State<GiftPanel> {
   void _toggleUser(String uid) {
     if (uid.isEmpty) return;
     setState(() {
-      if (_isAllSelected) {
-        _isAllSelected = false;
-        _selectedUserIds.clear();
-        _selectedUserIds.addAll(
-          widget.targetUsers
-              .map((u) => u['id']?.toString() ?? '')
-              .where((id) => id.isNotEmpty),
-        );
+      if (_selectedUserIds.contains(uid)) {
         _selectedUserIds.remove(uid);
+        _manuallySelectedAll = false;
       } else {
-        if (_selectedUserIds.contains(uid)) {
-          _selectedUserIds.remove(uid);
-        } else {
-          _selectedUserIds.add(uid);
-        }
-        if (_selectedUserIds.length == widget.targetUsers.length && widget.targetUsers.isNotEmpty) {
-          _isAllSelected = true;
+        _selectedUserIds.add(uid);
+        final targets = _effectiveSeatUsers.isNotEmpty ? _effectiveSeatUsers : _effectiveRoomUsers;
+        if (targets.isNotEmpty && _selectedUserIds.length >= targets.length) {
+          _manuallySelectedAll = true;
         }
       }
     });
