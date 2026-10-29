@@ -717,7 +717,8 @@ export default function UsersPage() {
                           </div>
                         ) : (
                           diamondLogs.map(log => {
-                            const isAdd = log.type === 'add' || log.type === 'credit' || log.type === 'deposit';
+                            const isAdd = log.type === 'add' || log.type === 'admin_add' || log.type === 'credit' || log.type === 'deposit' || Number(log.amount) > 0;
+                            const absAmount = Math.abs(Number(log.amount || 0));
                             return (
                               <div
                                 key={log.id}
@@ -731,7 +732,7 @@ export default function UsersPage() {
                                         : 'bg-red-500/20 text-red-300 border border-red-500/30'
                                     }`}
                                   >
-                                    {isAdd ? '+' : '-'}{Number(log.amount).toLocaleString()} 💎
+                                    {isAdd ? '+' : '-'}{absAmount.toLocaleString()} 💎
                                   </span>
                                   <span className="text-[10px] text-slate-500">
                                     {new Date(log.created_at).toLocaleDateString('ar-EG', {

@@ -4005,7 +4005,13 @@ function AgencyRecordModal({
           {/* Monthly Diamonds */}
           <div className="bg-[#1c1c20] p-3 rounded-xl border border-white/5 flex flex-col justify-center">
             <span className="text-[10px] text-slate-400">💎 ألماس الوكالة هذا الشهر</span>
-            <span className="text-sm font-bold text-amber-400 font-mono">{(agency.monthly_diamonds ?? 0).toLocaleString()}</span>
+            <span className="text-sm font-bold text-amber-400 font-mono">
+              {Math.max(
+                Number(agency.monthly_diamonds || 0),
+                Number(agency.total_diamonds_monthly || 0),
+                members.reduce((sum, m) => sum + Number(m.diamonds_earned_monthly || 0), 0)
+              ).toLocaleString()}
+            </span>
           </div>
 
           {/* Total Agent Commission in Diamonds */}

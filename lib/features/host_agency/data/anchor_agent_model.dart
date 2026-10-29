@@ -256,7 +256,7 @@ class AnchorAgentUserInfoDataModel {
       countryFlagUrl: json['country_flag_url']?.toString() ?? '',
       days: _safeInt(json['days'] ?? json['valid_days_monthly'] ?? json['valid_days']),
       minute: _safeDouble(json['minute'] ?? (json['live_seconds_monthly'] != null ? _safeDouble(json['live_seconds_monthly']) / 60.0 : null)),
-      diamonds: json['diamonds']?.toString() ?? json['diamonds_earned_monthly']?.toString() ?? json['earnings']?.toString() ?? '0',
+      diamonds: json['diamonds_earned_monthly']?.toString() ?? json['diamonds']?.toString() ?? json['earnings']?.toString() ?? '0',
       unpackedDiamonds: _safeInt(json['unpacked_target_diamonds']),
       experience: _safeInt(json['experience']),
       level: _safeInt(json['level'], 1),

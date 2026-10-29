@@ -496,8 +496,8 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
 
           await client.from('host_agency_members').update({
             diamonds: newDia,
-            diamonds_balance: newBal,
-            diamonds_available: newBal,
+            diamonds_balance: newDia,
+            diamonds_available: newDia,
             diamonds_earned_monthly: newMonthly,
             diamonds_earned_cumulative: newCum,
           }).eq('id', member.id);
@@ -587,8 +587,8 @@ export async function adjustUserDiamonds(
           .from('host_agency_members')
           .update({
             diamonds: newDiamonds,
-            diamonds_balance: newBal,
-            diamonds_available: newBal,
+            diamonds_balance: newDiamonds,
+            diamonds_available: newDiamonds,
             diamonds_earned_monthly: newMonthly,
             diamonds_earned_cumulative: newCum,
           })
@@ -1980,8 +1980,8 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         coins: Number(u?.coins || 0),
         diamonds_earned_monthly: monthlyDiamonds,
         diamondsEarnedMonthly: monthlyDiamonds,
-        diamonds_balance: Number(m.diamonds_balance || m.diamonds || u?.diamonds || 0),
-        diamondsBalance: Number(m.diamonds_balance || m.diamonds || u?.diamonds || 0),
+        diamonds_balance: Number(u?.diamonds ?? m.diamonds_balance ?? m.diamonds ?? 0),
+        diamondsBalance: Number(u?.diamonds ?? m.diamonds_balance ?? m.diamonds ?? 0),
         joined_at: joinedDate,
         joinedAt: joinedDate,
       };
