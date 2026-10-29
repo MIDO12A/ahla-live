@@ -101,65 +101,43 @@ class _GiftPanelState extends State<GiftPanel> {
     return _allAvailableUsers;
   }
 
-  bool get _isAllSeatsSelected {
-    final seats = _effectiveSeatUsers;
-    if (seats.isEmpty) return false;
-    final seatIds = seats.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
-    if (seatIds.isEmpty) return false;
-    return seatIds.every((id) => _selectedUserIds.contains(id));
+  bool _manuallySelectedAll = false;
+
+  bool get _isAllSelected {
+    final targets = _effectiveSeatUsers.isNotEmpty ? _effectiveSeatUsers : _effectiveRoomUsers;
+    if (targets.isEmpty) return false;
+    final targetIds = targets.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+    if (targetIds.isEmpty) return false;
+    if (!_manuallySelectedAll && targetIds.length <= 1) return false;
+    return targetIds.every((id) => _selectedUserIds.contains(id));
   }
 
-  bool get _isAllRoomSelected {
-    final room = _effectiveRoomUsers;
-    if (room.isEmpty) return false;
-    final roomIds = room.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
-    if (roomIds.isEmpty) return false;
-    return roomIds.every((id) => _selectedUserIds.contains(id));
-  }
-
-  void _toggleSelectSeats() {
-    final seats = _effectiveSeatUsers;
-    final seatIds = seats.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
-    if (seatIds.isEmpty) return;
+  void _toggleSelectAll() {
+    final targets = _effectiveSeatUsers.isNotEmpty ? _effectiveSeatUsers : _effectiveRoomUsers;
+    final targetIds = targets.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+    if (targetIds.isEmpty) return;
 
     setState(() {
-      if (_isAllSeatsSelected) {
+      if (_isAllSelected) {
+        _manuallySelectedAll = false;
         _selectedUserIds.clear();
-        if (seatIds.isNotEmpty) {
-          _selectedUserIds.add(seatIds.first);
+        if (targetIds.isNotEmpty) {
+          _selectedUserIds.add(targetIds.first);
         }
       } else {
+        _manuallySelectedAll = true;
         _selectedUserIds.clear();
-        _selectedUserIds.addAll(seatIds);
-      }
-    });
-  }
-
-  void _toggleSelectRoom() {
-    final room = _effectiveRoomUsers;
-    final roomIds = room.map((u) => u['id']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
-    if (roomIds.isEmpty) return;
-
-    setState(() {
-      if (_isAllRoomSelected) {
-        _selectedUserIds.clear();
-        if (roomIds.isNotEmpty) {
-          _selectedUserIds.add(roomIds.first);
-        }
-      } else {
-        _selectedUserIds.clear();
-        _selectedUserIds.addAll(roomIds);
+        _selectedUserIds.addAll(targetIds);
       }
     });
   }
 
   void _initSelection() {
     _selectedUserIds.clear();
+    _manuallySelectedAll = false;
     if (widget.receiverId != null && widget.receiverId!.isNotEmpty) {
       _selectedUserIds.add(widget.receiverId!);
-      _isAllSelected = false;
     } else {
-      _isAllSelected = false;
       final list = widget.seatUsers.isNotEmpty
           ? widget.seatUsers
           : (widget.targetUsers.isNotEmpty ? widget.targetUsers : widget.allRoomUsers);
@@ -373,7 +351,7 @@ class _GiftPanelState extends State<GiftPanel> {
             Container(
               height: 450,
               decoration: BoxDecoration(
-                color: dc.giftPanelBgColor,
+                color: dc.giftPanelBgColor.withOpacity(dc.giftPanelOpacity),
                 image: dc.giftPanelBgImage.isNotEmpty
                     ? DecorationImage(
                         image: R.cachedImage(dc.giftPanelBgImage),
@@ -397,14 +375,15 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
-  Widget _buildSeatsSelectButton(DynamicConfigService dc, bool isAr) {
-    final isSelected = _isAllSeatsSelected;
+  Widget _buildAllSelectButton(DynamicConfigService dc, bool isAr) {
+    final isSelected = _isAllSelected;
     final customImg = isSelected
-        ? dc.giftPanelSeatsSelectedImage
-        : dc.giftPanelSeatsUnselectedImage;
+        ? dc.giftPanelAllSelectedImage
+        : dc.giftPanelAllUnselectedImage;
+    final effectiveImg = customImg.isNotEmpty ? customImg : 'assets/images/ic_gift_select_all.png';
 
     return GestureDetector(
-      onTap: _toggleSelectSeats,
+      onTap: _toggleSelectAll,
       child: Container(
         margin: const EdgeInsets.only(right: 8),
         child: Column(
@@ -415,21 +394,10 @@ class _GiftPanelState extends State<GiftPanel> {
               height: 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                image: customImg.isNotEmpty
-                    ? DecorationImage(
-                        image: R.cachedImage(customImg),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-                gradient: customImg.isEmpty
-                    ? (isSelected
-                        ? const LinearGradient(
-                            colors: [Color(0xFFFFD700), Color(0xFFDE880F)],
-                          )
-                        : const LinearGradient(
-                            colors: [Color(0x33FFFFFF), Color(0x22FFFFFF)],
-                          ))
-                    : null,
+                image: DecorationImage(
+                  image: R.cachedImage(effectiveImg),
+                  fit: BoxFit.cover,
+                ),
                 border: Border.all(
                   color: isSelected ? const Color(0xFFFFD700) : Colors.white24,
                   width: isSelected ? 2.0 : 1.0,
@@ -437,18 +405,25 @@ class _GiftPanelState extends State<GiftPanel> {
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: const Color(0xFFFFD700).withValues(alpha: 0.4),
-                          blurRadius: 6,
+                          color: const Color(0xFFFFD700).withValues(alpha: 0.5),
+                          blurRadius: 8,
+                          spreadRadius: 1,
                         )
                       ]
                     : null,
               ),
               alignment: Alignment.center,
-              child: customImg.isEmpty
-                  ? Icon(
-                      isSelected ? Icons.check_circle_rounded : Icons.mic_rounded,
-                      size: 18,
-                      color: isSelected ? Colors.black87 : Colors.white,
+              child: isSelected
+                  ? Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0x55000000),
+                      ),
+                      child: const Icon(
+                        Icons.check_circle_rounded,
+                        size: 20,
+                        color: Color(0xFFFFD700),
+                      ),
                     )
                   : null,
             ),
@@ -456,7 +431,7 @@ class _GiftPanelState extends State<GiftPanel> {
             SizedBox(
               width: 44,
               child: Text(
-                isAr ? 'المقاعد' : 'Seats',
+                isAr ? 'الكل' : 'All',
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -464,82 +439,6 @@ class _GiftPanelState extends State<GiftPanel> {
                   fontSize: 10,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   color: isSelected ? const Color(0xFFFFD700) : Colors.white70,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoomSelectButton(DynamicConfigService dc, bool isAr) {
-    final isSelected = _isAllRoomSelected;
-    final customImg = isSelected
-        ? dc.giftPanelRoomSelectedImage
-        : dc.giftPanelRoomUnselectedImage;
-
-    return GestureDetector(
-      onTap: _toggleSelectRoom,
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                image: customImg.isNotEmpty
-                    ? DecorationImage(
-                        image: R.cachedImage(customImg),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-                gradient: customImg.isEmpty
-                    ? (isSelected
-                        ? const LinearGradient(
-                            colors: [Color(0xFFE040FB), Color(0xFF7C4DFF)],
-                          )
-                        : const LinearGradient(
-                            colors: [Color(0x33FFFFFF), Color(0x22FFFFFF)],
-                          ))
-                    : null,
-                border: Border.all(
-                  color: isSelected ? Colors.purpleAccent : Colors.white24,
-                  width: isSelected ? 2.0 : 1.0,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: const Color(0xFFE040FB).withValues(alpha: 0.4),
-                          blurRadius: 6,
-                        )
-                      ]
-                    : null,
-              ),
-              alignment: Alignment.center,
-              child: customImg.isEmpty
-                  ? Icon(
-                      isSelected ? Icons.check_circle_rounded : Icons.groups_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 2),
-            SizedBox(
-              width: 44,
-              child: Text(
-                isAr ? 'الغرفة' : 'Room',
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? Colors.purpleAccent : Colors.white70,
                 ),
               ),
             ),
@@ -588,8 +487,7 @@ class _GiftPanelState extends State<GiftPanel> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                _buildSeatsSelectButton(dc, isAr),
-                _buildRoomSelectButton(dc, isAr),
+                _buildAllSelectButton(dc, isAr),
                 for (int idx = 0; idx < users.length; idx++)
                   _buildHeaderUserItem(users[idx], idx),
               ],

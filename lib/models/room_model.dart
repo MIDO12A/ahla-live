@@ -24,6 +24,7 @@ class RoomModel {
   final String country;
   final String bgImage;
   final int chatClearedAt;
+  final int charismaClearedAt;
   final bool isChatLocked;
   final String announcement;
   final bool hasLuckyBag;
@@ -51,6 +52,7 @@ class RoomModel {
     this.country = '',
     this.bgImage = '',
     this.chatClearedAt = 0,
+    this.charismaClearedAt = 0,
     this.isChatLocked = false,
     this.announcement = '',
     this.hasLuckyBag = false,
@@ -79,6 +81,7 @@ class RoomModel {
     String? country,
     String? bgImage,
     int? chatClearedAt,
+    int? charismaClearedAt,
     bool? isChatLocked,
     String? announcement,
     bool? hasLuckyBag,
@@ -106,6 +109,7 @@ class RoomModel {
       country: country ?? this.country,
       bgImage: bgImage ?? this.bgImage,
       chatClearedAt: chatClearedAt ?? this.chatClearedAt,
+      charismaClearedAt: charismaClearedAt ?? this.charismaClearedAt,
       isChatLocked: isChatLocked ?? this.isChatLocked,
       announcement: announcement ?? this.announcement,
       hasLuckyBag: hasLuckyBag ?? this.hasLuckyBag,
@@ -157,6 +161,7 @@ class RoomModel {
       country: map['country']?.toString() ?? '',
       bgImage: map['bgImage']?.toString() ?? map['bg_image']?.toString() ?? '',
       chatClearedAt: (map['chat_cleared_at'] as num?)?.toInt() ?? 0,
+      charismaClearedAt: (map['charisma_cleared_at'] as num?)?.toInt() ?? 0,
       isChatLocked: map['is_chat_locked'] == true,
       announcement: map['announcement']?.toString() ?? map['description']?.toString() ?? '',
       hasLuckyBag: map['has_lucky_bag'] == true || map['hasLuckyBag'] == true,
@@ -188,6 +193,7 @@ class RoomModel {
         'country': country,
         'bg_image': bgImage,
         'chat_cleared_at': chatClearedAt,
+        'charisma_cleared_at': charismaClearedAt,
         'is_chat_locked': isChatLocked,
         'announcement': announcement,
         'has_lucky_bag': hasLuckyBag,

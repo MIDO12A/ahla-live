@@ -524,7 +524,7 @@ class SupabaseDataService {
     }
   }
 
-  Future<List<MessageModel>> getRoomMessages(String roomId, {int limit = 250, int? sinceMs}) async {
+  Future<List<MessageModel>> getRoomMessages(String roomId, {int limit = 1000, int? sinceMs}) async {
     try {
       String query = 'room_id=eq.$roomId&select=*&order=created_at.desc&limit=$limit';
       if (sinceMs != null && sinceMs > 0) {
@@ -551,6 +551,7 @@ class SupabaseDataService {
             imageUrl: m['image_url']?.toString(),
             activeBubble: m['active_bubble']?.toString(),
             giftPayload: m['gift_payload'] is Map ? Map<String, dynamic>.from(m['gift_payload'] as Map) : null,
+            luckyBagPayload: m['lucky_bag_payload'] is Map ? Map<String, dynamic>.from(m['lucky_bag_payload'] as Map) : null,
           );
         }).toList();
         messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));

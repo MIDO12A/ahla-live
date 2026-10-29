@@ -844,6 +844,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       ? '${user?.name ?? ""} 🍀 ${gift.name} x$count (فاز بـ $won 🪙 مضاعف ${mult}X)'
                       : '${user?.name ?? ""} 🍀 ${gift.name} x$count';
 
+                  _seenMsgIds.add(localMsgId);
                   _chatMessages.add(MessageModel(
                     msgId: localMsgId,
                     roomId: roomId,
@@ -1072,6 +1073,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // Track seen entrance message IDs to avoid replaying
   final Set<String> _seenEntranceIds = {};
   final Set<String> _seenInviteIds = {};
+  final Set<String> _seenMsgIds = {};
 
   // Track total gifts received per seat user ID
   final Map<int, GlobalKey> _seatKeys = { for (int i = 0; i < 25; i++) i: GlobalKey() };
@@ -1422,7 +1424,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     });
 
     final joinedMs = _joinedAt?.millisecondsSinceEpoch ?? 0;
-    final seenMsgIds = <String>{};
     bool _msgStreamInitial = true;
 
     _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
@@ -1434,48 +1435,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final isRecent = bTs == 0 || (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
         if (!isRecent) continue;
         final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
-        if (seenMsgIds.contains(bId)) continue;
-        seenMsgIds.add(bId);
+        if (_seenMsgIds.contains(bId)) continue;
+        _seenMsgIds.add(bId);
         _broadcastNotifier.value = latest;
-
-        // ✅ عرض الهدية/الفوز مباشرة في شات وتعليقات الغرفة تزامناً مع البانر
-        final isLucky = latest['is_lucky'] == true || (latest['multiplier'] != null && (latest['multiplier'] as num) > 0);
-          _chatMessages.add(MessageModel(
-            msgId: bId,
-            roomId: widget.roomId,
-            senderUid: latest['sender_uid']?.toString() ?? '',
-            senderName: latest['sender_name']?.toString() ?? 'مستخدم',
-            senderPhotoUrl: latest['sender_photo_url']?.toString() ?? '',
-            text: latest['content']?.toString() ?? '',
-            type: isLucky ? 'lucky_gift' : 'gift',
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-            imageUrl: latest['gift_icon']?.toString() ?? '',
-            giftPayload: {
-              'gift_name': latest['gift_name'] ?? '',
-              'gift_icon': latest['gift_icon'] ?? '',
-              'count': latest['count'] ?? 1,
-              'receiver_name': latest['receiver_name'] ?? '',
-              'results': {
-                'totalWonCoins': latest['won_coins'] ?? latest['coins'] ?? 0,
-                'maxMultiplier': latest['multiplier'] ?? 0,
-              },
-              'gift': {
-                'giftName': latest['gift_name'] ?? '',
-                'giftNameAr': latest['gift_name'] ?? '',
-              },
-            },
-          ));
-          _msgCount = _chatMessages.length;
-          _chatUpdateNotifier.value++;
-          if (_chatScroll.hasClients) {
-            _chatScroll.animateTo(
-              _chatScroll.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-          break;
-        }
+        break;
+      }
     });
 
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
@@ -1495,12 +1459,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             .toSet();
         for (final m in currentSessionMsgs) {
           final id = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}_${m.text}';
-          if (!existingIds.contains(id)) {
+          final isDuplicate = existingIds.contains(id) ||
+              _chatMessages.any((e) =>
+                  (e.msgId.isNotEmpty && m.msgId.isNotEmpty && e.msgId == m.msgId) ||
+                  (e.senderUid == m.senderUid &&
+                   e.type == m.type &&
+                   (e.timestamp - m.timestamp).abs() < 4000 &&
+                   (e.text == m.text || e.text.contains(m.text) || m.text.contains(e.text))));
+          if (!isDuplicate) {
             _chatMessages.add(m);
             existingIds.add(id);
           }
         }
         _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        if (_chatMessages.length > 1000) {
+          _chatMessages.removeRange(0, _chatMessages.length - 1000);
+        }
         _msgCount = _chatMessages.length;
         _chatUpdateNotifier.value++;
 
@@ -1509,7 +1483,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         if (_msgStreamInitial) {
           for (final m in msgs) {
             final mId = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}';
-            seenMsgIds.add(mId);
+            _seenMsgIds.add(mId);
           }
           _msgStreamInitial = false;
           return;
@@ -1519,8 +1493,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         for (final m in currentSessionMsgs) {
           if (m.timestamp < joinedMs) continue;
           final mId = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}';
-          if (seenMsgIds.contains(mId)) continue;
-          seenMsgIds.add(mId);
+          if (_seenMsgIds.contains(mId)) continue;
+          _seenMsgIds.add(mId);
 
           if (m.type == 'seat_emoji') {
             int seatIdx = -1;
@@ -1714,11 +1688,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           }
         }
         if (_chatScroll.hasClients) {
-          _chatScroll.animateTo(
-            _chatScroll.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-          );
+          final isNearBottom = (_chatScroll.position.maxScrollExtent - _chatScroll.offset) < 120;
+          if (isNearBottom) {
+            _chatScroll.animateTo(
+              _chatScroll.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 100),
+              curve: Curves.easeOut,
+            );
+          }
         }
       }
     });
@@ -1728,7 +1705,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _giftSub = _firebaseService.sentGiftsStream(widget.roomId).listen((gifts) {
       final totals = <String?, int>{};
       gm.SentGiftModel? latestNewGift;
+      final clearCutoffMs = _currentRoom?.charismaClearedAt ?? 0;
       for (final g in gifts) {
+        if (clearCutoffMs > 0 && g.timestamp.millisecondsSinceEpoch <= clearCutoffMs) {
+          continue;
+        }
         totals[g.receiverId] = (totals[g.receiverId] ?? 0) + g.totalValue.toInt();
         if (!seenGiftIds.contains(g.id)) {
           seenGiftIds.add(g.id);
@@ -1826,6 +1807,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 giftCount: _giftReceiverTotals[seat.user!.id]!,
                 totalGiftsReceived: _giftReceiverTotals[seat.user!.id]!,
                 charm: _giftReceiverTotals[seat.user!.id].toString(),
+              );
+            } else if (seat.user != null) {
+              seat.user = seat.user!.copyWith(
+                giftCount: 0,
+                totalGiftsReceived: 0,
+                charm: '0',
               );
             }
           }
@@ -2054,6 +2041,63 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     setState(() {
       _chatMessages.clear();
     });
+  }
+
+  void _resetSeatsCharisma() {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2E),
+        title: Text(
+          isAr ? 'حذف كاريزما المقاعد' : 'Reset Seats Charisma',
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          isAr
+              ? 'هل أنت متأكد من رغبتك في تصفير وحذف كاريزما المقاعد في الغرفة؟'
+              : 'Are you sure you want to reset and clear all seat charisma in this room?',
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE91E63),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              final now = DateTime.now().millisecondsSinceEpoch;
+              _firebaseService.updateRoom(widget.roomId, {'charisma_cleared_at': now});
+              setState(() {
+                _giftReceiverTotals.clear();
+                for (final seat in _seats) {
+                  if (seat.user != null) {
+                    seat.user = seat.user!.copyWith(
+                      giftCount: 0,
+                      totalGiftsReceived: 0,
+                      charm: '0',
+                    );
+                  }
+                }
+                _currentRoom = _currentRoom?.copyWith(charismaClearedAt: now);
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(isAr ? 'تم تصفير كاريزما المقاعد بنجاح' : 'Seats charisma cleared successfully'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: Text(isAr ? 'تأكيد الحذف' : 'Confirm', style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   seat_model.SeatModel? get _currentUserSeat {
@@ -4564,6 +4608,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       case 'Gift Value':
         _openCharmSwitch();
         break;
+      case 'Reset Seats Charisma':
+        if (_isOwnerOrModerator) _resetSeatsCharisma();
+        break;
       case 'Clear Messages':
         if (_isOwnerOrModerator) _clearMessages();
         break;
@@ -4678,7 +4725,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildStaticGiftIcon(String? iconUrl, {double size = 40, String? giftName, String? giftId}) {
-    String? resolved = iconUrl;
+    String? resolved = (iconUrl != null && iconUrl.trim().isNotEmpty) ? iconUrl.trim() : null;
     if (resolved == null || resolved.isEmpty) {
       if (giftId != null && _cachedGiftItems.containsKey(giftId)) {
         final g = _cachedGiftItems[giftId]!;
@@ -4686,8 +4733,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             ? g.defaultImage
             : (g.iconAsset.isNotEmpty ? g.iconAsset : g.animationAsset);
       } else if (giftName != null && giftName.isNotEmpty) {
+        final cleanTarget = giftName.toLowerCase().trim();
         for (final g in _cachedGiftItems.values) {
-          if (g.name.toLowerCase() == giftName.toLowerCase() || (g.nameAr != null && g.nameAr == giftName)) {
+          if (g.name.toLowerCase().trim() == cleanTarget ||
+              (g.nameAr != null && g.nameAr!.trim() == cleanTarget) ||
+              g.name.toLowerCase().contains(cleanTarget) ||
+              (g.nameAr != null && g.nameAr!.contains(cleanTarget))) {
             resolved = (g.defaultImage?.isNotEmpty == true)
                 ? g.defaultImage
                 : (g.iconAsset.isNotEmpty ? g.iconAsset : g.animationAsset);
@@ -4905,6 +4956,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final payload = m.giftPayload;
       final gift = payload?['gift'];
       final giftName = gift?['giftNameAr'] ?? gift?['giftName'] ?? payload?['gift_name'] ?? 'هدية الحظ';
+      final giftId = gift?['id']?.toString() ?? payload?['gift_id']?.toString();
       final giftIcon = payload?['gift_icon']?.toString() ??
           payload?['image_url']?.toString() ??
           gift?['giftIconUrl']?.toString() ??
@@ -5010,7 +5062,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             // iv_gift_icon (40×40)
-                            _buildStaticGiftIcon(giftIcon, size: 40),
+                            _buildStaticGiftIcon(giftIcon, size: 40, giftName: giftName, giftId: giftId),
                             const SizedBox(width: 8),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

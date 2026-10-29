@@ -399,13 +399,16 @@ class SupabaseService {
         if (rUser != null) {
           await _ds.updateUser(receiverId, {
             'diamonds': rUser.diamonds + recipientDiamonds,
-            'total_gifts_received': rUser.totalGiftsReceived + totalCost,
+            'total_gifts_received': rUser.totalGiftsReceived + recipientDiamonds,
           });
         }
         unawaited(_ds.creditHostAgencyMemberDiamonds(receiverId, recipientDiamonds));
       }
 
-      // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase
+      // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase بنسبة كاريزما المستلم المحددة
+      final effectiveSeatCharmValue = luckyTargetPct > 0
+          ? ((value * luckyTargetPct) / 100.0).round()
+          : 0;
       unawaited(_ds.recordSentGift(
         roomId: roomId,
         giftId: giftId,
@@ -416,7 +419,7 @@ class SupabaseService {
         senderPhotoUrl: senderPhotoUrl,
         receiverId: receiverId,
         receiverName: receiverName,
-        value: value,
+        value: effectiveSeatCharmValue,
         count: count,
       ).catchError((_) => false));
       unawaited(_ds.incrementRoomGifts(roomId, totalCost));

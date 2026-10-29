@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
 
@@ -77,12 +77,18 @@ class FunctionPanel extends StatelessWidget {
         'label': isAr ? 'صوت الغرفة' : 'Room Volume',
         'asset': cfg.roomFuncVolumeIcon.isNotEmpty ? cfg.roomFuncVolumeIcon : R.roomSetVolumeIc,
       },
-      if (isOwner || isModerator)
+      if (isOwner || isModerator) ...[
         {
           'key': 'Gift Value',
           'label': isAr ? 'قيمة الهدية' : 'Gift Value',
           'asset': cfg.roomFuncGiftValIcon.isNotEmpty ? cfg.roomFuncGiftValIcon : R.roomSetGiftIc,
         },
+        {
+          'key': 'Reset Seats Charisma',
+          'label': isAr ? 'حذف كاريزما المقاعد' : 'Reset Charisma',
+          'asset': R.roomMicCharmMaleIc,
+        },
+      ],
     ];
 
     return Container(
@@ -136,7 +142,7 @@ class FunctionPanel extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
                     final key = item['key']!;
-                    if (key == 'Settings' || key == 'Mixer' || key == 'Volume' || key == 'Seat Style' || key == 'Effect' || key == 'Gift Value' || key == 'Report' || key == 'Room Background' || key == 'Clear Messages' || key == 'Message Settings' || key == 'Lucky Bag' || key == 'Game') {
+                    if (key == 'Settings' || key == 'Mixer' || key == 'Volume' || key == 'Seat Style' || key == 'Effect' || key == 'Gift Value' || key == 'Reset Seats Charisma' || key == 'Report' || key == 'Room Background' || key == 'Clear Messages' || key == 'Message Settings' || key == 'Lucky Bag' || key == 'Game') {
                       onItemTap?.call(key);
                     } else {
                       final label = item['label']!;

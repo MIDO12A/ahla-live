@@ -1213,6 +1213,12 @@ class DynamicConfigService extends ChangeNotifier {
   String get giftPanelSeatsUnselectedImage => _screenStr('giftPanel', 'seatsUnselectedImage', '');
   String get giftPanelRoomSelectedImage => _screenStr('giftPanel', 'roomSelectedImage', '');
   String get giftPanelRoomUnselectedImage => _screenStr('giftPanel', 'roomUnselectedImage', '');
+  String get giftPanelAllSelectedImage => _screenStr('giftPanel', 'allSelectedImage', 'assets/images/ic_gift_select_all.png');
+  String get giftPanelAllUnselectedImage => _screenStr('giftPanel', 'allUnselectedImage', 'assets/images/ic_gift_select_all.png');
+  double get giftPanelOpacity {
+    final v = _screenNum('giftPanel', 'opacity', _rawConfig['giftPanelOpacity'] ?? _rawConfig['gift_panel_opacity'] ?? 0.95);
+    return v.toDouble().clamp(0.0, 1.0);
+  }
 
   // Wallet screen visuals
   String get walletBackgroundImage => _screenStr('wallet', 'backgroundImage', '');

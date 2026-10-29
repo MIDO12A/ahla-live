@@ -776,7 +776,15 @@ export default function UsersPage() {
                     <input
                       type="number"
                       value={String(editing.coins ?? 0)}
-                      onChange={e => handleUpdate('coins', Number(e.target.value))}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setEditing(prev => prev ? { ...prev, coins: val } : null);
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          handleUpdate('coins', Number(editing.coins ?? 0));
+                        }
+                      }}
                       className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white font-mono focus:border-amber-500/40 focus:outline-none"
                     />
                     <button
