@@ -55,32 +55,33 @@ class _BigWinBannerState extends State<BigWinBanner>
   late Animation<Offset> _enterAnim;
   late Animation<Offset> _exitAnim;
   bool _isDismissing = false;
+  Timer? _autoDismissTimer;
 
   @override
   void initState() {
     super.initState();
     _enterController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 400),
     );
     _exitController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 380),
     );
     _enterAnim = Tween<Offset>(
-      begin: const Offset(1.3, 0.0),
+      begin: const Offset(1.5, 0.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _enterController, curve: Curves.easeOutCubic));
 
     _exitAnim = Tween<Offset>(
       begin: Offset.zero,
-      end: const Offset(-1.3, 0.0),
+      end: const Offset(-1.5, 0.0),
     ).animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInCubic));
 
     _enterController.forward();
 
-    // إغلاق البانر تلقائياً بعد 4.5 ثوانٍ
-    Future.delayed(const Duration(milliseconds: 4500), () {
+    // إغلاق البانر تلقائياً بعد 4.5 ثوانٍ مع خروج سلس لأقصى اليسار
+    _autoDismissTimer = Timer(const Duration(milliseconds: 4500), () {
       _dismissBanner();
     });
   }
@@ -88,6 +89,7 @@ class _BigWinBannerState extends State<BigWinBanner>
   void _dismissBanner() {
     if (_isDismissing || !mounted) return;
     _isDismissing = true;
+    _autoDismissTimer?.cancel();
     _exitController.forward().then((_) {
       if (mounted) {
         widget.onDismiss();
@@ -97,6 +99,7 @@ class _BigWinBannerState extends State<BigWinBanner>
 
   @override
   void dispose() {
+    _autoDismissTimer?.cancel();
     _enterController.dispose();
     _exitController.dispose();
     super.dispose();

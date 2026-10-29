@@ -37,26 +37,43 @@ class GlobalBannerService extends ChangeNotifier {
   List<GiftBannerConfig> _bannerConfigs = [];
   List<GiftBannerConfig> get bannerConfigs => _bannerConfigs;
 
-  // ── طابور البانرات الموحد والبانر النشط حالياً ─────────────────
-  QueuedBannerItem? currentBanner;
-  final List<QueuedBannerItem> _queue = [];
-  bool _isPlaying = false;
-  Timer? _currentBannerTimer;
+  // ── قائمة البانرات النشطة (طبقات تظهر فوراً فوق بعضها دون أي انتظار) ────
+  final List<QueuedBannerItem> activeBanners = [];
 
-  // لمنع تكرار نفس البانر أو إعادة تشغيله
+  // لمنع تكرار نفس البانر اللحظي
   final Set<String> _seenBroadcastIds = <String>{};
   final Set<String> _seenFingerprints = <String>{};
   final int _sessionStartTime = DateTime.now().millisecondsSinceEpoch;
 
   // الحقول المتوافقة مع الكود القديم
-  Map<String, dynamic>? get activeGiftBanner =>
-      currentBanner?.type == GlobalBannerType.giftBanner ? currentBanner?.data : null;
+  QueuedBannerItem? get currentBanner => activeBanners.isNotEmpty ? activeBanners.last : null;
 
-  Map<String, dynamic>? get activeBigWin =>
-      currentBanner?.type == GlobalBannerType.bigWin ? currentBanner?.data : null;
+  Map<String, dynamic>? get activeGiftBanner {
+    for (int i = activeBanners.length - 1; i >= 0; i--) {
+      if (activeBanners[i].type == GlobalBannerType.giftBanner) {
+        return activeBanners[i].data;
+      }
+    }
+    return null;
+  }
 
-  Map<String, dynamic>? get activeMarquee =>
-      currentBanner?.type == GlobalBannerType.marquee ? currentBanner?.data : null;
+  Map<String, dynamic>? get activeBigWin {
+    for (int i = activeBanners.length - 1; i >= 0; i--) {
+      if (activeBanners[i].type == GlobalBannerType.bigWin) {
+        return activeBanners[i].data;
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? get activeMarquee {
+    for (int i = activeBanners.length - 1; i >= 0; i--) {
+      if (activeBanners[i].type == GlobalBannerType.marquee) {
+        return activeBanners[i].data;
+      }
+    }
+    return null;
+  }
 
   StreamSubscription? _broadcastSub;
   StreamSubscription? _bannerConfigSub;
@@ -209,8 +226,7 @@ class GlobalBannerService extends ChangeNotifier {
         .firstOrNull;
   }
 
-  // ── إدارة الطابور المتتابع (Unified Sequential FIFO Queue) ────────
-
+  // ── إدارة طبقات البانرات المباشرة دون انتظار (Immediate Layered Banners) ──
   String _buildFingerprint(GlobalBannerType type, Map<String, dynamic> data) {
     if (data['id'] != null && data['id'].toString().isNotEmpty) {
       return '${type.name}_${data['id']}';
@@ -220,21 +236,18 @@ class GlobalBannerService extends ChangeNotifier {
     final gift = (data['gift_name'] ?? data['giftName'] ?? data['animationAsset'] ?? '').toString();
     final mult = (data['multiplier'] ?? 0).toString();
     final cost = (data['total_cost'] ?? data['totalWon'] ?? data['won_coins'] ?? data['coins'] ?? 0).toString();
-    final timeBucket = DateTime.now().millisecondsSinceEpoch ~/ 4000;
+    final timeBucket = DateTime.now().millisecondsSinceEpoch ~/ 1500;
     return '${type.name}_${sender}_${receiver}_${gift}_${mult}_${cost}_$timeBucket';
   }
 
   void _enqueue(QueuedBannerItem item) {
     final fp = _buildFingerprint(item.type, item.data);
 
-    // منع التكرار الصارم
+    // منع التكرار اللحظي للحدث ذاته
     if (_seenFingerprints.contains(fp) || _seenFingerprints.contains(item.id)) {
       return;
     }
-    if (_queue.any((q) => q.id == item.id || _buildFingerprint(q.type, q.data) == fp)) {
-      return;
-    }
-    if (currentBanner != null && (currentBanner!.id == item.id || _buildFingerprint(currentBanner!.type, currentBanner!.data) == fp)) {
+    if (activeBanners.any((b) => b.id == item.id || _buildFingerprint(b.type, b.data) == fp)) {
       return;
     }
 
@@ -244,40 +257,30 @@ class GlobalBannerService extends ChangeNotifier {
       _seenFingerprints.remove(_seenFingerprints.first);
     }
 
-    _queue.add(item);
-    if (!_isPlaying) {
-      _playNext();
+    // إظهار البانر فوراً فوق البانرات السابقة دون أي انتظار أو تأخير
+    if (activeBanners.length >= 5) {
+      activeBanners.removeAt(0);
     }
+    activeBanners.add(item);
+    notifyListeners();
   }
 
-  void _playNext() {
-    if (_queue.isEmpty) {
-      currentBanner = null;
-      _isPlaying = false;
+  /// إزالة البانر بعد إتمام خروجه السلس بالكامل نحو أقصى اليسار
+  void removeBanner(String id) {
+    final idx = activeBanners.indexWhere((b) => b.id == id);
+    if (idx != -1) {
+      activeBanners.removeAt(idx);
       notifyListeners();
-      return;
     }
-
-    _isPlaying = true;
-    currentBanner = _queue.removeAt(0);
-    notifyListeners();
-
-    _currentBannerTimer?.cancel();
-    _currentBannerTimer = Timer(currentBanner!.duration, () {
-      nextBanner();
-    });
   }
 
-  /// الانتقال إلى البانر التالي في الطابور بعد إتمام الحركة
-  void nextBanner() {
-    _currentBannerTimer?.cancel();
-    currentBanner = null;
-    notifyListeners();
-
-    // فاصل زمني بسيط (350ms) لإتمام خروج البانر نحو اليسار قبل دخول البانر الجديد من اليمين
-    Future.delayed(const Duration(milliseconds: 350), () {
-      _playNext();
-    });
+  void nextBanner([String? id]) {
+    if (id != null) {
+      removeBanner(id);
+    } else if (activeBanners.isNotEmpty) {
+      activeBanners.removeAt(0);
+      notifyListeners();
+    }
   }
 
   void dismissCurrentBanner() => nextBanner();
@@ -397,7 +400,6 @@ class GlobalBannerService extends ChangeNotifier {
 
   @override
   void dispose() {
-    _currentBannerTimer?.cancel();
     _broadcastSub?.cancel();
     _bannerConfigSub?.cancel();
     _bigWinSub?.cancel();

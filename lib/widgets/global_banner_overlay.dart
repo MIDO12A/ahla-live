@@ -24,7 +24,7 @@ class GlobalBannerOverlay extends StatelessWidget {
       listenable: GlobalBannerService.instance,
       builder: (context, _) {
         final svc = GlobalBannerService.instance;
-        final banner = svc.currentBanner;
+        final banners = svc.activeBanners;
         final topPadding = MediaQuery.of(context).padding.top;
 
         return Stack(
@@ -33,9 +33,10 @@ class GlobalBannerOverlay extends StatelessWidget {
             // الشاشة الأصلية للتطبيق
             child,
 
-            // عرض البانر النشط الوحيد حالياً وفق نظام الطابور المنظم
-            if (banner != null)
+            // عرض جميع أشرطة ولافتات الهدايا فوراً فوق بعضها دون أي انتظار أو تأخير
+            for (final banner in banners)
               Positioned(
+                key: ValueKey(banner.id),
                 top: banner.type == GlobalBannerType.marquee
                     ? (topPadding + 10)
                     : 0,
@@ -67,7 +68,7 @@ class GlobalBannerOverlay extends StatelessWidget {
           userLKey: gb['userLKey']?.toString() ?? 'user_l',
           numberKey: gb['numberKey']?.toString() ?? 'number',
           giftKey: gb['giftKey']?.toString() ?? 'gift',
-          onFinished: () => svc.nextBanner(),
+          onFinished: () => svc.removeBanner(banner.id),
         );
 
       case GlobalBannerType.bigWin:
@@ -82,14 +83,14 @@ class GlobalBannerOverlay extends StatelessWidget {
           multiplier: (bw['multiplier'] as num?)?.toInt() ?? 100,
           totalWon: (bw['totalWon'] as num?)?.toInt() ?? 0,
           lang: Localizations.localeOf(context).languageCode == 'ar' ? 'ar' : 'en',
-          onDismiss: () => svc.nextBanner(),
+          onDismiss: () => svc.removeBanner(banner.id),
         );
 
       case GlobalBannerType.marquee:
         return RoomMarqueeBroadcast(
           key: ValueKey(banner.id),
           broadcast: banner.data,
-          onDismissed: () => svc.nextBanner(),
+          onDismissed: () => svc.removeBanner(banner.id),
         );
     }
   }

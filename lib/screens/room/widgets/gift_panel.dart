@@ -1879,33 +1879,36 @@ class _GiftBannerOverlayState extends State<GiftBannerOverlay>
   late Animation<Offset> _enterAnim;
   late Animation<Offset> _exitAnim;
   bool _isDismissing = false;
+  Timer? _autoDismissTimer;
 
   @override
   void initState() {
     super.initState();
     _enterController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 400),
     );
     _exitController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 380),
     );
 
+    // الدخول بسلاسة من أقصى اليمين
     _enterAnim = Tween<Offset>(
-      begin: const Offset(1.3, 0.0),
+      begin: const Offset(1.5, 0.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _enterController, curve: Curves.easeOutCubic));
 
+    // الخروج بالمرور الكامل نحو أقصى اليسار دون أي انقطاع
     _exitAnim = Tween<Offset>(
       begin: Offset.zero,
-      end: const Offset(-1.3, 0.0),
+      end: const Offset(-1.5, 0.0),
     ).animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInCubic));
 
     _enterController.forward();
 
-    // إغلاق البانر تلقائياً بعد 6 ثوانٍ كحد أقصى إذا لم ينته الأنيميشن تلقائياً
-    Future.delayed(const Duration(milliseconds: 5500), () {
+    // إغلاق البانر تلقائياً بعد 4.5 ثوانٍ مع خروج سلس لأقصى اليسار
+    _autoDismissTimer = Timer(const Duration(milliseconds: 4500), () {
       _dismiss();
     });
   }
@@ -1913,6 +1916,7 @@ class _GiftBannerOverlayState extends State<GiftBannerOverlay>
   void _dismiss() {
     if (_isDismissing || !mounted) return;
     _isDismissing = true;
+    _autoDismissTimer?.cancel();
     _exitController.forward().then((_) {
       if (mounted) {
         widget.onFinished?.call();
@@ -1922,6 +1926,7 @@ class _GiftBannerOverlayState extends State<GiftBannerOverlay>
 
   @override
   void dispose() {
+    _autoDismissTimer?.cancel();
     _enterController.dispose();
     _exitController.dispose();
     super.dispose();
