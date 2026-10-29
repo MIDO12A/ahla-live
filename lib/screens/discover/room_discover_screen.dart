@@ -697,86 +697,102 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
         ],
         const SizedBox(height: 8),
         Expanded(
-          child: StreamBuilder<List<RoomModel>>(
-            stream: _roomsStream,
-            initialData: _cachedRooms,
-            builder: (context, snapshot) {
-              if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-                _cachedRooms = snapshot.data;
-              }
-              if (snapshot.connectionState == ConnectionState.waiting && (_cachedRooms == null || _cachedRooms!.isEmpty)) {
-                return const Center(child: CircularProgressIndicator());
-              }
+          child: RefreshIndicator(
+            color: const Color(0xFFFF9D3E),
+            onRefresh: () async {
+              setState(() {
+                _roomsStream = FirebaseService().roomsStream();
+              });
+              await _loadMyRoom();
+            },
+            child: StreamBuilder<List<RoomModel>>(
+              stream: _roomsStream,
+              initialData: _cachedRooms,
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+                  _cachedRooms = snapshot.data;
+                }
+                if (snapshot.connectionState == ConnectionState.waiting && (_cachedRooms == null || _cachedRooms!.isEmpty)) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-              List<RoomModel> rooms = snapshot.data ?? _cachedRooms ?? [];
+                List<RoomModel> rooms = snapshot.data ?? _cachedRooms ?? [];
 
-              if (isFollowTab) {
-                final List<String> followedList = (user?.followedRooms as List<String>?) ?? [];
-                rooms = rooms
-                    .where((room) => followedList.contains(room.roomId))
-                    .toList();
-              }
+                if (isFollowTab) {
+                  final List<String> followedList = (user?.followedRooms as List<String>?) ?? [];
+                  rooms = rooms
+                      .where((room) => followedList.contains(room.roomId))
+                      .toList();
+                }
 
-              if (_searchQuery.isNotEmpty) {
-                rooms = rooms.where((room) {
-                  return room.name.toLowerCase().contains(_searchQuery) ||
-                      room.hostName.toLowerCase().contains(_searchQuery);
-                }).toList();
-              }
+                if (_searchQuery.isNotEmpty) {
+                  rooms = rooms.where((room) {
+                    return room.name.toLowerCase().contains(_searchQuery) ||
+                        room.hostName.toLowerCase().contains(_searchQuery);
+                  }).toList();
+                }
 
-              if (_selectedCountry != null && _selectedCountry!.isNotEmpty && _selectedCountry != 'الكل') {
-                rooms = rooms.where((room) => _roomMatchesCountry(room, _selectedCountry)).toList();
-              }
+                if (_selectedCountry != null && _selectedCountry!.isNotEmpty && _selectedCountry != 'الكل') {
+                  rooms = rooms.where((room) => _roomMatchesCountry(room, _selectedCountry)).toList();
+                }
 
-              if (rooms.isEmpty) {
-                final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.headset_off, size: 64, color: Colors.black26),
-                      const SizedBox(height: 16),
-                      Text(
-                        isFollowTab
-                            ? (isAr ? 'لم تتابع أي غرفة بعد\nاستكشف الغرف وتابع غرفك المفضلة!' : 'No followed rooms yet\nDiscover and follow rooms!')
-                            : (isAr ? 'لا توجد غرف حالياً\nابدأ بإنشاء غرفتك الآن!' : 'No rooms yet\nCreate one!'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 16, color: Colors.black45),
+                if (rooms.isEmpty) {
+                  final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+                  return SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.5,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.headset_off, size: 64, color: Colors.black26),
+                            const SizedBox(height: 16),
+                            Text(
+                              isFollowTab
+                                  ? (isAr ? 'لم تتابع أي غرفة بعد\nاستكشف الغرف وتابع غرفك المفضلة!' : 'No followed rooms yet\nDiscover and follow rooms!')
+                                  : (isAr ? 'لا توجد غرف حالياً\nابدأ بإنشاء غرفتك الآن!' : 'No rooms yet\nCreate one!'),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 16, color: Colors.black45),
+                            ),
+                          ],
+                        ),
                       ),
+                    ),
+                  );
+                }
+
+                return SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 8,
+                            childAspectRatio: 1,
+                          ),
+                          itemCount: rooms.length,
+                          itemBuilder: (context, index) {
+                            final room = rooms[index];
+                            final isFollowing =
+                                user?.followedRooms.contains(room.roomId) ?? false;
+                            final rankIndex = index < 3 ? index : -1;
+                            return _buildRoomCard(room, isFollowing, user, rankIndex: rankIndex);
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 );
-              }
-
-              return SingleChildScrollView(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
-                          childAspectRatio: 1,
-                        ),
-                        itemCount: rooms.length,
-                        itemBuilder: (context, index) {
-                          final room = rooms[index];
-                          final isFollowing =
-                              user?.followedRooms.contains(room.roomId) ?? false;
-                          final rankIndex = index < 3 ? index : -1;
-                          return _buildRoomCard(room, isFollowing, user, rankIndex: rankIndex);
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              );
-            },
+              },
+            ),
           ),
         ),
       ],

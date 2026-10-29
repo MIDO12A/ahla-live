@@ -2990,7 +2990,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final convId = '${sorted[0]}_${sorted[1]}';
     _messagesSub = _firebaseService.privateMessagesStream(convId).listen((msgs) {
       if (mounted) {
-        setState(() => _messages = msgs);
+        final pendingTemp = _messages.where((m) => m.msgId.startsWith('temp_') &&
+            !msgs.any((s) => s.text == m.text && s.senderUid == m.senderUid)).toList();
+        final combined = [...msgs, ...pendingTemp];
+        combined.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        setState(() => _messages = combined);
         WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
       }
     });
@@ -3014,6 +3018,20 @@ class _ChatScreenState extends State<ChatScreen> {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.currentUser;
     if (user == null) return;
+
+    final tempMsg = MessageModel(
+      msgId: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      senderUid: user.uid,
+      senderName: user.name,
+      senderPhotoUrl: user.photoUrl,
+      text: text,
+      type: 'text',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+    setState(() {
+      _messages.add(tempMsg);
+    });
+    _scrollToBottom();
 
     try {
       await _firebaseService.sendPrivateMessage(

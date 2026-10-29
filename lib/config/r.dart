@@ -730,20 +730,23 @@ class R {
     );
   }
 
-  /// Compact number formatter: 1000 -> 1K, 1500000 -> 1.5M, 10000000 -> 10M, 1000000000 -> 1B
+  /// Compact number formatter: 1000 -> 1K, 1500000 -> 1.5M, 10000000 -> 10M, 99981252145 -> 99.98B
   static String formatCoins(num amount) {
     final abs = amount.abs();
     if (abs >= 1000000000) {
-      final v = amount / 1000000000;
-      return v == v.roundToDouble() ? '${v.toInt()}B' : '${v.toStringAsFixed(1)}B';
+      final v = amount / 1000000000.0;
+      final formatted = v.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+      return '${formatted}B';
     }
     if (abs >= 1000000) {
-      final v = amount / 1000000;
-      return v == v.roundToDouble() ? '${v.toInt()}M' : '${v.toStringAsFixed(1)}M';
+      final v = amount / 1000000.0;
+      final formatted = v.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+      return '${formatted}M';
     }
     if (abs >= 1000) {
-      final v = amount / 1000;
-      return v == v.roundToDouble() ? '${v.toInt()}K' : '${v.toStringAsFixed(1)}K';
+      final v = amount / 1000.0;
+      final formatted = v.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+      return '${formatted}K';
     }
     return amount.toInt().toString();
   }

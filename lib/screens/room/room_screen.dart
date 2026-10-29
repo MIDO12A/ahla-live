@@ -1445,30 +1445,35 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
       if (mounted) {
         final clearedAt = _currentRoom?.chatClearedAt ?? 0;
-        final minTime = clearedAt > _sessionJoinedAt ? clearedAt : _sessionJoinedAt;
-        final currentSessionMsgs = msgs.where((m) => m.timestamp >= minTime).toList();
+        final currentSessionMsgs = clearedAt > 0
+            ? msgs.where((m) => m.timestamp >= clearedAt).toList()
+            : msgs;
 
         // إزالة الرسائل التي مسحت قبل clearedAt فقط
         if (clearedAt > 0) {
           _chatMessages.removeWhere((m) => m.timestamp < clearedAt);
         }
 
-        // الحفاظ على كامل الرسائل السابقة أثناء الجلسة دون حذفها عند السحب للأعلى
-        final Set<String> existingIds = _chatMessages
-            .map((e) => e.msgId.isNotEmpty ? e.msgId : '${e.timestamp}_${e.senderUid}_${e.text}')
-            .toSet();
+        // الحفاظ على كامل الرسائل السابقة أثناء الجلسة مع استبدال الرسائل المؤقتة بالرسائل المؤكدة
         for (final m in currentSessionMsgs) {
-          final id = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}_${m.text}';
-          final isDuplicate = existingIds.contains(id) ||
-              _chatMessages.any((e) =>
-                  (e.msgId.isNotEmpty && m.msgId.isNotEmpty && e.msgId == m.msgId) ||
-                  (e.senderUid == m.senderUid &&
-                   e.type == m.type &&
-                   (e.timestamp - m.timestamp).abs() < 4000 &&
-                   (e.text == m.text || e.text.contains(m.text) || m.text.contains(e.text))));
-          if (!isDuplicate) {
+          final tempIdx = _chatMessages.indexWhere((e) =>
+              e.msgId.startsWith('temp_') &&
+              e.senderUid == m.senderUid &&
+              (e.text == m.text || (e.imageUrl != null && e.imageUrl == m.imageUrl)) &&
+              (e.timestamp - m.timestamp).abs() < 10000);
+          if (tempIdx != -1) {
+            _chatMessages[tempIdx] = m;
+            continue;
+          }
+
+          final exists = _chatMessages.any((e) =>
+              (e.msgId.isNotEmpty && m.msgId.isNotEmpty && e.msgId == m.msgId) ||
+              (e.senderUid == m.senderUid &&
+               e.type == m.type &&
+               e.text == m.text &&
+               (e.timestamp - m.timestamp).abs() < 1000));
+          if (!exists) {
             _chatMessages.add(m);
-            existingIds.add(id);
           }
         }
         _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -2589,6 +2594,32 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.currentUser;
     if (user != null) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final tempId = 'temp_${now}_${user.uid}';
+      final optimisticMsg = MessageModel(
+        msgId: tempId,
+        roomId: widget.roomId,
+        senderUid: user.uid,
+        senderName: user.name ?? '',
+        senderPhotoUrl: user.photoUrl ?? '',
+        text: t,
+        type: 'text',
+        activeBubble: user.activeBubble,
+        timestamp: now,
+      );
+      setState(() {
+        _chatMessages.add(optimisticMsg);
+        _msgCount = _chatMessages.length;
+      });
+      _chatUpdateNotifier.value++;
+      if (_chatScroll.hasClients) {
+        _chatScroll.animateTo(
+          _chatScroll.position.maxScrollExtent + 80,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+
       TaskService().recordActionByType(user.uid, 'chat');
       _firebaseService.sendMessage(
         widget.roomId,
@@ -5249,7 +5280,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   ],
                 ),
                 const SizedBox(height: 9),
-                if (m.type == 'emoji' || (m.imageUrl != null && m.imageUrl!.contains('emoji')) || m.text.contains('emoji'))
+                final isStorageUrl = m.text.contains('/storage/') ||
+                    m.text.startsWith('http://') ||
+                    m.text.startsWith('https://') ||
+                    (m.imageUrl != null && (m.imageUrl!.contains('/storage/') || m.imageUrl!.startsWith('http')));
+                final isMediaExt = m.text.toLowerCase().contains('.png') ||
+                    m.text.toLowerCase().contains('.jpg') ||
+                    m.text.toLowerCase().contains('.jpeg') ||
+                    m.text.toLowerCase().contains('.webp') ||
+                    m.text.toLowerCase().contains('.gif') ||
+                    m.text.toLowerCase().contains('.svga');
+                final isEmojiMsg = m.type == 'emoji' ||
+                    (m.imageUrl != null && (m.imageUrl!.contains('emoji') || m.imageUrl!.contains('stickers'))) ||
+                    m.text.contains('emoji') ||
+                    (isStorageUrl && (m.text.contains('stickers') || m.text.contains('emojis')));
+
+                if (isEmojiMsg || (!isStorageUrl && isMediaExt && m.type != 'image'))
                   () {
                     final imgUrl = (m.imageUrl != null && m.imageUrl!.isNotEmpty)
                         ? m.imageUrl!
@@ -5257,21 +5303,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     final isSvga = imgUrl.toLowerCase().contains('.svga');
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: isSvga
-                          ? SizedBox(
-                              width: 56,
-                              height: 56,
-                              child: SvgaPlayer(assetPath: imgUrl, loops: true, fit: BoxFit.contain),
-                            )
-                          : R.loadImage(
-                              imgUrl,
-                              width: 56,
-                              height: 56,
-                              fit: BoxFit.contain,
-                            ),
+                      child: (imgUrl.startsWith('http') || imgUrl.startsWith('assets/'))
+                          ? (isSvga
+                              ? SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: SvgaPlayer(assetPath: imgUrl, loops: true, fit: BoxFit.contain),
+                                )
+                              : R.loadImage(
+                                  imgUrl,
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.contain,
+                                ))
+                          : Text(imgUrl, style: const TextStyle(fontSize: 32)),
                     );
                   }()
-                else if (m.type == 'image' || (m.imageUrl != null && m.imageUrl!.isNotEmpty))
+                else if (m.type == 'image' || (m.imageUrl != null && m.imageUrl!.isNotEmpty) || (isStorageUrl && isMediaExt))
                   () {
                     final imgUrl = (m.imageUrl != null && m.imageUrl!.isNotEmpty)
                         ? m.imageUrl!
@@ -5326,6 +5374,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     const bubbleColor = Color(0x33000000);
     const textColor = Colors.white;
     final borderRadius = BorderRadius.circular(8);
+
+    // فحص أمان إضافي: إذا كان النص رابطاً لمحتوى وسائط أو تخزين، يتم رسمه كصورة بدلاً من عرضه كنص خام
+    final isUrl = text.startsWith('http://') || text.startsWith('https://') || text.startsWith('assets/');
+    final isMedia = text.contains('/storage/') || text.contains('.png') || text.contains('.jpg') || text.contains('.jpeg') || text.contains('.webp') || text.contains('.gif') || text.contains('.svga');
+    if (isUrl && isMedia) {
+      final isSvga = text.toLowerCase().contains('.svga');
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: isSvga
+            ? SizedBox(
+                width: 56,
+                height: 56,
+                child: SvgaPlayer(assetPath: text, loops: true, fit: BoxFit.contain),
+              )
+            : R.loadImage(text, width: 56, height: 56, fit: BoxFit.contain),
+      );
+    }
 
     Widget bubbleContent = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -5526,6 +5591,32 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                               
                               // Send emoji directly to chat as emoji type
                               if (user != null) {
+                                final now = DateTime.now().millisecondsSinceEpoch;
+                                final tempId = 'temp_${now}_${user.uid}';
+                                final optimisticMsg = MessageModel(
+                                  msgId: tempId,
+                                  roomId: widget.roomId,
+                                  senderUid: user.uid,
+                                  senderName: user.name ?? '',
+                                  senderPhotoUrl: user.photoUrl ?? '',
+                                  text: '',
+                                  imageUrl: chosenEmoji,
+                                  type: 'emoji',
+                                  timestamp: now,
+                                );
+                                setState(() {
+                                  _chatMessages.add(optimisticMsg);
+                                  _msgCount = _chatMessages.length;
+                                });
+                                _chatUpdateNotifier.value++;
+                                if (_chatScroll.hasClients) {
+                                  _chatScroll.animateTo(
+                                    _chatScroll.position.maxScrollExtent + 80,
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOut,
+                                  );
+                                }
+
                                 _firebaseService.sendImageMessage(
                                   widget.roomId,
                                   chosenEmoji,

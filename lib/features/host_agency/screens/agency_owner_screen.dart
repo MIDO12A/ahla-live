@@ -506,54 +506,60 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
                   // ── Coordinator Scroll Body ──
                   Expanded(
-                    child: NestedScrollView(
-                      headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
-                            child: Column(
-                              children: [
-                                // Level Panel (vh_agency_level.xml)
-                                _buildAgencyLevelPanel(info, cfg),
+                    child: RefreshIndicator(
+                      color: const Color(0xFFFF9D3E),
+                      onRefresh: () async {
+                        await _loadAllData();
+                      },
+                      child: NestedScrollView(
+                        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                              child: Column(
+                                children: [
+                                  // Level Panel (vh_agency_level.xml)
+                                  _buildAgencyLevelPanel(info, cfg),
 
-                                const SizedBox(height: 10),
+                                  const SizedBox(height: 10),
 
-                                // Ranking Banner (ic_rank_banner_bg: 110dp)
-                                _buildRankingBanner(cfg),
+                                  // Ranking Banner (ic_rank_banner_bg: 110dp)
+                                  _buildRankingBanner(cfg),
 
-                                const SizedBox(height: 10),
+                                  const SizedBox(height: 10),
 
-                                // Admin Functionalities Panel (vh_admin_functionalities_panel.xml)
-                                _buildAdminFunctionalitiesPanel(cfg),
+                                  // Admin Functionalities Panel (vh_admin_functionalities_panel.xml)
+                                  _buildAdminFunctionalitiesPanel(cfg),
 
-                                const SizedBox(height: 8),
+                                  const SizedBox(height: 8),
 
-                                // Withdrawal Account & Records Panels
-                                _buildWithdrawalPanels(),
+                                  // Withdrawal Account & Records Panels
+                                  _buildWithdrawalPanels(),
 
-                                const SizedBox(height: 10),
-                              ],
+                                  const SizedBox(height: 10),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
 
-                        // Tab Container (tabContainer)
-                        SliverPersistentHeader(
-                          pinned: true,
-                          delegate: _SliverTabHeaderDelegate(
-                            child: _buildTabBarContainer(),
+                          // Tab Container (tabContainer)
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _SliverTabHeaderDelegate(
+                              child: _buildTabBarContainer(),
+                            ),
                           ),
-                        ),
-                      ],
-                      body: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          // Tab 0: Members List (item_union_member.xml)
-                          _buildMembersTab(cfg),
-
-                          // Tab 1: Agency Salary & Stages (layout_union_agency_salary_panel.xml)
-                          _buildAgencySalaryTab(info, cfg),
                         ],
+                        body: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            // Tab 0: Members List (item_union_member.xml)
+                            _buildMembersTab(cfg),
+
+                            // Tab 1: Agency Salary & Stages (layout_union_agency_salary_panel.xml)
+                            _buildAgencySalaryTab(info, cfg),
+                          ],
+                        ),
                       ),
                     ),
                   ),

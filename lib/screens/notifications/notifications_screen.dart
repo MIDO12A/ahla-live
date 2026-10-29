@@ -26,6 +26,8 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   final SupabaseService _firebaseService = SupabaseService();
   late Stream<List<NotificationModel>> _notificationsStream;
+  final Set<String> _processingNotifIds = {};
+  final Set<String> _dismissedNotifIds = {};
 
   @override
   void initState() {
@@ -101,7 +103,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: CircularProgressIndicator(color: Color(0xFFFFD700)),
             );
           }
-          final notifications = snapshot.data ?? [];
+          final notifications = (snapshot.data ?? [])
+              .where((n) => !_dismissedNotifIds.contains(n.id))
+              .toList();
           if (notifications.isEmpty) {
             return Center(
               child: Column(
@@ -359,7 +363,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               _actionButton(
                                 label: isAr ? 'موافقة وقبول الراتب ✅' : 'Approve & Accept ✅',
                                 color: const Color(0xFF10B981),
+                                isLoading: _processingNotifIds.contains(notif.id),
                                 onTap: () async {
+                                  if (_processingNotifIds.contains(notif.id)) return;
+                                  setState(() {
+                                    _processingNotifIds.add(notif.id);
+                                    _dismissedNotifIds.add(notif.id);
+                                  });
+
                                   final currentUid = Provider.of<UserProvider>(
                                           context,
                                           listen: false)
@@ -376,15 +387,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       (notif.data?['diamonds_amount'] as num?)?.toInt() ??
                                       0;
 
-                                  if (currentUid != null && requestId.isNotEmpty) {
-                                    // 1. استخدام معالج السحب المعتمد في الوكالات
-                                    final res = await AgencyRepository.handleAgentWithdrawalAction(
-                                      requestId: requestId,
-                                      agentUid: currentUid,
-                                      approve: true,
-                                    );
+                                  if (currentUid != null && (requestId.isNotEmpty || (amount > 0 && senderUid.isNotEmpty))) {
+                                    dynamic res = {'success': false};
+                                    if (requestId.isNotEmpty) {
+                                      // 1. استخدام معالج السحب المعتمد في الوكالات
+                                      try {
+                                        res = await AgencyRepository.handleAgentWithdrawalAction(
+                                          requestId: requestId,
+                                          agentUid: currentUid,
+                                          approve: true,
+                                        );
+                                      } catch (e) {
+                                        debugPrint('[notifications] withdrawal action err: $e');
+                                      }
+                                    }
 
-                                    // إذا كان الطلب من نوع salary_transfer_requests كاحتياط
+                                    // إذا كان الطلب من نوع salary_transfer_requests كاحتياط أو لم تنجح الدالة
                                     if (res['success'] != true && amount > 0) {
                                       try {
                                         final sb = Supabase.instance.client;
@@ -484,7 +502,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               _actionButton(
                                 label: isAr ? 'رفض السحب ❌' : 'Reject ❌',
                                 color: const Color(0xFFEF4444),
+                                isLoading: _processingNotifIds.contains(notif.id),
                                 onTap: () async {
+                                  if (_processingNotifIds.contains(notif.id)) return;
+                                  setState(() {
+                                    _processingNotifIds.add(notif.id);
+                                    _dismissedNotifIds.add(notif.id);
+                                  });
+
                                   final currentUid = Provider.of<UserProvider>(
                                           context,
                                           listen: false)
@@ -495,11 +520,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       '';
 
                                   if (currentUid != null && requestId.isNotEmpty) {
-                                    await AgencyRepository.handleAgentWithdrawalAction(
-                                      requestId: requestId,
-                                      agentUid: currentUid,
-                                      approve: false,
-                                    );
+                                    try {
+                                      await AgencyRepository.handleAgentWithdrawalAction(
+                                        requestId: requestId,
+                                        agentUid: currentUid,
+                                        approve: false,
+                                      );
+                                    } catch (_) {}
                                   }
 
                                   if (notif.id.isNotEmpty) {
@@ -533,7 +560,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               _actionButton(
                                 label: isAr ? 'قبول الانضمام ✅' : 'Accept Join ✅',
                                 color: const Color(0xFF10B981),
+                                isLoading: _processingNotifIds.contains(notif.id),
                                 onTap: () async {
+                                  if (_processingNotifIds.contains(notif.id)) return;
+                                  setState(() {
+                                    _processingNotifIds.add(notif.id);
+                                    _dismissedNotifIds.add(notif.id);
+                                  });
+
                                   final currentUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
                                   final agId = notif.data?['agency_id']?.toString() ?? '';
                                   final agencyName = notif.data?['agency_name']?.toString() ?? 'الوكالة';
@@ -556,7 +590,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       });
                                     } catch (_) {}
 
-
                                     try {
                                       final uProv = Provider.of<UserProvider>(context, listen: false);
                                       await uProv.loadUser(currentUid);
@@ -565,8 +598,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     try {
                                       await SupabaseDataService().deleteNotification(notif.id);
                                     } catch (_) {}
-                                    if (notif.id.isNotEmpty) {
-                                    }
 
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
@@ -583,12 +614,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               _actionButton(
                                 label: isAr ? 'رفض ❌' : 'Reject ❌',
                                 color: const Color(0xFFEF4444),
+                                isLoading: _processingNotifIds.contains(notif.id),
                                 onTap: () async {
+                                  if (_processingNotifIds.contains(notif.id)) return;
+                                  setState(() {
+                                    _processingNotifIds.add(notif.id);
+                                    _dismissedNotifIds.add(notif.id);
+                                  });
+
                                   try {
                                     await SupabaseDataService().deleteNotification(notif.id);
                                   } catch (_) {}
-                                  if (notif.id.isNotEmpty) {
-                                  }
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -612,7 +648,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               _actionButton(
                                 label: isAr ? 'قبول ✅' : 'Accept ✅',
                                 color: const Color(0xFF10B981),
+                                isLoading: _processingNotifIds.contains(notif.id),
                                 onTap: () async {
+                                  if (_processingNotifIds.contains(notif.id)) return;
+                                  setState(() {
+                                    _processingNotifIds.add(notif.id);
+                                    _dismissedNotifIds.add(notif.id);
+                                  });
+
                                   final currentUid = Provider.of<UserProvider>(
                                           context,
                                           listen: false)
@@ -665,7 +708,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                         final uProv = Provider.of<UserProvider>(context, listen: false);
                                         await uProv.loadUser(currentUid);
                                       } catch (_) {}
-
                                     }
 
                                     if (notif.id.isNotEmpty) {
@@ -689,12 +731,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               _actionButton(
                                 label: isAr ? 'رفض ❌' : 'Reject ❌',
                                 color: const Color(0xFFEF4444),
+                                isLoading: _processingNotifIds.contains(notif.id),
                                 onTap: () async {
+                                  if (_processingNotifIds.contains(notif.id)) return;
+                                  setState(() {
+                                    _processingNotifIds.add(notif.id);
+                                    _dismissedNotifIds.add(notif.id);
+                                  });
+
                                   try {
                                     await SupabaseDataService().deleteNotification(notif.id);
                                   } catch (_) {}
-                                  if (notif.id.isNotEmpty) {
-                                  }
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -739,13 +786,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               _actionButton(
                                 label: isAr ? 'قبول CP 💕' : 'Accept CP 💕',
                                 color: const Color(0xFFFF2D78),
+                                isLoading: _processingNotifIds.contains(notif.id),
                                 onTap: () async {
+                                  if (_processingNotifIds.contains(notif.id)) return;
+                                  setState(() {
+                                    _processingNotifIds.add(notif.id);
+                                    _dismissedNotifIds.add(notif.id);
+                                  });
+
                                   final reqId = notif.data?['request_id']?.toString();
                                   if (reqId != null && reqId.isNotEmpty) {
                                     await CpService.respondRequest(reqId, true);
                                   }
                                   if (notif.id.isNotEmpty) {
-                                    await SupabaseDataService().deleteNotification(notif.id);
+                                    try {
+                                      await SupabaseDataService().deleteNotification(notif.id);
+                                    } catch (_) {}
                                   }
                                   if (mounted) {
                                     Navigator.push(
@@ -762,9 +818,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               _actionButton(
                                 label: isAr ? 'رفض' : 'Reject',
                                 color: const Color(0xFF9BA1B6),
+                                isLoading: _processingNotifIds.contains(notif.id),
                                 onTap: () async {
+                                  if (_processingNotifIds.contains(notif.id)) return;
+                                  setState(() {
+                                    _processingNotifIds.add(notif.id);
+                                    _dismissedNotifIds.add(notif.id);
+                                  });
+
                                   if (notif.id.isNotEmpty) {
-                                    await SupabaseDataService().deleteNotification(notif.id);
+                                    try {
+                                      await SupabaseDataService().deleteNotification(notif.id);
+                                    } catch (_) {}
                                   }
                                 },
                               ),
@@ -785,25 +850,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget _actionButton({
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
+    bool isLoading = false,
   }) {
     return InkWell(
-      onTap: onTap,
+      onTap: isLoading ? null : onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: color,
+          color: isLoading ? Colors.grey : color,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: isLoading
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       ),
     );
   }

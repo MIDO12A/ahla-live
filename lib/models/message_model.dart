@@ -1,4 +1,4 @@
-﻿class MessageModel {
+class MessageModel {
   final String msgId;
   final String roomId;
   final String senderUid;
@@ -48,15 +48,18 @@
     var typeVal = map['type']?.toString() ?? 'text';
     final isUrl = textVal.startsWith('http://') || textVal.startsWith('https://') || textVal.startsWith('assets/');
     final isMediaFile = textVal.contains('.png') || textVal.contains('.jpg') || textVal.contains('.jpeg') || textVal.contains('.webp') || textVal.contains('.gif') || textVal.contains('.svga');
-    final isEmojiPath = textVal.contains('emoji') || (rawImage != null && rawImage.toString().contains('emoji'));
-    if (isEmojiPath && typeVal == 'text') {
-      typeVal = 'emoji';
+    final isEmojiPath = textVal.contains('emoji') || textVal.contains('stickers') || textVal.contains('/storage/') || (rawImage != null && (rawImage.toString().contains('emoji') || rawImage.toString().contains('stickers')));
+    if ((isEmojiPath || isMediaFile) && typeVal == 'text') {
+      typeVal = (textVal.contains('.svga') || isEmojiPath) ? 'emoji' : 'image';
     }
     final resolvedImage = (rawImage != null && rawImage.toString().isNotEmpty)
         ? rawImage.toString()
         : (((typeVal == 'image' || typeVal == 'emoji') || isMediaFile || isEmojiPath) && isUrl
             ? textVal
             : null);
+    final cleanText = (isUrl && (isMediaFile || isEmojiPath || typeVal == 'emoji' || typeVal == 'image'))
+        ? ''
+        : textVal;
 
     return MessageModel(
       msgId: map['msg_id']?.toString() ?? map['id']?.toString() ?? '',
@@ -64,7 +67,7 @@
       senderUid: map['sender_uid']?.toString() ?? map['senderId']?.toString() ?? '',
       senderName: map['sender_name']?.toString() ?? '',
       senderPhotoUrl: map['sender_photo_url']?.toString() ?? '',
-      text: textVal,
+      text: cleanText,
       type: typeVal,
       timestamp: parsedTimestamp,
       imageUrl: resolvedImage,

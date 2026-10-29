@@ -683,19 +683,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   static String _formatCompactNumber(num number) {
-    if (number >= 1000000000) {
-      final val = number / 1000000000.0;
-      return '${val.toStringAsFixed(val >= 10 ? 0 : 1)}B';
-    }
-    if (number >= 1000000) {
-      final val = number / 1000000.0;
-      return '${val.toStringAsFixed(val >= 10 ? 0 : 1)}M';
-    }
-    if (number >= 1000) {
-      final val = number / 1000.0;
-      return '${val.toStringAsFixed(val >= 10 ? 0 : 1)}K';
-    }
-    return number.toString();
+    return R.formatCoins(number);
   }
 
   /// بطاقة المحفظة البيضاء ll_wallet_info المطابقة لـ fragment_mine.xml

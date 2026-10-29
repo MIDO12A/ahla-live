@@ -1111,7 +1111,7 @@ class SupabaseService {
   }
 
   Future<void> sendImageMessage(String roomId, String imageUrl, String senderUid, String senderName, String senderPhotoUrl, {String type = 'image'}) {
-    return sendMessage(roomId, imageUrl, senderUid, senderName, senderPhotoUrl, type: type, imageUrl: imageUrl);
+    return sendMessage(roomId, '', senderUid, senderName, senderPhotoUrl, type: type, imageUrl: imageUrl);
   }
 
   Stream<List<MessageModel>> messagesStream(String roomId, {String? since}) async* {
@@ -1489,10 +1489,16 @@ class SupabaseService {
         final res = await http.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
-          yield list.map((e) => MessageModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+          yield list.map((e) {
+            final m = Map<String, dynamic>.from(e as Map);
+            if (m['image_url'] == null || m['image_url'].toString().isEmpty) {
+              m['image_url'] = m['media_url'];
+            }
+            return MessageModel.fromMap(m);
+          }).toList();
         }
       } catch (_) {}
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(milliseconds: 1000));
     }
   }
 
@@ -1527,22 +1533,52 @@ class SupabaseService {
       final now = DateTime.now().millisecondsSinceEpoch;
       final isoNow = DateTime.now().toUtc().toIso8601String();
 
+      // 1. مزامنة جدول المحادثات أولاً لاستيفاء قيد المفتاح الأجنبي (Foreign Key)
+      final lastMsgText = text.isNotEmpty ? text : (type == 'image' ? '[صورة]' : '');
+      final senderConv = {
+        'conv_id': effectiveConvId,
+        'uid': effectiveSenderUid,
+        'other_uid': effectiveReceiverUid,
+        'other_name': receiverName ?? '',
+        'other_photo_url': receiverPhotoUrl ?? '',
+        'last_message': lastMsgText,
+        'unread_count': 0,
+      };
+      final receiverConv = {
+        'conv_id': effectiveConvId,
+        'uid': effectiveReceiverUid,
+        'other_uid': effectiveSenderUid,
+        'other_name': senderName,
+        'other_photo_url': senderPhotoUrl ?? '',
+        'last_message': lastMsgText,
+        'unread_count': 1,
+      };
+
+      try {
+        await http.post(
+          Uri.parse('$_baseUrl/rest/v1/conversations'),
+          headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
+          body: jsonEncode([senderConv, receiverConv]),
+        );
+      } catch (convErr) {
+        debugPrint('[SupabaseService] conversations upsert error: $convErr');
+      }
+
+      // 2. إدراج الرسالة في جدول private_messages بالحقول المعتمدة بقاعدة البيانات
       final msgBody = {
         'id': msgId,
-        'msg_id': msgId,
         'conversation_id': effectiveConvId,
         'conv_id': effectiveConvId,
         'sender_uid': effectiveSenderUid,
         'receiver_uid': effectiveReceiverUid,
-        'sender_name': senderName,
-        'sender_photo_url': senderPhotoUrl ?? '',
         'receiver_name': receiverName ?? '',
         'receiver_photo_url': receiverPhotoUrl ?? '',
         'text': text,
         'type': type,
-        'image_url': imageUrl,
+        'media_url': imageUrl ?? '',
         'timestamp': now,
         'created_at': isoNow,
+        'is_read': false,
       };
 
       final msgRes = await http.post(
@@ -1559,39 +1595,6 @@ class SupabaseService {
           debugPrint('[SupabaseService] private_messages SDK insert fallback: $err');
         }
       }
-
-      // مزامنة المحادثات لكلا الطرفين (Conversations Sync)
-      final lastMsgText = text.isNotEmpty ? text : (type == 'image' ? '[صورة]' : '');
-      final senderConv = {
-        'uid': effectiveSenderUid,
-        'conv_id': effectiveConvId,
-        'conversation_id': effectiveConvId,
-        'other_uid': effectiveReceiverUid,
-        'other_name': receiverName ?? '',
-        'other_photo_url': receiverPhotoUrl ?? '',
-        'last_message': lastMsgText,
-        'last_sender_uid': effectiveSenderUid,
-        'last_timestamp': isoNow,
-        'unread_count': 0,
-      };
-      final receiverConv = {
-        'uid': effectiveReceiverUid,
-        'conv_id': effectiveConvId,
-        'conversation_id': effectiveConvId,
-        'other_uid': effectiveSenderUid,
-        'other_name': senderName,
-        'other_photo_url': senderPhotoUrl ?? '',
-        'last_message': lastMsgText,
-        'last_sender_uid': effectiveSenderUid,
-        'last_timestamp': isoNow,
-        'unread_count': 1,
-      };
-
-      unawaited(http.post(
-        Uri.parse('$_baseUrl/rest/v1/conversations'),
-        headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
-        body: jsonEncode([senderConv, receiverConv]),
-      ).catchError((_) => http.Response('', 500)));
     } catch (e) {
       debugPrint('[SupabaseService] sendPrivateMessage error: $e');
     }
