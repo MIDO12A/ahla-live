@@ -791,6 +791,114 @@ class AgencyLevelConfigModel {
   }
 }
 
+/// حساب مستوى الوكالة ونقاط الخبرة للوصول للمستوى التالي بناءً على إجمالي دخل الوكالة التراكمي
+class AgencyLevelProgress {
+  final int currentLevel;
+  final String currentLevelName;
+  final int nextLevel;
+  final String nextLevelName;
+  final int cumulativeExp;
+  final int currentLevelMinExp;
+  final int nextLevelMinExp;
+  final int expToNextLevel;
+  final double progressRatio; // 0.0 to 1.0
+  final bool isMaxLevel;
+
+  const AgencyLevelProgress({
+    required this.currentLevel,
+    required this.currentLevelName,
+    required this.nextLevel,
+    required this.nextLevelName,
+    required this.cumulativeExp,
+    required this.currentLevelMinExp,
+    required this.nextLevelMinExp,
+    required this.expToNextLevel,
+    required this.progressRatio,
+    required this.isMaxLevel,
+  });
+
+  static const List<Map<String, dynamic>> defaultLevelLadder = [
+    {'level': 1, 'name': 'وكالة برونزية', 'min_exp': 0},
+    {'level': 2, 'name': 'وكالة فضية', 'min_exp': 50000},
+    {'level': 3, 'name': 'وكالة ذهبية', 'min_exp': 200000},
+    {'level': 4, 'name': 'وكالة بلاتينية', 'min_exp': 800000},
+    {'level': 5, 'name': 'وكالة ماسية', 'min_exp': 2500000},
+  ];
+
+  static AgencyLevelProgress calculate({
+    required int totalCumulativeDiamonds,
+    List<AgencyLevelConfigModel>? configs,
+  }) {
+    final exp = totalCumulativeDiamonds < 0 ? 0 : totalCumulativeDiamonds;
+    final ladder = <Map<String, dynamic>>[];
+
+    if (configs != null && configs.isNotEmpty) {
+      for (final c in configs) {
+        ladder.add({
+          'level': c.level,
+          'name': c.levelName,
+          'min_exp': c.minExp,
+        });
+      }
+    } else {
+      ladder.addAll(defaultLevelLadder);
+    }
+
+    ladder.sort((a, b) => ((a['min_exp'] as num?)?.toInt() ?? 0).compareTo((b['min_exp'] as num?)?.toInt() ?? 0));
+
+    int currentIdx = 0;
+    for (int i = 0; i < ladder.length; i++) {
+      final minExp = (ladder[i]['min_exp'] as num?)?.toInt() ?? 0;
+      if (exp >= minExp) {
+        currentIdx = i;
+      }
+    }
+
+    final cur = ladder[currentIdx];
+    final curLevel = (cur['level'] as num?)?.toInt() ?? (currentIdx + 1);
+    final curName = cur['name']?.toString() ?? 'المستوى $curLevel';
+    final curMin = (cur['min_exp'] as num?)?.toInt() ?? 0;
+
+    final isMax = currentIdx >= ladder.length - 1;
+    if (isMax) {
+      return AgencyLevelProgress(
+        currentLevel: curLevel,
+        currentLevelName: curName,
+        nextLevel: curLevel,
+        nextLevelName: 'الحد الأقصى 👑',
+        cumulativeExp: exp,
+        currentLevelMinExp: curMin,
+        nextLevelMinExp: curMin,
+        expToNextLevel: 0,
+        progressRatio: 1.0,
+        isMaxLevel: true,
+      );
+    }
+
+    final next = ladder[currentIdx + 1];
+    final nextLevel = (next['level'] as num?)?.toInt() ?? (curLevel + 1);
+    final nextName = next['name']?.toString() ?? 'المستوى $nextLevel';
+    final nextMin = (next['min_exp'] as num?)?.toInt() ?? (curMin + 50000);
+
+    final expToNext = (nextMin - exp).clamp(0, nextMin);
+    final span = nextMin - curMin;
+    final ratio = span > 0 ? ((exp - curMin) / span).clamp(0.0, 1.0) : 1.0;
+
+    return AgencyLevelProgress(
+      currentLevel: curLevel,
+      currentLevelName: curName,
+      nextLevel: nextLevel,
+      nextLevelName: nextName,
+      cumulativeExp: exp,
+      currentLevelMinExp: curMin,
+      nextLevelMinExp: nextMin,
+      expToNextLevel: expToNext,
+      progressRatio: ratio,
+      isMaxLevel: false,
+    );
+  }
+}
+
 // ─── مهام نمو نقاط الخبرة للوكالة (Agency EXP Growth Tasks) ───────────────────
 class AgencyExpTaskModel {
   final String key;

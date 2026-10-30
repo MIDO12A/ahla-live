@@ -366,8 +366,22 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final memberCount = _anchors.length;
     final ownerName = user?.name ?? 'المدير';
     final ownerId = user?.customId ?? user?.uid ?? '1000';
-    final expNeeded = 50000;
-    final currExp = ((info?.agentBean ?? 0) % expNeeded);
+
+    // تجميع إجمالي دخل الوكالة الكامل والتراكمي لضمان ثبات نقاط الخبرة وعدم تأثرها بالصرف أو الاستبدال
+    int membersIncome = 0;
+    for (final a in _anchors) {
+      final d = a.totalDiamond > 0 ? a.totalDiamond : (int.tryParse(a.diamonds) ?? 0);
+      membersIncome += d;
+    }
+    final cumulativeIncome = (info?.totalDiamondsCumulative != null && info!.totalDiamondsCumulative > 0)
+        ? (info.totalDiamondsCumulative >= membersIncome ? info.totalDiamondsCumulative : membersIncome)
+        : (membersIncome > 0 ? membersIncome : (info?.transferMoney ?? 0));
+
+    final lvlProg = AgencyLevelProgress.calculate(totalCumulativeDiamonds: cumulativeIncome);
+    final currExp = lvlProg.expToNextLevel;
+    final expNeeded = lvlProg.nextLevelMinExp;
+    final expRatio = lvlProg.progressRatio;
+    final isMaxLevel = lvlProg.isMaxLevel;
 
     return Stack(
       children: [
@@ -741,7 +755,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             Row(
                               children: [
                                 Text(
-                                  '$currExp',
+                                  isMaxLevel ? (isAr ? 'الحد الأقصى 👑' : 'MAX') : '$currExp',
                                   style: const TextStyle(
                                     color: Color(0xFFFFD700),
                                     fontSize: 13,
@@ -750,7 +764,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  isAr ? 'نقطة خبرة للترقية' : 'EXP to next level',
+                                  isMaxLevel ? (isAr ? 'تم بلوغ الحد الأقصى' : 'Max Level Reached') : (isAr ? 'نقطة خبرة للترقية' : 'EXP to next level'),
                                   style: const TextStyle(color: Colors.white70, fontSize: 11),
                                 ),
                                 const SizedBox(width: 4),
@@ -776,7 +790,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 ),
                                 child: FractionallySizedBox(
                                   alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
-                                  widthFactor: (currExp / expNeeded).clamp(0.05, 1.0),
+                                  widthFactor: expRatio.clamp(0.05, 1.0),
                                   child: Container(
                                     decoration: const BoxDecoration(
                                       gradient: LinearGradient(
@@ -792,11 +806,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  '$currExp / $expNeeded',
+                                  isMaxLevel ? '$cumulativeIncome (مكتمل)' : '$cumulativeIncome / $expNeeded',
                                   style: const TextStyle(color: Colors.white54, fontSize: 10),
                                 ),
                                 Text(
-                                  isAr ? 'المستوى القادم' : 'Next Level',
+                                  lvlProg.nextLevelName,
                                   style: const TextStyle(color: Colors.white70, fontSize: 11),
                                 ),
                               ],
@@ -834,7 +848,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 ),
                               ),
                               child: Text(
-                                info?.tier?.toUpperCase() ?? 'DIAMOND',
+                                'Lv.${lvlProg.currentLevel}',
                                 style: const TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w900,

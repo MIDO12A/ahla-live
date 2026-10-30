@@ -54,6 +54,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   int _pendingRequestsCount = 0;
   String _agencyCommissionPeriod = 'monthly';
   double _generalAgencyRate = 0.0;
+  List<AgencyLevelConfigModel> _agencyLevelConfigs = [];
 
   // Search filter in members tab
   final TextEditingController _memberSearchCtrl = TextEditingController();
@@ -213,10 +214,37 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         }
       } catch (_) {}
 
+      // Fetch agency levels ladder from config
+      List<AgencyLevelConfigModel> levelConfigs = [];
+      try {
+        levelConfigs = await AgencyRepository.getAgencyLevelConfigs();
+      } catch (_) {}
+
+      // تجميع إجمالي دخل الوكالة التراكمي من جميع المضيفين لضمان الثبات الكامل وعدم الحذف عند الصرف أو الاستبدال
+      int membersCumDiamonds = 0;
+      for (final a in rawAnchors) {
+        final d = a.totalDiamond > 0 ? a.totalDiamond : (int.tryParse(a.diamonds) ?? 0);
+        membersCumDiamonds += d;
+      }
+
+      if (infoModel != null) {
+        final totalGross = infoModel.totalDiamondsCumulative > 0
+            ? (infoModel.totalDiamondsCumulative >= membersCumDiamonds
+                ? infoModel.totalDiamondsCumulative
+                : membersCumDiamonds)
+            : (membersCumDiamonds > 0 ? membersCumDiamonds : infoModel.transferMoney);
+
+        infoModel = infoModel.copyWith(
+          totalDiamondsCumulative: totalGross,
+          totalExp: infoModel.totalExp > 0 ? infoModel.totalExp : totalGross,
+        );
+      }
+
       if (mounted) {
         setState(() {
           _agencyInfo = infoModel;
           _members = rawAnchors;
+          _agencyLevelConfigs = levelConfigs;
           _pendingRequestsCount = pendingCount;
           _agencyCommissionPeriod = commPeriod;
           _generalAgencyRate = generalRate;
@@ -820,14 +848,19 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   // 3. AGENCY LEVEL PANEL (vh_agency_level.xml)
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildAgencyLevelPanel(AgentInfoModel info, DynamicConfigService cfg) {
-    final curExp = info.transferMoney;
-    final targetExp = (info.targetDiamonds > 0 && info.targetDiamonds != 1000000)
-        ? info.targetDiamonds
-        : (_milestones.isNotEmpty
-            ? ((_milestones.first['target_diamonds'] ?? _milestones.first['targetDiamonds'] as num?)?.toInt() ?? 150000)
-            : 150000);
-    final expLeft = (targetExp - curExp).clamp(0, targetExp);
-    final ratio = (curExp / targetExp).clamp(0.0, 1.0);
+    // إجمالي دخل الوكالة الكامل والتراكمي لضمان ثبات نقاط الخبرة وعدم تأثرها بالصرف أو استبدال الألماس
+    final cumulativeIncome = info.cumulativeAgencyDiamonds;
+    final lvlProgress = AgencyLevelProgress.calculate(
+      totalCumulativeDiamonds: cumulativeIncome,
+      configs: _agencyLevelConfigs,
+    );
+
+    final expLeft = lvlProgress.expToNextLevel;
+    final ratio = lvlProgress.progressRatio;
+    final curExp = lvlProgress.cumulativeExp;
+    final targetExp = lvlProgress.nextLevelMinExp;
+    final curLevelName = lvlProgress.currentLevelName;
+    final isMax = lvlProgress.isMaxLevel;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -869,7 +902,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       Row(
                         children: [
                           Text(
-                            '$expLeft',
+                            isMax ? 'الحد الأقصى 👑' : '$expLeft',
                             style: const TextStyle(
                               color: Color(0xFFFFD56B),
                               fontSize: 13,
@@ -877,9 +910,9 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Text(
-                            'نقطة خبرة للوصول للمستوى التالي',
-                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          Text(
+                            isMax ? 'تم الوصول للحد الأقصى لمستوى الوكالة' : 'نقطة خبرة للوصول للمستوى التالي',
+                            style: const TextStyle(color: Colors.white, fontSize: 11),
                           ),
                           const SizedBox(width: 4),
                           GestureDetector(
@@ -938,17 +971,18 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '$curExp / $targetExp',
+                            isMax ? '$curExp ماسة (مكتمل)' : '$curExp / $targetExp',
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 10,
                             ),
                           ),
-                          const Text(
-                            'مستوى الوكالة',
-                            style: TextStyle(
-                              color: Colors.white70,
+                          Text(
+                            curLevelName,
+                            style: const TextStyle(
+                              color: Color(0xFFFFD56B),
                               fontSize: 10,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
@@ -983,7 +1017,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                             ),
                           ),
                           child: Text(
-                            info.tier.toUpperCase(),
+                            'Lv.${lvlProgress.currentLevel}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,

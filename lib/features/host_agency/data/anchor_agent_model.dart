@@ -36,8 +36,17 @@ class AgentInfoModel {
   final double rewardValue;
   final String periodType;
   final List<Map<String, dynamic>> milestones;
+  final int totalDiamondsCumulative;
+  final int totalExp;
+  final int level;
 
   int get totalDiamondsMonthly => transferMoney;
+
+  int get cumulativeAgencyDiamonds {
+    if (totalDiamondsCumulative > 0) return totalDiamondsCumulative;
+    if (totalExp > 0) return totalExp;
+    return transferMoney;
+  }
 
   const AgentInfoModel({
     this.userId = 0,
@@ -63,6 +72,9 @@ class AgentInfoModel {
     this.rewardValue = 0.0,
     this.periodType = 'monthly',
     this.milestones = const [],
+    this.totalDiamondsCumulative = 0,
+    this.totalExp = 0,
+    this.level = 1,
   });
 
   factory AgentInfoModel.fromJson(Map<String, dynamic> json) {
@@ -95,6 +107,21 @@ class AgentInfoModel {
       rewardValue: _safeDouble(json['reward_value']),
       periodType: json['period_type']?.toString() ?? 'monthly',
       milestones: (json['milestones'] as List<dynamic>?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? const [],
+      totalDiamondsCumulative: _safeInt(
+        json['total_diamonds_cumulative'] ??
+        json['total_diamonds_earned'] ??
+        json['cumulative_diamonds'] ??
+        json['total_diamonds'] ??
+        dataMap['total_diamonds_cumulative'] ??
+        dataMap['total_diamonds_earned'],
+      ),
+      totalExp: _safeInt(
+        json['total_exp'] ??
+        json['monthly_exp'] ??
+        json['exp'] ??
+        dataMap['total_exp'],
+      ),
+      level: _safeInt(json['level'] ?? dataMap['level'], 1),
     );
   }
 
@@ -122,6 +149,9 @@ class AgentInfoModel {
     double? rewardValue,
     String? periodType,
     List<Map<String, dynamic>>? milestones,
+    int? totalDiamondsCumulative,
+    int? totalExp,
+    int? level,
   }) {
     return AgentInfoModel(
       userId: userId ?? this.userId,
@@ -147,6 +177,9 @@ class AgentInfoModel {
       rewardValue: rewardValue ?? this.rewardValue,
       periodType: periodType ?? this.periodType,
       milestones: milestones ?? this.milestones,
+      totalDiamondsCumulative: totalDiamondsCumulative ?? this.totalDiamondsCumulative,
+      totalExp: totalExp ?? this.totalExp,
+      level: level ?? this.level,
     );
   }
 
@@ -173,6 +206,9 @@ class AgentInfoModel {
         'reward_value': rewardValue,
         'period_type': periodType,
         'milestones': milestones,
+        'total_diamonds_cumulative': totalDiamondsCumulative,
+        'total_exp': totalExp,
+        'level': level,
       };
 }
 
