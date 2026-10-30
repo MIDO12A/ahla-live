@@ -5595,7 +5595,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 });
                               } else if (user != null) {
                                 // If not on seat, send as single small emoji in chat
-                                _sendMessage(chosenEmoji);
+                                _firebaseService.sendImageMessage(
+                                  widget.roomId,
+                                  chosenEmoji,
+                                  user.uid,
+                                  user.name ?? '',
+                                  user.photoUrl ?? '',
+                                  type: 'emoji',
+                                );
                               }
                               
                               setState(() => _showEmoj = false);
