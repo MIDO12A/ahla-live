@@ -221,13 +221,14 @@ class GlobalFloatingRoomOverlay extends StatefulWidget {
 }
 
 class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   Offset? _position;
   late AnimationController _animCtrl;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -235,7 +236,18 @@ class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      final svc = MinimizedRoomService();
+      if (svc.isActive) {
+        _onBubbleExit(svc);
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _animCtrl.dispose();
     super.dispose();
   }

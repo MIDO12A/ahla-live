@@ -1846,29 +1846,28 @@ class SupabaseService {
     required String timeframe,
   }) async {
     try {
-      final allGifts = await _ds.getSentGifts(roomId, limit: 200);
-      if (allGifts.isEmpty) return [];
-
-      // Filter by timeframe if applicable
       final now = DateTime.now().toUtc();
       DateTime? cutoff;
       if (timeframe == 'daily') {
-        cutoff = now.subtract(const Duration(days: 1));
+        // على مدار 24 ساعة
+        cutoff = now.subtract(const Duration(hours: 24));
       } else if (timeframe == 'weekly') {
+        // على مدار 7 أيام
         cutoff = now.subtract(const Duration(days: 7));
       } else if (timeframe == 'monthly') {
-        cutoff = now.subtract(const Duration(days: 30));
+        // على مدار الشهر الحالي
+        cutoff = DateTime.utc(now.year, now.month, 1);
       }
 
-      var filtered = allGifts;
-      if (cutoff != null) {
-        final timeFiltered = allGifts.where((g) {
-          return g.timestamp.isAfter(cutoff!);
-        }).toList();
-        if (timeFiltered.isNotEmpty) {
-          filtered = timeFiltered;
-        }
-      }
+      final allGifts = await _ds.getSentGifts(roomId, limit: 1000, after: cutoff);
+      if (allGifts.isEmpty) return [];
+
+      // تصفير القائمة عند انتهاء الفترة وسحب بيانات الفترة الجديدة فقط
+      final filtered = cutoff != null
+          ? allGifts.where((g) => g.timestamp.isAfter(cutoff!)).toList()
+          : allGifts;
+
+      if (filtered.isEmpty) return [];
 
       final Map<String, int> totals = {};
       final Map<String, Map<String, dynamic>> userDetails = {};

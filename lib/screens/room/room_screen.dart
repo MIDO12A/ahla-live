@@ -1232,15 +1232,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       // ✅ تجديد الـ ping عند العودة
       _updatePresencePing();
     } else if (state == AppLifecycleState.detached) {
-      // ✅ التطبيق يُغلق كلياً — نظّف المستخدم فوراً من الغرفة
-      if (!_isMinimized) {
-        _cleanupUserSession();
+      // ✅ التطبيق يُغلق كلياً — نظّف المستخدم فوراً من الغرفة والمقعد
+      _leaveRoomSession();
+      final uid = _currentUserId ?? Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+      if (uid != null) {
+        MinimizedRoomService().exitRoom(uid);
       }
     }
   }
 
   void _loadRoomData() {
     _joinedAt = DateTime.now();
+    _chatMessages.clear();
+    _msgCount = 0;
     final uProvInit = Provider.of<UserProvider>(context, listen: false).currentUser;
     if (uProvInit != null) { _cachedUsers[uProvInit.uid] = uProvInit; }
     LuckyGiftService().disposeAllOverlays();
@@ -1445,13 +1449,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
       if (mounted) {
         final clearedAt = _currentRoom?.chatClearedAt ?? 0;
-        final currentSessionMsgs = clearedAt > 0
-            ? msgs.where((m) => m.timestamp >= clearedAt).toList()
+        final minTimestamp = joinedMs > 0
+            ? (clearedAt > joinedMs ? clearedAt : joinedMs)
+            : clearedAt;
+        final currentSessionMsgs = minTimestamp > 0
+            ? msgs.where((m) => m.timestamp >= minTimestamp).toList()
             : msgs;
 
-        // إزالة الرسائل التي مسحت قبل clearedAt فقط
-        if (clearedAt > 0) {
-          _chatMessages.removeWhere((m) => m.timestamp < clearedAt);
+        // إزالة أي رسائل أقدم من وقت الدخول أو وقت المسح
+        if (minTimestamp > 0) {
+          _chatMessages.removeWhere((m) => m.timestamp < minTimestamp);
         }
 
         // الحفاظ على كامل الرسائل السابقة أثناء الجلسة مع استبدال الرسائل المؤقتة بالرسائل المؤكدة
@@ -5306,17 +5313,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       child: (imgUrl.startsWith('http') || imgUrl.startsWith('assets/'))
                           ? (isSvga
                               ? SizedBox(
-                                  width: 56,
-                                  height: 56,
+                                  width: 32,
+                                  height: 32,
                                   child: SvgaPlayer(assetPath: imgUrl, loops: true, fit: BoxFit.contain),
                                 )
                               : R.loadImage(
                                   imgUrl,
-                                  width: 56,
-                                  height: 56,
+                                  width: 32,
+                                  height: 32,
                                   fit: BoxFit.contain,
                                 ))
-                          : Text(imgUrl, style: const TextStyle(fontSize: 32)),
+                          : Text(imgUrl, style: const TextStyle(fontSize: 22)),
                     );
                   } else if (m.type == 'image' || (m.imageUrl != null && m.imageUrl!.isNotEmpty) || (isStorageUrl && isMediaExt)) {
                     final imgUrl = (m.imageUrl != null && m.imageUrl!.isNotEmpty)
@@ -5586,44 +5593,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                     });
                                   }
                                 });
-                              }
-                              
-                              // Send emoji directly to chat as emoji type
-                              if (user != null) {
-                                final now = DateTime.now().millisecondsSinceEpoch;
-                                final tempId = 'temp_${now}_${user.uid}';
-                                final optimisticMsg = MessageModel(
-                                  msgId: tempId,
-                                  roomId: widget.roomId,
-                                  senderUid: user.uid,
-                                  senderName: user.name ?? '',
-                                  senderPhotoUrl: user.photoUrl ?? '',
-                                  text: '',
-                                  imageUrl: chosenEmoji,
-                                  type: 'emoji',
-                                  timestamp: now,
-                                );
-                                setState(() {
-                                  _chatMessages.add(optimisticMsg);
-                                  _msgCount = _chatMessages.length;
-                                });
-                                _chatUpdateNotifier.value++;
-                                if (_chatScroll.hasClients) {
-                                  _chatScroll.animateTo(
-                                    _chatScroll.position.maxScrollExtent + 80,
-                                    duration: const Duration(milliseconds: 200),
-                                    curve: Curves.easeOut,
-                                  );
-                                }
-
-                                _firebaseService.sendImageMessage(
-                                  widget.roomId,
-                                  chosenEmoji,
-                                  user.uid,
-                                  user.name ?? '',
-                                  user.photoUrl ?? '',
-                                  type: 'emoji',
-                                );
+                              } else if (user != null) {
+                                // If not on seat, send as single small emoji in chat
+                                _sendMessage(chosenEmoji);
                               }
                               
                               setState(() => _showEmoj = false);
@@ -6874,10 +6846,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _cleanupUserSession() {
-    _leaveRoomSession();
-  }
-
   // ────────────────────────────────────────────────────────────
   // PRESENCE PING — نظام كشف وإزالة المستخدمين الصامتين (Zombie users)
   // ────────────────────────────────────────────────────────────
@@ -6906,16 +6874,39 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   /// تنظيف المستخدمين غير النشطين
   Future<void> _cleanupZombieUsers() async {
     try {
-      final cutoff = DateTime.now().toUtc().subtract(const Duration(minutes: 2)).toIso8601String();
+      final cutoff = DateTime.now().toUtc().subtract(const Duration(seconds: 90)).toIso8601String();
       await Supabase.instance.client
           .from('room_members')
           .delete()
           .eq('room_id', widget.roomId)
           .lt('joined_at', cutoff);
+
+      // تنظيف المقاعد تلقائياً للمستخدمين الذين قفلوا التطبيق أو انقطع اتصالهم
+      final activeMembers = await Supabase.instance.client
+          .from('room_members')
+          .select('uid')
+          .eq('room_id', widget.roomId);
+      final activeUids = ((activeMembers as List?) ?? []).map((e) => e['uid']?.toString()).whereType<String>().toSet();
+
+      final seats = await Supabase.instance.client
+          .from('room_seats')
+          .select('seat_index, uid')
+          .eq('room_id', widget.roomId)
+          .not('uid', 'is', null);
+
+      for (final s in (seats as List? ?? [])) {
+        final seatUid = s['uid']?.toString();
+        final seatIdx = (s['seat_index'] as num?)?.toInt();
+        if (seatUid != null && seatIdx != null && !activeUids.contains(seatUid)) {
+          await SupabaseDataService().leaveSeat(widget.roomId, seatIdx);
+        }
+      }
     } catch (_) {}
   }
 
   Future<void> _exitRoom() async {
+    _chatMessages.clear();
+    _msgCount = 0;
     // 1. Dismiss UI immediately — 0ms instant visual response!
     if (mounted) {
       setState(() => _showExit = false);
