@@ -426,7 +426,24 @@ abstract final class AgencyRepository {
         final diamonds = (m['diamonds'] as num?)?.toInt() ?? 0;
         final diamondsMonthly = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? diamonds;
         final diamondsCumulative = (m['diamonds_earned_cumulative'] as num?)?.toInt() ?? diamonds;
-        final diamondsBalance = (m['diamonds_balance'] as num?)?.toInt() ?? (m['diamonds_available'] as num?)?.toInt() ?? diamonds;
+        int diamondsBalance = (m['diamonds_balance'] as num?)?.toInt() ?? (m['diamonds_available'] as num?)?.toInt() ?? diamonds;
+
+        try {
+          final uList = await _sb.from('users').select('diamonds').eq('uid', uid).limit(1);
+          if (uList.isNotEmpty) {
+            final liveDia = (uList.first['diamonds'] as num?)?.toInt();
+            if (liveDia != null) {
+              diamondsBalance = liveDia;
+              if ((m['diamonds_balance'] as num?)?.toInt() != liveDia) {
+                _sb.from('host_agency_members').update({
+                  'diamonds': liveDia,
+                  'diamonds_balance': liveDia,
+                  'diamonds_available': liveDia,
+                }).eq('id', memberId).then((_) {}).catchError((_) {});
+              }
+            }
+          }
+        } catch (_) {}
 
         Map<String, dynamic>? agencyRow;
         if (agencyId.isNotEmpty) {
@@ -609,15 +626,15 @@ abstract final class AgencyRepository {
           .or('host_uid.eq.$uid,user_id.eq.$uid')
           .maybeSingle();
       if (mem != null) {
-        final curBal = (mem['diamonds_balance'] as num?)?.toInt() ?? (mem['diamonds'] as num?)?.toInt() ?? 0;
         final curMonthly = (mem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
         final curUnpacked = (mem['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
-        final updatedBal = (curBal - diamondsAmount).clamp(0, 999999999);
+        final updatedBal = (curD - diamondsAmount).clamp(0, 999999999);
         final updatedMonthly = (curMonthly - diamondsAmount).clamp(0, 999999999);
 
         await _sb.from('host_agency_members').update({
           'diamonds_balance': updatedBal,
           'diamonds': updatedBal,
+          'diamonds_available': updatedBal,
           'diamonds_earned_monthly': updatedMonthly, // التأثير على تارجت المضيف الشهري ليتراجع
           'unpacked_target_diamonds': curUnpacked + diamondsAmount, // تسجيل فك التارجت لتطبيق راتب 60%
           'has_unpacked_target': true,
@@ -799,13 +816,10 @@ abstract final class AgencyRepository {
         }
 
         // 2. Deduct host's target & available diamonds in host_agency_members
-        final curBal = memberRow != null 
-            ? ((memberRow['diamonds_balance'] as num?)?.toInt() ?? (memberRow['diamonds'] as num?)?.toInt() ?? userDiamonds)
-            : userDiamonds;
         final curMonthly = memberRow != null 
             ? ((memberRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0)
             : 0;
-        final updatedBal = (curBal - diamonds).clamp(0, 999999999);
+        final updatedBal = newHostDiamonds;
         final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
 
         final updatePayload = {
@@ -1278,8 +1292,9 @@ abstract final class AgencyRepository {
       int earnedCumulative = 0;
 
       // 1. Check host_agency_members for owner
+      Map<String, dynamic>? memRes;
       try {
-        final memRes = await _sb
+        memRes = await _sb
             .from('host_agency_members')
             .select('*')
             .eq('agency_id', agencyId)
@@ -1299,31 +1314,21 @@ abstract final class AgencyRepository {
       if (ownerUid.isNotEmpty) {
         try {
           final uRes = await _sb.from('users').select('diamonds').eq('uid', ownerUid).maybeSingle();
-          if (uRes != null) {
-            final uDia = (uRes['diamonds'] as num?)?.toInt() ?? 0;
-            if (uDia > ownerBalance) {
-              ownerBalance = uDia;
+          if (uRes != null && uRes['diamonds'] != null) {
+            final uDia = (uRes['diamonds'] as num).toInt();
+            ownerBalance = uDia;
+            if (memRes != null && (memRes['diamonds_balance'] as num?)?.toInt() != uDia) {
+              _sb.from('host_agency_members').update({
+                'diamonds': uDia,
+                'diamonds_balance': uDia,
+                'diamonds_available': uDia,
+              }).eq('id', memRes['id']).then((_) {}).catchError((_) {});
             }
           }
         } catch (_) {}
       }
 
-      // 2.5. حساب عمولة الوكالة المكتسبة من تارجت المضيفين
-      int hostCommissionDiamonds = 0;
-      try {
-        final members = await _sb
-            .from('host_agency_members')
-            .select('diamonds_balance, diamonds, diamonds_earned_monthly, diamonds_earned_cumulative')
-            .eq('agency_id', agencyId);
-        for (final m in (members as List<dynamic>)) {
-          final hostDia = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? 
-                          (m['diamonds_earned_cumulative'] as num?)?.toInt() ?? 
-                          (m['diamonds_balance'] as num?)?.toInt() ?? 0;
-          if (hostDia > 0) {
-            hostCommissionDiamonds += (hostDia * agencyRate).toInt();
-          }
-        }
-      } catch (_) {}
+
 
       // رصيد الراتب المتاح للصرف مستقل ولا تُدمج معه عمولة الوكالة أثناء صرف الراتب
       final totalAvailable = ownerBalance;
@@ -1398,28 +1403,32 @@ abstract final class AgencyRepository {
 
     try {
       final uid = _sb.auth.currentUser?.id ?? '';
-      final mem = await _sb.from('host_agency_members').select('*').eq('agency_id', agencyId).or('role.eq.owner,host_uid.eq.$uid,user_id.eq.$uid').maybeSingle();
-      final curBal = (mem?['diamonds_balance'] as num?)?.toInt() ?? (mem?['diamonds'] as num?)?.toInt() ?? 0;
-      if (curBal < diamondsAmount) {
-        return {'success': false, 'error': 'الرصيد المتاح غير كافٍ'};
+      final uRes = await _sb.from('users').select('coins, diamonds').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
+      final curDia = (uRes?['diamonds'] as num?)?.toInt() ?? 0;
+      final curCoins = (uRes?['coins'] as num?)?.toInt() ?? 0;
+
+      if (curDia < diamondsAmount) {
+        return {'success': false, 'error': 'الرصيد المتاح غير كافٍ. رصيدك الحالي: $curDia ♦'};
       }
-      final newBal = (curBal - diamondsAmount).clamp(0, 999999999);
+
+      final newDiamonds = (curDia - diamondsAmount).clamp(0, 999999999);
+      final newCoins = curCoins + diamondsAmount;
+
+      await _sb.from('users').update({
+        'coins': newCoins,
+        'diamonds': newDiamonds,
+      }).or('uid.eq.$uid,id.eq.$uid');
+
+      final mem = await _sb.from('host_agency_members').select('*').eq('agency_id', agencyId).or('role.eq.owner,host_uid.eq.$uid,user_id.eq.$uid').maybeSingle();
       if (mem != null) {
         await _sb.from('host_agency_members').update({
-          'diamonds': newBal,
-          'diamonds_balance': newBal,
+          'diamonds': newDiamonds,
+          'diamonds_balance': newDiamonds,
+          'diamonds_available': newDiamonds,
         }).eq('id', mem['id']);
       }
-      final uRes = await _sb.from('users').select('coins, diamonds').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
-      if (uRes != null) {
-        final curCoins = (uRes['coins'] as num?)?.toInt() ?? 0;
-        final curDia = (uRes['diamonds'] as num?)?.toInt() ?? 0;
-        await _sb.from('users').update({
-          'coins': curCoins + diamondsAmount,
-          'diamonds': (curDia - diamondsAmount).clamp(0, 999999999),
-        }).or('uid.eq.$uid,id.eq.$uid');
-      }
-      return {'success': true, 'coins': diamondsAmount, 'coins_credited': diamondsAmount, 'new_balance': newBal};
+
+      return {'success': true, 'coins': diamondsAmount, 'coins_credited': diamondsAmount, 'new_balance': newDiamonds};
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }

@@ -503,21 +503,25 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
           }).eq('id', member.id);
 
           if (member.agency_id) {
-            const { data: ag } = await client
-              .from('host_agencies')
-              .select('total_diamonds_monthly, total_diamonds_cumulative')
-              .eq('id', member.agency_id)
-              .maybeSingle();
+            const { data: allMembers } = await client
+              .from('host_agency_members')
+              .select('diamonds_earned_monthly, diamonds_earned_cumulative')
+              .eq('agency_id', member.agency_id);
 
-            if (ag) {
-              const agM = diff >= 0 ? Number(ag.total_diamonds_monthly || 0) + diff : Math.max(0, Number(ag.total_diamonds_monthly || 0) + diff);
-              const agC = diff >= 0 ? Number(ag.total_diamonds_cumulative || 0) + diff : Math.max(0, Number(ag.total_diamonds_cumulative || 0) + diff);
-              await client.from('host_agencies').update({
-                total_diamonds_monthly: agM,
-                total_diamonds_cumulative: agC,
-                monthly_diamonds: agM,
-              }).eq('id', member.agency_id);
-            }
+            const totalAgMonthly = (allMembers || []).reduce(
+              (acc: number, m: any) => acc + Number(m.diamonds_earned_monthly || 0),
+              0
+            );
+            const totalAgCum = (allMembers || []).reduce(
+              (acc: number, m: any) => acc + Number(m.diamonds_earned_cumulative || 0),
+              0
+            );
+
+            await client.from('host_agencies').update({
+              total_diamonds_monthly: totalAgMonthly,
+              total_diamonds_cumulative: totalAgCum,
+              monthly_diamonds: totalAgMonthly,
+            }).eq('id', member.agency_id);
           }
         }
       } catch (agSyncErr) {
@@ -577,9 +581,6 @@ export async function adjustUserDiamonds(
       if (member) {
         const curMonthly = Number(member.diamonds_earned_monthly || 0);
         const curCum = Number(member.diamonds_earned_cumulative || 0);
-        const curBal = Number(member.diamonds_balance ?? member.diamonds ?? 0);
-
-        const newBal = Math.max(0, curBal + diff);
         const newMonthly = type === 'add' ? curMonthly + absAmount : Math.max(0, curMonthly - absAmount);
         const newCum = type === 'add' ? curCum + absAmount : Math.max(0, curCum - absAmount);
 
@@ -596,29 +597,28 @@ export async function adjustUserDiamonds(
 
         // Sync agency targets
         if (member.agency_id) {
-          const { data: ag } = await client
+          const { data: allMembers } = await client
+            .from('host_agency_members')
+            .select('diamonds_earned_monthly, diamonds_earned_cumulative')
+            .eq('agency_id', member.agency_id);
+
+          const totalAgMonthly = (allMembers || []).reduce(
+            (acc: number, m: any) => acc + Number(m.diamonds_earned_monthly || 0),
+            0
+          );
+          const totalAgCum = (allMembers || []).reduce(
+            (acc: number, m: any) => acc + Number(m.diamonds_earned_cumulative || 0),
+            0
+          );
+
+          await client
             .from('host_agencies')
-            .select('monthly_diamonds, total_diamonds_monthly, total_diamonds_cumulative')
-            .eq('id', member.agency_id)
-            .maybeSingle();
-
-          if (ag) {
-            const agMonthly = type === 'add'
-              ? Number(ag.total_diamonds_monthly || 0) + absAmount
-              : Math.max(0, Number(ag.total_diamonds_monthly || 0) - absAmount);
-            const agCum = type === 'add'
-              ? Number(ag.total_diamonds_cumulative || 0) + absAmount
-              : Math.max(0, Number(ag.total_diamonds_cumulative || 0) - absAmount);
-
-            await client
-              .from('host_agencies')
-              .update({
-                total_diamonds_monthly: agMonthly,
-                total_diamonds_cumulative: agCum,
-                monthly_diamonds: agMonthly,
-              })
-              .eq('id', member.agency_id);
-          }
+            .update({
+              total_diamonds_monthly: totalAgMonthly,
+              total_diamonds_cumulative: totalAgCum,
+              monthly_diamonds: totalAgMonthly,
+            })
+            .eq('id', member.agency_id);
 
           // Also log to agency_diamond_ledger
           try {
@@ -1981,8 +1981,8 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         coins: Number(u?.coins || 0),
         diamonds_earned_monthly: monthlyDiamonds,
         diamondsEarnedMonthly: monthlyDiamonds,
-        diamonds_balance: Number(m.diamonds_balance ?? u?.diamonds ?? m.diamonds ?? 0),
-        diamondsBalance: Number(m.diamonds_balance ?? u?.diamonds ?? m.diamonds ?? 0),
+        diamonds_balance: Number(u?.diamonds ?? m.diamonds_balance ?? m.diamonds ?? 0),
+        diamondsBalance: Number(u?.diamonds ?? m.diamondsBalance ?? m.diamonds_balance ?? m.diamonds ?? 0),
         joined_at: joinedDate,
         joinedAt: joinedDate,
       };
