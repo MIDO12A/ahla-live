@@ -540,14 +540,50 @@ export async function adjustUserDiamonds(
   amount: number,
   type: 'add' | 'deduct',
   reason: string = '',
-  adminName: string = 'الإدارة'
+  adminName: string = 'الإدارة',
+  syncMonthlyTarget: boolean = true
 ): Promise<{ success: boolean; newDiamonds: number; error?: string }> {
   const client = getAdminSupabase() || supabase;
   try {
     const absAmount = Math.abs(amount);
     if (absAmount <= 0) throw new Error('الكمية يجب أن تكون أكبر من صفر');
 
-    // 1. Fetch current user diamonds
+    // محاولة تنفيذ المعاملة المالية عبر الباك إند المركزي (Postgres RPC) لضمان القفل الذري والمزامنة الشاملة
+    try {
+      const { data: rpcRes, error: rpcErr } = await client.rpc('admin_process_diamond_transaction', {
+        p_user_id: uid,
+        p_amount: absAmount,
+        p_type: type,
+        p_reason: reason || (type === 'add' ? `إضافة ${absAmount.toLocaleString()} ماسة من الإدارة` : `خصم ${absAmount.toLocaleString()} ماسة من الإدارة`),
+        p_admin_name: adminName,
+        p_sync_monthly_target: syncMonthlyTarget,
+      });
+
+      if (!rpcErr && rpcRes && rpcRes.success) {
+        const finalDiamonds = Number(rpcRes.new_diamonds ?? 0);
+        const diff = type === 'add' ? absAmount : -absAmount;
+
+        // إرسال إشعار النظام للمستخدم
+        try {
+          await sendSystemNotification({
+            userId: uid,
+            title: type === 'add' ? '💎 إضافة رصيد ألماس لحسابك' : '💎 تعديل رصيد الألماس',
+            body: type === 'add'
+              ? `مبروك! تم تزويد حسابك بـ ${absAmount.toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`
+              : `تم خصم ${absAmount.toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`,
+            type: 'system',
+            action: 'diamonds_adjusted',
+            extraData: { amount: diff, new_balance: finalDiamonds },
+          });
+        } catch (_) {}
+
+        return { success: true, newDiamonds: finalDiamonds };
+      }
+    } catch (rpcEx) {
+      console.warn('Backend RPC admin_process_diamond_transaction fallback:', rpcEx);
+    }
+
+    // 1. Fetch current user diamonds (Fallback)
     const { data: userRow, error: uErr } = await client
       .from('users')
       .select('uid, diamonds, name, custom_id')

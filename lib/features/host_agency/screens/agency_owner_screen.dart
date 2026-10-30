@@ -27,6 +27,8 @@ import '../../../../services/supabase_data_service.dart';
 import '../../../../services/supabase_service.dart';
 import '../../../../services/cloudinary_service.dart';
 import 'package:image_picker/image_picker.dart';
+import '../data/agency_models.dart';
+import '../data/agency_repository.dart';
 import '../data/anchor_agent_model.dart';
 import 'agency_join_requests_screen.dart';
 import 'agency_leaderboard_screen.dart';
@@ -223,8 +225,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       // تجميع إجمالي دخل الوكالة التراكمي من جميع المضيفين لضمان الثبات الكامل وعدم الحذف عند الصرف أو الاستبدال
       int membersCumDiamonds = 0;
       for (final a in rawAnchors) {
-        final d = a.totalDiamond > 0 ? a.totalDiamond : (int.tryParse(a.diamonds) ?? 0);
-        membersCumDiamonds += d;
+        membersCumDiamonds += a.effectiveDiamonds;
       }
 
       if (infoModel != null) {

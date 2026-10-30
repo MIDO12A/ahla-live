@@ -370,8 +370,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     // تجميع إجمالي دخل الوكالة الكامل والتراكمي لضمان ثبات نقاط الخبرة وعدم تأثرها بالصرف أو الاستبدال
     int membersIncome = 0;
     for (final a in _anchors) {
-      final d = a.totalDiamond > 0 ? a.totalDiamond : (int.tryParse(a.diamonds) ?? 0);
-      membersIncome += d;
+      membersIncome += a.effectiveDiamonds;
     }
     final cumulativeIncome = (info?.totalDiamondsCumulative != null && info!.totalDiamondsCumulative > 0)
         ? (info.totalDiamondsCumulative >= membersIncome ? info.totalDiamondsCumulative : membersIncome)
