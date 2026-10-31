@@ -1,5 +1,5 @@
 -- ==============================================================================
--- BACKEND DIAMOND SYNC & FINANCIAL ENGINE MIGRATION (v3 - Bulletproof)
+-- BACKEND DIAMOND SYNC & FINANCIAL ENGINE MIGRATION (v4 - 100% Cast-Safe)
 -- محرك الربط المالي الموحد عبر الباك إند وقاعدة البيانات لجميع جداول الألماس
 -- ==============================================================================
 
@@ -21,6 +21,11 @@ CREATE TABLE IF NOT EXISTS public.user_diamond_logs (
   metadata jsonb DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- التأكد من وجود كافة الأعمدة في حال كان الجدول منشأ سابقاً
+ALTER TABLE public.user_diamond_logs ADD COLUMN IF NOT EXISTS admin_name text DEFAULT 'الإدارة';
+ALTER TABLE public.user_diamond_logs ADD COLUMN IF NOT EXISTS reason text;
+ALTER TABLE public.user_diamond_logs ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
 
 CREATE INDEX IF NOT EXISTS user_diamond_logs_uid_idx
   ON public.user_diamond_logs (user_id, created_at DESC);
@@ -60,19 +65,20 @@ BEGIN
     diamonds_balance = NEW.diamonds,
     diamonds_available = NEW.diamonds,
     diamonds_earned_monthly = NEW.diamonds
-  WHERE user_id = v_uid_text 
-     OR host_uid = v_uid_text
-     OR (v_uid_uuid IS NOT NULL AND (user_id = v_uid_uuid::text OR host_uid = v_uid_uuid::text));
+  WHERE user_id::text = v_uid_text 
+     OR host_uid::text = v_uid_text
+     OR (v_uid_uuid IS NOT NULL AND (user_id::text = v_uid_uuid::text OR host_uid::text = v_uid_uuid::text));
 
   -- ب. إذا كان المستخدم مالك وكالة، مزامنة محفظة الوكالة agency_wallets
   IF EXISTS (
     SELECT 1 FROM public.host_agencies 
-    WHERE owner_uid = v_uid_text OR owner_id = v_uid_text
+    WHERE owner_uid::text = v_uid_text OR owner_id::text = v_uid_text
   ) THEN
     UPDATE public.agency_wallets
     SET 
       diamond_balance = NEW.diamonds
-    WHERE (v_uid_uuid IS NOT NULL AND agency_profile_id = v_uid_uuid);
+    WHERE agency_profile_id::text = v_uid_text
+       OR (v_uid_uuid IS NOT NULL AND agency_profile_id::text = v_uid_uuid::text);
   END IF;
 
   RETURN NEW;
@@ -114,7 +120,7 @@ BEGIN
   IF v_uid_text IS NOT NULL AND v_uid_text <> '' THEN
     UPDATE public.users
     SET diamonds = v_target_diamonds
-    WHERE uid = v_uid_text OR id::text = v_uid_text;
+    WHERE uid::text = v_uid_text OR id::text = v_uid_text;
   END IF;
 
   RETURN NEW;
@@ -159,9 +165,9 @@ BEGIN
   END IF;
 
   -- 1. جلب رصيد المستخدم الحالي مع قفل الصف لمنع تضارب المعاملات (FOR UPDATE)
-  SELECT diamonds INTO v_current_diamonds
+  SELECT diamonds, id INTO v_current_diamonds, v_user_uuid
   FROM public.users
-  WHERE uid = p_user_id
+  WHERE uid::text = p_user_id OR id::text = p_user_id
   FOR UPDATE;
 
   IF NOT FOUND THEN
@@ -182,17 +188,17 @@ BEGIN
   -- 3. تحديث جدول المستخدمين (سوف يطلق التريجر التلقائي أيضاً للمحفظة والوكالة)
   UPDATE public.users
   SET diamonds = v_new_diamonds
-  WHERE uid = p_user_id;
+  WHERE uid::text = p_user_id OR id::text = p_user_id;
 
   -- 4. فحص عضوية الوكالة وتحديث بياناتها
   SELECT id, agency_id, diamonds_earned_monthly, diamonds_earned_cumulative
   INTO v_member_record
   FROM public.host_agency_members
-  WHERE user_id = p_user_id OR host_uid = p_user_id
+  WHERE user_id::text = p_user_id OR host_uid::text = p_user_id
   LIMIT 1;
 
   IF FOUND THEN
-    v_agency_id := v_member_record.agency_id;
+    v_agency_id := v_member_record.agency_id::text;
 
     UPDATE public.host_agency_members
     SET 
@@ -210,23 +216,25 @@ BEGIN
         COALESCE(SUM(diamonds_earned_cumulative), 0)
       INTO v_total_monthly, v_total_cum
       FROM public.host_agency_members
-      WHERE agency_id = v_agency_id;
+      WHERE agency_id::text = v_agency_id;
 
       UPDATE public.host_agencies
       SET 
         total_diamonds_monthly = v_total_monthly,
         total_diamonds_cumulative = v_total_cum,
         monthly_diamonds = v_total_monthly
-      WHERE id = v_agency_id;
+      WHERE id::text = v_agency_id;
     END IF;
   END IF;
 
   -- 5. تسجيل العملية في سجل الألماس user_diamond_logs
-  BEGIN
-    v_user_uuid := p_user_id::uuid;
-  EXCEPTION WHEN OTHERS THEN
-    v_user_uuid := NULL;
-  END;
+  IF v_user_uuid IS NULL THEN
+    BEGIN
+      v_user_uuid := p_user_id::uuid;
+    EXCEPTION WHEN OTHERS THEN
+      v_user_uuid := NULL;
+    END;
+  END IF;
 
   IF v_user_uuid IS NOT NULL THEN
     INSERT INTO public.user_diamond_logs (
@@ -274,19 +282,19 @@ SET
   diamonds_available = GREATEST(COALESCE(u.diamonds, 0), COALESCE(m.diamonds_earned_monthly, 0), COALESCE(m.diamonds_balance, 0), COALESCE(m.diamonds, 0)),
   diamonds_earned_monthly = GREATEST(COALESCE(u.diamonds, 0), COALESCE(m.diamonds_earned_monthly, 0), COALESCE(m.diamonds_balance, 0), COALESCE(m.diamonds, 0))
 FROM public.users u
-WHERE (m.user_id = u.uid OR m.host_uid = u.uid OR m.user_id = u.id::text);
+WHERE (m.user_id::text = u.uid::text OR m.host_uid::text = u.uid::text OR m.user_id::text = u.id::text);
 
 -- ب. توحيد جدول users لمطابقة الرصيد الموحد
 UPDATE public.users u
 SET diamonds = GREATEST(COALESCE(u.diamonds, 0), COALESCE(m.diamonds_balance, 0), COALESCE(m.diamonds_earned_monthly, 0))
 FROM public.host_agency_members m
-WHERE (m.user_id = u.uid OR m.host_uid = u.uid OR m.user_id = u.id::text);
+WHERE (m.user_id::text = u.uid::text OR m.host_uid::text = u.uid::text OR m.user_id::text = u.id::text);
 
--- ج. توحيد محفظة الوكالة agency_wallets لمالك الوكالة
+-- ج. توحيد محفظة الوكالة agency_wallets لمالك الوكالة (Cast-Safe 100%)
 UPDATE public.agency_wallets w
 SET diamond_balance = u.diamonds
 FROM public.users u
-WHERE (w.agency_profile_id = u.uid::uuid OR w.agency_profile_id::text = u.uid);
+WHERE (w.agency_profile_id::text = u.uid::text OR w.agency_profile_id::text = u.id::text);
 
 -- د. إعادة حساب إجماليات الوكالات في host_agencies
 UPDATE public.host_agencies a
@@ -295,8 +303,8 @@ SET
   monthly_diamonds = sub.total_monthly,
   total_diamonds_cumulative = GREATEST(COALESCE(a.total_diamonds_cumulative, 0), sub.total_monthly)
 FROM (
-  SELECT agency_id, COALESCE(SUM(diamonds_earned_monthly), 0) AS total_monthly
+  SELECT agency_id::text AS agency_id, COALESCE(SUM(diamonds_earned_monthly), 0) AS total_monthly
   FROM public.host_agency_members
-  GROUP BY agency_id
+  GROUP BY agency_id::text
 ) sub
-WHERE a.id = sub.agency_id;
+WHERE a.id::text = sub.agency_id;
