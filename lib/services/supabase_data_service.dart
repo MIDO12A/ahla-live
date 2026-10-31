@@ -1285,21 +1285,40 @@ class SupabaseDataService {
               final List agList = jsonDecode(agRes.body);
               if (agList.isNotEmpty) {
                 final ag = Map<String, dynamic>.from(agList.first as Map);
-                final agMonthly = (ag['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
                 final agCumul = (ag['total_diamonds_cumulative'] as num?)?.toInt() ?? 0;
                 // وكيل المضيف: يحصل على نسبة عمولته المحددة من لوحة التحكم (يُضاف لرصيده دون الخصم من المضيف)
                 final agencyRatePct = DynamicConfigService().agencyRatePercentage;
                 final agentSalary = (diamondsToAdd * (agencyRatePct / 100.0)).round();
-                final totalAgencyCredit = diamondsToAdd;
+
+                // FIX: إعادة حساب إجمالي الماس الشهري للوكالة من مجموع أعضائها الفعلي
+                // بدلاً من الإضافة التراكمية الخاطئة (agMonthly + diamondsToAdd)
+                final membersUrl = Uri.parse(
+                  '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&select=diamonds_earned_monthly',
+                );
+                final membersRes = await http.get(membersUrl, headers: _headers);
+                int trueTotalMonthly = 0;
+                if (membersRes.statusCode == 200) {
+                  final List mList = jsonDecode(membersRes.body);
+                  for (final mm in mList) {
+                    trueTotalMonthly += ((mm['diamonds_earned_monthly'] as num?)?.toInt() ?? 0);
+                  }
+                  // أضف الـ diamondsToAdd الجديد لأن الـ PATCH على العضو لم ينعكس بعد في هذا الاستعلام
+                  trueTotalMonthly += diamondsToAdd;
+                } else {
+                  // fallback: نستخدم الإضافة التراكمية فقط إذا فشل استعلام الأعضاء
+                  final agMonthly = (ag['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
+                  trueTotalMonthly = agMonthly + diamondsToAdd;
+                }
 
                 await http.patch(
                   Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
                   headers: _headers,
                   body: jsonEncode({
-                    'total_diamonds_monthly': agMonthly + totalAgencyCredit,
-                    'total_diamonds_cumulative': agCumul + totalAgencyCredit,
+                    'total_diamonds_monthly': trueTotalMonthly,
+                    'total_diamonds_cumulative': agCumul + diamondsToAdd,
                   }),
                 );
+
 
                 final ownerUid = (ag['owner_uid'] ?? ag['owner_id'])?.toString() ?? '';
                 if (ownerUid.isNotEmpty && ownerUid != hostUid && agentSalary > 0) {

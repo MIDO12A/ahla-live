@@ -2041,6 +2041,8 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         if (!ownerUid) continue;
         const exists = members.some((m: any) => m.agency_id === ag.id && ((m.user_id || m.host_uid) === ownerUid || m.role === 'owner'));
         if (!exists) {
+          // FIX: نستخدم أعلى قيمة متاحة من DB كقيمة بداية لكلٍّ من monthly و balance
+          const ownerMonthly = ag.total_diamonds_monthly ?? ag.monthly_diamonds ?? 0;
           members.unshift({
             id: `owner_${ag.id}_${ownerUid}`,
             agency_id: ag.id,
@@ -2049,8 +2051,9 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
             role: 'owner',
             status: 'active',
             joined_at: ag.created_at || new Date().toISOString(),
-            diamonds_earned_monthly: ag.total_diamonds_monthly ?? ag.monthly_diamonds ?? 0,
-            diamonds_balance: 0,
+            diamonds_earned_monthly: ownerMonthly,
+            diamonds_balance: ownerMonthly, // FIX: كان 0 → يجب أن يساوي monthly لضمان resolvedDiamonds صحيح
+            diamonds: ownerMonthly,
           });
         }
       }
@@ -2063,14 +2066,19 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
     const usersMap: Record<string, any> = {};
     if (userIds.length > 0) {
       try {
-        const { data: usersData } = await supabase.from('users').select('*').in('id', userIds);
-        (usersData ?? []).forEach((u: any) => {
-          const resolvedId = u.id || u.uid;
-          const mapped = { ...u, id: resolvedId, avatar: u.avatar || u.photo_url };
+        // FIX: البحث بكلا العمودين uid و id لأن owner_uid قد يكون uid وليس id
+        const [byId, byUid] = await Promise.all([
+          supabase.from('users').select('*').in('id', userIds),
+          supabase.from('users').select('*').in('uid', userIds),
+        ]);
+        for (const row of [...(byId.data ?? []), ...(byUid.data ?? [])]) {
+          const resolvedId = row.uid || row.id;
+          const mapped = { ...row, id: resolvedId, avatar: row.avatar || row.photo_url };
           usersMap[resolvedId] = mapped;
-          if (u.custom_id) usersMap[u.custom_id] = mapped;
-          if (u.uid) usersMap[u.uid] = mapped;
-        });
+          if (row.id) usersMap[row.id] = mapped;
+          if (row.uid) usersMap[row.uid] = mapped;
+          if (row.custom_id) usersMap[row.custom_id] = mapped;
+        }
       } catch (_) {}
 
       // Fallback for any missing users
@@ -2088,7 +2096,7 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
       }
     }
 
-    return mapList<HostAgencyMemberModel>(members.map((m: any) => {
+    const resolved = mapList<HostAgencyMemberModel>(members.map((m: any) => {
       const uid = m.user_id || m.host_uid;
       const u = usersMap[uid];
       // الرصيد القابل للسحب وألماس الشهر متطابقان تماماً للمستخدم نفسه
@@ -2108,7 +2116,8 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         Promise.resolve().then(async () => {
           try {
             const client = getAdminSupabase() || supabase;
-            if (m.id) {
+            // تصحيح host_agency_members (تجاهل السجلات الوهمية للمالك بدون id حقيقي في DB)
+            if (m.id && !String(m.id).startsWith('owner_')) {
               await client.from('host_agency_members').update({
                 diamonds: resolvedDiamonds,
                 diamonds_balance: resolvedDiamonds,
@@ -2150,8 +2159,28 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         joinedAt: joinedDate,
       };
     }));
+
+    // FIX: إعادة حساب وتحديث إجمالي ماس الوكالة من مجموع الأعضاء الحقيقيين (وليس تراكمياً)
+    if (agencyId) {
+      const trueTotal = resolved.reduce((s, m) => s + Number((m as any).diamonds_earned_monthly || 0), 0);
+      Promise.resolve().then(async () => {
+        try {
+          const client = getAdminSupabase() || supabase;
+          const { data: agRow } = await client.from('host_agencies').select('total_diamonds_monthly').eq('id', agencyId).maybeSingle();
+          if (agRow && agRow.total_diamonds_monthly !== trueTotal) {
+            await client.from('host_agencies').update({
+              total_diamonds_monthly: trueTotal,
+              monthly_diamonds: trueTotal,
+            }).eq('id', agencyId);
+          }
+        } catch (_) {}
+      });
+    }
+
+    return resolved;
   } catch { return []; }
 }
+
 
 export async function addAgencyMember(agencyId: string, userQuery: string, role: string = 'host'): Promise<{ success: boolean; message: string }> {
   try {
