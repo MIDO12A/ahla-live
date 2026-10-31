@@ -1,7 +1,12 @@
 -- ==============================================================================
--- BACKEND DIAMOND SYNC & FINANCIAL ENGINE MIGRATION (v2 - Dynamic Auto-Healing)
+-- BACKEND DIAMOND SYNC & FINANCIAL ENGINE MIGRATION (v3 - Bulletproof)
 -- محرك الربط المالي الموحد عبر الباك إند وقاعدة البيانات لجميع جداول الألماس
 -- ==============================================================================
+
+-- 0. التأكد من وجود الأعمدة الشائعة لتجنب أي خطأ عدم وجود العمود
+ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+ALTER TABLE public.host_agencies ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+ALTER TABLE public.agency_wallets ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 
 -- 1. التأكد من وجود جدول سجلات الألماس وأعمدته
 CREATE TABLE IF NOT EXISTS public.user_diamond_logs (
@@ -54,8 +59,7 @@ BEGIN
     diamonds = NEW.diamonds,
     diamonds_balance = NEW.diamonds,
     diamonds_available = NEW.diamonds,
-    diamonds_earned_monthly = NEW.diamonds,
-    updated_at = now()
+    diamonds_earned_monthly = NEW.diamonds
   WHERE user_id = v_uid_text 
      OR host_uid = v_uid_text
      OR (v_uid_uuid IS NOT NULL AND (user_id = v_uid_uuid::text OR host_uid = v_uid_uuid::text));
@@ -67,8 +71,7 @@ BEGIN
   ) THEN
     UPDATE public.agency_wallets
     SET 
-      diamond_balance = NEW.diamonds,
-      updated_at = now()
+      diamond_balance = NEW.diamonds
     WHERE (v_uid_uuid IS NOT NULL AND agency_profile_id = v_uid_uuid);
   END IF;
 
@@ -197,8 +200,7 @@ BEGIN
       diamonds_balance = v_new_diamonds,
       diamonds_available = v_new_diamonds,
       diamonds_earned_monthly = v_new_diamonds,
-      diamonds_earned_cumulative = GREATEST(COALESCE(diamonds_earned_cumulative, 0), v_new_diamonds),
-      updated_at = now()
+      diamonds_earned_cumulative = GREATEST(COALESCE(diamonds_earned_cumulative, 0), v_new_diamonds)
     WHERE id = v_member_record.id;
 
     -- إعادة حساب إجمالي الوكالة كاملاً
@@ -214,8 +216,7 @@ BEGIN
       SET 
         total_diamonds_monthly = v_total_monthly,
         total_diamonds_cumulative = v_total_cum,
-        monthly_diamonds = v_total_monthly,
-        updated_at = now()
+        monthly_diamonds = v_total_monthly
       WHERE id = v_agency_id;
     END IF;
   END IF;
@@ -271,8 +272,7 @@ SET
   diamonds = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
   diamonds_balance = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
   diamonds_available = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
-  diamonds_earned_monthly = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
-  updated_at = now();
+  diamonds_earned_monthly = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0));
 
 -- ب. توحيد جدول users لمطابقة الرصيد الموحد
 UPDATE public.users u
