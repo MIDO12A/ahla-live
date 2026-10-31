@@ -606,16 +606,46 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
     }
   }, [initialAgencyId]);
 
-  const load = async () => {
-    setLoading(true);
-    const [m, a, ms] = await Promise.all([
-      getHostAgencyMembers(filterAgency || undefined),
-      getHostAgencies(),
-      getHostMilestones(),
-    ]);
-    setMembers(m); setAgencies(a); setMilestones(ms); setLoading(false);
+  const load = async (silent: boolean = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const [m, a, ms] = await Promise.all([
+        getHostAgencyMembers(filterAgency || undefined),
+        getHostAgencies(),
+        getHostMilestones(),
+      ]);
+      setMembers(m); setAgencies(a); setMilestones(ms);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   };
-  useEffect(() => { load(); }, [filterAgency]);
+
+  useEffect(() => {
+    load(false);
+
+    // تحديث الجدول كل 4 ثوانٍ تلقائياً لتأكيد الألماس في جميع الأماكن المرتبطة بالوكالة
+    const timer = setInterval(() => {
+      load(true);
+    }, 4000);
+
+    // اشتراك ريل تايم فورى للتحديث في نفس اللحظة فور وقوع أي تعديل مالي في الجداول
+    const channel = supabase.channel(`agency_members_realtime_${filterAgency || 'all'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'host_agency_members' }, () => {
+        load(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        load(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'host_agencies' }, () => {
+        load(true);
+      })
+      .subscribe();
+
+    return () => {
+      clearInterval(timer);
+      try { supabase.removeChannel(channel); } catch (_) {}
+    };
+  }, [filterAgency]);
 
   const handleRoleChange = async (agencyId: string, userId: string, role: string) => {
     await updateAgencyMemberRole(agencyId, userId, role);

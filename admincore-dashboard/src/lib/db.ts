@@ -1999,7 +1999,42 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
     return mapList<HostAgencyMemberModel>(members.map((m: any) => {
       const uid = m.user_id || m.host_uid;
       const u = usersMap[uid];
-      const monthlyDiamonds = Number(m.diamonds_earned_monthly || m.diamondsEarnedMonthly || m.diamonds || u?.diamonds || 0);
+      // الرصيد القابل للسحب وألماس الشهر متطابقان تماماً للمستخدم نفسه
+      const resolvedDiamonds = Math.max(
+        Number(m.diamonds_earned_monthly || 0),
+        Number(m.diamonds_balance || 0),
+        Number(u?.diamonds || 0),
+        Number(m.diamonds || 0)
+      );
+
+      // معالجة ديناميكية فورية: إذا كان هناك أي عدم تناسق في الماس يتم توحيده وتصحيح القاعدة فوراً
+      const curMonthly = Number(m.diamonds_earned_monthly || 0);
+      const curBalance = Number(m.diamonds_balance || 0);
+      const curUserDiamonds = Number(u?.diamonds || 0);
+
+      if (curMonthly !== resolvedDiamonds || curBalance !== resolvedDiamonds || curUserDiamonds !== resolvedDiamonds) {
+        Promise.resolve().then(async () => {
+          try {
+            const client = getAdminSupabase() || supabase;
+            if (m.id) {
+              await client.from('host_agency_members').update({
+                diamonds: resolvedDiamonds,
+                diamonds_balance: resolvedDiamonds,
+                diamonds_available: resolvedDiamonds,
+                diamonds_earned_monthly: resolvedDiamonds,
+              }).eq('id', m.id);
+            }
+            if (uid) {
+              await client.from('users').update({
+                diamonds: resolvedDiamonds,
+              }).eq('uid', uid);
+            }
+          } catch (syncEx) {
+            console.warn('Auto-healing diamonds drift failed:', syncEx);
+          }
+        });
+      }
+
       const joinedDate = m.joined_at || m.joinedAt || m.created_at || m.createdAt || new Date().toISOString();
       return {
         ...m,
@@ -2015,10 +2050,10 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         avatar_url: u?.photo_url || u?.avatar || '',
         avatarUrl: u?.photo_url || u?.avatar || '',
         coins: Number(u?.coins || 0),
-        diamonds_earned_monthly: monthlyDiamonds,
-        diamondsEarnedMonthly: monthlyDiamonds,
-        diamonds_balance: Number(u?.diamonds ?? m.diamonds_balance ?? m.diamonds ?? 0),
-        diamondsBalance: Number(u?.diamonds ?? m.diamondsBalance ?? m.diamonds_balance ?? m.diamonds ?? 0),
+        diamonds_earned_monthly: resolvedDiamonds,
+        diamondsEarnedMonthly: resolvedDiamonds,
+        diamonds_balance: resolvedDiamonds,
+        diamondsBalance: resolvedDiamonds,
         joined_at: joinedDate,
         joinedAt: joinedDate,
       };

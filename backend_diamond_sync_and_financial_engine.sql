@@ -1,5 +1,5 @@
 -- ==============================================================================
--- BACKEND DIAMOND SYNC & FINANCIAL ENGINE MIGRATION
+-- BACKEND DIAMOND SYNC & FINANCIAL ENGINE MIGRATION (v2 - Dynamic Auto-Healing)
 -- محرك الربط المالي الموحد عبر الباك إند وقاعدة البيانات لجميع جداول الألماس
 -- ==============================================================================
 
@@ -29,14 +29,18 @@ CREATE POLICY "Allow all on user_diamond_logs"
   USING (true)
   WITH CHECK (true);
 
--- 2. دالة التريجر التلقائي: لمزامنة الألماس فورياً بين users و host_agency_members و agency_wallets
+-- 2. دالة التريجر التلقائي من جدول users: لمزامنة الألماس فورياً وتوحيد رصيد السحب مع ألماس الشهر
 CREATE OR REPLACE FUNCTION public.trg_sync_user_diamonds_to_agency()
 RETURNS TRIGGER AS $$
 DECLARE
   v_uid_text text;
   v_uid_uuid uuid;
 BEGIN
-  -- تحويل المعرف إلى النص والـ uuid لدعم النوعين
+  -- منع التكرار اللانهائي للتريجر (Recursion Protection)
+  IF pg_trigger_depth() > 1 THEN
+    RETURN NEW;
+  END IF;
+
   v_uid_text := NEW.uid::text;
   BEGIN
     v_uid_uuid := NEW.uid::uuid;
@@ -44,12 +48,13 @@ BEGIN
     v_uid_uuid := NULL;
   END;
 
-  -- أ. مزامنة الرصيد القابل للسحب في host_agency_members
+  -- أ. مزامنة الرصيد القابل للسحب وألماس الشهر في host_agency_members ليكونا متطابقين تماماً
   UPDATE public.host_agency_members
   SET 
     diamonds = NEW.diamonds,
     diamonds_balance = NEW.diamonds,
     diamonds_available = NEW.diamonds,
+    diamonds_earned_monthly = NEW.diamonds,
     updated_at = now()
   WHERE user_id = v_uid_text 
      OR host_uid = v_uid_text
@@ -60,7 +65,6 @@ BEGIN
     SELECT 1 FROM public.host_agencies 
     WHERE owner_uid = v_uid_text OR owner_id = v_uid_text
   ) THEN
-    -- تحديث محفظة الوكالة
     UPDATE public.agency_wallets
     SET 
       diamond_balance = NEW.diamonds,
@@ -72,7 +76,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- تفعيل التريجر على جدول users عند تغير رصيد الألماس diamonds
 DROP TRIGGER IF EXISTS trg_sync_user_diamonds ON public.users;
 CREATE TRIGGER trg_sync_user_diamonds
   AFTER UPDATE OF diamonds ON public.users
@@ -80,7 +83,53 @@ CREATE TRIGGER trg_sync_user_diamonds
   WHEN (OLD.diamonds IS DISTINCT FROM NEW.diamonds)
   EXECUTE FUNCTION public.trg_sync_user_diamonds_to_agency();
 
--- 3. دالة RPC المركزية لتنفيذ كافة العمليات المالية من الباك إند ذرّياً (Atomic Backend Financial RPC)
+-- 3. دالة التريجر العكسي من جدول host_agency_members: توحيد رصيد السحب وألماس الشهر ونقله لـ users
+CREATE OR REPLACE FUNCTION public.trg_sync_agency_member_diamonds_to_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_target_diamonds bigint;
+  v_uid_text text;
+BEGIN
+  -- منع التكرار اللانهائي
+  IF pg_trigger_depth() > 1 THEN
+    RETURN NEW;
+  END IF;
+
+  -- توحيد القيمة لأعلى رقم متاح أو المتغير الجديد
+  v_target_diamonds := GREATEST(
+    COALESCE(NEW.diamonds_earned_monthly, 0),
+    COALESCE(NEW.diamonds_balance, 0),
+    COALESCE(NEW.diamonds, 0)
+  );
+
+  NEW.diamonds := v_target_diamonds;
+  NEW.diamonds_balance := v_target_diamonds;
+  NEW.diamonds_available := v_target_diamonds;
+  NEW.diamonds_earned_monthly := v_target_diamonds;
+
+  v_uid_text := COALESCE(NEW.user_id, NEW.host_uid);
+  IF v_uid_text IS NOT NULL AND v_uid_text <> '' THEN
+    UPDATE public.users
+    SET diamonds = v_target_diamonds
+    WHERE uid = v_uid_text OR id::text = v_uid_text;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_sync_agency_member_diamonds ON public.host_agency_members;
+CREATE TRIGGER trg_sync_agency_member_diamonds
+  BEFORE UPDATE OF diamonds, diamonds_balance, diamonds_earned_monthly ON public.host_agency_members
+  FOR EACH ROW
+  WHEN (
+    OLD.diamonds IS DISTINCT FROM NEW.diamonds OR 
+    OLD.diamonds_balance IS DISTINCT FROM NEW.diamonds_balance OR
+    OLD.diamonds_earned_monthly IS DISTINCT FROM NEW.diamonds_earned_monthly
+  )
+  EXECUTE FUNCTION public.trg_sync_agency_member_diamonds_to_user();
+
+-- 4. دالة RPC المركزية لتنفيذ كافة العمليات المالية من الباك إند ذرّياً (Atomic Backend Financial RPC)
 CREATE OR REPLACE FUNCTION public.admin_process_diamond_transaction(
   p_user_id text,
   p_amount bigint,
@@ -127,7 +176,7 @@ BEGIN
     v_new_diamonds := GREATEST(0, v_current_diamonds - v_abs_amount);
   END IF;
 
-  -- 3. تحديث جدول المستخدمين (سوف يطلق التريجر التلقائي أيضاً للمحفظة)
+  -- 3. تحديث جدول المستخدمين (سوف يطلق التريجر التلقائي أيضاً للمحفظة والوكالة)
   UPDATE public.users
   SET diamonds = v_new_diamonds
   WHERE uid = p_user_id;
@@ -142,50 +191,32 @@ BEGIN
   IF FOUND THEN
     v_agency_id := v_member_record.agency_id;
 
-    -- إذا طُلب مزامنة تارجت الشهر مع الرصيد
-    IF p_sync_monthly_target THEN
-      UPDATE public.host_agency_members
-      SET 
-        diamonds = v_new_diamonds,
-        diamonds_balance = v_new_diamonds,
-        diamonds_available = v_new_diamonds,
-        diamonds_earned_monthly = CASE 
-          WHEN p_type = 'add' THEN COALESCE(diamonds_earned_monthly, 0) + v_abs_amount
-          ELSE GREATEST(0, COALESCE(diamonds_earned_monthly, 0) - v_abs_amount)
-        END,
-        diamonds_earned_cumulative = CASE 
-          WHEN p_type = 'add' THEN COALESCE(diamonds_earned_cumulative, 0) + v_abs_amount
-          ELSE GREATEST(0, COALESCE(diamonds_earned_cumulative, 0) - v_abs_amount)
-        END,
-        updated_at = now()
-      WHERE id = v_member_record.id;
+    UPDATE public.host_agency_members
+    SET 
+      diamonds = v_new_diamonds,
+      diamonds_balance = v_new_diamonds,
+      diamonds_available = v_new_diamonds,
+      diamonds_earned_monthly = v_new_diamonds,
+      diamonds_earned_cumulative = GREATEST(COALESCE(diamonds_earned_cumulative, 0), v_new_diamonds),
+      updated_at = now()
+    WHERE id = v_member_record.id;
 
-      -- إعادة حساب إجمالي الوكالة كاملاً
-      IF v_agency_id IS NOT NULL AND v_agency_id <> '' THEN
-        SELECT 
-          COALESCE(SUM(diamonds_earned_monthly), 0),
-          COALESCE(SUM(diamonds_earned_cumulative), 0)
-        INTO v_total_monthly, v_total_cum
-        FROM public.host_agency_members
-        WHERE agency_id = v_agency_id;
+    -- إعادة حساب إجمالي الوكالة كاملاً
+    IF v_agency_id IS NOT NULL AND v_agency_id <> '' THEN
+      SELECT 
+        COALESCE(SUM(diamonds_earned_monthly), 0),
+        COALESCE(SUM(diamonds_earned_cumulative), 0)
+      INTO v_total_monthly, v_total_cum
+      FROM public.host_agency_members
+      WHERE agency_id = v_agency_id;
 
-        UPDATE public.host_agencies
-        SET 
-          total_diamonds_monthly = v_total_monthly,
-          total_diamonds_cumulative = v_total_cum,
-          monthly_diamonds = v_total_monthly,
-          updated_at = now()
-        WHERE id = v_agency_id;
-      END IF;
-    ELSE
-      -- تعديل رصيد المحفظة فقط دون تغيير إحصائيات التارجت
-      UPDATE public.host_agency_members
+      UPDATE public.host_agencies
       SET 
-        diamonds = v_new_diamonds,
-        diamonds_balance = v_new_diamonds,
-        diamonds_available = v_new_diamonds,
+        total_diamonds_monthly = v_total_monthly,
+        total_diamonds_cumulative = v_total_cum,
+        monthly_diamonds = v_total_monthly,
         updated_at = now()
-      WHERE id = v_member_record.id;
+      WHERE id = v_agency_id;
     END IF;
   END IF;
 
@@ -229,5 +260,36 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- منح صلاحيات التنفيذ للدالة
 GRANT EXECUTE ON FUNCTION public.admin_process_diamond_transaction TO authenticated, service_role, anon;
+
+-- ==============================================================================
+-- 5. إصلاح وتوحيد فوري لجميع الحسابات الحالية (Instant Full Auto-Healing)
+-- ==============================================================================
+-- أ. توحيد رصيد السحب وألماس الشهر في host_agency_members لأعلى قيمة محققة
+UPDATE public.host_agency_members
+SET 
+  diamonds = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
+  diamonds_balance = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
+  diamonds_available = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
+  diamonds_earned_monthly = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
+  updated_at = now();
+
+-- ب. توحيد جدول users لمطابقة الرصيد الموحد
+UPDATE public.users u
+SET diamonds = m.diamonds_balance
+FROM public.host_agency_members m
+WHERE (m.user_id = u.uid OR m.host_uid = u.uid OR m.user_id = u.id::text)
+  AND m.diamonds_balance IS NOT NULL
+  AND m.diamonds_balance <> COALESCE(u.diamonds, 0);
+
+-- ج. إعادة حساب إجماليات الوكالات في host_agencies
+UPDATE public.host_agencies a
+SET 
+  total_diamonds_monthly = sub.total_monthly,
+  monthly_diamonds = sub.total_monthly
+FROM (
+  SELECT agency_id, COALESCE(SUM(diamonds_earned_monthly), 0) AS total_monthly
+  FROM public.host_agency_members
+  GROUP BY agency_id
+) sub
+WHERE a.id = sub.agency_id;
