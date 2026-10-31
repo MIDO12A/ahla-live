@@ -267,26 +267,33 @@ GRANT EXECUTE ON FUNCTION public.admin_process_diamond_transaction TO authentica
 -- 5. إصلاح وتوحيد فوري لجميع الحسابات الحالية (Instant Full Auto-Healing)
 -- ==============================================================================
 -- أ. توحيد رصيد السحب وألماس الشهر في host_agency_members لأعلى قيمة محققة
-UPDATE public.host_agency_members
+UPDATE public.host_agency_members m
 SET 
-  diamonds = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
-  diamonds_balance = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
-  diamonds_available = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0)),
-  diamonds_earned_monthly = GREATEST(COALESCE(diamonds_earned_monthly, 0), COALESCE(diamonds_balance, 0), COALESCE(diamonds, 0));
+  diamonds = GREATEST(COALESCE(u.diamonds, 0), COALESCE(m.diamonds_earned_monthly, 0), COALESCE(m.diamonds_balance, 0), COALESCE(m.diamonds, 0)),
+  diamonds_balance = GREATEST(COALESCE(u.diamonds, 0), COALESCE(m.diamonds_earned_monthly, 0), COALESCE(m.diamonds_balance, 0), COALESCE(m.diamonds, 0)),
+  diamonds_available = GREATEST(COALESCE(u.diamonds, 0), COALESCE(m.diamonds_earned_monthly, 0), COALESCE(m.diamonds_balance, 0), COALESCE(m.diamonds, 0)),
+  diamonds_earned_monthly = GREATEST(COALESCE(u.diamonds, 0), COALESCE(m.diamonds_earned_monthly, 0), COALESCE(m.diamonds_balance, 0), COALESCE(m.diamonds, 0))
+FROM public.users u
+WHERE (m.user_id = u.uid OR m.host_uid = u.uid OR m.user_id = u.id::text);
 
 -- ب. توحيد جدول users لمطابقة الرصيد الموحد
 UPDATE public.users u
-SET diamonds = m.diamonds_balance
+SET diamonds = GREATEST(COALESCE(u.diamonds, 0), COALESCE(m.diamonds_balance, 0), COALESCE(m.diamonds_earned_monthly, 0))
 FROM public.host_agency_members m
-WHERE (m.user_id = u.uid OR m.host_uid = u.uid OR m.user_id = u.id::text)
-  AND m.diamonds_balance IS NOT NULL
-  AND m.diamonds_balance <> COALESCE(u.diamonds, 0);
+WHERE (m.user_id = u.uid OR m.host_uid = u.uid OR m.user_id = u.id::text);
 
--- ج. إعادة حساب إجماليات الوكالات في host_agencies
+-- ج. توحيد محفظة الوكالة agency_wallets لمالك الوكالة
+UPDATE public.agency_wallets w
+SET diamond_balance = u.diamonds
+FROM public.users u
+WHERE (w.agency_profile_id = u.uid::uuid OR w.agency_profile_id::text = u.uid);
+
+-- د. إعادة حساب إجماليات الوكالات في host_agencies
 UPDATE public.host_agencies a
 SET 
   total_diamonds_monthly = sub.total_monthly,
-  monthly_diamonds = sub.total_monthly
+  monthly_diamonds = sub.total_monthly,
+  total_diamonds_cumulative = GREATEST(COALESCE(a.total_diamonds_cumulative, 0), sub.total_monthly)
 FROM (
   SELECT agency_id, COALESCE(SUM(diamonds_earned_monthly), 0) AS total_monthly
   FROM public.host_agency_members

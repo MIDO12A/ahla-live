@@ -430,18 +430,28 @@ abstract final class AgencyRepository {
 
         try {
           final uList = await _sb.from('users').select('diamonds').eq('uid', uid).limit(1);
-          if (uList.isNotEmpty) {
-            final liveDia = (uList.first['diamonds'] as num?)?.toInt();
-            if (liveDia != null) {
-              diamondsBalance = liveDia;
-              if ((m['diamonds_balance'] as num?)?.toInt() != liveDia) {
-                _sb.from('host_agency_members').update({
-                  'diamonds': liveDia,
-                  'diamonds_balance': liveDia,
-                  'diamonds_available': liveDia,
-                }).eq('id', memberId).then((_) {}).catchError((_) {});
-              }
-            }
+          final userDia = uList.isNotEmpty ? ((uList.first['diamonds'] as num?)?.toInt() ?? 0) : 0;
+          final int trueDiamonds = [
+            diamonds,
+            diamondsMonthly,
+            diamondsBalance,
+            userDia,
+          ].reduce((a, b) => a > b ? a : b);
+
+          diamondsBalance = trueDiamonds;
+
+          // معالجة ديناميكية فورية: إذا كان هناك أي عدم تناسق يتم توحيد الجدولين فوراً
+          if (diamonds != trueDiamonds || userDia != trueDiamonds) {
+            _sb.from('host_agency_members').update({
+              'diamonds': trueDiamonds,
+              'diamonds_balance': trueDiamonds,
+              'diamonds_available': trueDiamonds,
+              'diamonds_earned_monthly': trueDiamonds,
+            }).eq('id', memberId).then((_) {}).catchError((_) {});
+
+            _sb.from('users').update({
+              'diamonds': trueDiamonds,
+            }).eq('uid', uid).then((_) {}).catchError((_) {});
           }
         } catch (_) {}
 
@@ -1305,25 +1315,37 @@ abstract final class AgencyRepository {
           final earned = (memRes['diamonds_earned_cumulative'] as num?)?.toInt() ?? 
                          (memRes['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
           final dia = (memRes['diamonds'] as num?)?.toInt() ?? 0;
-          ownerBalance = bal > 0 ? bal : dia;
-          earnedCumulative = earned > 0 ? earned : ownerBalance;
+          ownerBalance = [bal, earned, dia].reduce((a, b) => a > b ? a : b);
+          earnedCumulative = ownerBalance;
         }
       } catch (_) {}
 
-      // 2. Check users table for owner
+      // 2. Check users table for owner and harmonize with host_agency_members
       if (ownerUid.isNotEmpty) {
         try {
           final uRes = await _sb.from('users').select('diamonds').eq('uid', ownerUid).maybeSingle();
-          if (uRes != null && uRes['diamonds'] != null) {
-            final uDia = (uRes['diamonds'] as num).toInt();
-            ownerBalance = uDia;
-            if (memRes != null && (memRes['diamonds_balance'] as num?)?.toInt() != uDia) {
+          final uDia = uRes != null && uRes['diamonds'] != null ? (uRes['diamonds'] as num).toInt() : 0;
+          final int maxOwnerDia = [ownerBalance, earnedCumulative, uDia].reduce((a, b) => a > b ? a : b);
+
+          ownerBalance = maxOwnerDia;
+          earnedCumulative = maxOwnerDia;
+
+          if (maxOwnerDia > 0 && (uDia != maxOwnerDia || (memRes != null && (memRes['diamonds_balance'] as num?)?.toInt() != maxOwnerDia))) {
+            if (memRes != null) {
               _sb.from('host_agency_members').update({
-                'diamonds': uDia,
-                'diamonds_balance': uDia,
-                'diamonds_available': uDia,
+                'diamonds': maxOwnerDia,
+                'diamonds_balance': maxOwnerDia,
+                'diamonds_available': maxOwnerDia,
+                'diamonds_earned_monthly': maxOwnerDia,
               }).eq('id', memRes['id']).then((_) {}).catchError((_) {});
             }
+            _sb.from('users').update({
+              'diamonds': maxOwnerDia,
+            }).eq('uid', ownerUid).then((_) {}).catchError((_) {});
+
+            _sb.from('agency_wallets').update({
+              'diamond_balance': maxOwnerDia,
+            }).eq('agency_profile_id', ownerUid).then((_) {}).catchError((_) {});
           }
         } catch (_) {}
       }

@@ -223,8 +223,39 @@ export async function getUsers(): Promise<UserModel[]> {
       if (!u.lastIp && (meta.ip_address || meta.ipAddress)) {
         u.lastIp = meta.ip_address || meta.ipAddress
       }
+  // 5. Harmonize diamonds between users and host_agency_members dynamically
+  try {
+    const client = adminClient || supabase;
+    const { data: agencyMembers } = await client
+      .from('host_agency_members')
+      .select('user_id, host_uid, diamonds, diamonds_balance, diamonds_earned_monthly');
+
+    if (agencyMembers && agencyMembers.length > 0) {
+      const agencyDiamondsMap: Record<string, number> = {};
+      for (const m of agencyMembers) {
+        const id = m.user_id || m.host_uid;
+        if (!id) continue;
+        const maxD = Math.max(
+          Number(m.diamonds_earned_monthly || 0),
+          Number(m.diamonds_balance || 0),
+          Number(m.diamonds || 0)
+        );
+        agencyDiamondsMap[id] = Math.max(agencyDiamondsMap[id] || 0, maxD);
+      }
+
+      for (const u of results) {
+        const agD = agencyDiamondsMap[u.uid] || agencyDiamondsMap[u.id];
+        if (agD !== undefined && agD > (u.diamonds || 0)) {
+          u.diamonds = agD;
+          Promise.resolve().then(async () => {
+            try {
+              await client.from('users').update({ diamonds: agD }).eq('uid', u.uid);
+            } catch (_) {}
+          });
+        }
+      }
     }
-  }
+  } catch (_) {}
 
   return results.sort((a, b) => (Number(a.customId) || 0) - (Number(b.customId) || 0))
 }
@@ -264,7 +295,30 @@ export async function getUser(uid: string): Promise<UserModel | null> {
           user.ipAddress = user.ipAddress || val.ip_address || val.ipAddress
         }
       }
-    } catch {}
+    // Check if user has higher diamonds in host_agency_members
+    try {
+      const { data: member } = await client
+        .from('host_agency_members')
+        .select('diamonds, diamonds_balance, diamonds_earned_monthly')
+        .or(`user_id.eq.${uid},host_uid.eq.${uid}`)
+        .maybeSingle();
+
+      if (member) {
+        const maxD = Math.max(
+          Number(member.diamonds_earned_monthly || 0),
+          Number(member.diamonds_balance || 0),
+          Number(member.diamonds || 0)
+        );
+        if (maxD > (user.diamonds || 0)) {
+          user.diamonds = maxD;
+          Promise.resolve().then(async () => {
+            try {
+              await client.from('users').update({ diamonds: maxD }).eq('uid', uid);
+            } catch (_) {}
+          });
+        }
+      }
+    } catch (_) {}
 
     return user
   } catch (e) {
@@ -1538,14 +1592,31 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
 
     if (agencies.length === 0) return [];
 
-    // Fetch members to compute real active member counts
+    // Fetch members to compute real active member counts AND real total diamonds sum!
     const memberCounts: Record<string, number> = {};
+    const agencyDiamondsSum: Record<string, number> = {};
+    const agencyCumDiamondsSum: Record<string, number> = {};
     try {
-      const { data: membersData } = await supabase.from('host_agency_members').select('agency_id, status');
+      const { data: membersData } = await supabase
+        .from('host_agency_members')
+        .select('agency_id, status, diamonds_earned_monthly, diamonds_balance, diamonds, diamonds_earned_cumulative');
       (membersData ?? []).forEach((m: any) => {
+        const agId = m.agency_id;
+        if (!agId) return;
         if (m.status === 'active') {
-          memberCounts[m.agency_id] = (memberCounts[m.agency_id] || 0) + 1;
+          memberCounts[agId] = (memberCounts[agId] || 0) + 1;
         }
+        const d = Math.max(
+          Number(m.diamonds_earned_monthly || 0),
+          Number(m.diamonds_balance || 0),
+          Number(m.diamonds || 0)
+        );
+        const cum = Math.max(
+          Number(m.diamonds_earned_cumulative || 0),
+          d
+        );
+        agencyDiamondsSum[agId] = (agencyDiamondsSum[agId] || 0) + d;
+        agencyCumDiamondsSum[agId] = (agencyCumDiamondsSum[agId] || 0) + cum;
       });
     } catch (_) {}
 
@@ -1582,9 +1653,30 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
       const ownerId = a.owner_id || a.owner_uid;
       const owner = ownersMap[ownerId] || ownersMap[a.owner_id] || ownersMap[a.owner_uid];
       const realCount = memberCounts[a.id] ?? a.member_count ?? 1;
+      const realDiamondsMonthly = Math.max(agencyDiamondsSum[a.id] ?? 0, a.total_diamonds_monthly ?? 0, a.monthly_diamonds ?? 0);
+      const realDiamondsCum = Math.max(agencyCumDiamondsSum[a.id] ?? 0, a.total_diamonds_cumulative ?? 0, realDiamondsMonthly);
+
+      // إصلاح تلقائي لسجل الوكالة في قاعدة البيانات لضمان عدم حدوث أي انحراف
+      if (a.total_diamonds_monthly !== realDiamondsMonthly || a.monthly_diamonds !== realDiamondsMonthly) {
+        Promise.resolve().then(async () => {
+          try {
+            const client = getAdminSupabase() || supabase;
+            await client.from('host_agencies').update({
+              total_diamonds_monthly: realDiamondsMonthly,
+              monthly_diamonds: realDiamondsMonthly,
+              total_diamonds_cumulative: realDiamondsCum,
+            }).eq('id', a.id);
+          } catch (_) {}
+        });
+      }
+
       return {
         ...a,
         member_count: Math.max(1, realCount),
+        total_diamonds_monthly: realDiamondsMonthly,
+        monthly_diamonds: realDiamondsMonthly,
+        total_diamonds_earned: realDiamondsCum,
+        total_diamonds_cumulative: realDiamondsCum,
         owner_name: owner?.name || owner?.displayName || ownerId?.slice(0, 8) || 'مالك الوكالة',
         ownerName: owner?.name || owner?.displayName || ownerId?.slice(0, 8) || 'مالك الوكالة',
         owner_avatar: owner?.photo_url || owner?.avatar || '',
