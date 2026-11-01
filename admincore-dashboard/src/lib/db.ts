@@ -223,39 +223,11 @@ export async function getUsers(): Promise<UserModel[]> {
       if (!u.lastIp && (meta.ip_address || meta.ipAddress)) {
         u.lastIp = meta.ip_address || meta.ipAddress
       }
-  // 5. Harmonize diamonds between users and host_agency_members dynamically
-  try {
-    const client = adminClient || supabase;
-    const { data: agencyMembers } = await client
-      .from('host_agency_members')
-      .select('user_id, host_uid, diamonds, diamonds_balance, diamonds_earned_monthly');
-
-    if (agencyMembers && agencyMembers.length > 0) {
-      const agencyDiamondsMap: Record<string, number> = {};
-      for (const m of agencyMembers) {
-        const id = m.user_id || m.host_uid;
-        if (!id) continue;
-        const maxD = Math.max(
-          Number(m.diamonds_earned_monthly || 0),
-          Number(m.diamonds_balance || 0),
-          Number(m.diamonds || 0)
-        );
-        agencyDiamondsMap[id] = Math.max(agencyDiamondsMap[id] || 0, maxD);
-      }
-
-      for (const u of results) {
-        const agD = agencyDiamondsMap[u.uid] || agencyDiamondsMap[u.id];
-        if (agD !== undefined && agD > (u.diamonds || 0)) {
-          u.diamonds = agD;
-          Promise.resolve().then(async () => {
-            try {
-              await client.from('users').update({ diamonds: agD }).eq('uid', u.uid);
-            } catch (_) {}
-          });
-        }
-      }
     }
-  } catch (_) {}
+  }
+
+  // الرصيد الرسمي هو users.diamonds — تتم مزامنة بقية الجداول عبر RPC ذري
+  // (تمت إزالة "التوفيق التلقائي" القديم لأنه كان يرفع الأرصدة عشوائياً من عضويات الوكالة)
 
   return results.sort((a, b) => (Number(a.customId) || 0) - (Number(b.customId) || 0))
 }
@@ -295,31 +267,9 @@ export async function getUser(uid: string): Promise<UserModel | null> {
           user.ipAddress = user.ipAddress || val.ip_address || val.ipAddress
         }
       }
-    // Check if user has higher diamonds in host_agency_members
-    try {
-      const { data: member } = await client
-        .from('host_agency_members')
-        .select('diamonds, diamonds_balance, diamonds_earned_monthly')
-        .or(`user_id.eq.${uid},host_uid.eq.${uid}`)
-        .maybeSingle();
-
-      if (member) {
-        const maxD = Math.max(
-          Number(member.diamonds_earned_monthly || 0),
-          Number(member.diamonds_balance || 0),
-          Number(member.diamonds || 0)
-        );
-        if (maxD > (user.diamonds || 0)) {
-          user.diamonds = maxD;
-          Promise.resolve().then(async () => {
-            try {
-              await client.from('users').update({ diamonds: maxD }).eq('uid', uid);
-            } catch (_) {}
-          });
-        }
-      }
     } catch (_) {}
 
+    // الرصيد الرسمي هو users.diamonds — لا نرفعه تلقائياً من عضويات الوكالة
     return user
   } catch (e) {
     console.warn('getUser failed:', e)
@@ -3859,17 +3809,93 @@ export async function getWithdrawalRequests(status?: string): Promise<AgencyWith
 }
 
 export async function approveWithdrawal(id: string): Promise<boolean> {
+  const adminName = getCurrentAdminName() || 'الإدارة'
+  try {
+    const { data, error } = await supabase.rpc('agency_approve_withdrawal', {
+      p_request_id: id,
+      p_admin_name: adminName,
+    })
+    if (!error && data && (data as any).success !== false) return true
+    if (error) console.warn('approveWithdrawal rpc error:', error.message)
+    else if ((data as any)?.success === false) console.warn('approveWithdrawal rpc:', (data as any)?.error)
+  } catch (e) {
+    console.warn('approveWithdrawal rpc fallback:', e)
+  }
 
   try {
-    await supabase.from('agency_withdrawal_requests').update({ status: 'approved' }).eq('id', id)
+    const { data: req } = await supabase
+      .from('agency_withdrawal_requests')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (!req) return false
+    const frozen = req?.details?.frozen === true || req?.payment_details?.frozen === true
+    const amount = Number(req.diamonds_amount ?? req.amount ?? 0)
+    if (frozen && req.agency_id && req.user_id) {
+      const { data: member } = await supabase
+        .from('host_agency_members')
+        .select('id, diamonds_pending_withdrawal')
+        .eq('agency_id', req.agency_id)
+        .or(`user_id.eq.${req.user_id},host_uid.eq.${req.user_id}`)
+        .maybeSingle()
+      if (member) {
+        await supabase.from('host_agency_members').update({
+          diamonds_pending_withdrawal: Math.max(0, Number(member.diamonds_pending_withdrawal || 0) - amount),
+        }).eq('id', member.id)
+      }
+    }
+    await supabase.from('agency_withdrawal_requests').update({
+      status: 'approved',
+      reviewed_at: new Date().toISOString(),
+    }).eq('id', id)
     return true
   } catch { return false }
 }
 
 export async function rejectWithdrawal(id: string): Promise<boolean> {
+  const adminName = getCurrentAdminName() || 'الإدارة'
+  try {
+    const { data, error } = await supabase.rpc('agency_reject_withdrawal', {
+      p_request_id: id,
+      p_admin_name: adminName,
+      p_notes: null,
+    })
+    if (!error && data && (data as any).success !== false) return true
+    if (error) console.warn('rejectWithdrawal rpc error:', error.message)
+    else if ((data as any)?.success === false) console.warn('rejectWithdrawal rpc:', (data as any)?.error)
+  } catch (e) {
+    console.warn('rejectWithdrawal rpc fallback:', e)
+  }
 
   try {
-    await supabase.from('agency_withdrawal_requests').update({ status: 'rejected' }).eq('id', id)
+    const { data: req } = await supabase
+      .from('agency_withdrawal_requests')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (!req) return false
+    const frozen = req?.details?.frozen === true || req?.payment_details?.frozen === true
+    const amount = Number(req.diamonds_amount ?? req.amount ?? 0)
+    if (frozen && req.agency_id && req.user_id) {
+      const { data: member } = await supabase
+        .from('host_agency_members')
+        .select('id, diamonds_balance, diamonds_available, diamonds_pending_withdrawal')
+        .eq('agency_id', req.agency_id)
+        .or(`user_id.eq.${req.user_id},host_uid.eq.${req.user_id}`)
+        .maybeSingle()
+      if (member) {
+        const curBal = Number(member.diamonds_balance || 0)
+        await supabase.from('host_agency_members').update({
+          diamonds_balance: curBal + amount,
+          diamonds_available: Number(member.diamonds_available || curBal) + amount,
+          diamonds_pending_withdrawal: Math.max(0, Number(member.diamonds_pending_withdrawal || 0) - amount),
+        }).eq('id', member.id)
+      }
+    }
+    await supabase.from('agency_withdrawal_requests').update({
+      status: 'rejected',
+      reviewed_at: new Date().toISOString(),
+    }).eq('id', id)
     return true
   } catch { return false }
 }

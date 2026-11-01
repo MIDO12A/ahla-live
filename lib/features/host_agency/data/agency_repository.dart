@@ -426,32 +426,15 @@ abstract final class AgencyRepository {
         final diamonds = (m['diamonds'] as num?)?.toInt() ?? 0;
         final diamondsMonthly = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? diamonds;
         final diamondsCumulative = (m['diamonds_earned_cumulative'] as num?)?.toInt() ?? diamonds;
-        int diamondsBalance = (m['diamonds_balance'] as num?)?.toInt() ?? (m['diamonds_available'] as num?)?.toInt() ?? diamonds;
+        // الرصيد القابل للسحب مصدره users.diamonds (تتم مزامنته عبر RPC ذرّي)
+        int diamondsBalance = (m['diamonds_available'] as num?)?.toInt()
+            ?? (m['diamonds_balance'] as num?)?.toInt()
+            ?? diamonds;
 
         try {
           final uList = await _sb.from('users').select('diamonds').eq('uid', uid).limit(1);
-          final userDia = uList.isNotEmpty ? ((uList.first['diamonds'] as num?)?.toInt() ?? 0) : 0;
-          final int trueDiamonds = [
-            diamonds,
-            diamondsMonthly,
-            diamondsBalance,
-            userDia,
-          ].reduce((a, b) => a > b ? a : b);
-
-          diamondsBalance = trueDiamonds;
-
-          // معالجة ديناميكية فورية: إذا كان هناك أي عدم تناسق يتم توحيد الجدولين فوراً
-          if (diamonds != trueDiamonds || userDia != trueDiamonds) {
-            _sb.from('host_agency_members').update({
-              'diamonds': trueDiamonds,
-              'diamonds_balance': trueDiamonds,
-              'diamonds_available': trueDiamonds,
-              'diamonds_earned_monthly': trueDiamonds,
-            }).eq('id', memberId).then((_) {}).catchError((_) {});
-
-            _sb.from('users').update({
-              'diamonds': trueDiamonds,
-            }).eq('uid', uid).then((_) {}).catchError((_) {});
+          if (uList.isNotEmpty && uList.first['diamonds'] != null) {
+            diamondsBalance = (uList.first['diamonds'] as num).toInt();
           }
         } catch (_) {}
 
@@ -680,8 +663,16 @@ abstract final class AgencyRepository {
       'p_diamonds':        diamondsAmount,
       'p_bank_details':    bankDetails,
       'p_idempotency_key': idempotencyKey,
+      'p_user_id':         _sb.auth.currentUser?.id,
     });
-    return Map<String, dynamic>.from(resp as Map);
+    if (resp is! Map) {
+      throw Exception('تعذر إنشاء طلب السحب — تحقق من الاتصال');
+    }
+    final result = Map<String, dynamic>.from(resp);
+    if (result['success'] == false) {
+      throw Exception((result['error'] ?? 'تعذر إنشاء طلب السحب').toString());
+    }
+    return result;
   }
 
   // ─── تحويل إلى وكيل شحن (Legacy — يُفضَّل transferDiamondsToAgentWallet) ─────
@@ -1311,41 +1302,19 @@ abstract final class AgencyRepository {
             .or('role.eq.owner,host_uid.eq.$ownerUid,user_id.eq.$ownerUid')
             .maybeSingle();
         if (memRes != null) {
-          final bal = (memRes['diamonds_balance'] as num?)?.toInt() ?? 0;
-          final earned = (memRes['diamonds_earned_cumulative'] as num?)?.toInt() ?? 
-                         (memRes['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-          final dia = (memRes['diamonds'] as num?)?.toInt() ?? 0;
-          ownerBalance = [bal, earned, dia].reduce((a, b) => a > b ? a : b);
-          earnedCumulative = ownerBalance;
+          ownerBalance = (memRes['diamonds_balance'] as num?)?.toInt()
+              ?? (memRes['diamonds_available'] as num?)?.toInt()
+              ?? 0;
+          earnedCumulative = (memRes['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
         }
       } catch (_) {}
 
-      // 2. Check users table for owner and harmonize with host_agency_members
+      // 2. users.diamonds هو المصدر الموحد للرصيد القابل للسحب (بدون كتابة رجعية)
       if (ownerUid.isNotEmpty) {
         try {
           final uRes = await _sb.from('users').select('diamonds').eq('uid', ownerUid).maybeSingle();
-          final uDia = uRes != null && uRes['diamonds'] != null ? (uRes['diamonds'] as num).toInt() : 0;
-          final int maxOwnerDia = [ownerBalance, earnedCumulative, uDia].reduce((a, b) => a > b ? a : b);
-
-          ownerBalance = maxOwnerDia;
-          earnedCumulative = maxOwnerDia;
-
-          if (maxOwnerDia > 0 && (uDia != maxOwnerDia || (memRes != null && (memRes['diamonds_balance'] as num?)?.toInt() != maxOwnerDia))) {
-            if (memRes != null) {
-              _sb.from('host_agency_members').update({
-                'diamonds': maxOwnerDia,
-                'diamonds_balance': maxOwnerDia,
-                'diamonds_available': maxOwnerDia,
-                'diamonds_earned_monthly': maxOwnerDia,
-              }).eq('id', memRes['id']).then((_) {}).catchError((_) {});
-            }
-            _sb.from('users').update({
-              'diamonds': maxOwnerDia,
-            }).eq('uid', ownerUid).then((_) {}).catchError((_) {});
-
-            _sb.from('agency_wallets').update({
-              'diamond_balance': maxOwnerDia,
-            }).eq('agency_profile_id', ownerUid).then((_) {}).catchError((_) {});
+          if (uRes != null && uRes['diamonds'] != null) {
+            ownerBalance = (uRes['diamonds'] as num).toInt();
           }
         } catch (_) {}
       }

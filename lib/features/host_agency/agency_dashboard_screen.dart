@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import '../../core/supabase_compat.dart';
 import 'package:provider/provider.dart';
 import '../../services/dynamic_config_service.dart';
+import '../../services/supabase_data_service.dart';
 
 import '../../core/realtime/realtime_subscription.dart';
 import '../../core/realtime/supabase_realtime_bridge.dart';

@@ -410,11 +410,16 @@ class SupabaseService {
         final rUser = await _ds.getUser(receiverId);
         if (rUser != null) {
           await _ds.updateUser(receiverId, {
-            'diamonds': rUser.diamonds + recipientDiamonds,
             'total_gifts_received': rUser.totalGiftsReceived + recipientDiamonds,
           });
         }
-        unawaited(_ds.creditHostAgencyMemberDiamonds(receiverId, recipientDiamonds));
+        // الرصيد (users + العضو + الوكالة) يُحدَّث ذرّياً داخل RPC
+        final credited = await _ds.creditHostAgencyMemberDiamonds(receiverId, recipientDiamonds);
+        if (!credited && rUser != null) {
+          await _ds.updateUser(receiverId, {
+            'diamonds': rUser.diamonds + recipientDiamonds,
+          });
+        }
       }
 
       // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase بنسبة كاريزما المستلم المحددة
@@ -616,26 +621,35 @@ class SupabaseService {
       if (isSelfSend) {
         await _ds.updateUser(senderId, {
           'coins': currentCoins - totalCost,
-          'diamonds': (sUser?.diamonds ?? 0) + hostDiamonds,
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
           'total_gifts_received': (sUser?.totalGiftsReceived ?? 0) + hostDiamonds,
         });
-        unawaited(_ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds));
+        // الرصيد (users + العضو + الوكالة) يُحدَّث ذرّياً داخل RPC
+        final credited = await _ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds);
+        if (!credited) {
+          await _ds.updateUser(senderId, {
+            'diamonds': (sUser?.diamonds ?? 0) + hostDiamonds,
+          });
+        }
       } else {
         await _ds.updateUser(senderId, {
           'coins': currentCoins - totalCost,
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
         });
 
-        // إيداع الماس للمستلم (المضيف 68%)
         final rUser = await _ds.getUser(receiverId);
         if (rUser != null) {
           await _ds.updateUser(receiverId, {
-            'diamonds': rUser.diamonds + hostDiamonds,
             'total_gifts_received': rUser.totalGiftsReceived + hostDiamonds,
           });
         }
-        unawaited(_ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds));
+        // الرصيد (users + العضو + الوكالة) يُحدَّث ذرّياً داخل RPC
+        final credited = await _ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds);
+        if (!credited && rUser != null) {
+          await _ds.updateUser(receiverId, {
+            'diamonds': rUser.diamonds + hostDiamonds,
+          });
+        }
       }
 
       // 3. تسجيل الهدية وبثها في الغرفة
