@@ -1019,6 +1019,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       return _chatMessages.where((m) =>
           m.type == 'gift' ||
           m.type == 'lucky_gift' ||
+          m.type == 'lucky_win' ||
           m.type == 'gift_multiplier' ||
           m.type == 'lucky_bag').toList();
     }
@@ -4829,33 +4830,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               builder: (_, __, ___) {
                 final displayMsgs = _filteredChatMessages;
                 if (displayMsgs.isEmpty) return const SizedBox.shrink();
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minWidth: constraints.maxWidth,
-                        ),
-                        child: SizedBox(
-                          width: max(constraints.maxWidth, 380.0),
-                          height: constraints.maxHeight,
-                          child: ListView.builder(
-                            controller: _chatScroll,
-                            physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                            itemCount: displayMsgs.length,
-                            itemBuilder: (_, i) {
-                              final m = displayMsgs[i];
-                              final userProvider = Provider.of<UserProvider>(context, listen: false);
-                              final isMe = m.senderUid == userProvider.currentUser?.uid;
-                              return _buildChatMsg(m, isMe);
-                            },
-                          ),
-                        ),
-                      ),
-                    );
+                return ListView.builder(
+                  controller: _chatScroll,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  itemCount: displayMsgs.length,
+                  itemBuilder: (_, i) {
+                    final m = displayMsgs[i];
+                    final userProvider = Provider.of<UserProvider>(context, listen: false);
+                    final isMe = m.senderUid == userProvider.currentUser?.uid;
+                    return _buildChatMsg(m, isMe);
                   },
                 );
               },
@@ -4865,6 +4849,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       ),
     );
   }
+
 
   Widget _buildUserLevelMedal(String uid) {
     final cached = _cachedUsers[uid];
@@ -4940,7 +4925,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     children: [
                       Text(
                         m.senderName.length > 15 ? m.senderName.substring(0, 15) : m.senderName,
-                        style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                       _buildUserLevelMedal(m.senderUid),
                     ],
@@ -4961,7 +4946,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           receiverName.isNotEmpty
                               ? 'أرسل إلى $receiverName $giftName'
                               : (m.text.isNotEmpty ? m.text : 'أرسل هدية $giftName'),
-                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                          style: const TextStyle(fontSize: 14, color: Colors.white),
                         ),
                         const SizedBox(height: 4),
                         Row(
@@ -4970,11 +4955,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             // iv_gift_icon (40×40)
                             _buildStaticGiftIcon(giftIcon, size: 40, giftName: giftName, giftId: giftId),
                             const SizedBox(width: 8),
-                            // tv_gift_num (13sp, color #FFEB3B)
+                            // tv_gift_num (14sp, color #FFEB3B)
                             Text(
                               'x$count',
                               style: const TextStyle(
-                                fontSize: 13,
+                                fontSize: 14,
                                 color: Color(0xFFFFEB3B),
                                 fontWeight: FontWeight.bold,
                               ),
@@ -5088,13 +5073,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         // tv_msg_notice / tv_send_gift_msg
                         Text(
                           hasWon
-                              ? (isAr ? 'أرسل هدية الحظ وحصل على مكافأة مضاعفة!' : 'Hit the jackpot with a lucky multiplier!')
+                              ? (isAr
+                                  ? '🎉 $senderDisplayName فاز بالمحظوظ! ربح $totalWon 🪙 بمضاعف ${maxMultiplier > 1 ? "${maxMultiplier}X" : ""}'
+                                  : '🎉 $senderDisplayName won the lucky prize! +$totalWon 🪙 ${maxMultiplier > 1 ? "(${maxMultiplier}X)" : ""}')
                               : (receiverName.toString().isNotEmpty
                                   ? 'أرسل هدية الحظ $giftName إلى $receiverName'
                                   : 'أرسل هدية الحظ $giftName'),
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 14,
                             color: hasWon ? const Color(0xFFFFEB3B) : Colors.white,
+                            fontWeight: hasWon ? FontWeight.bold : FontWeight.normal,
                           ),
                         ),
                         const SizedBox(height: 5),
@@ -5113,7 +5101,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       giftName,
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 13,
+                                        fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -5131,7 +5119,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                           '${maxMultiplier}X',
                                           style: const TextStyle(
                                             color: Colors.white,
-                                            fontSize: 11,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w900,
                                           ),
                                         ),
@@ -5145,16 +5133,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                     children: [
                                       Image.asset(
                                         'assets/mipmap-xxhdpi/common_gold_ic_4.webp',
-                                        width: 14,
-                                        height: 14,
-                                        errorBuilder: (_, __, ___) => const Icon(Icons.monetization_on, color: Color(0xFFFFEB3B), size: 13),
+                                        width: 16,
+                                        height: 16,
+                                        errorBuilder: (_, __, ___) => const Icon(Icons.monetization_on, color: Color(0xFFFFEB3B), size: 14),
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
                                         '+$totalWon ${isAr ? 'عملة' : 'coins'}',
                                         style: const TextStyle(
                                           color: Color(0xFFFFEB3B),
-                                          fontSize: 13,
+                                          fontSize: 14,
                                           fontWeight: FontWeight.w900,
                                         ),
                                       ),
@@ -5164,7 +5152,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   Text(
                                     'x$count',
                                     style: const TextStyle(
-                                      fontSize: 13,
+                                      fontSize: 14,
                                       color: Color(0xFFFFEB3B),
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -5183,6 +5171,48 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         ),
       );
     }
+
+    if (m.type == 'lucky_win') {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6, left: 8, right: 8),
+        child: Align(
+          alignment: Alignment.center,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 320),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFA000), Color(0xFFFFD700)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(color: Color(0x66FFD700), blurRadius: 10),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🍀', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    m.text,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
 
     if (m.type == 'entrance') {
       final isExit = m.text.contains('left') || m.text.contains('غادر');
@@ -5278,7 +5308,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           ? m.senderName.substring(0, 15)
                           : m.senderName,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: isMe ? AppColors.goldLight : Colors.white,
                       ),
@@ -5398,11 +5428,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       );
     }
 
+    // كشف اتجاه النص تلقائياً: عربي → يمين، غير عربي → يسار
+    final hasArabic = _isRtlText(text);
+    final textDir = hasArabic ? TextDirection.rtl : TextDirection.ltr;
+    final textAlign = hasArabic ? TextAlign.right : TextAlign.left;
+
     Widget bubbleContent = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 13, color: textColor, height: 1.3),
+        textDirection: textDir,
+        textAlign: textAlign,
+        style: const TextStyle(fontSize: 14, color: textColor, height: 1.3), // FIX: 13→14
       ),
     );
 
@@ -5451,30 +5488,40 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         );
       }
 
-      return Container(
-        constraints: const BoxConstraints(maxWidth: 240),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          borderRadius: borderRadius,
-        ),
-        child: Stack(
-          children: [
-            Positioned.fill(child: bubbleBg),
-            bubbleContent,
-          ],
+      return LayoutBuilder(
+        builder: (ctx, c) => Container(
+          constraints: BoxConstraints(maxWidth: c.maxWidth == double.infinity ? 240 : c.maxWidth * 0.75),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(child: bubbleBg),
+              bubbleContent,
+            ],
+          ),
         ),
       );
     }
 
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 240),
-      decoration: BoxDecoration(
-        color: bubbleColor,
-        borderRadius: borderRadius,
+    return LayoutBuilder(
+      builder: (ctx, c) => Container(
+        constraints: BoxConstraints(maxWidth: c.maxWidth == double.infinity ? 240 : c.maxWidth * 0.75),
+        decoration: BoxDecoration(
+          color: bubbleColor,
+          borderRadius: borderRadius,
+        ),
+        child: bubbleContent,
       ),
-      child: bubbleContent,
     );
   }
+
+  bool _isRtlText(String text) {
+    final arabicReg = RegExp(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]');
+    return arabicReg.hasMatch(text);
+  }
+
 
   void _showImagePreview(String url) {
     showDialog(

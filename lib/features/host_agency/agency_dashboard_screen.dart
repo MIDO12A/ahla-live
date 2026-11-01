@@ -281,6 +281,9 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
           .compareTo((a['week_diamonds'] ?? 0) as num));
 
     final photoUrl      = agency['photo_url'] ?? agency['photoUrl'] ?? agency['logo_url'] ?? agency['avatar'];
+    final ownerUid      = (agency['owner_uid'] ?? agency['owner_id'] ?? _sb.auth.currentUser?.id ?? '').toString();
+    final agencyTargetId = _resolvedAgencyId ?? widget.agencyId ?? '';
+
     return RefreshIndicator(
       color: _purple,
       backgroundColor: _bgCard,
@@ -328,8 +331,31 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
                   Expanded(child: _KpiTile(
                     label: DynamicConfigService().getScreenText('agency', 'commissionRateLabel', 'العمولة'),
                     value: '${(rate * 100).toStringAsFixed(0)}%',
-                    icon: '💰', color: _gold)),
+                    icon: '💰', color: _gold,
+                    actionLabel: 'صرف العمولة',
+                    onAction: () => showAgencyDisbursementDialog(
+                      context: context,
+                      agencyId: agencyTargetId,
+                      hostUid: ownerUid,
+                      commissionRate: rate,
+                      totalDiamonds: totalD,
+                      fmtFn: _fmt,
+                      onDisbursed: _scheduleReload,
+                    ),
+                  )),
                 ]),
+
+                const SizedBox(height: 16),
+
+                // ─ صرف عمولة الوكيل ─────────────────────────────────────────
+                _CommissionDisbursementCard(
+                  totalDiamonds: totalD,
+                  commissionRate: rate,
+                  agencyId: agencyTargetId,
+                  hostUid: ownerUid,
+                  fmtFn: _fmt,
+                  onDisbursed: _scheduleReload,
+                ),
 
                 const SizedBox(height: 18),
 
@@ -393,6 +419,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
 
                 // ─ quick actions ──────────────────────────────────────────────
                 const _SectionHeader(label: 'إجراءات سريعة', icon: '⚡'),
+
                 const SizedBox(height: 12),
                 _AgencyQuickActions(
                   agencyId: _resolvedAgencyId ?? widget.agencyId ?? '',
@@ -557,11 +584,15 @@ class _AgencyHeader extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: _gold.withOpacity(0.4)),
                       ),
-                      child: Text(
-                        'ID: $agencyPublicId',
-                        style: const TextStyle(
-                          color: _gold, fontSize: 11,
-                          fontWeight: FontWeight.bold, letterSpacing: 0.5,
+                      child: Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          'ID: $agencyPublicId',
+                          locale: const Locale('en'),
+                          style: const TextStyle(
+                            color: _gold, fontSize: 11,
+                            fontWeight: FontWeight.bold, letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                     ),
@@ -585,29 +616,66 @@ class _AgencyHeader extends StatelessWidget {
 
 // ─────────────────────────────────────────────────────────────────────────────
 class _KpiTile extends StatelessWidget {
-  const _KpiTile({required this.label, required this.value,
-      required this.icon, required this.color});
+  const _KpiTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.actionLabel,
+    this.onAction,
+  });
   final String label, value, icon;
   final Color color;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
+    padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: _bgCard,
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: color.withOpacity(.25)),
       boxShadow: [BoxShadow(color: color.withOpacity(.08), blurRadius: 12)],
     ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(icon, style: const TextStyle(fontSize: 20)),
-      const SizedBox(height: 6),
-      Text(value, style: TextStyle(color: color, fontSize: 18,
-          fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk',
-          shadows: [Shadow(color: color.withOpacity(.5), blurRadius: 6)])),
-      Text(label, style: const TextStyle(color: _textMuted, fontSize: 10,
-          fontFamily: 'IBM Plex Sans Arabic')),
-    ]),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 18)),
+            if (actionLabel != null && onAction != null)
+              GestureDetector(
+                onTap: onAction,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: color.withOpacity(0.4)),
+                  ),
+                  child: Text(
+                    actionLabel!,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'IBM Plex Sans Arabic',
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(value, style: TextStyle(color: color, fontSize: 16,
+            fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk',
+            shadows: [Shadow(color: color.withOpacity(.5), blurRadius: 6)])),
+        Text(label, style: const TextStyle(color: _textMuted, fontSize: 10,
+            fontFamily: 'IBM Plex Sans Arabic')),
+      ],
+    ),
   );
 }
 
@@ -740,6 +808,8 @@ class _LeaderboardList extends StatelessWidget {
         final pct   = (weekD / maxD).clamp(0.0, 1.0);
         final barC  = i == 0 ? _gold : i == 1 ? _textMuted : i == 2 ? _cyan : _purple;
 
+        final hostId = (m['custom_id'] ?? m['numeric_id'] ?? m['id'] ?? m['host_uid'] ?? '')?.toString();
+
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -765,8 +835,32 @@ class _LeaderboardList extends StatelessWidget {
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(color: _textMain, fontSize: 13,
-                    fontFamily: 'IBM Plex Sans Arabic')),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(name, style: const TextStyle(color: _textMain, fontSize: 13,
+                          fontFamily: 'IBM Plex Sans Arabic'),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (hostId != null && hostId.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          '#$hostId',
+                          locale: const Locale('en'),
+                          style: const TextStyle(
+                            color: _gold,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Space Grotesk',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 6),
                 Stack(children: [
                   Container(height: 5,
@@ -1156,4 +1250,339 @@ class _QuickActionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// بطاقة صرف عمولة الوكيل — مع جدول زمني قابل للتعديل
+// ─────────────────────────────────────────────────────────────────────────────
+class _CommissionDisbursementCard extends StatefulWidget {
+  const _CommissionDisbursementCard({
+    required this.totalDiamonds,
+    required this.commissionRate,
+    required this.agencyId,
+    required this.hostUid,
+    required this.fmtFn,
+    this.onDisbursed,
+  });
+  final dynamic totalDiamonds;
+  final double commissionRate;
+  final String agencyId;
+  final String hostUid;
+  final String Function(dynamic) fmtFn;
+  final VoidCallback? onDisbursed;
+
+  @override
+  State<_CommissionDisbursementCard> createState() => _CommissionDisbursementCardState();
+}
+
+class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard> {
+  int get _commissionDiamonds {
+    final total = (widget.totalDiamonds is num ? widget.totalDiamonds as num : num.tryParse(widget.totalDiamonds.toString()) ?? 0).toInt();
+    return (total * widget.commissionRate).toInt();
+  }
+
+  void _openDialog(BuildContext context) {
+    showAgencyDisbursementDialog(
+      context: context,
+      agencyId: widget.agencyId,
+      hostUid: widget.hostUid,
+      commissionRate: widget.commissionRate,
+      totalDiamonds: widget.totalDiamonds,
+      fmtFn: widget.fmtFn,
+      onDisbursed: widget.onDisbursed,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final commission = _commissionDiamonds;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _gold.withOpacity(0.3)),
+        boxShadow: [BoxShadow(color: _gold.withOpacity(0.06), blurRadius: 16)],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Row(children: [
+            Text('💰', style: TextStyle(fontSize: 18)),
+            SizedBox(width: 8),
+            Text('صرف عمولة الوكيل', style: TextStyle(color: _textMain, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
+          ]),
+          // زر خيارات الجدول
+          GestureDetector(
+            onTap: () => _openDialog(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _purple.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _purple.withOpacity(0.4)),
+              ),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('تعديل الجدول', style: TextStyle(color: _purple, fontSize: 12, fontFamily: 'IBM Plex Sans Arabic')),
+                SizedBox(width: 4),
+                Icon(Icons.edit, color: _purple, size: 13),
+              ]),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('العمولة المستحقة (${(widget.commissionRate * 100).toStringAsFixed(0)}%)',
+              style: const TextStyle(color: _textMuted, fontSize: 11, fontFamily: 'IBM Plex Sans Arabic')),
+            const SizedBox(height: 4),
+            Text('${widget.fmtFn(commission)} 💎',
+              style: const TextStyle(color: _gold, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
+          ])),
+          const SizedBox(width: 12),
+          // زر صرف الآن
+          GestureDetector(
+            onTap: () => _openDialog(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [_gold, _gold.withOpacity(0.7)]),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [BoxShadow(color: _gold.withOpacity(0.3), blurRadius: 10)],
+              ),
+              child: const Text('صرف الآن', style: TextStyle(color: Colors.black, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dialog صرف عمولة الوكيل: رصيد قابل للصرف، خيارات، إدخال يدوي، تأكيد
+// ─────────────────────────────────────────────────────────────────────────────
+Future<void> showAgencyDisbursementDialog({
+  required BuildContext context,
+  required String agencyId,
+  required String hostUid,
+  required double commissionRate,
+  required dynamic totalDiamonds,
+  required String Function(dynamic) fmtFn,
+  VoidCallback? onDisbursed,
+}) async {
+  final sb = Supabase.instance.client;
+  int availableBalance = 0;
+  try {
+    final res = await sb
+        .from('agency_wallets')
+        .select('diamond_balance, balance')
+        .or('agency_id.eq.$agencyId,agency_profile_id.eq.$hostUid')
+        .maybeSingle();
+    if (res != null) {
+      availableBalance = (res['diamond_balance'] as num?)?.toInt() ??
+          (res['balance'] as num?)?.toInt() ??
+          0;
+    }
+  } catch (_) {}
+
+  final totalInt = (totalDiamonds is num ? totalDiamonds : num.tryParse(totalDiamonds.toString()) ?? 0).toInt();
+  final defaultCommission = (totalInt * commissionRate).toInt();
+  if (availableBalance <= 0) availableBalance = defaultCommission;
+
+  String selectedSchedule = 'monthly';
+  final amountCtrl = TextEditingController(text: '$defaultCommission');
+  bool isSubmitting = false;
+
+  await showDialog(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setDlgState) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0D0A25),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: _gold.withOpacity(0.3)),
+          ),
+          title: const Row(
+            children: [
+              Text('💰', style: TextStyle(fontSize: 22)),
+              SizedBox(width: 8),
+              Text(
+                'صرف عمولة الوكيل',
+                style: TextStyle(
+                  color: _textMain,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'IBM Plex Sans Arabic',
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. عرض رصيد الوكالة القابل للصرف (agency_wallets.balance)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _bgCard,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _gold.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'رصيد الوكالة القابل للصرف (agency_wallets)',
+                        style: TextStyle(
+                          color: _textMuted,
+                          fontSize: 11,
+                          fontFamily: 'IBM Plex Sans Arabic',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${fmtFn(availableBalance)} 💎',
+                        style: const TextStyle(
+                          color: _gold,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Space Grotesk',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // 2. خيارات الصرف: يومي / أسبوعي / شهري / يدوي
+                const Text(
+                  'خيارات جدول الصرف:',
+                  style: TextStyle(
+                    color: _textMain,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'IBM Plex Sans Arabic',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    {'key': 'daily', 'label': 'يومي'},
+                    {'key': 'weekly', 'label': 'أسبوعي'},
+                    {'key': 'monthly', 'label': 'شهري'},
+                    {'key': 'manual', 'label': 'يدوي'},
+                  ].map((opt) {
+                    final sel = selectedSchedule == opt['key'];
+                    return ChoiceChip(
+                      label: Text(
+                        opt['label']!,
+                        style: TextStyle(
+                          color: sel ? Colors.black : _textMain,
+                          fontSize: 12,
+                          fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+                          fontFamily: 'IBM Plex Sans Arabic',
+                        ),
+                      ),
+                      selected: sel,
+                      selectedColor: _gold,
+                      backgroundColor: _bgCard,
+                      onSelected: (val) {
+                        if (val) setDlgState(() => selectedSchedule = opt['key']!);
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 14),
+
+                // 3. حقل إدخال المبلغ اليدوي
+                const Text(
+                  'المبلغ المراد صرفه يدويًا:',
+                  style: TextStyle(
+                    color: _textMain,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'IBM Plex Sans Arabic',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                    color: _textMain,
+                    fontSize: 15,
+                    fontFamily: 'Space Grotesk',
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'ادخل كمية الألماس...',
+                    hintStyle: const TextStyle(color: _textMuted, fontSize: 12),
+                    suffixText: '💎',
+                    suffixStyle: const TextStyle(fontSize: 16),
+                    filled: true,
+                    fillColor: _bgCard,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: _border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: _gold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء', style: TextStyle(color: _textMuted, fontFamily: 'IBM Plex Sans Arabic')),
+            ),
+            // 4. زر تأكيد يستدعي _ds.disburseSalary()
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _gold,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final val = int.tryParse(amountCtrl.text.trim()) ?? 0;
+                      if (val <= 0) {
+                        KayanInAppToast.warning('يرجى إدخال مبلغ صحيح أكبر من 0');
+                        return;
+                      }
+                      setDlgState(() => isSubmitting = true);
+                      final ds = SupabaseDataService();
+                      final ok = await ds.disburseSalary(
+                        agencyId: agencyId,
+                        hostUid: hostUid,
+                        amount: val,
+                        scheduleType: selectedSchedule,
+                      );
+                      Navigator.pop(ctx);
+                      if (ok) {
+                        KayanInAppToast.agency('تم صرف ${fmtFn(val)} 💎 بنجاح إلى حساب الوكيل! ✅');
+                        onDisbursed?.call();
+                      } else {
+                        KayanInAppToast.warning('حدث خطأ أثناء صرف العمولة');
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                  : const Text('تأكيد الصرف', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
+            ),
+          ],
+        );
+      },
+    ),
+  );
 }

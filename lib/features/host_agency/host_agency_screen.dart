@@ -1642,9 +1642,13 @@ class _AgencyRankItem extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              'ID: $displayId',
-                              style: const TextStyle(color: Colors.white54, fontSize: 11),
+                            Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: Text(
+                                'ID: $displayId',
+                                locale: const Locale('en'),
+                                style: const TextStyle(color: Colors.white54, fontSize: 11),
+                              ),
                             ),
                           ],
                         ),

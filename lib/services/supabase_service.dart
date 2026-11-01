@@ -54,6 +54,18 @@ class SupabaseService {
     }
   }
 
+  Future<bool> disburseSalary({
+    required String agencyId,
+    required String hostUid,
+    required int amount,
+    String scheduleType = 'manual',
+  }) => _ds.disburseSalary(
+        agencyId: agencyId,
+        hostUid: hostUid,
+        amount: amount,
+        scheduleType: scheduleType,
+      );
+
   // ═══════════════════════════════════════════════════════
   // USER OPERATIONS (SUPABASE)
   // ═══════════════════════════════════════════════════════
@@ -487,31 +499,46 @@ class SupabaseService {
         timestamp: DateTime.now().millisecondsSinceEpoch,
       )).catchError((_) => false));
 
-      // 5. بث الفوز بالمضاعفات الكبيرة لكافة الغرف عبر جدول broadcasts
-      if (maxMultiplier >= 5 || isBigWin || totalWonCoins > 0) {
-        unawaited(_ds.recordBroadcast(
-          senderUid: senderId,
-          senderName: senderName,
-          senderPhotoUrl: senderPhotoUrl,
+      // رسالة نظام مرئية لجميع مستخدمي الغرفة لإعلان الفائز بالمحظوظ
+      if (totalWonCoins > 0 || maxMultiplier > 1) {
+        final winnerText = maxMultiplier > 1
+            ? '🍀 $receiverName فاز بالمحظوظ! مضاعف ${maxMultiplier}X — ربح $totalWonCoins 🪙'
+            : '🍀 $receiverName فاز بهدية الحظ "$giftNameAr" وربح $totalWonCoins 🪙!';
+        unawaited(_ds.sendMessage(MessageModel(
+          msgId: '${luckyMsgId}_win',
           roomId: roomId,
-          content: maxMultiplier > 1
-              ? '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!'
-              : 'أرسل هدية الحظ $giftNameAr x$count',
-          giftIcon: giftIconUrl,
-          multiplier: maxMultiplier,
-          type: 'lucky_gift',
-        ).catchError((_) => false));
+          senderUid: 'system',
+          senderName: 'نظام',
+          senderPhotoUrl: '',
+          type: 'system',
+          text: winnerText,
+          timestamp: DateTime.now().millisecondsSinceEpoch + 100,
+        )).catchError((_) => false));
+      }
 
-        if (isBigWin || maxMultiplier >= 50) {
-          unawaited(_ds.recordGlobalAnnouncement(
-            type: 'lucky_big_win',
-            senderName: senderName,
-            giftName: giftNameAr,
-            roomId: roomId,
-            multiplier: maxMultiplier,
-            totalWon: totalWonCoins,
-          ).catchError((_) => false));
-        }
+      // 5. بث الفوز لكافة الغرف عبر جدول broadcasts (لكل هدية محظوظة)
+      unawaited(_ds.recordBroadcast(
+        senderUid: senderId,
+        senderName: senderName,
+        senderPhotoUrl: senderPhotoUrl,
+        roomId: roomId,
+        content: maxMultiplier > 1
+            ? '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!'
+            : 'أرسل هدية الحظ $giftNameAr x$count',
+        giftIcon: giftIconUrl,
+        multiplier: maxMultiplier,
+        type: 'lucky_gift',
+      ).catchError((_) => false));
+
+      if (isBigWin || maxMultiplier >= 50) {
+        unawaited(_ds.recordGlobalAnnouncement(
+          type: 'lucky_big_win',
+          senderName: senderName,
+          giftName: giftNameAr,
+          roomId: roomId,
+          multiplier: maxMultiplier,
+          totalWon: totalWonCoins,
+        ).catchError((_) => false));
       }
 
       // 6. تقييم التارجت للوكيل في الخلفية

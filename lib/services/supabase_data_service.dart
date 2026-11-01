@@ -1404,6 +1404,93 @@ class SupabaseDataService {
     return false;
   }
 
+  Future<bool> disburseSalary({
+    required String agencyId,
+    required String hostUid,
+    required int amount,
+    String scheduleType = 'manual',
+  }) async {
+    try {
+      if (amount <= 0) return false;
+
+      // 1. استعلام محفظة الوكالة agency_wallets
+      int curBalance = 0;
+      bool hasRecord = false;
+      try {
+        final awUrl = Uri.parse('$_baseUrl/rest/v1/agency_wallets?or=(agency_id.eq.$agencyId,agency_profile_id.eq.$hostUid)&select=*&limit=1');
+        final awRes = await http.get(awUrl, headers: _headers);
+        if (awRes.statusCode == 200) {
+          final List awList = jsonDecode(awRes.body);
+          if (awList.isNotEmpty) {
+            hasRecord = true;
+            final aw = awList.first as Map;
+            curBalance = (aw['diamond_balance'] as num?)?.toInt() ?? (aw['balance'] as num?)?.toInt() ?? 0;
+          }
+        }
+      } catch (e) {
+        debugPrint('[SupabaseDataService] disburseSalary check wallet error: $e');
+      }
+
+      final newBalance = (curBalance - amount).clamp(0, 999999999999);
+      if (hasRecord) {
+        try {
+          await http.patch(
+            Uri.parse('$_baseUrl/rest/v1/agency_wallets?or=(agency_id.eq.$agencyId,agency_profile_id.eq.$hostUid)'),
+            headers: _headers,
+            body: jsonEncode({
+              'diamond_balance': newBalance,
+              'balance': newBalance,
+              'updated_at': DateTime.now().toIso8601String(),
+            }),
+          );
+        } catch (_) {}
+      }
+
+      // 2. إضافة إلى رصيد المضيف / المالك (users.diamonds)
+      if (hostUid.isNotEmpty) {
+        try {
+          final uUrl = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$hostUid&select=diamonds&limit=1');
+          final uRes = await http.get(uUrl, headers: _headers);
+          if (uRes.statusCode == 200) {
+            final List uList = jsonDecode(uRes.body);
+            if (uList.isNotEmpty) {
+              final curDia = (uList.first['diamonds'] as num?)?.toInt() ?? 0;
+              await http.patch(
+                Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$hostUid'),
+                headers: _headers,
+                body: jsonEncode({'diamonds': curDia + amount}),
+              );
+            }
+          }
+        } catch (e) {
+          debugPrint('[SupabaseDataService] disburseSalary credit user error: $e');
+        }
+      }
+
+      // 3. تسجيل في agency_diamond_ledger بـ direction = -1
+      try {
+        await http.post(
+          Uri.parse('$_baseUrl/rest/v1/agency_diamond_ledger'),
+          headers: _headers,
+          body: jsonEncode({
+            'agency_id': agencyId,
+            'amount': amount,
+            'direction': -1,
+            'description': 'صرف عمولة وكيل — $scheduleType',
+            'created_at': DateTime.now().toIso8601String(),
+          }),
+        );
+      } catch (e) {
+        debugPrint('[SupabaseDataService] disburseSalary ledger error: $e');
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] disburseSalary error: $e');
+      return false;
+    }
+  }
+
   Future<List<StoreItemModel>> getStoreItems() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/store_items?select=*');
