@@ -70,6 +70,13 @@ export default function Layout() {
 
   return (
     <div className="h-screen bg-[#0A0A0B] text-slate-300 flex overflow-hidden w-full relative">
+      {/* Ambient depth glows */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-[32rem] h-[32rem] rounded-full bg-indigo-600/10 blur-[140px]" />
+        <div className="absolute top-1/3 -right-40 w-[28rem] h-[28rem] rounded-full bg-violet-600/8 blur-[130px]" />
+        <div className="absolute -bottom-40 left-1/3 w-[26rem] h-[26rem] rounded-full bg-rose-600/5 blur-[120px]" />
+      </div>
+
       <Sidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed(c => !c)}
@@ -77,6 +84,7 @@ export default function Layout() {
         onMobileClose={() => setMobileOpen(false)}
         currentUser={currentUser}
       />
+
       {/* Mobile overlay backdrop */}
       {mobileOpen && (
         <div
@@ -85,24 +93,29 @@ export default function Layout() {
           aria-hidden="true"
         />
       )}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden w-full">
+
+      <div className="relative z-10 flex-1 flex flex-col min-w-0 h-full overflow-hidden w-full">
         <Header onMenuClick={() => setMobileOpen(true)} />
+
         {status && !status.fixed && (
-          <div className="mx-3 mt-3 lg:mx-6 lg:mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 flex flex-wrap items-center gap-2 shrink-0">
+          <div className="mx-3 mt-3 lg:mx-6 lg:mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-200 flex flex-wrap items-center gap-2 shrink-0 shadow-lg shadow-red-950/20 backdrop-blur-md">
             <span className="font-bold">⚠️ Admin write access blocked</span>
             <span className="opacity-80 break-all flex-1 min-w-[200px]">{status.reason}</span>
             <button
               onClick={runBootstrap}
               disabled={busy}
-              className="px-3 py-1 rounded bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 disabled:opacity-50 whitespace-nowrap"
+              className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 disabled:opacity-50 whitespace-nowrap transition-all active:scale-[0.98]"
             >
               {busy ? 'Running...' : 'Run bootstrap'}
             </button>
             {uid && <code className="opacity-60 whitespace-nowrap">uid: {uid}</code>}
           </div>
         )}
+
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 custom-scrollbar w-full max-w-full">
-          <Outlet context={{ currentUser }} />
+          <div className="animate-fade-in">
+            <Outlet context={{ currentUser }} />
+          </div>
         </main>
       </div>
     </div>

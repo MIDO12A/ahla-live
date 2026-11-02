@@ -287,7 +287,7 @@ class AgencyMemberInfo {
   factory AgencyMemberInfo.fromMap(Map<String, dynamic> m) {
     final balance  = (m['diamonds_balance'] as num?)?.toInt()             ?? 0;
     final pending  = (m['diamonds_pending_withdrawal'] as num?)?.toInt()  ?? 0;
-    final available= (m['diamonds_available'] as num?)?.toInt()           ?? (balance - pending).clamp(0, balance);
+    final available= (m['diamonds_available'] as num?)?.toInt()           ?? balance;
     return AgencyMemberInfo(
       memberId:                  (m['member_id'] ?? m['id']).toString(),
       userId:                    m['user_id'] as String,

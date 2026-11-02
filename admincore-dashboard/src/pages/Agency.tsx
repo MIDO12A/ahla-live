@@ -521,7 +521,7 @@ export function getMemberStageAndCommission(
   milestones: HostMilestoneModel[],
   agencyCommissionRate?: number
 ) {
-  const diamonds = Number(member?.diamonds_earned_monthly ?? member?.diamondsEarnedMonthly ?? member?.diamonds ?? 0);
+  const diamonds = Number(member?.diamonds_earned_monthly ?? member?.diamondsEarnedMonthly ?? 0);
   const activeMilestones = (milestones || [])
     .filter(m => m.is_active !== false)
     .sort((a, b) => (Number(a.target_diamonds ?? (a as any).targetDiamonds ?? 0) - Number(b.target_diamonds ?? (b as any).targetDiamonds ?? 0)));
@@ -4129,7 +4129,7 @@ function AgencyRecordModal({
                         )}
                       </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
-                        💎 {(m.diamonds_earned_monthly ?? (m as any).diamondsEarnedMonthly ?? (m as any).diamonds ?? 0).toLocaleString()}
+                        💎 {(m.diamonds_earned_monthly ?? (m as any).diamondsEarnedMonthly ?? 0).toLocaleString()}
                       </td>
                       <td className="py-2.5 px-3">
                         {(() => {

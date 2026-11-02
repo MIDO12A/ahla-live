@@ -563,14 +563,18 @@ export interface HostAgencyModel {
   name: string;
   agency_code?: string | number;
   owner_id: string;
+  owner_uid?: string;
   commission_rate: number;
   specialty: 'singing' | 'gaming' | 'talk' | 'mixed';
   is_active: boolean;
   member_count: number;
   total_diamonds_earned: number;
+  total_diamonds_monthly?: number;
+  total_diamonds_cumulative?: number;
   monthly_diamonds: number;
   tier?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
   photo_url?: string;
+  logo_url?: string;
   country?: string;
   is_hall_of_fame?: boolean;
   description?: string;
@@ -578,6 +582,8 @@ export interface HostAgencyModel {
   owner_name?: string;
   owner_avatar?: string;
   owner_custom_id?: string;
+  adminName?: string;
+  data?: Record<string, any>;
   created_at: string;
 }
 

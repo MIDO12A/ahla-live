@@ -10,7 +10,7 @@ import type {
   AgencyJoinRequestModel, AgencyLedgerEntryModel, AgencyWithdrawalRequestModel,
   HostAgencyModel, CpGiftModel, CpCarModel, CpEventSettings, CpRankRewardModel,
   SigninRewardModel, AgencyApplicationModel, HostRechargeRecord,
-  AgencyLevelModel, AgencyExpTaskConfig,
+  AgencyLevelModel, AgencyExpTaskConfig, BDAgencyDetail,
 } from '../types'
 
 // ---- Auth Admin ----
@@ -488,22 +488,13 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
           .maybeSingle();
 
         if (member) {
-          const oldDia = Number(member.diamonds || 0);
-          const diff = newDia - oldDia;
-          const newBal = Math.max(0, Number(member.diamonds_balance ?? oldDia) + diff);
-          const newMonthly = diff >= 0
-            ? Number(member.diamonds_earned_monthly || 0) + diff
-            : Math.max(0, Number(member.diamonds_earned_monthly || 0) + diff);
-          const newCum = diff >= 0
-            ? Number(member.diamonds_earned_cumulative || 0) + diff
-            : Math.max(0, Number(member.diamonds_earned_cumulative || 0) + diff);
-
+          // تعديل الملف الشخصي يغيّر المحفظة فقط.
+          // لا يلمس diamonds_earned_monthly / diamonds_earned_cumulative.
           await client.from('host_agency_members').update({
             diamonds: newDia,
             diamonds_balance: newDia,
             diamonds_available: newDia,
-            diamonds_earned_monthly: newMonthly,
-            diamonds_earned_cumulative: newCum,
+            updated_at: new Date().toISOString(),
           }).eq('id', member.id);
 
           if (member.agency_id) {
@@ -523,8 +514,9 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
 
             await client.from('host_agencies').update({
               total_diamonds_monthly: totalAgMonthly,
-              total_diamonds_cumulative: totalAgCum,
               monthly_diamonds: totalAgMonthly,
+              total_diamonds_cumulative: totalAgCum,
+              total_diamonds_earned: totalAgCum,
             }).eq('id', member.agency_id);
           }
         }
@@ -565,7 +557,7 @@ export async function adjustUserDiamonds(
 
       if (!rpcErr && rpcRes && rpcRes.success) {
         const finalDiamonds = Number(rpcRes.new_diamonds ?? 0);
-        const diff = type === 'add' ? absAmount : -absAmount;
+        const diff = finalDiamonds - Number(rpcRes.old_diamonds ?? finalDiamonds);
 
         // إرسال إشعار النظام للمستخدم
         try {
@@ -573,8 +565,8 @@ export async function adjustUserDiamonds(
             userId: uid,
             title: type === 'add' ? '💎 إضافة رصيد ألماس لحسابك' : '💎 تعديل رصيد الألماس',
             body: type === 'add'
-              ? `مبروك! تم تزويد حسابك بـ ${absAmount.toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`
-              : `تم خصم ${absAmount.toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`,
+              ? `مبروك! تم تزويد حسابك بـ ${Math.abs(diff).toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`
+              : `تم خصم ${Math.abs(diff).toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`,
             type: 'system',
             action: 'diamonds_adjusted',
             extraData: { amount: diff, new_balance: finalDiamonds },
@@ -599,8 +591,11 @@ export async function adjustUserDiamonds(
     }
 
     const currentDiamonds = Number(userRow.diamonds || 0);
-    const diff = type === 'add' ? absAmount : -absAmount;
-    const newDiamonds = Math.max(0, currentDiamonds + diff);
+    const newDiamonds = type === 'add'
+      ? currentDiamonds + absAmount
+      : Math.max(0, currentDiamonds - absAmount);
+    // الفرق الفعلي بعد التقييد بصفر
+    const diff = newDiamonds - currentDiamonds;
 
     // 2. Update users table
     const { error: updErr } = await client
@@ -621,8 +616,12 @@ export async function adjustUserDiamonds(
       if (member) {
         const curMonthly = Number(member.diamonds_earned_monthly || 0);
         const curCum = Number(member.diamonds_earned_cumulative || 0);
-        const newMonthly = type === 'add' ? curMonthly + absAmount : Math.max(0, curMonthly - absAmount);
-        const newCum = type === 'add' ? curCum + absAmount : Math.max(0, curCum - absAmount);
+        // الشهري: يزيد/ينقص فقط إذا كان التزامن مطلوباً وبالفرق الفعلي
+        const newMonthly = syncMonthlyTarget
+          ? Math.max(0, curMonthly + diff)
+          : curMonthly;
+        // التراكمي: يزيد بالإضافة فقط، ولا ينقص بالخصم الإداري
+        const newCum = type === 'add' ? curCum + diff : curCum;
 
         await client
           .from('host_agency_members')
@@ -632,10 +631,11 @@ export async function adjustUserDiamonds(
             diamonds_available: newDiamonds,
             diamonds_earned_monthly: newMonthly,
             diamonds_earned_cumulative: newCum,
+            updated_at: new Date().toISOString(),
           })
           .eq('id', member.id);
 
-        // Sync agency targets
+        // Sync agency totals from members (single source of truth)
         if (member.agency_id) {
           const { data: allMembers } = await client
             .from('host_agency_members')
@@ -655,8 +655,9 @@ export async function adjustUserDiamonds(
             .from('host_agencies')
             .update({
               total_diamonds_monthly: totalAgMonthly,
-              total_diamonds_cumulative: totalAgCum,
               monthly_diamonds: totalAgMonthly,
+              total_diamonds_cumulative: totalAgCum,
+              total_diamonds_earned: totalAgCum,
             })
             .eq('id', member.agency_id);
 
@@ -1542,31 +1543,28 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
 
     if (agencies.length === 0) return [];
 
-    // Fetch members to compute real active member counts AND real total diamonds sum!
+    // Fetch members to compute real active member counts AND real total diamonds sum.
+    // القاعدة: إنتاج الشهر = SUM(diamonds_earned_monthly) فقط.
+    // لا نستخدم diamonds/diamonds_balance هنا إطلاقاً لأنها محفظة وليست إنتاجاً.
     const memberCounts: Record<string, number> = {};
     const agencyDiamondsSum: Record<string, number> = {};
     const agencyCumDiamondsSum: Record<string, number> = {};
+    let membersLoaded = false;
     try {
-      const { data: membersData } = await supabase
+      const membersRes: any = await supabase
         .from('host_agency_members')
-        .select('agency_id, status, diamonds_earned_monthly, diamonds_balance, diamonds, diamonds_earned_cumulative');
-      (membersData ?? []).forEach((m: any) => {
+        .select('agency_id, status, diamonds_earned_monthly, diamonds_earned_cumulative');
+      if (!membersRes?.error) membersLoaded = true;
+      (membersRes?.data ?? []).forEach((m: any) => {
         const agId = m.agency_id;
         if (!agId) return;
         if (m.status === 'active') {
           memberCounts[agId] = (memberCounts[agId] || 0) + 1;
         }
-        const d = Math.max(
-          Number(m.diamonds_earned_monthly || 0),
-          Number(m.diamonds_balance || 0),
-          Number(m.diamonds || 0)
-        );
-        const cum = Math.max(
-          Number(m.diamonds_earned_cumulative || 0),
-          d
-        );
-        agencyDiamondsSum[agId] = (agencyDiamondsSum[agId] || 0) + d;
-        agencyCumDiamondsSum[agId] = (agencyCumDiamondsSum[agId] || 0) + cum;
+        const monthly = Math.max(0, Number(m.diamonds_earned_monthly || 0));
+        const cumulative = Math.max(monthly, Number(m.diamonds_earned_cumulative || 0));
+        agencyDiamondsSum[agId] = (agencyDiamondsSum[agId] || 0) + monthly;
+        agencyCumDiamondsSum[agId] = (agencyCumDiamondsSum[agId] || 0) + cumulative;
       });
     } catch (_) {}
 
@@ -1603,11 +1601,19 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
       const ownerId = a.owner_id || a.owner_uid;
       const owner = ownersMap[ownerId] || ownersMap[a.owner_id] || ownersMap[a.owner_uid];
       const realCount = memberCounts[a.id] ?? a.member_count ?? 1;
-      const realDiamondsMonthly = Math.max(agencyDiamondsSum[a.id] ?? 0, a.total_diamonds_monthly ?? 0, a.monthly_diamonds ?? 0);
-      const realDiamondsCum = Math.max(agencyCumDiamondsSum[a.id] ?? 0, a.total_diamonds_cumulative ?? 0, realDiamondsMonthly);
+      // عند نجاح تحميل الأعضاء نعتمد مجموعهم حصرياً (حتى لو كان صفراً).
+      // وإذا فشل التحميل فقط نرجع للقيمة المخزنة في جدول الوكالة.
+      const realDiamondsMonthly = membersLoaded
+        ? (agencyDiamondsSum[a.id] ?? 0)
+        : Number(a.total_diamonds_monthly ?? a.monthly_diamonds ?? 0);
+      const realDiamondsCum = membersLoaded
+        ? (agencyCumDiamondsSum[a.id] ?? 0)
+        : Number(a.total_diamonds_cumulative ?? a.total_diamonds_earned ?? 0);
 
       // إصلاح تلقائي لسجل الوكالة في قاعدة البيانات لضمان عدم حدوث أي انحراف
-      if (a.total_diamonds_monthly !== realDiamondsMonthly || a.monthly_diamonds !== realDiamondsMonthly) {
+      const storedMonthly = Number(a.total_diamonds_monthly ?? a.monthly_diamonds ?? 0);
+      const storedCum = Number(a.total_diamonds_cumulative ?? a.total_diamonds_earned ?? 0);
+      if (storedMonthly !== realDiamondsMonthly || storedCum !== realDiamondsCum) {
         Promise.resolve().then(async () => {
           try {
             const client = getAdminSupabase() || supabase;
@@ -1615,6 +1621,7 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
               total_diamonds_monthly: realDiamondsMonthly,
               monthly_diamonds: realDiamondsMonthly,
               total_diamonds_cumulative: realDiamondsCum,
+              total_diamonds_earned: realDiamondsCum,
             }).eq('id', a.id);
           } catch (_) {}
         });
@@ -1747,6 +1754,8 @@ export async function createHostAgency(name: string, ownerId: string, commission
       tier: extra?.tier || 'bronze',
       is_active: true,
       member_count: 1,
+      total_diamonds_earned: 0,
+      monthly_diamonds: 0,
       photo_url: photoUrl,
       created_at: nowIso,
     } as HostAgencyModel;
@@ -1991,8 +2000,8 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         if (!ownerUid) continue;
         const exists = members.some((m: any) => m.agency_id === ag.id && ((m.user_id || m.host_uid) === ownerUid || m.role === 'owner'));
         if (!exists) {
-          // FIX: نستخدم أعلى قيمة متاحة من DB كقيمة بداية لكلٍّ من monthly و balance
-          const ownerMonthly = ag.total_diamonds_monthly ?? ag.monthly_diamonds ?? 0;
+          // المالك غير مسجّل كعضو حقيقي: نضيفه للعرض فقط بصفر إنتاج.
+          // لا ننسخ إجمالي الوكالة إلى صفه حتى لا يتضاعف المجموع.
           members.unshift({
             id: `owner_${ag.id}_${ownerUid}`,
             agency_id: ag.id,
@@ -2001,9 +2010,10 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
             role: 'owner',
             status: 'active',
             joined_at: ag.created_at || new Date().toISOString(),
-            diamonds_earned_monthly: ownerMonthly,
-            diamonds_balance: ownerMonthly, // FIX: كان 0 → يجب أن يساوي monthly لضمان resolvedDiamonds صحيح
-            diamonds: ownerMonthly,
+            diamonds_earned_monthly: 0,
+            diamonds_earned_cumulative: 0,
+            diamonds_balance: 0,
+            diamonds: 0,
           });
         }
       }
@@ -2049,41 +2059,37 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
     const resolved = mapList<HostAgencyMemberModel>(members.map((m: any) => {
       const uid = m.user_id || m.host_uid;
       const u = usersMap[uid];
-      // الرصيد القابل للسحب وألماس الشهر متطابقان تماماً للمستخدم نفسه
-      const resolvedDiamonds = Math.max(
-        Number(m.diamonds_earned_monthly || 0),
-        Number(m.diamonds_balance || 0),
-        Number(u?.diamonds || 0),
-        Number(m.diamonds || 0)
-      );
+      // عرض إنتاج الشهر مباشرةً — لا نمزجه مع رصيد المحفظة
+      const monthlyVal = Math.max(0, Number(m.diamonds_earned_monthly || 0));
+      const cumulativeVal = Math.max(monthlyVal, Number(m.diamonds_earned_cumulative || 0));
+      const walletVal = Math.max(0, Number(u?.diamonds ?? m.diamonds_balance ?? m.diamonds ?? 0));
 
-      // معالجة ديناميكية فورية: إذا كان هناك أي عدم تناسق في الماس يتم توحيده وتصحيح القاعدة فوراً
-      const curMonthly = Number(m.diamonds_earned_monthly || 0);
-      const curBalance = Number(m.diamonds_balance || 0);
-      const curUserDiamonds = Number(u?.diamonds || 0);
+      // معالجة ديناميكية فورية: مزامنة محفظة العضو فقط مع users.diamonds
+      const curBalance = Math.max(0, Number(m.diamonds_balance || 0));
+      const curAvail = Math.max(0, Number(m.diamonds_available || 0));
+      const curUserDiamonds = Math.max(0, Number(u?.diamonds || 0));
 
-      if (curMonthly !== resolvedDiamonds || curBalance !== resolvedDiamonds || curUserDiamonds !== resolvedDiamonds) {
-        Promise.resolve().then(async () => {
-          try {
-            const client = getAdminSupabase() || supabase;
-            // تصحيح host_agency_members (تجاهل السجلات الوهمية للمالك بدون id حقيقي في DB)
-            if (m.id && !String(m.id).startsWith('owner_')) {
+      if (!String(m.id).startsWith('owner_') && m.id) {
+        if (curBalance !== walletVal || curAvail !== walletVal || curUserDiamonds !== walletVal) {
+          Promise.resolve().then(async () => {
+            try {
+              const client = getAdminSupabase() || supabase;
               await client.from('host_agency_members').update({
-                diamonds: resolvedDiamonds,
-                diamonds_balance: resolvedDiamonds,
-                diamonds_available: resolvedDiamonds,
-                diamonds_earned_monthly: resolvedDiamonds,
+                diamonds: walletVal,
+                diamonds_balance: walletVal,
+                diamonds_available: walletVal,
+                updated_at: new Date().toISOString(),
               }).eq('id', m.id);
+              if (uid && curUserDiamonds !== walletVal) {
+                await client.from('users').update({
+                  diamonds: walletVal,
+                }).eq('uid', uid);
+              }
+            } catch (syncEx) {
+              console.warn('Auto-healing wallet drift failed:', syncEx);
             }
-            if (uid) {
-              await client.from('users').update({
-                diamonds: resolvedDiamonds,
-              }).eq('uid', uid);
-            }
-          } catch (syncEx) {
-            console.warn('Auto-healing diamonds drift failed:', syncEx);
-          }
-        });
+          });
+        }
       }
 
       const joinedDate = m.joined_at || m.joinedAt || m.created_at || m.createdAt || new Date().toISOString();
@@ -2101,26 +2107,40 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         avatar_url: u?.photo_url || u?.avatar || '',
         avatarUrl: u?.photo_url || u?.avatar || '',
         coins: Number(u?.coins || 0),
-        diamonds_earned_monthly: resolvedDiamonds,
-        diamondsEarnedMonthly: resolvedDiamonds,
-        diamonds_balance: resolvedDiamonds,
-        diamondsBalance: resolvedDiamonds,
+        diamonds: walletVal,
+        diamonds_earned_monthly: monthlyVal,
+        diamondsEarnedMonthly: monthlyVal,
+        diamonds_earned_cumulative: cumulativeVal,
+        diamondsEarnedCumulative: cumulativeVal,
+        diamonds_balance: walletVal,
+        diamondsBalance: walletVal,
+        diamonds_available: walletVal,
         joined_at: joinedDate,
         joinedAt: joinedDate,
       };
     }));
 
-    // FIX: إعادة حساب وتحديث إجمالي ماس الوكالة من مجموع الأعضاء الحقيقيين (وليس تراكمياً)
+    // إعادة حساب إجماليات الوكالة من مجموع الأعضاء الحقيقيين
     if (agencyId) {
-      const trueTotal = resolved.reduce((s, m) => s + Number((m as any).diamonds_earned_monthly || 0), 0);
+      const trueMonthly = resolved.reduce((s, m) => s + Number((m as any).diamonds_earned_monthly || 0), 0);
+      const trueCumulative = resolved.reduce((s, m) => s + Number((m as any).diamonds_earned_cumulative || 0), 0);
       Promise.resolve().then(async () => {
         try {
           const client = getAdminSupabase() || supabase;
-          const { data: agRow } = await client.from('host_agencies').select('total_diamonds_monthly').eq('id', agencyId).maybeSingle();
-          if (agRow && agRow.total_diamonds_monthly !== trueTotal) {
+          const { data: agRow } = await client.from('host_agencies')
+            .select('total_diamonds_monthly, total_diamonds_cumulative')
+            .eq('id', agencyId)
+            .maybeSingle();
+          if (
+            agRow &&
+            (Number(agRow.total_diamonds_monthly || 0) !== trueMonthly ||
+             Number(agRow.total_diamonds_cumulative || 0) !== trueCumulative)
+          ) {
             await client.from('host_agencies').update({
-              total_diamonds_monthly: trueTotal,
-              monthly_diamonds: trueTotal,
+              total_diamonds_monthly: trueMonthly,
+              monthly_diamonds: trueMonthly,
+              total_diamonds_cumulative: trueCumulative,
+              total_diamonds_earned: trueCumulative,
             }).eq('id', agencyId);
           }
         } catch (_) {}
@@ -3879,17 +3899,23 @@ export async function rejectWithdrawal(id: string): Promise<boolean> {
     if (frozen && req.agency_id && req.user_id) {
       const { data: member } = await supabase
         .from('host_agency_members')
-        .select('id, diamonds_balance, diamonds_available, diamonds_pending_withdrawal')
+        .select('id, diamonds, diamonds_balance, diamonds_available, diamonds_pending_withdrawal')
         .eq('agency_id', req.agency_id)
         .or(`user_id.eq.${req.user_id},host_uid.eq.${req.user_id}`)
         .maybeSingle()
       if (member) {
-        const curBal = Number(member.diamonds_balance || 0)
+        const curBal = Number(member.diamonds_balance || member.diamonds || 0)
+        const newBal = curBal + amount
         await supabase.from('host_agency_members').update({
-          diamonds_balance: curBal + amount,
-          diamonds_available: Number(member.diamonds_available || curBal) + amount,
+          diamonds: newBal,
+          diamonds_balance: newBal,
+          diamonds_available: newBal,
           diamonds_pending_withdrawal: Math.max(0, Number(member.diamonds_pending_withdrawal || 0) - amount),
+          updated_at: new Date().toISOString(),
         }).eq('id', member.id)
+        await supabase.from('users').update({
+          diamonds: newBal,
+        }).eq('uid', req.user_id)
       }
     }
     await supabase.from('agency_withdrawal_requests').update({
@@ -4083,7 +4109,10 @@ export async function getBDManagers(): Promise<BDModel[]> {
       if (targetBd) {
         targetBd.agencyCount += 1;
         targetBd.totalHosts += Number(ag.member_count || 1);
-        targetBd.totalEarnings += Number(ag.monthly_diamonds || ag.total_diamonds_monthly || ag.total_diamonds_earned || 0);
+        // "أرباح الوكالات" يجب أن تكون الإجمالي التراكمي، وليس إنتاج الشهر
+        targetBd.totalEarnings += Number(
+          ag.total_diamonds_earned ?? ag.total_diamonds_cumulative ?? ag.monthly_diamonds ?? ag.total_diamonds_monthly ?? 0
+        );
       }
     });
 
@@ -4300,8 +4329,8 @@ export async function getBDAgencies(bdUid: string): Promise<BDAgencyDetail[]> {
       ownerUid: a.owner_uid || a.owner_id,
       ownerName: (a as any).ownerName || (a as any).owner_name || a.name || '',
       memberCount: a.member_count || 1,
-      monthlyDiamonds: a.monthly_diamonds || a.total_diamonds_monthly || 0,
-      totalDiamonds: a.total_diamonds_earned || a.total_diamonds_cumulative || 0,
+      monthlyDiamonds: a.monthly_diamonds ?? a.total_diamonds_monthly ?? 0,
+      totalDiamonds: a.total_diamonds_earned ?? a.total_diamonds_cumulative ?? 0,
       status: a.is_active ? 'active' : 'inactive',
       createdAt: a.created_at,
     }));
@@ -6717,7 +6746,7 @@ export async function getSuperAdmins(): Promise<SuperAdminModel[]> {
         if (supId && map.has(supId)) {
           const sa = map.get(supId)!;
           sa.agenciesCount = (sa.agenciesCount || 0) + 1;
-          const dia = Number(a.total_diamonds_monthly || a.total_diamonds_earned || a.total_diamonds || 0);
+          const dia = Number(a.total_diamonds_earned ?? a.total_diamonds_cumulative ?? a.total_diamonds_monthly ?? 0);
           sa.totalDiamonds = (sa.totalDiamonds || 0) + dia;
         }
       }
@@ -7045,7 +7074,7 @@ export async function getAdmins(): Promise<AdminStaffModel[]> {
         if (adminId && map.has(adminId)) {
           const adm = map.get(adminId)!;
           adm.agenciesCount = (adm.agenciesCount || 0) + 1;
-          const dia = Number(a.total_diamonds_monthly || a.total_diamonds_earned || a.total_diamonds || 0);
+          const dia = Number(a.total_diamonds_earned ?? a.total_diamonds_cumulative ?? a.total_diamonds_monthly ?? 0);
           adm.totalDiamonds = (adm.totalDiamonds || 0) + dia;
         }
       }

@@ -18,6 +18,8 @@ ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS diamonds_availab
 ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS diamonds_earned_monthly bigint DEFAULT 0;
 ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS diamonds_earned_cumulative bigint DEFAULT 0;
 ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS diamonds_pending_withdrawal bigint DEFAULT 0;
+ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS unpacked_target_diamonds bigint DEFAULT 0;
+ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS has_unpacked_target boolean DEFAULT false;
 ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS user_id text;
 ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS host_uid text;
 ALTER TABLE public.host_agency_members ADD COLUMN IF NOT EXISTS status text DEFAULT 'active';
@@ -122,6 +124,17 @@ ALTER TABLE public.user_diamond_logs ADD COLUMN IF NOT EXISTS admin_name text DE
 ALTER TABLE public.user_diamond_logs ADD COLUMN IF NOT EXISTS reason text;
 ALTER TABLE public.user_diamond_logs ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
 
+-- سجل تبديل الألماس (يعمل حتى للمستخدمين غير المنضمين لوكالة)
+CREATE TABLE IF NOT EXISTS public.diamond_exchange_log (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         text NOT NULL,
+  diamonds        bigint NOT NULL,
+  coins           bigint NOT NULL,
+  balance_after   bigint NOT NULL,
+  idempotency_key text UNIQUE,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
 -- توحيد القيم القديمة (بدون تصفير الشهر)
 UPDATE public.host_agency_members
 SET diamonds = diamonds_balance
@@ -185,6 +198,161 @@ $$;
 GRANT EXECUTE ON FUNCTION public.agency_recalc_totals(text) TO authenticated, service_role, anon;
 
 -- ─────────────────────────────────────────────────────────────
+-- 2.5) RPC ذري لتبديل الألماس إلى كوينز
+--      - يخصم من users.diamonds + العضو + المتاح + التارجت الشهري
+--      - لا يمس عمولة الوكيل إطلاقاً
+--      - idempotent عبر agency_diamond_ledger
+-- ─────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.agency_exchange_diamonds(
+  p_diamonds bigint,
+  p_idempotency_key text DEFAULT NULL,
+  p_user_id text DEFAULT NULL,
+  p_coins_per_diamond numeric DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid text;
+  v_idem text;
+  v_user_diamonds bigint := 0;
+  v_new_diamonds bigint := 0;
+  v_new_monthly bigint := 0;
+  v_member record;
+  v_agency_id text;
+  v_available bigint := 0;
+  v_mult numeric := 1;
+  v_coins bigint := 0;
+BEGIN
+  v_uid := COALESCE(auth.uid()::text, NULLIF(p_user_id, ''));
+  IF v_uid IS NULL OR v_uid = '' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'unauthorized');
+  END IF;
+
+  IF COALESCE(p_diamonds, 0) <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'invalid_amount');
+  END IF;
+
+  v_idem := NULLIF(p_idempotency_key, '');
+  IF v_idem IS NOT NULL THEN
+    SELECT coins, balance_after
+    INTO v_coins, v_new_diamonds
+    FROM public.diamond_exchange_log
+    WHERE idempotency_key = v_idem
+    LIMIT 1;
+
+    IF FOUND THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'duplicate', true,
+        'coins_received', v_coins,
+        'new_balance', v_new_diamonds
+      );
+    END IF;
+  END IF;
+
+  SELECT COALESCE(diamonds, 0)
+  INTO v_user_diamonds
+  FROM public.users
+  WHERE uid::text = v_uid OR id::text = v_uid
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'user_not_found');
+  END IF;
+
+  SELECT *
+  INTO v_member
+  FROM public.host_agency_members
+  WHERE user_id::text = v_uid OR host_uid::text = v_uid
+  ORDER BY joined_at NULLS LAST
+  LIMIT 1
+  FOR UPDATE;
+
+  IF v_member.id IS NOT NULL THEN
+    v_agency_id := v_member.agency_id;
+    v_available := GREATEST(
+      COALESCE(v_member.diamonds_available, 0),
+      COALESCE(v_member.diamonds_balance, 0),
+      v_user_diamonds
+    );
+    v_available := LEAST(v_user_diamonds, v_available);
+  ELSE
+    v_available := GREATEST(0, v_user_diamonds);
+  END IF;
+
+  IF v_available < p_diamonds THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'insufficient_balance',
+      'available', v_available
+    );
+  END IF;
+
+  v_mult := COALESCE(NULLIF(p_coins_per_diamond, 0), 1);
+  IF v_mult <= 0 THEN
+    v_mult := 1;
+  END IF;
+  v_coins := FLOOR(p_diamonds * v_mult)::bigint;
+  v_new_diamonds := GREATEST(0, v_user_diamonds - p_diamonds);
+
+  UPDATE public.users
+  SET diamonds = v_new_diamonds,
+      coins = COALESCE(coins, 0) + v_coins,
+      updated_at = now()
+  WHERE uid::text = v_uid OR id::text = v_uid;
+
+  IF v_member.id IS NOT NULL THEN
+    v_new_monthly := GREATEST(0, COALESCE(v_member.diamonds_earned_monthly, 0) - p_diamonds);
+
+    UPDATE public.host_agency_members
+    SET diamonds = v_new_diamonds,
+        diamonds_balance = v_new_diamonds,
+        diamonds_available = v_new_diamonds,
+        diamonds_earned_monthly = v_new_monthly,
+        unpacked_target_diamonds = COALESCE(unpacked_target_diamonds, 0) + p_diamonds,
+        has_unpacked_target = true,
+        updated_at = now()
+    WHERE id = v_member.id;
+
+    PERFORM public.agency_recalc_totals(v_agency_id);
+
+    IF v_agency_id IS NOT NULL AND v_idem IS NOT NULL THEN
+      INSERT INTO public.agency_diamond_ledger
+        (agency_id, user_id, txn_type, amount, direction, balance_after,
+         note, idempotency_key, created_at)
+      VALUES
+        (v_agency_id, v_uid, 'exchange', p_diamonds, -1, v_new_diamonds,
+         'تبديل ألماس إلى كوينز', v_idem, now())
+      ON CONFLICT (idempotency_key) DO NOTHING;
+    END IF;
+  END IF;
+
+  IF v_idem IS NOT NULL THEN
+    INSERT INTO public.diamond_exchange_log
+      (user_id, diamonds, coins, balance_after, idempotency_key, created_at)
+    VALUES
+      (v_uid, p_diamonds, v_coins, v_new_diamonds, v_idem, now())
+    ON CONFLICT (idempotency_key) DO NOTHING;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'duplicate', false,
+    'diamonds', p_diamonds,
+    'coins_received', v_coins,
+    'new_balance', v_new_diamonds,
+    'diamonds_earned_monthly', v_new_monthly
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.agency_exchange_diamonds(bigint, text, text, numeric)
+  TO authenticated, service_role, anon;
+
+-- ─────────────────────────────────────────────────────────────
 -- 3) RPC ذري لإضافة ألماس هدية للمضيف + عمولة الوكالة
 --    - يحدّث users.diamonds + host_agency_members + host_agencies
 --    - يضيف عمولة المالك إلى agency_wallets (حتى لو كان المالك هو المضيف)
@@ -210,6 +378,7 @@ DECLARE
   v_rate numeric := 0;
   v_commission bigint := 0;
   v_new_balance bigint := 0;
+  v_user_new bigint := 0;
   v_idem text;
 BEGIN
   IF p_host_uid IS NULL OR p_host_uid = '' OR COALESCE(p_diamonds, 0) <= 0 THEN
@@ -236,7 +405,8 @@ BEGIN
   UPDATE public.users
   SET diamonds = COALESCE(diamonds, 0) + p_diamonds,
       updated_at = now()
-  WHERE uid::text = p_host_uid OR id::text = p_host_uid;
+  WHERE uid::text = p_host_uid OR id::text = p_host_uid
+  RETURNING diamonds INTO v_user_new;
 
   -- 2) عضوية الوكالة
   SELECT *
@@ -249,14 +419,16 @@ BEGIN
 
   IF v_member.id IS NOT NULL THEN
     v_agency_id := v_member.agency_id;
-    v_new_balance := COALESCE(v_member.diamonds_balance, v_member.diamonds, 0) + p_diamonds;
+    v_new_balance := COALESCE(v_user_new,
+      COALESCE(v_member.diamonds_balance, v_member.diamonds, 0) + p_diamonds);
 
     UPDATE public.host_agency_members
-    SET diamonds = COALESCE(diamonds, 0) + p_diamonds,
-        diamonds_balance = COALESCE(diamonds_balance, 0) + p_diamonds,
-        diamonds_available = COALESCE(diamonds_available, 0) + p_diamonds,
+    SET diamonds = v_new_balance,
+        diamonds_balance = v_new_balance,
+        diamonds_available = v_new_balance,
         diamonds_earned_monthly = COALESCE(diamonds_earned_monthly, 0) + p_diamonds,
-        diamonds_earned_cumulative = COALESCE(diamonds_earned_cumulative, 0) + p_diamonds
+        diamonds_earned_cumulative = COALESCE(diamonds_earned_cumulative, 0) + p_diamonds,
+        updated_at = now()
     WHERE id = v_member.id;
 
     -- 3) عمولة الوكالة (تُضاف فوق نصيب المضيف بدون خصم منه)
@@ -490,6 +662,8 @@ DECLARE
   v_per_usd numeric := 15000;
   v_net_usd numeric := 0;
   v_idem text;
+  v_user_diamonds bigint := 0;
+  v_new_user_diamonds bigint := 0;
 BEGIN
   -- التطبيق يستخدم مفتاح anon، لذلك نأخذ المعرّف من الوسيط أو من الـ JWT
   v_uid := COALESCE(auth.uid()::text, NULLIF(p_user_id, ''));
@@ -517,31 +691,47 @@ BEGIN
   SELECT * INTO v_member
   FROM public.host_agency_members
   WHERE user_id::text = v_uid OR host_uid::text = v_uid
-  LIMIT 1;
+  ORDER BY joined_at NULLS LAST
+  LIMIT 1
+  FOR UPDATE;
 
   IF v_member.id IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'not_member');
   END IF;
 
-  v_available := COALESCE(v_member.diamonds_available, v_member.diamonds_balance, 0);
+  SELECT COALESCE(diamonds, 0)
+  INTO v_user_diamonds
+  FROM public.users
+  WHERE uid::text = v_uid OR id::text = v_uid
+  FOR UPDATE;
+
+  v_available := GREATEST(
+    COALESCE(v_member.diamonds_available, 0),
+    COALESCE(v_member.diamonds_balance, 0),
+    v_user_diamonds
+  );
+  v_available := LEAST(v_user_diamonds, v_available);
   IF v_available < p_diamonds THEN
     RETURN jsonb_build_object('success', false, 'error', 'insufficient_balance',
                               'available', v_available);
   END IF;
 
-  -- تجميد المبلغ: يُخصم من الرصيد المتاح/القابل للسحب ويُسجَّل كمعلّق
-  UPDATE public.host_agency_members
-  SET diamonds = GREATEST(0, COALESCE(diamonds, 0) - p_diamonds),
-      diamonds_balance = GREATEST(0, COALESCE(diamonds_balance, 0) - p_diamonds),
-      diamonds_available = GREATEST(0, COALESCE(diamonds_available, 0) - p_diamonds),
-      diamonds_pending_withdrawal = COALESCE(diamonds_pending_withdrawal, 0) + p_diamonds
-  WHERE id = v_member.id;
+  v_new_user_diamonds := GREATEST(0, v_user_diamonds - p_diamonds);
 
-  -- خصم فوري من رصيد المستخدم حتى لا يُستهلك المبلغ المجمّد
+  -- خصم فوري من رصيد المستخدم (المصدر الموحد) + مزامنة العضو
   UPDATE public.users
-  SET diamonds = GREATEST(0, COALESCE(diamonds, 0) - p_diamonds),
+  SET diamonds = v_new_user_diamonds,
       updated_at = now()
   WHERE uid::text = v_uid OR id::text = v_uid;
+
+  -- تجميد المبلغ: يُخصم من الرصيد المتاح/القابل للسحب ويُسجَّل كمعلّق
+  UPDATE public.host_agency_members
+  SET diamonds = v_new_user_diamonds,
+      diamonds_balance = v_new_user_diamonds,
+      diamonds_available = v_new_user_diamonds,
+      diamonds_pending_withdrawal = COALESCE(diamonds_pending_withdrawal, 0) + p_diamonds,
+      updated_at = now()
+  WHERE id = v_member.id;
 
   SELECT COALESCE(value, 15000) INTO v_per_usd
   FROM public.commission_settings WHERE key = 'diamonds_per_usd';
@@ -561,10 +751,22 @@ BEGIN
      'pending', now())
   RETURNING id INTO v_request_id;
 
+  IF v_idem IS NOT NULL AND v_member.agency_id IS NOT NULL THEN
+    INSERT INTO public.agency_diamond_ledger
+      (agency_id, user_id, txn_type, amount, direction, balance_after,
+       note, idempotency_key, created_at)
+    VALUES
+      (v_member.agency_id, v_uid, 'withdrawal_request', p_diamonds, -1,
+       v_new_user_diamonds, 'طلب سحب — مبلغ مجمّد',
+       'withdraw_' || v_idem, now())
+    ON CONFLICT (idempotency_key) DO NOTHING;
+  END IF;
+
   RETURN jsonb_build_object(
     'success', true,
     'request_id', v_request_id,
     'diamonds', p_diamonds,
+    'new_balance', v_new_user_diamonds,
     'net_usd', v_net_usd,
     'status', 'pending'
   );
@@ -681,22 +883,27 @@ GRANT EXECUTE ON FUNCTION public.agency_reject_withdrawal(uuid, text, text) TO a
 -- ─────────────────────────────────────────────────────────────
 -- 7) مزامنة البيانات الحالية مرة واحدة (إصلاح الأرقام القائمة)
 -- ─────────────────────────────────────────────────────────────
--- users.diamonds هو المصدر الموحد: نُعيد ضبط عضوية الوكالة عليه (مع احترام المجمّد)
+-- users.diamonds هو المصدر الموحد (الرصيد القابل للاستخدام).
+-- بعد تجميد السحب يُخصم المبلغ من users.diamonds ومن diamonds_balance،
+-- لذلك diamonds_available = diamonds_balance (وليس balance - pending حتى لا يُخصم مرتين).
 UPDATE public.host_agency_members m
-SET diamonds = u.diamonds,
-    diamonds_balance = u.diamonds,
-    diamonds_available = GREATEST(0, u.diamonds - COALESCE(m.diamonds_pending_withdrawal, 0))
+SET diamonds = COALESCE(u.diamonds, 0),
+    diamonds_balance = COALESCE(u.diamonds, 0),
+    diamonds_available = GREATEST(0, COALESCE(u.diamonds, 0)),
+    updated_at = now()
 FROM public.users u
 WHERE COALESCE(m.user_id::text, m.host_uid) = u.uid::text
   AND (
     COALESCE(m.diamonds, 0) <> COALESCE(u.diamonds, 0)
     OR COALESCE(m.diamonds_balance, 0) <> COALESCE(u.diamonds, 0)
+    OR COALESCE(m.diamonds_available, 0) <> GREATEST(0, COALESCE(u.diamonds, 0))
   );
 
 UPDATE public.host_agency_members m
-SET diamonds_available = GREATEST(0, COALESCE(m.diamonds_balance, 0) - COALESCE(m.diamonds_pending_withdrawal, 0))
+SET diamonds_available = GREATEST(0, COALESCE(m.diamonds_balance, 0)),
+    updated_at = now()
 WHERE COALESCE(m.diamonds_available, 0)
-      <> GREATEST(0, COALESCE(m.diamonds_balance, 0) - COALESCE(m.diamonds_pending_withdrawal, 0));
+      <> GREATEST(0, COALESCE(m.diamonds_balance, 0));
 
 DO $$
 DECLARE

@@ -354,17 +354,44 @@ abstract final class AgencyRepository {
       if (resp != null) {
         final data = Map<String, dynamic>.from(resp as Map);
         if (data['status'] == 'ok') {
+          // المصدر النهائي للأرصدة هو users.diamonds (وليس أي قيمة محسوبة في RPC)
+          int? liveDiamonds;
+          int? liveMonthly;
+          int? liveCumulative;
+          int? livePending;
+          try {
+            final uList = await _sb
+                .from('users')
+                .select('diamonds')
+                .or('uid.eq.$uid,id.eq.$uid')
+                .limit(1);
+            if (uList.isNotEmpty && uList.first['diamonds'] != null) {
+              liveDiamonds = (uList.first['diamonds'] as num).toInt();
+            }
+
+            final mList = await _sb
+                .from('host_agency_members')
+                .select('diamonds_earned_monthly, diamonds_earned_cumulative, diamonds_pending_withdrawal')
+                .or('user_id.eq.$uid,host_uid.eq.$uid')
+                .limit(1);
+            if (mList.isNotEmpty) {
+              liveMonthly = (mList.first['diamonds_earned_monthly'] as num?)?.toInt();
+              liveCumulative = (mList.first['diamonds_earned_cumulative'] as num?)?.toInt();
+              livePending = (mList.first['diamonds_pending_withdrawal'] as num?)?.toInt();
+            }
+          } catch (_) {}
+
           final member = AgencyMemberInfo.fromMap({
             'member_id':                   data['member_id'],
             'user_id':                     uid,
             'agency_id':                   data['agency_id'],
             'role':                        data['role'],
             'status':                      'active',
-            'diamonds_balance':            data['diamonds_balance'],
-            'diamonds_available':          data['diamonds_available'],
-            'diamonds_pending_withdrawal': data['diamonds_pending_withdrawal'],
-            'diamonds_earned_monthly':     data['diamonds_earned_monthly'],
-            'diamonds_earned_cumulative':  data['diamonds_earned_cumulative'],
+            'diamonds_balance':            liveDiamonds ?? data['diamonds_balance'],
+            'diamonds_available':          liveDiamonds ?? data['diamonds_available'],
+            'diamonds_pending_withdrawal': livePending ?? data['diamonds_pending_withdrawal'],
+            'diamonds_earned_monthly':     liveMonthly ?? data['diamonds_earned_monthly'],
+            'diamonds_earned_cumulative':  liveCumulative ?? data['diamonds_earned_cumulative'],
             'join_date':                   data['join_date'],
             'is_in_trial':                 data['is_in_trial'],
             'trial_ends_at':               data['trial_ends_at'],
@@ -424,8 +451,8 @@ abstract final class AgencyRepository {
         final agencyId = m['agency_id']?.toString() ?? '';
         final memberId = m['id']?.toString() ?? uid;
         final diamonds = (m['diamonds'] as num?)?.toInt() ?? 0;
-        final diamondsMonthly = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? diamonds;
-        final diamondsCumulative = (m['diamonds_earned_cumulative'] as num?)?.toInt() ?? diamonds;
+        final diamondsMonthly = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        final diamondsCumulative = (m['diamonds_earned_cumulative'] as num?)?.toInt() ?? diamondsMonthly;
         // الرصيد القابل للسحب مصدره users.diamonds (تتم مزامنته عبر RPC ذرّي)
         int diamondsBalance = (m['diamonds_available'] as num?)?.toInt()
             ?? (m['diamonds_balance'] as num?)?.toInt()
@@ -494,8 +521,12 @@ abstract final class AgencyRepository {
                 name: agencyRow['name']?.toString() ?? agencyRow['agency_name']?.toString() ?? 'الوكالة',
                 tier: AgencyTier.bronze,
                 memberCount: (agencyRow['total_hosts'] as num?)?.toInt() ?? (agencyRow['member_count'] as num?)?.toInt() ?? 1,
-                totalDiamondsMonthly: (agencyRow['total_diamonds_monthly'] as num?)?.toInt() ?? diamondsMonthly,
-                totalDiamondsCumulative: (agencyRow['total_diamonds_cumulative'] as num?)?.toInt() ?? diamondsCumulative,
+                totalDiamondsMonthly: (agencyRow['total_diamonds_monthly'] as num?)?.toInt()
+                    ?? (agencyRow['monthly_diamonds'] as num?)?.toInt()
+                    ?? 0,
+                totalDiamondsCumulative: (agencyRow['total_diamonds_cumulative'] as num?)?.toInt()
+                    ?? (agencyRow['total_diamonds_earned'] as num?)?.toInt()
+                    ?? 0,
                 isHallOfFame: false,
                 status: agencyRow['status']?.toString() ?? 'active',
               )
@@ -558,90 +589,139 @@ abstract final class AgencyRepository {
     }
   }
 
-  // ─── تبادل الألماس بكوينز (معدل من قاعدة البيانات) ──────────────
-  // ✅ إصلاح: DB signature = (p_diamonds bigint, p_idempotency_key text)
-  //    auth.uid() يُحدَّد داخل الدالة تلقائياً — لا حاجة لإرسال p_user_id
+  // ─── تبادل الألماس بكوينز (ذرّي بالكامل من قاعدة البيانات) ──────
+  // RPC يخصم من users.diamonds + diamonds_balance + diamonds_available
+  // + diamonds_earned_monthly (التارجت) في معاملة واحدة، بدون أي عمولة وكيل.
   static Future<Map<String, dynamic>> exchangeDiamonds({
     required int    diamondsAmount,
     required String idempotencyKey,
   }) async {
     final uid = _sb.auth.currentUser?.id;
+    if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
+
+    final dc = DynamicConfigService();
+    final mult = dc.coinsPerDiamond > 0 ? dc.coinsPerDiamond : 1.0;
 
     try {
       final resp = await _sb.rpc('agency_exchange_diamonds', params: {
-        'p_diamonds':        diamondsAmount,
-        'p_idempotency_key': idempotencyKey,
+        'p_diamonds':          diamondsAmount,
+        'p_idempotency_key':   idempotencyKey,
+        'p_user_id':           uid,
+        'p_coins_per_diamond': mult,
       });
-      if (resp != null) {
-        if (uid != null) {
-          try {
-            final mem = await _sb.from('host_agency_members')
-                .select('id, diamonds_earned_monthly, unpacked_target_diamonds')
-                .or('host_uid.eq.$uid,user_id.eq.$uid')
-                .maybeSingle();
-            if (mem != null) {
-              final curMonthly = (mem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-              final curUnpacked = (mem['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
-              final updatedMonthly = (curMonthly - diamondsAmount).clamp(0, 999999999);
-              await _sb.from('host_agency_members').update({
-                'diamonds_earned_monthly': updatedMonthly,
-                'unpacked_target_diamonds': curUnpacked + diamondsAmount,
-                'has_unpacked_target': true,
-              }).eq('id', mem['id']);
-              await AgencyTargetEvaluator.evaluateHostTargets(uid);
-            }
-          } catch (_) {}
+      if (resp is Map) {
+        final result = Map<String, dynamic>.from(resp);
+        if (result['success'] == true) {
+          await AgencyTargetEvaluator.evaluateHostTargets(uid);
+          return result;
         }
-        return Map<String, dynamic>.from(resp as Map);
+        throw StateError((result['error'] ?? 'exchange_failed').toString());
+      }
+    } on StateError {
+      rethrow;
+    } catch (e) {
+      debugPrint('[AgencyRepository] agency_exchange_diamonds RPC error: $e');
+    }
+
+    // ── Fallback: نفس المعادلة على العميل (لا يحدث إلا إذا كان RPC غير مطبّق) ──
+    try {
+      final existing = await _sb
+          .from('diamond_exchange_log')
+          .select('coins, balance_after')
+          .eq('idempotency_key', idempotencyKey)
+          .maybeSingle();
+      if (existing != null) {
+        return {
+          'success': true,
+          'duplicate': true,
+          'coins_received': (existing['coins'] as num?)?.toInt() ?? 0,
+          'new_balance': (existing['balance_after'] as num?)?.toInt() ?? 0,
+        };
       }
     } catch (_) {}
 
-    // Fallback المباشر: فك الألماس لكوينز بمعدل 1:1 كامل، مع التأثير على تارجت المضيف واحتساب راتب 60% لاحقاً
-    if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
-    final uRow = await _sb.from('users').select('diamonds, coins').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
+    final uRow = await _sb.from('users')
+        .select('diamonds, coins')
+        .or('uid.eq.$uid,id.eq.$uid')
+        .maybeSingle();
     final curD = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
     final curC = (uRow?['coins'] as num?)?.toInt() ?? 0;
-    if (curD < diamondsAmount) throw Exception('رصيد الألماس غير كافٍ');
 
-    // احتساب الكوينز المستلمة بناءً على الإعدادات المحددة في لوحة التحكم (coinsPerDiamond من recharge-settings)
-    final dc = DynamicConfigService();
-    final mult = dc.coinsPerDiamond > 0 ? dc.coinsPerDiamond : 1.0;
+    final memRows = await _sb.from('host_agency_members')
+        .select('id, agency_id, diamonds_available, diamonds_balance, diamonds_earned_monthly, unpacked_target_diamonds')
+        .or('host_uid.eq.$uid,user_id.eq.$uid')
+        .limit(1);
+    final mem = memRows.isNotEmpty ? Map<String, dynamic>.from(memRows.first as Map) : null;
+
+    final memAvailable = mem == null
+        ? curD
+        : [
+            (mem['diamonds_available'] as num?)?.toInt() ?? 0,
+            (mem['diamonds_balance'] as num?)?.toInt() ?? 0,
+            curD,
+          ].reduce((a, b) => a > b ? a : b);
+    final available = memAvailable < curD ? memAvailable : curD;
+    if (curD < diamondsAmount || available < diamondsAmount) {
+      throw Exception('الرصيد المتاح غير كافٍ');
+    }
+
     final coinsReceived = (diamondsAmount * mult).floor();
+    final newDiamonds = (curD - diamondsAmount).clamp(0, 999999999);
 
     await _sb.from('users').update({
-      'diamonds': (curD - diamondsAmount).clamp(0, 999999999),
+      'diamonds': newDiamonds,
       'coins': curC + coinsReceived,
     }).or('uid.eq.$uid,id.eq.$uid');
 
-    try {
-      final mem = await _sb.from('host_agency_members')
-          .select('id, diamonds_balance, diamonds, diamonds_earned_monthly, unpacked_target_diamonds')
-          .or('host_uid.eq.$uid,user_id.eq.$uid')
-          .maybeSingle();
-      if (mem != null) {
-        final curMonthly = (mem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-        final curUnpacked = (mem['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
-        final updatedBal = (curD - diamondsAmount).clamp(0, 999999999);
-        final updatedMonthly = (curMonthly - diamondsAmount).clamp(0, 999999999);
+    if (mem != null) {
+      final curMonthly = (mem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+      final curUnpacked = (mem['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
+      await _sb.from('host_agency_members').update({
+        'diamonds': newDiamonds,
+        'diamonds_balance': newDiamonds,
+        'diamonds_available': newDiamonds,
+        'diamonds_earned_monthly': (curMonthly - diamondsAmount).clamp(0, 999999999),
+        'unpacked_target_diamonds': curUnpacked + diamondsAmount,
+        'has_unpacked_target': true,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', mem['id']);
 
-        await _sb.from('host_agency_members').update({
-          'diamonds_balance': updatedBal,
-          'diamonds': updatedBal,
-          'diamonds_available': updatedBal,
-          'diamonds_earned_monthly': updatedMonthly, // التأثير على تارجت المضيف الشهري ليتراجع
-          'unpacked_target_diamonds': curUnpacked + diamondsAmount, // تسجيل فك التارجت لتطبيق راتب 60%
-          'has_unpacked_target': true,
-        }).eq('id', mem['id']);
-
-        // إعادة تقييم التارجت فوراً ليتراجع
-        await AgencyTargetEvaluator.evaluateHostTargets(uid);
+      final agencyId = mem['agency_id']?.toString() ?? '';
+      if (agencyId.isNotEmpty) {
+        try {
+          await _sb.from('agency_diamond_ledger').insert({
+            'agency_id': agencyId,
+            'user_id': uid,
+            'txn_type': 'exchange',
+            'amount': diamondsAmount,
+            'direction': -1,
+            'balance_after': newDiamonds,
+            'note': 'تبديل ألماس إلى كوينز',
+            'idempotency_key': idempotencyKey,
+            'created_at': DateTime.now().toUtc().toIso8601String(),
+          });
+        } catch (_) {}
       }
+    }
+
+    try {
+      await _sb.from('diamond_exchange_log').insert({
+        'user_id': uid,
+        'diamonds': diamondsAmount,
+        'coins': coinsReceived,
+        'balance_after': newDiamonds,
+        'idempotency_key': idempotencyKey,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
     } catch (_) {}
 
+    await AgencyTargetEvaluator.evaluateHostTargets(uid);
     return {
-      'status': 'ok',
       'success': true,
+      'duplicate': false,
+      'diamonds': diamondsAmount,
       'coins_received': coinsReceived,
+      'new_balance': newDiamonds,
     };
   }
 
@@ -1323,7 +1403,8 @@ abstract final class AgencyRepository {
 
       // رصيد الراتب المتاح للصرف مستقل ولا تُدمج معه عمولة الوكالة أثناء صرف الراتب
       final totalAvailable = ownerBalance;
-      final totalEarned = (earnedCumulative > ownerBalance ? earnedCumulative : ownerBalance);
+      // إجمالي المكتسب تراكمي فقط — لا يُدمج مع رصيد المحفظة القابل للصرف
+      final totalEarned = earnedCumulative;
 
       // 3. Check agency_diamond_ledger
       final List<AgencyOwnerLedgerEntry> ledgerEntries = [];

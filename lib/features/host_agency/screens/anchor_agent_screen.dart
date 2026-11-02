@@ -373,7 +373,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       membersIncome += a.effectiveDiamonds;
     }
     final cumulativeIncome = (info?.totalDiamondsCumulative != null && info!.totalDiamondsCumulative > 0)
-        ? (info.totalDiamondsCumulative >= membersIncome ? info.totalDiamondsCumulative : membersIncome)
+        ? info.totalDiamondsCumulative
         : (membersIncome > 0 ? membersIncome : (info?.transferMoney ?? 0));
 
     final lvlProg = AgencyLevelProgress.calculate(totalCumulativeDiamonds: cumulativeIncome);

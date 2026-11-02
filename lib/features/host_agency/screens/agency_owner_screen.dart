@@ -230,9 +230,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
       if (infoModel != null) {
         final totalGross = infoModel.totalDiamondsCumulative > 0
-            ? (infoModel.totalDiamondsCumulative >= membersCumDiamonds
-                ? infoModel.totalDiamondsCumulative
-                : membersCumDiamonds)
+            ? infoModel.totalDiamondsCumulative
             : (membersCumDiamonds > 0 ? membersCumDiamonds : infoModel.transferMoney);
 
         infoModel = infoModel.copyWith(

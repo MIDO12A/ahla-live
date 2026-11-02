@@ -1237,22 +1237,79 @@ class SupabaseService {
     if (diamonds < effectiveMin) {
       return (success: false, coinsReceived: 0, error: 'الحد الأدنى للتبديل هو $effectiveMin ألماس');
     }
+
+    final idem = 'wallet_xchg_${uid}_${DateTime.now().millisecondsSinceEpoch}';
+
+    // 1) المسار الذري: RPC يخصم من كل الجداول + التارجت في معاملة واحدة
     try {
-      // 1. جلب رصيد المستخدم المحدث من قاعدة البيانات مباشرة
-      Map<String, dynamic>? uRow;
+      final resp = await _sb.rpc('agency_exchange_diamonds', params: {
+        'p_diamonds':          diamonds,
+        'p_idempotency_key':   idem,
+        'p_user_id':           uid,
+        'p_coins_per_diamond': effectiveMultiplier,
+      });
+      if (resp is Map) {
+        final m = Map<String, dynamic>.from(resp);
+        if (m['success'] == true) {
+          final coins = (m['coins_received'] as num?)?.toInt() ?? 0;
+          unawaited(AgencyTargetEvaluator.evaluateHostTargets(uid).catchError((_) {}));
+          return (success: true, coinsReceived: coins, error: null);
+        }
+        return (
+          success: false,
+          coinsReceived: 0,
+          error: (m['error'] ?? 'exchange_failed').toString(),
+        );
+      }
+    } catch (e) {
+      debugPrint('[exchangeDiamondsToCoins] agency_exchange_diamonds RPC error: $e');
+    }
+
+    // 2) Fallback متوافق مع مخطط قديم — نفس المعادلة وبدون خصم مزدوج
+    try {
       try {
-        uRow = await _sb.from('users').select('diamonds, coins').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
+        final existing = await _sb
+            .from('diamond_exchange_log')
+            .select('coins')
+            .eq('idempotency_key', idem)
+            .maybeSingle();
+        if (existing != null) {
+          return (
+            success: true,
+            coinsReceived: (existing['coins'] as num?)?.toInt() ?? 0,
+            error: null,
+          );
+        }
       } catch (_) {}
 
-      final user = await _ds.getUser(uid);
-      final curDiamonds = (uRow?['diamonds'] as num?)?.toInt() ?? user?.diamonds ?? 0;
-      final curCoins = (uRow?['coins'] as num?)?.toInt() ?? user?.coins ?? 0;
+      final uRow = await _sb.from('users')
+          .select('diamonds, coins')
+          .or('uid.eq.$uid,id.eq.$uid')
+          .maybeSingle();
+      final curDiamonds = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
+      final curCoins = (uRow?['coins'] as num?)?.toInt() ?? 0;
 
-      if (curDiamonds < diamonds) {
+      final memRows = await _sb.from('host_agency_members')
+          .select('id, agency_id, diamonds_balance, diamonds_available, diamonds_earned_monthly, unpacked_target_diamonds')
+          .or('host_uid.eq.$uid,user_id.eq.$uid')
+          .limit(1);
+      final member = memRows.isNotEmpty
+          ? Map<String, dynamic>.from(memRows.first as Map)
+          : null;
+
+      final memAvailable = member == null
+          ? curDiamonds
+          : [
+              (member['diamonds_available'] as num?)?.toInt() ?? 0,
+              (member['diamonds_balance'] as num?)?.toInt() ?? 0,
+              curDiamonds,
+            ].reduce((a, b) => a > b ? a : b);
+      final available = memAvailable < curDiamonds ? memAvailable : curDiamonds;
+
+      if (curDiamonds < diamonds || available < diamonds) {
         return (success: false, coinsReceived: 0, error: 'رصيد الألماس غير كافٍ');
       }
 
-      // استبدال الألماس إلى كوينز بمعدل كامل (المستخدم يستلم كامل الكوينز)
       final coinsToReceive = (diamonds * effectiveMultiplier).floor();
       if (coinsToReceive <= 0) {
         return (success: false, coinsReceived: 0, error: 'كمية الألماس غير كافية للحصول على كوينز');
@@ -1260,58 +1317,55 @@ class SupabaseService {
       final newDiamonds = (curDiamonds - diamonds).clamp(0, 999999999);
       final newCoins = curCoins + coinsToReceive;
 
-      // 2. تحديث جدول users باستخدام Supabase Client الموثق بالكامل
-      try {
-        await _sb.from('users').update({
+      await _sb.from('users').update({
+        'diamonds': newDiamonds,
+        'coins': newCoins,
+      }).or('uid.eq.$uid,id.eq.$uid');
+
+      if (member != null) {
+        final curMonthly = (member['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        final curUnpacked = (member['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
+
+        await _sb.from('host_agency_members').update({
           'diamonds': newDiamonds,
-          'coins': newCoins,
-        }).or('uid.eq.$uid,id.eq.$uid');
-      } catch (e) {
-        debugPrint('[exchangeDiamondsToCoins] Supabase update users failed: $e');
+          'diamonds_balance': newDiamonds,
+          'diamonds_available': newDiamonds,
+          'diamonds_earned_monthly': (curMonthly - diamonds).clamp(0, 999999999),
+          'unpacked_target_diamonds': curUnpacked + diamonds,
+          'has_unpacked_target': true,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        }).eq('id', member['id']);
+
+        final agencyId = member['agency_id']?.toString() ?? '';
+        if (agencyId.isNotEmpty) {
+          try {
+            await _sb.from('agency_diamond_ledger').insert({
+              'agency_id': agencyId,
+              'user_id': uid,
+              'txn_type': 'exchange',
+              'amount': diamonds,
+              'direction': -1,
+              'balance_after': newDiamonds,
+              'note': 'تبديل ألماس إلى كوينز',
+              'idempotency_key': idem,
+              'created_at': DateTime.now().toUtc().toIso8601String(),
+            });
+          } catch (_) {}
+        }
       }
 
-      // 3. احتياطياً تحديث عبر DataService
       try {
-        await _ds.updateUser(uid, {
-          'diamonds': newDiamonds,
-          'coins': newCoins,
+        await _sb.from('diamond_exchange_log').insert({
+          'user_id': uid,
+          'diamonds': diamonds,
+          'coins': coinsToReceive,
+          'balance_after': newDiamonds,
+          'idempotency_key': idem,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
         });
       } catch (_) {}
 
-      // 4. إذا كان مضيفاً في وكالة:
-      // يتم خصم الألماس من رصيده المتاح (diamonds_balance و diamonds)
-      // ويتم أيضاً خصمه من التارجت الشهري (diamonds_earned_monthly) ليتراجع التارجت بمقدار ما تم فكه
-      // وتسجيل فك التارجت لاحتساب راتب التارجت بنسبة 60% لاحقاً (خصم 40% من الراتب)
-      // مع الحفاظ الكامل على عمولة وكيل المضيفين دون أي مساس بها
-      try {
-        final memRes = await _sb.from('host_agency_members')
-            .select('id, diamonds_balance, diamonds, diamonds_earned_monthly, unpacked_target_diamonds')
-            .or('host_uid.eq.$uid,user_id.eq.$uid');
-        if (memRes is List && memRes.isNotEmpty) {
-          for (final rawMem in memRes) {
-            final hostMember = Map<String, dynamic>.from(rawMem as Map);
-            final curBal = (hostMember['diamonds_balance'] as num?)?.toInt() ?? (hostMember['diamonds'] as num?)?.toInt() ?? 0;
-            final curMonthly = (hostMember['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-            final curUnpacked = (hostMember['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
-            final updatedBal = (curBal - diamonds).clamp(0, 999999999);
-            final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
-
-            await _sb.from('host_agency_members').update({
-              'diamonds_balance': updatedBal,
-              'diamonds': updatedBal,
-              'diamonds_earned_monthly': updatedMonthly,
-              'unpacked_target_diamonds': curUnpacked + diamonds,
-              'has_unpacked_target': true,
-            }).eq('id', hostMember['id']);
-          }
-
-          // إعادة تقييم التارجت ليتراجع فوراً للمضيف
-          await AgencyTargetEvaluator.evaluateHostTargets(uid);
-        }
-      } catch (e) {
-        debugPrint('[exchangeDiamondsToCoins] update host_agency_members error: $e');
-      }
-
+      await AgencyTargetEvaluator.evaluateHostTargets(uid);
       return (success: true, coinsReceived: coinsToReceive, error: null);
     } catch (e) {
       return (success: false, coinsReceived: 0, error: e.toString());
