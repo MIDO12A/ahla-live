@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../models/task_model.dart';
+import 'package:zero/core/dtext.dart';
 
 /// نافذة مكافأة المهمة المطابقة بالكامل لـ dialog_task_coin.xml
 class TaskRewardDialog extends StatelessWidget {
@@ -31,7 +32,7 @@ class TaskRewardDialog extends StatelessWidget {
                 children: [
                   const SizedBox(height: 60),
                   // تهانينا (congratulations)
-                  const Text(
+                  const DText(
                     'تهانينا',
                     style: TextStyle(
                       fontSize: 26,
@@ -59,7 +60,7 @@ class TaskRewardDialog extends StatelessWidget {
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(width: 8),
-                      Text(
+                      DText(
                         '+${task.coinsReward > 0 ? task.coinsReward : task.expReward}',
                         style: const TextStyle(
                           fontSize: 32,
@@ -95,7 +96,7 @@ class TaskRewardDialog extends StatelessWidget {
                         ],
                       ),
                       alignment: Alignment.center,
-                      child: const Text(
+                      child: const DText(
                         'تأكيد',
                         style: TextStyle(
                           fontSize: 20,

@@ -12,6 +12,7 @@ import '../../../core/cache/encrypted_image_provider.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../services/supabase_auth_service.dart';
 import '../../../services/supabase_data_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class AgencyInviteByIdScreen extends StatefulWidget {
   const AgencyInviteByIdScreen({
@@ -174,7 +175,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ أثناء إرسال الدعوة: $e'), backgroundColor: Colors.red),
+          SnackBar(content: DText('حدث خطأ أثناء إرسال الدعوة: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -188,7 +189,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: const DText(
           'تأكيد الدعوة',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
@@ -199,7 +200,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
             // أفاتار
             _buildAvatar(_foundAvatar, 64),
             const SizedBox(height: 12),
-            Text(
+            DText(
               _foundName ?? 'مستخدم',
               style: const TextStyle(
                 color: Colors.white,
@@ -208,7 +209,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
+            DText(
               'Kayan ID: ${_foundKayanId ?? ''}',
               style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
             ),
@@ -220,7 +221,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFFFB800).withOpacity(0.3)),
               ),
-              child: Text(
+              child: DText(
                 'هل تريد دعوة هذا المستخدم للانضمام إلى وكالة "${widget.agencyName}"؟',
                 style: const TextStyle(color: Color(0xFFFFB800), fontSize: 13),
                 textAlign: TextAlign.center,
@@ -232,7 +233,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -241,7 +242,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('إرسال الدعوة', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const DText('إرسال الدعوة', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -259,7 +260,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
             const Icon(Icons.check_circle_rounded, color: Colors.white),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
+              child: DText(
                 'تم إرسال الدعوة لـ ${_foundName ?? 'المستخدم'} بنجاح ✅',
                 style: const TextStyle(color: Colors.white),
               ),
@@ -311,7 +312,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
         children: [
           _buildAvatar(_foundAvatar, 80),
           const SizedBox(height: 12),
-          Text(
+          DText(
             _foundName ?? 'مستخدم',
             style: const TextStyle(
               color: Colors.white,
@@ -325,7 +326,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
             children: [
               const Icon(Icons.tag, color: Color(0xFFFFB800), size: 14),
               const SizedBox(width: 4),
-              Text(
+              DText(
                 'Kayan ID: ${_foundKayanId ?? ''}',
                 style: const TextStyle(color: Color(0xFFFFB800), fontSize: 13),
               ),
@@ -359,7 +360,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                 color: Colors.orange.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
+              child: DText(
                 _errorMsg,
                 style: TextStyle(color: Colors.orange.shade300, fontSize: 12),
               ),
@@ -386,7 +387,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                       ),
                     )
                   : const Icon(Icons.person_add_rounded),
-              label: Text(
+              label: DText(
                 _inviting ? 'جاري الإرسال...' : 'إرسال الدعوة',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
@@ -406,7 +407,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
             icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text(
+          title: const DText(
             'دعوة عضو جديد',
             style: TextStyle(
               color: Colors.white,
@@ -491,7 +492,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                         const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
+                          child: DText(
                             _errorMsg,
                             style: const TextStyle(color: Colors.redAccent, fontSize: 14),
                           ),
@@ -524,7 +525,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        const Text(
+                        const DText(
                           'ابحث بـ Kayan ID',
                           style: TextStyle(
                             color: Colors.white,
@@ -535,7 +536,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                         const SizedBox(height: 8),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 40),
-                          child: Text(
+                          child: DText(
                             'أدخل الـ Kayan ID الخاص بالمستخدم الذي تريد دعوته للانضمام إلى وكالتك',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.5),
@@ -569,10 +570,10 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
       child: Row(
         children: [
-          Text(h.$1, style: const TextStyle(fontSize: 16)),
+          DText(h.$1, style: const TextStyle(fontSize: 16)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
+            child: DText(
               h.$2,
               style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13),
             ),
@@ -608,7 +609,7 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 14),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+          DText(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );

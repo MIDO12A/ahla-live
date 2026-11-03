@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/r.dart';
 import '../../config/app_colors.dart';
+import 'package:zero/core/dtext.dart';
 
 class MusicScreen extends StatefulWidget {
   const MusicScreen({super.key});
@@ -46,7 +47,7 @@ class _MusicScreenState extends State<MusicScreen> {
                     child: R.image(R.backIc, width: 28, height: 28),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
+                  const DText(
                     'طلب أغنية',
                     style: TextStyle(
                       fontSize: 20,
@@ -113,7 +114,7 @@ class _MusicScreenState extends State<MusicScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
+                              DText(
                                 song['title']!,
                                 textAlign: TextAlign.right,
                                 style: const TextStyle(
@@ -123,7 +124,7 @@ class _MusicScreenState extends State<MusicScreen> {
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(
+                              DText(
                                 song['artist']!,
                                 textAlign: TextAlign.right,
                                 style: const TextStyle(
@@ -142,7 +143,7 @@ class _MusicScreenState extends State<MusicScreen> {
                                   setState(() => _requestedSongs.add(index));
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('تم طلب "${song['title']}"'),
+                                      content: DText('تم طلب "${song['title']}"'),
                                       duration: const Duration(seconds: 2),
                                     ),
                                   );
@@ -158,7 +159,7 @@ class _MusicScreenState extends State<MusicScreen> {
                                   : AppColors.goldLight,
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            child: Text(
+                            child: DText(
                               isRequested ? 'تم الطلب' : 'طلب',
                               style: TextStyle(
                                 fontSize: 13,

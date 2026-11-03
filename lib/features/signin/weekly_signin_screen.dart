@@ -5,6 +5,7 @@ import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../tasks/screens/daily_tasks_screen.dart';
 import 'signin_service.dart';
+import 'package:zero/core/dtext.dart';
 
 /// الشاشة والنافذة المنبثقة لتسجيل الوصول اليومي
 /// مطابقة بالكامل لتصميم التطبيق الأصلي:
@@ -157,7 +158,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
         if (result['error'] == 'already_signed_in') {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('لقد قمت بتسجيل الوصول اليوم بالفعل', textAlign: TextAlign.center),
+              content: DText('لقد قمت بتسجيل الوصول اليوم بالفعل', textAlign: TextAlign.center),
               backgroundColor: Color(0xFFFEB606),
             ),
           );
@@ -201,7 +202,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
             children: [
               const SizedBox(height: 60),
               // تهانينا (congratulations)
-              const Text(
+              const DText(
                 'تهانينا',
                 style: TextStyle(
                   fontSize: 26,
@@ -229,7 +230,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                     fit: BoxFit.contain,
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  DText(
                     '+$rewardValue',
                     style: const TextStyle(
                       fontSize: 32,
@@ -265,7 +266,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: const Text(
+                  child: const DText(
                     'تأكيد',
                     style: TextStyle(
                       fontSize: 20,
@@ -324,11 +325,11 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                     padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
                     child: Column(
                       children: [
-                        Text(_error!, style: const TextStyle(color: Colors.red)),
+                        DText(_error!, style: const TextStyle(color: Colors.red)),
                         const SizedBox(height: 10),
                         TextButton(
                           onPressed: _loadData,
-                          child: const Text('إعادة المحاولة', style: TextStyle(color: Color(0xFFFEB606))),
+                          child: const DText('إعادة المحاولة', style: TextStyle(color: Color(0xFFFEB606))),
                         ),
                       ],
                     ),
@@ -388,7 +389,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
           left: 0,
           right: 0,
           bottom: 10,
-          child: Text(
+          child: DText(
             'تسجيل الوصول اليومي',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -494,7 +495,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
           // عنوان اليوم (tvTitle)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(
+            child: DText(
               'Day $dayNum',
               style: const TextStyle(
                 fontSize: 11,
@@ -525,7 +526,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                       fit: BoxFit.contain,
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    DText(
                       'X$value',
                       style: const TextStyle(
                         fontSize: 12,
@@ -587,7 +588,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
           // عنوان اليوم السابع
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 4),
-            child: Text(
+            child: DText(
               'Day 7',
               style: TextStyle(
                 fontSize: 11,
@@ -632,7 +633,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      DText(
                         'X$value',
                         style: const TextStyle(
                           fontSize: 13,
@@ -695,7 +696,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            Text(
+            DText(
               '$value',
               style: const TextStyle(
                 fontSize: 24,
@@ -704,7 +705,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
               ),
             ),
             const SizedBox(width: 4),
-            const Text(
+            const DText(
               'كويزات',
               style: TextStyle(
                 fontSize: 14,
@@ -756,7 +757,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
                   height: 20,
                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                 )
-              : Text(
+              : DText(
                   claimed ? 'تم تسجيل الوصول اليوم' : 'تسجيل الوصول',
                   style: const TextStyle(
                     fontSize: 16,
@@ -791,7 +792,7 @@ class _WeeklySigninDialogState extends State<WeeklySigninDialog> {
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
+            DText(
               'المزيد من المهام',
               style: TextStyle(
                 fontSize: 15,

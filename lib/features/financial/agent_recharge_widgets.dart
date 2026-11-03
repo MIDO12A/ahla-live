@@ -11,6 +11,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/brand_colors.dart';
 import '../../core/cache/encrypted_image_provider.dart';
 import '../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -70,7 +71,7 @@ class AgentRechargeHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    DText(
                       dc.agentRechargeTitle,
                       style: GoogleFonts.tajawal(
                         fontSize: 18,
@@ -80,7 +81,7 @@ class AgentRechargeHeader extends StatelessWidget {
                     ),
                     Row(
                       children: [
-                        Text(
+                        DText(
                           dc.agentRechargeSubtitle,
                           style: GoogleFonts.tajawal(
                             fontSize: 11,
@@ -108,7 +109,7 @@ class AgentRechargeHeader extends StatelessWidget {
                                   errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
+                                DText(
                                   'ID: $agentPublicId',
                                   style: GoogleFonts.tajawal(
                                     fontSize: 10,
@@ -145,7 +146,7 @@ class AgentRechargeHeader extends StatelessWidget {
                         'assets/images/agency/mine_wallet_coin_bag_ic.webp',
                         width: 22,
                         height: 22,
-                        errorBuilder: (_, __, ___) => const Text('🏅'),
+                        errorBuilder: (_, __, ___) => const DText('🏅'),
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -153,14 +154,14 @@ class AgentRechargeHeader extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        DText(
                           'رصيد الوكالة',
                           style: GoogleFonts.tajawal(
                             fontSize: 9,
                             color: Colors.white70,
                           ),
                         ),
-                        Text(
+                        DText(
                           _fmt(agencyGold),
                           style: GoogleFonts.tajawal(
                             fontSize: 13,
@@ -189,7 +190,7 @@ class AgentRechargeHeader extends StatelessWidget {
                               ),
                             ],
                           ),
-                          child: Text(
+                          child: DText(
                             'شحن',
                             style: GoogleFonts.tajawal(
                               fontSize: 11,
@@ -267,9 +268,9 @@ class AgentQuickActionBtn extends StatelessWidget {
           border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(children: [
-          Text(icon, style: const TextStyle(fontSize: 26)),
+          DText(icon, style: const TextStyle(fontSize: 26)),
           const SizedBox(height: 6),
-          Text(label, style: GoogleFonts.tajawal(
+          DText(label, style: GoogleFonts.tajawal(
             fontSize: 12, fontWeight: FontWeight.w800, color: color)),
         ]),
       ),
@@ -307,13 +308,13 @@ class AgentRechargeConfirmDialog extends StatelessWidget {
           decoration: BoxDecoration(
             color: primaryColor.withValues(alpha: 0.1),
             shape: BoxShape.circle),
-          child: Center(child: Text(isWithdraw ? '💎' : '🪙', style: const TextStyle(fontSize: 30)))),
+          child: Center(child: DText(isWithdraw ? '💎' : '🪙', style: const TextStyle(fontSize: 30)))),
         const SizedBox(height: 14),
-        Text(isWithdraw ? 'طلب سحب ألماس الراتب' : 'تأكيد شحن كوينز',
+        DText(isWithdraw ? 'طلب سحب ألماس الراتب' : 'تأكيد شحن كوينز',
           style: GoogleFonts.tajawal(fontSize: 18, fontWeight: FontWeight.w900,
             color: const Color(0xFF1a1a2e))),
         const SizedBox(height: 4),
-        Text(isWithdraw ? 'سيتم إرسال طلب سحب إلى المستخدم، ولن يتم خصم الألماس إلا بعد موافقته' : 'هل أنت متأكد من إرسال الكوينز للمستخدم؟',
+        DText(isWithdraw ? 'سيتم إرسال طلب سحب إلى المستخدم، ولن يتم خصم الألماس إلا بعد موافقته' : 'هل أنت متأكد من إرسال الكوينز للمستخدم؟',
           textAlign: TextAlign.center,
           style: GoogleFonts.tajawal(fontSize: 13, color: Colors.black54)),
         const SizedBox(height: 20),
@@ -326,10 +327,10 @@ class AgentRechargeConfirmDialog extends StatelessWidget {
             AgentAvatar(url: url, size: 52),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: GoogleFonts.tajawal(
+              DText(name, style: GoogleFonts.tajawal(
                 fontSize: 15, fontWeight: FontWeight.w900,
                 color: const Color(0xFF1a1a2e))),
-              if (kid != null) Text('# $kid',
+              if (kid != null) DText('# $kid',
                 style: GoogleFonts.tajawal(fontSize: 12,
                   color: primaryColor,
                   fontWeight: FontWeight.w700)),
@@ -341,7 +342,7 @@ class AgentRechargeConfirmDialog extends StatelessWidget {
             gradient: LinearGradient(
               colors: [primaryColor, secColor]),
             borderRadius: BorderRadius.circular(40)),
-          child: Text(isWithdraw ? '💎  $amount ماسة (طلب سحب)' : '🪙  $amount كوين (شحن)',
+          child: DText(isWithdraw ? '💎  $amount ماسة (طلب سحب)' : '🪙  $amount كوين (شحن)',
             style: GoogleFonts.tajawal(
               fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white))),
         const SizedBox(height: 24),
@@ -352,7 +353,7 @@ class AgentRechargeConfirmDialog extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               side: BorderSide(color: Colors.black.withValues(alpha: 0.15))),
-            child: Text('إلغاء',
+            child: DText('إلغاء',
               style: GoogleFonts.tajawal(
                 fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black54)))),
           const SizedBox(width: 12),
@@ -369,7 +370,7 @@ class AgentRechargeConfirmDialog extends StatelessWidget {
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              child: Text(
+              child: DText(
                 isWithdraw
                     ? DynamicConfigService().agentRechargeWithdrawText
                     : DynamicConfigService().agentRechargeConfirmText,
@@ -404,10 +405,10 @@ class AgentStatPill extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('$icon $label',
+      DText('$icon $label',
         style: GoogleFonts.tajawal(color: Colors.white60, fontSize: 11)),
       const SizedBox(height: 2),
-      Text(value,
+      DText(value,
         style: GoogleFonts.tajawal(
           color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
     ]),
@@ -520,7 +521,7 @@ class AgentRechargeSuccessDialog extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              Text(
+              DText(
                 'تم النقل بنجاح',
                 style: GoogleFonts.tajawal(
                   fontSize: 18,
@@ -562,7 +563,7 @@ class AgentRechargeSuccessDialog extends StatelessWidget {
                     ],
                   ),
                   child: Center(
-                    child: Text(
+                    child: DText(
                       'تأكيد',
                       style: GoogleFonts.tajawal(
                         fontSize: 16,
@@ -594,7 +595,7 @@ class AgentRechargeSuccessDialog extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
+          DText(
             label,
             style: GoogleFonts.tajawal(
               fontSize: 12,
@@ -604,7 +605,7 @@ class AgentRechargeSuccessDialog extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
+            child: DText(
               value,
               textAlign: TextAlign.end,
               overflow: TextOverflow.ellipsis,
@@ -705,7 +706,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('تم نسخ $label بنجاح ✅', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold)),
+        content: DText('تم نسخ $label بنجاح ✅', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF2E7D32),
         duration: const Duration(seconds: 2),
       ),
@@ -786,10 +787,10 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
             content: Column(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.check_circle_rounded, color: Color(0xFF00E5A0), size: 54),
               const SizedBox(height: 14),
-              Text('تم إرسال طلب التعبئة بنجاح! 🚀',
+              DText('تم إرسال طلب التعبئة بنجاح! 🚀',
                   style: GoogleFonts.tajawal(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 8),
-              Text(
+              DText(
                 'تم استلام طلبك وإرفاق الإيصال للمراجعة.\nسيتم إضافة رصيد الكوينز لمحفظة وكالتك فور تدقيق التحويل من الإدارة.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.tajawal(color: Colors.white70, fontSize: 13, height: 1.4),
@@ -802,7 +803,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () => Navigator.pop(context),
-                child: Text('حسناً', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold)),
+                child: DText('حسناً', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold)),
               ),
             ]),
           ),
@@ -820,7 +821,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
   }
 
   void _snack(String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg, style: GoogleFonts.tajawal())));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText(msg, style: GoogleFonts.tajawal())));
 
   @override
   Widget build(BuildContext context) {
@@ -863,7 +864,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
               children: [
                 const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFFFFB800), size: 24),
                 const SizedBox(width: 8),
-                Text(
+                DText(
                   'طلب تعبئة رصيد الوكالة',
                   style: GoogleFonts.tajawal(
                     color: Colors.white,
@@ -874,7 +875,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
               ],
             ),
             const SizedBox(height: 6),
-            Text(
+            DText(
               'حول المبلغ لحساب الإدارة الرسمي ثم ارفع الإيصال لشحن الكوينز فوراً',
               style: GoogleFonts.tajawal(color: Colors.white54, fontSize: 12),
             ),
@@ -891,7 +892,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('حسابات الإدارة الرسمية للإيداع:',
+                  DText('حسابات الإدارة الرسمية للإيداع:',
                       style: GoogleFonts.tajawal(color: const Color(0xFFFFB800), fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 10),
                   _buildCopyTile('فودافون كاش / محافظ مصر', vfNumber, Icons.phone_android_rounded),
@@ -907,7 +908,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
             const SizedBox(height: 16),
 
             // طريقة الدفع المستخدمة
-            Text('طريقة التحويل المستخدمة',
+            DText('طريقة التحويل المستخدمة',
                 style: GoogleFonts.tajawal(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             Container(
@@ -922,10 +923,10 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
                   isExpanded: true,
                   dropdownColor: const Color(0xFF1E2230),
                   items: const [
-                    DropdownMenuItem(value: 'vodafone_cash', child: Text('فودافون كاش / محافظ إلكترونية', style: TextStyle(color: Colors.white, fontSize: 13))),
-                    DropdownMenuItem(value: 'binance_usdt', child: Text('Binance USDT (TRC-20)', style: TextStyle(color: Colors.white, fontSize: 13))),
-                    DropdownMenuItem(value: 'instapay', child: Text('إنستاباي InstaPay', style: TextStyle(color: Colors.white, fontSize: 13))),
-                    DropdownMenuItem(value: 'bank_transfer', child: Text('تحويل بنكي / IBAN', style: TextStyle(color: Colors.white, fontSize: 13))),
+                    DropdownMenuItem(value: 'vodafone_cash', child: DText('فودافون كاش / محافظ إلكترونية', style: TextStyle(color: Colors.white, fontSize: 13))),
+                    DropdownMenuItem(value: 'binance_usdt', child: DText('Binance USDT (TRC-20)', style: TextStyle(color: Colors.white, fontSize: 13))),
+                    DropdownMenuItem(value: 'instapay', child: DText('إنستاباي InstaPay', style: TextStyle(color: Colors.white, fontSize: 13))),
+                    DropdownMenuItem(value: 'bank_transfer', child: DText('تحويل بنكي / IBAN', style: TextStyle(color: Colors.white, fontSize: 13))),
                   ],
                   onChanged: (v) => setState(() => _paymentMethod = v ?? 'vodafone_cash'),
                 ),
@@ -934,7 +935,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
             const SizedBox(height: 14),
 
             // المبلغ
-            Text('المبلغ المحول (\$ / جنيه)',
+            DText('المبلغ المحول (\$ / جنيه)',
                 style: GoogleFonts.tajawal(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             TextField(
@@ -984,7 +985,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
             const SizedBox(height: 14),
 
             // صورة الإشعار
-            Text('صورة إشعار / إيصال التحويل',
+            DText('صورة إشعار / إيصال التحويل',
                 style: GoogleFonts.tajawal(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             GestureDetector(
@@ -1004,13 +1005,13 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
                     ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         const Icon(Icons.check_circle_rounded, color: Color(0xFF00E5A0)),
                         const SizedBox(width: 8),
-                        Text('تم اختيار الصورة بنجاح (انقر للتغيير)',
+                        DText('تم اختيار الصورة بنجاح (انقر للتغيير)',
                             style: GoogleFonts.tajawal(color: const Color(0xFF00E5A0), fontSize: 12, fontWeight: FontWeight.bold)),
                       ])
                     : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         const Icon(Icons.add_photo_alternate_rounded, color: Color(0xFFFFB800), size: 28),
                         const SizedBox(height: 4),
-                        Text('انقر هنا لرفع لقطة الشاشة من المعرض',
+                        DText('انقر هنا لرفع لقطة الشاشة من المعرض',
                             style: GoogleFonts.tajawal(color: Colors.white54, fontSize: 12)),
                       ]),
               ),
@@ -1029,7 +1030,7 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
                 ),
                 child: _uploading
                     ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                    : Text('إرسال طلب التعبئة للإدارة 🚀',
+                    : DText('إرسال طلب التعبئة للإدارة 🚀',
                         style: GoogleFonts.tajawal(fontSize: 15, fontWeight: FontWeight.w900)),
               ),
             ),
@@ -1046,8 +1047,8 @@ class _AgentTopupDialogState extends State<AgentTopupDialog> {
         const SizedBox(width: 8),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(color: Colors.white38, fontSize: 10)),
-            Text(val, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+            DText(title, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+            DText(val, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
           ]),
         ),
         IconButton(

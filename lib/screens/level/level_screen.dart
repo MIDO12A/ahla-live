@@ -4,6 +4,7 @@ import '../../config/r.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/level_service.dart';
 import '../../providers/user_provider.dart';
+import 'package:zero/core/dtext.dart';
 
 class LevelScreen extends StatefulWidget {
   const LevelScreen({super.key});
@@ -140,7 +141,7 @@ class _LevelScreenState extends State<LevelScreen>
                                 ),
                               ),
                               const Spacer(),
-                              Text(
+                              DText(
                                 dc.screenTitles['level'] ?? 'المستويات',
                                 style: TextStyle(
                                   fontSize: 20,
@@ -262,7 +263,7 @@ class _LevelScreenState extends State<LevelScreen>
           // ===== قائمة المستويات التالية =====
           Row(
             children: [
-              Text(
+              DText(
                 dc.getScreenTitle('next_levels', 'Next Levels'),
               style: TextStyle(
                 fontSize: 18,
@@ -276,7 +277,7 @@ class _LevelScreenState extends State<LevelScreen>
           if (levels.isEmpty)
             Padding(
               padding: const EdgeInsets.all(32),
-                child: Text(
+                child: DText(
                   dc.getScreenTitle('no_levels', 'No levels configured yet'),
                   style: TextStyle(color: dc.levelSubTextColor),
                 ),
@@ -323,7 +324,7 @@ class _LevelScreenState extends State<LevelScreen>
                         ),
                       )
                           : Center(
-                          child: Text(
+                          child: DText(
                             '${config.level}',
                             style: TextStyle(
                               fontSize: 18,
@@ -338,7 +339,7 @@ class _LevelScreenState extends State<LevelScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          DText(
                             config.title,
                               style: TextStyle(
                                 fontSize: 16,
@@ -352,14 +353,14 @@ class _LevelScreenState extends State<LevelScreen>
                               child: Row(
                                 children: [
                                   if (config.frameUrl != null)
-                                    Text(
+                                    DText(
                                       'Frame',
                                       style: TextStyle(fontSize: 11, color: dc.levelSubTextColor),
                                     ),
                                   if (config.frameUrl != null && config.badgeUrl != null)
                                     const SizedBox(width: 8),
                                   if (config.badgeUrl != null)
-                                    Text(
+                                    DText(
                                       'Badge',
                                       style: TextStyle(fontSize: 11, color: dc.levelSubTextColor),
                                     ),
@@ -469,7 +470,7 @@ class _LevelScreenState extends State<LevelScreen>
                   )
                 : fallbackText != null
                     ? Center(
-                        child: Text(
+                        child: DText(
                           fallbackText,
                           style: TextStyle(
                             fontSize: 28,
@@ -485,7 +486,7 @@ class _LevelScreenState extends State<LevelScreen>
                       ),
           ),
           const SizedBox(height: 10),
-          Text(
+          DText(
             label,
             style: TextStyle(
               fontSize: 12,
@@ -559,7 +560,7 @@ class _LevelScreenState extends State<LevelScreen>
               ),
             )
                 : Center(
-              child: Text(
+              child: DText(
                 '$currentLevel',
                 style: TextStyle(
                   fontSize: 48,
@@ -570,7 +571,7 @@ class _LevelScreenState extends State<LevelScreen>
             ),
           ),
           const SizedBox(height: 16),
-          Text(
+          DText(
             config?.title ?? '$type $currentLevel',
             style: TextStyle(
               fontSize: 22,
@@ -579,7 +580,7 @@ class _LevelScreenState extends State<LevelScreen>
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          DText(
             'Experience: $currentExp / $maxExp',
             style: TextStyle(
               fontSize: 14,
@@ -606,7 +607,7 @@ class _LevelScreenState extends State<LevelScreen>
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          DText(
             '${(progress * 100).toStringAsFixed(0)}%',
             style: TextStyle(
               fontSize: 12,

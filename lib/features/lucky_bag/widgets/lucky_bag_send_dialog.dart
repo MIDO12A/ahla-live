@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/user_provider.dart';
 import '../../../config/r.dart';
 import '../services/lucky_bag_service.dart';
+import 'package:zero/core/dtext.dart';
 
 /// حوار إرسال حقيبة الحظ (Lucky Bag Send Dialog) — مطابق تماماً لتصميم dialog_send_lucky_box.xml و frag_send_coin_lucky_box.xml
 class LuckyBagSendDialog extends StatefulWidget {
@@ -71,7 +72,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
     if (user.coins < cost) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('رصيد العملات غير كافٍ!'),
+          content: DText('رصيد العملات غير كافٍ!'),
           backgroundColor: Color(0xFFB71C1C),
         ),
       );
@@ -81,7 +82,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
     if (cost < _sharesCount) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('يجب أن تكون قيمة الحقيبة ($cost) أكبر من عدد الحقائب ($_sharesCount)!'),
+          content: DText('يجب أن تكون قيمة الحقيبة ($cost) أكبر من عدد الحقائب ($_sharesCount)!'),
           backgroundColor: const Color(0xFFB71C1C),
         ),
       );
@@ -106,14 +107,14 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
       Navigator.of(context).pop(true);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('🧧 تم إرسال حقيبة الحظ بنجاح بمجموع $cost 🪙 ($_sharesCount حقيبة)'),
+          content: DText('🧧 تم إرسال حقيبة الحظ بنجاح بمجموع $cost 🪙 ($_sharesCount حقيبة)'),
           backgroundColor: const Color(0xFF2E7D32),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('فشل الإرسال — تأكد من رصيد العملات أو الاتصال'),
+          content: DText('فشل الإرسال — تأكد من رصيد العملات أو الاتصال'),
           backgroundColor: Color(0xFFB71C1C),
         ),
       );
@@ -227,10 +228,10 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                   'assets/images/ic_min_coins.png',
                   width: 16,
                   height: 16,
-                  errorBuilder: (_, __, ___) => const Text('🪙', style: TextStyle(fontSize: 13)),
+                  errorBuilder: (_, __, ___) => const DText('🪙', style: TextStyle(fontSize: 13)),
                 ),
                 const SizedBox(width: 5),
-                Text(
+                DText(
                   R.formatCoinsFraction(coins),
                   style: const TextStyle(
                     fontSize: 13,
@@ -320,7 +321,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                   )
                 : null,
           ),
-          child: Text(
+          child: DText(
             title,
             style: TextStyle(
               fontSize: 13,
@@ -382,7 +383,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                           color: isSelected ? const Color(0xFFFFF295) : const Color(0xFF2E6333),
                         ),
                       ),
-                      child: Text(
+                      child: DText(
                         '$amt',
                         style: TextStyle(
                           fontSize: 12,
@@ -416,7 +417,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                           color: isSelected ? const Color(0xFFFFF295) : const Color(0xFF2E6333),
                         ),
                       ),
-                      child: Text(
+                      child: DText(
                         '$cnt حقائب',
                         style: TextStyle(
                           fontSize: 12,
@@ -487,7 +488,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
           errorBuilder: (_, __, ___) => const Icon(Icons.circle, size: 8, color: Color(0xFFFFFB7B)),
         ),
         const SizedBox(width: 6),
-        Text(
+        DText(
           title,
           style: const TextStyle(
             fontSize: 13,
@@ -517,7 +518,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
               color: isSelected ? const Color(0xFFFFF295) : const Color(0xFF2E6333),
             ),
           ),
-          child: Text(
+          child: DText(
             title,
             style: TextStyle(
               fontSize: 12,
@@ -572,7 +573,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                 child: CircularProgressIndicator(color: Color(0xFF134015), strokeWidth: 2),
               )
             else
-              const Text(
+              const DText(
                 'إرسال حقيبة الحظ',
                 style: TextStyle(
                   fontSize: 17,
@@ -599,7 +600,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
           Center(
-            child: Text(
+            child: DText(
               'قواعد حقيبة الحظ',
               style: TextStyle(
                 fontSize: 16,
@@ -609,7 +610,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
             ),
           ),
           SizedBox(height: 16),
-          Text(
+          DText(
             '1. يمكن لجميع مستخدمي الغرفة أو مستخدمي المايك (حسب النطاق المحدد) فتح حقائب الحظ.\n\n'
             '2. يتم توزيع العملات إما عشوائياً بمضاعفات مختلفة أو بالتساوي حسب اختيار المرسل.\n\n'
             '3. تنتهي صلاحية الحقيبة بعد انتهاء الوقت المحدد أو استلام جميع الحقائب، ويُعاد أي رصيد متبقٍ لحساب المرسل تلقائياً.',

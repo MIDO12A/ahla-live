@@ -1,8 +1,9 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../models/lucky_gift_model.dart';
+import 'package:zero/core/dtext.dart';
 
 /// واجهة كروت الحظ ثلاثية الأبعاد (3D Flip Card Layout)
 /// مطابقة لنظام ChatRoomLuckyGiftLayout (صفين، 8 كروت كحد أقصى للجولة مع دوران 3D تتابعي)
@@ -178,8 +179,8 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
           ),
           child: Row(
             children: [
-              const Text('🍀 ', style: TextStyle(fontSize: 16)),
-              Text(
+              const DText('🍀 ', style: TextStyle(fontSize: 16)),
+              DText(
                 '${widget.data.senderName} أرسل ${widget.data.gift.giftNameAr}',
                 style: const TextStyle(
                   color: Colors.white,
@@ -195,7 +196,7 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
                     color: Colors.redAccent,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(
+                  child: DText(
                     'Combo x${widget.data.comboCount}',
                     style: const TextStyle(
                       color: Colors.white,
@@ -307,7 +308,7 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
                 color: card.multiplier >= 10 ? Colors.amber.shade900 : Colors.green.shade800,
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: Text(
+              child: DText(
                 '${card.multiplier}X',
                 style: const TextStyle(
                   color: Colors.white,
@@ -324,7 +325,7 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
               errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.amber, size: 36),
             ),
             const SizedBox(height: 4),
-            Text(
+            DText(
               '+${card.wonCoins}',
               style: const TextStyle(
                 color: Color(0xFFFFD700),
@@ -335,7 +336,7 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
           ] else ...[
             const Icon(Icons.sentiment_dissatisfied, color: Colors.white54, size: 30),
             const SizedBox(height: 4),
-            const Text(
+            const DText(
               'حظ أوفر',
               style: TextStyle(color: Colors.white54, fontSize: 11),
             ),
@@ -356,13 +357,13 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          const DText(
             'إجمالي الجائزة: ',
             style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
           const Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: 18),
           const SizedBox(width: 4),
-          Text(
+          DText(
             '${widget.data.totalWonCoins} كوينز',
             style: const TextStyle(
               color: Color(0xFFFFD700),

@@ -1,9 +1,10 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../models/lucky_gift_model.dart';
 import 'lucky_card_flip_layout.dart';
 import 'room_burst_settlement_dialog.dart';
+import 'package:zero/core/dtext.dart';
 
 /// واجهة الكومبو والانفجار لهدايا الحظ (RoomBurstDialog)
 /// تتيح للمستخدم الضغط المتتالي السريع مع عداد زمني، وحساب مضاعفات متراكمة
@@ -152,7 +153,7 @@ class _RoomBurstDialogState extends State<RoomBurstDialog>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.flash_on, color: Colors.amberAccent, size: 24),
-                  Text(
+                  DText(
                     'COMBO x$_comboCount',
                     style: const TextStyle(
                       color: Color(0xFFFFD700),
@@ -215,7 +216,7 @@ class _RoomBurstDialogState extends State<RoomBurstDialog>
                           ),
                         ),
                         const SizedBox(height: 4),
-                        const Text(
+                        const DText(
                           'اضغط سريعاً!',
                           style: TextStyle(
                             color: Colors.white,
@@ -238,7 +239,7 @@ class _RoomBurstDialogState extends State<RoomBurstDialog>
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.white24),
                 ),
-                child: Text(
+                child: DText(
                   'الأرباح المباشرة: +$_totalWonGold 🪙',
                   style: const TextStyle(
                     color: Color(0xFFFFD700),

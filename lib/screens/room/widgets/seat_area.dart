@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../config/app_colors.dart';
@@ -7,6 +7,7 @@ import '../models/seat_model.dart';
 import 'svga_frame.dart';
 import 'svga_player.dart';
 import '../../../services/room_audio_service.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // SeatArea — fragment_mic_seat.xml
@@ -354,7 +355,7 @@ class _NormalSeat extends StatelessWidget {
                     child: Center(
                       child: emoji!.startsWith('http')
                           ? Image.network(emoji!, width: 64, height: 64, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox.shrink())
-                          : Text(
+                          : DText(
                               emoji!,
                               style: const TextStyle(fontSize: 48),
                             ),
@@ -401,14 +402,14 @@ class _NormalSeat extends StatelessWidget {
                     color: const Color(0xFF2196F3),
                     borderRadius: BorderRadius.circular(2),
                   ),
-                  child: const Text(
+                  child: const DText(
                     'M',
                     style: TextStyle(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
               SizedBox(
                 width: isModerator ? 48 : 56,
-                child: Text(
+                child: DText(
                   hasUser
                       ? ((name == 'الكابتن' || name == 'الكابت' || name == 'كابتن' || name.trim().isEmpty) ? '${seat.index + 1}' : name)
                       : '${seat.index + 1}',
@@ -437,7 +438,7 @@ class _NormalSeat extends StatelessWidget {
                   children: [
                     R.image(R.roomMicCharmMaleIc, width: 9, height: 9),
                     const SizedBox(width: 1),
-                    Text(
+                    DText(
                       _formatCharm(charm),
                       style: const TextStyle(fontSize: 9, color: Colors.white),
                     ),

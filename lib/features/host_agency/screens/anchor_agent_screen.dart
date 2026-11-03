@@ -23,6 +23,7 @@ import 'agency_owner_screen.dart';
 import 'agency_host_screen.dart';
 import 'agent_withdrawal_waiting_screen.dart';
 import '../../../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 /// شاشة وكيل المضيفين وإدارة الوكالة (AnchorAgentActivity)
 class AnchorAgentScreen extends StatefulWidget {
@@ -216,14 +217,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 children: [
                   const Icon(Icons.person_remove_rounded, color: Color(0xFFFF5252), size: 22),
                   const SizedBox(width: 8),
-                  Text(
+                  DText(
                     isAr ? 'إزالة مضيف من الوكالة' : 'Remove Host from Agency',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
+              DText(
                 isAr
                     ? 'يمكنك اختيار أي مضيف لإزالته وإنهاء ارتباطه بالوكالة فوراً دون التأثير على حساب الوكالة.'
                     : 'Select any host to remove them and unlink them from your agency immediately.',
@@ -236,7 +237,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () => _showRemoveHostModal(isAr),
                   icon: const Icon(Icons.person_remove, size: 20),
-                  label: Text(
+                  label: DText(
                     isAr ? 'إزالة مضيف' : 'Remove Host',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
@@ -285,14 +286,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   children: [
                     const Icon(Icons.person_remove_rounded, color: Color(0xFFFF5252), size: 22),
                     const SizedBox(width: 8),
-                    Text(
+                    DText(
                       isAr ? 'إزالة مضيف من الوكالة' : 'Remove Host from Agency',
                       style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(
+                DText(
                   isAr ? 'اختر المضيف الذي ترغب في إزالته وفك ارتباطه بالوكالة فوراً:' : 'Select a host to remove from your agency:',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
@@ -302,7 +303,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: Center(
-                      child: Text(
+                      child: DText(
                         isAr ? 'لا يوجد مضيفين في الوكالة حالياً للإزالة' : 'No hosts available to remove',
                         style: const TextStyle(color: Colors.white38, fontSize: 13),
                       ),
@@ -324,11 +325,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             backgroundImage: anchor.avatarUrl.isNotEmpty ? R.cachedImage(anchor.avatarUrl) : null,
                             child: anchor.avatarUrl.isEmpty ? const Icon(Icons.person, color: Colors.white54) : null,
                           ),
-                          title: Text(
+                          title: DText(
                             anchor.nickname.isNotEmpty ? anchor.nickname : (isAr ? 'مضيف' : 'Host'),
                             style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                           ),
-                          subtitle: Text(
+                          subtitle: DText(
                             'ID: ${anchor.userNo > 0 ? anchor.userNo : anchor.userId} • ${_getAnchorStage(anchor.totalDiamond, isAr)} • ${(anchor.minute / 60).toStringAsFixed(1)} ${isAr ? 'ساعة' : 'hrs'}',
                             style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
                           ),
@@ -338,7 +339,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               _handleKickMember(anchor, isAr);
                             },
                             icon: const Icon(Icons.person_remove, size: 14, color: Colors.white),
-                            label: Text(isAr ? 'إزالة' : 'Remove', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                            label: DText(isAr ? 'إزالة' : 'Remove', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFFF5252),
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
@@ -423,7 +424,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       onPressed: () => Navigator.pop(context),
                     ),
                     const Spacer(),
-                    Text(
+                    DText(
                       _isAgencyOwner ? (isAr ? 'مركز الوكالة' : 'Agency Center') : (isAr ? 'وكالتي الرسمية' : 'My Agency'),
                       style: const TextStyle(
                         color: Colors.white,
@@ -550,7 +551,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             Row(
                               children: [
                                 Flexible(
-                                  child: Text(
+                                  child: DText(
                                     agencyName,
                                     style: const TextStyle(
                                       color: Colors.white,
@@ -576,7 +577,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             ),
                             const SizedBox(height: 2),
                             // Agency ID
-                            Text(
+                            DText(
                               'ID: $displayAgencyId',
                               style: const TextStyle(color: Colors.white70, fontSize: 12),
                             ),
@@ -595,7 +596,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             // Owner Name & ID in #00b5b3 (hilla_light)
                             Row(
                               children: [
-                                Text(
+                                DText(
                                   ownerName,
                                   style: const TextStyle(
                                     color: Color(0xFF00B5B3),
@@ -604,7 +605,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                Text(
+                                DText(
                                   '(ID: $ownerId)',
                                   style: const TextStyle(
                                     color: Color(0xFF00B5B3),
@@ -647,7 +648,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            DText(
                               user?.name ?? 'المضيف',
                               style: const TextStyle(
                                 color: Colors.white,
@@ -656,7 +657,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               ),
                             ),
                             const SizedBox(height: 3),
-                            Text(
+                            DText(
                               'ID: ${user?.customId ?? user?.uid ?? ''}',
                               style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 12, fontWeight: FontWeight.bold),
                             ),
@@ -667,7 +668,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 color: Colors.white.withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Text(
+                              child: DText(
                                 'وكالة: $agencyName (ID: $displayAgencyId)',
                                 style: const TextStyle(color: Colors.white70, fontSize: 11),
                               ),
@@ -704,7 +705,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
+                        child: DText(
                           _noticeText,
                           style: const TextStyle(color: Colors.white, fontSize: 12),
                           maxLines: 1,
@@ -753,7 +754,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           children: [
                             Row(
                               children: [
-                                Text(
+                                DText(
                                   isMaxLevel ? (isAr ? 'الحد الأقصى 👑' : 'MAX') : '$currExp',
                                   style: const TextStyle(
                                     color: Color(0xFFFFD700),
@@ -762,7 +763,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
+                                DText(
                                   isMaxLevel ? (isAr ? 'تم بلوغ الحد الأقصى' : 'Max Level Reached') : (isAr ? 'نقطة خبرة للترقية' : 'EXP to next level'),
                                   style: const TextStyle(color: Colors.white70, fontSize: 11),
                                 ),
@@ -804,11 +805,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
+                                DText(
                                   isMaxLevel ? '$cumulativeIncome (مكتمل)' : '$cumulativeIncome / $expNeeded',
                                   style: const TextStyle(color: Colors.white54, fontSize: 10),
                                 ),
-                                Text(
+                                DText(
                                   lvlProg.nextLevelName,
                                   style: const TextStyle(color: Colors.white70, fontSize: 11),
                                 ),
@@ -835,7 +836,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('👑', style: TextStyle(fontSize: 18)),
+                            const DText('👑', style: TextStyle(fontSize: 18)),
                             const SizedBox(height: 2),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -846,7 +847,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                   fit: BoxFit.fill,
                                 ),
                               ),
-                              child: Text(
+                              child: DText(
                                 'Lv.${lvlProg.currentLevel}',
                                 style: const TextStyle(
                                   fontSize: 9,
@@ -901,7 +902,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF00B5B3), size: 18),
                                 const SizedBox(width: 8),
                                 Expanded(
-                                  child: Text(
+                                  child: DText(
                                     isAr ? 'حساب السحب' : 'Withdraw Account',
                                     style: const TextStyle(
                                       color: Color(0xFF222222),
@@ -958,7 +959,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 const Icon(Icons.receipt_long_rounded, color: Color(0xFF00B5B3), size: 18),
                                 const SizedBox(width: 8),
                                 Expanded(
-                                  child: Text(
+                                  child: DText(
                                     isAr ? 'سجل السحب' : 'Withdraw Records',
                                     style: const TextStyle(
                                       color: Color(0xFF222222),
@@ -1023,7 +1024,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             borderRadius: BorderRadius.circular(20),
           ),
           alignment: Alignment.center,
-          child: Text(
+          child: DText(
             title,
             style: TextStyle(
               color: isSelected ? const Color(0xFF1A1A1A) : Colors.white70,
@@ -1043,7 +1044,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         child: Padding(
           padding: const EdgeInsets.all(40),
           child: Center(
-            child: Text(
+            child: DText(
               isAr ? 'لا يوجد أعضاء في الوكالة حالياً' : 'No members yet',
               style: const TextStyle(color: Colors.white38, fontSize: 14),
             ),
@@ -1082,7 +1083,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         Row(
                           children: [
                             Flexible(
-                              child: Text(
+                              child: DText(
                                 anchor.nickname.isNotEmpty ? anchor.nickname : (isAr ? 'مضيف' : 'Host'),
                                 style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                 maxLines: 1,
@@ -1110,7 +1111,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                   children: [
                                     const Icon(Icons.workspace_premium, color: Colors.black, size: 12),
                                     const SizedBox(width: 2),
-                                    Text(
+                                    DText(
                                       isAr ? 'ملك الوكالة' : 'Agency Owner',
                                       style: const TextStyle(
                                         color: Colors.black,
@@ -1128,7 +1129,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                   color: anchor.role == 'supervisor' ? const Color(0x33FF9800) : const Color(0x22FFFFFF),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Text(
+                                child: DText(
                                   anchor.role == 'supervisor' ? (isAr ? 'مشرف' : 'Admin') : (isAr ? 'مضيف' : 'Host'),
                                   style: TextStyle(
                                     color: anchor.role == 'supervisor' ? const Color(0xFFFF9800) : Colors.white70,
@@ -1147,7 +1148,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(color: const Color(0x55FFD700)),
                               ),
-                              child: Text(
+                              child: DText(
                                 _getAnchorStage(anchor.totalDiamond, isAr),
                                 style: const TextStyle(
                                   color: Color(0xFFFFD700),
@@ -1160,7 +1161,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         ),
                         const SizedBox(height: 4),
                         if (anchor.role == 'owner') ...[
-                          Text(
+                          DText(
                             isAr ? '👑 ملك الوكالة' : '👑 Agency Owner',
                             style: const TextStyle(
                               color: Color(0xFFFFD700),
@@ -1170,7 +1171,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           ),
                           const SizedBox(height: 2),
                         ],
-                        Text(
+                        DText(
                           'ID: ${anchor.userNo > 0 ? anchor.userNo : anchor.userId}',
                           style: const TextStyle(color: Colors.white38, fontSize: 11),
                         ),
@@ -1180,7 +1181,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             // Hours count (عدد الساعات)
                             const Icon(Icons.access_time_rounded, color: Color(0xFF00D4FF), size: 13),
                             const SizedBox(width: 3),
-                            Text(
+                            DText(
                               '${(anchor.minute / 60).toStringAsFixed(1)} ${isAr ? 'ساعة' : 'hrs'}',
                               style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 11, fontWeight: FontWeight.w600),
                             ),
@@ -1188,7 +1189,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             // Diamonds count (عدد الماس)
                             Image.asset(R.commonDiamondIc, width: 12, height: 12, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                             const SizedBox(width: 3),
-                            Text(
+                            DText(
                               '${anchor.totalDiamond} 💎',
                               style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
                             ),
@@ -1237,7 +1238,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                       borderRadius: BorderRadius.circular(5),
                                       border: Border.all(color: const Color(0x5500E676)),
                                     ),
-                                    child: Text(
+                                    child: DText(
                                       earnedDiamonds > 0
                                           ? ': 💎  (\earnedUsdStr)'
                                           : ': \earnedUsdStr',
@@ -1257,7 +1258,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     ElevatedButton.icon(
                       onPressed: () => _handleKickMember(anchor, isAr),
                       icon: const Icon(Icons.person_remove_rounded, size: 13, color: Colors.white),
-                      label: Text(
+                      label: DText(
                         isAr ? 'طرد' : 'Kick',
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
@@ -1282,7 +1283,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             children: [
                               const Icon(Icons.security, color: Colors.amber, size: 18),
                               const SizedBox(width: 8),
-                              Text(
+                              DText(
                                 anchor.role == 'supervisor' ? (isAr ? 'تنزيل إلى مضيف' : 'Demote to Host') : (isAr ? 'ترقية إلى مشرف' : 'Promote to Admin'),
                                 style: const TextStyle(color: Colors.white, fontSize: 12),
                               ),
@@ -1295,7 +1296,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             children: [
                               const Icon(Icons.person_remove, color: Colors.redAccent, size: 18),
                               const SizedBox(width: 8),
-                              Text(isAr ? 'طرد من الوكالة' : 'Kick Member', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                              DText(isAr ? 'طرد من الوكالة' : 'Kick Member', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                             ],
                           ),
                         ),
@@ -1402,12 +1403,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        DText(
                           anchor.nickname.isNotEmpty ? anchor.nickname : (isAr ? 'مضيف' : 'Host'),
                           style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 3),
-                        Text(
+                        DText(
                           'ID: ${anchor.userNo > 0 ? anchor.userNo : (anchor.userId > 0 ? anchor.userId : (anchor.uid.length > 8 ? anchor.uid.substring(0, 8) : anchor.uid))}',
                           style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.w600),
                         ),
@@ -1422,7 +1423,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                     : (anchor.role == 'supervisor' ? const Color(0xFFFF9800) : const Color(0x33FFFFFF)),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: Text(
+                              child: DText(
                                 anchor.role == 'owner'
                                     ? (isAr ? '👑 ملك الوكالة' : '👑 Agency Owner')
                                     : (anchor.role == 'supervisor' ? (isAr ? 'مشرف وكالة' : 'Admin') : (isAr ? 'مضيف رسمي' : 'Host')),
@@ -1441,7 +1442,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(color: const Color(0x44FFD700)),
                               ),
-                              child: Text(
+                              child: DText(
                                 stageName,
                                 style: const TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.bold),
                               ),
@@ -1471,11 +1472,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             children: [
                               Image.asset(R.commonDiamondIc, width: 14, height: 14, errorBuilder: (_, __, ___) => const Icon(Icons.diamond, color: Color(0xFFFFD700), size: 14)),
                               const SizedBox(width: 5),
-                              Text(isAr ? 'ألماس الشهر' : 'Monthly Diamonds', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                              DText(isAr ? 'ألماس الشهر' : 'Monthly Diamonds', style: const TextStyle(color: Colors.white54, fontSize: 11)),
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text('${anchor.totalDiamond} 💎', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 15, fontWeight: FontWeight.bold)),
+                          DText('${anchor.totalDiamond} 💎', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 15, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -1495,11 +1496,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             children: [
                               Icon(Icons.access_time_filled, color: Color(0xFF00D4FF), size: 14),
                               SizedBox(width: 5),
-                              Text('ساعات البث', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                              DText('ساعات البث', style: TextStyle(color: Colors.white54, fontSize: 11)),
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text('$liveHours ساعة', style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 15, fontWeight: FontWeight.bold)),
+                          DText('$liveHours ساعة', style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 15, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -1523,11 +1524,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             children: [
                               Icon(Icons.calendar_today, color: Color(0xFF4CAF50), size: 14),
                               SizedBox(width: 5),
-                              Text('الأيام الفعالة', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                              DText('الأيام الفعالة', style: TextStyle(color: Colors.white54, fontSize: 11)),
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text('${anchor.days} يوم', style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 15, fontWeight: FontWeight.bold)),
+                          DText('${anchor.days} يوم', style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 15, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -1547,11 +1548,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             children: [
                               Icon(Icons.track_changes, color: Color(0xFFFF9800), size: 14),
                               SizedBox(width: 5),
-                              Text('إنجاز التارجت', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                              DText('إنجاز التارجت', style: TextStyle(color: Colors.white54, fontSize: 11)),
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text('$progressPct%', style: const TextStyle(color: Color(0xFFFF9800), fontSize: 15, fontWeight: FontWeight.bold)),
+                          DText('$progressPct%', style: const TextStyle(color: Color(0xFFFF9800), fontSize: 15, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -1572,8 +1573,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(isAr ? 'تقدم التارجت والمرحلة:' : 'Target & Stage:', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                        Text('$hostDiamonds / $targetDiamonds 💎', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold)),
+                        DText(isAr ? 'تقدم التارجت والمرحلة:' : 'Target & Stage:', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        DText('$hostDiamonds / $targetDiamonds 💎', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -1601,7 +1602,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           _handleMemberAction(anchor, 'role', isAr);
                         },
                         icon: const Icon(Icons.security, size: 18),
-                        label: Text(
+                        label: DText(
                           anchor.role == 'supervisor' ? (isAr ? 'تنزيل لمضيف' : 'Demote') : (isAr ? 'ترقية لمشرف' : 'Promote'),
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                         ),
@@ -1621,7 +1622,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           _handleKickMember(anchor, isAr);
                         },
                         icon: const Icon(Icons.person_remove_rounded, size: 18, color: Colors.white),
-                        label: Text(
+                        label: DText(
                           isAr ? 'إزالة من الوكالة' : 'Remove Host',
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
@@ -1651,8 +1652,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF24242A),
-          title: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: Text(
+          title: DText(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: DText(
             isAr
                 ? 'هل أنت متأكد من تغيير رتبة [${anchor.nickname}] إلى [${newRole == 'supervisor' ? 'مشرف وكالة' : 'مضيف'}]؟'
                 : 'Are you sure you want to change role of ${anchor.nickname} to $newRole?',
@@ -1661,12 +1662,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+              child: DText(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700)),
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text(isAr ? 'تأكيد' : 'Confirm', style: const TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.bold)),
+              child: DText(isAr ? 'تأكيد' : 'Confirm', style: const TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -1691,10 +1692,10 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           children: [
             const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 22),
             const SizedBox(width: 8),
-            Text(isAr ? 'إزالة من الوكالة' : 'Remove from Agency', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            DText(isAr ? 'إزالة من الوكالة' : 'Remove from Agency', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
-        content: Text(
+        content: DText(
           isAr
               ? 'هل أنت متأكد من إزالة المضيف [${anchor.nickname.isNotEmpty ? anchor.nickname : anchor.userId}] من الوكالة فوراً؟ سيتم فك ارتباطه وحذف عضويته.'
               : 'Are you sure you want to remove [${anchor.nickname}] from the agency immediately?',
@@ -1703,12 +1704,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+            child: DText(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5252)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isAr ? 'إزالة فوراً' : 'Remove Now', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: DText(isAr ? 'إزالة فوراً' : 'Remove Now', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1727,7 +1728,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isAr ? 'تمت إزالة المضيف بنجاح وإنهاء عضويته' : 'Host removed successfully'),
+            content: DText(isAr ? 'تمت إزالة المضيف بنجاح وإنهاء عضويته' : 'Host removed successfully'),
             backgroundColor: const Color(0xFFFF5252),
           ),
         );
@@ -2006,7 +2007,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
+                DText(
                   isAr ? 'الألماس' : 'Diamonds',
                   style: const TextStyle(
                     color: Colors.white,
@@ -2059,7 +2060,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            DText(
                               _isAgencyOwner
                                   ? (isAr ? dc.getScreenText('agency', 'agencyTargetTitle', 'مستهدف ألماس الوكالة') : 'Agency Diamond Target')
                                   : (isAr ? dc.getScreenText('agency', 'myTargetTitle', 'مستهدف ألماسي الحالي') : 'My Diamond Target'),
@@ -2073,10 +2074,10 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                const Text('💎', style: TextStyle(fontSize: 16)),
+                                const DText('💎', style: TextStyle(fontSize: 16)),
                                 const SizedBox(width: 4),
                                 Expanded(
-                                  child: Text(
+                                  child: DText(
                                     '$targetDiamonds',
                                     style: const TextStyle(
                                       color: Colors.white,
@@ -2134,7 +2135,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            DText(
                               _isAgencyOwner
                                   ? (isAr ? dc.getScreenText('agency', 'agencyBalanceTitle', 'إنتاج ألماس الوكالة') : 'Agency Diamonds')
                                   : (isAr ? dc.getScreenText('agency', 'myBalanceTitle', 'رصيدي المحقق حالياً') : 'My Actual Diamonds'),
@@ -2148,10 +2149,10 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                const Text('💎', style: TextStyle(fontSize: 16)),
+                                const DText('💎', style: TextStyle(fontSize: 16)),
                                 const SizedBox(width: 4),
                                 Expanded(
-                                  child: Text(
+                                  child: DText(
                                     '$effectiveDiamonds',
                                     style: const TextStyle(
                                       color: Colors.white,
@@ -2199,14 +2200,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          DText(
                             nextStageTitle.isNotEmpty
                                 ? (isAr ? '${dc.getScreenText('agency', 'nextTargetTitle', 'المستهدف القادم')} ($nextStageTitle)' : 'Next Target ($nextStageTitle)')
                                 : (isAr ? dc.getScreenText('agency', 'nextTargetTitle', 'المستهدف القادم') : 'Next Target'),
                             style: TextStyle(color: dc.getScreenColor('agency', 'nextTargetCardValColor', Colors.white70), fontSize: 11),
                           ),
                           const SizedBox(height: 4),
-                          Text(
+                          DText(
                             '$nextStageTarget 💎',
                             style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
                           ),
@@ -2226,12 +2227,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          DText(
                             isAr ? 'راتب المرحلة القادمة' : 'Next Stage Salary',
                             style: const TextStyle(color: Colors.white70, fontSize: 11),
                           ),
                           const SizedBox(height: 4),
-                          Text(
+                          DText(
                             '\$${nextStageSalary.toStringAsFixed(1)} USD',
                             style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
                           ),
@@ -2265,7 +2266,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
+                DText(
                   isAr ? 'الراتب' : 'Salary',
                   style: const TextStyle(
                     color: Colors.white,
@@ -2323,14 +2324,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  DText(
                                     _isAgencyOwner
                                         ? (isAr ? 'راتب مالك الوكالة المحتسب' : 'Agency Owner Salary')
                                         : (isAr ? 'راتب المرحلة الحالية' : 'Current Stage Salary'),
                                     style: const TextStyle(color: Colors.white, fontSize: 13),
                                   ),
                                   const SizedBox(height: 6),
-                                  Text(
+                                  DText(
                                     _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostSalaryStr USD',
                                     style: const TextStyle(
                                       color: Colors.white,
@@ -2372,7 +2373,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                           ),
                                         ],
                                       ),
-                                      child: Text(
+                                      child: DText(
                                         _isAgencyOwner ? (isAr ? 'السحب' : 'Withdraw') : (isAr ? 'سحب الراتب ككوينز' : 'Withdraw Salary'),
                                         style: TextStyle(
                                           color: dc.hostAgencyWithdrawBtnImage.isNotEmpty ? Colors.white : const Color(0xFF00B5B3),
@@ -2400,22 +2401,22 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  DText(
                                     isAr ? 'المسحوب' : 'Overdrawn',
                                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(
+                                  DText(
                                     '\$${_isAgencyOwner ? (info?.transferDollar ?? 0) : 0} USD',
                                     style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 12),
-                                  Text(
+                                  DText(
                                     isAr ? 'المتبقي' : 'Remaining',
                                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(
+                                  DText(
                                     _isAgencyOwner ? '\$$agencyDollar USD' : '\$$hostSalaryStr USD',
                                     style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                   ),
@@ -2456,11 +2457,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   children: [
                     Row(
                       children: [
-                        const Text(
+                        const DText(
                           '>=2H(day): ',
                           style: TextStyle(color: Color(0xFF222222), fontSize: 12, fontWeight: FontWeight.bold),
                         ),
-                        Text(
+                        DText(
                           '$hostValidDays2h ${isAr ? 'يوم' : 'd'}',
                           style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 13, fontWeight: FontWeight.w900),
                         ),
@@ -2469,11 +2470,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     Container(width: 1, height: 16, color: Colors.black12),
                     Row(
                       children: [
-                        const Text(
+                        const DText(
                           '>=4H(day): ',
                           style: TextStyle(color: Color(0xFF222222), fontSize: 12, fontWeight: FontWeight.bold),
                         ),
-                        Text(
+                        DText(
                           '$hostValidDays4h ${isAr ? 'يوم' : 'd'}',
                           style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 13, fontWeight: FontWeight.w900),
                         ),
@@ -2482,11 +2483,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     Container(width: 1, height: 16, color: Colors.black12),
                     Row(
                       children: [
-                        const Text(
+                        const DText(
                           '>=6H(day): ',
                           style: TextStyle(color: Color(0xFF222222), fontSize: 12, fontWeight: FontWeight.bold),
                         ),
-                        Text(
+                        DText(
                           '$hostValidDays6h ${isAr ? 'يوم' : 'd'}',
                           style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 13, fontWeight: FontWeight.w900),
                         ),
@@ -2517,7 +2518,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         children: [
                           const Icon(Icons.track_changes, size: 18, color: Color(0xFF00B5B3)),
                           const SizedBox(width: 6),
-                          Text(
+                          DText(
                             _isAgencyOwner
                                 ? (isAr ? 'الهدف الشهري للوكالة' : 'Monthly Target')
                                 : (isAr ? 'مستوى تقدمي في المرحلة والتارجت' : 'My Stage & Target Progress'),
@@ -2531,7 +2532,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           color: const Color(0x3300B5B3),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(
+                        child: DText(
                           currentStageLabel,
                           style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 11, fontWeight: FontWeight.bold),
                         ),
@@ -2552,11 +2553,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      DText(
                         '$effectiveDiamonds / $targetDiamonds 💎',
                         style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 12, fontWeight: FontWeight.bold),
                       ),
-                      Text(
+                      DText(
                         isAr ? 'تم إنجاز $percent%' : '$percent% done',
                         style: const TextStyle(color: Colors.white70, fontSize: 12),
                       ),
@@ -2572,7 +2573,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               // ── Section Title: تقارير الدخل المفصلة (union_adapter_agency_detail_header.xml) ──
               Align(
                 alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
-                child: Text(
+                child: DText(
                   isAr ? 'تقارير أرباح الوكالة حسب الفترات' : 'Detailed Period Earnings',
                   style: const TextStyle(
                     color: Colors.white,
@@ -2663,7 +2664,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                DText(
                   title,
                   style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                 ),
@@ -2686,14 +2687,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         children: [
                           Image.asset(R.commonDiamondIc, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                           const SizedBox(width: 6),
-                          Text(
+                          DText(
                             diamonds.toString(),
                             style: const TextStyle(color: Color(0xFFFFF5AD), fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         isAr ? 'دخل الألماس' : 'Diamond Income',
                         style: const TextStyle(color: Color(0x80FFF5AD), fontSize: 11),
                       ),
@@ -2708,14 +2709,14 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         children: [
                           Image.asset(R.unionRate1Ic, width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                           const SizedBox(width: 6),
-                          Text(
+                          DText(
                             '$rate %',
                             style: const TextStyle(color: Color(0xFFFFF5AD), fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         isAr ? 'نسبة العمولة' : 'Commission Rate',
                         style: const TextStyle(color: Color(0x80FFF5AD), fontSize: 11),
                       ),
@@ -2765,7 +2766,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   children: [
                     const Icon(Icons.military_tech, color: Color(0xFFFFD700), size: 22),
                     const SizedBox(width: 8),
-                    Text(
+                    DText(
                       isAr ? 'سلّم المراحل والتارجت والمكافآت' : 'Milestones & Targets',
                       style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
@@ -2778,7 +2779,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
+            DText(
               isAr
                   ? 'يتم تحديد عمولة الوكيل والراتب بناءً على المرحلة التي يحققها المضيفون'
                   : 'Agency commission and salary are based on active host stages',
@@ -2789,7 +2790,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             Expanded(
               child: milestones.isEmpty
                   ? Center(
-                      child: Text(
+                      child: DText(
                         isAr ? 'لم تتم إضافة مراحل بعد من لوحة التحكم' : 'No milestones configured yet',
                         style: const TextStyle(color: Colors.white38),
                       ),
@@ -2834,7 +2835,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               CircleAvatar(
                                 radius: 20,
                                 backgroundColor: isDone ? const Color(0xFF4CAF50) : const Color(0x22FFD700),
-                                child: Text(
+                                child: DText(
                                   '${i + 1}',
                                   style: TextStyle(
                                     color: isDone ? Colors.white : const Color(0xFFFFD700),
@@ -2849,7 +2850,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                   children: [
                                     Row(
                                       children: [
-                                        Text(
+                                        DText(
                                           title,
                                           style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                         ),
@@ -2860,13 +2861,13 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
+                                    DText(
                                       '${isAr ? 'الهدف:' : 'Target:'} $targetDiamonds 💎 • ${isAr ? 'العمولة:' : 'Commission:'} $commPct%',
                                       style: const TextStyle(color: Colors.white70, fontSize: 12),
                                     ),
                                     if (rewardVal > 0) ...[
                                       const SizedBox(height: 2),
-                                      Text(
+                                      DText(
                                         rewardType == 'salary_usd'
                                             ? '${isAr ? 'الراتب:' : 'Salary:'} \$$rewardVal USD ($period)'
                                             : '${isAr ? 'المكافأة:' : 'Reward:'} $rewardVal ($rewardType)',
@@ -2924,12 +2925,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        DText(
                           isAr ? 'دعوة مستخدم للانضمام كمضيف' : 'Invite User to Agency',
                           style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
-                        Text(
+                        DText(
                           isAr
                               ? 'أدخل آيدي المستخدم للبحث عنه، ثم اضغط لإرسال دعوة انضمام مباشرة لإشعاراته.'
                               : 'Enter user ID to search, then send an invitation notification.',
@@ -2990,7 +2991,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           elevation: 0,
                         ),
-                        child: Text(isAr ? 'بحث' : 'Search', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        child: DText(isAr ? 'بحث' : 'Search', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       ),
                     ),
                 ],
@@ -3013,7 +3014,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     const Icon(Icons.error_outline, color: Color(0xFFFF5252), size: 18),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(_inviteError!, style: const TextStyle(color: Color(0xFFFF5252), fontSize: 12)),
+                      child: DText(_inviteError!, style: const TextStyle(color: Color(0xFFFF5252), fontSize: 12)),
                     ),
                   ],
                 ),
@@ -3033,7 +3034,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     const Icon(Icons.check_circle_outline, color: Color(0xFF4CAF50), size: 18),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(_inviteSuccess!, style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 12)),
+                      child: DText(_inviteSuccess!, style: const TextStyle(color: Color(0xFF4CAF50), fontSize: 12)),
                     ),
                   ],
                 ),
@@ -3070,20 +3071,20 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              DText(
                                 _foundUser!['name']?.toString() ?? (isAr ? 'مستخدم' : 'User'),
                                 style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 4),
-                              Text(
+                              DText(
                                 'ID: ${_foundUser!['custom_id'] ?? _foundUser!['user_id'] ?? ''}',
                                 style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.w600),
                               ),
                               if (_foundUser!['level'] != null) ...[
                                 const SizedBox(height: 2),
-                                Text(
+                                DText(
                                   'Level ${_foundUser!['level']}',
                                   style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
                                 ),
@@ -3101,7 +3102,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         icon: _inviteSending
                             ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1A1A1A)))
                             : const Icon(Icons.send_rounded, size: 18),
-                        label: Text(
+                        label: DText(
                           isAr ? 'إرسال دعوة انضمام للوكالة 📨' : 'Send Agency Invitation 📨',
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                         ),
@@ -3279,7 +3280,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    DText(
                       isAr ? 'إعلان الوكالة' : 'Agency Notice',
                       style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                     ),
@@ -3295,7 +3296,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 ),
                 const SizedBox(height: 14),
                 if (!editing)
-                  Text(
+                  DText(
                     _noticeText,
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Color(0xFFD4D6E5), fontSize: 14, height: 1.4),
@@ -3320,7 +3321,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     Expanded(
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: Text(
+                        child: DText(
                           isAr ? 'إغلاق' : 'Close',
                           style: const TextStyle(color: Colors.white54),
                         ),
@@ -3344,7 +3345,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             }
                             Navigator.pop(ctx);
                           },
-                          child: Text(
+                          child: DText(
                             isAr ? 'حفظ الإعلان' : 'Save',
                             style: const TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.bold),
                           ),
@@ -3372,12 +3373,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              DText(
                 isAr ? 'قواعد وإرشادات الوكالة' : 'Agency Rules',
                 style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 14),
-              const Text(
+              const DText(
                 '1. يجب على المضيفين البث لمدة لا تقل عن 20 ساعة أسبوعياً.\n2. تحسب العمولات نهاية كل شهر ميلادي.\n3. يمنع منعاً باتاً نقل المضيفين بين الوكالات دون موافقة الإدارة.\n4. التحويلات تتم بالماس المعتمد فقط.',
                 style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
               ),
@@ -3388,7 +3389,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   backgroundColor: const Color(0xFFFFD700),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
-                child: Text(isAr ? 'فهمت ذلك' : 'Understood', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                child: DText(isAr ? 'فهمت ذلك' : 'Understood', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -3421,15 +3422,15 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF24242A),
-        title: Text(isAr ? 'دعوة وكيل فرعي' : 'Invite Sub-agent', style: const TextStyle(color: Colors.white, fontSize: 16)),
-        content: Text(
+        title: DText(isAr ? 'دعوة وكيل فرعي' : 'Invite Sub-agent', style: const TextStyle(color: Colors.white, fontSize: 16)),
+        content: DText(
           isAr ? 'شارك كود الوكالة الخاص بك مع الوكيل الجديد للانضمام تحت إدارتك.' : 'Share your agency code to invite sub-agents.',
           style: const TextStyle(color: Colors.white70, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isAr ? 'إغلاق' : 'Close', style: const TextStyle(color: Color(0xFFFFD700))),
+            child: DText(isAr ? 'إغلاق' : 'Close', style: const TextStyle(color: Color(0xFFFFD700))),
           ),
         ],
       ),
@@ -3468,7 +3469,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text(
+            child: const DText(
               'معلومات الوكالة',
               style: TextStyle(
                 color: Color(0xFF211211),
@@ -3512,7 +3513,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             child: Image.network(info!.countryFlagUrl, width: 18, height: 12),
                           ),
                         Expanded(
-                          child: Text(
+                          child: DText(
                             info?.agencyName.isNotEmpty ?? false
                                 ? info!.agencyName
                                 : 'وكالة النجوم المعتمدة',
@@ -3528,11 +3529,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    DText(
                       'ID الوكيل: ${info?.userId ?? 0}',
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
-                    Text(
+                    DText(
                       'إجمالي المضيفين: ${_anchors.length} مضيف',
                       style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11),
                     ),
@@ -3563,7 +3564,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   Widget _buildStatItem(String label, String value) {
     return Column(
       children: [
-        Text(
+        DText(
           value,
           style: const TextStyle(
             color: Color(0xFFFBD98C),
@@ -3572,7 +3573,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           ),
         ),
         const SizedBox(height: 2),
-        Text(
+        DText(
           label,
           style: const TextStyle(color: Colors.white60, fontSize: 10),
         ),
@@ -3608,7 +3609,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   fit: BoxFit.fill,
                 ),
               ),
-              child: const Text(
+              child: const DText(
                 'جميع المضيفين',
                 style: TextStyle(
                   color: Colors.white,
@@ -3636,7 +3637,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 children: const [
                   Icon(Icons.people_outline, size: 48, color: Colors.black26),
                   SizedBox(height: 8),
-                  Text('لا يوجد مضيفين منضمين للوكالة بعد', style: TextStyle(color: Colors.black45, fontSize: 13)),
+                  DText('لا يوجد مضيفين منضمين للوكالة بعد', style: TextStyle(color: Colors.black45, fontSize: 13)),
                 ],
               ),
             )
@@ -3663,7 +3664,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         ),
       ),
       alignment: Alignment.center,
-      child: Text(
+      child: DText(
         title,
         style: const TextStyle(
           color: Color(0xFF333333),
@@ -3702,7 +3703,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
+                            child: DText(
                               anchor.nickname,
                               style: const TextStyle(
                                 color: Color(0xFF333333),
@@ -3723,7 +3724,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 ),
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: Text(
+                              child: DText(
                                 'VIP${anchor.vip}',
                                 style: const TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.bold),
                               ),
@@ -3731,7 +3732,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         ],
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      DText(
                         'ID: ${anchor.userNo > 0 ? anchor.userNo : anchor.userId}',
                         style: const TextStyle(color: Color(0xFF888888), fontSize: 10),
                       ),
@@ -3747,7 +3748,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
+                DText(
                   anchor.formattedTime,
                   style: const TextStyle(
                     color: Color(0xFF333333),
@@ -3765,7 +3766,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
+                DText(
                   '${R.formatCoins(int.tryParse(anchor.diamonds) ?? 0)} 💎',
                   style: const TextStyle(
                     color: Color(0xFFDE880F),
@@ -3884,7 +3885,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
     if (_selectedAgent == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isAr ? 'يرجى اختيار وكيل الشحن أولاً' : 'Please select a recharge agent first'),
+          content: DText(isAr ? 'يرجى اختيار وكيل الشحن أولاً' : 'Please select a recharge agent first'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -3894,7 +3895,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
     if (_diamonds <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isAr ? 'يرجى إدخال أو تحديد كمية الألماس المراد تحويلها' : 'Please enter valid diamond amount'),
+          content: DText(isAr ? 'يرجى إدخال أو تحديد كمية الألماس المراد تحويلها' : 'Please enter valid diamond amount'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -3904,7 +3905,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
     if (_diamonds > widget.availableDiamonds) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isAr ? 'رصيد الألماس المتاح لديك لا يكفي (${widget.availableDiamonds} 💎)' : 'Insufficient diamond balance (${widget.availableDiamonds} 💎)'),
+          content: DText(isAr ? 'رصيد الألماس المتاح لديك لا يكفي (${widget.availableDiamonds} 💎)' : 'Insufficient diamond balance (${widget.availableDiamonds} 💎)'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -3924,7 +3925,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
           children: [
             const Icon(Icons.send_rounded, color: Color(0xFF00D4FF), size: 24),
             const SizedBox(width: 8),
-            Text(
+            DText(
               isAr ? 'تأكيد تحويل الراتب' : 'Confirm Salary Transfer',
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
             ),
@@ -3934,7 +3935,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            DText(
               isAr
                   ? 'هل أنت متأكد من تحويل $_diamonds ماسة إلى وكيل الشحن؟'
                   : 'Are you sure you want to transfer $_diamonds diamonds to recharge agent?',
@@ -3951,17 +3952,17 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  DText(
                     '${isAr ? 'اسم الوكيل:' : 'Agent:'} $agentName',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  DText(
                     '${isAr ? 'آيدي الوكيل (ID):' : 'Agent ID:'} $agentKayanId',
                     style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 12),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  DText(
                     '${isAr ? 'الكمية المحولة كوينز فوراً:' : 'Coins credited:'} $_diamonds 🪙',
                     style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 12),
                   ),
@@ -3969,7 +3970,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
               ),
             ),
             const SizedBox(height: 10),
-            Text(
+            DText(
               isAr
                   ? '⚡ ستصل الكوينز فوراً لمحفظة وكيل الشحن مع إشعار رسمي ببياناتك كمرسل.'
                   : '⚡ Coins will be credited to agent instantly with notification of your ID and Name.',
@@ -3980,7 +3981,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white38)),
+            child: DText(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white38)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -3989,7 +3990,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isAr ? 'تأكيد وإرسال' : 'Confirm & Send', style: const TextStyle(fontWeight: FontWeight.bold)),
+            child: DText(isAr ? 'تأكيد وإرسال' : 'Confirm & Send', style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -4042,7 +4043,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${isAr ? 'خطأ:' : 'Error:'} $e'), backgroundColor: Colors.redAccent),
+        SnackBar(content: DText('${isAr ? 'خطأ:' : 'Error:'} $e'), backgroundColor: Colors.redAccent),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -4102,11 +4103,11 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          DText(
                             isAr ? 'تحويل الراتب إلى وكيل الشحن' : 'Transfer Salary to Recharge Agent',
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
-                          Text(
+                          DText(
                             isAr ? 'تحويل فوري من ألماس المضيف إلى كوينز الوكيل' : 'Instant host diamonds to agent coins',
                             style: const TextStyle(color: Colors.white54, fontSize: 11),
                           ),
@@ -4137,13 +4138,13 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                       children: [
                         Image.asset(R.commonDiamondIc, width: 18, height: 18, errorBuilder: (_, __, ___) => const Icon(Icons.diamond, size: 18, color: Color(0xFFFFD700))),
                         const SizedBox(width: 8),
-                        Text(
+                        DText(
                           isAr ? 'رصيدك المتاح للتحويل:' : 'Your available balance:',
                           style: const TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
                     ),
-                    Text(
+                    DText(
                       '${widget.availableDiamonds} 💎',
                       style: const TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold),
                     ),
@@ -4153,7 +4154,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
               const SizedBox(height: 16),
 
               // Search Agent Input
-              Text(
+              DText(
                 isAr ? '1. البحث عن وكيل الشحن (بالآيدي أو الاسم):' : '1. Search Recharge Agent (by ID or Name):',
                 style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
               ),
@@ -4212,8 +4213,8 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                           backgroundImage: avatar.isNotEmpty ? R.cachedImage(avatar) : null,
                           child: avatar.isEmpty ? const Icon(Icons.person, color: Color(0xFF00D4FF), size: 16) : null,
                         ),
-                        title: Text(name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                        subtitle: Text('ID: $cid', style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 11)),
+                        title: DText(name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                        subtitle: DText('ID: $cid', style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 11)),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white54),
                         onTap: () {
                           setState(() {
@@ -4257,7 +4258,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                           children: [
                             Row(
                               children: [
-                                Text(
+                                DText(
                                   _selectedAgent!['display_name']?.toString() ?? 'وكيل الشحن',
                                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                 ),
@@ -4268,7 +4269,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                                     color: const Color(0x3300D4FF),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: Text(
+                                  child: DText(
                                     isAr ? 'وكيل معتمد' : 'Verified Agent',
                                     style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 9, fontWeight: FontWeight.bold),
                                   ),
@@ -4276,7 +4277,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                               ],
                             ),
                             const SizedBox(height: 2),
-                            Text(
+                            DText(
                               'ID: ${_selectedAgent!['kayan_id'] ?? _selectedAgent!['id']}',
                               style: const TextStyle(color: Colors.white60, fontSize: 11),
                             ),
@@ -4299,7 +4300,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
               const SizedBox(height: 18),
 
               // Stage / Quick Target Selection
-              Text(
+              DText(
                 isAr ? '2. تحديد التارجت أو المرحلة الخاصة بك:' : '2. Select Your Milestone Stage or Target:',
                 style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
               ),
@@ -4324,7 +4325,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
+                          DText(
                             stageLabel,
                             style: TextStyle(
                               color: isSelected ? Colors.black : const Color(0xFFFFD700),
@@ -4332,7 +4333,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          Text(
+                          DText(
                             '$target 💎',
                             style: TextStyle(
                               color: isSelected ? Colors.black : Colors.white70,
@@ -4393,7 +4394,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                         children: [
                           const Icon(Icons.send_rounded, size: 18),
                           const SizedBox(width: 8),
-                          Text(
+                          DText(
                             isAr ? 'إرسال الراتب إلى وكيل الشحن فوراً ⚡' : 'Transfer Salary to Agent Now ⚡',
                             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                           ),

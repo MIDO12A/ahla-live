@@ -31,6 +31,7 @@ import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/dynamic_config_service.dart';
 import 'data/agency_models.dart';
+import 'package:zero/core/dtext.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 class HostAgencyScreen extends StatefulWidget {
@@ -639,14 +640,14 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                   children: [
                     Icon(Icons.verified_user_rounded, color: Color(0xFFFFFEEC93), size: 24),
                     SizedBox(width: 8),
-                    Text(
+                    DText(
                       'مركز تطوير الأعمال (BD Center)',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                const DText(
                   '• مرحباً بك في مركز دعم وتطوير وكالات التطبيق الرسمية.\n'
                   '• يتم تقييم الوكالات أسبوعياً بناءً على إجمالي ألماس مضيفي الوكالة.\n'
                   '• الترقية إلى فئات متقدمة تمنح الوكالة نسب أرباح إضافية ومكافآت حصرية.\n'
@@ -667,7 +668,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                         const Icon(Icons.info_outline, color: Color(0xFFFF9500), size: 18),
                         const SizedBox(width: 8),
                         const Expanded(
-                          child: Text(
+                          child: DText(
                             'إذا تم تعيينك مؤخراً كـ BD أو مشرف، اضغط أدناه لتحديث الصلاحيات والدخول للمركز.',
                             style: TextStyle(color: Colors.white70, fontSize: 12),
                           ),
@@ -726,13 +727,13 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                           backgroundColor: const Color(0xFFFF9500),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('تحديث والدخول كـ BD', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: const DText('تحديث والدخول كـ BD', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(width: 8),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('إغلاق', style: TextStyle(color: Colors.white54)),
+                      child: const DText('إغلاق', style: TextStyle(color: Colors.white54)),
                     ),
                   ],
                 ),
@@ -860,7 +861,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(color: const Color(0xFFFF9500), width: 0.8),
                       ),
-                      child: Text(
+                      child: DText(
                         roleText,
                         style: const TextStyle(
                           color: Color(0xFFFF9500),
@@ -872,7 +873,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                   ],
                 ),
                 const SizedBox(height: 5),
-                Text(
+                DText(
                   agencyDisplayName,
                   style: const TextStyle(
                     color: Colors.white,
@@ -883,7 +884,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                const Text(
+                const DText(
                   'اضغط للدخول إلى لوحة التحكم والتارجت والأرباح',
                   style: TextStyle(
                     color: Colors.white60,
@@ -923,7 +924,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('دخول', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                DText('دخول', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                 SizedBox(width: 4),
                 Icon(Icons.arrow_forward_ios_rounded, size: 12),
               ],
@@ -952,12 +953,12 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                DText(
                   'طلب الانضمام قيد المراجعة',
                   style: TextStyle(color: Color(0xFFFFFEEC93), fontSize: 13, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 2),
-                Text(
+                DText(
                   'تم إرسال طلبك إلى إدارة الوكالة وهو قيد التدقيق حالياً.',
                   style: TextStyle(color: Colors.white70, fontSize: 11),
                 ),
@@ -976,7 +977,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                 ),
               );
             },
-            child: const Text('متابعة', style: TextStyle(color: Color(0xFFFF9500), fontWeight: FontWeight.bold)),
+            child: const DText('متابعة', style: TextStyle(color: Color(0xFFFF9500), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1002,7 +1003,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
         R.unionsTitleIc,
         height: 24,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Text(
+        errorBuilder: (_, __, ___) => const DText(
           'الوكالات',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
         ),
@@ -1136,7 +1137,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             ),
           ),
           const SizedBox(height: 6),
-          Text(
+          DText(
             title,
             style: const TextStyle(
               fontSize: 12,
@@ -1179,7 +1180,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                 fit: BoxFit.contain,
               ),
               const SizedBox(width: 8),
-              const Text(
+              const DText(
                 'ترتيب الوكالات الأسبوعي',
                 style: TextStyle(
                   fontSize: 14,
@@ -1219,7 +1220,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
-            child: Text('لا توجد وكالات بعد', style: TextStyle(color: Colors.white54)),
+            child: DText('لا توجد وكالات بعد', style: TextStyle(color: Colors.white54)),
           ),
         ),
       );
@@ -1259,7 +1260,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Center(
-            child: Text(
+            child: DText(
               'إنشاء وكالة مضيفين جديدة',
               style: TextStyle(color: Color(0xFFFFFEEC93), fontWeight: FontWeight.bold, fontSize: 17),
             ),
@@ -1290,7 +1291,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                               children: [
                                 Icon(Icons.add_a_photo_rounded, color: Color(0xFFFFFEEC93), size: 28),
                                 SizedBox(height: 4),
-                                Text(
+                                DText(
                                   'شعار الوكالة',
                                   style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
                                 ),
@@ -1333,7 +1334,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
               children: [
                 SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF9500))),
                 SizedBox(width: 8),
-                Text('جاري التحقق من هوية المشرف...', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                DText('جاري التحقق من هوية المشرف...', style: TextStyle(color: Colors.white70, fontSize: 11)),
               ],
             ),
           ] else if (_supervisorName != null) ...[
@@ -1350,7 +1351,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                 children: [
                   const Icon(Icons.verified, color: Color(0xFF00E5A0), size: 14),
                   const SizedBox(width: 6),
-                  Text(
+                  DText(
                     'المشرف المعتمد: $_supervisorName',
                     style: const TextStyle(color: Color(0xFF00E5A0), fontSize: 11, fontWeight: FontWeight.bold),
                   ),
@@ -1359,7 +1360,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             ),
           ] else if (_supervisorCtrl.text.trim().isNotEmpty) ...[
             const SizedBox(height: 6),
-            const Text(
+            const DText(
               '⚠️ سيتم ربط طلب الوكالة بالآيدي المدخل لإشراف الـ BD',
               style: TextStyle(color: Color(0xFFFFB800), fontSize: 11),
             ),
@@ -1392,7 +1393,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             ),
-            items: _countries.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+            items: _countries.map((c) => DropdownMenuItem(value: c, child: DText(c))).toList(),
             onChanged: (v) => setState(() => _selectedCountry = v),
           ),
           if (!cfg.isReviewMode) ...[
@@ -1412,7 +1413,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
               ),
               child: _creating
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('تأكيد إنشاء الوكالة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  : const DText('تأكيد إنشاء الوكالة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ),
         ],
@@ -1550,7 +1551,7 @@ class _AgencyRankItem extends StatelessWidget {
                     ),
                   Positioned(
                     bottom: labelIc != null ? 8 : null,
-                    child: Text(
+                    child: DText(
                       '$rank',
                       style: TextStyle(
                         color: Colors.white,
@@ -1584,14 +1585,14 @@ class _AgencyRankItem extends StatelessWidget {
                                 : EncryptedImageProvider(photoUrl),
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Center(
-                              child: Text(
+                              child: DText(
                                 name.isNotEmpty ? name.characters.first : '?',
                                 style: const TextStyle(color: Color(0xFFFFFEEC93), fontSize: 20, fontWeight: FontWeight.bold),
                               ),
                             ),
                           )
                         : Center(
-                            child: Text(
+                            child: DText(
                               name.isNotEmpty ? name.characters.first : '?',
                               style: const TextStyle(color: Color(0xFFFFFEEC93), fontSize: 20, fontWeight: FontWeight.bold),
                             ),
@@ -1604,7 +1605,7 @@ class _AgencyRankItem extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
+                        DText(
                           name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1634,7 +1635,7 @@ class _AgencyRankItem extends StatelessWidget {
                                     errorBuilder: (_, __, ___) => const Icon(Icons.group, size: 12, color: Colors.white70),
                                   ),
                                   const SizedBox(width: 4),
-                                  Text(
+                                  DText(
                                     '$members',
                                     style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
                                   ),
@@ -1644,7 +1645,7 @@ class _AgencyRankItem extends StatelessWidget {
                             const SizedBox(width: 8),
                             Directionality(
                               textDirection: TextDirection.ltr,
-                              child: Text(
+                              child: DText(
                                 'ID: $displayId',
                                 locale: const Locale('en'),
                                 style: const TextStyle(color: Colors.white54, fontSize: 11),
@@ -1660,11 +1661,11 @@ class _AgencyRankItem extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text(
+                      const DText(
                         '♦',
                         style: TextStyle(color: Color(0xFFFFFEEC93), fontSize: 14),
                       ),
-                      Text(
+                      DText(
                         _fmt(diamonds),
                         style: const TextStyle(
                           color: Color(0xFFFFFEEC93),
@@ -1819,7 +1820,7 @@ class _AgencySearchSheetState extends State<_AgencySearchSheet> {
               const SizedBox(width: 10),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: const Text('إلغاء', style: TextStyle(color: Color(0xFFD4D6E5), fontSize: 14)),
+                child: const DText('إلغاء', style: TextStyle(color: Color(0xFFD4D6E5), fontSize: 14)),
               ),
             ],
           ),
@@ -1829,7 +1830,7 @@ class _AgencySearchSheetState extends State<_AgencySearchSheet> {
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF9500)))
                 : _results.isEmpty
                     ? Center(
-                        child: Text(
+                        child: DText(
                           _searchCtrl.text.isEmpty ? 'اكتب اسم أو معرّف الوكالة للبحث' : 'لم يتم العثور على أي وكالة',
                           style: const TextStyle(color: Colors.white38, fontSize: 14),
                         ),

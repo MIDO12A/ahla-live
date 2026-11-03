@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../core/supabase_compat.dart';
 import '../../core/widgets/cached_image.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +11,7 @@ import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../services/dynamic_config_service.dart';
 import '../wallet/wallet_main_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 const _vip = 'assets/vip';
 
@@ -150,7 +151,7 @@ class _VipCenterScreenState extends State<VipCenterScreen> {
         nameImg,
         height: 32,
         fit: BoxFit.contain,
-        error: (_, __, ___) => Text(
+        error: (_, __, ___) => DText(
           name,
           style: const TextStyle(
             color: Colors.white,
@@ -161,7 +162,7 @@ class _VipCenterScreenState extends State<VipCenterScreen> {
         ),
       );
     }
-    return Text(
+    return DText(
       name,
       style: const TextStyle(
         color: Colors.white,
@@ -222,7 +223,7 @@ class _VipCenterScreenState extends State<VipCenterScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      DText(
                         'Coins',
                         style: TextStyle(
                           fontSize: 10,
@@ -230,7 +231,7 @@ class _VipCenterScreenState extends State<VipCenterScreen> {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      DText(
                         priceStr,
                         style: TextStyle(
                           fontSize: 20,
@@ -262,7 +263,7 @@ class _VipCenterScreenState extends State<VipCenterScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2, color: cfg.buttonTextColor))
                           : (buyBtnImgUrl != null && buyBtnImgUrl.isNotEmpty
                               ? CachedNetImage(buyBtnImgUrl, height: 24, fit: BoxFit.contain)
-                              : Text(
+                              : DText(
                                   'Buy',
                                   style: TextStyle(
                                     fontSize: 16,
@@ -296,7 +297,7 @@ class _VipCenterScreenState extends State<VipCenterScreen> {
     // Quick client-side check for immediate feedback (real check happens in the transaction)
     if (user.coins < priceInt) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرصيد غير كافي! جارٍ تحويلك إلى الشحن...')),
+        const SnackBar(content: DText('الرصيد غير كافي! جارٍ تحويلك إلى الشحن...')),
       );
       await Future.delayed(const Duration(milliseconds: 500));
       if (mounted) {
@@ -405,7 +406,7 @@ class _VipCenterScreenState extends State<VipCenterScreen> {
       if (!deducted) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('الرصيد غير كافي! جارٍ تحويلك إلى الشحن...')),
+            const SnackBar(content: DText('الرصيد غير كافي! جارٍ تحويلك إلى الشحن...')),
           );
           await Future.delayed(const Duration(milliseconds: 500));
           Navigator.push(context, MaterialPageRoute(
@@ -435,13 +436,13 @@ class _VipCenterScreenState extends State<VipCenterScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم شراء VIP بنجاح! تم تجهيز الإكسسوارات وإضافتها إلى الحقيبة.')),
+          const SnackBar(content: DText('تم شراء VIP بنجاح! تم تجهيز الإكسسوارات وإضافتها إلى الحقيبة.')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل الشراء: $e')),
+          SnackBar(content: DText('فشل الشراء: $e')),
         );
       }
     }
@@ -810,7 +811,7 @@ class _TierContent extends StatelessWidget {
                     if (name.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
-                        child: Text(
+                        child: DText(
                           name,
                           style: TextStyle(
                             fontSize: 10,
@@ -870,7 +871,7 @@ class _TierContent extends StatelessWidget {
               if (name.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(name,
+                  child: DText(name,
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               GestureDetector(
@@ -902,7 +903,7 @@ class _TierContent extends StatelessWidget {
                                 color: Colors.black54,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Text(
+                              child: const DText(
                                 'السلام عليكم',
                                 style: TextStyle(
                                   color: Colors.white,

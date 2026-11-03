@@ -10,6 +10,7 @@ import 'agent_withdrawal_waiting_screen.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 import '../../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyDisbursementScreen — شاشة صرف الأرباح والرواتب
@@ -161,7 +162,7 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
         backgroundColor: _dark,
         elevation: 0,
         centerTitle: true,
-        title: const Text(
+        title: const DText(
           'صرف الأرباح والرواتب',
           style: TextStyle(
             color: _gold,
@@ -244,10 +245,10 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
         children: [
           Column(
             children: [
-              const Text('الرصيد المتاح للصرف',
+              const DText('الرصيد المتاح للصرف',
                   style: TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 12)),
               const SizedBox(height: 4),
-              Text('${_fmt(_availableDiamonds)} 💎',
+              DText('${_fmt(_availableDiamonds)} 💎',
                   style: const TextStyle(
                       color: _gold, fontFamily: 'Tajawal', fontSize: 18, fontWeight: FontWeight.bold)),
             ],
@@ -255,10 +256,10 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
           Container(width: 1, height: 36, color: Colors.white12),
           Column(
             children: [
-              Text(_isOwner ? 'تارجت الوكالة' : 'تارجت الشهر الحالي',
+              DText(_isOwner ? 'تارجت الوكالة' : 'تارجت الشهر الحالي',
                   style: const TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 12)),
               const SizedBox(height: 4),
-              Text('${_fmt(_monthlyTarget)} ♦',
+              DText('${_fmt(_monthlyTarget)} ♦',
                   style: const TextStyle(
                       color: Color(0xFF00E5A0), fontFamily: 'Tajawal', fontSize: 18, fontWeight: FontWeight.bold)),
             ],
@@ -277,14 +278,14 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
           children: [
             const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
             const SizedBox(height: 12),
-            Text(_error ?? 'حدث خطأ غير متوقع',
+            DText(_error ?? 'حدث خطأ غير متوقع',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 14)),
             const SizedBox(height: 16),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _gold),
               onPressed: _loadAll,
-              child: const Text('إعادة المحاولة', style: TextStyle(color: Colors.black, fontFamily: 'Tajawal')),
+              child: const DText('إعادة المحاولة', style: TextStyle(color: Colors.black, fontFamily: 'Tajawal')),
             ),
           ],
         ),
@@ -351,31 +352,31 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
       builder: (_) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('تأكيد طلب الصرف إلى الإدارة',
+        title: const DText('تأكيد طلب الصرف إلى الإدارة',
             style: TextStyle(color: _gold, fontFamily: 'Tajawal', fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('كمية الألماس: $amount 💎',
+            DText('كمية الألماس: $amount 💎',
                 style: const TextStyle(color: Colors.white, fontFamily: 'Tajawal')),
             const SizedBox(height: 6),
-            Text('طريقة الاستلام: $_selectedMethod',
+            DText('طريقة الاستلام: $_selectedMethod',
                 style: const TextStyle(color: Colors.white70, fontFamily: 'Tajawal')),
             const SizedBox(height: 10),
-            const Text('⚠️ تنبيه: سيتم تصفير الراتب والتراجع عن التارجت المقابل فور إتمام الصرف.',
+            const DText('⚠️ تنبيه: سيتم تصفير الراتب والتراجع عن التارجت المقابل فور إتمام الصرف.',
                 style: TextStyle(color: Colors.amber, fontFamily: 'Tajawal', fontSize: 12)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white54, fontFamily: 'Tajawal')),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white54, fontFamily: 'Tajawal')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: _gold),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('تأكيد وإرسال',
+            child: const DText('تأكيد وإرسال',
                 style: TextStyle(color: Colors.black, fontFamily: 'Tajawal', fontWeight: FontWeight.bold)),
           ),
         ],
@@ -469,7 +470,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
   void _snack(String msg, {bool ok = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: const TextStyle(fontFamily: 'Tajawal')),
+      content: DText(msg, style: const TextStyle(fontFamily: 'Tajawal')),
       backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade700,
     ));
   }
@@ -491,7 +492,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
               Icon(Icons.info_outline_rounded, color: _gold, size: 20),
               SizedBox(width: 10),
               Expanded(
-                child: Text(
+                child: DText(
                   'عند طلب الصرف إلى الإدارة، تتم مراجعة الحساب البنكي وتحويل المستحقات مع تصفير التارجت والراتب المكتسب فوراً.',
                   style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 12, height: 1.4),
                 ),
@@ -500,7 +501,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
           ),
         ),
         const SizedBox(height: 16),
-        const Text('كمية الألماس للصرف',
+        const DText('كمية الألماس للصرف',
             style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 13)),
         const SizedBox(height: 8),
         TextField(
@@ -513,7 +514,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
             hintStyle: const TextStyle(color: Colors.white24, fontFamily: 'Tajawal'),
             suffixIcon: TextButton(
               onPressed: () => _amountCtrl.text = widget.availableDiamonds.toString(),
-              child: const Text('الكل', style: TextStyle(color: _gold, fontFamily: 'Tajawal')),
+              child: const DText('الكل', style: TextStyle(color: _gold, fontFamily: 'Tajawal')),
             ),
             filled: true,
             fillColor: _card,
@@ -521,7 +522,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
           ),
         ),
         const SizedBox(height: 16),
-        const Text('طريقة الدفع والاستلام',
+        const DText('طريقة الدفع والاستلام',
             style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 13)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
@@ -534,17 +535,17 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
           ),
           items: const [
-            DropdownMenuItem(value: 'bank_transfer', child: Text('🏦 تحويل بنكي (IBAN)')),
-            DropdownMenuItem(value: 'usdt_trc20', child: Text('🪙 محفظة USDT (TRC-20)')),
-            DropdownMenuItem(value: 'wise', child: Text('🌐 حساب Wise')),
-            DropdownMenuItem(value: 'cash', child: Text('💵 استلام نقدي / كاش')),
+            DropdownMenuItem(value: 'bank_transfer', child: DText('🏦 تحويل بنكي (IBAN)')),
+            DropdownMenuItem(value: 'usdt_trc20', child: DText('🪙 محفظة USDT (TRC-20)')),
+            DropdownMenuItem(value: 'wise', child: DText('🌐 حساب Wise')),
+            DropdownMenuItem(value: 'cash', child: DText('💵 استلام نقدي / كاش')),
           ],
           onChanged: (v) {
             if (v != null) setState(() => _selectedMethod = v);
           },
         ),
         const SizedBox(height: 16),
-        const Text('تفاصيل الحساب أو العنوان',
+        const DText('تفاصيل الحساب أو العنوان',
             style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 13)),
         const SizedBox(height: 8),
         TextField(
@@ -571,7 +572,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
             onPressed: _submitting ? null : _submitAdminDisbursement,
             child: _submitting
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                : const Text('إرسال طلب الصرف إلى الإدارة 🚀',
+                : const DText('إرسال طلب الصرف إلى الإدارة 🚀',
                     style: TextStyle(color: Colors.black, fontFamily: 'Tajawal', fontWeight: FontWeight.bold, fontSize: 15)),
           ),
         ),
@@ -687,21 +688,21 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
       builder: (_) => AlertDialog(
         backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('تأكيد إرسال طلب الصرف',
+        title: const DText('تأكيد إرسال طلب الصرف',
             style: TextStyle(color: _gold, fontFamily: 'Tajawal', fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('الكمية المراد صرفها: $diamonds 💎',
+            DText('الكمية المراد صرفها: $diamonds 💎',
                 style: const TextStyle(color: Colors.white, fontFamily: 'Tajawal')),
             const SizedBox(height: 6),
-            Text('الوكيل المستلم: $agentName (#$agentKid)',
+            DText('الوكيل المستلم: $agentName (#$agentKid)',
                 style: const TextStyle(color: Colors.white70, fontFamily: 'Tajawal')),
-            Text('الوكالة: $agencyName',
+            DText('الوكالة: $agencyName',
                 style: const TextStyle(color: Colors.white70, fontFamily: 'Tajawal')),
             const SizedBox(height: 10),
-            const Text(
+            const DText(
               '⚠️ تنبيه: سيتم إرسال إشعار فوري للوكيل لمراجعة الطلب والموافقة عليه.\nعند الموافقة، يتم تصفير التارجت والراتب فوراً ونقل الرصيد إلى محفظة وكالة الشحن المعتمدة.',
               style: TextStyle(color: Color(0xFF00E5A0), fontFamily: 'Tajawal', fontSize: 12, height: 1.4),
             ),
@@ -710,12 +711,12 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white54, fontFamily: 'Tajawal')),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white54, fontFamily: 'Tajawal')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: _gold),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('إرسال للوكيل',
+            child: const DText('إرسال للوكيل',
                 style: TextStyle(color: Colors.black, fontFamily: 'Tajawal', fontWeight: FontWeight.bold)),
           ),
         ],
@@ -789,7 +790,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
   void _snack(String msg, {bool ok = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: const TextStyle(fontFamily: 'Tajawal')),
+      content: DText(msg, style: const TextStyle(fontFamily: 'Tajawal')),
       backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade700,
     ));
   }
@@ -852,11 +853,11 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      DText(
                         _selectedAgent!['recharge_agency_name'] ?? 'وكالة شحن معتمدة',
                         style: const TextStyle(color: _gold, fontFamily: 'Tajawal', fontWeight: FontWeight.bold, fontSize: 14),
                       ),
-                      Text(
+                      DText(
                         'الوكيل: ${_selectedAgent!['display_name']} (#${_selectedAgent!['kayan_id'] ?? ''})',
                         style: const TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 12),
                       ),
@@ -871,7 +872,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
             ),
           ),
           const SizedBox(height: 16),
-          const Text('كمية الألماس المراد تحويلها للوكيل',
+          const DText('كمية الألماس المراد تحويلها للوكيل',
               style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 13)),
           const SizedBox(height: 8),
           TextField(
@@ -884,7 +885,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
               hintStyle: const TextStyle(color: Colors.white24, fontFamily: 'Tajawal'),
               suffixIcon: TextButton(
                 onPressed: () => _diamondsCtrl.text = widget.availableDiamonds.toString(),
-                child: const Text('الكل', style: TextStyle(color: _gold, fontFamily: 'Tajawal')),
+                child: const DText('الكل', style: TextStyle(color: _gold, fontFamily: 'Tajawal')),
               ),
               filled: true,
               fillColor: _card,
@@ -903,7 +904,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
               onPressed: _submitting ? null : _submitTransferToAgent,
               child: _submitting
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                  : const Text('إرسال طلب الصرف إلى وكيل الشحن ⚡',
+                  : const DText('إرسال طلب الصرف إلى وكيل الشحن ⚡',
                       style: TextStyle(color: Colors.black, fontFamily: 'Tajawal', fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ),
@@ -911,7 +912,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
         ],
 
         // قائمة وكلاء الشحن المعتمدين
-        const Text('وكلاء الشحن المعتمدون في التطبيق',
+        const DText('وكلاء الشحن المعتمدون في التطبيق',
             style: TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 13, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         if (_loadingAgents)
@@ -920,7 +921,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
           const Center(
             child: Padding(
               padding: EdgeInsets.all(24),
-              child: Text('لا توجد وكالات شحن مطابقة للبحث',
+              child: DText('لا توجد وكالات شحن مطابقة للبحث',
                   style: TextStyle(color: Colors.white38, fontFamily: 'Tajawal')),
             ),
           )
@@ -949,9 +950,9 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
                           : null,
                   child: const Icon(Icons.storefront_rounded, color: _gold, size: 18),
                 ),
-                title: Text(agName,
+                title: DText(agName,
                     style: const TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: Text('الوكيل: $name (#$kid)',
+                subtitle: DText('الوكيل: $name (#$kid)',
                     style: const TextStyle(color: Colors.white54, fontFamily: 'Tajawal', fontSize: 12)),
                 trailing: ElevatedButton(
                   style: ElevatedButton.styleFrom(
@@ -960,7 +961,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: () => setState(() => _selectedAgent = agent),
-                  child: Text(isSelected ? 'محدد ✓' : 'اختيار',
+                  child: DText(isSelected ? 'محدد ✓' : 'اختيار',
                       style: TextStyle(
                           color: isSelected ? Colors.black : Colors.white,
                           fontFamily: 'Tajawal',

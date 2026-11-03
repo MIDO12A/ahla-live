@@ -7,6 +7,7 @@ import '../../../screens/rank/rank_screen.dart';
 import '../../../services/supabase_data_service.dart';
 import '../../../services/supabase_auth_service.dart';
 import '../../../config/supabase_config.dart';
+import 'package:zero/core/dtext.dart';
 
 /// بيانات المكافأة الفردية داخل مستوى الشحن
 class TierRewardItemData {
@@ -412,12 +413,12 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                Text(
+                DText(
                   'مستوى ${tier.nameAr}',
                   style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 3),
-                Text(
+                DText(
                   'تارجت الشحن: ${NumberFormat('#,###').format(tier.targetCoins)} كوينز',
                   style: const TextStyle(color: Color(0xFFFFE957), fontSize: 13, fontWeight: FontWeight.bold),
                 ),
@@ -428,11 +429,11 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      DText(
                         '🎁 باقة الجوائز الملكية (${tier.rewardsList.length} مكافآت):',
                         style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12, fontWeight: FontWeight.bold),
                       ),
-                      const Text(
+                      const DText(
                         'اضغط لمعاينة أي جائزة',
                         style: TextStyle(color: Colors.white38, fontSize: 10),
                       ),
@@ -476,7 +477,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                   child: _buildImage(item.icon, width: 32, height: 32),
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
+                                DText(
                                   item.name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -486,7 +487,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                Text(
+                                DText(
                                   '${item.daysValid} يوم',
                                   style: const TextStyle(color: Colors.white38, fontSize: 8),
                                 ),
@@ -511,11 +512,11 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      DText(
                         'الجائزة: ${currentItem.name}',
                         style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                       ),
-                      Text(
+                      DText(
                         'الصلاحية: ${currentItem.daysValid} يوم | +${NumberFormat('#,###').format(tier.totalBonusCoins)} كوينز',
                         style: const TextStyle(color: Color(0xFFFFE957), fontSize: 10, fontWeight: FontWeight.w600),
                       ),
@@ -531,7 +532,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                       color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(
+                    child: DText(
                       'تم الاستلام سابقاً: $timesClaimed مرة | متاح للاستلام الآن: $remaining مرة',
                       style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
                     ),
@@ -557,7 +558,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         _onGoNow();
                       }
                     },
-                    child: Text(
+                    child: DText(
                       canClaim
                           ? (remaining > 1
                               ? 'استلام باقة المكافآت (${tier.rewardsList.length} جوائز - متبقي $remaining) 🎁'
@@ -585,7 +586,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     final remaining = _getRemainingClaims(tier);
     if (remaining <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لقد قمت باستلام جميع المكافآت المتاحة لهذا المستوى! اشحن للمزيد.')),
+        const SnackBar(content: DText('لقد قمت باستلام جميع المكافآت المتاحة لهذا المستوى! اشحن للمزيد.')),
       );
       return;
     }
@@ -641,7 +642,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('🎉 تهانينا! تم استلام باقة مكافآت ${tier.nameAr} (${tier.rewardsList.length} جوائز وبونص $totalBonus كوينز) بنجاح!'),
+            content: DText('🎉 تهانينا! تم استلام باقة مكافآت ${tier.nameAr} (${tier.rewardsList.length} جوائز وبونص $totalBonus كوينز) بنجاح!'),
             backgroundColor: Colors.green.shade800,
           ),
         );
@@ -649,7 +650,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('حدث خطأ أثناء الاستلام: $e')),
+        SnackBar(content: DText('حدث خطأ أثناء الاستلام: $e')),
       );
     }
   }
@@ -707,7 +708,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                     children: const [
                       Icon(Icons.emoji_events, color: Color(0xFFFFD700), size: 24),
                       SizedBox(width: 8),
-                      Text(
+                      DText(
                         'ترتيب كبار شاحني الحدث',
                         style: TextStyle(
                           color: Color(0xFFFFD700),
@@ -736,7 +737,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         children: const [
                           Icon(Icons.open_in_new, color: Color(0xFFFFD700), size: 14),
                           SizedBox(width: 4),
-                          Text(
+                          DText(
                             'الترتيب العام',
                             style: TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
                           ),
@@ -771,7 +772,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         children: const [
                           Icon(Icons.military_tech_outlined, color: Colors.white24, size: 54),
                           SizedBox(height: 12),
-                          Text(
+                          DText(
                             'كن أول من يشحن ويتصدر قائمة هذا الشهر!',
                             style: TextStyle(color: Colors.white60, fontSize: 13),
                           ),
@@ -838,7 +839,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                   width: 34,
                                   child: crownIcon != null
                                       ? Icon(crownIcon, color: rankColor, size: 24)
-                                      : Text(
+                                      : DText(
                                           '#${index + 1}',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
@@ -871,7 +872,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                       Row(
                                         children: [
                                           Flexible(
-                                            child: Text(
+                                            child: DText(
                                               name,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -890,13 +891,13 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                                 color: Colors.amber,
                                                 borderRadius: BorderRadius.circular(6),
                                               ),
-                                              child: const Text('أنت', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold)),
+                                              child: const DText('أنت', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold)),
                                             ),
                                           ],
                                         ],
                                       ),
                                       if (customId.isNotEmpty)
-                                        Text(
+                                        DText(
                                           'ID: $customId',
                                           style: const TextStyle(color: Colors.white38, fontSize: 10),
                                         ),
@@ -908,7 +909,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text(
+                                    DText(
                                       NumberFormat('#,###').format(coins),
                                       style: const TextStyle(
                                         color: Color(0xFFFFE957),
@@ -916,7 +917,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                         fontSize: 13,
                                       ),
                                     ),
-                                    const Text('🪙 كوينز', style: TextStyle(color: Colors.white54, fontSize: 9)),
+                                    const DText('🪙 كوينز', style: TextStyle(color: Colors.white54, fontSize: 9)),
                                   ],
                                 ),
                               ],
@@ -944,7 +945,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: Color(0xFFFFD700), width: 1),
         ),
-        title: const Text(
+        title: const DText(
           '📜 قواعد حدث الشحن الملكي',
           textAlign: TextAlign.center,
           style: TextStyle(color: Color(0xFFFFD700), fontSize: 16, fontWeight: FontWeight.bold),
@@ -953,22 +954,22 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
-            Text(
+            DText(
               '1. يتم احتساب جميع عمليات الشحن التراكمية خلال الشهر الحالي.',
               style: TextStyle(color: Colors.white, fontSize: 12),
             ),
             SizedBox(height: 6),
-            Text(
+            DText(
               '2. عند الوصول لتارجت أي مستوى يمكنك المطالبة بالمكافأة وبونص الكوينز فوراً.',
               style: TextStyle(color: Colors.white, fontSize: 12),
             ),
             SizedBox(height: 6),
-            Text(
+            DText(
               '3. مؤثرات الـ SVGA والجوائز الملكية تُضاف مباشرة إلى حقيبة المستخدم وتُفعّل تلقائياً.',
               style: TextStyle(color: Colors.white, fontSize: 12),
             ),
             SizedBox(height: 6),
-            Text(
+            DText(
               '4. يتجدد الحدث في بداية كل شهر ميلادي مع مكافآت جديدة.',
               style: TextStyle(color: Colors.white, fontSize: 12),
             ),
@@ -977,7 +978,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('حسناً', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold)),
+            child: const DText('حسناً', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1031,7 +1032,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                     children: const [
                       Icon(Icons.emoji_events, color: Color(0xFF3E1F00), size: 14),
                       SizedBox(width: 3),
-                      Text('الترتيب', style: TextStyle(color: Color(0xFF3E1F00), fontSize: 10, fontWeight: FontWeight.bold)),
+                      DText('الترتيب', style: TextStyle(color: Color(0xFF3E1F00), fontSize: 10, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -1045,7 +1046,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
               right: 20,
               child: _headerTextImage != null && _headerTextImage!.isNotEmpty
                   ? _buildImage(_headerTextImage!, height: 32, fit: BoxFit.contain)
-                  : Text(
+                  : DText(
                       _titleText,
                       textAlign: TextAlign.center,
                       maxLines: 2,
@@ -1106,7 +1107,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                     alignment: Alignment.center,
                     children: [
                       _buildImage(_btnAsset, width: 142, height: 50, fit: BoxFit.contain),
-                      Text(
+                      DText(
                         _btnText,
                         style: TextStyle(
                           fontSize: 19,
@@ -1240,7 +1241,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                             ),
                             _headerTextImage != null && _headerTextImage!.isNotEmpty
                                 ? _buildImage(_headerTextImage!, height: 36, fit: BoxFit.contain)
-                                : const Text(
+                                : const DText(
                                     '⚡ حدث الشحن الملكي الأسطوري',
                                     style: TextStyle(
                                       color: Color(0xFFFFD700),
@@ -1276,7 +1277,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                       children: const [
                                         Icon(Icons.emoji_events, color: Color(0xFF3E1F00), size: 18),
                                         SizedBox(width: 4),
-                                        Text(
+                                        DText(
                                           'الترتيب',
                                           style: TextStyle(
                                             color: Color(0xFF3E1F00),
@@ -1332,7 +1333,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                               children: [
                                 const Icon(Icons.timer_outlined, color: Color(0xFFFFD700), size: 14),
                                 const SizedBox(width: 6),
-                                Text(
+                                DText(
                                   'ينتهي خلال: $timeStr',
                                   style: const TextStyle(
                                     color: Color(0xFFFFE957),
@@ -1344,7 +1345,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          Text(
+                          DText(
                             _titleText,
                             style: TextStyle(
                               color: _titleColor,
@@ -1386,14 +1387,14 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  const DText(
                                     'شحنك التراكمي هذا الشهر:',
                                     style: TextStyle(color: Colors.white70, fontSize: 11),
                                   ),
                                   const SizedBox(height: 2),
                                   Row(
                                     children: [
-                                      Text(
+                                      DText(
                                         NumberFormat('#,###').format(_userTotalRecharge),
                                         style: const TextStyle(
                                           color: Color(0xFFFFE957),
@@ -1402,7 +1403,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      const Text('🪙 كوينز', style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold)),
+                                      const DText('🪙 كوينز', style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold)),
                                     ],
                                   ),
                                 ],
@@ -1418,11 +1419,11 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
-                                      Text(
+                                      DText(
                                         'الهدف القادم: ${nextTier.nameAr}',
                                         style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold),
                                       ),
-                                      Text(
+                                      DText(
                                         'متبقي: ${NumberFormat('#,###').format(nextTier.targetCoins - _userTotalRecharge)}',
                                         style: const TextStyle(color: Colors.white60, fontSize: 10),
                                       ),
@@ -1458,7 +1459,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                     children: [
                       Icon(Icons.workspace_premium, color: Color(0xFFFFD700), size: 18),
                       SizedBox(width: 6),
-                      Text(
+                      DText(
                         'مكافآت مستويات الشحن (14 مستوى ملكي)',
                         style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                       ),
@@ -1531,7 +1532,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         alignment: Alignment.center,
                         children: [
                           _buildImage(_btnAsset, width: 175, height: 54, fit: BoxFit.contain),
-                          Text(
+                          DText(
                             _btnText,
                             style: TextStyle(
                               fontSize: 21,
@@ -1589,7 +1590,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         _buildImage(_tagAsset, width: isFullScreen ? 40 : 36, height: isFullScreen ? 26 : 24, fit: BoxFit.contain),
                         Padding(
                           padding: const EdgeInsets.only(left: 1),
-                          child: Text(
+                          child: DText(
                             tier.tagText,
                             style: TextStyle(
                               fontSize: isFullScreen ? 10 : 9,
@@ -1617,7 +1618,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         borderRadius: BorderRadius.circular(6),
                         boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 2)],
                       ),
-                      child: Text(
+                      child: DText(
                         'x${tier.rewardsList.length}',
                         style: TextStyle(
                           fontSize: isFullScreen ? 9 : 8,
@@ -1650,7 +1651,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: const [BoxShadow(color: Colors.amber, blurRadius: 4)],
                       ),
-                      child: Text(
+                      child: DText(
                         remaining > 1 ? 'استلام ($remaining) 🎁' : 'استلام 🎁',
                         style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900),
                       ),
@@ -1665,7 +1666,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                         color: Colors.green.shade800.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
+                      child: DText(
                         timesClaimed > 1 ? 'تم الاستلام ($timesClaimed) ✓' : 'تم الاستلام ✓',
                         style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
                       ),
@@ -1678,7 +1679,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
           const SizedBox(height: 2),
 
           // اسم الفئة في الأسفل بلون الذهب الأصلي (#ffffe957)
-          Text(
+          DText(
             tier.nameAr,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1694,7 +1695,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
 
           // التارجت في الشاشة الكاملة
           if (isFullScreen)
-            Text(
+            DText(
               '${NumberFormat('#,###').format(tier.targetCoins)} 🪙',
               style: const TextStyle(
                 fontSize: 10,

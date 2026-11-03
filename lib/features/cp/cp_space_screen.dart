@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../providers/user_provider.dart';
@@ -8,6 +8,7 @@ import 'cp_service.dart';
 import 'cp_record_screen.dart';
 import 'cp_dialogs.dart';
 import 'cp_detail_full_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Relationship Space screen — matches act_relationship_space.xml
 /// Shows: RS panel (avatars + heartbeat + token), progress bar, daily tasks.
@@ -59,7 +60,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                             errorBuilder: (_, __, ___) => const Icon(Icons.arrow_back, color: Colors.white)),
                         onPressed: () => Navigator.pop(context),
                       ),
-                      title: Text(title,
+                      title: DText(title,
                           style: TextStyle(color: cfg.cpSpaceTextColor, fontSize: 16)),
                       centerTitle: true,
                       actions: [
@@ -141,7 +142,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                     onPressed: () => Navigator.pop(context),
                   ),
                   const Spacer(),
-                  Text(
+                  DText(
                     cfg.cpSpaceTitle.isNotEmpty ? cfg.cpSpaceTitle : (isAr ? 'مساحة الـ CP' : 'CP Space'),
                     style: TextStyle(color: cfg.cpSpaceTextColor, fontSize: 17, fontWeight: FontWeight.bold),
                   ),
@@ -164,14 +165,14 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                 errorBuilder: (_, __, ___) => const Icon(Icons.favorite, color: Colors.pinkAccent, size: 100),
               ),
               const SizedBox(height: 24),
-              Text(
+              DText(
                 isAr ? 'ليس لديك علاقة CP حالياً' : 'No CP Relationship Yet',
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: Text(
+                child: DText(
                   isAr ? 'ارتبط بشخص مميز وشاركه الهدايا والذكريات والألقاب الخاصة' : 'Find your special partner and share gifts, memories and titles',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.5),
@@ -191,7 +192,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                       gradient: const LinearGradient(colors: [Color(0xFFE91E63), Color(0xFFFF4081)]),
                       borderRadius: BorderRadius.circular(30),
                     ),
-                    child: Text(
+                    child: DText(
                       isAr ? 'ربط علاقة' : 'Bind Relationship',
                       style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
@@ -213,14 +214,14 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF280B17),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
+        title: DText(
           isAr ? 'اختر شريك الـ CP' : 'Select CP Partner',
           style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            DText(
               isAr ? 'أدخل اسم أو معرف (ID) المستخدم الذي ترغب في الارتباط به:' : 'Enter User ID or name to link CP with:',
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
@@ -241,7 +242,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+            child: DText(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -262,20 +263,20 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                   );
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(isAr ? 'تم إرسال طلب الارتباط بنجاح! ❤️' : 'Proposal sent successfully! ❤️')),
+                      SnackBar(content: DText(isAr ? 'تم إرسال طلب الارتباط بنجاح! ❤️' : 'Proposal sent successfully! ❤️')),
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(isAr ? 'تم إرسال الدعوة إلى المستخدم' : 'Invitation sent')),
+                      SnackBar(content: DText(isAr ? 'تم إرسال الدعوة إلى المستخدم' : 'Invitation sent')),
                     );
                   }
                 }
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE91E63)),
-            child: Text(isAr ? 'التالي' : 'Next', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: DText(isAr ? 'التالي' : 'Next', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -337,7 +338,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                 alignment: Alignment.center,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 12),
-                  child: Text(
+                  child: DText(
                     'Lv.${_calcLevel(int.tryParse(totalScore) ?? 0)}',
                     style: const TextStyle(
                       fontSize: 11,
@@ -390,7 +391,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                   ),
                 ),
                 alignment: Alignment.center,
-                child: Text(
+                child: DText(
                   '$daysTogether يوم معاً',
                   style: const TextStyle(
                     color: Colors.white,
@@ -451,7 +452,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
           ),
           const SizedBox(height: 6),
           // Name
-          Text(
+          DText(
             name.isNotEmpty ? name : (isMe ? 'أنا' : 'شريكي'),
             style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
             maxLines: 1,
@@ -480,7 +481,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
+              DText(
                 '$_nextLvTip',
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
@@ -521,9 +522,9 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Lv.$currentLv',
+              DText('Lv.$currentLv',
                   style: const TextStyle(color: Colors.white, fontSize: 12)),
-              Text('Lv.$nextLv',
+              DText('Lv.$nextLv',
                   style: const TextStyle(color: Colors.white, fontSize: 12)),
             ],
           ),
@@ -562,8 +563,8 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
       children: [
         Icon(icon, color: const Color(0xFFffb565), size: 24),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+        DText(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        DText(label, style: const TextStyle(color: Colors.white60, fontSize: 11)),
       ],
     );
   }
@@ -577,7 +578,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              const DText(
                 'المهام اليومية',
                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
               ),
@@ -589,7 +590,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('السجل', style: TextStyle(color: Color(0xFFffb565), fontSize: 12)),
+                    const DText('السجل', style: TextStyle(color: Color(0xFFffb565), fontSize: 12)),
                     const SizedBox(width: 4),
                     const Icon(Icons.arrow_forward_ios, color: Color(0xFFffb565), size: 12),
                   ],
@@ -598,7 +599,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
+          const DText(
             'أكمل المهام لزيادة القربى',
             style: TextStyle(color: Colors.white60, fontSize: 12),
           ),
@@ -634,7 +635,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 13)),
+            child: DText(title, style: const TextStyle(color: Colors.white, fontSize: 13)),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -642,7 +643,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
               color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(reward, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+            child: DText(reward, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

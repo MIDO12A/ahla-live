@@ -43,6 +43,51 @@ class SupabaseService {
     debugPrint('[SupabaseService] Initialized with Supabase URL: $_baseUrl');
   }
 
+  static Future<void> _coinTxQueue = Future<void>.value();
+
+  /// يُسلسل خصم/إضافة الكوينز لمنع تصادم القراءة-الكتابة عند الإرسال المتتابع
+  /// (كومبو أو عدة مستلمين) حتى لا تضيع بعض عمليات الخصم.
+  Future<T> _serializeCoinTx<T>(Future<T> Function() action) {
+    final completer = Completer<T>();
+    _coinTxQueue = _coinTxQueue.then((_) async {
+      try {
+        completer.complete(await action());
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
+
+  /// تعديل رصيد الكوينز/الألماس بشكل متسلسل (قراءة-تعديل-كتابة) داخل نفس الطابور
+  /// المستخدم في خصم الهدايا، حتى لا تُكتب قيمة قديمة فوق خصم/إضافة حديثة.
+  /// يرجع الرصيد الجديد أو null عند الفشل.
+  Future<Map<String, num>?> adjustUserBalance(
+    String uid, {
+    num coinsDelta = 0,
+    num diamondsDelta = 0,
+  }) {
+    if (coinsDelta == 0 && diamondsDelta == 0) return Future.value(null);
+    return _serializeCoinTx(() async {
+      final user = await _ds.getUser(uid);
+      if (user == null) return null;
+      final updates = <String, dynamic>{};
+      num newCoins = user.coins;
+      num newDiamonds = user.diamonds;
+      if (coinsDelta != 0) {
+        newCoins = (user.coins + coinsDelta).clamp(0, 999999999);
+        updates['coins'] = newCoins;
+      }
+      if (diamondsDelta != 0) {
+        newDiamonds = (user.diamonds + diamondsDelta).clamp(0, 999999999);
+        updates['diamonds'] = newDiamonds;
+      }
+      final ok = await _ds.updateUser(uid, updates);
+      if (!ok) return null;
+      return <String, num>{'coins': newCoins, 'diamonds': newDiamonds};
+    });
+  }
+
   /// جلب مستند إعدادات أو صف من جدول عبر مفتاح key
   Future<Map<String, dynamic>?> getDoc(String table, String key) async {
     try {
@@ -59,7 +104,8 @@ class SupabaseService {
     required String hostUid,
     required int amount,
     String scheduleType = 'manual',
-  }) => _ds.disburseSalary(
+  }) =>
+      _ds.disburseSalary(
         agencyId: agencyId,
         hostUid: hostUid,
         amount: amount,
@@ -86,7 +132,8 @@ class SupabaseService {
     }
 
     fetchSupabase();
-    pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => fetchSupabase());
+    pollTimer =
+        Timer.periodic(const Duration(seconds: 2), (_) => fetchSupabase());
 
     controller.onCancel = () {
       pollTimer?.cancel();
@@ -99,9 +146,11 @@ class SupabaseService {
     await _ds.updateUser(user.uid, user.toMap());
   }
 
-  Future<bool> updateUser(String uid, Map<String, dynamic> data) => _ds.updateUser(uid, data);
+  Future<bool> updateUser(String uid, Map<String, dynamic> data) =>
+      _ds.updateUser(uid, data);
 
-  Stream<List<GiftedItemModel>> userGiftedItemsStream(String uid) => _ds.userGiftedItemsStream(uid);
+  Stream<List<GiftedItemModel>> userGiftedItemsStream(String uid) =>
+      _ds.userGiftedItemsStream(uid);
 
   Future<bool> removeGiftedItem(String giftId) => _ds.removeGiftedItem(giftId);
 
@@ -157,11 +206,14 @@ class SupabaseService {
 
   Future<RoomModel?> getRoom(String roomId) => _ds.getRoom(roomId);
 
-  Future<void> toggleMute(String roomId, int seatIndex, bool muted) => _ds.toggleMute(roomId, seatIndex, muted);
+  Future<void> toggleMute(String roomId, int seatIndex, bool muted) =>
+      _ds.toggleMute(roomId, seatIndex, muted);
 
-  Future<void> leaveSeatForUser(String roomId, String uid) => _ds.leaveSeatForUser(roomId, uid);
+  Future<void> leaveSeatForUser(String roomId, String uid) =>
+      _ds.leaveSeatForUser(roomId, uid);
 
-  Future<void> leaveRoom(String roomId, String uid) => _ds.leaveRoom(roomId, uid);
+  Future<void> leaveRoom(String roomId, String uid) =>
+      _ds.leaveRoom(roomId, uid);
 
   // ═══════════════════════════════════════════════════════
   // BANNERS & BROADCASTS (SUPABASE)
@@ -233,12 +285,14 @@ class SupabaseService {
   // LUCKY GIFTS & RTP ALGORITHM (AUTHENTIC 82.5%)
   // ═══════════════════════════════════════════════════════
 
-  List<int> drawLuckyMultipliers(int count, {int cardCount = 4, double? customWinRate}) {
+  List<int> drawLuckyMultipliers(int count,
+      {int cardCount = 4, double? customWinRate}) {
     final random = math.Random.secure();
 
     // حساب نسبة الفوز والخسارة بناء على إعدادات لوحة التحكم
     final winRate = customWinRate ?? 15.0;
-    final lossThreshold = math.min(100000, math.max(0, ((100.0 - winRate) / 100.0 * 100000).round()));
+    final lossThreshold = math.min(
+        100000, math.max(0, ((100.0 - winRate) / 100.0 * 100000).round()));
     final effectiveCount = count > 0 ? count : 1;
     final wonMultipliers = <int>[];
 
@@ -320,28 +374,32 @@ class SupabaseService {
     try {
       // 1. استدعاء المعاملة الذرية من Supabase عبر RPC (process_lucky_gift)
       final rpcUrl = Uri.parse('$_baseUrl/rest/v1/rpc/process_lucky_gift');
-      final rpcRes = await http.post(
-        rpcUrl,
-        headers: _headers,
-        body: jsonEncode({
-          'p_user_id': senderId,
-          'p_room_id': roomId,
-          'p_receiver_id': receiverId,
-          'p_gift_id': giftId,
-          'p_count': count,
-          'p_unit_price': value,
-        }),
-      ).timeout(const Duration(seconds: 8));
+      final rpcRes = await http
+          .post(
+            rpcUrl,
+            headers: _headers,
+            body: jsonEncode({
+              'p_user_id': senderId,
+              'p_room_id': roomId,
+              'p_receiver_id': receiverId,
+              'p_gift_id': giftId,
+              'p_count': count,
+              'p_unit_price': value,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
 
       bool rpcSucceeded = false;
       if (rpcRes.statusCode >= 200 && rpcRes.statusCode < 300) {
         try {
-          final Map<String, dynamic> rpcData = jsonDecode(rpcRes.body) as Map<String, dynamic>;
+          final Map<String, dynamic> rpcData =
+              jsonDecode(rpcRes.body) as Map<String, dynamic>;
           if (rpcData['success'] == true) {
             totalWonCoins = (rpcData['won_coins'] as num?)?.toInt() ?? 0;
             maxMultiplier = (rpcData['multiplier'] as num?)?.toInt() ?? 0;
             isBigWin = rpcData['is_big_win'] == true || maxMultiplier >= 10;
-            serverNewBalance = (rpcData['new_balance'] as num?)?.toDouble() ?? 0;
+            serverNewBalance =
+                (rpcData['new_balance'] as num?)?.toDouble() ?? 0;
             final rawMults = rpcData['multipliers'] as List<dynamic>?;
             if (rawMults != null) {
               multipliers = rawMults.map((e) => (e as num).toInt()).toList();
@@ -350,7 +408,8 @@ class SupabaseService {
             }
             rpcSucceeded = true;
           } else {
-            debugPrint('[SupabaseService] process_lucky_gift returned error: ${rpcData['error']}');
+            debugPrint(
+                '[SupabaseService] process_lucky_gift returned error: ${rpcData['error']}');
             if (rpcData['error']?.toString().contains('غير كاف') == true) {
               return null; // Insufficient coins confirmed by database
             }
@@ -364,7 +423,8 @@ class SupabaseService {
         final sUser = await _ds.getUser(senderId);
         final currentCoins = sUser?.coins ?? 0;
         if (currentCoins < totalCost) {
-          debugPrint('[SupabaseService] Fallback insufficient coins: have $currentCoins, need $totalCost');
+          debugPrint(
+              '[SupabaseService] Fallback insufficient coins: have $currentCoins, need $totalCost');
           return null;
         }
 
@@ -379,7 +439,8 @@ class SupabaseService {
           }
         } catch (_) {}
 
-        multipliers = preDrawnMultipliers ?? drawLuckyMultipliers(count, customWinRate: poolWinRate);
+        multipliers = preDrawnMultipliers ??
+            drawLuckyMultipliers(count, customWinRate: poolWinRate);
         for (final m in multipliers) {
           final wonAmount = (value * m);
           if (wonAmount <= poolBalance || poolBalance > 0) {
@@ -388,7 +449,8 @@ class SupabaseService {
           }
         }
         isBigWin = maxMultiplier >= 10;
-        serverNewBalance = math.max(0, currentCoins - totalCost + totalWonCoins);
+        serverNewBalance =
+            math.max(0, currentCoins - totalCost + totalWonCoins);
 
         await _ds.updateUser(senderId, {
           'coins': serverNewBalance,
@@ -397,7 +459,8 @@ class SupabaseService {
 
         // خصم أرباح الفوز من محفظة الحظ بالسيرفر وتحديث السجلات
         if (totalWonCoins > 0) {
-          unawaited(_ds.deductLuckyPoolPayout(totalWonCoins, maxMultiplier, senderId));
+          unawaited(_ds.deductLuckyPoolPayout(
+              totalWonCoins, maxMultiplier, senderId));
         }
       }
 
@@ -410,11 +473,13 @@ class SupabaseService {
         final rUser = await _ds.getUser(receiverId);
         if (rUser != null) {
           await _ds.updateUser(receiverId, {
-            'total_gifts_received': rUser.totalGiftsReceived + recipientDiamonds,
+            'total_gifts_received':
+                rUser.totalGiftsReceived + recipientDiamonds,
           });
         }
         // الرصيد (users + العضو + الوكالة) يُحدَّث ذرّياً داخل RPC
-        final credited = await _ds.creditHostAgencyMemberDiamonds(receiverId, recipientDiamonds);
+        final credited = await _ds.creditHostAgencyMemberDiamonds(
+            receiverId, recipientDiamonds);
         if (!credited && rUser != null) {
           await _ds.updateUser(receiverId, {
             'diamonds': rUser.diamonds + recipientDiamonds,
@@ -423,22 +488,23 @@ class SupabaseService {
       }
 
       // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase بنسبة كاريزما المستلم المحددة
-      final effectiveSeatCharmValue = luckyTargetPct > 0
-          ? ((value * luckyTargetPct) / 100.0).round()
-          : 0;
-      unawaited(_ds.recordSentGift(
-        roomId: roomId,
-        giftId: giftId,
-        giftName: giftNameAr.isNotEmpty ? giftNameAr : giftName,
-        animationAsset: svgaAnimUrl ?? giftIconUrl,
-        senderId: senderId,
-        senderName: senderName,
-        senderPhotoUrl: senderPhotoUrl,
-        receiverId: receiverId,
-        receiverName: receiverName,
-        value: effectiveSeatCharmValue,
-        count: count,
-      ).catchError((_) => false));
+      final effectiveSeatCharmValue =
+          luckyTargetPct > 0 ? ((value * luckyTargetPct) / 100.0).round() : 0;
+      unawaited(_ds
+          .recordSentGift(
+            roomId: roomId,
+            giftId: giftId,
+            giftName: giftNameAr.isNotEmpty ? giftNameAr : giftName,
+            animationAsset: svgaAnimUrl ?? giftIconUrl,
+            senderId: senderId,
+            senderName: senderName,
+            senderPhotoUrl: senderPhotoUrl,
+            receiverId: receiverId,
+            receiverName: receiverName,
+            value: effectiveSeatCharmValue,
+            count: count,
+          )
+          .catchError((_) => false));
       unawaited(_ds.incrementRoomGifts(roomId, totalCost));
 
       // 4. بث رسالة الغرفة عبر room_messages في Supabase
@@ -478,98 +544,111 @@ class SupabaseService {
         },
         'results': {
           'multipliers': multipliers,
-          'cards': List.generate(multipliers.length, (i) => {
-                'index': i,
-                'multiplier': multipliers[i],
-                'wonCoins': value * multipliers[i],
-                'giftName': giftNameAr,
-                'giftIcon': giftIconUrl,
-              }),
+          'cards': List.generate(
+              multipliers.length,
+              (i) => {
+                    'index': i,
+                    'multiplier': multipliers[i],
+                    'wonCoins': value * multipliers[i],
+                    'giftName': giftNameAr,
+                    'giftIcon': giftIconUrl,
+                  }),
           'totalWonCoins': totalWonCoins,
           'maxMultiplier': maxMultiplier,
           'isBigWin': isBigWin,
         },
       };
 
-      unawaited(_ds.sendMessage(MessageModel(
-        msgId: luckyMsgId,
-        roomId: roomId,
-        senderUid: senderId,
-        senderName: senderName,
-        senderPhotoUrl: senderPhotoUrl,
-        type: 'lucky_gift',
-        text: '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)',
-        imageUrl: giftIconUrl,
-        giftPayload: luckyGiftPayload,
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-      )).catchError((_) => false));
+      unawaited(_ds
+          .sendMessage(MessageModel(
+            msgId: luckyMsgId,
+            roomId: roomId,
+            senderUid: senderId,
+            senderName: senderName,
+            senderPhotoUrl: senderPhotoUrl,
+            type: 'lucky_gift',
+            text:
+                '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)',
+            imageUrl: giftIconUrl,
+            giftPayload: luckyGiftPayload,
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+          ))
+          .catchError((_) => false));
 
       // رسالة نظام مرئية لجميع مستخدمي الغرفة لإعلان الفائز بالمحظوظ
       if (totalWonCoins > 0 || maxMultiplier > 1) {
         final winnerText = maxMultiplier > 1
             ? '🍀 $receiverName فاز بالمحظوظ! مضاعف ${maxMultiplier}X — ربح $totalWonCoins 🪙'
             : '🍀 $receiverName فاز بهدية الحظ "$giftNameAr" وربح $totalWonCoins 🪙!';
-        unawaited(_ds.sendMessage(MessageModel(
-          msgId: '${luckyMsgId}_win',
-          roomId: roomId,
-          senderUid: 'system',
-          senderName: 'نظام',
-          senderPhotoUrl: '',
-          type: 'system',
-          text: winnerText,
-          timestamp: DateTime.now().millisecondsSinceEpoch + 100,
-        )).catchError((_) => false));
+        unawaited(_ds
+            .sendMessage(MessageModel(
+              msgId: '${luckyMsgId}_win',
+              roomId: roomId,
+              senderUid: 'system',
+              senderName: 'نظام',
+              senderPhotoUrl: '',
+              type: 'system',
+              text: winnerText,
+              timestamp: DateTime.now().millisecondsSinceEpoch + 100,
+            ))
+            .catchError((_) => false));
       }
 
       // 5. بث الفوز لكافة الغرف عبر جدول broadcasts (لكل هدية محظوظة)
-      unawaited(_ds.recordBroadcast(
-        senderUid: senderId,
-        senderName: senderName,
-        senderPhotoUrl: senderPhotoUrl,
-        roomId: roomId,
-        content: maxMultiplier > 1
-            ? '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!'
-            : 'أرسل هدية الحظ $giftNameAr x$count',
-        giftIcon: giftIconUrl,
-        multiplier: maxMultiplier,
-        type: 'lucky_gift',
-      ).catchError((_) => false));
+      unawaited(_ds
+          .recordBroadcast(
+            senderUid: senderId,
+            senderName: senderName,
+            senderPhotoUrl: senderPhotoUrl,
+            roomId: roomId,
+            content: maxMultiplier > 1
+                ? '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!'
+                : 'أرسل هدية الحظ $giftNameAr x$count',
+            giftIcon: giftIconUrl,
+            multiplier: maxMultiplier,
+            type: 'lucky_gift',
+          )
+          .catchError((_) => false));
 
       if (isBigWin || maxMultiplier >= 10) {
-        unawaited(_ds.recordGlobalAnnouncement(
-          type: 'lucky_big_win',
-          senderName: senderName,
-          giftName: giftNameAr,
-          roomId: roomId,
-          multiplier: maxMultiplier,
-          totalWon: totalWonCoins,
-        ).catchError((_) => false));
+        unawaited(_ds
+            .recordGlobalAnnouncement(
+              type: 'lucky_big_win',
+              senderName: senderName,
+              giftName: giftNameAr,
+              roomId: roomId,
+              multiplier: maxMultiplier,
+              totalWon: totalWonCoins,
+            )
+            .catchError((_) => false));
       }
 
       // 6. تقييم التارجت للوكيل في الخلفية
-      unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId).catchError((_) {}));
+      unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId)
+          .catchError((_) {}));
 
       // 7. إشعار الاستلام للمستلم
       if (!isSelfSend) {
-      unawaited(sendNotification(
-        uid: receiverId,
-        type: 'gift',
-        actorUid: senderId,
-        title: '🍀 هدية حظ من $senderName',
-        body: '$senderName أرسل لك "$giftNameAr" x$count (بقيمة $totalCost عملة)',
-        data: <String, dynamic>{
-          'sender_name': senderName,
-          'sender_photo': senderPhotoUrl,
-          'gift_id': giftId,
-          'gift_name': giftNameAr,
-          'gift_image': giftIconUrl,
-          'value': value,
-          'count': count,
-          'room_id': roomId,
-          'is_lucky': true,
-        },
-      ).catchError((_) {}));
-    }
+        unawaited(sendNotification(
+          uid: receiverId,
+          type: 'gift',
+          actorUid: senderId,
+          title: '🍀 هدية حظ من $senderName',
+          body:
+              '$senderName أرسل لك "$giftNameAr" x$count (بقيمة $totalCost عملة)',
+          data: <String, dynamic>{
+            'sender_name': senderName,
+            'sender_photo': senderPhotoUrl,
+            'gift_id': giftId,
+            'gift_name': giftNameAr,
+            'gift_image': giftIconUrl,
+            'value': value,
+            'count': count,
+            'room_id': roomId,
+            'is_lucky': true,
+          },
+        ).catchError((_) {}));
+      }
 
       return {
         'success': true,
@@ -609,34 +688,33 @@ class SupabaseService {
     final isSelfSend = senderId == receiverId;
 
     try {
-      // 1. خصم الكوينز من المرسل
-      final sUser = await _ds.getUser(senderId);
-      final currentCoins = sUser?.coins ?? 0;
-      if (currentCoins < totalCost) return false;
-
-      // 2. توزيع الماس وفق سياسة النظام المعتمدة (100% للمضيف كاملة، وعمولة وكيل المضيف تُضاف لرصيده دون أي خصم من المضيف)
+      // 1. خصم الكوينز من المرسل (مُسلسَل لمنع تصادم القراءة-الكتابة عند الكومبو/تعدد المستلمين)
       final hostRatePct = DynamicConfigService().hostRatePercentage;
       final hostDiamonds = (totalCost * (hostRatePct / 100.0)).round();
 
-      if (isSelfSend) {
-        await _ds.updateUser(senderId, {
+      final deducted = await _serializeCoinTx(() async {
+        final sUser = await _ds.getUser(senderId);
+        final currentCoins = sUser?.coins ?? 0;
+        if (currentCoins < totalCost) return false;
+        return _ds.updateUser(senderId, {
           'coins': currentCoins - totalCost,
           'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
-          'total_gifts_received': (sUser?.totalGiftsReceived ?? 0) + hostDiamonds,
+          if (isSelfSend)
+            'total_gifts_received':
+                (sUser?.totalGiftsReceived ?? 0) + hostDiamonds,
         });
+      });
+      if (!deducted) return false;
+
+      // 2. توزيع الماس وفق سياسة النظام المعتمدة (100% للمضيف كاملة، وعمولة وكيل المضيف تُضاف لرصيده دون أي خصم من المضيف)
+      if (isSelfSend) {
         // الرصيد (users + العضو + الوكالة) يُحدَّث ذرّياً داخل RPC
-        final credited = await _ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds);
+        final credited =
+            await _ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds);
         if (!credited) {
-          await _ds.updateUser(senderId, {
-            'diamonds': (sUser?.diamonds ?? 0) + hostDiamonds,
-          });
+          await adjustUserBalance(senderId, diamondsDelta: hostDiamonds);
         }
       } else {
-        await _ds.updateUser(senderId, {
-          'coins': currentCoins - totalCost,
-          'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
-        });
-
         final rUser = await _ds.getUser(receiverId);
         if (rUser != null) {
           await _ds.updateUser(receiverId, {
@@ -644,11 +722,10 @@ class SupabaseService {
           });
         }
         // الرصيد (users + العضو + الوكالة) يُحدَّث ذرّياً داخل RPC
-        final credited = await _ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds);
-        if (!credited && rUser != null) {
-          await _ds.updateUser(receiverId, {
-            'diamonds': rUser.diamonds + hostDiamonds,
-          });
+        final credited =
+            await _ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds);
+        if (!credited) {
+          await adjustUserBalance(receiverId, diamondsDelta: hostDiamonds);
         }
       }
 
@@ -656,24 +733,29 @@ class SupabaseService {
       final animAsset = animationAsset ?? '';
       final staticCover = (defaultImage != null && defaultImage.isNotEmpty)
           ? defaultImage!
-          : ((animAsset.isNotEmpty && !animAsset.endsWith('.svga') && !animAsset.endsWith('.vap') && !animAsset.endsWith('.mp4'))
+          : ((animAsset.isNotEmpty &&
+                  !animAsset.endsWith('.svga') &&
+                  !animAsset.endsWith('.vap') &&
+                  !animAsset.endsWith('.mp4'))
               ? animAsset
               : '');
       final effectiveIcon = animAsset.isNotEmpty ? animAsset : staticCover;
 
-      unawaited(_ds.recordSentGift(
-        roomId: roomId,
-        giftId: giftId,
-        giftName: giftName,
-        animationAsset: effectiveIcon,
-        senderId: senderId,
-        senderName: senderName,
-        senderPhotoUrl: senderPhotoUrl,
-        receiverId: receiverId,
-        receiverName: receiverName,
-        value: value,
-        count: count,
-      ).catchError((_) => false));
+      unawaited(_ds
+          .recordSentGift(
+            roomId: roomId,
+            giftId: giftId,
+            giftName: giftName,
+            animationAsset: effectiveIcon,
+            senderId: senderId,
+            senderName: senderName,
+            senderPhotoUrl: senderPhotoUrl,
+            receiverId: receiverId,
+            receiverName: receiverName,
+            value: value,
+            count: count,
+          )
+          .catchError((_) => false));
       unawaited(_ds.incrementRoomGifts(roomId, totalCost));
 
       final giftPayload = {
@@ -688,34 +770,40 @@ class SupabaseService {
         'animation_asset': animAsset,
       };
 
-      unawaited(_ds.sendMessage(MessageModel(
-        msgId: const Uuid().v4(),
-        roomId: roomId,
-        senderUid: senderId,
-        senderName: senderName,
-        senderPhotoUrl: senderPhotoUrl ?? '',
-        type: 'gift',
-        text: '$senderName أرسل $giftName x$count إلى $receiverName',
-        imageUrl: staticCover.isNotEmpty ? staticCover : effectiveIcon,
-        giftPayload: giftPayload,
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-      )).catchError((_) => false));
+      unawaited(_ds
+          .sendMessage(MessageModel(
+            msgId: const Uuid().v4(),
+            roomId: roomId,
+            senderUid: senderId,
+            senderName: senderName,
+            senderPhotoUrl: senderPhotoUrl ?? '',
+            type: 'gift',
+            text: '$senderName أرسل $giftName x$count إلى $receiverName',
+            imageUrl: staticCover.isNotEmpty ? staticCover : effectiveIcon,
+            giftPayload: giftPayload,
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+          ))
+          .catchError((_) => false));
 
       // 4. البث العام للهدايا الكبيرة (500+ عملة)
       if (totalCost >= 500) {
-        unawaited(_ds.recordBroadcast(
-          senderUid: senderId,
-          senderName: senderName,
-          senderPhotoUrl: senderPhotoUrl,
-          roomId: roomId,
-          content: 'أرسل $giftName x$count بقيمة $totalCost 💎 إلى $receiverName',
-          giftIcon: effectiveIcon,
-          type: 'big_gift',
-        ).catchError((_) => false));
+        unawaited(_ds
+            .recordBroadcast(
+              senderUid: senderId,
+              senderName: senderName,
+              senderPhotoUrl: senderPhotoUrl,
+              roomId: roomId,
+              content:
+                  'أرسل $giftName x$count بقيمة $totalCost 💎 إلى $receiverName',
+              giftIcon: effectiveIcon,
+              type: 'big_gift',
+            )
+            .catchError((_) => false));
       }
 
       // 5. تقييم التارجت للوكيل وإشعار المستلم
-      unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId).catchError((_) {}));
+      unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId)
+          .catchError((_) {}));
       if (!isSelfSend) {
         unawaited(sendNotification(
           uid: receiverId,
@@ -782,17 +870,24 @@ class SupabaseService {
   // AGENCY OPERATIONS (SUPABASE)
   // ═══════════════════════════════════════════════════════
 
-  Future<bool> deleteAndExitAgencyByOwner({required String agencyId, required String ownerUid}) async {
+  Future<bool> deleteAndExitAgencyByOwner(
+      {required String agencyId, required String ownerUid}) async {
     try {
       if (agencyId.isNotEmpty) {
         try {
           await _sb.from('host_agencies').delete().eq('id', agencyId);
         } catch (_) {}
         try {
-          await _sb.from('host_agency_members').delete().eq('agency_id', agencyId);
+          await _sb
+              .from('host_agency_members')
+              .delete()
+              .eq('agency_id', agencyId);
         } catch (_) {}
         try {
-          await _sb.from('agency_applications').delete().eq('agency_id', agencyId);
+          await _sb
+              .from('agency_applications')
+              .delete()
+              .eq('agency_id', agencyId);
         } catch (_) {}
         try {
           await _sb.from('users').update({
@@ -806,7 +901,8 @@ class SupabaseService {
             headers: _headers,
           );
           await http.delete(
-            Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId'),
+            Uri.parse(
+                '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId'),
             headers: _headers,
           );
         } catch (_) {}
@@ -831,25 +927,36 @@ class SupabaseService {
     }
   }
 
-  Future<bool> exitAgencyAsMember({required String agencyId, required String userId}) async {
+  Future<bool> exitAgencyAsMember(
+      {required String agencyId, required String userId}) async {
     try {
       // 1. Delete from host_agency_members via Supabase Client & REST
       try {
         if (agencyId.isNotEmpty) {
-          await _sb.from('host_agency_members').delete().eq('agency_id', agencyId).or('user_id.eq.$userId,host_uid.eq.$userId');
+          await _sb
+              .from('host_agency_members')
+              .delete()
+              .eq('agency_id', agencyId)
+              .or('user_id.eq.$userId,host_uid.eq.$userId');
         }
-        await _sb.from('host_agency_members').delete().or('user_id.eq.$userId,host_uid.eq.$userId');
+        await _sb
+            .from('host_agency_members')
+            .delete()
+            .or('user_id.eq.$userId,host_uid.eq.$userId');
       } catch (e) {
-        debugPrint('[SupabaseService] delete host_agency_members client error: $e');
+        debugPrint(
+            '[SupabaseService] delete host_agency_members client error: $e');
       }
       try {
         if (agencyId.isNotEmpty) {
           await http.delete(
-            Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&user_id=eq.$userId'),
+            Uri.parse(
+                '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&user_id=eq.$userId'),
             headers: _headers,
           );
           await http.delete(
-            Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&host_uid=eq.$userId'),
+            Uri.parse(
+                '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&host_uid=eq.$userId'),
             headers: _headers,
           );
         }
@@ -858,7 +965,8 @@ class SupabaseService {
           headers: _headers,
         );
         await http.delete(
-          Uri.parse('$_baseUrl/rest/v1/host_agency_members?host_uid=eq.$userId'),
+          Uri.parse(
+              '$_baseUrl/rest/v1/host_agency_members?host_uid=eq.$userId'),
           headers: _headers,
         );
       } catch (e) {
@@ -868,9 +976,16 @@ class SupabaseService {
       // 2. Delete any applications from agency_applications
       try {
         if (agencyId.isNotEmpty) {
-          await _sb.from('agency_applications').delete().eq('agency_id', agencyId).or('user_id.eq.$userId,applicant_uid.eq.$userId');
+          await _sb
+              .from('agency_applications')
+              .delete()
+              .eq('agency_id', agencyId)
+              .or('user_id.eq.$userId,applicant_uid.eq.$userId');
         }
-        await _sb.from('agency_applications').delete().or('user_id.eq.$userId,applicant_uid.eq.$userId');
+        await _sb
+            .from('agency_applications')
+            .delete()
+            .or('user_id.eq.$userId,applicant_uid.eq.$userId');
       } catch (_) {}
       try {
         await http.delete(
@@ -917,7 +1032,8 @@ class SupabaseService {
   }) async {
     try {
       final res = await http.patch(
-        Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&user_id=eq.$memberUid'),
+        Uri.parse(
+            '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&user_id=eq.$memberUid'),
         headers: _headers,
         body: jsonEncode({'role': newRole}),
       );
@@ -999,9 +1115,10 @@ class SupabaseService {
     String category = '',
     String country = '',
   }) async {
-    String resolvedRoomId = (hostCustomId.trim().isNotEmpty && hostCustomId.trim() != 'null')
-        ? hostCustomId.trim()
-        : hostUid;
+    String resolvedRoomId =
+        (hostCustomId.trim().isNotEmpty && hostCustomId.trim() != 'null')
+            ? hostCustomId.trim()
+            : hostUid;
     final r = RoomModel(
       roomId: resolvedRoomId,
       name: name,
@@ -1019,9 +1136,11 @@ class SupabaseService {
     return resolvedRoomId;
   }
 
-  Future<bool> migrateUserRoomId(String hostUid, String newRoomId) => _ds.migrateUserRoomId(hostUid, newRoomId);
+  Future<bool> migrateUserRoomId(String hostUid, String newRoomId) =>
+      _ds.migrateUserRoomId(hostUid, newRoomId);
 
-  Future<RoomModel?> getRoomByHost(String hostUid) => _ds.getRoomByHostUid(hostUid);
+  Future<RoomModel?> getRoomByHost(String hostUid) =>
+      _ds.getRoomByHostUid(hostUid);
 
   Stream<List<RoomModel>> allRoomsStream() async* {
     while (true) {
@@ -1043,17 +1162,21 @@ class SupabaseService {
     }
   }
 
-  Future<bool> updateRoom(String roomId, Map<String, dynamic> updates) => _ds.updateRoom(roomId, updates);
+  Future<bool> updateRoom(String roomId, Map<String, dynamic> updates) =>
+      _ds.updateRoom(roomId, updates);
 
-  Future<bool> clearRoomCharisma(String roomId) => _ds.clearRoomCharisma(roomId);
+  Future<bool> clearRoomCharisma(String roomId) =>
+      _ds.clearRoomCharisma(roomId);
 
   Future<void> updateRoomBackground(String roomId, String bgUrl) async {
     await _ds.updateRoom(roomId, {'bg_image': bgUrl});
   }
 
-  Future<void> updateRoomSeatStyle(String roomId, int seatStyleIndex) => _ds.updateRoom(roomId, {'seat_style': seatStyleIndex.toString()});
+  Future<void> updateRoomSeatStyle(String roomId, int seatStyleIndex) =>
+      _ds.updateRoom(roomId, {'seat_style': seatStyleIndex.toString()});
 
-  Future<void> updateRoomSeatCount(String roomId, int count) => _ds.updateRoom(roomId, {'seat_count': count});
+  Future<void> updateRoomSeatCount(String roomId, int count) =>
+      _ds.updateRoom(roomId, {'seat_count': count});
 
   Future<void> followRoom(String uid, String roomId) async {
     final u = await _ds.getUser(uid);
@@ -1074,9 +1197,11 @@ class SupabaseService {
     }
   }
 
-  Future<bool> joinRoom(String roomId, UserModel user) => _ds.joinRoom(roomId, user);
+  Future<bool> joinRoom(String roomId, UserModel user) =>
+      _ds.joinRoom(roomId, user);
 
-  Future<List<UserModel>> getRoomMembers(String roomId) => _ds.getRoomMembers(roomId);
+  Future<List<UserModel>> getRoomMembers(String roomId) =>
+      _ds.getRoomMembers(roomId);
 
   Stream<List<UserModel>> roomMembersStream(String roomId) async* {
     while (true) {
@@ -1101,9 +1226,11 @@ class SupabaseService {
   Future<bool> takeSeat(String roomId, int seatIndex, UserModel user) =>
       _ds.takeSeat(roomId: roomId, seatIndex: seatIndex, user: user);
 
-  Future<bool> leaveSeat(String roomId, int seatIndex) => _ds.leaveSeat(roomId, seatIndex);
+  Future<bool> leaveSeat(String roomId, int seatIndex) =>
+      _ds.leaveSeat(roomId, seatIndex);
 
-  Future<bool> toggleSeatLock(String roomId, int seatIndex, bool locked) => _ds.toggleSeatLock(roomId, seatIndex, locked);
+  Future<bool> toggleSeatLock(String roomId, int seatIndex, bool locked) =>
+      _ds.toggleSeatLock(roomId, seatIndex, locked);
 
   Future<void> sendSeatEmoji(
     String roomId,
@@ -1125,7 +1252,7 @@ class SupabaseService {
     ));
   }
 
-  Future<void> sendMessage(
+  Future<bool> sendMessage(
     String roomId,
     String text,
     String senderUid,
@@ -1136,7 +1263,7 @@ class SupabaseService {
     Map<String, dynamic>? giftPayload,
     String? activeBubble,
   }) async {
-    await _ds.sendMessage(MessageModel(
+    return _ds.sendMessage(MessageModel(
       msgId: const Uuid().v4(),
       roomId: roomId,
       senderUid: senderUid,
@@ -1151,11 +1278,15 @@ class SupabaseService {
     ));
   }
 
-  Future<void> sendImageMessage(String roomId, String imageUrl, String senderUid, String senderName, String senderPhotoUrl, {String type = 'image'}) {
-    return sendMessage(roomId, '', senderUid, senderName, senderPhotoUrl, type: type, imageUrl: imageUrl);
+  Future<bool> sendImageMessage(String roomId, String imageUrl,
+      String senderUid, String senderName, String senderPhotoUrl,
+      {String type = 'image'}) {
+    return sendMessage(roomId, '', senderUid, senderName, senderPhotoUrl,
+        type: type, imageUrl: imageUrl);
   }
 
-  Stream<List<MessageModel>> messagesStream(String roomId, {String? since}) async* {
+  Stream<List<MessageModel>> messagesStream(String roomId,
+      {String? since}) async* {
     while (true) {
       try {
         final msgs = await _ds.getRoomMessages(roomId);
@@ -1216,7 +1347,8 @@ class SupabaseService {
     return items;
   }
 
-  Future<({bool success, num coinsReceived, String? error})> exchangeDiamondsToCoins({
+  Future<({bool success, num coinsReceived, String? error})>
+      exchangeDiamondsToCoins({
     required String uid,
     required int diamonds,
     int? rate,
@@ -1227,15 +1359,25 @@ class SupabaseService {
         ? coinsPerDiamond
         : (DynamicConfigService().coinsPerDiamond > 0
             ? DynamicConfigService().coinsPerDiamond
-            : (rate != null && rate > 0 ? (rate == 1 ? 1.0 : 1.0 / rate) : 1.0));
+            : (rate != null && rate > 0
+                ? (rate == 1 ? 1.0 : 1.0 / rate)
+                : 1.0));
 
     final effectiveMin = minDiamonds ?? (rate != null && rate > 0 ? rate : 1);
 
     if (diamonds < 1) {
-      return (success: false, coinsReceived: 0, error: 'يرجى إدخال كمية ألماس صحيحة');
+      return (
+        success: false,
+        coinsReceived: 0,
+        error: 'يرجى إدخال كمية ألماس صحيحة'
+      );
     }
     if (diamonds < effectiveMin) {
-      return (success: false, coinsReceived: 0, error: 'الحد الأدنى للتبديل هو $effectiveMin ألماس');
+      return (
+        success: false,
+        coinsReceived: 0,
+        error: 'الحد الأدنى للتبديل هو $effectiveMin ألماس'
+      );
     }
 
     final idem = 'wallet_xchg_${uid}_${DateTime.now().millisecondsSinceEpoch}';
@@ -1243,16 +1385,17 @@ class SupabaseService {
     // 1) المسار الذري: RPC يخصم من كل الجداول + التارجت في معاملة واحدة
     try {
       final resp = await _sb.rpc('agency_exchange_diamonds', params: {
-        'p_diamonds':          diamonds,
-        'p_idempotency_key':   idem,
-        'p_user_id':           uid,
+        'p_diamonds': diamonds,
+        'p_idempotency_key': idem,
+        'p_user_id': uid,
         'p_coins_per_diamond': effectiveMultiplier,
       });
       if (resp is Map) {
         final m = Map<String, dynamic>.from(resp);
         if (m['success'] == true) {
           final coins = (m['coins_received'] as num?)?.toDouble() ?? 0;
-          unawaited(AgencyTargetEvaluator.evaluateHostTargets(uid).catchError((_) {}));
+          unawaited(AgencyTargetEvaluator.evaluateHostTargets(uid)
+              .catchError((_) {}));
           return (success: true, coinsReceived: coins, error: null);
         }
         return (
@@ -1262,7 +1405,8 @@ class SupabaseService {
         );
       }
     } catch (e) {
-      debugPrint('[exchangeDiamondsToCoins] agency_exchange_diamonds RPC error: $e');
+      debugPrint(
+          '[exchangeDiamondsToCoins] agency_exchange_diamonds RPC error: $e');
     }
 
     // 2) Fallback متوافق مع مخطط قديم — نفس المعادلة وبدون خصم مزدوج
@@ -1282,15 +1426,18 @@ class SupabaseService {
         }
       } catch (_) {}
 
-      final uRow = await _sb.from('users')
+      final uRow = await _sb
+          .from('users')
           .select('diamonds, coins')
           .or('uid.eq.$uid,id.eq.$uid')
           .maybeSingle();
       final curDiamonds = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
       final curCoins = (uRow?['coins'] as num?)?.toDouble() ?? 0;
 
-      final memRows = await _sb.from('host_agency_members')
-          .select('id, agency_id, diamonds_balance, diamonds_available, diamonds_earned_monthly, unpacked_target_diamonds')
+      final memRows = await _sb
+          .from('host_agency_members')
+          .select(
+              'id, agency_id, diamonds_balance, diamonds_available, diamonds_earned_monthly, unpacked_target_diamonds')
           .or('host_uid.eq.$uid,user_id.eq.$uid')
           .limit(1);
       final member = memRows.isNotEmpty
@@ -1307,12 +1454,21 @@ class SupabaseService {
       final available = memAvailable < curDiamonds ? memAvailable : curDiamonds;
 
       if (curDiamonds < diamonds || available < diamonds) {
-        return (success: false, coinsReceived: 0, error: 'رصيد الألماس غير كافٍ');
+        return (
+          success: false,
+          coinsReceived: 0,
+          error: 'رصيد الألماس غير كافٍ'
+        );
       }
 
-      final coinsToReceive = (diamonds * effectiveMultiplier * 100).round() / 100;
+      final coinsToReceive =
+          (diamonds * effectiveMultiplier * 100).round() / 100;
       if (coinsToReceive <= 0) {
-        return (success: false, coinsReceived: 0, error: 'كمية الألماس غير كافية للحصول على كوينز');
+        return (
+          success: false,
+          coinsReceived: 0,
+          error: 'كمية الألماس غير كافية للحصول على كوينز'
+        );
       }
       final newDiamonds = (curDiamonds - diamonds).clamp(0, 999999999);
       final newCoins = curCoins + coinsToReceive;
@@ -1323,14 +1479,17 @@ class SupabaseService {
       }).or('uid.eq.$uid,id.eq.$uid');
 
       if (member != null) {
-        final curMonthly = (member['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-        final curUnpacked = (member['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
+        final curMonthly =
+            (member['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        final curUnpacked =
+            (member['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
 
         await _sb.from('host_agency_members').update({
           'diamonds': newDiamonds,
           'diamonds_balance': newDiamonds,
           'diamonds_available': newDiamonds,
-          'diamonds_earned_monthly': (curMonthly - diamonds).clamp(0, 999999999),
+          'diamonds_earned_monthly':
+              (curMonthly - diamonds).clamp(0, 999999999),
           'unpacked_target_diamonds': curUnpacked + diamonds,
           'has_unpacked_target': true,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -1365,7 +1524,7 @@ class SupabaseService {
         });
       } catch (_) {}
 
-      await AgencyTargetEvaluator.evaluateHostTargets(uid);
+      unawaited(AgencyTargetEvaluator.evaluateHostTargets(uid));
       return (success: true, coinsReceived: coinsToReceive, error: null);
     } catch (e) {
       return (success: false, coinsReceived: 0, error: e.toString());
@@ -1446,7 +1605,9 @@ class SupabaseService {
     }
   }
 
-  Future<void> blockUserFromRoom(String roomId, String blockerUid, String blockedUid, {String? reason, int durationMinutes = 60}) async {
+  Future<void> blockUserFromRoom(
+      String roomId, String blockerUid, String blockedUid,
+      {String? reason, int durationMinutes = 60}) async {
     await _ds.leaveSeatForUser(roomId, blockedUid);
   }
 
@@ -1454,18 +1615,22 @@ class SupabaseService {
 
   Future<bool> isUserBlockedFromRoom(String roomId, String uid) async => false;
 
-  Future<void> followUser(String uid, String targetUid) => _ds.followUser(uid, targetUid);
+  Future<void> followUser(String uid, String targetUid) =>
+      _ds.followUser(uid, targetUid);
 
-  Future<void> unfollowUser(String uid, String targetUid) => _ds.unfollowUser(uid, targetUid);
+  Future<void> unfollowUser(String uid, String targetUid) =>
+      _ds.unfollowUser(uid, targetUid);
 
-  Future<bool> isFollowing(String uid, String targetUid) => _ds.isFollowing(uid, targetUid);
+  Future<bool> isFollowing(String uid, String targetUid) =>
+      _ds.isFollowing(uid, targetUid);
 
   Future<void> recordProfileVisit({
     required String visitedUid,
     required String visitorUid,
     String? visitorName,
     String? visitorPhoto,
-  }) => _ds.logProfileVisit(visitedUid, visitorUid);
+  }) =>
+      _ds.logProfileVisit(visitedUid, visitorUid);
 
   Future<Map<String, gm.GiftModel>> getGiftsCatalog() async {
     try {
@@ -1476,7 +1641,8 @@ class SupabaseService {
     }
   }
 
-  Future<List<gm.SentGiftModel>> getReceivedGifts(String uid) => _ds.getReceivedGifts(uid);
+  Future<List<gm.SentGiftModel>> getReceivedGifts(String uid) =>
+      _ds.getReceivedGifts(uid);
 
   Future<String?> getUserCurrentRoomId(String uid) async {
     try {
@@ -1487,17 +1653,22 @@ class SupabaseService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getFollowing(String uid) => _ds.getFollowingUsers(uid);
+  Future<List<Map<String, dynamic>>> getFollowing(String uid) =>
+      _ds.getFollowingUsers(uid);
 
-  Future<List<Map<String, dynamic>>> getFans(String uid) => _ds.getFollowerUsers(uid);
+  Future<List<Map<String, dynamic>>> getFans(String uid) =>
+      _ds.getFollowerUsers(uid);
 
-  Future<List<Map<String, dynamic>>> getMutualFriends(String uid) => _ds.getMutualFriends(uid);
+  Future<List<Map<String, dynamic>>> getMutualFriends(String uid) =>
+      _ds.getMutualFriends(uid);
 
-  Future<List<Map<String, dynamic>>> getVisitors(String uid) => _ds.getVisitorUsers(uid);
+  Future<List<Map<String, dynamic>>> getVisitors(String uid) =>
+      _ds.getVisitorUsers(uid);
 
   Future<List<Map<String, dynamic>>> getReports() async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/reports?select=*&order=created_at.desc');
+      final url =
+          Uri.parse('$_baseUrl/rest/v1/reports?select=*&order=created_at.desc');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
@@ -1526,7 +1697,11 @@ class SupabaseService {
 
   Future<List<String>> getBlockedUids(String uid) async => [];
 
-  Future<void> reportUser({required String reporterUid, required String reportedUid, required String reason, String? description}) async {
+  Future<void> reportUser(
+      {required String reporterUid,
+      required String reportedUid,
+      required String reason,
+      String? description}) async {
     try {
       await http.post(
         Uri.parse('$_baseUrl/rest/v1/reports'),
@@ -1633,18 +1808,18 @@ class SupabaseService {
     }
   }
 
-  Stream<List<MessageModel>> privateMessagesStream(String conversationId) async* {
+  Stream<List<MessageModel>> privateMessagesStream(
+      String conversationId) async* {
     while (true) {
       try {
-        List<MessageModel> parse(http.Response res) => (jsonDecode(res.body) as List)
-            .map((e) {
+        List<MessageModel> parse(http.Response res) =>
+            (jsonDecode(res.body) as List).map((e) {
               final m = Map<String, dynamic>.from(e as Map);
               if (m['image_url'] == null || m['image_url'].toString().isEmpty) {
                 m['image_url'] = m['media_url'];
               }
               return MessageModel.fromMap(m);
-            })
-            .toList();
+            }).toList();
 
         List<MessageModel> messages = [];
         final primaryUrl = Uri.parse(
@@ -1702,21 +1877,24 @@ class SupabaseService {
       final effectiveSenderUid = senderId ?? senderUid ?? '';
       final effectiveReceiverUid = receiverId ?? receiverUid ?? '';
       if (effectiveSenderUid.isEmpty || effectiveReceiverUid.isEmpty) {
-        debugPrint('[SupabaseService] sendPrivateMessage aborted: empty sender ($effectiveSenderUid) or receiver ($effectiveReceiverUid)');
+        debugPrint(
+            '[SupabaseService] sendPrivateMessage aborted: empty sender ($effectiveSenderUid) or receiver ($effectiveReceiverUid)');
         return;
       }
-      final effectiveConvId = (conversationId != null && conversationId.isNotEmpty)
-          ? conversationId
-          : (effectiveSenderUid.compareTo(effectiveReceiverUid) < 0
-              ? '${effectiveSenderUid}_$effectiveReceiverUid'
-              : '${effectiveReceiverUid}_$effectiveSenderUid');
+      final effectiveConvId =
+          (conversationId != null && conversationId.isNotEmpty)
+              ? conversationId
+              : (effectiveSenderUid.compareTo(effectiveReceiverUid) < 0
+                  ? '${effectiveSenderUid}_$effectiveReceiverUid'
+                  : '${effectiveReceiverUid}_$effectiveSenderUid');
 
       final msgId = const Uuid().v4();
       final now = DateTime.now().millisecondsSinceEpoch;
       final isoNow = DateTime.now().toUtc().toIso8601String();
 
       // 1. مزامنة جدول المحادثات أولاً لاستيفاء قيد المفتاح الأجنبي (Foreign Key)
-      final lastMsgText = text.isNotEmpty ? text : (type == 'image' ? '[صورة]' : '');
+      final lastMsgText =
+          text.isNotEmpty ? text : (type == 'image' ? '[صورة]' : '');
       final senderConv = {
         'conv_id': effectiveConvId,
         'uid': effectiveSenderUid,
@@ -1724,7 +1902,7 @@ class SupabaseService {
         'other_name': receiverName ?? '',
         'other_photo_url': receiverPhotoUrl ?? '',
         'last_message': lastMsgText,
-        'last_time': now,
+        'last_time': isoNow,
         'unread_count': 0,
       };
 
@@ -1749,7 +1927,7 @@ class SupabaseService {
         'other_name': senderName,
         'other_photo_url': senderPhotoUrl ?? '',
         'last_message': lastMsgText,
-        'last_time': now,
+        'last_time': isoNow,
         'unread_count': receiverUnread,
       };
 
@@ -1787,7 +1965,8 @@ class SupabaseService {
                 '[SupabaseService] conversations single upsert HTTP ${singleRes.statusCode}: ${singleRes.body}');
           }
         } catch (e) {
-          debugPrint('[SupabaseService] conversations single upsert failed: $e');
+          debugPrint(
+              '[SupabaseService] conversations single upsert failed: $e');
         }
       }
 
@@ -1824,9 +2003,9 @@ class SupabaseService {
           body: jsonEncode(msgBody),
         );
         if (msgRes.statusCode >= 200 && msgRes.statusCode < 300) return;
-        lastError =
-            'HTTP ${msgRes.statusCode} - ${msgRes.body}';
-        debugPrint('[SupabaseService] private_messages HTTP failed: $lastError');
+        lastError = 'HTTP ${msgRes.statusCode} - ${msgRes.body}';
+        debugPrint(
+            '[SupabaseService] private_messages HTTP failed: $lastError');
       } catch (e) {
         lastError = e;
         debugPrint('[SupabaseService] private_messages HTTP error: $e');
@@ -1845,7 +2024,8 @@ class SupabaseService {
         return;
       } catch (e) {
         lastError = e;
-        debugPrint('[SupabaseService] private_messages minimal insert failed: $e');
+        debugPrint(
+            '[SupabaseService] private_messages minimal insert failed: $e');
       }
 
       throw Exception('تعذر إرسال الرسالة: $lastError');
@@ -1883,14 +2063,18 @@ class SupabaseService {
         final res = await http.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
-          yield list.map((e) => NotificationModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+          yield list
+              .map((e) => NotificationModel.fromMap(
+                  Map<String, dynamic>.from(e as Map)))
+              .toList();
         }
       } catch (_) {}
       await Future.delayed(const Duration(seconds: 4));
     }
   }
 
-  Future<List<Map<String, dynamic>>> getGlobalRankings({required bool isWealth, required String timeframe}) async {
+  Future<List<Map<String, dynamic>>> getGlobalRankings(
+      {required bool isWealth, required String timeframe}) async {
     try {
       final now = DateTime.now().toUtc();
       DateTime? cutoff;
@@ -1914,7 +2098,8 @@ class SupabaseService {
         final photo = isWealth ? (g.senderPhotoUrl ?? '') : '';
         final cost = (g.value * g.count).toInt();
         totals[uid] = (totals[uid] ?? 0) + cost;
-        if (!userDetails.containsKey(uid) || (userDetails[uid]!['photoUrl'] as String).isEmpty) {
+        if (!userDetails.containsKey(uid) ||
+            (userDetails[uid]!['photoUrl'] as String).isEmpty) {
           userDetails[uid] = {
             'id': uid,
             'name': name.isNotEmpty ? name : 'مستخدم',
@@ -1923,13 +2108,17 @@ class SupabaseService {
         }
       }
 
-      final sortedKeys = totals.keys.toList()..sort((a, b) => totals[b]!.compareTo(totals[a]!));
+      final sortedKeys = totals.keys.toList()
+        ..sort((a, b) => totals[b]!.compareTo(totals[a]!));
       final topUids = sortedKeys.take(50).toList();
 
       // جلب الآيدي الرقمي الحقيقي (custom_id) والبروفايل لكافة المتصدرين
       if (topUids.isNotEmpty) {
         try {
-          final usersRes = await _sb.from('users').select('id, custom_id, name, avatar, photo_url').inFilter('id', topUids);
+          final usersRes = await _sb
+              .from('users')
+              .select('id, custom_id, name, avatar, photo_url')
+              .inFilter('id', topUids);
           if (usersRes is List) {
             for (final u in usersRes) {
               final uMap = Map<String, dynamic>.from(u as Map);
@@ -1937,7 +2126,8 @@ class SupabaseService {
               if (uId.isNotEmpty) {
                 final cId = (uMap['custom_id'] ?? '').toString();
                 final uName = (uMap['name'] ?? '').toString();
-                final uPhoto = (uMap['photo_url'] ?? uMap['avatar'] ?? '').toString();
+                final uPhoto =
+                    (uMap['photo_url'] ?? uMap['avatar'] ?? '').toString();
                 if (userDetails.containsKey(uId)) {
                   userDetails[uId]!['custom_id'] = cId;
                   if (uName.isNotEmpty) userDetails[uId]!['name'] = uName;
@@ -1981,15 +2171,29 @@ class SupabaseService {
       if (result.length < 3) {
         try {
           final usersQuery = isWealth
-              ? await _sb.from('users').select('id, custom_id, name, avatar, photo_url, total_gifts_sent, wealth_exp').order('total_gifts_sent', ascending: false).limit(10)
-              : await _sb.from('users').select('id, custom_id, name, avatar, photo_url, total_gifts_received, charm').order('total_gifts_received', ascending: false).limit(10);
+              ? await _sb
+                  .from('users')
+                  .select(
+                      'id, custom_id, name, avatar, photo_url, total_gifts_sent, wealth_exp')
+                  .order('total_gifts_sent', ascending: false)
+                  .limit(10)
+              : await _sb
+                  .from('users')
+                  .select(
+                      'id, custom_id, name, avatar, photo_url, total_gifts_received, charm')
+                  .order('total_gifts_received', ascending: false)
+                  .limit(10);
           final existingIds = result.map((r) => r['id'].toString()).toSet();
           for (final u in (usersQuery as List)) {
             final uId = (u['id'] ?? '').toString();
             if (uId.isEmpty || existingIds.contains(uId)) continue;
             final pts = isWealth
-                ? ((u['total_gifts_sent'] as num?)?.toInt() ?? (u['wealth_exp'] as num?)?.toInt() ?? 0)
-                : ((u['total_gifts_received'] as num?)?.toInt() ?? (u['charm'] as num?)?.toInt() ?? 0);
+                ? ((u['total_gifts_sent'] as num?)?.toInt() ??
+                    (u['wealth_exp'] as num?)?.toInt() ??
+                    0)
+                : ((u['total_gifts_received'] as num?)?.toInt() ??
+                    (u['charm'] as num?)?.toInt() ??
+                    0);
             if (pts > 0) {
               final photo = (u['photo_url'] ?? u['avatar'] ?? '').toString();
               final cId = (u['custom_id'] ?? '').toString();
@@ -2020,7 +2224,8 @@ class SupabaseService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getRoomGlobalRanking({required String timeframe}) async {
+  Future<List<Map<String, dynamic>>> getRoomGlobalRanking(
+      {required String timeframe}) async {
     try {
       final now = DateTime.now().toUtc();
       DateTime? cutoff;
@@ -2037,15 +2242,19 @@ class SupabaseService {
       final Map<String, int> roomTotals = {};
       for (final g in filtered) {
         if (g.roomId.isNotEmpty) {
-          roomTotals[g.roomId] = (roomTotals[g.roomId] ?? 0) + (g.value * g.count).toInt();
+          roomTotals[g.roomId] =
+              (roomTotals[g.roomId] ?? 0) + (g.value * g.count).toInt();
         }
       }
-      final sortedKeys = roomTotals.keys.toList()..sort((a, b) => roomTotals[b]!.compareTo(roomTotals[a]!));
+      final sortedKeys = roomTotals.keys.toList()
+        ..sort((a, b) => roomTotals[b]!.compareTo(roomTotals[a]!));
       final List<Map<String, dynamic>> result = [];
       for (final rid in sortedKeys.take(50)) {
         final room = await _ds.getRoom(rid);
         final amt = roomTotals[rid] ?? 0;
-        final photo = (room?.roomPhotoUrl.isNotEmpty == true) ? room!.roomPhotoUrl : (room?.bgImage ?? '');
+        final photo = (room?.roomPhotoUrl.isNotEmpty == true)
+            ? room!.roomPhotoUrl
+            : (room?.bgImage ?? '');
         result.add({
           'id': rid,
           'uid': rid,
@@ -2068,13 +2277,21 @@ class SupabaseService {
       // إذا كانت قائمة الغرف أقل من 3، نجلب كـ fallback من جدول rooms
       if (result.length < 3) {
         try {
-          final topRooms = await _sb.from('rooms').select('*').order('total_gifts', ascending: false).limit(10);
-          final existingRids = result.map((r) => r['room_id'].toString()).toSet();
+          final topRooms = await _sb
+              .from('rooms')
+              .select('*')
+              .order('total_gifts', ascending: false)
+              .limit(10);
+          final existingRids =
+              result.map((r) => r['room_id'].toString()).toSet();
           for (final r in (topRooms as List)) {
             final rid = (r['room_id'] ?? r['id'] ?? '').toString();
             if (rid.isEmpty || existingRids.contains(rid)) continue;
-            final amt = (r['total_gifts'] as num?)?.toInt() ?? (r['hot_value'] as num?)?.toInt() ?? 0;
-            final photo = (r['room_photo_url'] ?? r['bg_image'] ?? '').toString();
+            final amt = (r['total_gifts'] as num?)?.toInt() ??
+                (r['hot_value'] as num?)?.toInt() ??
+                0;
+            final photo =
+                (r['room_photo_url'] ?? r['bg_image'] ?? '').toString();
             result.add({
               'id': rid,
               'uid': rid,
@@ -2122,7 +2339,8 @@ class SupabaseService {
         cutoff = DateTime.utc(now.year, now.month, 1);
       }
 
-      final allGifts = await _ds.getSentGifts(roomId, limit: 1000, after: cutoff);
+      final allGifts =
+          await _ds.getSentGifts(roomId, limit: 1000, after: cutoff);
       if (allGifts.isEmpty) return [];
 
       // تصفير القائمة عند انتهاء الفترة وسحب بيانات الفترة الجديدة فقط
@@ -2147,7 +2365,8 @@ class SupabaseService {
         };
       }
 
-      final sortedKeys = totals.keys.toList()..sort((a, b) => totals[b]!.compareTo(totals[a]!));
+      final sortedKeys = totals.keys.toList()
+        ..sort((a, b) => totals[b]!.compareTo(totals[a]!));
       final topKeys = sortedKeys.take(20).toList();
 
       // Fetch user profile info (photo_url, avatar, custom_id, level) for the ranked users
@@ -2155,7 +2374,8 @@ class SupabaseService {
       if (topKeys.isNotEmpty) {
         try {
           final inFilter = topKeys.map((k) => '"$k"').join(',');
-          final uUrl = Uri.parse('$_baseUrl/rest/v1/users?or=(uid.in.($inFilter),id.in.($inFilter))&select=uid,id,name,custom_id,photo_url,avatar,level');
+          final uUrl = Uri.parse(
+              '$_baseUrl/rest/v1/users?or=(uid.in.($inFilter),id.in.($inFilter))&select=uid,id,name,custom_id,photo_url,avatar,level');
           final uRes = await http.get(uUrl, headers: _headers);
           if (uRes.statusCode == 200) {
             final List uList = jsonDecode(uRes.body);
@@ -2163,7 +2383,8 @@ class SupabaseService {
               final m = Map<String, dynamic>.from(u as Map);
               final uidVal = m['uid']?.toString();
               final idVal = m['id']?.toString();
-              if (uidVal != null && uidVal.isNotEmpty) enrichedUsers[uidVal] = m;
+              if (uidVal != null && uidVal.isNotEmpty)
+                enrichedUsers[uidVal] = m;
               if (idVal != null && idVal.isNotEmpty) enrichedUsers[idVal] = m;
             }
           }
@@ -2213,14 +2434,16 @@ class SupabaseService {
 
   Future<List<Map<String, dynamic>>> getBadgesCatalog() => _ds.getBadges();
 
-  Future<List<Map<String, dynamic>>> getNecklacesCatalog() => _ds.getNecklaces();
+  Future<List<Map<String, dynamic>>> getNecklacesCatalog() =>
+      _ds.getNecklaces();
 
   Future<dynamic> getAppConfig(String key) async {
     final cfg = await _ds.getAppConfig();
     return cfg[key];
   }
 
-  Future<Map<String, dynamic>> getAnchorAgencyData({String? agencyId, required String agentUid}) async {
+  Future<Map<String, dynamic>> getAnchorAgencyData(
+      {String? agencyId, required String agentUid}) async {
     try {
       final ag = await _ds.getHostAgencyForUser(agentUid, agencyId: agencyId);
       if (ag != null && ag['id'] != null) {
@@ -2242,7 +2465,8 @@ class SupabaseService {
       final res = await http.patch(
         Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
         headers: _headers,
-        body: jsonEncode({'announcement': notice, 'notice': notice, 'description': notice}),
+        body: jsonEncode(
+            {'announcement': notice, 'notice': notice, 'description': notice}),
       );
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (_) {
@@ -2250,10 +2474,15 @@ class SupabaseService {
     }
   }
 
-  Future<bool> removeAgencyMember({String? agencyId, String? memberUid, String? userId}) =>
-      exitAgencyAsMember(agencyId: agencyId ?? '', userId: memberUid ?? userId ?? '');
+  Future<bool> removeAgencyMember(
+          {String? agencyId, String? memberUid, String? userId}) =>
+      exitAgencyAsMember(
+          agencyId: agencyId ?? '', userId: memberUid ?? userId ?? '');
 
-  Future<Map<String, dynamic>> createAgentDiamondWithdrawalRequest({required String agentUid, required String targetUid, required int diamondsAmount}) async {
+  Future<Map<String, dynamic>> createAgentDiamondWithdrawalRequest(
+      {required String agentUid,
+      required String targetUid,
+      required int diamondsAmount}) async {
     try {
       final res = await http.post(
         Uri.parse('$_baseUrl/rest/v1/agent_withdrawal_requests'),
@@ -2273,27 +2502,38 @@ class SupabaseService {
     }
   }
 
-  Future<Map<String, dynamic>> respondToAgentWithdrawalRequest({required String requestId, required String userUid, required bool approved, String? agentId, int? diamondsAmount, String? targetName}) async {
+  Future<Map<String, dynamic>> respondToAgentWithdrawalRequest(
+      {required String requestId,
+      required String userUid,
+      required bool approved,
+      String? agentId,
+      int? diamondsAmount,
+      String? targetName}) async {
     try {
       final res = await http.patch(
-        Uri.parse('$_baseUrl/rest/v1/agent_withdrawal_requests?id=eq.$requestId'),
+        Uri.parse(
+            '$_baseUrl/rest/v1/agent_withdrawal_requests?id=eq.$requestId'),
         headers: _headers,
         body: jsonEncode({
           'status': approved ? 'approved' : 'rejected',
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         }),
       );
-      return {'status': res.statusCode >= 200 && res.statusCode < 300 ? 'ok' : 'error'};
+      return {
+        'status': res.statusCode >= 200 && res.statusCode < 300 ? 'ok' : 'error'
+      };
     } catch (_) {
       return {'status': 'error'};
     }
   }
 
-  Stream<List<Map<String, dynamic>>> activeLuckyBagsStream(String roomId) async* {
+  Stream<List<Map<String, dynamic>>> activeLuckyBagsStream(
+      String roomId) async* {
     yield [];
   }
 
-  Future<void> setDoc(String collection, String docId, Map<String, dynamic> data) async {
+  Future<void> setDoc(
+      String collection, String docId, Map<String, dynamic> data) async {
     try {
       final body = Map<String, dynamic>.from(data);
       if (!body.containsKey('id')) body['id'] = docId;
@@ -2311,4 +2551,3 @@ class SupabaseService {
 
 /// لضمان التوافق مع أي استدعاء لـ FirebaseService
 typedef FirebaseService = SupabaseService;
-

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/supabase_auth_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class PhoneLoginSheet extends StatefulWidget {
   final Function(AppAuthUser authUser) onSignedIn;
@@ -200,7 +201,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
           ),
 
           // Title
-          Text(
+          DText(
             _codeSent ? 'رمز التحقق (OTP)' : 'تسجيل الدخول برقم الهاتف',
             textAlign: TextAlign.center,
             style: const TextStyle(
@@ -211,7 +212,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
           ),
           const SizedBox(height: 8),
 
-          Text(
+          DText(
             _codeSent
                 ? 'أدخل رمز التحقق (OTP) المكون من 6 أرقام لتأكيد حسابك ودخول التطبيق'
                 : 'أدخل رقم هاتفك لتلقي رمز التحقق وتفعيل حسابك بأمان',
@@ -238,7 +239,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                   const Icon(Icons.check_circle_outline, color: Color(0xFF69F0AE), size: 20),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
+                    child: DText(
                       _infoMessage!,
                       style: const TextStyle(color: Color(0xFFB9F6CA), fontSize: 13, fontWeight: FontWeight.w600),
                     ),
@@ -263,7 +264,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                   const Icon(Icons.error_outline, color: Color(0xFFFF8A80), size: 20),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
+                    child: DText(
                       _errorMessage!,
                       style: const TextStyle(color: Color(0xFFFF8A80), fontSize: 13),
                     ),
@@ -298,9 +299,9 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                             value: c['code'],
                             child: Row(
                               children: [
-                                Text(c['flag'] ?? '', style: const TextStyle(fontSize: 16)),
+                                DText(c['flag'] ?? '', style: const TextStyle(fontSize: 16)),
                                 const SizedBox(width: 6),
-                                Text(c['code'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                                DText(c['code'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 13)),
                               ],
                             ),
                           );
@@ -348,7 +349,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                     )
-                  : const Text(
+                  : const DText(
                       'إرسال رمز التحقق (OTP)',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
@@ -401,7 +402,7 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                     )
-                  : const Text(
+                  : const DText(
                       'تأكيد الرمز والدخول',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
@@ -420,11 +421,11 @@ class _PhoneLoginSheetState extends State<PhoneLoginSheet> {
                     _infoMessage = null;
                   }),
                   icon: const Icon(Icons.arrow_back, color: Colors.white70, size: 16),
-                  label: const Text('تغيير الرقم', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  label: const DText('تغيير الرقم', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 ),
                 TextButton(
                   onPressed: (_isLoading || _resendCountdown > 0) ? null : _sendOtp,
-                  child: Text(
+                  child: DText(
                     _resendCountdown > 0
                         ? 'إعادة الإرسال بعد ($_resendCountdown ث)'
                         : 'إعادة إرسال الرمز',

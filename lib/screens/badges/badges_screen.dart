@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
@@ -6,6 +6,7 @@ import '../../services/dynamic_config_service.dart';
 import '../../services/supabase_service.dart';
 import '../../providers/user_provider.dart';
 import '../room/widgets/svga_player.dart';
+import 'package:zero/core/dtext.dart';
 
 class _DetailItem {
   final String name;
@@ -157,7 +158,7 @@ class _BadgesScreenState extends State<BadgesScreen>
                               ),
                             ),
                             const Spacer(),
-                            Text(config.screenTitles['badges'] ?? 'الشارات',
+                            DText(config.screenTitles['badges'] ?? 'الشارات',
                                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                             const Spacer(),
                             const SizedBox(width: 40),
@@ -280,7 +281,7 @@ class _BadgesScreenState extends State<BadgesScreen>
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                        child: Text(item.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                        child: DText(item.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                       ),
                       if (item.type.isNotEmpty)
                         Container(
@@ -290,12 +291,12 @@ class _BadgesScreenState extends State<BadgesScreen>
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: config.badgesAccent.withValues(alpha: 0.4)),
                           ),
-                          child: Text(item.type == 'necklace' ? 'قلادة' : 'شارة', style: TextStyle(color: config.badgesAccent, fontSize: 10)),
+                          child: DText(item.type == 'necklace' ? 'قلادة' : 'شارة', style: TextStyle(color: config.badgesAccent, fontSize: 10)),
                         ),
                       if (item.description.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                          child: Text(item.description, style: TextStyle(color: config.badgesSubText, fontSize: 12, height: 1.4), textAlign: TextAlign.center),
+                          child: DText(item.description, style: TextStyle(color: config.badgesSubText, fontSize: 12, height: 1.4), textAlign: TextAlign.center),
                         ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -304,7 +305,7 @@ class _BadgesScreenState extends State<BadgesScreen>
                           children: [
                             Icon(item.isOwned ? Icons.check_circle : Icons.lock, color: item.isOwned ? Colors.green : Colors.orange, size: 22),
                             const SizedBox(width: 6),
-                            Text(item.isOwned ? 'مملوك' : 'غير مملوك', style: TextStyle(color: item.isOwned ? Colors.green : Colors.orange, fontSize: 13, fontWeight: FontWeight.w600)),
+                            DText(item.isOwned ? 'مملوك' : 'غير مملوك', style: TextStyle(color: item.isOwned ? Colors.green : Colors.orange, fontSize: 13, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -335,7 +336,7 @@ class _BadgesScreenState extends State<BadgesScreen>
 
   Widget _buildBadgesTab(DynamicConfigService config) {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
-    if (_allBadges.isEmpty) return Center(child: Text(config.screenTitles['no_badges'] ?? 'لا توجد شارات', style: TextStyle(color: config.textSecondary)));
+    if (_allBadges.isEmpty) return Center(child: DText(config.screenTitles['no_badges'] ?? 'لا توجد شارات', style: TextStyle(color: config.textSecondary)));
 
     return GridView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -380,7 +381,7 @@ class _BadgesScreenState extends State<BadgesScreen>
                       if (bName.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: Text(bName, style: TextStyle(color: config.badgesTextColor, fontSize: 9), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          child: DText(bName, style: TextStyle(color: config.badgesTextColor, fontSize: 9), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
                         ),
                     ],
                   ),
@@ -392,7 +393,7 @@ class _BadgesScreenState extends State<BadgesScreen>
 
   Widget _buildNecklacesTab(DynamicConfigService config) {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
-    if (_allNecklaces.isEmpty) return Center(child: Text(config.screenTitles['no_necklaces'] ?? 'لا توجد قلادات', style: TextStyle(color: config.textSecondary)));
+    if (_allNecklaces.isEmpty) return Center(child: DText(config.screenTitles['no_necklaces'] ?? 'لا توجد قلادات', style: TextStyle(color: config.textSecondary)));
 
     return GridView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -434,7 +435,7 @@ class _BadgesScreenState extends State<BadgesScreen>
                       if (nName.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: Text(nName, style: TextStyle(color: config.necklacesTextColor, fontSize: 9), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          child: DText(nName, style: TextStyle(color: config.necklacesTextColor, fontSize: 9), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
                         ),
                     ],
                   ),

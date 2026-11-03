@@ -29,6 +29,7 @@ import 'data/agency_models.dart';
 import 'screens/agency_level_desc_screen.dart';
 import 'data/agency_chat_models.dart';
 import 'data/agency_repository.dart';
+import 'package:zero/core/dtext.dart';
 
 // ── palette (same design system as host_dashboard_screen) ────────────────────
 const Color _bgDeep    = Color(0xFF03030A);
@@ -247,7 +248,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
     child: Column(mainAxisSize: MainAxisSize.min, children: [
       _NeonSpinner(),
       SizedBox(height: 16),
-      Text('جارٍ تحميل بيانات الوكالة...',
+      DText('جارٍ تحميل بيانات الوكالة...',
           style: TextStyle(color: _textMuted, fontFamily: 'IBM Plex Sans Arabic')),
     ]),
   );
@@ -256,7 +257,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
     child: Column(mainAxisSize: MainAxisSize.min, children: [
       const Icon(Icons.error_outline, color: _red, size: 48),
       const SizedBox(height: 12),
-      Text(_error ?? 'خطأ غير معروف', style: const TextStyle(color: _red,
+      DText(_error ?? 'خطأ غير معروف', style: const TextStyle(color: _red,
           fontFamily: 'IBM Plex Sans Arabic')),
       const SizedBox(height: 16),
       _GlassButton(label: 'إعادة المحاولة', color: _purple,
@@ -471,13 +472,13 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
           ],
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('🎉', style: TextStyle(fontSize: 52)),
+          const DText('🎉', style: TextStyle(fontSize: 52)),
           const SizedBox(height: 12),
-          const Text('تهانينا! أكملت الهدف',
+          const DText('تهانينا! أكملت الهدف',
               style: TextStyle(color: _gold, fontSize: 18,
                   fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
           const SizedBox(height: 8),
-          Text(r['name'] ?? '',
+          DText(r['name'] ?? '',
               textAlign: TextAlign.center,
               style: const TextStyle(color: _textMuted, fontSize: 14,
                   fontFamily: 'IBM Plex Sans Arabic')),
@@ -563,18 +564,18 @@ class _AgencyHeader extends StatelessWidget {
                     ? Image.network(
                         photoUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Center(child: Text('🎙️', style: TextStyle(fontSize: 24))),
+                        errorBuilder: (_, __, ___) => const Center(child: DText('🎙️', style: TextStyle(fontSize: 24))),
                       )
-                    : const Center(child: Text('🎙️', style: TextStyle(fontSize: 24))),
+                    : const Center(child: DText('🎙️', style: TextStyle(fontSize: 24))),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name,
+                  DText(name,
                       style: const TextStyle(color: _textMain, fontSize: 18,
                           fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
                   if (spec.isNotEmpty)
-                    Text(spec, style: const TextStyle(color: _textMuted, fontSize: 12,
+                    DText(spec, style: const TextStyle(color: _textMuted, fontSize: 12,
                         fontFamily: 'IBM Plex Sans Arabic')),
                   if (agencyPublicId != null) ...[
                     const SizedBox(height: 4),
@@ -587,7 +588,7 @@ class _AgencyHeader extends StatelessWidget {
                       ),
                       child: Directionality(
                         textDirection: TextDirection.ltr,
-                        child: Text(
+                        child: DText(
                           'ID: $agencyPublicId',
                           locale: const Locale('en'),
                           style: const TextStyle(
@@ -602,7 +603,7 @@ class _AgencyHeader extends StatelessWidget {
               ),
             ]),
             const SizedBox(height: 12),
-            Text('${_fmt(totalDiamonds)} 💎 هذا الشهر',
+            DText('${_fmt(totalDiamonds)} 💎 هذا الشهر',
                 style: TextStyle(
                   color: _cyan, fontSize: 22, fontWeight: FontWeight.bold,
                   fontFamily: 'Space Grotesk',
@@ -645,7 +646,7 @@ class _KpiTile extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(icon, style: const TextStyle(fontSize: 18)),
+            DText(icon, style: const TextStyle(fontSize: 18)),
             if (actionLabel != null && onAction != null)
               GestureDetector(
                 onTap: onAction,
@@ -656,7 +657,7 @@ class _KpiTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: color.withOpacity(0.4)),
                   ),
-                  child: Text(
+                  child: DText(
                     actionLabel!,
                     style: TextStyle(
                       color: color,
@@ -670,10 +671,10 @@ class _KpiTile extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        Text(value, style: TextStyle(color: color, fontSize: 16,
+        DText(value, style: TextStyle(color: color, fontSize: 16,
             fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk',
             shadows: [Shadow(color: color.withOpacity(.5), blurRadius: 6)])),
-        Text(label, style: const TextStyle(color: _textMuted, fontSize: 10,
+        DText(label, style: const TextStyle(color: _textMuted, fontSize: 10,
             fontFamily: 'IBM Plex Sans Arabic')),
       ],
     ),
@@ -722,7 +723,7 @@ class _OriginalHalfMonthCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              DText(
                 title,
                 style: TextStyle(
                   color: isCurrent ? color : _textMuted,
@@ -738,7 +739,7 @@ class _OriginalHalfMonthCard extends StatelessWidget {
                     color: color.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
+                  child: DText(
                     'الحالي',
                     style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold),
                   ),
@@ -748,9 +749,9 @@ class _OriginalHalfMonthCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Text('💎', style: TextStyle(fontSize: 14)),
+              const DText('💎', style: TextStyle(fontSize: 14)),
               const SizedBox(width: 4),
-              Text(
+              DText(
                 fmtFn(diamonds),
                 style: const TextStyle(
                   color: _textMain,
@@ -762,7 +763,7 @@ class _OriginalHalfMonthCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text(
+          DText(
             'الدخل التقديري: \$$expectedUsd',
             style: const TextStyle(
               color: _green,
@@ -772,7 +773,7 @@ class _OriginalHalfMonthCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          DText(
             'نسبة التارجت: ${(rate * 100).toStringAsFixed(0)}%',
             style: const TextStyle(color: _textMuted, fontSize: 10),
           ),
@@ -827,7 +828,7 @@ class _LeaderboardList extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: barC.withOpacity(.4)),
               ),
-              child: Center(child: Text('${i + 1}',
+              child: Center(child: DText('${i + 1}',
                   style: TextStyle(color: barC, fontSize: 12,
                       fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk'))),
             ),
@@ -839,7 +840,7 @@ class _LeaderboardList extends StatelessWidget {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(name, style: const TextStyle(color: _textMain, fontSize: 13,
+                      child: DText(name, style: const TextStyle(color: _textMain, fontSize: 13,
                           fontFamily: 'IBM Plex Sans Arabic'),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -848,7 +849,7 @@ class _LeaderboardList extends StatelessWidget {
                       const SizedBox(width: 6),
                       Directionality(
                         textDirection: TextDirection.ltr,
-                        child: Text(
+                        child: DText(
                           '#$hostId',
                           locale: const Locale('en'),
                           style: const TextStyle(
@@ -892,7 +893,7 @@ class _LeaderboardList extends StatelessWidget {
             )),
 
             const SizedBox(width: 10),
-            Text('${fmtFn(weekD)} 💎',
+            DText('${fmtFn(weekD)} 💎',
                 style: TextStyle(color: barC, fontSize: 12,
                     fontFamily: 'Space Grotesk', fontWeight: FontWeight.w600)),
           ]),
@@ -939,7 +940,7 @@ class _AgencyMilestoneCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(name,
+          Expanded(child: DText(name,
               style: TextStyle(color: completed ? _gold : _textMain,
                   fontSize: 14, fontWeight: FontWeight.w600,
                   fontFamily: 'IBM Plex Sans Arabic'))),
@@ -951,7 +952,7 @@ class _AgencyMilestoneCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: _gold.withOpacity(.4)),
               ),
-              child: const Text('✅ مكتمل',
+              child: const DText('✅ مكتمل',
                   style: TextStyle(color: _gold, fontSize: 11,
                       fontFamily: 'IBM Plex Sans Arabic')),
             ),
@@ -984,10 +985,10 @@ class _AgencyMilestoneCard extends StatelessWidget {
 
         const SizedBox(height: 8),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('${(pct * 100).toStringAsFixed(0)}%',
+          DText('${(pct * 100).toStringAsFixed(0)}%',
               style: TextStyle(color: barC, fontSize: 12,
                   fontFamily: 'Space Grotesk', fontWeight: FontWeight.bold)),
-          Text('${fmtFn(current)} / ${fmtFn(target)} 💎',
+          DText('${fmtFn(current)} / ${fmtFn(target)} 💎',
               style: TextStyle(color: _textMuted, fontSize: 11,
                   fontFamily: 'Space Grotesk')),
           if (rewardVal != null)
@@ -1021,7 +1022,7 @@ class _RewardChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _gold.withOpacity(.3)),
       ),
-      child: Text('$emoji $value',
+      child: DText('$emoji $value',
           style: const TextStyle(color: _gold, fontSize: 11,
               fontFamily: 'Space Grotesk')),
     );
@@ -1038,9 +1039,9 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-    Text(icon, style: const TextStyle(fontSize: 18)),
+    DText(icon, style: const TextStyle(fontSize: 18)),
     const SizedBox(width: 8),
-    Text(label,
+    DText(label,
         style: TextStyle(color: _textMain, fontSize: 16,
             fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
     const SizedBox(width: 12),
@@ -1064,7 +1065,7 @@ class _GlassButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(.4)),
       ),
-      child: Text(label, style: TextStyle(color: color,
+      child: DText(label, style: TextStyle(color: color,
           fontFamily: 'IBM Plex Sans Arabic', fontWeight: FontWeight.w600)),
     ),
   );
@@ -1226,9 +1227,9 @@ class _QuickActionCard extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(action.icon, style: const TextStyle(fontSize: 24)),
+              DText(action.icon, style: const TextStyle(fontSize: 24)),
               const SizedBox(height: 6),
-              Text(action.label,
+              DText(action.label,
                 style: TextStyle(color: action.color, fontSize: 11, fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
                 maxLines: 2,
@@ -1243,7 +1244,7 @@ class _QuickActionCard extends StatelessWidget {
                     color: _red,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text('${action.badge}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                  child: DText('${action.badge}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
               ),
           ],
@@ -1308,9 +1309,9 @@ class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           const Row(children: [
-            Text('💰', style: TextStyle(fontSize: 18)),
+            DText('💰', style: TextStyle(fontSize: 18)),
             SizedBox(width: 8),
-            Text('صرف عمولة الوكيل', style: TextStyle(color: _textMain, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
+            DText('صرف عمولة الوكيل', style: TextStyle(color: _textMain, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
           ]),
           // زر خيارات الجدول
           GestureDetector(
@@ -1323,7 +1324,7 @@ class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard
                 border: Border.all(color: _purple.withOpacity(0.4)),
               ),
               child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Text('تعديل الجدول', style: TextStyle(color: _purple, fontSize: 12, fontFamily: 'IBM Plex Sans Arabic')),
+                DText('تعديل الجدول', style: TextStyle(color: _purple, fontSize: 12, fontFamily: 'IBM Plex Sans Arabic')),
                 SizedBox(width: 4),
                 Icon(Icons.edit, color: _purple, size: 13),
               ]),
@@ -1333,10 +1334,10 @@ class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard
         const SizedBox(height: 12),
         Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('العمولة المستحقة (${(widget.commissionRate * 100).toStringAsFixed(0)}%)',
+            DText('العمولة المستحقة (${(widget.commissionRate * 100).toStringAsFixed(0)}%)',
               style: const TextStyle(color: _textMuted, fontSize: 11, fontFamily: 'IBM Plex Sans Arabic')),
             const SizedBox(height: 4),
-            Text('${widget.fmtFn(commission)} 💎',
+            DText('${widget.fmtFn(commission)} 💎',
               style: const TextStyle(color: _gold, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
           ])),
           const SizedBox(width: 12),
@@ -1350,7 +1351,7 @@ class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [BoxShadow(color: _gold.withOpacity(0.3), blurRadius: 10)],
               ),
-              child: const Text('صرف الآن', style: TextStyle(color: Colors.black, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
+              child: const DText('صرف الآن', style: TextStyle(color: Colors.black, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
             ),
           ),
         ]),
@@ -1406,9 +1407,9 @@ Future<void> showAgencyDisbursementDialog({
           ),
           title: const Row(
             children: [
-              Text('💰', style: TextStyle(fontSize: 22)),
+              DText('💰', style: TextStyle(fontSize: 22)),
               SizedBox(width: 8),
-              Text(
+              DText(
                 'صرف عمولة الوكيل',
                 style: TextStyle(
                   color: _textMain,
@@ -1436,7 +1437,7 @@ Future<void> showAgencyDisbursementDialog({
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      const DText(
                         'رصيد الوكالة القابل للصرف (agency_wallets)',
                         style: TextStyle(
                           color: _textMuted,
@@ -1445,7 +1446,7 @@ Future<void> showAgencyDisbursementDialog({
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         '${fmtFn(availableBalance)} 💎',
                         style: const TextStyle(
                           color: _gold,
@@ -1460,7 +1461,7 @@ Future<void> showAgencyDisbursementDialog({
                 const SizedBox(height: 14),
 
                 // 2. خيارات الصرف: يومي / أسبوعي / شهري / يدوي
-                const Text(
+                const DText(
                   'خيارات جدول الصرف:',
                   style: TextStyle(
                     color: _textMain,
@@ -1481,7 +1482,7 @@ Future<void> showAgencyDisbursementDialog({
                   ].map((opt) {
                     final sel = selectedSchedule == opt['key'];
                     return ChoiceChip(
-                      label: Text(
+                      label: DText(
                         opt['label']!,
                         style: TextStyle(
                           color: sel ? Colors.black : _textMain,
@@ -1502,7 +1503,7 @@ Future<void> showAgencyDisbursementDialog({
                 const SizedBox(height: 14),
 
                 // 3. حقل إدخال المبلغ اليدوي
-                const Text(
+                const DText(
                   'المبلغ المراد صرفه يدويًا:',
                   style: TextStyle(
                     color: _textMain,
@@ -1544,7 +1545,7 @@ Future<void> showAgencyDisbursementDialog({
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء', style: TextStyle(color: _textMuted, fontFamily: 'IBM Plex Sans Arabic')),
+              child: const DText('إلغاء', style: TextStyle(color: _textMuted, fontFamily: 'IBM Plex Sans Arabic')),
             ),
             // 4. زر تأكيد يستدعي _ds.disburseSalary()
             ElevatedButton(
@@ -1579,7 +1580,7 @@ Future<void> showAgencyDisbursementDialog({
                     },
               child: isSubmitting
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                  : const Text('تأكيد الصرف', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
+                  : const DText('تأكيد الصرف', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
             ),
           ],
         );

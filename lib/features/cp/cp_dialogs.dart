@@ -3,6 +3,7 @@ import '../../core/cache/encrypted_image_provider.dart';
 import '../../config/r.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Authentic CP Proposal Dialog matching ic_send_invitation_bg.webp & original flow
 Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
@@ -93,7 +94,7 @@ Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                     child: Column(
                       children: [
-                        Text(
+                        DText(
                           isAr ? 'دعوة ارتباط CP' : 'CP Proposal',
                           style: const TextStyle(
                             color: Colors.white,
@@ -147,7 +148,7 @@ Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
+                                    DText(
                                       myName,
                                       style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                       maxLines: 1,
@@ -181,7 +182,7 @@ Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
+                                    DText(
                                       receiverName,
                                       style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                       maxLines: 1,
@@ -200,7 +201,7 @@ Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
                           'assets/cp/ic_send_invitation_choose_gift_title_frame.png',
                           height: 26,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Text(
+                          errorBuilder: (_, __, ___) => DText(
                             isAr ? 'اختر رمز وخاتم الحب' : 'Choose Love Token',
                             style: const TextStyle(color: Color(0xFFFFB565), fontSize: 13, fontWeight: FontWeight.bold),
                           ),
@@ -242,7 +243,7 @@ Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
                                       errorBuilder: (_, __, ___) => const Icon(Icons.favorite, color: Colors.pink, size: 36),
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
+                                    DText(
                                       r['name'],
                                       style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center,
@@ -253,7 +254,7 @@ Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
                                       children: [
                                         Image.asset('assets/cp/ic_coin.webp', width: 12, height: 12, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                                         const SizedBox(width: 3),
-                                        Text(
+                                        DText(
                                           '${r['price']}',
                                           style: const TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.bold),
                                         ),
@@ -300,7 +301,7 @@ Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
+                                    DText(
                                       isAr ? 'رصيدي:' : 'Balance:',
                                       style: const TextStyle(color: Colors.white54, fontSize: 11),
                                     ),
@@ -308,7 +309,7 @@ Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
                                       children: [
                                         Image.asset('assets/cp/ic_coin.webp', width: 14, height: 14, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                                         const SizedBox(width: 4),
-                                        Text(
+                                        DText(
                                           R.formatCoins(myCoins),
                                           style: const TextStyle(color: Color(0xFFFFD700), fontSize: 15, fontWeight: FontWeight.bold),
                                         ),
@@ -338,7 +339,7 @@ Future<Map<String, dynamic>?> showSendRelationshipInvitationDialog(
                                         gradient: const LinearGradient(colors: [Color(0xFFE91E63), Color(0xFFFF4081)]),
                                         borderRadius: BorderRadius.circular(24),
                                       ),
-                                      child: Text(
+                                      child: DText(
                                         isAr ? 'إرسال الدعوة' : 'Send Proposal',
                                         style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                                       ),
@@ -413,7 +414,7 @@ Future<bool?> showAcceptCpInvitationDialog(
                       child: senderAvatar.isEmpty ? const Icon(Icons.person, color: Colors.white54) : null,
                     ),
                     const SizedBox(height: 12),
-                    Text(
+                    DText(
                       '$senderName ${isAr ? "أرسل لك طلب ارتباط CP" : "sent you a CP proposal"} ❤️',
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
@@ -426,7 +427,7 @@ Future<bool?> showAcceptCpInvitationDialog(
                           color: Colors.black26,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(
+                        child: DText(
                           '"$message"',
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Color(0xFFFFB565), fontSize: 13, fontStyle: FontStyle.italic),
@@ -453,7 +454,7 @@ Future<bool?> showAcceptCpInvitationDialog(
                               border: Border.all(color: Colors.white30),
                             ),
                             alignment: Alignment.center,
-                            child: Text(isAr ? 'رفض' : 'Decline', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                            child: DText(isAr ? 'رفض' : 'Decline', style: const TextStyle(color: Colors.white70, fontSize: 14)),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -472,7 +473,7 @@ Future<bool?> showAcceptCpInvitationDialog(
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               alignment: Alignment.center,
-                              child: Text(isAr ? 'قبول' : 'Accept', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              child: DText(isAr ? 'قبول' : 'Accept', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ),
@@ -518,7 +519,7 @@ Future<void> showCpBondResultDialog(
                   ),
                 )),
             const SizedBox(height: 55),
-            Text(success ? '🎉 تم الربط بنجاح!' : '😢 تم رفض الطلب',
+            DText(success ? '🎉 تم الربط بنجاح!' : '😢 تم رفض الطلب',
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
             Row(
@@ -544,7 +545,7 @@ Future<void> showCpBondResultDialog(
             const SizedBox(height: 22),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 35),
-              child: Text(message ?? (success ? 'أصبحتما الآن CP!' : 'يمكنك المحاولة مرة أخرى لاحقاً'),
+              child: DText(message ?? (success ? 'أصبحتما الآن CP!' : 'يمكنك المحاولة مرة أخرى لاحقاً'),
                   style: const TextStyle(color: Colors.white, fontSize: 18),
                   textAlign: TextAlign.center,
                   maxLines: 3),
@@ -599,7 +600,7 @@ Future<void> showCpLvUpgradeDialog(
                   ),
                   child: Column(
                     children: [
-                      Text('تهانينا! مستوى $newLevel',
+                      DText('تهانينا! مستوى $newLevel',
                           style: const TextStyle(color: Colors.white, fontSize: 14),
                           textAlign: TextAlign.center,
                           maxLines: 4),
@@ -607,8 +608,8 @@ Future<void> showCpLvUpgradeDialog(
                       if (rewards != null && rewards.isNotEmpty)
                         ...rewards.map((r) => ListTile(
                           leading: Icon(Icons.card_giftcard, color: const Color(0xFFd99d47)),
-                          title: Text(r['name'] as String? ?? '', style: const TextStyle(color: Colors.white)),
-                          subtitle: Text(r['desc'] as String? ?? '', style: const TextStyle(color: Color(0xFF999999))),
+                          title: DText(r['name'] as String? ?? '', style: const TextStyle(color: Colors.white)),
+                          subtitle: DText(r['desc'] as String? ?? '', style: const TextStyle(color: Color(0xFF999999))),
                         )),
                       const SizedBox(height: 24),
                       SizedBox(
@@ -618,7 +619,7 @@ Future<void> showCpLvUpgradeDialog(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFd99d47),
                           ),
-                          child: const Text('عرض المزايا الجديدة',
+                          child: const DText('عرض المزايا الجديدة',
                               style: TextStyle(color: Colors.white, fontSize: 16)),
                         ),
                       ),

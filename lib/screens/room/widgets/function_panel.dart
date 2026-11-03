@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class FunctionPanel extends StatelessWidget {
   final VoidCallback? onClose;
@@ -118,7 +119,7 @@ class FunctionPanel extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
+          child: DText(
             title,
             textAlign: isAr ? TextAlign.right : TextAlign.left,
             style: const TextStyle(
@@ -148,7 +149,7 @@ class FunctionPanel extends StatelessWidget {
                       final label = item['label']!;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(isAr ? '$label قريباً' : '$label coming soon'),
+                          content: DText(isAr ? '$label قريباً' : '$label coming soon'),
                           duration: const Duration(seconds: 2),
                         ),
                       );
@@ -161,7 +162,7 @@ class FunctionPanel extends StatelessWidget {
                       const SizedBox(height: 8),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(
+                        child: DText(
                           item['label']!,
                           textAlign: TextAlign.center,
                           maxLines: 2,

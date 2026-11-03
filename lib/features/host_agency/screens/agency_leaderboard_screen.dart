@@ -4,6 +4,7 @@ import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 import 'agency_profile_screen.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyLeaderboardScreen — تصنيف الوكالات
@@ -90,7 +91,7 @@ class _AgencyLeaderboardScreenState extends State<AgencyLeaderboardScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D1A),
         foregroundColor: Colors.white,
-        title: const Text('🏆 تصنيف الوكالات', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        title: const DText('🏆 تصنيف الوكالات', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         centerTitle: true,
         elevation: 0,
       ),
@@ -105,9 +106,9 @@ class _AgencyLeaderboardScreenState extends State<AgencyLeaderboardScreen> {
                 : _entries.isEmpty
                     ? Center(
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          const Text('🏢', style: TextStyle(fontSize: 48)),
+                          const DText('🏢', style: TextStyle(fontSize: 48)),
                           const SizedBox(height: 12),
-                          Text('لا توجد وكالات بعد', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+                          DText('لا توجد وكالات بعد', style: TextStyle(color: Colors.white.withOpacity(0.5))),
                         ]),
                       )
                     : RefreshIndicator(
@@ -163,7 +164,7 @@ class _AgencyLeaderboardScreenState extends State<AgencyLeaderboardScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               alignment: Alignment.center,
-              child: Text(
+              child: DText(
                 _countryLabels[c] ?? c ?? 'عالمي',
                 style: TextStyle(
                   fontSize: 13,
@@ -240,7 +241,7 @@ class _AgencyRankCard extends StatelessWidget {
                     : null,
               ),
               child: entry.photoUrl == null
-                  ? Center(child: Text(entry.name.characters.first, style: TextStyle(color: tierColor, fontWeight: FontWeight.bold, fontSize: 18)))
+                  ? Center(child: DText(entry.name.characters.first, style: TextStyle(color: tierColor, fontWeight: FontWeight.bold, fontSize: 18)))
                   : null,
             ),
             const SizedBox(width: 12),
@@ -252,14 +253,14 @@ class _AgencyRankCard extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(entry.name,
+                        child: DText(entry.name,
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (entry.isHallOfFame) ...[
                         const SizedBox(width: 4),
-                        const Text('🏆', style: TextStyle(fontSize: 12)),
+                        const DText('🏆', style: TextStyle(fontSize: 12)),
                       ],
                     ],
                   ),
@@ -269,7 +270,7 @@ class _AgencyRankCard extends StatelessWidget {
                       _Chip(label: entry.tier.label, color: tierColor),
                       const SizedBox(width: 6),
                       if (entry.agencyPublicId != null) ...[
-                        Text(
+                        DText(
                           'ID: ${entry.agencyPublicId}',
                           style: const TextStyle(
                             color: Color(0xFFD4AF37),
@@ -279,7 +280,7 @@ class _AgencyRankCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                       ],
-                      Text('${entry.memberCount} عضو',
+                      DText('${entry.memberCount} عضو',
                         style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
                     ],
                   ),
@@ -290,14 +291,14 @@ class _AgencyRankCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(_fmtK(entry.totalDiamondsMonthly),
+                DText(_fmtK(entry.totalDiamondsMonthly),
                   style: TextStyle(
                     color: tierColor,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
-                const Text('♦ الشهر',
+                const DText('♦ الشهر',
                   style: TextStyle(color: Colors.white38, fontSize: 11)),
               ],
             ),
@@ -318,12 +319,12 @@ class _RankBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final emojis = {1: '🥇', 2: '🥈', 3: '🥉'};
     if (emojis.containsKey(rank)) {
-      return SizedBox(width: 32, child: Center(child: Text(emojis[rank]!, style: const TextStyle(fontSize: 24))));
+      return SizedBox(width: 32, child: Center(child: DText(emojis[rank]!, style: const TextStyle(fontSize: 24))));
     }
     return SizedBox(
       width: 32,
       child: Center(
-        child: Text('#$rank',
+        child: DText('#$rank',
           style: TextStyle(color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.bold, fontSize: 13)),
       ),
     );
@@ -344,7 +345,7 @@ class _Chip extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
+      child: DText(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
     );
   }
 }

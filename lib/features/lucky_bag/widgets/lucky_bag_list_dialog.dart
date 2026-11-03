@@ -1,7 +1,8 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/lucky_bag_model.dart';
 import 'lucky_bag_claim_dialog.dart';
+import 'package:zero/core/dtext.dart';
 
 /// قائمة حقائب الحظ المتاحة في الغرفة المطابقة لـ dialog_luckybag_list.xml
 class LuckyBagListDialog extends StatefulWidget {
@@ -76,7 +77,7 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: const Color(0xFFFBA806), width: 1),
                   ),
-                  child: Text(
+                  child: DText(
                     isAr ? 'حقائب الحظ النشطة ()' : 'Active Lucky Bags ()',
                     style: const TextStyle(
                       color: Color(0xFFFBA806),
@@ -109,7 +110,7 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(
+                      child: DText(
                         isAr ? 'لا توجد حقائب حظ حالياً' : 'No lucky bags available',
                         style: const TextStyle(color: Colors.white60, fontSize: 13),
                       ),
@@ -176,7 +177,7 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
                       borderRadius: BorderRadius.circular(5),
                       border: Border.all(color: Colors.white, width: 0.6),
                     ),
-                    child: Text(
+                    child: DText(
                       ' 🪙',
                       style: const TextStyle(
                         color: Colors.white,
@@ -191,7 +192,7 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
           ),
           const SizedBox(height: 4),
           // nameTv
-          Text(
+          DText(
             bag.ownerName.isNotEmpty ? bag.ownerName : (isAr ? 'حقيبة الحظ' : 'Lucky Bag'),
             style: const TextStyle(
               color: Colors.white,

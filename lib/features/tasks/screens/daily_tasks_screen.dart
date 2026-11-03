@@ -8,6 +8,7 @@ import '../../../screens/mall/mall_screen.dart';
 import '../../../screens/wallet/wallet_main_screen.dart';
 import '../../../screens/login/edit_profile_screen.dart';
 import '../../../utils/app_action_navigator.dart';
+import 'package:zero/core/dtext.dart';
 
 /// شاشة مركز المهام (Task Center) — مطابقة تماماً لتصميم act_tasks.xml و frag_task.xml و item_task.xml
 class DailyTasksScreen extends StatefulWidget {
@@ -207,7 +208,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
             onPressed: () => Navigator.of(context).pop(),
           ),
           const Expanded(
-            child: Text(
+            child: DText(
               'مركز المهام',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -276,7 +277,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
-              Text(
+              DText(
                 'مركز المهام والمكافآت اليومية',
                 style: TextStyle(
                   color: Colors.white,
@@ -286,7 +287,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                 ),
               ),
               SizedBox(height: 2),
-              Text(
+              DText(
                 'أنجز المهام واستلم كوينز وجوائز حصرية يومياً',
                 style: TextStyle(
                   color: Colors.white70,
@@ -329,8 +330,8 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('العملات الذهبية', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
-                    Text(
+                    const DText('العملات الذهبية', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
+                    DText(
                       '$coins',
                       style: const TextStyle(
                         fontSize: 14,
@@ -357,8 +358,8 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('نقاط الخبرة EXP', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
-                    Text(
+                    const DText('نقاط الخبرة EXP', style: TextStyle(fontSize: 11, color: Color(0xFF888888))),
+                    DText(
                       '$exp',
                       style: const TextStyle(
                         fontSize: 14,
@@ -396,7 +397,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                   children: const [
                     Icon(Icons.stars_rounded, color: Colors.white, size: 16),
                     SizedBox(width: 4),
-                    Text(
+                    DText(
                       'استلام الكل',
                       style: TextStyle(
                         fontSize: 11,
@@ -450,7 +451,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                 : null,
             color: isSelected ? null : const Color(0xFFF3F5F7),
           ),
-          child: Text(
+          child: DText(
             title,
             style: TextStyle(
               fontSize: 13,
@@ -481,7 +482,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
               height: 50,
             ),
             const SizedBox(height: 10),
-            const Text(
+            const DText(
               'لا توجد مهام حالياً في هذا القسم',
               style: TextStyle(color: Color(0xFF999999), fontSize: 13),
             ),
@@ -530,7 +531,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    DText(
                       task.titleAr.isNotEmpty ? task.titleAr : task.titleEn,
                       style: const TextStyle(
                         fontSize: 15,
@@ -541,7 +542,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 3),
-                    Text(
+                    DText(
                       task.descriptionAr.isNotEmpty ? task.descriptionAr : task.descriptionEn,
                       style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
                       maxLines: 1,
@@ -558,7 +559,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                           height: 14,
                         ),
                         const SizedBox(width: 4),
-                        Text(
+                        DText(
                           '+${task.coinsReward}',
                           style: const TextStyle(
                             fontSize: 13,
@@ -568,7 +569,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                         ),
                         if (task.expReward > 0) ...[
                           const SizedBox(width: 8),
-                          Text(
+                          DText(
                             '+${task.expReward} EXP',
                             style: const TextStyle(
                               fontSize: 11,
@@ -578,7 +579,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
                           ),
                         ],
                         const Spacer(),
-                        Text(
+                        DText(
                           '${task.currentCount}/${task.targetCount}',
                           style: const TextStyle(fontSize: 11, color: Color(0xFFAAAAAA), fontWeight: FontWeight.bold),
                         ),
@@ -617,7 +618,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
           color: const Color(0xFFF7F8FA),
           borderRadius: BorderRadius.circular(25),
         ),
-        child: const Text(
+        child: const DText(
           'تم الإنجاز',
           style: TextStyle(
             fontSize: 12,
@@ -650,7 +651,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
               ),
             ],
           ),
-          child: const Text(
+          child: const DText(
             'استلام',
             style: TextStyle(
               fontSize: 12,
@@ -674,7 +675,7 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
           borderRadius: BorderRadius.circular(25),
           border: Border.all(color: const Color(0xFF00D9C5), width: 1.2),
         ),
-        child: const Text(
+        child: const DText(
           'اذهب',
           style: TextStyle(
             fontSize: 12,

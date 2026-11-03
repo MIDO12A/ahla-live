@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:zero/screens/user_profile/user_profile_screen.dart';
 import 'package:zero/screens/room/room_screen.dart';
 import '../../services/supabase_data_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class GlobalSearchDelegate extends SearchDelegate<String?> {
   @override
@@ -63,7 +64,7 @@ class GlobalSearchDelegate extends SearchDelegate<String?> {
       return Container(
         color: const Color(0xFF03030A),
         child: const Center(
-          child: Text(
+          child: DText(
             'اكتب اسم المستخدم، اسم الغرفة، أو الـ ID للبحث...',
             style: TextStyle(color: Colors.white54),
           ),
@@ -187,7 +188,7 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
     if (_users.isEmpty && _rooms.isEmpty) {
       return Container(
         color: const Color(0xFF03030A),
-        child: const Center(child: Text('لا توجد نتائج', style: TextStyle(color: Colors.white54))),
+        child: const Center(child: DText('لا توجد نتائج', style: TextStyle(color: Colors.white54))),
       );
     }
 
@@ -199,7 +200,7 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
           if (_users.isNotEmpty) ...[
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('المستخدمين', style: TextStyle(color: Color(0xFFD3A350), fontSize: 16, fontWeight: FontWeight.bold)),
+              child: DText('المستخدمين', style: TextStyle(color: Color(0xFFD3A350), fontSize: 16, fontWeight: FontWeight.bold)),
             ),
             ..._users.map((u) {
               final photoUrl = u['photo_url']?.toString() ?? u['photoUrl']?.toString() ?? u['avatar']?.toString() ?? '';
@@ -222,8 +223,8 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
                           )
                         : const Icon(Icons.person, color: Colors.white54, size: 30),
                   ),
-                  title: Text(u['name'] ?? u['username'] ?? 'مستخدم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: Text('ID: ${u['custom_id'] ?? u['customId'] ?? ''}', style: const TextStyle(color: Colors.white54)),
+                  title: DText(u['name'] ?? u['username'] ?? 'مستخدم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: DText('ID: ${u['custom_id'] ?? u['customId'] ?? ''}', style: const TextStyle(color: Colors.white54)),
                   onTap: () {
                     if (uid.isNotEmpty) {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => UserProfileScreen(targetUid: uid)));
@@ -238,7 +239,7 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
           if (_rooms.isNotEmpty) ...[
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('الغرف', style: TextStyle(color: Color(0xFFD3A350), fontSize: 16, fontWeight: FontWeight.bold)),
+              child: DText('الغرف', style: TextStyle(color: Color(0xFFD3A350), fontSize: 16, fontWeight: FontWeight.bold)),
             ),
             ..._rooms.map((r) {
               final photoUrl = (r['room_photo_url'] ?? r['image'] ?? '').toString();
@@ -262,8 +263,8 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
                         ? const Icon(Icons.meeting_room, color: Colors.white54)
                         : null,
                   ),
-                  title: Text(r['name'] ?? r['title'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: Text('ID: ${r['room_id'] ?? ''}', style: const TextStyle(color: Colors.white54)),
+                  title: DText(r['name'] ?? r['title'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: DText('ID: ${r['room_id'] ?? ''}', style: const TextStyle(color: Colors.white54)),
                   onTap: () => _enterRoom(r),
                 ),
               );

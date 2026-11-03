@@ -7,6 +7,7 @@ import '../../services/supabase_data_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_strings.dart';
 import '../../screens/login/login_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class DeleteAccountStep2Screen extends StatefulWidget {
   const DeleteAccountStep2Screen({super.key});
@@ -41,7 +42,7 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error deleting account: $e'),
+            content: DText('Error deleting account: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -63,7 +64,7 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(AppStrings.deleteAccount),
+        title: const DText(AppStrings.deleteAccount),
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
@@ -74,7 +75,7 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 25),
-            Text(
+            DText(
               AppStrings.detailDeleteAccount2,
               style: const TextStyle(
                 fontSize: 17,
@@ -119,7 +120,7 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
                 onPressed: _isLoading ? null : _deleteAccount,
                 child: _isLoading
                     ? const CircularProgressIndicator(color: AppColors.color_894916)
-                    : const Text(
+                    : const DText(
                         AppStrings.clickToVerify,
                         style: TextStyle(
                           fontSize: 17,
@@ -151,7 +152,7 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                DText(
                   title,
                   style: const TextStyle(
                     fontSize: 18,
@@ -159,7 +160,7 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
                   ),
                 ),
                 const SizedBox(height: 5),
-                Text(
+                DText(
                   tip,
                   style: const TextStyle(
                     fontSize: 16,

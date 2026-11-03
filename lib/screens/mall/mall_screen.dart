@@ -8,6 +8,7 @@ import '../../providers/user_provider.dart';
 import '../room/widgets/svga_player.dart';
 import '../room/widgets/vap_player.dart';
 import '../../widgets/user_id_widget.dart';
+import 'package:zero/core/dtext.dart';
 
 /// شاشة المتجر الرسمية المطابقة لملف mine_activity_mall.xml
 /// وملفات التخطيط الأصلية:
@@ -265,7 +266,7 @@ class _MallScreenState extends State<MallScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // العنوان tv_title ("تأكيد الشراء")
-                const Text(
+                const DText(
                   'تأكيد الشراء',
                   style: TextStyle(
                     fontSize: 16,
@@ -330,7 +331,7 @@ class _MallScreenState extends State<MallScreen> {
                 const SizedBox(height: 12),
 
                 // اسم العنصر tv_desc
-                Text(
+                DText(
                   item.name,
                   style: const TextStyle(
                     fontSize: 15,
@@ -344,7 +345,7 @@ class _MallScreenState extends State<MallScreen> {
                 if (item.category == 'special_id')
                   const Padding(
                     padding: EdgeInsets.only(top: 6),
-                    child: Text(
+                    child: DText(
                       'سيتم تعيين هذا الآيدي المميز لحسابك مباشرة فور إتمام الشراء',
                       style: TextStyle(fontSize: 12, color: Color(0xFFFFD98B)),
                       textAlign: TextAlign.center,
@@ -362,7 +363,7 @@ class _MallScreenState extends State<MallScreen> {
                       height: 18,
                     ),
                     const SizedBox(width: 6),
-                    Text(
+                    DText(
                       '${item.price}',
                       style: const TextStyle(
                         fontSize: 16,
@@ -388,7 +389,7 @@ class _MallScreenState extends State<MallScreen> {
                             color: const Color(0xFF565964),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Text(
+                          child: const DText(
                             'إلغاء',
                             style: TextStyle(
                               fontSize: 14,
@@ -413,7 +414,7 @@ class _MallScreenState extends State<MallScreen> {
                                   : 'تم شراء ${item.name} بنجاح وإضافته إلى حقيبتك!';
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(successMsg, textAlign: TextAlign.center),
+                                  content: DText(successMsg, textAlign: TextAlign.center),
                                   backgroundColor: const Color(0xFF388E3C),
                                 ),
                               );
@@ -429,7 +430,7 @@ class _MallScreenState extends State<MallScreen> {
                                   : 'تعذر إتمام عملية الشراء، يرجى المحاولة لاحقاً';
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(errorMsg, textAlign: TextAlign.center),
+                                  content: DText(errorMsg, textAlign: TextAlign.center),
                                   backgroundColor: const Color(0xFFD32F2F),
                                 ),
                               );
@@ -445,7 +446,7 @@ class _MallScreenState extends State<MallScreen> {
                               fit: BoxFit.fill,
                             ),
                           ),
-                          child: const Text(
+                          child: const DText(
                             'شراء',
                             style: TextStyle(
                               fontSize: 14,
@@ -548,7 +549,7 @@ class _MallScreenState extends State<MallScreen> {
             ),
           ),
           const Expanded(
-            child: Text(
+            child: DText(
               'المتجر',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -616,7 +617,7 @@ class _MallScreenState extends State<MallScreen> {
                             : R.loadImage(iconPath, fit: BoxFit.contain),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      DText(
                         cat['name']!,
                         style: TextStyle(
                           fontSize: 12,
@@ -693,7 +694,7 @@ class _MallScreenState extends State<MallScreen> {
             fontSize: 20,
           ),
           const SizedBox(height: 8),
-          const Text(
+          const DText(
             'آيدي مميز متاح للشراء الفوري',
             style: TextStyle(color: Color(0xFFFFD98B), fontSize: 11, fontWeight: FontWeight.bold),
           ),
@@ -776,7 +777,7 @@ class _MallScreenState extends State<MallScreen> {
                     ),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    child: Text(
+                    child: DText(
                       'مرحباً بك في التطبيق! 👋',
                       style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
@@ -913,7 +914,7 @@ class _MallScreenState extends State<MallScreen> {
   Widget _buildItemsGrid(List<StoreItemModel> items, UserProvider userProvider, dynamic user) {
     if (items.isEmpty) {
       return const Center(
-        child: Text(
+        child: DText(
           'لا توجد عناصر في هذا القسم',
           style: TextStyle(color: Color(0x80FAE9B5), fontSize: 14),
         ),
@@ -998,7 +999,7 @@ class _MallScreenState extends State<MallScreen> {
                               ),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Text(
+                            child: DText(
                               isEquipped ? 'قيد الاستخدام' : 'مملوك',
                               style: const TextStyle(
                                 fontSize: 10,
@@ -1015,7 +1016,7 @@ class _MallScreenState extends State<MallScreen> {
                 // اسم العنصر tv_item_name
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(
+                  child: DText(
                     item.name,
                     style: const TextStyle(
                       fontSize: 14,
@@ -1041,7 +1042,7 @@ class _MallScreenState extends State<MallScreen> {
                         height: 15,
                       ),
                       const SizedBox(width: 4),
-                      Text(
+                      DText(
                         '${item.price}',
                         style: const TextStyle(
                           fontSize: 14,
@@ -1076,7 +1077,7 @@ class _MallScreenState extends State<MallScreen> {
             height: 26,
           ),
           const SizedBox(width: 7),
-          Text(
+          DText(
             '${user?.coins ?? 0}',
             style: const TextStyle(
               fontSize: 17,
@@ -1102,7 +1103,7 @@ class _MallScreenState extends State<MallScreen> {
                     fit: BoxFit.fill,
                   ),
                 ),
-                child: const Text(
+                child: const DText(
                   'شراء',
                   style: TextStyle(
                     fontSize: 15,

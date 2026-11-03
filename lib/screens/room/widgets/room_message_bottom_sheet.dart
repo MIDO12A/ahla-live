@@ -7,6 +7,7 @@ import '../../../providers/user_provider.dart';
 import '../../message/message_reply_detail_screen.dart';
 import '../../message/event_info_screen.dart';
 import '../../notifications/notifications_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Authentic Room Message & Notification Bottom Sheet
 /// Matches: chat_message_info_fragment.xml & layout_message_recyclerview_header.xml
@@ -110,7 +111,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  Text(
+                  DText(
                     isAr ? 'الرسائل' : 'Messages',
                     style: const TextStyle(
                       color: Colors.white,
@@ -233,7 +234,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             alignment: Alignment.centerLeft,
-            child: Text(
+            child: DText(
               title,
               style: const TextStyle(
                 color: Colors.white,
@@ -254,7 +255,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.white, width: 1),
                 ),
-                child: Text(
+                child: DText(
                   badgeCount > 99 ? '99+' : badgeCount.toString(),
                   style: const TextStyle(
                     color: Colors.white,
@@ -276,7 +277,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
         children: [
           Icon(Icons.mark_chat_unread_outlined, size: 56, color: Colors.white.withValues(alpha: 0.2)),
           const SizedBox(height: 12),
-          Text(
+          DText(
             isAr ? 'لا توجد رسائل حالياً' : 'No messages yet',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.4),
@@ -358,7 +359,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
             ),
         ],
       ),
-      title: Text(
+      title: DText(
         otherName,
         style: const TextStyle(
           color: Colors.white,
@@ -368,7 +369,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: Text(
+      subtitle: DText(
         lastMessage,
         style: TextStyle(
           color: unreadCount > 0 ? Colors.white70 : Colors.white38,
@@ -383,7 +384,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (timeStr.isNotEmpty)
-            Text(
+            DText(
               timeStr,
               style: const TextStyle(color: Colors.white30, fontSize: 11),
             ),
@@ -395,7 +396,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
                 color: const Color(0xFFE82323),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(
+              child: DText(
                 unreadCount > 99 ? '99+' : unreadCount.toString(),
                 style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
               ),

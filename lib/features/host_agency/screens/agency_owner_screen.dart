@@ -34,6 +34,7 @@ import 'agency_join_requests_screen.dart';
 import 'agency_leaderboard_screen.dart';
 import 'agency_level_desc_screen.dart';
 import 'agency_disbursement_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class AgencyOwnerScreen extends StatefulWidget {
   final String? agencyId;
@@ -454,12 +455,12 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+              DText(_error!, style: const TextStyle(color: Colors.white70, fontSize: 16)),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => _loadAllData(),
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF9D3E)),
-                child: const Text('إعادة المحاولة', style: TextStyle(color: Colors.white)),
+                child: const DText('إعادة المحاولة', style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -623,7 +624,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
             onPressed: () => Navigator.pop(context),
           ),
           const Expanded(
-            child: Text(
+            child: DText(
               'مركز الوكالة',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -716,7 +717,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     Row(
                       children: [
                         Flexible(
-                          child: Text(
+                          child: DText(
                             info.agencyName.isNotEmpty ? info.agencyName : 'اسم الوكالة',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -744,7 +745,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     const SizedBox(height: 3),
 
                     // Agency ID
-                    Text(
+                    DText(
                       'معرف الوكالة: ${info.agencyPublicId ?? info.agencyId}',
                       style: const TextStyle(
                         color: Colors.white70,
@@ -771,7 +772,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     Row(
                       children: [
                         Flexible(
-                          child: Text(
+                          child: DText(
                             ownerName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -783,7 +784,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text(
+                        DText(
                           'ID: $ownerUid',
                           style: const TextStyle(
                             color: Color(0xFFFFD56B),
@@ -820,7 +821,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                   ),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(
+                    child: DText(
                       info.notice.isNotEmpty ? info.notice : 'أهلاً بكم في الوكالة الرسمية!',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -900,7 +901,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       // Exp to next level & Help icon
                       Row(
                         children: [
-                          Text(
+                          DText(
                             isMax ? 'الحد الأقصى 👑' : '$expLeft',
                             style: const TextStyle(
                               color: Color(0xFFFFD56B),
@@ -909,7 +910,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                             ),
                           ),
                           const SizedBox(width: 4),
-                          Text(
+                          DText(
                             isMax ? 'تم الوصول للحد الأقصى لمستوى الوكالة' : 'نقطة خبرة للوصول للمستوى التالي',
                             style: const TextStyle(color: Colors.white, fontSize: 11),
                           ),
@@ -969,14 +970,14 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
+                          DText(
                             isMax ? '$curExp ماسة (مكتمل)' : '$curExp / $targetExp',
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 10,
                             ),
                           ),
-                          Text(
+                          DText(
                             curLevelName,
                             style: const TextStyle(
                               color: Color(0xFFFFD56B),
@@ -1015,7 +1016,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                               defaultAsset: 'assets/images/agency/ic_name_bg.png',
                             ),
                           ),
-                          child: Text(
+                          child: DText(
                             'Lv.${lvlProgress.currentLevel}',
                             style: const TextStyle(
                               color: Colors.white,
@@ -1117,7 +1118,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                                 color: Colors.red,
                                 shape: BoxShape.circle,
                               ),
-                              child: Text(
+                              child: DText(
                                 '$_pendingRequestsCount',
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -1131,7 +1132,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     ),
                     const SizedBox(width: 8),
                     const Expanded(
-                      child: Text(
+                      child: DText(
                         'طلبات الانضمام',
                         style: TextStyle(
                           color: Color(0xFF222222),
@@ -1175,7 +1176,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     ),
                     const SizedBox(width: 8),
                     const Expanded(
-                      child: Text(
+                      child: DText(
                         'رواتب ومراحل',
                         style: TextStyle(
                           color: Color(0xFF222222),
@@ -1227,7 +1228,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        const DText(
                           'حساب السحب',
                           style: TextStyle(
                             color: Color(0xFF222222),
@@ -1276,7 +1277,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        const DText(
                           'سجل السحب',
                           style: TextStyle(
                             color: Color(0xFF222222),
@@ -1402,11 +1403,11 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                DText(
                   'إجمالي المضيفين: ${filtered.length}',
                   style: const TextStyle(color: Color(0xFF888888), fontSize: 11),
                 ),
-                const Text(
+                const DText(
                   'المراحل وساعات البث اليومية',
                   style: TextStyle(color: Color(0xFF888888), fontSize: 11),
                 ),
@@ -1420,7 +1421,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
           Expanded(
             child: filtered.isEmpty
                 ? const Center(
-                    child: Text(
+                    child: DText(
                       'لا يوجد مضيفين مطابقين للبحث',
                       style: TextStyle(color: Colors.black54, fontSize: 13),
                     ),
@@ -1507,7 +1508,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     Row(
                       children: [
                         Flexible(
-                          child: Text(
+                          child: DText(
                             member.nickname.isNotEmpty ? member.nickname : 'مضيف',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1526,7 +1527,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                             color: member.sex == 2 ? const Color(0xFFFF69B4) : const Color(0xFF4A90E2),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text(
+                          child: DText(
                             member.sex == 2 ? '♀ 22' : '♂ 24',
                             style: const TextStyle(color: Colors.white, fontSize: 9),
                           ),
@@ -1537,7 +1538,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     const SizedBox(height: 2),
 
                     // Host ID
-                    Text(
+                    DText(
                       'ID: ${member.userNo > 0 ? member.userNo : member.uid}',
                       style: const TextStyle(color: Color(0xFF666666), fontSize: 11),
                     ),
@@ -1613,7 +1614,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                           size: 14,
                         ),
                         const SizedBox(width: 4),
-                        Text(
+                        DText(
                           isCompleted
                               ? '$stageName: تم تقفيل المرحلة بنجاح 🎉'
                               : '$stageName: قيد العمل ⏳',
@@ -1625,7 +1626,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                         ),
                       ],
                     ),
-                    Text(
+                    DText(
                       'الماس: ${member.diamonds} 💎',
                       style: const TextStyle(
                         color: Color(0xFF333333),
@@ -1640,7 +1641,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
                 // Remaining to Next Stage (كم يتبقى له على الوصول إلى المرحلة التالية)
                 if (remDia > 0 || remDays > 0)
-                  Text(
+                  DText(
                     'متبقي للوصول للمرحلة التالية: $remDia ألماسة و $remDays يوم بث',
                     style: const TextStyle(
                       color: Color(0xFF4B5563),
@@ -1648,7 +1649,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     ),
                   )
                 else
-                  const Text(
+                  const DText(
                     'وصل إلى أقصى مرحلة لهذا الشهر 🏆',
                     style: TextStyle(
                       color: Color(0xFF16A34A),
@@ -1668,7 +1669,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     const SizedBox(width: 6),
                     _buildHourPill('≥6س/يوم', '${(member.days * 0.3).round()}'),
                     const Spacer(),
-                    Text(
+                    DText(
                       'إجمالي: ${member.formattedTime}',
                       style: const TextStyle(color: Color(0xFF6B7280), fontSize: 10),
                     ),
@@ -1689,7 +1690,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         color: const Color(0xFFEFF6FF),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(
+      child: DText(
         '$label: $daysCount',
         style: const TextStyle(color: Color(0xFF1D4ED8), fontSize: 9, fontWeight: FontWeight.bold),
       ),
@@ -1881,7 +1882,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
+              const DText(
                 'إجمالي مستهدفات الماس للوكالة',
                 style: TextStyle(
                   color: Color(0xFF222222),
@@ -1909,9 +1910,9 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('مستهدف الوكالة', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const DText('مستهدف الوكالة', style: TextStyle(color: Colors.grey, fontSize: 11)),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         '$agencyTarget 💎',
                         style: const TextStyle(
                           color: Color(0xFF111827),
@@ -1938,9 +1939,9 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('أرباح التارجت المحققة', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const DText('أرباح التارجت المحققة', style: TextStyle(color: Colors.grey, fontSize: 11)),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         '$targetAchievedDiamonds 💎',
                         style: const TextStyle(
                           color: Color(0xFF10B981),
@@ -1971,7 +1972,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
+              const DText(
                 'الرواتب والمكافآت (Agent Salary)',
                 style: TextStyle(
                   color: Color(0xFF222222),
@@ -2011,7 +2012,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          const DText(
                             'أرباح عمولة الوكالة المحققة',
                             style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
@@ -2021,7 +2022,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                               color: Colors.black.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Text(
+                            child: DText(
                               periodBadgeLabel,
                               style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                             ),
@@ -2031,7 +2032,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Text(
+                          DText(
                             '\$$commission USD',
                             style: const TextStyle(
                               color: Colors.white,
@@ -2052,7 +2053,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                               children: [
                                 const Icon(Icons.diamond, color: Color(0xFFFFD700), size: 13),
                                 const SizedBox(width: 4),
-                                Text(
+                                DText(
                                   '$periodCommissionDiamonds 💎',
                                   style: const TextStyle(
                                     color: Color(0xFFFFD700),
@@ -2066,14 +2067,14 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text(
+                      DText(
                         isPeriodCompleted
                             ? '✅ اكتملت الدورة: أُدرجت العمولة في التارجت المحقق ومتاحة للصرف كراتب'
                             : '⏳ تُدرج العمولة في التارجت المحقق للصرف كراتب فور اكتمال الدورة ($periodRemainingText)',
                         style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         'إجمالي رواتب المضيفين المستحقة: \$$totalSalary USD (المقفلين للتارجت: $completedHostsCount)',
                         style: const TextStyle(color: Colors.white70, fontSize: 10),
                       ),
@@ -2097,7 +2098,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                const DText(
                   'ملخص ساعات البث المعتمدة للمضيفين',
                   style: TextStyle(
                     color: Color(0xFF374151),
@@ -2125,9 +2126,9 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   Widget _buildSummaryHourItem(String title, String val) {
     return Column(
       children: [
-        Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+        DText(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
         const SizedBox(height: 4),
-        Text(val, style: const TextStyle(color: Color(0xFF1E40AF), fontSize: 13, fontWeight: FontWeight.bold)),
+        DText(val, style: const TextStyle(color: Color(0xFF1E40AF), fontSize: 13, fontWeight: FontWeight.bold)),
       ],
     );
   }
@@ -2162,7 +2163,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
               children: [
                 Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
                 SizedBox(width: 8),
-                Text(
+                DText(
                   'إضافة عضو',
                   style: TextStyle(
                     color: Colors.white,
@@ -2217,7 +2218,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      const DText(
                         'إضافة مضيف إلى الوكالة',
                         style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF222222)),
                       ),
@@ -2334,7 +2335,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
                   if (errorMsg != null) ...[
                     const SizedBox(height: 10),
-                    Text(errorMsg!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                    DText(errorMsg!, style: const TextStyle(color: Colors.red, fontSize: 12)),
                   ],
 
                   // User Preview Card
@@ -2363,7 +2364,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                DText(
                                   foundUser!['name'] ?? 'مستخدم',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
@@ -2372,7 +2373,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
+                                DText(
                                   'ID: ${foundUser!['custom_id'] ?? foundUser!['uid']}',
                                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                                 ),
@@ -2426,7 +2427,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                                     height: 16,
                                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                   )
-                                : const Text('إضافة للوكالة', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                : const DText('إضافة للوكالة', style: TextStyle(color: Colors.white, fontSize: 12)),
                           ),
                         ],
                       ),
@@ -2482,7 +2483,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        const DText(
                           'تعديل بيانات الوكالة',
                           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
                         ),
@@ -2565,7 +2566,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       ),
                       child: Row(
                         children: [
-                          const Text('الاسم', style: TextStyle(fontSize: 15, color: Color(0xFF555555))),
+                          const DText('الاسم', style: TextStyle(fontSize: 15, color: Color(0xFF555555))),
                           const SizedBox(width: 14),
                           Expanded(
                             child: TextField(
@@ -2594,7 +2595,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('الوصف والإعلان', style: TextStyle(fontSize: 15, color: Color(0xFF555555))),
+                          const DText('الوصف والإعلان', style: TextStyle(fontSize: 15, color: Color(0xFF555555))),
                           const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -2663,7 +2664,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                         ),
                         child: saving
                             ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text(
+                            : const DText(
                                 'حفظ التعديلات',
                                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                               ),
@@ -2688,7 +2689,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('تعديل إعلان الوكالة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          title: const DText('تعديل إعلان الوكالة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: TextField(
             controller: descCtrl,
             maxLines: 3,
@@ -2700,7 +2701,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء'),
+              child: const DText('إلغاء'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -2714,7 +2715,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF9D3E)),
-              child: const Text('حفظ', style: TextStyle(color: Colors.white)),
+              child: const DText('حفظ', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -2760,7 +2761,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              DText(
                                 member.nickname.isNotEmpty ? member.nickname : 'مضيف',
                                 style: const TextStyle(
                                   color: Color(0xFF333333),
@@ -2769,7 +2770,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(
+                              DText(
                                 'ID: ${member.userNo > 0 ? member.userNo : member.uid}',
                                 style: const TextStyle(color: Colors.grey, fontSize: 12),
                               ),
@@ -2835,7 +2836,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text('إلغاء', style: TextStyle(color: Color(0xFF374151), fontSize: 15)),
+                  child: const DText('إلغاء', style: TextStyle(color: Color(0xFF374151), fontSize: 15)),
                 ),
               ),
             ],
@@ -2864,7 +2865,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
           height: 22,
           errorBuilder: (_, __, ___) => Icon(fallbackIcon, color: textColor, size: 20),
         ),
-        title: Text(
+        title: DText(
           title,
           style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600),
         ),
@@ -2889,17 +2890,17 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
             children: [
               Icon(Icons.warning, color: Colors.red, size: 22),
               SizedBox(width: 8),
-              Text('حذف المضيف من الوكالة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              DText('حذف المضيف من الوكالة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
-          content: Text(
+          content: DText(
             'هل أنت متأكد من رغبتك في حذف المضيف "${member.nickname}" (ID: ${member.userNo > 0 ? member.userNo : member.uid}) من الوكالة؟\nلن يتمكن المضيف من البث تحت مظلة الوكالة بعد الحذف.',
             style: const TextStyle(fontSize: 13, height: 1.5),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء'),
+              child: const DText('إلغاء'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -2928,7 +2929,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('حذف نهائي', style: TextStyle(color: Colors.white)),
+              child: const DText('حذف نهائي', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -2960,8 +2961,8 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(member.nickname, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                    Text('ID: ${member.userNo > 0 ? member.userNo : member.uid}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    DText(member.nickname, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    DText('ID: ${member.userNo > 0 ? member.userNo : member.uid}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                   ],
                 ),
               ),
@@ -2987,7 +2988,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx),
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF9D3E)),
-              child: const Text('إغلاق', style: TextStyle(color: Colors.white)),
+              child: const DText('إغلاق', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -3001,8 +3002,8 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Color(0xFF666666), fontSize: 12)),
-          Text(value, style: const TextStyle(color: Color(0xFF111827), fontSize: 12, fontWeight: FontWeight.bold)),
+          DText(label, style: const TextStyle(color: Color(0xFF666666), fontSize: 12)),
+          DText(value, style: const TextStyle(color: Color(0xFF111827), fontSize: 12, fontWeight: FontWeight.bold)),
         ],
       ),
     );

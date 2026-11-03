@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'sugarrush_game_dialog.dart';
 import '../../game/game_teaming_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class RoomGameBottomSheet extends StatefulWidget {
   final String roomId;
@@ -178,7 +179,7 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
                     'assets/mipmap-xxhdpi/room_game_title_ic.webp',
                     height: 28,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Text(
+                    errorBuilder: (_, __, ___) => DText(
                       isAr ? 'الألعاب' : 'Games',
                       style: const TextStyle(
                         fontSize: 18,
@@ -247,7 +248,7 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
                           child: child,
                         ),
                       ),
-                      child: Text(
+                      child: DText(
                         _broadcastMessages[_broadcastIdx],
                         key: ValueKey<int>(_broadcastIdx),
                         style: const TextStyle(
@@ -337,7 +338,7 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
                                       ),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: const Text(
+                                    child: const DText(
                                       'HOT',
                                       style: TextStyle(
                                         color: Colors.white,
@@ -354,7 +355,7 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
                         const SizedBox(height: 6),
 
                         // Game Name (tv_game_name)
-                        Text(
+                        DText(
                           name,
                           style: const TextStyle(
                             fontSize: 12,

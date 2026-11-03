@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../config/r.dart';
 import '../../../../screens/room/widgets/svga_player.dart';
+import 'package:zero/core/dtext.dart';
 
 /// ويدجت طيران الهدية إلى مقعد المستخدم المستلم في الغرفة (Gift Seat Flight Animation)
 /// يدعم إرسال هدية لمقعد محدد أو الطيران المتوازي لكافة مقاعد المستخدمين (Send to All Mic Users)
@@ -180,7 +181,7 @@ class _GiftSeatFlightOverlayState extends State<GiftSeatFlightOverlay>
                               ),
                             ),
                             child: const Center(
-                              child: Text(
+                              child: DText(
                                 '✨',
                                 style: TextStyle(fontSize: 28),
                               ),

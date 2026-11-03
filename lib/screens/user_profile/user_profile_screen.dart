@@ -34,6 +34,7 @@ import '../../features/cp/cp_space_screen.dart';
 import '../../widgets/user_id_widget.dart';
 import '../../features/host_agency/screens/agency_profile_screen.dart';
 import '../../features/host_agency/host_agency_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Helper data structure for aggregated gifts on wall
 class AggregatedGift {
@@ -738,32 +739,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.share, color: Colors.white),
-                title: const Text('مشاركة الملف الشخصي', style: TextStyle(color: Colors.white)),
+                title: const DText('مشاركة الملف الشخصي', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(ctx);
                   Clipboard.setData(ClipboardData(text: _user?.customId ?? _user?.uid ?? ''));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم نسخ رابط الملف الشخصي')),
+                    const SnackBar(content: DText('تم نسخ رابط الملف الشخصي')),
                   );
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.report_problem_outlined, color: Colors.amber),
-                title: const Text('إبلاغ', style: TextStyle(color: Colors.white)),
+                title: const DText('إبلاغ', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم إرسال البلاغ بنجاح')),
+                    const SnackBar(content: DText('تم إرسال البلاغ بنجاح')),
                   );
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.block, color: Colors.redAccent),
-                title: const Text('حظر المستخدم', style: TextStyle(color: Colors.redAccent)),
+                title: const DText('حظر المستخدم', style: TextStyle(color: Colors.redAccent)),
                 onTap: () {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم حظر المستخدم')),
+                    const SnackBar(content: DText('تم حظر المستخدم')),
                   );
                 },
               ),
@@ -821,7 +822,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   void _openGiftSheet() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('يرجى إرسال الهدايا من داخل الغرفة الصوتية')),
+      const SnackBar(content: DText('يرجى إرسال الهدايا من داخل الغرفة الصوتية')),
     );
   }
 
@@ -843,7 +844,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final idText = _user?.customId ?? _user?.uid ?? '';
     Clipboard.setData(ClipboardData(text: idText));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم نسخ الآيدي بنجاح')),
+      const SnackBar(content: DText('تم نسخ الآيدي بنجاح')),
     );
   }
 
@@ -898,7 +899,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: const Color(0x40FAE9B5)),
                     ),
-                    child: Text(
+                    child: DText(
                       frame.name,
                       style: const TextStyle(
                         fontSize: 15,
@@ -908,7 +909,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  const DText(
                     'اضغط في أي مكان للإغلاق',
                     style: TextStyle(fontSize: 11, color: Colors.white54),
                   ),
@@ -1039,7 +1040,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(
+                DText(
                   gift.giftName,
                   style: const TextStyle(
                     fontSize: 18,
@@ -1054,7 +1055,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     color: const Color(0x33FFD770),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
+                  child: DText(
                     'العدد الإجمالي المُستلم: x${gift.totalCount}',
                     style: const TextStyle(
                       fontSize: 12,
@@ -1072,7 +1073,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   children: [
                     const Icon(Icons.favorite, color: Colors.pinkAccent, size: 16),
                     const SizedBox(width: 6),
-                    const Text(
+                    const DText(
                       'أبرز الداعمين لهذه الهدية',
                       style: TextStyle(
                         fontSize: 13,
@@ -1081,7 +1082,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       ),
                     ),
                     const Spacer(),
-                    Text(
+                    DText(
                       '${gift.senders.length} داعم',
                       style: const TextStyle(fontSize: 11, color: Colors.white54),
                     ),
@@ -1094,7 +1095,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   constraints: const BoxConstraints(maxHeight: 180),
                   child: gift.senders.isEmpty
                       ? const Center(
-                          child: Text(
+                          child: DText(
                             'لا توجد معلومات داعمين مسجلة',
                             style: TextStyle(fontSize: 11, color: Colors.white38),
                           ),
@@ -1124,7 +1125,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
-                                    child: Text(
+                                    child: DText(
                                       sender.senderName,
                                       style: const TextStyle(
                                         fontSize: 13,
@@ -1141,7 +1142,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                       color: Colors.amber.withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: Text(
+                                    child: DText(
                                       'x${sender.count}',
                                       style: const TextStyle(
                                         fontSize: 12,
@@ -1172,7 +1173,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         side: const BorderSide(color: Colors.white12),
                       ),
                     ),
-                    child: const Text('إغلاق', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const DText('إغلاق', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -1214,7 +1215,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             children: [
               const Icon(Icons.person_off_rounded, size: 64, color: Colors.white38),
               const SizedBox(height: 14),
-              const Text('المستخدم غير متاح حالياً', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+              const DText('المستخدم غير متاح حالياً', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 18),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
@@ -1228,7 +1229,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   _loadData();
                 },
                 icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('إعادة المحاولة', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const DText('إعادة المحاولة', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -1397,7 +1398,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
-                                      child: Text(
+                                      child: DText(
                                         user.signature.trim(),
                                         style: const TextStyle(
                                           fontSize: 12,
@@ -1479,7 +1480,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 children: [
                                   // Nickname (14sp bold, color by VIP)
                                   Flexible(
-                                    child: Text(
+                                    child: DText(
                                       user.name,
                                       style: TextStyle(
                                         fontSize: 14,
@@ -1516,7 +1517,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         width: 20,
                                         height: 14,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Text(
+                                        errorBuilder: (_, __, ___) => DText(
                                           UserIdWidget.countryCodeToEmoji(UserIdWidget.resolveCountryCode(user.country)),
                                           style: const TextStyle(fontSize: 14),
                                         ),
@@ -1566,7 +1567,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    const Text(
+                                    const DText(
                                       'غرفة صوتية',
                                       style: TextStyle(
                                         fontSize: 10,
@@ -1679,7 +1680,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 2),
-                            Text(
+                            DText(
                               _isFollowing ? 'تمت المتابعة' : 'متابعة',
                               style: const TextStyle(
                                 fontSize: 10,
@@ -1717,7 +1718,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const Text(
+                            const DText(
                               'محادثة',
                               style: TextStyle(
                                 fontSize: 13,
@@ -1757,7 +1758,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ),
                             ),
                             const SizedBox(width: 6),
-                            const Text(
+                            const DText(
                               'هدية',
                               style: TextStyle(
                                 fontSize: 14,
@@ -1912,7 +1913,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       children: [
                         const Icon(Icons.diamond, color: Colors.white, size: 10),
                         const SizedBox(width: 2),
-                        Text(
+                        DText(
                           'Lv.${user.wealthLevel}',
                           style: const TextStyle(
                             fontSize: 9,
@@ -1946,7 +1947,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       children: [
                         const Icon(Icons.favorite, color: Colors.white, size: 10),
                         const SizedBox(width: 2),
-                        Text(
+                        DText(
                           'Lv.${user.gemsLevel}',
                           style: const TextStyle(
                             fontSize: 9,
@@ -2221,7 +2222,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  DText(
                     name,
                     style: const TextStyle(
                       fontSize: 13,
@@ -2232,7 +2233,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  const Text(
+                  const DText(
                     'وكالة رسمية معتمدة',
                     style: TextStyle(fontSize: 10, color: Color(0xFF9BA1B6)),
                   ),
@@ -2276,7 +2277,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
+                  DText(
                     '$_followingCount',
                     style: const TextStyle(
                       fontSize: 18,
@@ -2285,7 +2286,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  const DText(
                     'متابعة',
                     style: TextStyle(
                       fontSize: 11,
@@ -2317,7 +2318,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
+                  DText(
                     '$_fansCount',
                     style: const TextStyle(
                       fontSize: 18,
@@ -2326,7 +2327,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  const DText(
                     'معجبين',
                     style: TextStyle(
                       fontSize: 11,
@@ -2358,7 +2359,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
+                  DText(
                     '$_visitorsCount',
                     style: const TextStyle(
                       fontSize: 18,
@@ -2367,7 +2368,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  const DText(
                     'الزوار',
                     style: TextStyle(
                       fontSize: 11,
@@ -2406,7 +2407,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
                 ),
               ),
-              child: Text(
+              child: DText(
                 tabs[idx],
                 style: TextStyle(
                   fontSize: 14,
@@ -2461,7 +2462,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     error: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.amber, size: 36),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  DText(
                     'x${item.totalCount}',
                     style: const TextStyle(
                       fontSize: 11,
@@ -2469,7 +2470,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       color: Colors.white,
                     ),
                   ),
-                  Text(
+                  DText(
                     item.giftName,
                     style: const TextStyle(
                       fontSize: 9,
@@ -2522,7 +2523,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     error: (_, __, ___) => const Icon(Icons.circle_outlined, color: Colors.blue, size: 36),
                   ),
                   const SizedBox(height: 6),
-                  Text(
+                  DText(
                     frame.name,
                     style: const TextStyle(
                       fontSize: 10,
@@ -2575,7 +2576,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     error: (_, __, ___) => const Icon(Icons.directions_car, color: Colors.purple, size: 36),
                   ),
                   const SizedBox(height: 6),
-                  Text(
+                  DText(
                     ride.name,
                     style: const TextStyle(
                       fontSize: 10,
@@ -2607,7 +2608,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               );
             },
             icon: const Icon(Icons.favorite, color: Colors.pinkAccent),
-            label: const Text('دخول مساحة الـ CP والترتيب الكامل', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: const DText('دخول مساحة الـ CP والترتيب الكامل', style: TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2E1928),
               foregroundColor: Colors.white,
@@ -2724,7 +2725,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     children: [
                       SizedBox(
                         width: 28,
-                        child: Text(
+                        child: DText(
                           '#$rank',
                           style: const TextStyle(
                             fontSize: 14,
@@ -2744,14 +2745,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            DText(
                               s.senderName,
                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
-                            Text(
+                            DText(
                               'إجمالي الهدايا: ${s.totalGiftsCount}',
                               style: const TextStyle(fontSize: 10, color: Color(0xFF9BA1B6)),
                             ),
@@ -2770,7 +2771,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           children: [
                             const Icon(Icons.monetization_on, color: Color(0xFFFFAE19), size: 13),
                             const SizedBox(width: 3),
-                            Text(
+                            DText(
                               '${s.totalCoins}',
                               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFFAE19)),
                             ),
@@ -2860,7 +2861,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      DText(
                         name,
                         style: TextStyle(
                           fontSize: isCenter ? 12 : 11,
@@ -2879,7 +2880,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           children: [
                             const Icon(Icons.monetization_on, color: Color(0xFFFFD54F), size: 11),
                             const SizedBox(width: 2),
-                            Text(
+                            DText(
                               '$coins',
                               style: const TextStyle(
                                 fontSize: 10,
@@ -2890,7 +2891,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           ],
                         )
                       else
-                        const Text(
+                        const DText(
                           'شاغر',
                           style: TextStyle(fontSize: 10, color: Colors.white38),
                         ),
@@ -2924,7 +2925,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
+          DText(
             tips,
             style: const TextStyle(
               fontSize: 12,
@@ -2946,8 +2947,8 @@ class EditProfileScreenPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('تعديل الملف الشخصي')),
-      body: const Center(child: Text('شاشة تعديل الملف الشخصي')),
+      appBar: AppBar(title: const DText('تعديل الملف الشخصي')),
+      body: const Center(child: DText('شاشة تعديل الملف الشخصي')),
     );
   }
 }
@@ -3050,7 +3051,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ? e.toString().replaceAll(RegExp(r'^.*Exception: '), '') 
             : 'فشل إرسال الرسالة، يرجى المحاولة مرة أخرى';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
+          SnackBar(content: DText(errorMsg), backgroundColor: Colors.red),
         );
       }
     }
@@ -3089,7 +3090,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: DText('Error: $e')),
         );
       }
     } finally {
@@ -3142,7 +3143,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     : null,
               ),
               const SizedBox(width: 8),
-              Text(
+              DText(
                 widget.targetName,
                 style: const TextStyle(
                   fontSize: 16,
@@ -3158,7 +3159,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: _messages.isEmpty
                   ? const Center(
-                      child: Text(
+                      child: DText(
                         'No messages yet',
                         style: TextStyle(color: Color(0xFF9BA1B6)),
                       ),
@@ -3201,7 +3202,7 @@ class _ChatScreenState extends State<ChatScreen> {
             if (!isMe)
               Padding(
                 padding: const EdgeInsets.only(left: 4, bottom: 2),
-                child: Text(
+                child: DText(
                   msg.senderName,
                   style: const TextStyle(fontSize: 11, color: Color(0xFF9BA1B6)),
                 ),
@@ -3237,7 +3238,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     bottomLeft: !isMe ? const Radius.circular(0) : null,
                   ),
                 ),
-                child: Text(
+                child: DText(
                   msg.text,
                   style: TextStyle(
                     fontSize: 14,
@@ -3249,7 +3250,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Text(
+              child: DText(
                 _formatTime(msg.timestamp),
                 style: const TextStyle(fontSize: 10, color: Color(0xFF9BA1B6)),
               ),

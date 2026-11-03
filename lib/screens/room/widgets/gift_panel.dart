@@ -13,6 +13,7 @@ import '../../../services/dynamic_config_service.dart';
 import '../../wallet/wallet_main_screen.dart';
 import 'svga_player.dart';
 import 'vap_player.dart';
+import 'package:zero/core/dtext.dart';
 
 class GiftPanel extends StatefulWidget {
   final int selectedCount;
@@ -62,7 +63,6 @@ class _GiftPanelState extends State<GiftPanel> {
   int _comboSeconds = 0;
   int _comboMultiplier = 0;
   int _comboRemainingMs = 0;
-  late final PageController _categoryPageController = PageController();
   late final ScrollController _tabScrollController = ScrollController();
   final List<Timer> _pendingDelays = [];
 
@@ -154,7 +154,6 @@ class _GiftPanelState extends State<GiftPanel> {
     for (final t in _pendingDelays) {
       t.cancel();
     }
-    _categoryPageController.dispose();
     _tabScrollController.dispose();
     _comboTimer?.cancel();
     _giftSub?.cancel();
@@ -294,7 +293,10 @@ class _GiftPanelState extends State<GiftPanel> {
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     final dc = DynamicConfigService();
     final allTabs = _getAllTabs(isAr);
-    if ((_selectedCategoryId == null || _selectedCategoryId == 'all') && allTabs.isNotEmpty) {
+    if (allTabs.isNotEmpty &&
+        (_selectedCategoryId == null ||
+            _selectedCategoryId == 'all' ||
+            !allTabs.any((c) => c.id == _selectedCategoryId))) {
       _selectedCategoryId = allTabs.first.id;
     }
     // Auto-select first gift if none selected
@@ -324,7 +326,7 @@ class _GiftPanelState extends State<GiftPanel> {
                 ),
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: const Text(
+                child: const DText(
                   'أرسل هدية الحظ واكسب مكافآت مضاعفة تصل إلى 500X!',
                   style: TextStyle(
                     fontSize: 13,
@@ -420,7 +422,7 @@ class _GiftPanelState extends State<GiftPanel> {
             const SizedBox(height: 2),
             SizedBox(
               width: 44,
-              child: Text(
+              child: DText(
                 isAr ? 'الكل' : 'All',
                 textAlign: TextAlign.center,
                 maxLines: 1,
@@ -458,12 +460,12 @@ class _GiftPanelState extends State<GiftPanel> {
         children: [
           Row(
             children: [
-              Text(
+              DText(
                 isAr ? 'إرسال إلى:' : 'Send to:',
                 style: const TextStyle(fontSize: 10, color: Colors.white70),
               ),
               const Spacer(),
-              Text(
+              DText(
                 isAr
                     ? 'تم تحديد ${_selectedUserIds.length} من ${users.length}'
                     : 'Selected ${_selectedUserIds.length} of ${users.length}',
@@ -497,24 +499,7 @@ class _GiftPanelState extends State<GiftPanel> {
                       final cat = allTabs[i];
                       final isSelected = _selectedCategoryId == cat.id;
                       return GestureDetector(
-                        onTap: () {
-                          if (_categoryPageController.hasClients) {
-                            _categoryPageController.animateToPage(
-                              i,
-                              duration: const Duration(milliseconds: 260),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                          _scrollToTab(i);
-                          setState(() {
-                            _selectedCategoryId = cat.id;
-                            final filtered = _getGiftsForCategory(cat.id);
-                            if (filtered.isNotEmpty) {
-                              final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
-                              if (idx >= 0) _sel = idx;
-                            }
-                          });
-                        },
+                        onTap: () => _selectCategory(allTabs, i),
                         child: Container(
                           margin: const EdgeInsets.only(right: 6),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -525,7 +510,7 @@ class _GiftPanelState extends State<GiftPanel> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           alignment: Alignment.center,
-                          child: Text(
+                          child: DText(
                             cat.name,
                             style: TextStyle(
                               fontSize: 11,
@@ -624,7 +609,7 @@ class _GiftPanelState extends State<GiftPanel> {
             const SizedBox(height: 2),
             SizedBox(
               width: 38,
-              child: Text(
+              child: DText(
                 u['name']?.toString() ?? '',
                 style: TextStyle(
                   fontSize: 10,
@@ -642,28 +627,43 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
+  /// مصدر واحد للحقيقة: الشريط والجريد يقرآن نفس `_selectedCategoryId`
+  /// (بدون PageView حتى لا تعود التبويبة للشائع بسبب تعارض حالة الصفحة).
+  void _selectCategory(List<GiftCategory> allTabs, int index) {
+    if (index < 0 || index >= allTabs.length) return;
+    final cat = allTabs[index];
+    _scrollToTab(index);
+    setState(() {
+      _selectedCategoryId = cat.id;
+      final filtered = _getGiftsForCategory(cat.id);
+      if (filtered.isNotEmpty) {
+        final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
+        if (idx >= 0) _sel = idx;
+      }
+    });
+  }
+
   Widget _buildGrid(DynamicConfigService dc, List<GiftCategory> allTabs) {
-    return PageView.builder(
-      controller: _categoryPageController,
-      physics: const BouncingScrollPhysics(),
-      itemCount: allTabs.length,
-      onPageChanged: (pageIdx) {
-        if (pageIdx < 0 || pageIdx >= allTabs.length) return;
-        final newCat = allTabs[pageIdx];
-        _scrollToTab(pageIdx);
-        setState(() {
-          _selectedCategoryId = newCat.id;
-          final filtered = _getGiftsForCategory(newCat.id);
-          if (filtered.isNotEmpty) {
-            final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
-            if (idx >= 0) _sel = idx;
-          }
-        });
+    if (allTabs.isEmpty) {
+      return const Center(
+        child: DText(
+          'لا توجد تصنيفات',
+          style: TextStyle(color: Colors.white54, fontSize: 13),
+        ),
+      );
+    }
+    final idx = allTabs.indexWhere((c) => c.id == _selectedCategoryId);
+    final currentIdx = idx >= 0 ? idx : 0;
+    final cat = allTabs[currentIdx];
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (details) {
+        final v = details.primaryVelocity ?? 0;
+        if (v.abs() < 250) return;
+        _selectCategory(allTabs, v < 0 ? currentIdx + 1 : currentIdx - 1);
       },
-      itemBuilder: (_, pageIdx) {
-        final cat = allTabs[pageIdx];
-        return _buildCategoryGrid(cat, dc);
-      },
+      child: _buildCategoryGrid(cat, dc),
     );
   }
 
@@ -678,7 +678,7 @@ class _GiftPanelState extends State<GiftPanel> {
     if (items.isEmpty) {
       return Center(
         key: ValueKey('empty_${cat.id}'),
-        child: const Text(
+        child: const DText(
           'لا توجد هدايا متاحة',
           style: TextStyle(color: Colors.white54, fontSize: 13),
         ),
@@ -722,12 +722,12 @@ class _GiftPanelState extends State<GiftPanel> {
         children: [
           Icon(Icons.backpack_outlined, size: 48, color: Colors.white.withValues(alpha: 0.3)),
           const SizedBox(height: 8),
-          Text(
+          DText(
             'الحقيبة',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.8)),
           ),
           const SizedBox(height: 4),
-          Text(
+          DText(
             'لا توجد عناصر متاحة للإرسال حالياً في الحقيبة',
             style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4)),
           ),
@@ -840,7 +840,7 @@ class _GiftPanelState extends State<GiftPanel> {
                           children: [
                             const Icon(Icons.favorite, size: 8, color: Colors.white),
                             const SizedBox(width: 2),
-                            Text(
+                            DText(
                               g.durationBadge,
                               style: const TextStyle(
                                 fontSize: 9,
@@ -873,7 +873,7 @@ class _GiftPanelState extends State<GiftPanel> {
                           color: const Color(0xFFE82323),
                           borderRadius: BorderRadius.circular(44),
                         ),
-                        child: Text(
+                        child: DText(
                           '${g.packageCount}',
                           style: const TextStyle(
                             fontSize: 12,
@@ -886,7 +886,7 @@ class _GiftPanelState extends State<GiftPanel> {
                 ],
               ),
             ),
-            Text(
+            DText(
               g.name,
               style: TextStyle(
                 fontSize: 10,
@@ -907,7 +907,7 @@ class _GiftPanelState extends State<GiftPanel> {
                     height: 12,
                   ),
                   const SizedBox(width: 2),
-                  Text(
+                  DText(
                     R.formatCoins(g.value),
                     style: const TextStyle(
                       fontSize: 11,
@@ -1034,6 +1034,8 @@ class _GiftPanelState extends State<GiftPanel> {
             }
           } else {
             final cover = gift.defaultImage ?? gift.iconAsset;
+            // خصم فوري من الرصيد المحلي حتى تنقص الكوينز لحظياً (مطابق لهدايا الحظ)
+            userProvider.deductCoinsLocally(gift.value * widget.selectedCount);
             ok = await fb.sendGift(
               roomId: widget.roomId,
               giftId: gift.id,
@@ -1048,6 +1050,10 @@ class _GiftPanelState extends State<GiftPanel> {
               value: gift.value,
               count: widget.selectedCount,
             );
+            if (!ok) {
+              // فشل الإرسال: أعِد مزامنة الرصيد من الخادم بدل إبقاء الخصم الوهمي
+              unawaited(userProvider.reloadUser());
+            }
           }
           if (ok && gift.isCpGift) {
             await CpService.sendGiftAndLink(
@@ -1162,7 +1168,7 @@ class _GiftPanelState extends State<GiftPanel> {
               const SizedBox(height: 14),
 
               // tvContent (18sp #333333 matching dialog_coin_recharge_tip.xml)
-              Text(
+              DText(
                 isAr
                     ? 'رصيد العملات غير كافٍ،\nهل ترغب في الشحن للحصول على المزيد؟'
                     : 'Insufficient coins balance.\nWould you like to recharge for more?',
@@ -1177,7 +1183,7 @@ class _GiftPanelState extends State<GiftPanel> {
 
               if (totalCost > 0) ...[
                 const SizedBox(height: 8),
-                Text(
+                DText(
                   isAr
                       ? 'المطلوب: ${R.formatCoins(totalCost)} كوينز  |  لديك: ${R.formatCoinsFraction(currentCoins)} كوينز'
                       : 'Required: ${R.formatCoins(totalCost)} coins  |  Available: ${R.formatCoinsFraction(currentCoins)} coins',
@@ -1207,7 +1213,7 @@ class _GiftPanelState extends State<GiftPanel> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                         ),
-                        child: Text(
+                        child: DText(
                           isAr ? 'إلغاء' : 'Cancel',
                           style: const TextStyle(
                             fontSize: 15,
@@ -1253,7 +1259,7 @@ class _GiftPanelState extends State<GiftPanel> {
                             );
                           },
                           child: Center(
-                            child: Text(
+                            child: DText(
                               isAr ? 'شحن الآن' : 'Recharge Now',
                               style: const TextStyle(
                                 fontSize: 15,
@@ -1293,7 +1299,7 @@ class _GiftPanelState extends State<GiftPanel> {
           if (_errorMsg != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 2),
-              child: Text(
+              child: DText(
                 _errorMsg!,
                 style: const TextStyle(fontSize: 10, color: Colors.redAccent),
               ),
@@ -1327,7 +1333,7 @@ class _GiftPanelState extends State<GiftPanel> {
                         height: 18,
                       ),
                       const SizedBox(width: 4),
-                      Text(
+                      DText(
                         R.formatCoinsFraction(liveCoins),
                         style: TextStyle(
                           fontSize: 13,
@@ -1436,7 +1442,7 @@ class _GiftPanelState extends State<GiftPanel> {
                                   ),
                                   const SizedBox(width: 4),
                                 ],
-                                Text(
+                                DText(
                                   'x$_comboMultiplier',
                                   style: const TextStyle(
                                     fontSize: 16,
@@ -1489,7 +1495,7 @@ class _GiftPanelState extends State<GiftPanel> {
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text(
+                                  DText(
                                     '${widget.selectedCount}',
                                     style: TextStyle(
                                       fontSize: 11,
@@ -1552,7 +1558,7 @@ class _GiftPanelState extends State<GiftPanel> {
                               )
                             : (dc.giftPanelSendBtnImage.isNotEmpty
                                 ? const SizedBox.shrink()
-                                : Text(
+                                : DText(
                                     'إرسال',
                                     style: TextStyle(
                                       fontSize: 12,

@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../../services/dynamic_config_service.dart';
 import 'svga_player.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RoomRocketWidget — صاروخ الغرفة الكريستالي ومستوى الطاقة والانفجار
@@ -125,7 +126,7 @@ class RoomRocketWidget extends StatelessWidget {
                     errorBuilder: (_, __, ___) => const Icon(Icons.rocket_launch, color: Color(0xFFFFD700)),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
+                  const DText(
                     'صاروخ الغرفة الكريستالي',
                     style: TextStyle(
                       color: Colors.white,
@@ -150,11 +151,11 @@ class RoomRocketWidget extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        const DText(
                           'طاقة الشحن الحالية:',
                           style: TextStyle(color: Colors.white70, fontSize: 13),
                         ),
-                        Text(
+                        DText(
                           '$energy / $effectiveTarget',
                           style: const TextStyle(
                             color: Color(0xFFFFD700),
@@ -175,7 +176,7 @@ class RoomRocketWidget extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    DText(
                       'متبقي $remaining عملة لإطلاق وانفجار الصاروخ 🚀',
                       style: const TextStyle(color: Colors.white54, fontSize: 11),
                     ),
@@ -196,7 +197,7 @@ class RoomRocketWidget extends StatelessWidget {
                     Icon(Icons.stars, color: Color(0xFFFFD700), size: 20),
                     SizedBox(width: 10),
                     Expanded(
-                      child: Text(
+                      child: DText(
                         'عند إرسال الهدايا تزداد طاقة الصاروخ، وفور اكتمالها بنسبة 100% ينفجر الصاروخ ويسقط صناديق الكنز ومكافآت الحظ لجميع الحاضرين في الغرفة!',
                         style: TextStyle(color: Colors.white, fontSize: 12, height: 1.4),
                       ),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/update_service.dart';
 import '../../config/r.dart';
+import 'package:zero/core/dtext.dart';
 
 class AppUpdateDialog extends StatefulWidget {
   const AppUpdateDialog({super.key, required this.info});
@@ -143,7 +144,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            const DText(
               'تحديث جديد متاح',
               style: TextStyle(
                 color: Color(0xFF16151A),
@@ -152,7 +153,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               ),
             ),
             const SizedBox(height: 6),
-            Text(
+            DText(
               'الإصدار ${widget.info.latestVersion}'
               '  (${widget.info.currentVersion} ← ${widget.info.latestVersion})',
               style: const TextStyle(color: Colors.black54, fontSize: 13),
@@ -162,7 +163,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 120),
                 child: SingleChildScrollView(
-                  child: Text(
+                  child: DText(
                     widget.info.notes,
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.6),
@@ -182,7 +183,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                 ),
               ),
               const SizedBox(height: 10),
-              Text(
+              DText(
                 _phaseText,
                 style: const TextStyle(color: Colors.black54, fontSize: 11),
                 textAlign: TextAlign.center,
@@ -190,7 +191,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
             ],
             if (_phase == _UpdatePhase.error) ...[
               const SizedBox(height: 14),
-              Text(
+              DText(
                 _phaseText,
                 style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
                 textAlign: TextAlign.center,
@@ -211,7 +212,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                           );
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
+                              content: DText(
                                 'جاري تنزيل التحديث في الخلفية... سيظهر إشعار التثبيت فور اكتماله.',
                                 textAlign: TextAlign.center,
                               ),
@@ -223,7 +224,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                         Navigator.of(context).pop();
                       },
                       style: TextButton.styleFrom(foregroundColor: Colors.black54),
-                      child: const Text('لاحقاً'),
+                      child: const DText('لاحقاً'),
                     ),
                   ),
                 Expanded(
@@ -240,7 +241,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 1,
                     ),
-                    child: Text(
+                    child: DText(
                       switch (_phase) {
                         _UpdatePhase.downloading => 'جاري التنزيل...',
                         _UpdatePhase.downloaded || _UpdatePhase.installing => 'تثبيت',
@@ -254,7 +255,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
             ),
             if (_force && _phase == _UpdatePhase.idle) ...[
               const SizedBox(height: 10),
-              const Text(
+              const DText(
                 'هذا الإصدار إلزامي ويجب التحديث للمتابعة',
                 style: TextStyle(color: Color(0xFFF59E0B), fontSize: 11),
               ),

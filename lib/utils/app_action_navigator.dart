@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../screens/mall/mall_screen.dart';
 import '../screens/level/level_screen.dart';
@@ -14,6 +14,7 @@ import '../features/events/screens/recharge_event_screen.dart';
 import '../screens/wallet/wallet_main_screen.dart';
 import '../screens/room/room_screen.dart';
 import '../services/supabase_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class AppActionNavigator {
   /// Navigate based on actionType and actionValue or raw link
@@ -155,13 +156,13 @@ class AppActionNavigator {
         );
       } else if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('الغرفة غير موجودة أو تم إغلاقها: $roomId')),
+          SnackBar(content: DText('الغرفة غير موجودة أو تم إغلاقها: $roomId')),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر الدخول إلى الغرفة: $e')),
+          SnackBar(content: DText('تعذر الدخول إلى الغرفة: $e')),
         );
       }
     }

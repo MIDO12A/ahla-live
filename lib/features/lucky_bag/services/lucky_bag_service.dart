@@ -10,6 +10,7 @@ import '../../../services/supabase_data_service.dart';
 import '../../../services/supabase_service.dart';
 import '../models/lucky_bag_model.dart';
 import '../widgets/lucky_bag_grab_overlay.dart';
+import 'package:zero/core/dtext.dart';
 
 /// خدمة المظاريف الحمراء وأكياس الحظ (Lucky Bag / Red Packet)
 class LuckyBagService {
@@ -357,7 +358,7 @@ class LuckyBagService {
   void _showGrabResult(BuildContext context, LuckyBagClaimResult result) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
+        content: DText(
           result.success
               ? '🎉 مبروك! حصلت على ${result.amount} 🪙 من المظروف'
               : '⚠️ ${result.error ?? 'فشل فتح المظروف'}',

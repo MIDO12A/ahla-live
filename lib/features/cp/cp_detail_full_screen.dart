@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/cache/encrypted_image_provider.dart';
 import '../../providers/user_provider.dart';
@@ -9,6 +9,7 @@ import 'cp_rewards_screen.dart';
 import 'cp_space_screen.dart';
 import 'cp_settings_screen.dart';
 import 'cp_invitation_list_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class CPDetailFullScreen extends StatefulWidget {
   final String? cpId;
@@ -173,7 +174,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
           children: [
             const SizedBox(width: 40),
             const Spacer(),
-            const Text(
+            const DText(
               'ترتيب',
               style: TextStyle(
                 fontSize: 20,
@@ -248,7 +249,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
           ),
         ),
         child: Center(
-          child: Text(
+          child: DText(
             text,
             style: TextStyle(
               fontSize: 14,
@@ -337,7 +338,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
                     shaderCallback: (bounds) => const LinearGradient(
                       colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
                     ).createShader(bounds),
-                    child: const Text(
+                    child: const DText(
                       'top1',
                       style: TextStyle(
                         fontSize: 22,
@@ -399,7 +400,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          const Text(
+          const DText(
             'top2',
             style: TextStyle(
               fontSize: 16,
@@ -410,7 +411,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
           const SizedBox(height: 8),
           _buildCpCard(second, cfg, rankPosition: 2),
           const SizedBox(height: 20),
-          const Text(
+          const DText(
             'top3',
             style: TextStyle(
               fontSize: 16,
@@ -468,7 +469,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SvgaFrame(svgaPath: centerAnim, size: 48, fit: BoxFit.contain),
-                  Text(
+                  DText(
                     '$days يوم',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -514,7 +515,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
             padding: EdgeInsets.only(bottom: i < 9 ? 16 : 0),
             child: Column(
               children: [
-                Text(
+                DText(
                   rankLabel,
                   style: const TextStyle(
                     fontSize: 14,
@@ -557,7 +558,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
                   shaderCallback: (bounds) => const LinearGradient(
                     colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
                   ).createShader(bounds),
-                  child: const Text(
+                  child: const DText(
                     'قواعد',
                     style: TextStyle(
                       fontSize: 24,
@@ -567,17 +568,17 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
+                const DText(
                   '■ الربط: عند إرسال هدية إلى مستخدم محدد بعدد أيام معينة يتم الربط المباشر بينكما.',
                   style: TextStyle(fontSize: 14, color: Colors.white, height: 1.6),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                const DText(
                   '■ التصفير: كل يوم أحد الساعة 12:00 صباحاً بتوقيت مصر.',
                   style: TextStyle(fontSize: 14, color: Colors.white, height: 1.6),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                const DText(
                   '■ المكافآت: توجد مكافآت للزوجين الأول والثاني والثالث.',
                   style: TextStyle(fontSize: 14, color: Colors.white, height: 1.6),
                 ),
@@ -592,7 +593,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
                       ),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text(
+                    child: const DText(
                       'حسناً',
                       style: TextStyle(
                         fontSize: 16,
@@ -629,7 +630,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                const DText(
                   'القواعد',
                   style: TextStyle(
                     fontSize: 12,
@@ -660,7 +661,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                const DText(
                   'المكافآت',
                   style: TextStyle(
                     fontSize: 12,
@@ -727,7 +728,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  DText(
                     userName,
                     style: const TextStyle(
                       fontSize: 13,
@@ -744,7 +745,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
                 children: [
                   SvgaFrame(svgaPath: _centerFrameSvg, size: 100, fit: BoxFit.contain),
                   const SizedBox(height: 6),
-                  Text(
+                  DText(
                     '$cpDays يوم',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -789,7 +790,7 @@ class _CPDetailFullScreenState extends State<CPDetailFullScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  DText(
                     partnerName,
                     style: const TextStyle(
                       fontSize: 13,

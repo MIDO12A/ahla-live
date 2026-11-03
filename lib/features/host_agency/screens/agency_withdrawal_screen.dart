@@ -9,6 +9,7 @@ import '../../../services/dynamic_config_service.dart';
 
 import '../../../core/cache/encrypted_image_provider.dart';
 import '../../../screens/message/message_reply_detail_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyWithdrawalScreen v2 — شاشة السحب المالي الشاملة
@@ -117,7 +118,7 @@ class _AgencyWithdrawalScreenState extends State<AgencyWithdrawalScreen>
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D1A),
         foregroundColor: Colors.white,
-        title: const Text('المحفظة المالية',
+        title: const DText('المحفظة المالية',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         centerTitle: true,
         elevation: 0,
@@ -138,7 +139,7 @@ class _AgencyWithdrawalScreenState extends State<AgencyWithdrawalScreen>
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)))
           : _member == null
-              ? Center(child: Text('لستَ عضواً في وكالة',
+              ? Center(child: DText('لستَ عضواً في وكالة',
                   style: TextStyle(color: Colors.white.withOpacity(0.5))))
               : Column(children: [
                   _WalletHeader(member: _member!, isKycVerified: _isKycVerified),
@@ -197,7 +198,7 @@ class _WalletHeader extends StatelessWidget {
           Row(children: [
             const Icon(Icons.lock_rounded, color: Color(0xFFFF9800), size: 12),
             const SizedBox(width: 4),
-            Text(
+            DText(
               '${_fmtK(member.diamondsPendingWithdrawal)} ألماس مجمّد بسبب طلب سحب نشط',
               style: const TextStyle(color: Color(0xFFFF9800), fontSize: 11),
             ),
@@ -216,7 +217,7 @@ class _WalletHeader extends StatelessWidget {
             child: const Row(children: [
               Icon(Icons.warning_rounded, color: Color(0xFFFF5252), size: 14),
               SizedBox(width: 6),
-              Text('يجب إتمام التحقق من الهوية (KYC) للسحب النقدي',
+              DText('يجب إتمام التحقق من الهوية (KYC) للسحب النقدي',
                 style: TextStyle(color: Color(0xFFFF5252), fontSize: 11)),
             ]),
           ),
@@ -242,10 +243,10 @@ class _BalanceTile extends StatelessWidget {
           border: Border.all(color: color.withOpacity(0.25)),
         ),
         child: Column(children: [
-          Text(icon, style: const TextStyle(fontSize: 16)),
+          DText(icon, style: const TextStyle(fontSize: 16)),
           const SizedBox(height: 3),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
-          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+          DText(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
+          DText(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
         ]),
       ),
     );
@@ -306,7 +307,7 @@ class _ExchangeTabState extends State<_ExchangeTab> {
     }
   }
 
-  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText(msg)));
 
   @override
   Widget build(BuildContext context) {
@@ -336,7 +337,7 @@ class _ExchangeTabState extends State<_ExchangeTab> {
         ),
         const SizedBox(height: 24),
 
-        Text('كمية الألماس للتبادل', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+        DText('كمية الألماس للتبادل', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
         const SizedBox(height: 8),
         TextField(
           controller: _ctrl,
@@ -350,7 +351,7 @@ class _ExchangeTabState extends State<_ExchangeTab> {
         const SizedBox(height: 12),
         Wrap(spacing: 8, children: [1000, 5000, 10000, 50000].map((v) =>
           ActionChip(
-            label: Text('${_fmtK(v)}♦'),
+            label: DText('${_fmtK(v)}♦'),
             backgroundColor: const Color(0xFFB39DDB).withOpacity(0.12),
             labelStyle: const TextStyle(color: Color(0xFFB39DDB), fontSize: 12),
             onPressed: () { _ctrl.text = v.toString(); setState(() => _diamonds = v); },
@@ -368,14 +369,14 @@ class _ExchangeTabState extends State<_ExchangeTab> {
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('تبادل', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                Text('${_fmtK(_diamonds)} ♦',
+                const DText('تبادل', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                DText('${_fmtK(_diamonds)} ♦',
                     style: const TextStyle(color: Color(0xFFB39DDB), fontWeight: FontWeight.bold, fontSize: 16)),
               ]),
               const Icon(Icons.arrow_forward_rounded, color: Colors.white38),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                const Text('تحصل على', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                Text('${_fmtK(_coinsResult)} كوينز',
+                const DText('تحصل على', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                DText('${_fmtK(_coinsResult)} كوينز',
                     style: const TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, fontSize: 16)),
               ]),
             ]),
@@ -395,7 +396,7 @@ class _ExchangeTabState extends State<_ExchangeTab> {
             ),
             child: _processing
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Text('تأكيد التبادل', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                : const DText('تأكيد التبادل', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           ),
         ),
       ]),
@@ -484,7 +485,7 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
   }
 
   void _snack(String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText(msg)));
 
   @override
   Widget build(BuildContext context) {
@@ -519,7 +520,7 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
             child: const Row(children: [
               Icon(Icons.warning_rounded, color: Color(0xFFFF5252)),
               SizedBox(width: 8),
-              Expanded(child: Text(
+              Expanded(child: DText(
                 'حسابك لم يُتحقق منه بعد. اكمل توثيق الهوية (KYC) في الإعدادات لتتمكن من السحب.',
                 style: TextStyle(color: Color(0xFFFF5252), fontSize: 12, height: 1.4),
               )),
@@ -528,7 +529,7 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
         ],
 
         const SizedBox(height: 20),
-        Text('كمية الألماس للسحب', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+        DText('كمية الألماس للسحب', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
         const SizedBox(height: 8),
         TextField(
           controller: _diamondsCtrl,
@@ -548,7 +549,7 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
         const Divider(color: Colors.white12),
         const SizedBox(height: 16),
 
-        Text('معلومات الحساب البنكي', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+        DText('معلومات الحساب البنكي', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
         const SizedBox(height: 10),
         TextField(
           controller: _bankNameCtrl,
@@ -582,7 +583,7 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
             ),
             child: _processing
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                : Text('سحب \$${_netUsd.toStringAsFixed(2)} صافي',
+                : DText('سحب \$${_netUsd.toStringAsFixed(2)} صافي',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           ),
         ),
@@ -626,8 +627,8 @@ class _ILine extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 13)),
-        Text(value, style: TextStyle(color: color,
+        DText(label, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+        DText(value, style: TextStyle(color: color,
             fontWeight: bold ? FontWeight.bold : FontWeight.normal,
             fontSize: bold ? 16 : 13)),
       ],
@@ -738,11 +739,11 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
           children: [
             Icon(Icons.diamond_rounded, color: Color(0xFF00D4FF), size: 24),
             SizedBox(width: 8),
-            Text('تأكيد إرسال طلب السحب', style: TextStyle(color: Colors.white, fontSize: 16)),
+            DText('تأكيد إرسال طلب السحب', style: TextStyle(color: Colors.white, fontSize: 16)),
           ],
         ),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('سيتم إرسال طلب سحب بقيمة ${_fmtK(_diamonds)} ♦ إلى وكالة:',
+          DText('سيتم إرسال طلب سحب بقيمة ${_fmtK(_diamonds)} ♦ إلى وكالة:',
               style: const TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 8),
           Container(
@@ -766,22 +767,22 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
               const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(agencyName, style: const TextStyle(color: Color(0xFF00D4FF), fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text('الوكيل: $agentName ${agentKid.isNotEmpty ? "(#$agentKid)" : ""}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                  DText(agencyName, style: const TextStyle(color: Color(0xFF00D4FF), fontWeight: FontWeight.bold, fontSize: 14)),
+                  DText('الوكيل: $agentName ${agentKid.isNotEmpty ? "(#$agentKid)" : ""}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
                 ]),
               ),
             ]),
           ),
           const SizedBox(height: 12),
-          const Text('• سيصل إشعار فوري للوكيل لمراجعة الطلب والموافقة عليه.',
+          const DText('• سيصل إشعار فوري للوكيل لمراجعة الطلب والموافقة عليه.',
               style: TextStyle(color: Colors.white54, fontSize: 11)),
-          const Text('• لن يتم خصم الألماس إلا بعد موافقة الوكيل الرسمية.',
+          const DText('• لن يتم خصم الألماس إلا بعد موافقة الوكيل الرسمية.',
               style: TextStyle(color: Color(0xFF00E5A0), fontSize: 11, fontWeight: FontWeight.bold)),
         ]),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white38)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white38)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -790,7 +791,7 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('إرسال الطلب', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const DText('إرسال الطلب', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -851,10 +852,10 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.check_circle_rounded, color: Color(0xFF00E5A0), size: 54),
             const SizedBox(height: 14),
-            const Text('تم إرسال طلب السحب بنجاح! 🚀',
+            const DText('تم إرسال طلب السحب بنجاح! 🚀',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 8),
-            Text(
+            DText(
               'تم إرسال إشعار فوري إلى $agencyName ($agentName).\nسيتم تحويل الألماس تلقائياً بمجرد موافقة الوكيل.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
@@ -867,7 +868,7 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () => Navigator.pop(context),
-              child: const Text('حسناً', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const DText('حسناً', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ]),
         ),
@@ -885,7 +886,7 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
   }
 
   void _snack(String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText(msg)));
 
   @override
   Widget build(BuildContext context) {
@@ -907,9 +908,9 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('وكالات الشحن المعتمدة', style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14, fontWeight: FontWeight.bold)),
+            DText('وكالات الشحن المعتمدة', style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14, fontWeight: FontWeight.bold)),
             if (_allAgents.isNotEmpty)
-              Text('${_allAgents.length} وكالة متاحة', style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 12)),
+              DText('${_allAgents.length} وكالة متاحة', style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 12)),
           ],
         ),
         const SizedBox(height: 8),
@@ -937,7 +938,7 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
         // قائمة الوكالات المقترحة / نتائج البحث
         if (_results.isNotEmpty && _selectedAgent == null) ...[
           const SizedBox(height: 12),
-          Text(
+          DText(
             _searchCtrl.text.trim().isEmpty ? 'اختر من وكالات الشحن أدناه:' : 'نتائج البحث:',
             style: const TextStyle(color: Colors.white54, fontSize: 12),
           ),
@@ -971,7 +972,7 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
                 ),
                 title: Row(children: [
                   Expanded(
-                    child: Text(agName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    child: DText(agName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -979,16 +980,16 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
                       color: const Color(0xFF00D4FF).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text('وكالة شحن', style: TextStyle(color: Color(0xFF00D4FF), fontSize: 10, fontWeight: FontWeight.bold)),
+                    child: const DText('وكالة شحن', style: TextStyle(color: Color(0xFF00D4FF), fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 ]),
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Row(children: [
-                    Text('الوكيل: $agentName', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                    DText('الوكيل: $agentName', style: const TextStyle(color: Colors.white70, fontSize: 11)),
                     if (kid.isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      Text('• ID: #$kid', style: const TextStyle(color: Color(0xFFFFD770), fontSize: 11, fontWeight: FontWeight.w700)),
+                      DText('• ID: #$kid', style: const TextStyle(color: Color(0xFFFFD770), fontSize: 11, fontWeight: FontWeight.w700)),
                     ],
                   ]),
                 ),
@@ -1043,11 +1044,11 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${_selectedAgent!['recharge_agency_name'] ?? _selectedAgent!['display_name']}',
+                        DText('${_selectedAgent!['recharge_agency_name'] ?? _selectedAgent!['display_name']}',
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                         const SizedBox(height: 2),
                         Row(children: [
-                          Text('الوكيل: ${_selectedAgent!['display_name']}',
+                          DText('الوكيل: ${_selectedAgent!['display_name']}',
                               style: const TextStyle(color: Colors.white70, fontSize: 12)),
                           const SizedBox(width: 8),
                           Container(
@@ -1056,7 +1057,7 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
                               color: const Color(0xFFFFD770).withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Text('ID: #${_selectedAgent!['kayan_id'] ?? _selectedAgent!['id']}',
+                            child: DText('ID: #${_selectedAgent!['kayan_id'] ?? _selectedAgent!['id']}',
                                 style: const TextStyle(color: Color(0xFFFFD770), fontSize: 11, fontWeight: FontWeight.bold)),
                           ),
                         ]),
@@ -1080,7 +1081,7 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
                     icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                    label: const Text('محادثة وكيل الشحن للتأكيد', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    label: const DText('محادثة وكيل الشحن للتأكيد', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     onPressed: () {
                       final agentUid = _selectedAgent!['id']?.toString() ?? _selectedAgent!['user_id']?.toString() ?? '';
                       final myUid = Supabase.instance.client.auth.currentUser?.id ?? '';
@@ -1107,7 +1108,7 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
         ],
 
         const SizedBox(height: 20),
-        Text('كمية الألماس المراد سحبها', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.bold)),
+        DText('كمية الألماس المراد سحبها', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         TextField(
           controller: _diamondsCtrl,
@@ -1131,7 +1132,7 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
             ),
             child: _processing
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                : const Text('إرسال طلب السحب للوكيل (موافقة/رفض)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                : const DText('إرسال طلب السحب للوكيل (موافقة/رفض)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           ),
         ),
       ]),
@@ -1193,9 +1194,9 @@ debugPrint('[agency_withdrawal_screen] error: $e');
 
       if (_items.isEmpty)
         Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('📋', style: TextStyle(fontSize: 40)),
+          const DText('📋', style: TextStyle(fontSize: 40)),
           const SizedBox(height: 12),
-          Text('لا توجد معاملات', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+          DText('لا توجد معاملات', style: TextStyle(color: Colors.white.withOpacity(0.4))),
         ])))
       else
         Expanded(
@@ -1219,18 +1220,18 @@ debugPrint('[agency_withdrawal_screen] error: $e');
                     border: Border.all(color: color.withOpacity(0.15)),
                   ),
                   child: Row(children: [
-                    Text(isCredit ? '📈' : '📤', style: const TextStyle(fontSize: 22)),
+                    DText(isCredit ? '📈' : '📤', style: const TextStyle(fontSize: 22)),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(e.typeLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                      DText(e.typeLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
                       if (e.note != null)
-                        Text(e.note!, style: const TextStyle(color: Colors.white38, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Text(_fmt(e.createdAt), style: const TextStyle(color: Colors.white24, fontSize: 10)),
+                        DText(e.note!, style: const TextStyle(color: Colors.white38, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      DText(_fmt(e.createdAt), style: const TextStyle(color: Colors.white24, fontSize: 10)),
                     ])),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text('${isCredit ? '+' : '-'}${_fmtK(e.amount)} ♦',
+                      DText('${isCredit ? '+' : '-'}${_fmtK(e.amount)} ♦',
                           style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
-                      Text('رصيد: ${_fmtK(e.balanceAfter)} ♦',
+                      DText('رصيد: ${_fmtK(e.balanceAfter)} ♦',
                           style: const TextStyle(color: Colors.white24, fontSize: 10)),
                     ]),
                   ]),
@@ -1264,7 +1265,7 @@ class _FilterChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: active ? const Color(0xFFD4AF37) : Colors.white12),
           ),
-          child: Text(label, style: TextStyle(
+          child: DText(label, style: TextStyle(
             color: active ? Colors.black : Colors.white54,
             fontSize: 12, fontWeight: FontWeight.w600,
           )),
@@ -1292,16 +1293,16 @@ class _InfoCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text(icon, style: const TextStyle(fontSize: 20)),
+          DText(icon, style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 8),
-          Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+          DText(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
         ]),
         const SizedBox(height: 10),
         ...lines.map((l) => Padding(
           padding: const EdgeInsets.only(bottom: 3),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('• ', style: TextStyle(color: Colors.white.withOpacity(0.4))),
-            Expanded(child: Text(l, style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12, height: 1.5))),
+            DText('• ', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+            Expanded(child: DText(l, style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12, height: 1.5))),
           ]),
         )),
       ]),

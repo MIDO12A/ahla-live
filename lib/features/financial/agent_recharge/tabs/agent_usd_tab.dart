@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../../core/supabase_compat.dart';
 
 import '../../agent_recharge_widgets.dart';
+import 'package:zero/core/dtext.dart';
 
 // ══════════════════════════════════════════════════════════════════════
 //  Withdraw Request Bottom Sheet
@@ -103,12 +104,12 @@ class _WithdrawRequestSheetState extends State<_WithdrawRequestSheet> {
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('طلب سحب دولار',
+              DText('طلب سحب دولار',
                   style: GoogleFonts.tajawal(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                       color: const Color(0xFF1B5E20))),
-              Text('سيتم مراجعة طلبك من قِبل الإدارة',
+              DText('سيتم مراجعة طلبك من قِبل الإدارة',
                   style: GoogleFonts.tajawal(
                       fontSize: 11, color: Colors.black45)),
             ]),
@@ -149,7 +150,7 @@ class _WithdrawRequestSheetState extends State<_WithdrawRequestSheet> {
                   color: Colors.red, size: 16),
               const SizedBox(width: 8),
               Expanded(
-                  child: Text(_error!,
+                  child: DText(_error!,
                       style: GoogleFonts.tajawal(
                           color: Colors.red,
                           fontSize: 12,
@@ -168,7 +169,7 @@ class _WithdrawRequestSheetState extends State<_WithdrawRequestSheet> {
                 side: BorderSide(
                     color: Colors.black.withValues(alpha: 0.15)),
               ),
-              child: Text('إلغاء',
+              child: DText('إلغاء',
                   style: GoogleFonts.tajawal(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
@@ -202,7 +203,7 @@ class _WithdrawRequestSheetState extends State<_WithdrawRequestSheet> {
                         height: 20,
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2.5))
-                    : Text('إرسال الطلب ✅',
+                    : DText('إرسال الطلب ✅',
                         style: GoogleFonts.tajawal(
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
@@ -223,7 +224,7 @@ class _WithdrawRequestSheetState extends State<_WithdrawRequestSheet> {
     TextInputType keyboard = TextInputType.text,
   }) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label,
+      DText(label,
           style: GoogleFonts.tajawal(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -435,7 +436,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
       _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('✅ تم إرسال طلب السحب بنجاح',
+          content: DText('✅ تم إرسال طلب السحب بنجاح',
               style: GoogleFonts.tajawal(fontWeight: FontWeight.w700)),
           backgroundColor: Colors.green.shade700,
           behavior: SnackBarBehavior.floating,
@@ -477,18 +478,18 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-              Text('💵 محفظة الدولار',
+              DText('💵 محفظة الدولار',
                   style: GoogleFonts.tajawal(
                       color: Colors.white70,
                       fontSize: 14,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              Text(_fmtUsd(_balance),
+              DText(_fmtUsd(_balance),
                   style: GoogleFonts.tajawal(
                       color: Colors.white,
                       fontSize: 40,
                       fontWeight: FontWeight.w900)),
-              Text('رصيد متاح',
+              DText('رصيد متاح',
                   style: GoogleFonts.tajawal(
                       color: Colors.white60, fontSize: 13)),
               const SizedBox(height: 16),
@@ -512,7 +513,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
                   onPressed:
                       _balance >= 10 ? _openWithdrawDialog : null,
                   icon: const Icon(Icons.account_balance_rounded, size: 18),
-                  label: Text(
+                  label: DText(
                       _balance >= 10
                           ? 'طلب سحب'
                           : 'الحد الأدنى \$10',
@@ -534,7 +535,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
 
           // ── طلبات السحب ─────────────────────────────────────────
           if (_requests.isNotEmpty) ...[
-            Text('طلبات السحب',
+            DText('طلبات السحب',
                 style: GoogleFonts.tajawal(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -545,7 +546,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
           ],
 
           // ── سجل معاملات USD ──────────────────────────────────
-          Text('سجل معاملات الدولار',
+          DText('سجل معاملات الدولار',
               style: GoogleFonts.tajawal(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -558,7 +559,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
                   color: const Color(0xFFF1F8F2),
                   borderRadius: BorderRadius.circular(14)),
               child: Center(
-                  child: Text('لا توجد معاملات بعد',
+                  child: DText('لا توجد معاملات بعد',
                       style: GoogleFonts.tajawal(
                           color: Colors.black38, fontSize: 14))),
             )
@@ -593,7 +594,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(_fmtUsd(amountUsd),
+          DText(_fmtUsd(amountUsd),
               style: GoogleFonts.tajawal(
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
@@ -607,7 +608,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
               border: Border.all(
                   color: _statusColor(status).withValues(alpha: 0.4)),
             ),
-            child: Text(_statusLabel(status),
+            child: DText(_statusLabel(status),
                 style: GoogleFonts.tajawal(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
@@ -616,7 +617,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
         ]),
         if (bankDetails.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Text(
+          DText(
               'البيانات المصرفية: ${bankDetails['bank_name'] ?? bankDetails.toString()}',
               style: GoogleFonts.tajawal(
                   fontSize: 11, color: Colors.black45)),
@@ -635,7 +636,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
                   size: 14, color: Colors.orange),
               const SizedBox(width: 6),
               Expanded(
-                  child: Text('ملاحظة الإدارة: $adminNote',
+                  child: DText('ملاحظة الإدارة: $adminNote',
                       style: GoogleFonts.tajawal(
                           fontSize: 11,
                           color: Colors.orange.shade800))),
@@ -643,7 +644,7 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
           ),
         ],
         const SizedBox(height: 6),
-        Text(_fmtDate(createdAt),
+        DText(_fmtDate(createdAt),
             style:
                 GoogleFonts.tajawal(fontSize: 10, color: Colors.black38)),
       ]),
@@ -693,32 +694,32 @@ class _AgentUsdWalletTabState extends State<AgentUsdWalletTab> {
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            Text(_txnLabel(txnType),
+            DText(_txnLabel(txnType),
                 style: GoogleFonts.tajawal(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: Colors.black87)),
             if (senderType != null)
-              Text('المصدر: $senderType',
+              DText('المصدر: $senderType',
                   style: GoogleFonts.tajawal(
                       fontSize: 11, color: Colors.black38)),
             if (note != null && note.isNotEmpty)
-              Text(note,
+              DText(note,
                   style: GoogleFonts.tajawal(
                       fontSize: 11, color: Colors.black45)),
-            Text(_fmtDate(createdAt),
+            DText(_fmtDate(createdAt),
                 style: GoogleFonts.tajawal(
                     fontSize: 10, color: Colors.black38)),
           ]),
         ),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(isCredit ? '+' : '-',
+            DText(isCredit ? '+' : '-',
                 style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.w900,
                     fontSize: 16)),
-            Text(_fmtUsd(amountUsd),
+            DText(_fmtUsd(amountUsd),
                 style: GoogleFonts.tajawal(
                     fontSize: 15,
                     fontWeight: FontWeight.w900,

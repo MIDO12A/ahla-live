@@ -3,6 +3,7 @@ import '../../../../config/r.dart';
 import '../../../../services/dynamic_config_service.dart';
 import '../../../../services/supabase_data_service.dart';
 import 'package:provider/provider.dart';
+import 'package:zero/core/dtext.dart';
 
 class AgencyItemDetailScreen extends StatefulWidget {
   final String agencyId;
@@ -110,7 +111,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           centerTitle: true,
-          title: Text(
+          title: DText(
             isAr ? 'تفاصيل الوكالة' : 'Agency Details',
             style: const TextStyle(
               color: Colors.white,
@@ -142,7 +143,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                   children: [
                     Expanded(
                       flex: 4,
-                      child: Text(
+                      child: DText(
                         isAr ? 'المضيف' : 'Host',
                         style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
                       ),
@@ -150,7 +151,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                     Expanded(
                       flex: 3,
                       child: Center(
-                        child: Text(
+                        child: DText(
                           isAr ? 'الماسات' : 'Diamonds',
                           style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
                         ),
@@ -160,7 +161,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                       flex: 3,
                       child: Align(
                         alignment: isAr ? Alignment.centerLeft : Alignment.centerRight,
-                        child: Text(
+                        child: DText(
                           isAr ? 'مدة المايك' : 'Mic Time',
                           style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 12),
                         ),
@@ -184,7 +185,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.all(40),
-                    child: Text(
+                    child: DText(
                       isAr ? 'لا توجد بيانات للمضيفين في هذه الفترة' : 'No host data in this period',
                       style: const TextStyle(color: Color(0x80FFFFFF), fontSize: 13),
                     ),
@@ -220,7 +221,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Period Title
-          Text(
+          DText(
             widget.periodTitle,
             style: const TextStyle(
               color: Colors.white,
@@ -248,7 +249,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                           errorBuilder: (_, __, ___) => const Icon(Icons.diamond, color: Color(0xFFFFD19C), size: 18),
                         ),
                         const SizedBox(width: 6),
-                        Text(
+                        DText(
                           _formatNumber(widget.totalDiamonds),
                           style: const TextStyle(
                             color: Color(0xFFFFF5AD),
@@ -259,7 +260,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
+                    DText(
                       isAr ? 'دخل الألماس' : 'Diamond Income',
                       style: const TextStyle(
                         color: Color(0x80FFF5AD),
@@ -284,7 +285,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                           errorBuilder: (_, __, ___) => const Icon(Icons.percent, color: Color(0xFFFFD19C), size: 18),
                         ),
                         const SizedBox(width: 6),
-                        Text(
+                        DText(
                           '$ratePercent %',
                           style: const TextStyle(
                             color: Color(0xFFFFF5AD),
@@ -295,7 +296,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
+                    DText(
                       isAr ? 'نسبة العمولة' : 'Commission Rate',
                       style: const TextStyle(
                         color: Color(0x80FFF5AD),
@@ -352,7 +353,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
+                  child: DText(
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -380,7 +381,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
                   errorBuilder: (_, __, ___) => const Icon(Icons.diamond, color: Color(0xFFFFD19C), size: 12),
                 ),
                 const SizedBox(width: 4),
-                Text(
+                DText(
                   _formatNumber(diamonds),
                   style: const TextStyle(
                     color: Color(0xFFFFF5AD),
@@ -397,7 +398,7 @@ class _AgencyItemDetailScreenState extends State<AgencyItemDetailScreen> {
             flex: 3,
             child: Align(
               alignment: isAr ? Alignment.centerLeft : Alignment.centerRight,
-              child: Text(
+              child: DText(
                 _formatDuration(liveSeconds),
                 style: const TextStyle(
                   color: Color(0xCCFFFFFF),

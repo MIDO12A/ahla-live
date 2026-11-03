@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../room_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RoomMarqueeBroadcast — view_room_all_banner.xml
@@ -172,7 +173,7 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text.rich(
+                        child: DRichText(
                           TextSpan(
                             style: const TextStyle(
                               color: Colors.white,

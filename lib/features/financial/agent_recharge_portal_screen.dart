@@ -15,6 +15,7 @@ import 'agent_recharge/tabs/agent_history_tab.dart';
 import 'agent_recharge/tabs/agent_diamond_tab.dart';
 import 'agent_recharge_widgets.dart';
 import '../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 // ══════════════════════════════════════════════════════════════════════
 //  AgentRechargePortalScreen — Orchestrator
@@ -243,13 +244,13 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
             icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text(
+          title: const DText(
             'بوابة الشحن',
             style: TextStyle(color: Colors.white, fontSize: 16),
           ),
         ),
         body: const Center(
-          child: Text(
+          child: DText(
             'هذه الخدمة غير متاحة حالياً',
             style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
@@ -357,21 +358,21 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
 
   Widget _buildLockedScreen() => Scaffold(
         appBar: AppBar(
-          title: Text('وكالة الشحن',
+          title: DText('وكالة الشحن',
               style: GoogleFonts.tajawal(fontWeight: FontWeight.w800)),
         ),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text('🔒', style: TextStyle(fontSize: 52)),
+              const DText('🔒', style: TextStyle(fontSize: 52)),
               const SizedBox(height: 16),
-              Text('حسابك غير مفعّل كوكيل شحن',
+              DText('حسابك غير مفعّل كوكيل شحن',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.tajawal(
                       fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
-              Text('تواصل مع الإدارة لتفعيل الصلاحية',
+              DText('تواصل مع الإدارة لتفعيل الصلاحية',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.tajawal(
                       fontSize: 13, color: Colors.black54)),
@@ -382,23 +383,23 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
 
   Widget _buildDisabledScreen() => Scaffold(
         appBar: AppBar(
-          title: Text('وكالة الشحن',
+          title: DText('وكالة الشحن',
               style: GoogleFonts.tajawal(fontWeight: FontWeight.w800)),
         ),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text('⛔', style: TextStyle(fontSize: 52)),
+              const DText('⛔', style: TextStyle(fontSize: 52)),
               const SizedBox(height: 16),
-              Text('حسابك موقوف مؤقتاً',
+              DText('حسابك موقوف مؤقتاً',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.tajawal(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: Colors.red)),
               const SizedBox(height: 8),
-              Text('تواصل مع الإدارة لإعادة التفعيل',
+              DText('تواصل مع الإدارة لإعادة التفعيل',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.tajawal(
                       fontSize: 13, color: Colors.black54)),
@@ -406,7 +407,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
               TextButton.icon(
                 onPressed: _bootstrap,
                 icon: const Icon(Icons.refresh_rounded),
-                label: Text('إعادة المحاولة',
+                label: DText('إعادة المحاولة',
                     style: GoogleFonts.tajawal(
                         fontWeight: FontWeight.w700)),
               ),

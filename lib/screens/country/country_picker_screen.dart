@@ -4,6 +4,7 @@ import '../../providers/user_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../core/ui/in_app_toast.dart';
+import 'package:zero/core/dtext.dart';
 
 class Country {
   final String name;
@@ -142,7 +143,7 @@ class _CountryPickerScreenState extends State<CountryPickerScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FC),
       appBar: AppBar(
-        title: const Text(
+        title: const DText(
           'اختر الدولة / المنطقة',
           style: TextStyle(
             color: Color(0xFF16151A),
@@ -197,13 +198,13 @@ class _CountryPickerScreenState extends State<CountryPickerScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     child: Row(
                       children: [
-                        Text(country.flag, style: const TextStyle(fontSize: 26)),
+                        DText(country.flag, style: const TextStyle(fontSize: 26)),
                         const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              DText(
                                 country.name,
                                 style: TextStyle(
                                   fontSize: 15,
@@ -212,14 +213,14 @@ class _CountryPickerScreenState extends State<CountryPickerScreen> {
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(
+                              DText(
                                 '${country.nameEn} (${country.code})',
                                 style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
                               ),
                             ],
                           ),
                         ),
-                        Text(
+                        DText(
                           country.dialCode,
                           style: const TextStyle(fontSize: 12, color: Color(0xFF999999)),
                         ),

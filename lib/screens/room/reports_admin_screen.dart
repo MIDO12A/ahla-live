@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
 import '../../config/r.dart';
+import 'package:zero/core/dtext.dart';
 
 class ReportsAdminScreen extends StatefulWidget {
   const ReportsAdminScreen({super.key});
@@ -64,7 +65,7 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
             ),
           ),
           const Spacer(),
-          const Text(
+          const DText(
             'Reports',
             style: TextStyle(fontSize: 17, color: Colors.white, fontWeight: FontWeight.w600),
           ),
@@ -86,7 +87,7 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
           children: [
             Icon(Icons.flag_outlined, color: Colors.white.withValues(alpha: 0.2), size: 64),
             const SizedBox(height: 16),
-            const Text(
+            const DText(
               'No reports yet',
               style: TextStyle(fontSize: 15, color: Colors.white54),
             ),
@@ -121,7 +122,7 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
           Row(
             children: [
               Expanded(
-                child: Text(
+                child: DText(
                   'From: ${reporter['name'] ?? 'Unknown'}',
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
@@ -133,7 +134,7 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
                     color: Colors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text('Pending', style: TextStyle(color: Colors.orange, fontSize: 10)),
+                  child: const DText('Pending', style: TextStyle(color: Colors.orange, fontSize: 10)),
                 )
               else
                 Container(
@@ -142,23 +143,23 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
                     color: Colors.green.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text('Resolved', style: TextStyle(color: Colors.green, fontSize: 10)),
+                  child: const DText('Resolved', style: TextStyle(color: Colors.green, fontSize: 10)),
                 ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(
+          DText(
             'Against: ${reported['name'] ?? 'Unknown'}',
             style: const TextStyle(color: Colors.white, fontSize: 13),
           ),
           const SizedBox(height: 4),
-          Text(
+          DText(
             'Reason: $reason',
             style: const TextStyle(color: Colors.white54, fontSize: 12),
           ),
           if (desc.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text(
+            DText(
               desc,
               style: const TextStyle(color: Colors.white38, fontSize: 11),
               maxLines: 2,
@@ -168,7 +169,7 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
           const SizedBox(height: 4),
           Row(
             children: [
-              Text(
+              DText(
                 createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt,
                 style: const TextStyle(color: Colors.white24, fontSize: 10),
               ),
@@ -183,7 +184,7 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
                     ),
-                    child: const Text('Resolve', style: TextStyle(color: Colors.green, fontSize: 11)),
+                    child: const DText('Resolve', style: TextStyle(color: Colors.green, fontSize: 11)),
                   ),
                 ),
             ],

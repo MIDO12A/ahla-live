@@ -12,6 +12,7 @@ import 'room_admins_screen.dart';
 import 'blacklist_screen.dart';
 import 'reports_admin_screen.dart';
 import 'widgets/room_background_bottom_sheet.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // RoomSettingsScreen — activity_room_set.xml
@@ -268,7 +269,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: Text(
+                  child: DText(
                     isAr ? 'تأكيد' : 'Confirm',
                     style: const TextStyle(
                       fontSize: 15,
@@ -306,7 +307,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
           ),
           const SizedBox(width: 4),
           Expanded(
-            child: Text(
+            child: DText(
               isAr ? 'إعدادات الغرفة' : 'Room Settings',
               style: const TextStyle(
                 fontSize: 22,
@@ -322,7 +323,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
 
   // ── Section label ───────────────────────────────────────────────
   Widget _buildSectionLabel(String text) {
-    return Text(
+    return DText(
       text,
       style: const TextStyle(
         fontSize: 14,
@@ -544,7 +545,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
         child: Row(
           children: [
             Expanded(
-              child: Text(
+              child: DText(
                 label,
                 style: const TextStyle(
                   fontSize: 14,
@@ -559,7 +560,7 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
                   color: const Color(0xFFFFC525).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
+                child: DText(
                   '$count',
                   style: const TextStyle(
                     fontSize: 12,

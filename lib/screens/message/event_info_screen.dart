@@ -3,6 +3,7 @@ import '../../services/supabase_service.dart';
 import '../../models/banner_config.dart';
 import '../../core/widgets/cached_image.dart';
 import '../../utils/app_action_navigator.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Replicates [ActivityNotificationActivity.java] and [chat_adapter_activity_item.xml]
 /// with [chat_event_ic.webp] from the original decompiled app (F:\Medal\New folder\nu).
@@ -35,7 +36,7 @@ class _EventInfoScreenState extends State<EventInfoScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
-        title: Text(
+        title: DText(
           isAr ? 'معلومات الحدث' : 'Activity Notifications',
           style: const TextStyle(
             color: Color(0xFF16151A),
@@ -80,7 +81,7 @@ class _EventInfoScreenState extends State<EventInfoScreen> {
           // tv_notification_time: 11sp, color #9BA1B6, paddingTop 16dp
           Padding(
             padding: const EdgeInsets.only(top: 12, bottom: 10),
-            child: Text(
+            child: DText(
               dateStr,
               style: const TextStyle(
                 fontSize: 11,
@@ -139,7 +140,7 @@ class _EventInfoScreenState extends State<EventInfoScreen> {
                       children: [
                         // tv_title: 15sp, sans-serif-medium, color #16151A
                         if (title.isNotEmpty) ...[
-                          Text(
+                          DText(
                             title,
                             style: const TextStyle(
                               fontSize: 15,
@@ -160,7 +161,7 @@ class _EventInfoScreenState extends State<EventInfoScreen> {
 
                         // tv_notification_content: 13sp, color #16151A
                         if (content.isNotEmpty)
-                          Text(
+                          DText(
                             content,
                             style: const TextStyle(
                               fontSize: 13,
@@ -214,7 +215,7 @@ class _EventInfoScreenState extends State<EventInfoScreen> {
           children: const [
             Icon(Icons.stars_rounded, color: Colors.white, size: 24),
             SizedBox(width: 8),
-            Text(
+            DText(
               'ZORO EVENT',
               style: TextStyle(
                 color: Colors.white,

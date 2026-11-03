@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zero/core/dtext.dart';
 
 abstract final class OtaIconKeys {
   static const String profileAgency = 'profile_agency';
@@ -23,7 +24,7 @@ class OtaEmojiIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return DText(
       emoji,
       style: TextStyle(fontSize: size),
     );

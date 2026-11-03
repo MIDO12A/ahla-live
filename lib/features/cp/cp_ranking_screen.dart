@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../config/r.dart';
 import '../../screens/room/widgets/svga_frame.dart';
 import 'cp_service.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Relationship Ranking screen — matches act_relationship_ranking.xml
 /// Tabs: Daily / Weekly / Monthly with podium + list.
@@ -131,7 +132,7 @@ class _CpRankingScreenState extends State<CpRankingScreen>
                     ? const Center(child: CircularProgressIndicator())
                     : _ranking.isEmpty
                         ? const Center(
-                            child: Text('لا يوجد ترتيب حالياً',
+                            child: DText('لا يوجد ترتيب حالياً',
                                 style: TextStyle(color: Colors.white54, fontSize: 14)))
                         : _buildRankingList(),
               ),
@@ -163,7 +164,7 @@ class _CpRankingScreenState extends State<CpRankingScreen>
               ),
             ),
             const Spacer(),
-            const Text('ترتيب العلاقات',
+            const DText('ترتيب العلاقات',
                 style: TextStyle(
                     color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             const Spacer(),
@@ -302,11 +303,11 @@ class _CpRankingScreenState extends State<CpRankingScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(score,
+              DText(score,
                   style: TextStyle(
                       color: medalColor, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 2),
-              const Text('قربى', style: TextStyle(color: Colors.white70, fontSize: 11)),
+              const DText('قربى', style: TextStyle(color: Colors.white70, fontSize: 11)),
             ],
           ),
         ),
@@ -358,7 +359,7 @@ class _CpRankingScreenState extends State<CpRankingScreen>
           // Rank number
           SizedBox(
             width: 30,
-            child: Text('#$rank',
+            child: DText('#$rank',
                 style: const TextStyle(
                     color: Color(0xFFffb565), fontSize: 14, fontWeight: FontWeight.bold)),
           ),
@@ -384,17 +385,17 @@ class _CpRankingScreenState extends State<CpRankingScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(u1?['name']?.toString() ?? '',
+                DText(u1?['name']?.toString() ?? '',
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text('& ${u2?['name']?.toString() ?? ''}',
+                DText('& ${u2?['name']?.toString() ?? ''}',
                     style: const TextStyle(color: Colors.white60, fontSize: 11),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
           // Score
-          Text(score,
+          DText(score,
               style: const TextStyle(
                   color: Color(0xFFffb565), fontSize: 14, fontWeight: FontWeight.bold)),
         ],

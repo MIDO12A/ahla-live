@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 import '../../features/host_agency/screens/agency_join_requests_screen.dart';
 import '../../features/host_agency/data/agency_repository.dart';
 import '../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Replicates [chat_activity_system_notification.xml] and [chat_adapter_activity_item.xml]
 /// from the original decompiled app (F:\Medal\New folder\nu).
@@ -56,7 +57,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
-        title: Text(
+        title: DText(
           isAr ? 'إشعارات النظام' : 'System Notifications',
           style: const TextStyle(
             color: Color(0xFF16151A),
@@ -84,7 +85,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(isAr
+                      content: DText(isAr
                           ? 'تم تحديد جميع الرسائل كمقروءة'
                           : 'All notifications marked as read'),
                     ),
@@ -122,7 +123,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text(
+                  DText(
                     isAr
                         ? 'لا توجد إشعارات نظام حالياً'
                         : 'No system notifications yet',
@@ -168,7 +169,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           // tv_notification_time: 11sp, color #9BA1B6, paddingTop 16dp
           Padding(
             padding: const EdgeInsets.only(top: 12, bottom: 10),
-            child: Text(
+            child: DText(
               formattedTime,
               style: const TextStyle(
                 fontSize: 11,
@@ -217,7 +218,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     children: [
                       // tv_title: 15sp, sans-serif-medium, color #16151A
                       if (notif.title.isNotEmpty) ...[
-                        Text(
+                        DText(
                           notif.title,
                           style: const TextStyle(
                             fontSize: 15,
@@ -238,7 +239,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
                       // tv_notification_content: 13sp, color #16151A
                       if (notif.body.isNotEmpty)
-                        Text(
+                        DText(
                           notif.body,
                           style: const TextStyle(
                             fontSize: 13,
@@ -283,7 +284,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               ),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: Text(
+                                child: DText(
                                   '${notif.data?['gift_name'] ?? ''} x${notif.data?['count'] ?? 1}',
                                   style: const TextStyle(
                                     color: Color(0xFFFF9500),
@@ -329,9 +330,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text('💼', style: TextStyle(fontSize: 16)),
+                                  DText('💼', style: TextStyle(fontSize: 16)),
                                   SizedBox(width: 8),
-                                  Text(
+                                  DText(
                                     'دخول لوحة تحكم وكالة الشحن',
                                     style: TextStyle(
                                       color: Color(0xFFFFD700),
@@ -488,7 +489,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
-                                          content: Text(isAr
+                                          content: DText(isAr
                                               ? '✅ تمت الموافقة وتصفير تارجت المستخدم وإيداع الرصيد في محفظة وكالة الشحن.'
                                               : '✅ Approved! User target reset and balance credited to recharge agency wallet.'),
                                           backgroundColor: const Color(0xFF10B981),
@@ -538,7 +539,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(isAr
+                                        content: DText(isAr
                                             ? 'تم رفض طلب السحب ولم يتم خصم أي رصيد.'
                                             : 'Withdrawal request rejected. No balance deducted.'),
                                         backgroundColor: const Color(0xFFEF4444),
@@ -602,7 +603,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
-                                          content: Text('مبروك! تم الانضمام بنجاح إلى وكالة $agencyName كمضيف رسمي! 🎉'),
+                                          content: DText('مبروك! تم الانضمام بنجاح إلى وكالة $agencyName كمضيف رسمي! 🎉'),
                                           backgroundColor: const Color(0xFF10B981),
                                         ),
                                       );
@@ -628,7 +629,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(isAr ? 'تم رفض الدعوة' : 'Invitation rejected'),
+                                        content: DText(isAr ? 'تم رفض الدعوة' : 'Invitation rejected'),
                                         backgroundColor: const Color(0xFFEF4444),
                                       ),
                                     );
@@ -719,7 +720,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
-                                          content: Text('مبروك! تم قبول وتفعيل وكالة $agencyName بنجاح! 🎉'),
+                                          content: DText('مبروك! تم قبول وتفعيل وكالة $agencyName بنجاح! 🎉'),
                                           backgroundColor: const Color(0xFF10B981),
                                         ),
                                       );
@@ -745,7 +746,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(isAr
+                                        content: DText(isAr
                                             ? 'تم رفض دعوة الوكالة'
                                             : 'Agency invitation rejected'),
                                         backgroundColor: const Color(0xFFEF4444),
@@ -868,7 +869,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 height: 14,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
               )
-            : Text(
+            : DText(
                 label,
                 style: const TextStyle(
                   color: Colors.white,

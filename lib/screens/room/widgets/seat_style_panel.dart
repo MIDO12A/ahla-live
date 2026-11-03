@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // SeatStylePanel — room_fragment_seat_style.xml
@@ -116,7 +117,7 @@ class _SeatStylePanelState extends State<SeatStylePanel> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      Text(
+                      DText(
                         isAr ? 'شكل المقاعد' : 'Seat Style',
                         style: const TextStyle(
                           fontSize: 15,
@@ -220,7 +221,7 @@ class _SeatStylePanelState extends State<SeatStylePanel> {
                 // ── Subtitle: Number of seats ──
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
+                  child: DText(
                     isAr ? 'عدد المقاعد' : 'Number of seats',
                     style: const TextStyle(
                       fontSize: 15,
@@ -286,7 +287,7 @@ class _SeatStylePanelState extends State<SeatStylePanel> {
                         ],
                       ),
                       alignment: Alignment.center,
-                      child: Text(
+                      child: DText(
                         isAr ? 'تأكيد' : 'Confirm',
                         style: TextStyle(
                           fontSize: 15,
@@ -356,7 +357,7 @@ class _StyleCard extends StatelessWidget {
                     fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 6),
-                  Text(
+                  DText(
                     label,
                     style: TextStyle(
                       fontSize: 12,
@@ -448,7 +449,7 @@ class _SeatCountItem extends StatelessWidget {
           const SizedBox(height: 6),
 
           // Count text below (tv_mic_num)
-          Text(
+          DText(
             isAr ? '$count مقاعد' : '$count seats',
             textAlign: TextAlign.center,
             style: TextStyle(

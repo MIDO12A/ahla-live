@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 import '../../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class AgencyVerificationScreen extends StatefulWidget {
   const AgencyVerificationScreen({super.key});
@@ -68,7 +69,7 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
 
     if (_videoDuration < 5 || _videoDuration > 10) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يجب أن تكون مدة مقطع الفيديو بين 5 و 10 ثوانٍ فقط')),
+        const SnackBar(content: DText('يجب أن تكون مدة مقطع الفيديو بين 5 و 10 ثوانٍ فقط')),
       );
       return;
     }
@@ -98,14 +99,14 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تقديم طلب توثيق المضيف بنجاح! سيتم مراجعته قريباً.')),
+          const SnackBar(content: DText('تم تقديم طلب توثيق المضيف بنجاح! سيتم مراجعته قريباً.')),
         );
         _loadExistingVerification();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ أثناء التقديم: $e')),
+          SnackBar(content: DText('حدث خطأ أثناء التقديم: $e')),
         );
       }
     } finally {
@@ -128,7 +129,7 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0C1938),
       appBar: AppBar(
-        title: const Text('توثيق المضيف الحقيقي', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const DText('توثيق المضيف الحقيقي', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF0C1938),
         elevation: 0,
         centerTitle: true,
@@ -223,14 +224,14 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
         children: [
           Icon(icon, color: Colors.white),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 13))),
+          Expanded(child: DText(text, style: const TextStyle(color: Colors.white, fontSize: 13))),
         ],
       ),
     );
   }
 
   Widget _buildSectionHeader(String title) {
-    return Text(
+    return DText(
       title,
       style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 15, fontWeight: FontWeight.bold),
     );
@@ -252,7 +253,7 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
                 border: Border.all(color: isSelected ? Colors.white : Colors.transparent),
               ),
               child: Center(
-                child: Text(
+                child: DText(
                   type.label,
                   style: TextStyle(color: isSelected ? Colors.white : Colors.white70, fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
                 ),
@@ -290,14 +291,14 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
       ),
       child: InkWell(
         onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم اختيار $label')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText('تم اختيار $label')));
         },
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: const Color(0xFF00B5B3), size: 28),
             const SizedBox(height: 6),
-            Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+            DText(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 11)),
           ],
         ),
       ),
@@ -320,9 +321,9 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
               const Icon(Icons.videocam, color: Color(0xFF00B5B3)),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text('فيديو سيلفي للتحقق من الشخص الحقيقي', style: TextStyle(color: Colors.white, fontSize: 13)),
+                child: DText('فيديو سيلفي للتحقق من الشخص الحقيقي', style: TextStyle(color: Colors.white, fontSize: 13)),
               ),
-              Text('$_videoDuration ثوانٍ', style: const TextStyle(color: Color(0xFF00B5B3), fontWeight: FontWeight.bold)),
+              DText('$_videoDuration ثوانٍ', style: const TextStyle(color: Color(0xFF00B5B3), fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 8),
@@ -336,7 +337,7 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
             label: '$_videoDuration ثوانٍ',
             onChanged: (v) => setState(() => _videoDuration = v.toInt()),
           ),
-          const Text('تنبيه: يجب أن تظهر ملامح وجهك بوضوح تام لمدة لا تقل عن 5 ولا تزيد عن 10 ثوانٍ.', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          const DText('تنبيه: يجب أن تظهر ملامح وجهك بوضوح تام لمدة لا تقل عن 5 ولا تزيد عن 10 ثوانٍ.', style: TextStyle(color: Colors.white54, fontSize: 11)),
         ],
       ),
     );
@@ -352,17 +353,17 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('ساعات العمل اليومية المتاحة:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const DText('ساعات العمل اليومية المتاحة:', style: TextStyle(color: Colors.white70, fontSize: 13)),
           DropdownButton<int>(
             value: _dailyHours,
             dropdownColor: const Color(0xFF16274D),
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             underline: const SizedBox(),
             items: const [
-              DropdownMenuItem(value: 2, child: Text('ساعتان (2H)')),
-              DropdownMenuItem(value: 4, child: Text('4 ساعات (4H)')),
-              DropdownMenuItem(value: 6, child: Text('6 ساعات (6H)')),
-              DropdownMenuItem(value: 8, child: Text('8 ساعات (8H)')),
+              DropdownMenuItem(value: 2, child: DText('ساعتان (2H)')),
+              DropdownMenuItem(value: 4, child: DText('4 ساعات (4H)')),
+              DropdownMenuItem(value: 6, child: DText('6 ساعات (6H)')),
+              DropdownMenuItem(value: 8, child: DText('8 ساعات (8H)')),
             ],
             onChanged: (v) => setState(() => _dailyHours = v ?? 4),
           ),
@@ -383,7 +384,7 @@ class _AgencyVerificationScreenState extends State<AgencyVerificationScreen> {
         onPressed: _isSubmitting ? null : _submitVerification,
         child: _isSubmitting
             ? const CircularProgressIndicator(color: Colors.white)
-            : const Text('تقديم طلب التوثيق', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            : const DText('تقديم طلب التوثيق', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
       ),
     );
   }

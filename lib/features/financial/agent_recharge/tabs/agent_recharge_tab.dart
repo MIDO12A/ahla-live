@@ -16,6 +16,7 @@ import '../../../../services/dynamic_config_service.dart';
 import '../../../../core/theme/brand_colors.dart';
 import '../../agent_recharge_widgets.dart';
 import 'agent_history_tab.dart' show AgentEditQuickAmountsSheet;
+import 'package:zero/core/dtext.dart';
 
 // ══════════════════════════════════════════════════════════════════════
 //  Password Setup Screen — يظهر عند أول استخدام لإعداد كلمة مرور الوكالة
@@ -83,7 +84,7 @@ class _AgentPinSetupScreenState extends State<AgentPinSetupScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('تم تثبيت وحفظ كلمة المرور بنجاح ✅',
+          content: DText('تم تثبيت وحفظ كلمة المرور بنجاح ✅',
               style: GoogleFonts.tajawal(fontWeight: FontWeight.bold)),
           backgroundColor: const Color(0xFF2E7D32),
         ),
@@ -100,7 +101,7 @@ class _AgentPinSetupScreenState extends State<AgentPinSetupScreen> {
 
   void _showErr(String msg) => ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(msg, style: GoogleFonts.tajawal(fontWeight: FontWeight.w700)),
+          content: DText(msg, style: GoogleFonts.tajawal(fontWeight: FontWeight.w700)),
           backgroundColor: Colors.red));
 
   @override
@@ -113,7 +114,7 @@ class _AgentPinSetupScreenState extends State<AgentPinSetupScreen> {
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white),
           ),
-          title: Text('إعداد كلمة مرور الوكالة',
+          title: DText('إعداد كلمة مرور الوكالة',
               style: GoogleFonts.tajawal(color: Colors.white, fontWeight: FontWeight.bold)),
           centerTitle: true,
         ),
@@ -128,16 +129,16 @@ class _AgentPinSetupScreenState extends State<AgentPinSetupScreen> {
                 decoration: BoxDecoration(
                     color: KayanBrandColors.logoPrimary.withValues(alpha: 0.15),
                     shape: BoxShape.circle),
-                child: const Center(child: Text('🔐', style: TextStyle(fontSize: 40))),
+                child: const Center(child: DText('🔐', style: TextStyle(fontSize: 40))),
               ),
               const SizedBox(height: 20),
-              Text(
+              DText(
                 'تعيين كلمة مرور وكالة الشحن',
                 style: GoogleFonts.tajawal(
                     fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white),
               ),
               const SizedBox(height: 8),
-              Text(
+              DText(
                 'كلمة المرور تُطلب لحماية عمليات الشحن والسحب وتُحفظ بشكل دائم',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.tajawal(fontSize: 13, color: Colors.white54),
@@ -196,7 +197,7 @@ class _AgentPinSetupScreenState extends State<AgentPinSetupScreen> {
                       foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
-                    child: Text('تثبيت وحفظ كلمة المرور ✅',
+                    child: DText('تثبيت وحفظ كلمة المرور ✅',
                         style: GoogleFonts.tajawal(fontSize: 16, fontWeight: FontWeight.w900)),
                   ),
                 ),
@@ -320,15 +321,15 @@ class _AgentPinVerifyDialogState extends State<_AgentPinVerifyDialog> {
         child: Padding(
           padding: const EdgeInsets.all(26),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('🔐', style: TextStyle(fontSize: 38)),
+            const DText('🔐', style: TextStyle(fontSize: 38)),
             const SizedBox(height: 10),
-            Text('تأكيد كلمة المرور',
+            DText('تأكيد كلمة المرور',
                 style: GoogleFonts.tajawal(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                     color: Colors.white)),
             const SizedBox(height: 4),
-            Text('أدخل كلمة المرور لتأكيد العملية',
+            DText('أدخل كلمة المرور لتأكيد العملية',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.tajawal(fontSize: 12, color: Colors.white54)),
             const SizedBox(height: 24),
@@ -354,7 +355,7 @@ class _AgentPinVerifyDialogState extends State<_AgentPinVerifyDialog> {
             ),
             if (_error != null) ...[
               const SizedBox(height: 10),
-              Text(_error!,
+              DText(_error!,
                   style: GoogleFonts.tajawal(
                       fontSize: 13,
                       color: Colors.redAccent,
@@ -374,7 +375,7 @@ class _AgentPinVerifyDialogState extends State<_AgentPinVerifyDialog> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: Text('إلغاء',
+                      child: DText('إلغاء',
                           style: GoogleFonts.tajawal(fontSize: 14, color: Colors.white70)),
                     ),
                   ),
@@ -388,7 +389,7 @@ class _AgentPinVerifyDialogState extends State<_AgentPinVerifyDialog> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: Text('تأكيد ✅',
+                      child: DText('تأكيد ✅',
                           style: GoogleFonts.tajawal(fontSize: 14, fontWeight: FontWeight.w900)),
                     ),
                   ),
@@ -403,7 +404,7 @@ class _AgentPinVerifyDialogState extends State<_AgentPinVerifyDialog> {
                 }
               },
               icon: const Icon(Icons.lock_reset_rounded, size: 18, color: Color(0xFFFFD770)),
-              label: Text(
+              label: DText(
                 'إعادة تعيين كلمة المرور',
                 style: GoogleFonts.tajawal(
                   fontSize: 13,
@@ -498,7 +499,7 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
+          content: DText(
             'تم حفظ وتثبيت كلمة المرور بنجاح ✅',
             style: GoogleFonts.tajawal(fontWeight: FontWeight.bold),
           ),
@@ -528,9 +529,9 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('🔑', style: TextStyle(fontSize: 36)),
+                const DText('🔑', style: TextStyle(fontSize: 36)),
                 const SizedBox(height: 10),
-                Text(
+                DText(
                   'تعيين / تغيير كلمة المرور',
                   style: GoogleFonts.tajawal(
                     fontSize: 18,
@@ -539,7 +540,7 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
+                DText(
                   'أدخل كلمة المرور الجديدة وثبّتها لاستخدامها في كل مرة',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.tajawal(fontSize: 12, color: Colors.white54),
@@ -584,7 +585,7 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(
+                  DText(
                     _error!,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.tajawal(
@@ -603,7 +604,7 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
                       Expanded(
                         child: TextButton(
                           onPressed: () => Navigator.of(context).pop(false),
-                          child: Text(
+                          child: DText(
                             'إلغاء',
                             style: GoogleFonts.tajawal(fontSize: 14, color: Colors.white54),
                           ),
@@ -619,7 +620,7 @@ class _AgentResetPinDialogState extends State<AgentResetPinDialog> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(vertical: 11),
                           ),
-                          child: Text(
+                          child: DText(
                             'تثبيت الكلمة ✅',
                             style: GoogleFonts.tajawal(fontSize: 14, fontWeight: FontWeight.w900),
                           ),
@@ -977,7 +978,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
 
   void _showSnack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(msg,
+          content: DText(msg,
               style: GoogleFonts.tajawal(fontWeight: FontWeight.w700)),
           behavior: SnackBarBehavior.floating,
           backgroundColor: const Color(0xFF1a1a2e),
@@ -1051,7 +1052,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                       : null,
                 ),
                 child: Center(
-                  child: Text(
+                  child: DText(
                     '🟢 شحن رصيد للمستخدم',
                     style: GoogleFonts.tajawal(
                       fontSize: 13,
@@ -1086,7 +1087,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                       : null,
                 ),
                 child: Center(
-                  child: Text(
+                  child: DText(
                     '💎 سحب ألماس الراتب',
                     style: GoogleFonts.tajawal(
                       fontSize: 13,
@@ -1188,7 +1189,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          DText(
                               user['display_name']?.toString() ??
                                   'مستخدم',
                               style: GoogleFonts.tajawal(
@@ -1196,7 +1197,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                                   fontWeight: FontWeight.w800,
                                   color: const Color(0xFF1a1a2e))),
                           if (user['kayan_id'] != null)
-                            Text('# ${user['kayan_id']}',
+                            DText('# ${user['kayan_id']}',
                                 style: GoogleFonts.tajawal(
                                     fontSize: 12,
                                     color: KayanBrandColors.logoPrimary,
@@ -1209,7 +1210,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                       color: const Color(0xFFFFB800).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
+                    child: DText(
                       '🪙 ${_fmtAmt(user['coins'] ?? 0)}',
                       style: GoogleFonts.tajawal(
                         fontSize: 11,
@@ -1263,7 +1264,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                 defaultAsset: R.hykTxtTransferTitle,
                 height: 24,
                 fit: BoxFit.contain,
-                fallbackWidget: Text(
+                fallbackWidget: DText(
                   _isWithdrawMode ? 'سحب رصيد الألماس' : 'تحويل كوينز الوكالة',
                   style: const TextStyle(
                     fontSize: 16,
@@ -1303,7 +1304,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      DText(
                         user['display_name']?.toString() ?? 'مستخدم',
                         style: GoogleFonts.tajawal(
                           fontSize: 15,
@@ -1317,7 +1318,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
+                          const DText(
                             'ID :',
                             style: TextStyle(
                               fontSize: 13,
@@ -1332,7 +1333,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                               color: const Color(0x8C000000),
                               borderRadius: BorderRadius.circular(11),
                             ),
-                            child: Text(
+                            child: DText(
                               user['kayan_id']?.toString() ?? user['id']?.toString() ?? '',
                               style: const TextStyle(
                                 fontSize: 11,
@@ -1366,7 +1367,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              DText(
                 _isWithdrawMode ? 'رصيد ألماس المستخدم المتاح للسحب:' : 'رصيد وكالتك الحالي:',
                 style: GoogleFonts.tajawal(
                   fontSize: 12,
@@ -1380,7 +1381,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFFFDB442), width: 1),
                 ),
-                child: Text(
+                child: DText(
                   _isWithdrawMode ? 'سحب الراتب' : 'تعبئة وشحن',
                   style: const TextStyle(
                     fontSize: 10,
@@ -1401,12 +1402,12 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
             ),
             child: Row(
               children: [
-                Text(
+                DText(
                   _isWithdrawMode ? '💎' : '🪙',
                   style: const TextStyle(fontSize: 18),
                 ),
                 const SizedBox(width: 8),
-                Text(
+                DText(
                   _isWithdrawMode ? _fmtAmt(diamonds) : _fmtAmt(widget.agencyGold),
                   style: const TextStyle(
                     fontSize: 15,
@@ -1416,7 +1417,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                   ),
                 ),
                 const Spacer(),
-                Text(
+                DText(
                   _isWithdrawMode ? 'ماسة متوفرة' : 'كوين في الوكالة',
                   style: GoogleFonts.tajawal(fontSize: 11, color: Colors.white54),
                 ),
@@ -1432,7 +1433,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
           const SizedBox(height: 14),
 
           // ── textViewRuuiofkio5 + etCoins (حقل إدخال الكوينز الأول) ──
-          Text(
+          DText(
             _isWithdrawMode ? 'عدد الماسات المراد سحبها كراتب:' : 'عدد الكوينز المراد شحنها:',
             style: GoogleFonts.tajawal(
               fontSize: 12,
@@ -1471,7 +1472,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
           const SizedBox(height: 12),
 
           // ── textViewRuuiofkio6 + etCoins2 (حقل تأكيد عدد الكوينز) ──
-          Text(
+          DText(
             _isWithdrawMode ? 'تأكيد عدد الماسات المراد سحبها:' : 'تأكيد عدد الكوينز المراد شحنها:',
             style: GoogleFonts.tajawal(
               fontSize: 12,
@@ -1513,7 +1514,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
           // ── tvNotEnough2: رسالة عدم تطابق المبالغ ──
           if (hasMismatch) ...[
             const SizedBox(height: 5),
-            const Text(
+            const DText(
               '⚠️ المبالغ غير متطابقة، يرجى كتابة نفس المبلغ للتأكيد',
               style: TextStyle(fontSize: 11, color: Color(0xFFFF5757), fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
@@ -1533,7 +1534,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
     final amounts = widget.quickAmounts;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Text(
+        DText(
           'مبالغ سريعة:',
           style: GoogleFonts.tajawal(
             fontSize: 11,
@@ -1554,7 +1555,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.tune_rounded, size: 12, color: Color(0xFF3ED78A)),
               const SizedBox(width: 4),
-              Text(
+              DText(
                 'تخصيص',
                 style: GoogleFonts.tajawal(
                   fontSize: 10,
@@ -1594,9 +1595,9 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                           ),
                         ),
                         child: Column(children: [
-                          const Text('🪙', style: TextStyle(fontSize: 13)),
+                          const DText('🪙', style: TextStyle(fontSize: 13)),
                           const SizedBox(height: 2),
-                          Text(
+                          DText(
                             _fmtAmt(amt),
                             style: const TextStyle(
                               fontSize: 12,
@@ -1662,7 +1663,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                     height: 20,
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                   )
-                : Text(
+                : DText(
                     _isWithdrawMode ? 'تأكيد سحب الألماس 💎' : dc.agentRechargeConfirmText,
                     style: GoogleFonts.tajawal(
                       fontSize: 15,
@@ -1678,15 +1679,15 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
   Widget _buildGuide() => Padding(
         padding: const EdgeInsets.only(top: 60),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('🔍', style: TextStyle(fontSize: 52)),
+          const DText('🔍', style: TextStyle(fontSize: 52)),
           const SizedBox(height: 16),
-          Text('ابحث عن مستخدم بالـ ID أو الاسم',
+          DText('ابحث عن مستخدم بالـ ID أو الاسم',
               style: GoogleFonts.tajawal(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: Colors.black54)),
           const SizedBox(height: 6),
-          Text('يمكنك البحث برقم المعرف أو الاسم لشحن أو سحب الكوينز فورياً',
+          DText('يمكنك البحث برقم المعرف أو الاسم لشحن أو سحب الكوينز فورياً',
               textAlign: TextAlign.center,
               style: GoogleFonts.tajawal(
                   fontSize: 13, color: Colors.black38)),
@@ -1694,7 +1695,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
           OutlinedButton.icon(
             onPressed: () => AgentResetPinDialog.show(context),
             icon: const Icon(Icons.lock_reset_rounded, size: 20, color: Color(0xFFB78103)),
-            label: Text(
+            label: DText(
               'إعادة تعيين رمز PIN الخاص بك',
               style: GoogleFonts.tajawal(
                 fontSize: 14,

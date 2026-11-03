@@ -20,6 +20,7 @@ import '../../screens/rank/rank_screen.dart';
 import '../../utils/app_action_navigator.dart';
 import 'global_search_delegate.dart';
 import '../../widgets/user_id_widget.dart';
+import 'package:zero/core/dtext.dart';
 
 class RoomDiscoverScreen extends StatefulWidget {
   const RoomDiscoverScreen({super.key});
@@ -226,7 +227,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
               child: Row(
                 children: [
                   const Spacer(),
-                  Text(
+                  DText(
                     isAr ? 'اختر الدولة' : 'Select Country',
                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                   ),
@@ -272,8 +273,8 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
 
   Widget _countryItem(String flag, String name) {
     return ListTile(
-      leading: Text(flag, style: const TextStyle(fontSize: 24)),
-      title: Text(name),
+      leading: DText(flag, style: const TextStyle(fontSize: 24)),
+      title: DText(name),
       onTap: () {
         Navigator.pop(context);
         setState(() {
@@ -446,7 +447,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
         children: [
           R.image(iconPath, width: 20, height: 20),
           const SizedBox(height: 2),
-          Text(
+          DText(
             label,
             style: TextStyle(
               fontSize: 13,
@@ -548,7 +549,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                       Row(
                         children: [
                           Flexible(
-                            child: Text(
+                            child: DText(
                               room.name,
                               style: const TextStyle(
                                 color: Colors.white,
@@ -567,7 +568,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(color: btnColor.withOpacity(0.6), width: 0.5),
                             ),
-                            child: Text(
+                            child: DText(
                               isAr ? 'غرفتي' : 'My Room',
                               style: TextStyle(
                                 color: btnColor,
@@ -579,7 +580,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         'ID: ${room.roomId}',
                         style: const TextStyle(
                           color: Colors.white70,
@@ -612,7 +613,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                     ),
                     elevation: 3,
                   ),
-                  child: Text(
+                  child: DText(
                     isAr ? 'دخول' : 'Enter',
                     style: const TextStyle(
                       fontSize: 13,
@@ -639,7 +640,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      DText(
                         isAr ? 'ليس لديك غرفة بعد' : 'No Room Created Yet',
                         style: const TextStyle(
                           color: Colors.white,
@@ -648,7 +649,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      DText(
                         isAr ? 'ابدأ الآن بإنشاء غرفتك الخاصة وتحدث مع أصدقائك' : 'Create your room and start chatting',
                         style: const TextStyle(
                           color: Colors.white60,
@@ -672,7 +673,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                     ),
                     elevation: 3,
                   ),
-                  child: Text(
+                  child: DText(
                     isAr ? 'إنشاء روم' : 'Create Room',
                     style: const TextStyle(
                       fontSize: 12,
@@ -748,7 +749,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                           children: [
                             const Icon(Icons.headset_off, size: 64, color: Colors.black26),
                             const SizedBox(height: 16),
-                            Text(
+                            DText(
                               isFollowTab
                                   ? (isAr ? 'لم تتابع أي غرفة بعد\nاستكشف الغرف وتابع غرفك المفضلة!' : 'No followed rooms yet\nDiscover and follow rooms!')
                                   : (isAr ? 'لا توجد غرف حالياً\nابدأ بإنشاء غرفتك الآن!' : 'No rooms yet\nCreate one!'),
@@ -894,7 +895,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                           height: 24,
                         ),
                         const SizedBox(width: 2),
-                        Text(
+                        DText(
                           isAr ? 'المزيد' : 'More',
                           style: const TextStyle(
                             fontSize: 11,
@@ -939,12 +940,12 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                             ),
                             child: Row(
                               children: [
-                                Text(
+                                DText(
                                   country['flag']!,
                                   style: const TextStyle(fontSize: 14),
                                 ),
                                 const SizedBox(width: 2),
-                                Text(
+                                DText(
                                   countryName,
                                   style: TextStyle(
                                     fontSize: 11,
@@ -1027,7 +1028,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                             child: R.image(categoryIcon, fit: BoxFit.contain),
                           ),
                           const SizedBox(width: 2),
-                          Text(
+                          DText(
                             '${room.memberCount}',
                             style: const TextStyle(
                               fontSize: 11, fontWeight: FontWeight.bold,
@@ -1085,9 +1086,9 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text('🧧', style: TextStyle(fontSize: 10)),
+                                  DText('🧧', style: TextStyle(fontSize: 10)),
                                   SizedBox(width: 3),
-                                  Text(
+                                  DText(
                                     'حقيبة الحظ',
                                     style: TextStyle(
                                       fontSize: 10,
@@ -1106,7 +1107,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               margin: const EdgeInsets.only(bottom: 2),
-                              child: Text(
+                              child: DText(
                                 room.category,
                                 style: const TextStyle(fontSize: 11, color: Colors.white),
                               ),
@@ -1120,7 +1121,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                                   width: 18,
                                   height: 12,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Text(
+                                  errorBuilder: (_, __, ___) => DText(
                                     UserIdWidget.countryCodeToEmoji(UserIdWidget.resolveCountryCode(room.country)),
                                     style: const TextStyle(fontSize: 10),
                                   ),
@@ -1147,7 +1148,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                                 color: Colors.white70,
                               ),
                               const SizedBox(width: 1),
-                              Text(
+                              DText(
                                 '${room.memberCount}',
                                 style: const TextStyle(
                                   fontSize: 11, fontWeight: FontWeight.bold,

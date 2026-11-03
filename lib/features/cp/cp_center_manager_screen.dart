@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/cache/encrypted_image_provider.dart';
 import '../../services/dynamic_config_service.dart';
 import 'cp_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class CcCenterManagerScreen extends StatefulWidget {
   const CcCenterManagerScreen({super.key});
@@ -67,7 +68,7 @@ class _CcCenterManagerScreenState extends State<CcCenterManagerScreen>
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('مركز إدارة العلاقات',
+        title: const DText('مركز إدارة العلاقات',
             style: TextStyle(color: Colors.white, fontSize: 18)),
         centerTitle: true,
         bottom: TabBar(
@@ -91,7 +92,7 @@ class _CcCenterManagerScreenState extends State<CcCenterManagerScreen>
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: cfg.cpGold))
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.white54)))
+              ? Center(child: DText(_error!, style: const TextStyle(color: Colors.white54)))
               : TabBarView(
                   controller: _tabController,
                   children: [
@@ -111,7 +112,7 @@ class _CcCenterManagerScreenState extends State<CcCenterManagerScreen>
             Icon(isRejected ? Icons.cancel_outlined : Icons.inbox_outlined,
                 size: 64, color: Colors.white.withValues(alpha: 0.2)),
             const SizedBox(height: 12),
-            Text(isRejected ? 'لا توجد طلبات مرفوضة' : 'لا توجد طلبات معلقة',
+            DText(isRejected ? 'لا توجد طلبات مرفوضة' : 'لا توجد طلبات معلقة',
                 style: const TextStyle(color: Colors.white54, fontSize: 16)),
           ],
         ),
@@ -136,7 +137,7 @@ class _CcCenterManagerScreenState extends State<CcCenterManagerScreen>
           children: [
             Icon(Icons.inbox_outlined, size: 64, color: Colors.white.withValues(alpha: 0.2)),
             const SizedBox(height: 12),
-            const Text('لا توجد طلبات معلقة',
+            const DText('لا توجد طلبات معلقة',
                 style: TextStyle(color: Colors.white54, fontSize: 16)),
           ],
         ),
@@ -181,12 +182,12 @@ class _CcCenterManagerScreenState extends State<CcCenterManagerScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name,
+                DText(name,
                     style: const TextStyle(color: Colors.white, fontSize: 15),
                     overflow: TextOverflow.ellipsis),
                 if (rejectedAt != null) ...[
                   const SizedBox(height: 2),
-                  Text('تم الرفض', style: TextStyle(color: cfg.cpSubText, fontSize: 11)),
+                  DText('تم الرفض', style: TextStyle(color: cfg.cpSubText, fontSize: 11)),
                 ],
               ],
             ),
@@ -198,7 +199,7 @@ class _CcCenterManagerScreenState extends State<CcCenterManagerScreen>
                 color: Colors.red.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text('مرفوض', style: TextStyle(color: Colors.redAccent, fontSize: 11)),
+              child: const DText('مرفوض', style: TextStyle(color: Colors.redAccent, fontSize: 11)),
             )
           else
             Row(
@@ -213,7 +214,7 @@ class _CcCenterManagerScreenState extends State<CcCenterManagerScreen>
                       padding: EdgeInsets.zero,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(35)),
                     ),
-                    child: const Text('قبول', style: TextStyle(color: Colors.white, fontSize: 13)),
+                    child: const DText('قبول', style: TextStyle(color: Colors.white, fontSize: 13)),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -227,7 +228,7 @@ class _CcCenterManagerScreenState extends State<CcCenterManagerScreen>
                       padding: EdgeInsets.zero,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(35)),
                     ),
-                    child: const Text('رفض', style: TextStyle(fontSize: 13)),
+                    child: const DText('رفض', style: TextStyle(fontSize: 13)),
                   ),
                 ),
               ],

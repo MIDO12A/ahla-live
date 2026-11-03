@@ -16,6 +16,7 @@ import '../../features/signin/weekly_signin_screen.dart';
 import '../../services/supabase_service.dart';
 import '../room/widgets/room_marquee_broadcast.dart';
 import '../../features/lucky_gift/services/lucky_gift_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -255,7 +256,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               child: _navIconWidget(isSelected ? selectedIcon : normalIcon),
             ),
             const SizedBox(height: 2),
-            Text(
+            DText(
               label,
               style: TextStyle(
                 fontSize: 11,

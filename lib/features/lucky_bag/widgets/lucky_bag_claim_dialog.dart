@@ -1,9 +1,10 @@
-﻿import 'dart:math';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/user_provider.dart';
 import '../models/lucky_bag_model.dart';
 import '../services/lucky_bag_service.dart';
+import 'package:zero/core/dtext.dart';
 
 /// حوار فتح حقيبة الحظ المطابق لـ dialog_luckybag_open.xml
 /// يدعم حالتي dialog_luckybag_ready_to_open.xml و dialog_luckybag_opened.xml
@@ -176,7 +177,7 @@ class _LuckyBagClaimDialogState extends State<LuckyBagClaimDialog> with SingleTi
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
+                    DText(
                       _currentBag.ownerName,
                       style: const TextStyle(
                         color: Colors.white,
@@ -187,7 +188,7 @@ class _LuckyBagClaimDialogState extends State<LuckyBagClaimDialog> with SingleTi
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    DText(
                       _currentBag.greetingText.isNotEmpty
                           ? _currentBag.greetingText
                           : (isAr ? 'أرسل لك حقيبة حظ 🧧' : 'Sent a Lucky Bag 🧧'),
@@ -210,7 +211,7 @@ class _LuckyBagClaimDialogState extends State<LuckyBagClaimDialog> with SingleTi
                       color: Colors.black.withValues(alpha: 0.65),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
+                    child: DText(
                       _errorMessage!,
                       style: const TextStyle(color: Color(0xFFFF8A80), fontSize: 11, fontWeight: FontWeight.bold),
                     ),
@@ -237,7 +238,7 @@ class _LuckyBagClaimDialogState extends State<LuckyBagClaimDialog> with SingleTi
                           child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFFAF4C25)),
                         )
                       else
-                        Text(
+                        DText(
                           isAr ? 'فتح' : 'OPEN',
                           style: const TextStyle(
                             color: Color(0xFFAF4C25),
@@ -325,7 +326,7 @@ class _LuckyBagClaimDialogState extends State<LuckyBagClaimDialog> with SingleTi
                     const SizedBox(height: 4),
 
                     // title (sender name)
-                    Text(
+                    DText(
                       _currentBag.ownerName,
                       style: const TextStyle(
                         color: Colors.white,
@@ -350,7 +351,7 @@ class _LuckyBagClaimDialogState extends State<LuckyBagClaimDialog> with SingleTi
                     const SizedBox(height: 6),
 
                     // num (amount won)
-                    Text(
+                    DText(
                       '+ 🪙',
                       style: const TextStyle(
                         color: Color(0xFFFFFDBD),
@@ -375,7 +376,7 @@ class _LuckyBagClaimDialogState extends State<LuckyBagClaimDialog> with SingleTi
                               height: 45,
                               fit: BoxFit.fill,
                             ),
-                            Text(
+                            DText(
                               isAr ? 'تأكيد' : 'Confirm',
                               style: const TextStyle(
                                 color: Color(0xFFAF4C25),

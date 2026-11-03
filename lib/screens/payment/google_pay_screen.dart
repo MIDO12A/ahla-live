@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/r.dart';
+import 'package:zero/core/dtext.dart';
 
 class GooglePayScreen extends StatefulWidget {
   const GooglePayScreen({super.key});
@@ -36,7 +37,7 @@ class _GooglePayScreenState extends State<GooglePayScreen> {
                   ),
                 ),
                 const Spacer(),
-                const Text('Google Pay', style: TextStyle(fontSize: 17, color: Color(0xFF16151A), fontWeight: FontWeight.w500)),
+                const DText('Google Pay', style: TextStyle(fontSize: 17, color: Color(0xFF16151A), fontWeight: FontWeight.w500)),
                 const Spacer(),
                 const SizedBox(width: 32),
               ],
@@ -87,7 +88,7 @@ class _GooglePayScreenState extends State<GooglePayScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               child: SingleChildScrollView(
-                child: Text(
+                child: DText(
                   _logs.isEmpty ? 'Logs will appear here...' : _logs,
                   style: const TextStyle(fontSize: 13, color: Color(0xFF485FED), fontFamily: 'monospace'),
                 ),
@@ -110,7 +111,7 @@ class _GooglePayScreenState extends State<GooglePayScreen> {
           borderRadius: BorderRadius.circular(25),
         ),
         child: Center(
-          child: Text(text, style: const TextStyle(fontSize: 13, color: Colors.white)),
+          child: DText(text, style: const TextStyle(fontSize: 13, color: Colors.white)),
         ),
       ),
     );

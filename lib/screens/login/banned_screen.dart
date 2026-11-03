@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/supabase_auth_service.dart';
 import 'login_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class BannedScreen extends StatelessWidget {
   final String reason;
@@ -46,7 +47,7 @@ class BannedScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
+                const DText(
                   'تم إيقاف حسابك',
                   style: TextStyle(
                     color: Colors.white,
@@ -55,7 +56,7 @@ class BannedScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                const DText(
                   'تم إيقاف حسابك عن الاستخدام بسبب مخالفة سياسات التطبيق',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -79,7 +80,7 @@ class BannedScreen extends StatelessWidget {
                         children: [
                           Icon(Icons.info_outline, color: Color(0xFFEF4444), size: 18),
                           SizedBox(width: 8),
-                          Text(
+                          DText(
                             'سبب الحظر:',
                             style: TextStyle(
                               color: Color(0xFFEF4444),
@@ -90,7 +91,7 @@ class BannedScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      DText(
                         reason.isNotEmpty ? reason : 'مخالفة شروط وسياسات الاستخدام.',
                         style: const TextStyle(
                           color: Colors.white70,
@@ -103,7 +104,7 @@ class BannedScreen extends StatelessWidget {
                         children: [
                           const Icon(Icons.timer_outlined, color: Color(0xFFF59E0B), size: 18),
                           const SizedBox(width: 8),
-                          const Text(
+                          const DText(
                             'مدة الحظر المتبقية: ',
                             style: TextStyle(
                               color: Color(0xFFF59E0B),
@@ -111,7 +112,7 @@ class BannedScreen extends StatelessWidget {
                               fontSize: 13,
                             ),
                           ),
-                          Text(
+                          DText(
                             _formatDuration(),
                             style: const TextStyle(
                               color: Colors.white,
@@ -137,7 +138,7 @@ class BannedScreen extends StatelessWidget {
                       ),
                     ),
                     icon: const Icon(Icons.logout),
-                    label: const Text('تسجيل الخروج', style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: const DText('تسجيل الخروج', style: TextStyle(fontWeight: FontWeight.bold)),
                     onPressed: () async {
                       await SupabaseAuthService().signOut();
                       if (context.mounted) {

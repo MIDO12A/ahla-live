@@ -8,6 +8,7 @@ import '../../../services/supabase_service.dart';
 import '../../../core/ui/in_app_toast.dart';
 import '../data/agency_repository.dart';
 import '../data/agency_models.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyExitScreen — شاشة الخروج من الوكالة وإدارتها
@@ -177,14 +178,14 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
             Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 28),
             SizedBox(width: 8),
             Expanded(
-              child: Text(
+              child: DText(
                 'تأكيد نهائي لحذف الوكالة',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
           ],
         ),
-        content: const Text(
+        content: const DText(
           'أنت على وشك حذف الوكالة نهائياً والخروج منها بصفتك الوكيل والمؤسس.\n\n'
           '⚠️ سيؤدي هذا الإجراء فوراً إلى:\n'
           '• حذف الوكالة نهائياً من التطبيق.\n'
@@ -196,7 +197,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء التراجع', style: TextStyle(color: Colors.white60)),
+            child: const DText('إلغاء التراجع', style: TextStyle(color: Colors.white60)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -205,7 +206,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('نعم، حذف الوكالة نهائياً', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const DText('نعم، حذف الوكالة نهائياً', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -228,13 +229,13 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('حدث خطأ أثناء محاولة حذف الوكالة'), backgroundColor: Colors.red),
+          const SnackBar(content: DText('حدث خطأ أثناء محاولة حذف الوكالة'), backgroundColor: Colors.red),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
+          SnackBar(content: DText('خطأ: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -257,10 +258,10 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
           children: [
             Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 26),
             SizedBox(width: 8),
-            Text('تأكيد مغادرة الوكالة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            DText('تأكيد مغادرة الوكالة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
-        content: const Text(
+        content: const DText(
           'عند خروجك من الوكالة:\n'
           '• سيتم فك ارتباطك بالوكالة وإزالتها من حسابك.\n'
           '• سيتم حذف وتصفير مراحل التارجت المحققة الخاصة بك في هذه الوكالة.\n'
@@ -271,7 +272,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white60)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white60)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -280,7 +281,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('تأكيد المغادرة', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const DText('تأكيد المغادرة', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -303,13 +304,13 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر الخروج من الوكالة حالياً'), backgroundColor: Colors.red),
+          const SnackBar(content: DText('تعذر الخروج من الوكالة حالياً'), backgroundColor: Colors.red),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
+          SnackBar(content: DText('خطأ: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -326,7 +327,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF0D0D1A),
           foregroundColor: Colors.white,
-          title: Text(
+          title: DText(
             _isOwner ? 'إدارة وإنهاء الوكالة (الوكيل)' : 'مغادرة الوكالة',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
@@ -377,18 +378,18 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
                   child: const Icon(Icons.shield_outlined, color: Color(0xFFFF5252), size: 40),
                 ),
                 const SizedBox(height: 14),
-                const Text(
+                const DText(
                   'أنت وكيل ومؤسس الوكالة',
                   style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
-                Text(
+                DText(
                   _agencyName.isNotEmpty ? _agencyName : 'وكالتي الرسمية',
                   style: const TextStyle(color: Color(0xFFFFD700), fontSize: 15, fontWeight: FontWeight.w600),
                 ),
                 if (_agencyId != null && _agencyId!.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(
+                  DText(
                     'معرف الوكالة: ${_agencyId!}',
                     style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
                   ),
@@ -435,7 +436,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
                   children: [
                     Icon(Icons.warning_rounded, color: Color(0xFFFF5252), size: 22),
                     SizedBox(width: 8),
-                    Text(
+                    DText(
                       'ماذا يحدث عند خروج الوكيل؟',
                       style: TextStyle(color: Color(0xFFFF5252), fontWeight: FontWeight.bold, fontSize: 14),
                     ),
@@ -461,7 +462,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
               icon: _processing
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.delete_forever_rounded, size: 24),
-              label: Text(
+              label: DText(
                 _processing ? 'جاري حذف الوكالة والأعضاء...' : 'الخروج من الوكالة وحذفها نهائياً',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
               ),
@@ -502,12 +503,12 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
               children: [
                 const Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 44),
                 const SizedBox(height: 12),
-                const Text(
+                const DText(
                   'مغادرة الوكالة',
                   style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                DText(
                   'عند مغادرة الوكالة سيتم فك ارتباطك بالوكالة فوراً وتصفير مراحل التارجت المحققة بالوكالة.',
                   style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13, height: 1.5),
                   textAlign: TextAlign.center,
@@ -534,7 +535,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
               icon: _processing
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.exit_to_app_rounded),
-              label: Text(
+              label: DText(
                 _processing ? 'جاري المغادرة...' : 'تأكيد الخروج من الوكالة',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
               ),
@@ -560,7 +561,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('📋 قواعد المغادرة', style: TextStyle(color: Colors.white.withOpacity(0.8), fontWeight: FontWeight.bold, fontSize: 13)),
+                DText('📋 قواعد المغادرة', style: TextStyle(color: Colors.white.withOpacity(0.8), fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 8),
                 _Rule('عند الخروج: يتم إلغاء تبعية حسابك للوكالة فوراً.'),
                 _Rule('يتم تصفير مراحل وتارجت الألماس التابعة للوكالة السابقة.'),
@@ -594,9 +595,9 @@ class _StatMini extends StatelessWidget {
       children: [
         Icon(icon, color: color, size: 20),
         const SizedBox(height: 4),
-        Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
+        DText(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
         const SizedBox(height: 2),
-        Text(label, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+        DText(label, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
       ],
     );
   }
@@ -613,9 +614,9 @@ class _WarningPoint extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ', style: TextStyle(color: Color(0xFFFF5252), fontSize: 14, fontWeight: FontWeight.bold)),
+          const DText('• ', style: TextStyle(color: Color(0xFFFF5252), fontSize: 14, fontWeight: FontWeight.bold)),
           Expanded(
-            child: Text(
+            child: DText(
               text,
               style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12.5, height: 1.4),
             ),
@@ -643,10 +644,10 @@ class _InfoRow extends StatelessWidget {
         border: Border.all(color: Colors.white.withOpacity(0.07)),
       ),
       child: Row(children: [
-        Text(icon, style: const TextStyle(fontSize: 20)),
+        DText(icon, style: const TextStyle(fontSize: 20)),
         const SizedBox(width: 12),
-        Expanded(child: Text(label, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13))),
-        Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
+        Expanded(child: DText(label, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13))),
+        DText(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
       ]),
     );
   }
@@ -661,8 +662,8 @@ class _Rule extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('• ', style: TextStyle(color: Colors.white.withOpacity(0.4))),
-        Expanded(child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12, height: 1.5))),
+        DText('• ', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+        Expanded(child: DText(text, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12, height: 1.5))),
       ]),
     );
   }

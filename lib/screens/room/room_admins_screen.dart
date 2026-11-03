@@ -5,6 +5,7 @@ import '../../config/app_colors.dart';
 import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../models/user_model.dart';
+import 'package:zero/core/dtext.dart';
 
 // layout_room_admins_blacks.xml
 class RoomAdminsScreen extends StatefulWidget {
@@ -80,7 +81,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم إزالة $name من المشرفين')),
+          SnackBar(content: DText('تم إزالة $name من المشرفين')),
         );
       }
     } catch (e) {
@@ -99,7 +100,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
         builder: (context, setDlgState) => AlertDialog(
           backgroundColor: const Color(0xFF211211),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
+          title: const DText(
             'إضافة مشرف للغرفة',
             style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
@@ -107,7 +108,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              const DText(
                 'أدخل المعرف (ID) الخاص بالمستخدم لتعيينه مشرفاً في الغرفة:',
                 style: TextStyle(color: Colors.white70, fontSize: 13),
                 textAlign: TextAlign.center,
@@ -132,14 +133,14 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
               ),
               if (errorText != null) ...[
                 const SizedBox(height: 8),
-                Text(errorText!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                DText(errorText!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
               ],
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+              child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -194,7 +195,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
 
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('تم تعيين $targetName مشرفاً في الغرفة 👑')),
+                            SnackBar(content: DText('تم تعيين $targetName مشرفاً في الغرفة 👑')),
                           );
                         }
                       } catch (e) {
@@ -206,7 +207,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                     },
               child: isSearching
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                  : const Text('تعيين', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  : const DText('تعيين', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -252,7 +253,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                     borderRadius: BorderRadius.circular(26),
                   ),
                   alignment: Alignment.center,
-                  child: const Text(
+                  child: const DText(
                     'إضافة مشرف',
                     style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
                   ),
@@ -282,7 +283,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
             ),
           ),
           const Spacer(),
-          Text(
+          DText(
             'مدراء الغرفة (${_moderatorUids.length})',
             style: const TextStyle(fontSize: 17, color: Colors.white, fontWeight: FontWeight.w600),
           ),
@@ -300,7 +301,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
         children: [
           Icon(Icons.shield_outlined, color: Colors.white.withValues(alpha: 0.2), size: 64),
           const SizedBox(height: 16),
-          const Text(
+          const DText(
             'لا يوجد مدراء معينين في هذه الغرفة',
             style: TextStyle(fontSize: 15, color: Colors.white54),
           ),
@@ -339,7 +340,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
+                      child: DText(
                         nickname,
                         style: const TextStyle(fontSize: 15, color: Colors.white, fontWeight: FontWeight.w500),
                         overflow: TextOverflow.ellipsis,
@@ -352,12 +353,12 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                         gradient: AppColors.giftBtnGradient,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Text('مدير', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w500)),
+                      child: const DText('مدير', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w500)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text('ID: $customId', style: const TextStyle(fontSize: 12, color: Colors.white54)),
+                DText('ID: $customId', style: const TextStyle(fontSize: 12, color: Colors.white54)),
               ],
             ),
           ),
@@ -369,7 +370,7 @@ class _RoomAdminsScreenState extends State<RoomAdminsScreen> {
                 color: AppColors.accentRed.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text('إزالة', style: TextStyle(fontSize: 12, color: AppColors.muteRed, fontWeight: FontWeight.bold)),
+              child: const DText('إزالة', style: TextStyle(fontSize: 12, color: AppColors.muteRed, fontWeight: FontWeight.bold)),
             ),
           ),
         ],

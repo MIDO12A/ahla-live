@@ -5,6 +5,7 @@ import '../../../../../core/supabase_compat.dart';
 
 import '../../../../core/theme/brand_colors.dart';
 import '../../agent_recharge_widgets.dart';
+import 'package:zero/core/dtext.dart';
 
 // ══════════════════════════════════════════════════════════════════════
 //  History Tab
@@ -68,9 +69,9 @@ class _AgentHistoryTabState extends State<AgentHistoryTab> {
     if (_rows.isEmpty) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('📋', style: TextStyle(fontSize: 52)),
+          const DText('📋', style: TextStyle(fontSize: 52)),
           const SizedBox(height: 16),
-          Text('لا توجد عمليات بعد',
+          DText('لا توجد عمليات بعد',
               style: GoogleFonts.tajawal(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -116,7 +117,7 @@ class _AgentHistoryTabState extends State<AgentHistoryTab> {
                     children: [
                       Row(
                         children: [
-                          Text(name,
+                          DText(name,
                               style: GoogleFonts.tajawal(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w800,
@@ -128,7 +129,7 @@ class _AgentHistoryTabState extends State<AgentHistoryTab> {
                               color: badgeColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(
+                            child: DText(
                               isWithdraw ? 'سحب 📤' : 'شحن 🚀',
                               style: GoogleFonts.tajawal(
                                 fontSize: 10,
@@ -140,13 +141,13 @@ class _AgentHistoryTabState extends State<AgentHistoryTab> {
                         ],
                       ),
                       if (kid != null && kid.isNotEmpty)
-                        Text('# $kid',
+                        DText('# $kid',
                             style: GoogleFonts.tajawal(
                                 fontSize: 11,
                                 color: badgeColor,
                                 fontWeight: FontWeight.w700)),
                       const SizedBox(height: 3),
-                      Text(_fmtDate(ts),
+                      DText(_fmtDate(ts),
                           style: GoogleFonts.tajawal(
                               fontSize: 11, color: Colors.black38)),
                     ]),
@@ -161,7 +162,7 @@ class _AgentHistoryTabState extends State<AgentHistoryTab> {
                     border: Border.all(
                         color: badgeColor.withValues(alpha: 0.3)),
                   ),
-                  child: Text('${isWithdraw ? "-" : "+"} 🪙 $gold',
+                  child: DText('${isWithdraw ? "-" : "+"} 🪙 $gold',
                       style: GoogleFonts.tajawal(
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
@@ -177,7 +178,7 @@ class _AgentHistoryTabState extends State<AgentHistoryTab> {
                         : Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
+                  child: DText(
                     status == 'completed'
                         ? (isWithdraw ? '✓ تم السحب' : '✓ تم الشحن')
                         : status == 'refunded'
@@ -311,12 +312,12 @@ class _AgentEditQuickAmountsSheetState
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('تخصيص المبالغ السريعة',
+              DText('تخصيص المبالغ السريعة',
                   style: GoogleFonts.tajawal(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                       color: const Color(0xFF1a1a2e))),
-              Text('تظهر كأزرار مباشرة في صفحة الشحن',
+              DText('تظهر كأزرار مباشرة في صفحة الشحن',
                   style: GoogleFonts.tajawal(
                       fontSize: 11, color: Colors.black45)),
             ]),
@@ -336,7 +337,7 @@ class _AgentEditQuickAmountsSheetState
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.add_rounded, size: 16, color: Colors.green),
                   const SizedBox(width: 3),
-                  Text('إضافة',
+                  DText('إضافة',
                       style: GoogleFonts.tajawal(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -360,7 +361,7 @@ class _AgentEditQuickAmountsSheetState
                   size: 16, color: Colors.red),
               const SizedBox(width: 8),
               Expanded(
-                  child: Text(_error!,
+                  child: DText(_error!,
                       style: GoogleFonts.tajawal(
                           fontSize: 12,
                           color: Colors.red,
@@ -380,7 +381,7 @@ class _AgentEditQuickAmountsSheetState
                 side: BorderSide(
                     color: Colors.black.withValues(alpha: 0.15)),
               ),
-              child: Text('إلغاء',
+              child: DText('إلغاء',
                   style: GoogleFonts.tajawal(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
@@ -412,7 +413,7 @@ class _AgentEditQuickAmountsSheetState
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                 ),
-                child: Text('حفظ ✅',
+                child: DText('حفظ ✅',
                     style: GoogleFonts.tajawal(
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
@@ -437,7 +438,7 @@ class _AgentEditQuickAmountsSheetState
             borderRadius: BorderRadius.circular(10),
           ),
           child: Center(
-            child: Text('${idx + 1}',
+            child: DText('${idx + 1}',
                 style: GoogleFonts.tajawal(
                     fontSize: 13,
                     fontWeight: FontWeight.w900,

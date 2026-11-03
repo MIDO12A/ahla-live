@@ -6,6 +6,7 @@ import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/supabase_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class FeedbackScreen extends StatefulWidget {
   const FeedbackScreen({super.key});
@@ -42,7 +43,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     if (message.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('يرجى كتابة نص الشكوى أو الاقتراح أولاً', textAlign: TextAlign.center),
+          content: DText('يرجى كتابة نص الشكوى أو الاقتراح أولاً', textAlign: TextAlign.center),
           backgroundColor: Color(0xFFD32F2F),
         ),
       );
@@ -84,7 +85,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('تم إرسال اقتراحك / شكواك بنجاح إلى الإدارة!', textAlign: TextAlign.center),
+            content: DText('تم إرسال اقتراحك / شكواك بنجاح إلى الإدارة!', textAlign: TextAlign.center),
             backgroundColor: Color(0xFF388E3C),
           ),
         );
@@ -94,7 +95,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تعذر إرسال الشكوى: $e', textAlign: TextAlign.center),
+            content: DText('تعذر إرسال الشكوى: $e', textAlign: TextAlign.center),
             backgroundColor: const Color(0xFFD32F2F),
           ),
         );
@@ -183,7 +184,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                                     onPressed: () => setState(() => _selectedImage = null),
                                   ),
                                   const Spacer(),
-                                  const Text(
+                                  const DText(
                                     'تم اختيار صورة',
                                     style: TextStyle(fontSize: 14, color: Color(0xFF388E3C), fontWeight: FontWeight.bold),
                                   ),
@@ -197,7 +198,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  const Text(
+                                  const DText(
                                     'إضافة صورة توضيحية',
                                     style: TextStyle(
                                       fontSize: 14,
@@ -240,7 +241,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                             else ...[
                               R.image(R.mineFeedbackIc, width: 22, height: 22),
                               const SizedBox(width: 8),
-                              const Text(
+                              const DText(
                                 'إرسال الشكوى أو الاقتراح',
                                 style: TextStyle(
                                   fontSize: 16,
@@ -279,7 +280,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
             ),
           ),
           const Spacer(),
-          const Text(
+          const DText(
             'الشكاوى والاقتراحات',
             style: TextStyle(fontSize: 17, color: Color(0xFF16151A), fontWeight: FontWeight.bold),
           ),

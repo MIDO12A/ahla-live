@@ -6,6 +6,7 @@ import '../../../services/supabase_data_service.dart';
 import '../widgets/salary_disburse_dialog.dart';
 import '../widgets/store_gift_dialog.dart';
 import '../widgets/commission_period_dialog.dart';
+import 'package:zero/core/dtext.dart';
 
 class SuperAdminCenterScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -142,14 +143,14 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
           children: [
             Icon(Icons.business_center, color: Color(0xFFFFD700)),
             SizedBox(width: 8),
-            Text('دعوة مستخدم لفتح وكالة', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            DText('دعوة مستخدم لفتح وكالة', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            const DText(
               'أدخل المعرف (User ID أو Custom ID) للمستخدم المراد دعوته:',
               style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
@@ -171,7 +172,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700), foregroundColor: Colors.black),
@@ -181,7 +182,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               Navigator.pop(ctx);
               _sendAgencyInvitation(targetQuery);
             },
-            child: const Text('إرسال الدعوة'),
+            child: const DText('إرسال الدعوة'),
           ),
         ],
       ),
@@ -235,7 +236,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
           children: [
             Icon(Icons.shield_outlined, color: Colors.blueAccent),
             SizedBox(width: 8),
-            Text('تعيين مسؤول Admin جديد', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            DText('تعيين مسؤول Admin جديد', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           ],
         ),
         content: SingleChildScrollView(
@@ -243,7 +244,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('معرف المستخدم (User ID):', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const DText('معرف المستخدم (User ID):', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 6),
               TextField(
                 controller: searchCtrl,
@@ -258,7 +259,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
                 ),
               ),
               const SizedBox(height: 12),
-              const Text('الراتب الشهري (USD):', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const DText('الراتب الشهري (USD):', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 6),
               TextField(
                 controller: salaryCtrl,
@@ -273,7 +274,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
                 ),
               ),
               const SizedBox(height: 12),
-              const Text('نسبة العمولة (%):', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const DText('نسبة العمولة (%):', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 6),
               TextField(
                 controller: commissionCtrl,
@@ -293,7 +294,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
@@ -305,7 +306,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               Navigator.pop(ctx);
               _executeAssignStaff(targetQuery, isStaffAdmin: true, salary: salary, commission: comm);
             },
-            child: const Text('تعيين Admin'),
+            child: const DText('تعيين Admin'),
           ),
         ],
       ),
@@ -327,7 +328,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
           children: [
             Icon(Icons.workspace_premium, color: Color(0xFFFFD700)),
             SizedBox(width: 8),
-            Text('تعيين مسؤول BD جديد', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            DText('تعيين مسؤول BD جديد', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           ],
         ),
         content: SingleChildScrollView(
@@ -335,7 +336,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('معرف المستخدم (User ID):', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const DText('معرف المستخدم (User ID):', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 6),
               TextField(
                 controller: searchCtrl,
@@ -350,7 +351,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
                 ),
               ),
               const SizedBox(height: 12),
-              const Text('الراتب الشهري (USD):', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const DText('الراتب الشهري (USD):', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 6),
               TextField(
                 controller: salaryCtrl,
@@ -365,7 +366,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
                 ),
               ),
               const SizedBox(height: 12),
-              const Text('نسبة العمولة (%):', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const DText('نسبة العمولة (%):', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 6),
               TextField(
                 controller: commissionCtrl,
@@ -385,7 +386,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700), foregroundColor: Colors.black),
@@ -397,7 +398,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               Navigator.pop(ctx);
               _executeAssignStaff(targetQuery, isStaffAdmin: false, salary: salary, commission: comm);
             },
-            child: const Text('تعيين BD'),
+            child: const DText('تعيين BD'),
           ),
         ],
       ),
@@ -461,7 +462,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A1C29),
         elevation: 0,
-        title: const Text(
+        title: const DText(
           'مركز السوبر أدمن (Super Admin)',
           style: TextStyle(color: Color(0xFFFFD700), fontSize: 18, fontWeight: FontWeight.bold),
         ),
@@ -534,7 +535,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               children: [
                 Row(
                   children: [
-                    Text(
+                    DText(
                       widget.currentUser.name,
                       style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
@@ -545,12 +546,12 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
                         color: const Color(0xFFFFD700).withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text('SUPER ADMIN', style: TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.bold)),
+                      child: const DText('SUPER ADMIN', style: TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(
+                DText(
                   'ID: ' + widget.currentUser.customId + ' | نسبة العمولة: ' + _myCommissionRate.toStringAsFixed(1) + '%',
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
@@ -596,12 +597,12 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               Icon(icon, color: color, size: 20),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(title, style: const TextStyle(color: Colors.white70, fontSize: 11), maxLines: 1),
+                child: DText(title, style: const TextStyle(color: Colors.white70, fontSize: 11), maxLines: 1),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(value, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+          DText(value, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -638,7 +639,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
           children: [
             Icon(icon, color: color, size: 16),
             const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+            DText(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -667,7 +668,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
 
   Widget _buildAgenciesTab() {
     if (_myAgencies.isEmpty) {
-      return const Center(child: Text('لا توجد وكالات مسجلة تحتك حالياً', style: TextStyle(color: Colors.white38)));
+      return const Center(child: DText('لا توجد وكالات مسجلة تحتك حالياً', style: TextStyle(color: Colors.white38)));
     }
     return ListView.builder(
       itemCount: _myAgencies.length,
@@ -687,14 +688,14 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               backgroundColor: Color(0xFFFFD700),
               child: Icon(Icons.business, color: Colors.black, size: 20),
             ),
-            title: Text(agency['name'] ?? agency['agency_name'] ?? 'وكالة بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: Text('كود: ' + (agency['agency_code']?.toString() ?? '-') + ' | أرباح: \$' + earnings.toStringAsFixed(0), style: const TextStyle(color: Colors.white60, fontSize: 12)),
+            title: DText(agency['name'] ?? agency['agency_name'] ?? 'وكالة بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            subtitle: DText('كود: ' + (agency['agency_code']?.toString() ?? '-') + ' | أرباح: \$' + earnings.toStringAsFixed(0), style: const TextStyle(color: Colors.white60, fontSize: 12)),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const Text('عمولتك', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                Text('+\$' + commission.toStringAsFixed(1), style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
+                const DText('عمولتك', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                DText('+\$' + commission.toStringAsFixed(1), style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
               ],
             ),
           ),
@@ -705,7 +706,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
 
   Widget _buildAdminsTab() {
     if (_myAdmins.isEmpty) {
-      return const Center(child: Text('لا يوجد مسؤولو Admin تحت إشرافك حالياً', style: TextStyle(color: Colors.white38)));
+      return const Center(child: DText('لا يوجد مسؤولو Admin تحت إشرافك حالياً', style: TextStyle(color: Colors.white38)));
     }
     return ListView.builder(
       itemCount: _myAdmins.length,
@@ -723,9 +724,9 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               backgroundImage: (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
               child: (photo == null || photo.isEmpty) ? const Icon(Icons.person, color: Colors.blueAccent) : null,
             ),
-            title: Text(admin['name'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: Text('ID: ' + (admin['custom_id']?.toString() ?? admin['uid']?.toString() ?? '') + ' | عمولة: ' + commRate.toStringAsFixed(1) + '%', style: const TextStyle(color: Colors.white60, fontSize: 12)),
-            trailing: Text('راتب: \$' + salary.toStringAsFixed(0), style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+            title: DText(admin['name'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            subtitle: DText('ID: ' + (admin['custom_id']?.toString() ?? admin['uid']?.toString() ?? '') + ' | عمولة: ' + commRate.toStringAsFixed(1) + '%', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+            trailing: DText('راتب: \$' + salary.toStringAsFixed(0), style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
           ),
         );
       },
@@ -734,7 +735,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
 
   Widget _buildBdsTab() {
     if (_myBds.isEmpty) {
-      return const Center(child: Text('لا يوجد مسؤولو BD تحت إشرافك حالياً', style: TextStyle(color: Colors.white38)));
+      return const Center(child: DText('لا يوجد مسؤولو BD تحت إشرافك حالياً', style: TextStyle(color: Colors.white38)));
     }
     return ListView.builder(
       itemCount: _myBds.length,
@@ -752,9 +753,9 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               backgroundImage: (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
               child: (photo == null || photo.isEmpty) ? const Icon(Icons.person, color: Color(0xFFFFD700)) : null,
             ),
-            title: Text(bd['name'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: Text('ID: ' + (bd['custom_id']?.toString() ?? bd['uid']?.toString() ?? '') + ' | عمولة: ' + commRate.toStringAsFixed(1) + '%', style: const TextStyle(color: Colors.white60, fontSize: 12)),
-            trailing: Text('راتب: \$' + salary.toStringAsFixed(0), style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+            title: DText(bd['name'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            subtitle: DText('ID: ' + (bd['custom_id']?.toString() ?? bd['uid']?.toString() ?? '') + ' | عمولة: ' + commRate.toStringAsFixed(1) + '%', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+            trailing: DText('راتب: \$' + salary.toStringAsFixed(0), style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
           ),
         );
       },

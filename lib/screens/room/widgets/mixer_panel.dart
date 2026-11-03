@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
 import '../../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // MixerPanel — fragment_room_music_mixer.xml
@@ -53,7 +54,7 @@ class _MixerPanelState extends State<MixerPanel> {
           Row(
             children: [
               Expanded(
-                child: Text(
+                child: DText(
                   isAr ? 'الميكسر' : 'Mixer',
                   style: const TextStyle(
                     fontSize: 16,
@@ -113,7 +114,7 @@ class _MixerPanelState extends State<MixerPanel> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
+                  child: DText(
                     isAr ? 'ميكسر الميكروفون' : 'Open Microphone Mixer',
                     style: const TextStyle(
                       fontSize: 15,
@@ -128,7 +129,7 @@ class _MixerPanelState extends State<MixerPanel> {
           const SizedBox(height: 12),
 
           // Description text
-          Text(
+          DText(
             _mixerEnabled
                 ? (isAr
                     ? 'تم تفعيل ميكسر الميكروفون. سيتم دمج صوتك مع الموسيقى والمؤثرات للحصول على تجربة استماع احترافية.'
@@ -163,7 +164,7 @@ class _MixerPanelState extends State<MixerPanel> {
       children: [
         SizedBox(
           width: 48,
-          child: Text(
+          child: DText(
             label,
             style: const TextStyle(fontSize: 12, color: Colors.white70),
           ),

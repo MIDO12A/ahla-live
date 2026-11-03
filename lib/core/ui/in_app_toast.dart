@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zero/core/dtext.dart';
 
 abstract final class KayanInAppToast {
   static final GlobalKey<ScaffoldMessengerState> messengerKey =
@@ -6,7 +7,7 @@ abstract final class KayanInAppToast {
 
   static void _show(String message, Color bgColor) {
     messengerKey.currentState?.showSnackBar(SnackBar(
-      content: Text(message, style: const TextStyle(fontFamily: 'Tajawal', color: Colors.white)),
+      content: DText(message, style: const TextStyle(fontFamily: 'Tajawal', color: Colors.white)),
       backgroundColor: bgColor,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

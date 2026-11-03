@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +12,7 @@ import '../../widgets/app_update_dialog.dart';
 import '../../utils/app_action_navigator.dart';
 import '../room/widgets/svga_frame.dart';
 import '../login/banned_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, required this.onNavigate});
@@ -193,7 +194,7 @@ class _SplashScreenState extends State<SplashScreen> {
                         image: R.cachedImage(imageUrl),
                         fit: BoxFit.cover,
                         errorBuilder: (ctx, err, stack) => Center(
-                          child: Text(
+                          child: DText(
                             config.appName,
                             style: const TextStyle(
                               fontSize: 28,
@@ -225,7 +226,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
+                          DText(
                             'تخطي $_adCountdown',
                             style: const TextStyle(
                               color: Colors.white,
@@ -283,7 +284,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            DText(
               config.appName.isNotEmpty ? config.appName : 'Ahla Live',
               style: TextStyle(
                 fontSize: 26,

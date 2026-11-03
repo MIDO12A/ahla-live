@@ -7,6 +7,7 @@ import '../../services/dynamic_config_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../user_profile/user_profile_screen.dart';
 import '../room/room_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 enum _RankPeriod { daily, weekly, monthly }
 
@@ -394,7 +395,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     final data = _getRankingData(period, type);
     if (data.isEmpty) {
       return const Center(
-        child: Text(
+        child: DText(
           'لا توجد بيانات ترتيب حالياً',
           style: TextStyle(fontSize: 14, color: Colors.white70, fontWeight: FontWeight.w500),
         ),
@@ -536,7 +537,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                 width: width - 10,
                 child: Column(
                   children: [
-                    Text(
+                    DText(
                       item['name']?.toString() ?? '',
                       style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                       maxLines: 1,
@@ -545,7 +546,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                     ),
                     const SizedBox(height: 1),
                     if (displayId.isNotEmpty)
-                      Text(
+                      DText(
                         'ID: #$displayId',
                         style: const TextStyle(color: Colors.white70, fontSize: 10),
                       ),
@@ -560,7 +561,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                           errorBuilder: (_, __, ___) => const Icon(Icons.monetization_on, size: 12, color: Color(0xFFFFD54F)),
                         ),
                         const SizedBox(width: 4),
-                        Text(
+                        DText(
                           _formatPoints(item['points'] ?? 0),
                           style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 12, fontWeight: FontWeight.bold),
                         ),
@@ -679,7 +680,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                 const SizedBox(width: 20),
                 SizedBox(
                   width: 30,
-                  child: Text(
+                  child: DText(
                     rank < 10 ? '0$rank' : '$rank',
                     style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 16, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
@@ -725,14 +726,14 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      DText(
                         item['name']?.toString() ?? '',
                         style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (displayId.isNotEmpty)
-                        Text(
+                        DText(
                           'ID: #$displayId',
                           style: const TextStyle(color: Colors.white70, fontSize: 11),
                         ),
@@ -749,7 +750,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                       errorBuilder: (_, __, ___) => const Icon(Icons.monetization_on, size: 14, color: Color(0xFFFFD54F)),
                     ),
                     const SizedBox(width: 4),
-                    Text(
+                    DText(
                       '${_formatPoints(item['points'] ?? 0)} ↑',
                       style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 14, fontWeight: FontWeight.w600),
                     ),

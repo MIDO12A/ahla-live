@@ -12,6 +12,7 @@ import '../../models/user_model.dart';
 import '../../core/utils/id_generator.dart';
 import '../../services/device_service.dart';
 import '../main_screen/main_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class SetupProfileScreen extends StatefulWidget {
   final String uid;
@@ -55,7 +56,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
   Future<void> _saveProfile() async {
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء إدخال الاسم')),
+        const SnackBar(content: DText('الرجاء إدخال الاسم')),
       );
       return;
     }
@@ -148,7 +149,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: DText('Error: $e')),
         );
       }
     } finally {
@@ -302,7 +303,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      const DText(
                         'الجنس',
                         style: TextStyle(
                           fontSize: 14,
@@ -340,7 +341,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
                                           : Colors.grey,
                                     ),
                                     const SizedBox(width: 8),
-                                    Text(
+                                    DText(
                                       'ذكر',
                                       style: TextStyle(
                                         color: _selectedGender == 'male'
@@ -382,7 +383,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
                                           : Colors.grey,
                                     ),
                                     const SizedBox(width: 8),
-                                    Text(
+                                    DText(
                                       'أنثى',
                                       style: TextStyle(
                                         color: _selectedGender == 'female'
@@ -417,7 +418,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
                             borderRadius: BorderRadius.circular(25),
                           ),
                         ),
-                        child: const Text(
+                        child: const DText(
                           'حفظ',
                           style: TextStyle(
                             fontSize: 17,

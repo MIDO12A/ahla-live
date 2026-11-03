@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../core/widgets/cached_image.dart';
 import '../../screens/room/widgets/svga_frame.dart';
 import '../../services/dynamic_config_service.dart';
 import 'cp_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class CPRewardsScreen extends StatefulWidget {
   const CPRewardsScreen({super.key});
@@ -104,7 +105,7 @@ class _CPRewardsScreenState extends State<CPRewardsScreen> {
             ),
           ),
           const Spacer(),
-          const Text(
+          const DText(
             'المكافآت',
             style: TextStyle(
               fontSize: 20,
@@ -156,7 +157,7 @@ class _CPRewardsScreenState extends State<CPRewardsScreen> {
           ),
         ),
         child: Center(
-          child: Text(
+          child: DText(
             label,
             style: TextStyle(
               fontSize: 14,
@@ -205,7 +206,7 @@ class _CPRewardsScreenState extends State<CPRewardsScreen> {
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
+                      child: DText(
                         'Top $rank',
                         style: TextStyle(
                           fontSize: 13,
@@ -265,7 +266,7 @@ class _CPRewardsScreenState extends State<CPRewardsScreen> {
         const SizedBox(height: 4),
         SizedBox(
           width: 72,
-          child: Text(
+          child: DText(
             label,
             textAlign: TextAlign.center,
             maxLines: 2,
@@ -302,7 +303,7 @@ class _CPRewardsScreenState extends State<CPRewardsScreen> {
             shaderCallback: (bounds) => LinearGradient(
               colors: [cfg.cpGold, cfg.cpAccent],
             ).createShader(bounds),
-            child: const Text(
+            child: const DText(
               'القواعد',
               style: TextStyle(
                 fontSize: 18,
@@ -312,7 +313,7 @@ class _CPRewardsScreenState extends State<CPRewardsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
+          DText(
             rulesText,
             style: const TextStyle(
               fontSize: 13,

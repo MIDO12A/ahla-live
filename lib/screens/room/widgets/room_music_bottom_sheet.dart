@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../../config/r.dart';
 import '../../../services/room_music_player_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class RoomMusicBottomSheet extends StatefulWidget {
   final VoidCallback? onOpenPlaylist;
@@ -54,7 +55,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
     if (added > 0 && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('تمت إضافة $added ملف صوتي من الجهاز'),
+          content: DText('تمت إضافة $added ملف صوتي من الجهاز'),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -83,7 +84,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      DText(
                         isAr ? 'قائمة الموسيقى (${playlist.length})' : 'Playlist (${playlist.length})',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
@@ -94,7 +95,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                           if (mounted) setState(() {});
                         },
                         icon: const Icon(Icons.add, color: Color(0xFFD98B2B), size: 18),
-                        label: Text(
+                        label: DText(
                           isAr ? 'إضافة ملف' : 'Add File',
                           style: const TextStyle(color: Color(0xFFD98B2B), fontSize: 13),
                         ),
@@ -106,7 +107,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 30),
                       child: Center(
-                        child: Text(
+                        child: DText(
                           isAr ? 'لم تتم إضافة ملفات صوتية بعد' : 'No audio files added yet',
                           style: const TextStyle(color: Colors.white54, fontSize: 13),
                         ),
@@ -127,7 +128,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                               isCurrent ? Icons.equalizer : Icons.music_note,
                               color: isCurrent ? const Color(0xFFD98B2B) : Colors.white54,
                             ),
-                            title: Text(
+                            title: DText(
                               track.title,
                               style: TextStyle(
                                 color: isCurrent ? const Color(0xFFD98B2B) : Colors.white,
@@ -204,7 +205,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                           children: [
                             const Icon(Icons.folder_open, color: Colors.white, size: 16),
                             const SizedBox(width: 6),
-                            Text(
+                            DText(
                               isAr ? 'ملفات الهاتف الصوتية' : 'Device Audio Files',
                               style: const TextStyle(
                                 color: Colors.white,
@@ -231,7 +232,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                 builder: (_, track, __) {
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Text(
+                    child: DText(
                       track != null
                           ? track.title
                           : (isAr ? 'انقر على "ملفات الهاتف الصوتية" لاختيار موسيقى' : 'Select audio from device'),
@@ -262,7 +263,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
 
                       return Row(
                         children: [
-                          Text(
+                          DText(
                             _formatDuration(currentPos),
                             style: const TextStyle(fontSize: 12, color: Colors.white70),
                           ),
@@ -287,7 +288,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                               ),
                             ),
                           ),
-                          Text(
+                          DText(
                             _formatDuration(totalDuration),
                             style: const TextStyle(fontSize: 12, color: Colors.white70),
                           ),
@@ -373,7 +374,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                     children: [
                       SizedBox(
                         width: 54,
-                        child: Text(
+                        child: DText(
                           isAr ? 'موسيقى' : 'Music',
                           style: const TextStyle(fontSize: 12, color: Color(0x80FFFFFF)),
                         ),
@@ -400,7 +401,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                       ),
                       SizedBox(
                         width: 40,
-                        child: Text(
+                        child: DText(
                           '${(vol * 100).round()}%',
                           style: const TextStyle(fontSize: 12, color: Color(0x80FFFFFF)),
                           textAlign: TextAlign.end,
@@ -417,7 +418,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                 children: [
                   SizedBox(
                     width: 54,
-                    child: Text(
+                    child: DText(
                       isAr ? 'صوت' : 'Voice',
                       style: const TextStyle(fontSize: 12, color: Color(0x80FFFFFF)),
                     ),
@@ -446,7 +447,7 @@ class _RoomMusicBottomSheetState extends State<RoomMusicBottomSheet> {
                   ),
                   SizedBox(
                     width: 40,
-                    child: Text(
+                    child: DText(
                       '${_voiceVolume.round()}%',
                       style: const TextStyle(fontSize: 12, color: Color(0x80FFFFFF)),
                       textAlign: TextAlign.end,

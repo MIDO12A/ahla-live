@@ -188,14 +188,17 @@ class LevelService extends ChangeNotifier {
       updates['active_frame'] = newFrames.last;
     }
 
-    if (totalCoins > 0) {
-      updates['coins'] = user.coins + totalCoins;
-    }
-    if (totalDiamonds > 0) {
-      updates['diamonds'] = user.diamonds + totalDiamonds;
-    }
-
     await _supabaseService.updateUser(uid, updates);
+
+    // مكافآت المستوى تُضاف عبر طابور الرصيد المتسلسل حتى لا تطمس خصم هدية
+    // حدث في نفس اللحظة (كانت الكتابة بالقيمة القديمة تُرجع الكوينز المخصومة).
+    if (totalCoins > 0 || totalDiamonds > 0) {
+      await _supabaseService.adjustUserBalance(
+        uid,
+        coinsDelta: totalCoins,
+        diamondsDelta: totalDiamonds,
+      );
+    }
 
     return LevelUpResult(
       type: type,

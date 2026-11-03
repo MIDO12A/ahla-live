@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/dynamic_config_service.dart';
 import 'cp_service.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Relationship Record screen — matches act_relationship_record.xml
 /// Tabs: الكل / المرسلة / المستلمة + achievements grid.
@@ -72,7 +73,7 @@ class _CpRecordScreenState extends State<CpRecordScreen>
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('سجل العلاقات',
+        title: const DText('سجل العلاقات',
             style: TextStyle(color: Colors.white, fontSize: 18)),
         centerTitle: true,
         bottom: TabBar(
@@ -109,11 +110,11 @@ class _CpRecordScreenState extends State<CpRecordScreen>
           children: [
             const Icon(Icons.error_outline, size: 48, color: Colors.white54),
             const SizedBox(height: 16),
-            const Text('حدث خطأ في تحميل السجل', style: TextStyle(color: Colors.white)),
+            const DText('حدث خطأ في تحميل السجل', style: TextStyle(color: Colors.white)),
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: _loadData,
-              child: const Text('إعادة المحاولة'),
+              child: const DText('إعادة المحاولة'),
             ),
           ],
         ),
@@ -138,7 +139,7 @@ class _CpRecordScreenState extends State<CpRecordScreen>
           children: [
             Icon(Icons.inbox_outlined, size: 64, color: Colors.white.withValues(alpha: 0.2)),
             const SizedBox(height: 12),
-            const Text('لا توجد سجلات', style: TextStyle(color: Colors.white54, fontSize: 16)),
+            const DText('لا توجد سجلات', style: TextStyle(color: Colors.white54, fontSize: 16)),
           ],
         ),
       );
@@ -171,7 +172,7 @@ class _CpRecordScreenState extends State<CpRecordScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('الإنجازات',
+          const DText('الإنجازات',
               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           Row(
@@ -187,9 +188,9 @@ class _CpRecordScreenState extends State<CpRecordScreen>
                   children: [
                     Icon(icon, color: const Color(0xFFffb565), size: 24),
                     const SizedBox(height: 4),
-                    Text(a['title']?.toString() ?? '',
+                    DText(a['title']?.toString() ?? '',
                         style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                    Text(a['subtitle']?.toString() ?? '',
+                    DText(a['subtitle']?.toString() ?? '',
                         style: const TextStyle(color: Colors.white60, fontSize: 10)),
                   ],
                 ),
@@ -232,14 +233,14 @@ class _CpRecordScreenState extends State<CpRecordScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (giftName.isNotEmpty)
-                  Text(giftName,
+                  DText(giftName,
                       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                Text(userName, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                DText(userName, style: const TextStyle(color: Colors.white60, fontSize: 12)),
                 if (giftValue > 0)
-                  Text('$giftValue نقطة',
+                  DText('$giftValue نقطة',
                       style: const TextStyle(color: Color(0xFFffb565), fontSize: 11)),
                 if (timestamp.isNotEmpty)
-                  Text(_formatTime(timestamp),
+                  DText(_formatTime(timestamp),
                       style: const TextStyle(color: Colors.white38, fontSize: 10)),
               ],
             ),

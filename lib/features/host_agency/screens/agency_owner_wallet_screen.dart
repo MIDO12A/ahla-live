@@ -10,6 +10,7 @@ import '../../../core/utils/server_time_service.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyOwnerWalletScreen — محفظة مالك الوكالة
@@ -201,7 +202,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: _card,
-        title: const Text('تأكيد طلب السحب',
+        title: const DText('تأكيد طلب السحب',
             style: TextStyle(color: _gold, fontFamily: 'Tajawal')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -218,11 +219,11 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء', style: TextStyle(color: Colors.white70))),
+              child: const DText('إلغاء', style: TextStyle(color: Colors.white70))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: _gold),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('تأكيد', style: TextStyle(color: Colors.black)),
+            child: const DText('تأكيد', style: TextStyle(color: Colors.black)),
           ),
         ],
       ),
@@ -233,7 +234,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
   void _show(String msg, {bool ok = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: const TextStyle(fontFamily: 'Tajawal')),
+      content: DText(msg, style: const TextStyle(fontFamily: 'Tajawal')),
       backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade700,
     ));
   }
@@ -251,10 +252,10 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
+          DText(label,
               style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal',
                   fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-          Text(val,
+          DText(val,
               style: TextStyle(
                   color: color ?? Colors.white,
                   fontFamily: 'Tajawal',
@@ -274,7 +275,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       appBar: AppBar(
         backgroundColor: _dark,
         elevation: 0,
-        title: const Text('محفظة الوكالة',
+        title: const DText('محفظة الوكالة',
             style: TextStyle(color: _gold, fontFamily: 'Tajawal',
                 fontWeight: FontWeight.bold)),
         centerTitle: true,
@@ -377,16 +378,16 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
+          DText(title,
               style: const TextStyle(color: Colors.white70,
                   fontFamily: 'Tajawal', fontSize: 13)),
           const SizedBox(height: 8),
-          Text(value,
+          DText(value,
               style: const TextStyle(color: _gold, fontFamily: 'Tajawal',
                   fontSize: 24, fontWeight: FontWeight.bold)),
           if (sub != null) ...[
             const SizedBox(height: 4),
-            Text(sub,
+            DText(sub,
                 style: const TextStyle(color: Colors.white54,
                     fontFamily: 'Tajawal', fontSize: 12)),
           ],
@@ -401,10 +402,10 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
+          DText(label,
               style: const TextStyle(color: Colors.white60,
                   fontFamily: 'Tajawal')),
-          Text(val,
+          DText(val,
               style: const TextStyle(color: _gold,
                   fontFamily: 'Tajawal', fontWeight: FontWeight.bold)),
         ],
@@ -425,7 +426,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
         child: Column(children: [
           Icon(icon, color: _gold, size: 22),
           const SizedBox(height: 6),
-          Text(label,
+          DText(label,
               style: const TextStyle(color: Colors.white,
                   fontFamily: 'Tajawal', fontSize: 12)),
         ]),
@@ -472,9 +473,9 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('ستحصل على:', style: TextStyle(color: Colors.white70,
+                const DText('ستحصل على:', style: TextStyle(color: Colors.white70,
                     fontFamily: 'Tajawal')),
-                Text('${_fmt(coins)} 🪙',
+                DText('${_fmt(coins)} 🪙',
                     style: const TextStyle(color: Colors.amber,
                         fontFamily: 'Tajawal', fontSize: 18,
                         fontWeight: FontWeight.bold)),
@@ -484,7 +485,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
         }),
 
         const SizedBox(height: 8),
-        Text('المعدل: 1 ألماس = $rate كوينز',
+        DText('المعدل: 1 ألماس = $rate كوينز',
             style: const TextStyle(color: Colors.white38,
                 fontFamily: 'Tajawal', fontSize: 12),
             textAlign: TextAlign.center),
@@ -516,7 +517,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
           child: const Row(children: [
             Icon(Icons.warning_amber, color: Colors.orange),
             SizedBox(width: 8),
-            Expanded(child: Text(
+            Expanded(child: DText(
               'يتطلب السحب إكمال التحقق من الهوية (KYC) مسبقاً.',
               style: TextStyle(color: Colors.orange,
                   fontFamily: 'Tajawal', fontSize: 12),
@@ -527,7 +528,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
 
         _infoBox('الرصيد المتاح', '${_fmt(avail)} 💎'),
         const SizedBox(height: 4),
-        Text('الحد الأدنى: ${_fmt(minD)} ألماس',
+        DText('الحد الأدنى: ${_fmt(minD)} ألماس',
             style: const TextStyle(color: Colors.white38,
                 fontFamily: 'Tajawal', fontSize: 12)),
         const SizedBox(height: 14),
@@ -580,15 +581,15 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
                   fontFamily: 'Tajawal'),
               items: const [
                 DropdownMenuItem(value: 'bank_transfer',
-                    child: Text('تحويل بنكي (رسوم حد أقصى \$25)')),
+                    child: DText('تحويل بنكي (رسوم حد أقصى \$25)')),
                 DropdownMenuItem(value: 'payoneer',
-                    child: Text('Payoneer')),
+                    child: DText('Payoneer')),
                 DropdownMenuItem(value: 'usdt',
-                    child: Text('USDT (TRC20)')),
+                    child: DText('USDT (TRC20)')),
                 DropdownMenuItem(value: 'paypal',
-                    child: Text('PayPal')),
+                    child: DText('PayPal')),
                 DropdownMenuItem(value: 'wise',
-                    child: Text('Wise')),
+                    child: DText('Wise')),
               ],
               onChanged: (v) => setState(() =>
                   _payMethodCtrl.text = v ?? 'bank_transfer'),
@@ -616,10 +617,10 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Icon(Icons.receipt_long, color: Colors.white24, size: 48),
           const SizedBox(height: 12),
-          const Text('لا توجد حركات بعد',
+          const DText('لا توجد حركات بعد',
               style: TextStyle(color: Colors.white38, fontFamily: 'Tajawal')),
           TextButton(onPressed: _load,
-              child: const Text('تحديث', style: TextStyle(color: _gold))),
+              child: const DText('تحديث', style: TextStyle(color: _gold))),
         ]),
       );
     }
@@ -654,10 +655,10 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
           color: color, size: 18,
         ),
       ),
-      title: Text(e.typeLabel,
+      title: DText(e.typeLabel,
           style: const TextStyle(color: Colors.white, fontFamily: 'Tajawal',
               fontSize: 13)),
-      subtitle: Text(
+      subtitle: DText(
         e.note ?? '',
         maxLines: 1, overflow: TextOverflow.ellipsis,
         style: const TextStyle(color: Colors.white38, fontFamily: 'Tajawal',
@@ -667,10 +668,10 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text('$sign${_fmt(e.amount)} 💎',
+          DText('$sign${_fmt(e.amount)} 💎',
               style: TextStyle(color: color, fontFamily: 'Tajawal',
                   fontWeight: FontWeight.bold, fontSize: 13)),
-          Text(
+          DText(
             '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}',
             style: const TextStyle(color: Colors.white38, fontSize: 10,
                 fontFamily: 'Tajawal'),
@@ -687,7 +688,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       children: [
         const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
         const SizedBox(height: 12),
-        Text(_error ?? 'خطأ غير معروف',
+        DText(_error ?? 'خطأ غير معروف',
             style: const TextStyle(color: Colors.white70,
                 fontFamily: 'Tajawal'),
             textAlign: TextAlign.center),
@@ -696,7 +697,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
           style: ElevatedButton.styleFrom(backgroundColor: _gold),
           onPressed: _load,
           icon: const Icon(Icons.refresh, color: Colors.black),
-          label: const Text('إعادة المحاولة',
+          label: const DText('إعادة المحاولة',
               style: TextStyle(color: Colors.black, fontFamily: 'Tajawal')),
         ),
       ],
@@ -714,9 +715,9 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70,
+          DText(label, style: const TextStyle(color: Colors.white70,
               fontFamily: 'Tajawal')),
-          Text(value, style: const TextStyle(color: _gold,
+          DText(value, style: const TextStyle(color: _gold,
               fontFamily: 'Tajawal', fontWeight: FontWeight.bold,
               fontSize: 18)),
         ],
@@ -725,7 +726,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
   }
 
   Widget _label(String text) {
-    return Text(text, style: const TextStyle(color: Colors.white70,
+    return DText(text, style: const TextStyle(color: Colors.white70,
         fontFamily: 'Tajawal', fontSize: 13));
   }
 
@@ -778,7 +779,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
             ? const SizedBox(width: 20, height: 20,
                 child: CircularProgressIndicator(
                     strokeWidth: 2, color: Colors.black))
-            : Text(label,
+            : DText(label,
                 style: const TextStyle(color: Colors.black,
                     fontFamily: 'Tajawal', fontWeight: FontWeight.bold,
                     fontSize: 15)),
@@ -854,32 +855,32 @@ class _OwnerTransferToAgentTabState extends State<_OwnerTransferToAgentTab> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: _card,
-        title: const Text('تأكيد تحويل الألماس',
+        title: const DText('تأكيد تحويل الألماس',
             style: TextStyle(color: _gold, fontFamily: 'Tajawal')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.diamond_rounded, color: _gold, size: 40),
           const SizedBox(height: 12),
-          Text('سيتم تحويل ${_fmtK(_diamonds)} ♦ من محفظة الوكالة إلى:',
+          DText('سيتم تحويل ${_fmtK(_diamonds)} ♦ من محفظة الوكالة إلى:',
               style: const TextStyle(color: Colors.white70, fontSize: 13,
                   fontFamily: 'Tajawal'), textAlign: TextAlign.center),
           const SizedBox(height: 8),
-          Text(_selectedAgent!['display_name'] as String? ?? '—',
+          DText(_selectedAgent!['display_name'] as String? ?? '—',
               style: const TextStyle(color: _gold, fontWeight: FontWeight.bold,
                   fontSize: 16, fontFamily: 'Tajawal')),
           const SizedBox(height: 8),
-          const Text('العملية فورية ولا يمكن التراجع عنها.',
+          const DText('العملية فورية ولا يمكن التراجع عنها.',
               style: TextStyle(color: Colors.white38, fontSize: 11,
                   fontFamily: 'Tajawal')),
         ]),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء',
+            child: const DText('إلغاء',
                 style: TextStyle(color: Colors.white38, fontFamily: 'Tajawal'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: _gold),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('تأكيد التحويل',
+            child: const DText('تأكيد التحويل',
                 style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold,
                     fontFamily: 'Tajawal'))),
         ],
@@ -918,7 +919,7 @@ class _OwnerTransferToAgentTabState extends State<_OwnerTransferToAgentTab> {
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg, style: const TextStyle(fontFamily: 'Tajawal'))));
+      SnackBar(content: DText(msg, style: const TextStyle(fontFamily: 'Tajawal'))));
   }
 
   @override
@@ -934,7 +935,7 @@ class _OwnerTransferToAgentTabState extends State<_OwnerTransferToAgentTab> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _gold.withValues(alpha: 0.3)),
           ),
-          child: const Text(
+          child: const DText(
             '💡 يمكنك تحويل الألماس من محفظة وكالتك مباشرةً لوكيل شحن. '
             'سيستلمه في محفظة الألماس الخاصة به ويقدر يسحبه عبر الإدارة.',
             style: TextStyle(color: _gold, fontSize: 13,
@@ -944,7 +945,7 @@ class _OwnerTransferToAgentTabState extends State<_OwnerTransferToAgentTab> {
         const SizedBox(height: 20),
 
         // ─── بحث عن وكيل ──────────────────────────────────────────
-        const Text('ابحث عن وكيل الشحن',
+        const DText('ابحث عن وكيل الشحن',
             style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal',
                 fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
@@ -1006,11 +1007,11 @@ class _OwnerTransferToAgentTabState extends State<_OwnerTransferToAgentTab> {
               Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_selectedAgent!['display_name'] as String? ?? '—',
+                  DText(_selectedAgent!['display_name'] as String? ?? '—',
                       style: const TextStyle(color: Colors.white,
                           fontWeight: FontWeight.bold, fontFamily: 'Tajawal')),
                   if (_selectedAgent!['kayan_id'] != null)
-                    Text('ID: ${_selectedAgent!['kayan_id']}',
+                    DText('ID: ${_selectedAgent!['kayan_id']}',
                         style: const TextStyle(color: Colors.white54,
                             fontSize: 12, fontFamily: 'Tajawal')),
                 ],
@@ -1028,7 +1029,7 @@ class _OwnerTransferToAgentTabState extends State<_OwnerTransferToAgentTab> {
         const SizedBox(height: 20),
 
         // ─── حقل المبلغ ──────────────────────────────���─────────────
-        const Text('مبلغ الألماس',
+        const DText('مبلغ الألماس',
             style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal',
                 fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
@@ -1071,7 +1072,7 @@ class _OwnerTransferToAgentTabState extends State<_OwnerTransferToAgentTab> {
             child: _processing
                 ? const SizedBox(width: 22, height: 22,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                : const Text('تأكيد التحويل لوكيل الشحن',
+                : const DText('تأكيد التحويل لوكيل الشحن',
                     style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold,
                         fontSize: 15, fontFamily: 'Tajawal')),
           ),
@@ -1114,11 +1115,11 @@ class _AgentResultTile extends StatelessWidget {
         Expanded(child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(agent['display_name'] as String? ?? '—',
+            DText(agent['display_name'] as String? ?? '—',
                 style: const TextStyle(color: Colors.white,
                     fontWeight: FontWeight.w600, fontFamily: 'Tajawal')),
             if (agent['kayan_id'] != null)
-              Text('ID: ${agent['kayan_id']}',
+              DText('ID: ${agent['kayan_id']}',
                   style: const TextStyle(color: Colors.white38,
                       fontSize: 11, fontFamily: 'Tajawal')),
           ],

@@ -4,6 +4,7 @@ import '../../config/r.dart';
 import '../../config/app_colors.dart';
 import '../../services/supabase_service.dart';
 import '../../models/user_model.dart';
+import 'package:zero/core/dtext.dart';
 
 class BlacklistScreen extends StatefulWidget {
   final String roomId;
@@ -99,7 +100,7 @@ class _BlacklistScreenState extends State<BlacklistScreen> {
             ),
           ),
           const Spacer(),
-          Text(
+          DText(
             'القائمة السوداء (${_bannedUsers.length})',
             style: const TextStyle(fontSize: 17, color: Colors.white, fontWeight: FontWeight.w600),
           ),
@@ -117,7 +118,7 @@ class _BlacklistScreenState extends State<BlacklistScreen> {
         children: [
           Icon(Icons.shield_outlined, color: Colors.white.withValues(alpha: 0.2), size: 64),
           const SizedBox(height: 16),
-          const Text(
+          const DText(
             'لا يوجد مستخدمين محظورين في هذه الغرفة',
             style: TextStyle(fontSize: 15, color: Colors.white54),
           ),
@@ -156,11 +157,11 @@ class _BlacklistScreenState extends State<BlacklistScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(nickname, style: const TextStyle(fontSize: 15, color: Colors.white, fontWeight: FontWeight.w500)),
+                DText(nickname, style: const TextStyle(fontSize: 15, color: Colors.white, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 2),
-                Text('ID: $customId', style: const TextStyle(fontSize: 11, color: Colors.white38)),
+                DText('ID: $customId', style: const TextStyle(fontSize: 11, color: Colors.white38)),
                 const SizedBox(height: 2),
-                Text(
+                DText(
                   'السبب: $reason',
                   style: const TextStyle(fontSize: 12, color: Colors.white60),
                   overflow: TextOverflow.ellipsis,
@@ -173,7 +174,7 @@ class _BlacklistScreenState extends State<BlacklistScreen> {
               await _firebaseService.unblockUserFromRoom(widget.roomId, uid);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('تم فك الحظر عن $nickname')),
+                  SnackBar(content: DText('تم فك الحظر عن $nickname')),
                 );
               }
             },
@@ -184,7 +185,7 @@ class _BlacklistScreenState extends State<BlacklistScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.goldLight.withValues(alpha: 0.5), width: 0.8),
               ),
-              child: const Text('فك الحظر', style: TextStyle(fontSize: 12, color: AppColors.goldLight, fontWeight: FontWeight.bold)),
+              child: const DText('فك الحظر', style: TextStyle(fontSize: 12, color: AppColors.goldLight, fontWeight: FontWeight.bold)),
             ),
           ),
         ],

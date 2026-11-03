@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +10,7 @@ import '../../services/supabase_service.dart';
 import '../../providers/user_provider.dart';
 import '../../services/room_state_service.dart';
 import '../../screens/room/room_screen.dart' show navigateToRoom;
+import 'package:zero/core/dtext.dart';
 
 class CreateRoomScreen extends StatefulWidget {
   const CreateRoomScreen({super.key});
@@ -99,7 +100,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('لديك غرفة مفعلة بالفعل، جاري نقلك إليها...'),
+          content: DText('لديك غرفة مفعلة بالفعل، جاري نقلك إليها...'),
           backgroundColor: Color(0xFF10B981),
         ),
       );
@@ -137,7 +138,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
     if (_roomNameController.text.trim().isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a room name')),
+          const SnackBar(content: DText('Please enter a room name')),
         );
       }
       return;
@@ -154,7 +155,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
       if (user == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('User not found')),
+            const SnackBar(content: DText('User not found')),
           );
         }
         return;
@@ -231,7 +232,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: DText('Error: $e')),
         );
       }
     } finally {
@@ -315,7 +316,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                                       height: 20,
                                     ),
                                     const SizedBox(width: 4),
-                                    const Text(
+                                    const DText(
                                       'Create Room',
                                       style: TextStyle(
                                         fontSize: 24,
@@ -337,7 +338,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Align(
                             alignment: Alignment.centerLeft,
-                            child: Text(
+                            child: DText(
                               'Choose Theme',
                               style: TextStyle(
                                 fontSize: 14,
@@ -383,7 +384,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                                         height: 44,
                                       ),
                                       const SizedBox(height: 8),
-                                      Text(
+                                      DText(
                                         _roomTypes[index],
                                         style: const TextStyle(
                                           fontSize: 13,
@@ -403,7 +404,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Align(
                             alignment: Alignment.centerLeft,
-                            child: Text(
+                            child: DText(
                               'Room Introduction',
                               style: TextStyle(
                                 fontSize: 14,
@@ -446,7 +447,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                                 Positioned(
                                   right: 12,
                                   bottom: 8,
-                                  child: Text(
+                                  child: DText(
                                     '${_introduceController.text.length}/40',
                                     style: const TextStyle(
                                       fontSize: 12,
@@ -539,7 +540,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Align(
                             alignment: Alignment.centerLeft,
-                            child: Text(
+                            child: DText(
                               'Room Name',
                               style: TextStyle(
                                 fontSize: 14,
@@ -581,7 +582,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                                 Positioned(
                                   right: 16,
                                   bottom: 8,
-                                  child: Text(
+                                  child: DText(
                                     '${_roomNameController.text.length}/20',
                                     style: const TextStyle(
                                       fontSize: 12,
@@ -599,7 +600,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Align(
                             alignment: Alignment.centerLeft,
-                            child: Text(
+                            child: DText(
                               'Room Topic',
                               style: TextStyle(
                                 fontSize: 14,
@@ -642,7 +643,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                                 Positioned(
                                   right: 16,
                                   bottom: 8,
-                                  child: Text(
+                                  child: DText(
                                     '${_topicController.text.length}/100',
                                     style: const TextStyle(
                                       fontSize: 12,
@@ -660,7 +661,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Align(
                             alignment: Alignment.centerLeft,
-                            child: Text(
+                            child: DText(
                               'Lock Room',
                               style: TextStyle(
                                 fontSize: 14,
@@ -750,7 +751,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                   child: Center(
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(
+                        : DText(
                             _currentStep == 1 ? 'Next' : 'Create Room',
                             style: const TextStyle(
                               fontSize: 15,

@@ -3,6 +3,7 @@ import '../../../core/supabase_compat.dart';
 import '../../../core/ui/in_app_toast.dart';
 import '../../../models/user_model.dart';
 import '../../../services/supabase_data_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class SalaryDisburseDialog extends StatefulWidget {
   final UserModel currentUser;
@@ -249,7 +250,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        DText(
                           'صرف الراتب إلى وكيل شحن',
                           style: TextStyle(
                             color: Colors.white,
@@ -258,7 +259,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                           ),
                         ),
                         SizedBox(height: 2),
-                        Text(
+                        DText(
                           'تحويل رصيد الراتب ككوينز إلى محفظة الوكيل',
                           style: TextStyle(
                             color: Color(0xFF8E9BB0),
@@ -295,12 +296,12 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                     const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        DText(
                           'رصيد الراتب المتاح',
                           style: TextStyle(color: Color(0xFF8E9BB0), fontSize: 12),
                         ),
                         SizedBox(height: 4),
-                        Text(
+                        DText(
                           'ماس / عملات الإدارة',
                           style: TextStyle(color: Color(0xFF00D4FF), fontSize: 11, fontWeight: FontWeight.w600),
                         ),
@@ -310,7 +311,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                       children: [
                         const Icon(Icons.diamond_rounded, color: Color(0xFF00D4FF), size: 22),
                         const SizedBox(width: 6),
-                        Text(
+                        DText(
                           widget.currentSalary.toInt().toString(),
                           style: const TextStyle(
                             color: Color(0xFFFFB800),
@@ -327,7 +328,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
               const SizedBox(height: 18),
 
               // Recharge Agent ID Input
-              const Text(
+              const DText(
                 'معرف وكيل الشحن (ID / Custom ID)',
                 style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
               ),
@@ -375,14 +376,14 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Text('تحقق', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        : const DText('تحقق', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
 
               if (_agentSearchError != null) ...[
                 const SizedBox(height: 6),
-                Text(
+                DText(
                   _agentSearchError!,
                   style: const TextStyle(color: Colors.redAccent, fontSize: 12),
                 ),
@@ -419,7 +420,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                           children: [
                             Row(
                               children: [
-                                Text(
+                                DText(
                                   _selectedAgent!['name'] ?? 'وكيل معتمد',
                                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                 ),
@@ -428,7 +429,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                               ],
                             ),
                             const SizedBox(height: 2),
-                            Text(
+                            DText(
                               'ID: ${_selectedAgent!['custom_id'] ?? _selectedAgent!['uid']} • ${_selectedAgent!['recharge_agency_name'] ?? "وكالة شحن رسمية"}',
                               style: const TextStyle(color: Color(0xFF8E9BB0), fontSize: 11),
                             ),
@@ -443,7 +444,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
               const SizedBox(height: 16),
 
               // Amount to Disburse Input
-              const Text(
+              const DText(
                 'المبلغ المراد صرفه',
                 style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
               ),
@@ -487,7 +488,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text('إلغاء', style: TextStyle(color: Colors.white60)),
+                      child: const DText('إلغاء', style: TextStyle(color: Colors.white60)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -507,7 +508,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                             )
-                          : const Text(
+                          : const DText(
                               'إرسال طلب الصرف',
                               style: TextStyle(
                                 color: Color(0xFF141A32),

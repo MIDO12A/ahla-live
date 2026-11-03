@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/app_colors.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Widget احترافي لعرض رقم تعريف المستخدم (User ID)
 /// قابل لإعادة الاستخدام في جميع الشاشات مع إمكانية النسخ
@@ -49,7 +50,7 @@ class UserIdDisplayWidget extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (label != null) ...[
-          Text(
+          DText(
             label!,
             style: textStyle ?? const TextStyle(
               fontSize: 12,
@@ -101,7 +102,7 @@ class UserIdDisplayWidget extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: Text(
+      child: DText(
         formattedId,
         style: textStyle ?? TextStyle(
           fontSize: 13,
@@ -157,7 +158,7 @@ class UserIdDisplayWidget extends StatelessWidget {
           children: [
             const Icon(Icons.check_circle, color: Colors.white, size: 20),
             const SizedBox(width: 8),
-            const Text('تم نسخ الـ ID بنجاح'),
+            const DText('تم نسخ الـ ID بنجاح'),
           ],
         ),
         backgroundColor: Colors.green.shade600,
@@ -177,7 +178,7 @@ class UserIdDisplayWidget extends StatelessWidget {
           children: [
             const Icon(Icons.error_outline, color: Colors.white, size: 20),
             const SizedBox(width: 8),
-            const Text('فشل نسخ الـ ID'),
+            const DText('فشل نسخ الـ ID'),
           ],
         ),
         backgroundColor: Colors.red.shade600,
@@ -210,7 +211,7 @@ class UserIdListItem extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(
+          child: DText(
             userName,
             style: const TextStyle(
               fontSize: 14,
@@ -271,7 +272,7 @@ class UserIdBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (label != null) ...[
-            Text(
+            DText(
               label!,
               style: TextStyle(
                 fontSize: 11,
@@ -281,7 +282,7 @@ class UserIdBadge extends StatelessWidget {
             ),
             const SizedBox(width: 4),
           ],
-          Text(
+          DText(
             '#$displayId',
             style: TextStyle(
               fontSize: 12,

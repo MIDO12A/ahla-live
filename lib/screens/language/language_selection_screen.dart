@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../utils/app_colors.dart';
 import '../../providers/locale_provider.dart';
 import '../../l10n/app_localizations.dart';
+import 'package:zero/core/dtext.dart';
 
 class LanguageSelectionScreen extends StatefulWidget {
   const LanguageSelectionScreen({super.key});
@@ -43,11 +44,11 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                   final lang = _languages[index];
                   final isSelected = _selectedLanguage == lang['code'];
                   return ListTile(
-                    leading: Text(
+                    leading: DText(
                       lang['flag']!,
                       style: const TextStyle(fontSize: 24),
                     ),
-                    title: Text(
+                    title: DText(
                       lang['name']!,
                       style: TextStyle(
                         color: isSelected ? AppColors.colorPrimary : Colors.black,
@@ -84,7 +85,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: Text(
+                  child: DText(
                     AppLocalizations.of(context)?.save ?? 'حفظ',
                     style: const TextStyle(
                       fontSize: 17,

@@ -22,6 +22,7 @@ import '../../../core/ui/screenshot_guard.dart';
 import '../../../core/widgets/smart_image.dart';
 import '../data/agency_chat_models.dart';
 import '../data/agency_chat_repository.dart';
+import 'package:zero/core/dtext.dart';
 
 // ── palette ──────────────────────────────────────────────────────────────────
 const _bg      = Color(0xFF03030A);
@@ -279,11 +280,11 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text('مدة عرض الرسالة',
+            child: DText('مدة عرض الرسالة',
               style: GoogleFonts.tajawal(color: _textMain, fontSize: 16, fontWeight: FontWeight.w700)),
           ),
           ...options.map((s) => ListTile(
-            title: Text(_formatDuration(s),
+            title: DText(_formatDuration(s),
               style: GoogleFonts.tajawal(color: _textMain)),
             trailing: _viewOnceDuration == s
                 ? const Icon(Icons.check_circle_rounded, color: _purple)
@@ -460,9 +461,9 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.agencyName,
+            DText(widget.agencyName,
               style: GoogleFonts.tajawal(color: _textMain, fontSize: 15, fontWeight: FontWeight.w700)),
-            Text('قروب الوكالة',
+            DText('قروب الوكالة',
               style: GoogleFonts.tajawal(color: _textMuted, fontSize: 11)),
           ],
         ),
@@ -483,9 +484,9 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> {
       children: [
         const Icon(Icons.chat_bubble_outline_rounded, color: _textMuted, size: 64),
         const SizedBox(height: 12),
-        Text('لا توجد رسائل بعد',
+        DText('لا توجد رسائل بعد',
           style: GoogleFonts.tajawal(color: _textMuted, fontSize: 16)),
-        Text('كن أول من يرسل رسالة في قروب الوكالة',
+        DText('كن أول من يرسل رسالة في قروب الوكالة',
           style: GoogleFonts.tajawal(color: _textMuted, fontSize: 12)),
       ],
     ),
@@ -535,7 +536,7 @@ class _SystemBubble extends StatelessWidget {
             color: const Color(0xBBFF8F00),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Text(
+          child: DText(
             message.body ?? '',
             style: GoogleFonts.tajawal(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
             textDirection: TextDirection.rtl,
@@ -677,7 +678,7 @@ class _MetaRow extends StatelessWidget {
       runSpacing: 2,
       children: [
         // 1. الاسم
-        Text(
+        DText(
           message.displayName,
           style: GoogleFonts.tajawal(
             color: nameColor, fontSize: 12, fontWeight: FontWeight.w800,
@@ -692,7 +693,7 @@ class _MetaRow extends StatelessWidget {
         _LevelChip(level: (message.vipLevel > 0) ? message.vipLevel * 10 : 1),
         // 4. علم
         if (flag.isNotEmpty)
-          Text(flag, style: const TextStyle(fontSize: 11)),
+          DText(flag, style: const TextStyle(fontSize: 11)),
         // 5. قلادة
         if (message.necklaceIconUrl != null && message.necklaceIconUrl!.isNotEmpty)
           _NecklaceIcon(url: message.necklaceIconUrl!),
@@ -720,7 +721,7 @@ class _RoleBadge extends StatelessWidget {
         children: [
           Icon(role.badgeIcon, color: role.badgeColor, size: 10),
           const SizedBox(width: 3),
-          Text(
+          DText(
             role.label,
             style: TextStyle(color: role.badgeColor, fontSize: 9, fontWeight: FontWeight.w800),
           ),
@@ -748,7 +749,7 @@ class _LevelChip extends StatelessWidget {
         gradient: LinearGradient(colors: colors),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text('Lv.$level',
+      child: DText('Lv.$level',
         style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900)),
     );
   }
@@ -793,7 +794,7 @@ class _TextBubble extends StatelessWidget {
         ),
         border: Border.all(color: _border, width: 0.6),
       ),
-      child: Text(body,
+      child: DText(body,
         style: GoogleFonts.tajawal(color: _textMain, fontSize: 13),
         textDirection: TextDirection.rtl),
     );
@@ -917,7 +918,7 @@ class _AudioBubbleState extends State<_AudioBubble> {
                   minHeight: 3,
                 ),
                 const SizedBox(height: 4),
-                Text(_fmt(widget.durationSecs),
+                DText(_fmt(widget.durationSecs),
                   style: const TextStyle(color: _textMuted, fontSize: 10)),
               ],
             ),
@@ -978,7 +979,7 @@ class _ViewOnceBubble extends StatelessWidget {
             Icon(icon, color: color, size: 28),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(label,
+              child: DText(label,
                 style: GoogleFonts.tajawal(color: viewed ? _textMuted : color, fontSize: 12),
                 textDirection: TextDirection.rtl,
               ),
@@ -1069,7 +1070,7 @@ class _ViewOnceViewerState extends State<_ViewOnceViewer> {
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _red.withValues(alpha: 0.5)),
                   ),
-                  child: Text('$_remaining ث',
+                  child: DText('$_remaining ث',
                     style: GoogleFonts.tajawal(color: _red, fontSize: 14, fontWeight: FontWeight.w800)),
                 ),
               ),
@@ -1081,7 +1082,7 @@ class _ViewOnceViewerState extends State<_ViewOnceViewer> {
           child: widget.messageType == AgencyChatMessageType.text
               ? Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Text(widget.body ?? '',
+                  child: DText(widget.body ?? '',
                     style: GoogleFonts.tajawal(color: Colors.white, fontSize: 22),
                     textDirection: TextDirection.rtl,
                     textAlign: TextAlign.center),
@@ -1094,7 +1095,7 @@ class _ViewOnceViewerState extends State<_ViewOnceViewer> {
                           children: [
                             const Icon(Icons.graphic_eq_rounded, color: _purple, size: 80),
                             const SizedBox(height: 16),
-                            Text('جارٍ التشغيل...',
+                            DText('جارٍ التشغيل...',
                               style: GoogleFonts.tajawal(color: Colors.white, fontSize: 16)),
                           ],
                         )
@@ -1190,7 +1191,7 @@ class _AgencyChatInputBar extends StatelessWidget {
           children: [
             const Icon(Icons.mic_off_rounded, color: _red, size: 18),
             const SizedBox(width: 8),
-            Text(
+            DText(
               'أنت مكتوم لمدة ${hh}س ${mm}د',
               style: GoogleFonts.tajawal(color: _red, fontSize: 13),
             ),
@@ -1222,7 +1223,7 @@ class _AgencyChatInputBar extends StatelessWidget {
                   children: [
                     const Icon(Icons.delete_outline_rounded, color: _red, size: 18),
                     const SizedBox(width: 4),
-                    Text('إلغاء', style: GoogleFonts.tajawal(color: _red, fontSize: 12)),
+                    DText('إلغاء', style: GoogleFonts.tajawal(color: _red, fontSize: 12)),
                   ],
                 ),
               ),
@@ -1235,7 +1236,7 @@ class _AgencyChatInputBar extends StatelessWidget {
                 children: [
                   const Icon(Icons.fiber_manual_record_rounded, color: _red, size: 12),
                   const SizedBox(width: 6),
-                  Text('تسجيل  ${_fmt(recordSeconds)}',
+                  DText('تسجيل  ${_fmt(recordSeconds)}',
                     style: GoogleFonts.tajawal(color: _textMain, fontSize: 13, fontWeight: FontWeight.w700)),
                 ],
               ),
@@ -1277,10 +1278,10 @@ class _AgencyChatInputBar extends StatelessWidget {
                 children: [
                   const Icon(Icons.lock_rounded, color: _purple, size: 14),
                   const SizedBox(width: 4),
-                  Text('لمرة واحدة — ', style: GoogleFonts.tajawal(color: _purple, fontSize: 11)),
+                  DText('لمرة واحدة — ', style: GoogleFonts.tajawal(color: _purple, fontSize: 11)),
                   GestureDetector(
                     onTap: onPickDuration,
-                    child: Text(
+                    child: DText(
                       viewOnceDuration < 60 ? '$viewOnceDuration ثانية' : '${viewOnceDuration ~/ 60} دقيقة',
                       style: GoogleFonts.tajawal(color: _gold, fontSize: 11,
                         decoration: TextDecoration.underline),
@@ -1418,7 +1419,7 @@ class _MuteSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('$displayName — إدارة الكتم',
+          DText('$displayName — إدارة الكتم',
             style: GoogleFonts.tajawal(color: _textMain, fontSize: 15, fontWeight: FontWeight.w700),
             textAlign: TextAlign.center),
           const SizedBox(height: 12),
@@ -1427,7 +1428,7 @@ class _MuteSheet extends StatelessWidget {
               o.$1 == 0 ? Icons.mic_rounded : Icons.mic_off_rounded,
               color: o.$1 == 0 ? _cyan : _red, size: 20,
             ),
-            title: Text(o.$2,
+            title: DText(o.$2,
               style: GoogleFonts.tajawal(color: _textMain, fontSize: 13)),
             onTap: () => onMute(o.$1),
           )),

@@ -1,9 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../../services/dynamic_config_service.dart';
 import 'cp_service.dart';
+import 'package:zero/core/dtext.dart';
 
 /// CP Settings screen — matches act_cp_setting.xml
 /// Shows: CP panel, love letter card, dissolve button.
@@ -44,7 +45,7 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : !hasCp
               ? Center(
-                  child: const Text('ليس لديك علاقة CP',
+                  child: const DText('ليس لديك علاقة CP',
                       style: TextStyle(color: Colors.white54, fontSize: 16)),
                 )
               : Stack(
@@ -99,7 +100,7 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
                             ),
                           ),
                           const Spacer(),
-                          const Text('إعدادات العلاقة',
+                          const DText('إعدادات العلاقة',
                               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                           const Spacer(),
                           const SizedBox(width: 32),
@@ -161,7 +162,7 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0xFFa31b44)),
             ),
-            child: Text(
+            child: DText(
               '$daysTogether يوم معاً',
               style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
             ),
@@ -199,7 +200,7 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
           // Dissolve button
           _buildDissolveButton(),
           const SizedBox(height: 8),
-          const Text(
+          const DText(
             'حل العلاقة يعني إنهاء الرابطة مع شريكك. لا يمكن التراجع عن هذا الإجراء.',
             style: TextStyle(color: Colors.white60, fontSize: 12),
             textAlign: TextAlign.center,
@@ -229,7 +230,7 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
           ),
           child: Column(
             children: [
-              const Text('رسالة الحب',
+              const DText('رسالة الحب',
                   style: TextStyle(color: Colors.white, fontSize: 16)),
               const SizedBox(height: 10),
               Container(
@@ -243,7 +244,7 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
                     Icon(Icons.mail_outline, color: Colors.white60, size: 20),
                     SizedBox(width: 8),
                     Expanded(
-                      child: Text('اكتب رسالة حب لشريكك هنا...',
+                      child: DText('اكتب رسالة حب لشريكك هنا...',
                           style: TextStyle(color: Colors.white54, fontSize: 12)),
                     ),
                   ],
@@ -266,7 +267,7 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('السجل', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      DText('السجل', style: TextStyle(color: Colors.white, fontSize: 14)),
                       SizedBox(width: 4),
                       Icon(Icons.arrow_forward, color: Colors.white, size: 14),
                     ],
@@ -318,7 +319,7 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
           children: [
             Icon(Icons.heart_broken, color: Colors.white.withValues(alpha: 0.7), size: 16),
             const SizedBox(width: 8),
-            Text(
+            DText(
               _dissolving ? 'جارٍ الحل...' : 'حل العلاقة',
               style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14),
             ),
@@ -334,16 +335,16 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF2e0d15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('تأكيد حل العلاقة',
+        title: const DText('تأكيد حل العلاقة',
             style: TextStyle(color: Colors.white, fontSize: 16)),
-        content: const Text(
+        content: const DText(
           'هل أنت متأكد من رغبتك في حل العلاقة؟ هذا الإجراء لا يمكن التراجع عنه.',
           style: TextStyle(color: Colors.white70, fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () async {
@@ -353,20 +354,20 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
                 await CpService.endCp();
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم حل العلاقة بنجاح')),
+                    const SnackBar(content: DText('تم حل العلاقة بنجاح')),
                   );
                   Navigator.pop(context);
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('فشل حل العلاقة: $e')),
+                    SnackBar(content: DText('فشل حل العلاقة: $e')),
                   );
                 }
               }
               if (mounted) setState(() => _dissolving = false);
             },
-            child: const Text('تأكيد الحل', style: TextStyle(color: Color(0xFFff6b9d))),
+            child: const DText('تأكيد الحل', style: TextStyle(color: Color(0xFFff6b9d))),
           ),
         ],
       ),

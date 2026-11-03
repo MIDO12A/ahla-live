@@ -1,10 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../../services/dynamic_config_service.dart';
 import 'cp_service.dart';
 import 'cp_ranking_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Relationship Tasks screen — matches act_relationship_task.xml
 /// Shows: header avatars, engagement score, progress bar, daily tasks, bind button.
@@ -121,7 +122,7 @@ class _CpTasksScreenState extends State<CpTasksScreen> {
                                 children: [
                                   Icon(Icons.emoji_events, color: Color(0xFFffb565), size: 14),
                                   SizedBox(width: 4),
-                                  Text('الترتيب', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                  DText('الترتيب', style: TextStyle(color: Colors.white, fontSize: 12)),
                                 ],
                               ),
                             ),
@@ -148,7 +149,7 @@ class _CpTasksScreenState extends State<CpTasksScreen> {
         children: [
           const Icon(Icons.favorite_border, color: Colors.white24, size: 80),
           const SizedBox(height: 16),
-          const Text('ليس لديك علاقة CP',
+          const DText('ليس لديك علاقة CP',
               style: TextStyle(color: Colors.white54, fontSize: 16)),
         ],
       ),
@@ -182,10 +183,10 @@ class _CpTasksScreenState extends State<CpTasksScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('نقاط القربى',
+              const DText('نقاط القربى',
                   style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
-              Text('$totalScore',
+              DText('$totalScore',
                   style: const TextStyle(
                       color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
             ],
@@ -236,8 +237,8 @@ class _CpTasksScreenState extends State<CpTasksScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('$currentLvMin', style: const TextStyle(color: Colors.white, fontSize: 12)),
-              Text('$nextLvMin', style: const TextStyle(color: Colors.white, fontSize: 12)),
+              DText('$currentLvMin', style: const TextStyle(color: Colors.white, fontSize: 12)),
+              DText('$nextLvMin', style: const TextStyle(color: Colors.white, fontSize: 12)),
             ],
           ),
         ],
@@ -248,7 +249,7 @@ class _CpTasksScreenState extends State<CpTasksScreen> {
   Widget _buildDescription(Map<String, dynamic>? couple) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 26),
-      child: const Text(
+      child: const DText(
         'أكمل المهام اليومية لزيادة نقاط القربى ورفع مستوى علاقتكم. كلما زادت نقاطكم، حصلت على مكافآت أفضل!',
         style: TextStyle(color: Color(0xFFCCCCCC), fontSize: 12),
         textAlign: TextAlign.center,
@@ -271,13 +272,13 @@ class _CpTasksScreenState extends State<CpTasksScreen> {
       ),
       child: Row(
         children: [
-          const Text('نقاط القربى',
+          const DText('نقاط القربى',
               style: TextStyle(color: Colors.white, fontSize: 16)),
           const Spacer(),
-          const Text('ربحت اليوم:',
+          const DText('ربحت اليوم:',
               style: TextStyle(color: Colors.white, fontSize: 14)),
           const SizedBox(width: 7),
-          Text('$weekScore',
+          DText('$weekScore',
               style: const TextStyle(
                   color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
         ],
@@ -320,7 +321,7 @@ class _CpTasksScreenState extends State<CpTasksScreen> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(task['title'] as String,
+                      child: DText(task['title'] as String,
                           style: const TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                     Container(
@@ -329,7 +330,7 @@ class _CpTasksScreenState extends State<CpTasksScreen> {
                         color: (task['color'] as Color).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text('${task['reward']} قربى',
+                      child: DText('${task['reward']} قربى',
                           style: TextStyle(
                               color: task['color'] as Color,
                               fontSize: 11,
@@ -369,7 +370,7 @@ class _CpTasksScreenState extends State<CpTasksScreen> {
               ],
             ),
             child: const Center(
-              child: Text('اربط علاقتك الآن',
+              child: DText('اربط علاقتك الآن',
                   style: TextStyle(
                       color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             ),

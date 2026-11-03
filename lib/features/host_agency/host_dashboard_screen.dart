@@ -18,6 +18,7 @@ import '../../config/r.dart';
 import '../../core/cache/encrypted_image_provider.dart';
 import 'package:provider/provider.dart';
 import '../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 // ── palette ──────────────────────────────────────────────────────────────────
 const Color _bgDeep     = Color(0xFF1A1A1A);
@@ -382,7 +383,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         children: [
           _NeonSpinner(),
           SizedBox(height: 16),
-          Text('جارٍ تحميل البيانات...',
+          DText('جارٍ تحميل البيانات...',
               style: TextStyle(color: _textMuted, fontFamily: 'IBM Plex Sans Arabic')),
         ],
       ),
@@ -396,7 +397,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         children: [
           Icon(Icons.error_outline, color: _red, size: 48),
           const SizedBox(height: 12),
-          Text(_error ?? 'خطأ غير معروف',
+          DText(_error ?? 'خطأ غير معروف',
               style: TextStyle(color: _red, fontFamily: 'IBM Plex Sans Arabic')),
           const SizedBox(height: 16),
           _GlassButton(
@@ -615,7 +616,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                             children: [
                               Icon(Icons.account_balance_wallet_rounded, color: Colors.black, size: 14),
                               SizedBox(width: 4),
-                              Text(
+                              DText(
                                 'سحب جميع المراحل المحققة ⚡',
                                 style: TextStyle(
                                   color: Colors.black,
@@ -658,7 +659,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                       border: Border.all(color: _border),
                     ),
                     child: const Center(
-                      child: Text(
+                      child: DText(
                         'جاري تحديث تارجت ومراحل هذا الشهر...',
                         style: TextStyle(color: _textMuted, fontSize: 13, fontFamily: 'IBM Plex Sans Arabic'),
                       ),
@@ -700,7 +701,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                       }
                     },
                     icon: const Icon(Icons.exit_to_app_rounded, color: Color(0xFFFF5252), size: 20),
-                    label: const Text(
+                    label: const DText(
                       'الخروج من الوكالة',
                       style: TextStyle(
                         color: Color(0xFFFF5252),
@@ -794,7 +795,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                   mainAxisAlignment:  MainAxisAlignment.center,
                   children: [
                     Row(children: [
-                      Text(name,
+                      DText(name,
                           style: const TextStyle(
                             color: Colors.white, fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -806,7 +807,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                       ],
                     ]),
                     const SizedBox(height: 4),
-                    Text('المستوى $level',
+                    DText('المستوى $level',
                         style: const TextStyle(color: Color(0xFFFFF5AD), fontSize: 13,
                             fontWeight: FontWeight.bold,
                             fontFamily: 'IBM Plex Sans Arabic')),
@@ -880,7 +881,7 @@ class _StatCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(icon, style: const TextStyle(fontSize: 20)),
+                    DText(icon, style: const TextStyle(fontSize: 20)),
                     if (onTap != null)
                       Image.asset(
                         R.commonNext3Ic,
@@ -891,14 +892,14 @@ class _StatCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(value,
+                DText(value,
                     style: TextStyle(
                       color: color, fontSize: 18, fontWeight: FontWeight.bold,
                       fontFamily: 'Space Grotesk',
                       shadows: [Shadow(color: color.withValues(alpha: .6), blurRadius: 8)],
                     )),
                 const SizedBox(height: 2),
-                Text(label,
+                DText(label,
                     style: const TextStyle(color: _textMuted, fontSize: 11,
                         fontFamily: 'IBM Plex Sans Arabic')),
               ],
@@ -942,24 +943,24 @@ class _AgencyCard extends StatelessWidget {
             color: _gold.withOpacity(.15),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Center(child: Text('ðŸ¢', style: TextStyle(fontSize: 24))),
+          child: const Center(child: DText('ðŸ¢', style: TextStyle(fontSize: 24))),
         ),
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name,
+            DText(name,
                 style: TextStyle(color: _gold, fontSize: 15,
                     fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
             if (spec.isNotEmpty)
-              Text(spec, style: TextStyle(color: _textMuted, fontSize: 12,
+              DText(spec, style: TextStyle(color: _textMuted, fontSize: 12,
                   fontFamily: 'IBM Plex Sans Arabic')),
           ]),
         ),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text('${(rate * 100).toStringAsFixed(0)}%',
+          DText('${(rate * 100).toStringAsFixed(0)}%',
               style: TextStyle(color: _gold, fontSize: 18,
                   fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
-          Text('$members عضو',
+          DText('$members عضو',
               style: TextStyle(color: _textMuted, fontSize: 11,
                   fontFamily: 'IBM Plex Sans Arabic')),
         ]),
@@ -1035,7 +1036,7 @@ class _MilestoneCard extends StatelessWidget {
             ),
           ],
           Expanded(
-            child: Text(name,
+            child: DText(name,
                 style: TextStyle(
                   color: completed ? _gold : _textMain,
                   fontSize: 14, fontWeight: FontWeight.w600,
@@ -1063,7 +1064,7 @@ class _MilestoneCard extends StatelessWidget {
                     children: [
                       Icon(Icons.send_rounded, color: Colors.black, size: 12),
                       SizedBox(width: 4),
-                      Text(
+                      DText(
                         'سحب المرحلة',
                         style: TextStyle(
                           color: Colors.black,
@@ -1084,7 +1085,7 @@ class _MilestoneCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: _gold.withOpacity(.4)),
               ),
-              child: const Text('✅ مكتمل',
+              child: const DText('✅ مكتمل',
                   style: TextStyle(color: _gold, fontSize: 11,
                       fontFamily: 'IBM Plex Sans Arabic')),
             ),
@@ -1138,14 +1139,14 @@ class _MilestoneCard extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('${(pct * 100).toStringAsFixed(0)}%',
+            DText('${(pct * 100).toStringAsFixed(0)}%',
                 style: TextStyle(color: barColor, fontSize: 12,
                     fontFamily: 'Space Grotesk', fontWeight: FontWeight.bold)),
-            Text('${_fmt(current)} / ${_fmt(target)} 💎',
+            DText('${_fmt(current)} / ${_fmt(target)} 💎',
                 style: TextStyle(color: _textMuted, fontSize: 11,
                     fontFamily: 'Space Grotesk')),
             if (rewardVal != null)
-              Text('$rewardEmoji $rewardVal',
+              DText('$rewardEmoji $rewardVal',
                   style: TextStyle(color: _gold, fontSize: 11,
                       fontFamily: 'Space Grotesk')),
           ],
@@ -1187,9 +1188,9 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     context.watch<DynamicConfigService>();
     return Row(children: [
-      Text(icon, style: const TextStyle(fontSize: 18)),
+      DText(icon, style: const TextStyle(fontSize: 18)),
       const SizedBox(width: 8),
-      Text(label,
+      DText(label,
           style: const TextStyle(
             color: _textMain, fontSize: 16, fontWeight: FontWeight.bold,
             fontFamily: 'IBM Plex Sans Arabic',
@@ -1210,7 +1211,7 @@ class _VipBadge extends StatelessWidget {
         gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFF6C453)]),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: const Text('VIP',
+      child: const DText('VIP',
           style: TextStyle(color: Colors.black, fontSize: 10,
               fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
     );
@@ -1235,7 +1236,7 @@ class _GlassButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(.4)),
         ),
-        child: Text(label,
+        child: DText(label,
             style: TextStyle(color: color, fontFamily: 'IBM Plex Sans Arabic',
                 fontWeight: FontWeight.w600)),
       ),
@@ -1339,7 +1340,7 @@ class _AgencyWalletCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(children: [
-              Text('♦ محفظة الوكالة', style: TextStyle(color: tierColor, fontWeight: FontWeight.bold, fontSize: 15)),
+              DText('♦ محفظة الوكالة', style: TextStyle(color: tierColor, fontWeight: FontWeight.bold, fontSize: 15)),
               const Spacer(),
               GestureDetector(
                 onTap: onLeaderboard,
@@ -1349,7 +1350,7 @@ class _AgencyWalletCard extends StatelessWidget {
                     color: tierColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text('🏆 التصنيف', style: TextStyle(color: tierColor, fontSize: 11, fontWeight: FontWeight.w600)),
+                  child: DText('🏆 التصنيف', style: TextStyle(color: tierColor, fontSize: 11, fontWeight: FontWeight.w600)),
                 ),
               ),
             ]),
@@ -1360,10 +1361,10 @@ class _AgencyWalletCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(children: [
-              Expanded(child: Text(a.name,
+              Expanded(child: DText(a.name,
                 style: TextStyle(color: _textMain, fontWeight: FontWeight.w600, fontSize: 14))),
               if (a.rank != null)
-                Text('#${a.rank} عالمياً', style: TextStyle(color: tierColor.withOpacity(0.7), fontSize: 12)),
+                DText('#${a.rank} عالمياً', style: TextStyle(color: tierColor.withOpacity(0.7), fontSize: 12)),
             ]),
           ),
 
@@ -1384,7 +1385,7 @@ class _AgencyWalletCard extends StatelessWidget {
               child: Row(children: [
                 const Icon(Icons.lock_rounded, color: Color(0xFFFF9800), size: 12),
                 const SizedBox(width: 4),
-                Text('${_fmtK(m.diamondsPendingWithdrawal)} ♦ مجمد',
+                DText('${_fmtK(m.diamondsPendingWithdrawal)} ♦ مجمد',
                     style: const TextStyle(color: Color(0xFFFF9800), fontSize: 11)),
               ]),
             ),
@@ -1400,10 +1401,10 @@ class _AgencyWalletCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Text('🎯 الهدف التالي: ', style: TextStyle(color: _textMuted, fontSize: 12)),
-              Text('♦ محفظة الوكالة', style: TextStyle(color: tierColor, fontWeight: FontWeight.bold, fontSize: 15)),
+                    DText('🎯 الهدف التالي: ', style: TextStyle(color: _textMuted, fontSize: 12)),
+              DText('♦ محفظة الوكالة', style: TextStyle(color: tierColor, fontWeight: FontWeight.bold, fontSize: 15)),
                     const Spacer(),
-                    Text('${(progress * 100).toStringAsFixed(0)}%', style: TextStyle(color: tierColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                    DText('${(progress * 100).toStringAsFixed(0)}%', style: TextStyle(color: tierColor, fontSize: 12, fontWeight: FontWeight.bold)),
                   ]),
                   const SizedBox(height: 6),
                   ClipRRect(
@@ -1416,7 +1417,7 @@ class _AgencyWalletCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text('المكافأة: ${nextTarget.rewardSummary}',
+                  DText('المكافأة: ${nextTarget.rewardSummary}',
                     style: TextStyle(color: _textMuted, fontSize: 11)),
                 ],
               ),
@@ -1439,7 +1440,7 @@ class _AgencyWalletCard extends StatelessWidget {
           // Rank in agency
           Padding(
             padding: const EdgeInsets.only(left: 16, right: 16, bottom: 14),
-            child: Text(
+            child: DText(
               'ترتيبك في الوكالة: #${stats.rankInAgency} من ${stats.totalMembersInAgency}',
               style: TextStyle(color: _textMuted, fontSize: 12),
             ),
@@ -1469,9 +1470,9 @@ class _WalletStat extends StatelessWidget {
           border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Column(children: [
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15)),
+          DText(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: _textMuted, fontSize: 10)),
+          DText(label, style: TextStyle(color: _textMuted, fontSize: 10)),
         ]),
       ),
     );
@@ -1497,7 +1498,7 @@ class _WalletBtn extends StatelessWidget {
           border: Border.all(color: color.withOpacity(0.3)),
         ),
         alignment: Alignment.center,
-        child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+        child: DText(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
       ),
     );
   }
@@ -1578,7 +1579,7 @@ class _D40MonthlyDataCard extends StatelessWidget {
                 children: [
                   Icon(Icons.insights_rounded, color: Color(0xFFF5A601), size: 18),
                   SizedBox(width: 8),
-                  Text(
+                  DText(
                     'البيانات الشهرية والتارجت (D:40)',
                     style: TextStyle(
                       color: Colors.white,
@@ -1596,7 +1597,7 @@ class _D40MonthlyDataCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFF5A601).withOpacity(0.3)),
                 ),
-                child: Text(
+                child: DText(
                   '${(progressPct * 100).toStringAsFixed(1)}% مكتمل',
                   style: const TextStyle(
                     color: Color(0xFFF5A601),
@@ -1761,7 +1762,7 @@ class _D40MetricTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                DText(
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1775,7 +1776,7 @@ class _D40MetricTile extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    DText(
                       value,
                       style: TextStyle(
                         color: color,
@@ -1786,7 +1787,7 @@ class _D40MetricTile extends StatelessWidget {
                     ),
                     if (unit.isNotEmpty) ...[
                       const SizedBox(width: 3),
-                      Text(
+                      DText(
                         unit,
                         style: TextStyle(
                           color: color.withOpacity(0.8),
@@ -1835,10 +1836,10 @@ class _EngineV3Banner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(dryRun ? 'ðŸ§ª' : 'ðŸš€', style: const TextStyle(fontSize: 20)),
+          DText(dryRun ? 'ðŸ§ª' : 'ðŸš€', style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
+            child: DText(
               dryRun ? 'المحرك v2 — وضع الاختبار (لا مدفوعات حقيقية)'
                      : 'المحرك الاقتصادي v2 مُفعَّل — كوينز + مستويات + USD',
               style: TextStyle(
@@ -1886,9 +1887,9 @@ class _CoinsProgressCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Text('🪙', style: TextStyle(fontSize: 20)),
+              const DText('🪙', style: TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
-              const Text(
+              const DText(
                 'تقدم الكوينز الشهري',
                 style: TextStyle(
                   color: Color(0xFFE8E6FF),
@@ -1905,7 +1906,7 @@ class _CoinsProgressCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: const Color(0x66F6C453)),
                   ),
-                  child: Text(
+                  child: DText(
                     'المستوى $curLevel ðŸ†',
                     style: const TextStyle(color: Color(0xFFF6C453), fontSize: 11, fontWeight: FontWeight.w700),
                   ),
@@ -1918,7 +1919,7 @@ class _CoinsProgressCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
+              DText(
                 _fmt(totalCoins),
                 style: const TextStyle(
                   color: Color(0xFF00D4FF),
@@ -1926,7 +1927,7 @@ class _CoinsProgressCard extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const Text(
+              const DText(
                 ' كوينز هذا الشهر',
                 style: TextStyle(color: Color(0xFF8A88AA), fontSize: 13),
               ),
@@ -1939,11 +1940,11 @@ class _CoinsProgressCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                DText(
                   nextLevel['level_name'] ?? 'المستوى التالي',
                   style: const TextStyle(color: Color(0xFFF6C453), fontSize: 12, fontWeight: FontWeight.w600),
                 ),
-                Text(
+                DText(
                   '${_fmt((nextLevel['remaining_coins'] as num?) ?? 0)} متبقي',
                   style: const TextStyle(color: Color(0xFF8A88AA), fontSize: 11),
                 ),
@@ -1963,11 +1964,11 @@ class _CoinsProgressCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                DText(
                   '${nextLevel['pct_progress']?.toStringAsFixed(1) ?? 0}%',
                   style: const TextStyle(color: Color(0xFFF6C453), fontSize: 11, fontWeight: FontWeight.w600),
                 ),
-                Text(
+                DText(
                   'مكافأة: \$${nextLevel["host_cash_usd"] ?? 0} + 💎${_fmt((nextLevel["host_diamond_usd"] as num?) ?? 0)}',
                   style: const TextStyle(color: Color(0xFF22C55E), fontSize: 11),
                 ),
@@ -1979,7 +1980,7 @@ class _CoinsProgressCard extends StatelessWidget {
               children: [
                 Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
                 SizedBox(width: 6),
-                Text(
+                DText(
                   'أنجزت جميع المستويات هذا الشهر! 🎉',
                   style: TextStyle(color: Color(0xFF22C55E), fontSize: 13, fontWeight: FontWeight.w600),
                 ),
@@ -2000,7 +2001,7 @@ class _CoinsProgressCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0xFF22C55E)),
                 ),
-                child: Text('✅ مستوى $lvl مكتمل',
+                child: DText('✅ مستوى $lvl مكتمل',
                   style: const TextStyle(color: Color(0xFF22C55E), fontSize: 11, fontWeight: FontWeight.w600)),
               )).toList(),
             ),
@@ -2042,15 +2043,15 @@ class _UsdWalletCard extends StatelessWidget {
               color: const Color(0x2222C55E),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(child: Text('ðŸ’µ', style: TextStyle(fontSize: 22))),
+            child: const Center(child: DText('ðŸ’µ', style: TextStyle(fontSize: 22))),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('محفظة الدولار', style: TextStyle(color: Color(0xFF8A88AA), fontSize: 12)),
-                Text(
+                const DText('محفظة الدولار', style: TextStyle(color: Color(0xFF8A88AA), fontSize: 12)),
+                DText(
                   '\$${usdBalance.toStringAsFixed(2)}',
                   style: const TextStyle(
                     color: Color(0xFF22C55E),
@@ -2058,7 +2059,7 @@ class _UsdWalletCard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                Text(
+                DText(
                   'إجمالي المكتسَب: \$${totalEarned.toStringAsFixed(2)}',
                   style: const TextStyle(color: Color(0xFF6B7280), fontSize: 11),
                 ),
@@ -2075,7 +2076,7 @@ class _UsdWalletCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0x6622C55E)),
                 ),
-                child: const Text('سحب →', style: TextStyle(color: Color(0xFF22C55E), fontSize: 12, fontWeight: FontWeight.w700)),
+                child: const DText('سحب →', style: TextStyle(color: Color(0xFF22C55E), fontSize: 12, fontWeight: FontWeight.w700)),
               ),
             ),
         ],
@@ -2107,14 +2108,14 @@ class _MonthCountdownCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Text('â°', style: TextStyle(fontSize: 22)),
+          const DText('â°', style: TextStyle(fontSize: 22)),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('متبقي حتى إغلاق الشهر', style: TextStyle(color: Color(0xFF8A88AA), fontSize: 11)),
+              const DText('متبقي حتى إغلاق الشهر', style: TextStyle(color: Color(0xFF8A88AA), fontSize: 11)),
               const SizedBox(height: 4),
-              Text(
+              DText(
                 '$days يوم  $hours:${mins.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}',
                 style: const TextStyle(
                   color: Color(0xFF9C6BFF),

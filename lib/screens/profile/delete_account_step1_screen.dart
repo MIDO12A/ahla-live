@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_strings.dart';
 import 'delete_account_step2_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class DeleteAccountStep1Screen extends StatelessWidget {
   const DeleteAccountStep1Screen({super.key});
@@ -11,7 +12,7 @@ class DeleteAccountStep1Screen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(AppStrings.deleteAccount),
+        title: const DText(AppStrings.deleteAccount),
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
@@ -22,7 +23,7 @@ class DeleteAccountStep1Screen extends StatelessWidget {
           children: [
             const SizedBox(height: 25),
             Expanded(
-              child: Text(
+              child: DText(
                 AppStrings.detailDeleteAccount,
                 style: const TextStyle(
                   fontSize: 17,
@@ -49,7 +50,7 @@ class DeleteAccountStep1Screen extends StatelessWidget {
                     ),
                   );
                 },
-                child: const Text(
+                child: const DText(
                   AppStrings.continueBtn,
                   style: TextStyle(
                     fontSize: 16,

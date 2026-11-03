@@ -24,6 +24,7 @@ import '../data/agency_repository.dart';
 import '../data/anchor_agent_model.dart';
 import 'agent_withdrawal_waiting_screen.dart';
 import 'agency_exit_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class AgencyHostScreen extends StatefulWidget {
   final String? agencyId;
@@ -343,12 +344,12 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!, style: const TextStyle(color: Colors.black87, fontSize: 16)),
+              DText(_error!, style: const TextStyle(color: Colors.black87, fontSize: 16)),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => _loadHostData(),
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00B5B3)),
-                child: const Text('إعادة المحاولة', style: TextStyle(color: Colors.white)),
+                child: const DText('إعادة المحاولة', style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -380,7 +381,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           centerTitle: true,
-          title: Text(
+          title: DText(
             _agencyInfo?.agencyName.isNotEmpty == true
                 ? 'وكالة: ${_agencyInfo!.agencyName}'
                 : 'بيانات المضيف والراتب',
@@ -490,7 +491,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
+                      child: DText(
                         host.nickname.isNotEmpty ? host.nickname : 'مضيف',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -509,7 +510,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                         color: isCompleted ? const Color(0xFF10B981) : const Color(0xFFFF9D3E),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
+                      child: DText(
                         stageName,
                         style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
@@ -517,12 +518,12 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(
+                DText(
                   'ID: ${host.userNo > 0 ? host.userNo : host.uid}',
                   style: const TextStyle(color: Color(0xFF777777), fontSize: 12),
                 ),
                 const SizedBox(height: 2),
-                Text(
+                DText(
                   'تاريخ العقد: نشط ومستمر لشهر ${_getMonthName(DateTime.now().month)}',
                   style: const TextStyle(color: Color(0xFF999999), fontSize: 10),
                 ),
@@ -542,7 +543,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
               children: [
                 CircleAvatar(radius: 4, backgroundColor: Color(0xFF4CAF50)),
                 SizedBox(width: 4),
-                Text('معتمد', style: TextStyle(color: Color(0xFF2E7D32), fontSize: 11, fontWeight: FontWeight.bold)),
+                DText('معتمد', style: TextStyle(color: Color(0xFF2E7D32), fontSize: 11, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -582,7 +583,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
+              const DText(
                 'مستهدف الألماسات للمرحلة',
                 style: TextStyle(
                   color: Color(0xFF222222),
@@ -698,9 +699,9 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: Color(0xFF6B7280), fontSize: 11)),
+          DText(title, style: const TextStyle(color: Color(0xFF6B7280), fontSize: 11)),
           const SizedBox(height: 4),
-          Text(
+          DText(
             value,
             style: TextStyle(color: valColor, fontSize: 14, fontWeight: FontWeight.bold),
           ),
@@ -740,7 +741,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: DText(
                   isCompleted
                       ? 'تهانينا! لقد تم تقفيل $stageName بنجاح 🏆'
                       : 'المرحلة الحالية: $stageName (قيد التقدم ⏳)',
@@ -755,12 +756,12 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           ),
           const SizedBox(height: 6),
           if (remDia > 0 || remDays > 0)
-            Text(
+            DText(
               'متبقي لك للوصول إلى المرحلة التالية: $remDia ألماسة و $remDays يوم بث صالح.',
               style: const TextStyle(color: Color(0xFF374151), fontSize: 12),
             )
           else
-            const Text(
+            const DText(
               'لقد حققت التارجت الأقصى لهذا الشهر، سيتم تحويل الراتب والمكافأة في نهاية الشهر.',
               style: TextStyle(color: Color(0xFF15803D), fontSize: 12),
             ),
@@ -806,12 +807,12 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
+                      const DText(
                         'الراتب المستحق للمرحلة الحالية',
                         style: TextStyle(color: Colors.white, fontSize: 13),
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         '\$$salary USD',
                         style: const TextStyle(
                           color: Colors.white,
@@ -820,7 +821,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         'الألماسات المحققة: ${_formatNumber(currentDiamonds)} 💎',
                         style: const TextStyle(color: Colors.white70, fontSize: 11),
                       ),
@@ -837,7 +838,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   ),
-                  child: const Text('طلب سحب', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  child: const DText('طلب سحب', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
               ],
             ),
@@ -879,7 +880,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          const DText(
             'تتبع ساعات البث المعتمدة (الشهر الحالي)',
             style: TextStyle(
               color: Color(0xFF222222),
@@ -898,7 +899,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           ),
           const SizedBox(height: 10),
           Center(
-            child: Text(
+            child: DText(
               'إجمالي وقت البث الصالح: ${host.formattedTime}',
               style: const TextStyle(color: Colors.grey, fontSize: 11),
             ),
@@ -918,9 +919,9 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
       ),
       child: Column(
         children: [
-          Text(title, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+          DText(title, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(val, style: const TextStyle(color: Color(0xFF1F2937), fontSize: 13, fontWeight: FontWeight.bold)),
+          DText(val, style: const TextStyle(color: Color(0xFF1F2937), fontSize: 13, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -939,7 +940,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          const DText(
             'سجل أداء البث المباشر (اليومي والأسبوعي)',
             style: TextStyle(
               color: Color(0xFF222222),
@@ -961,13 +962,13 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('بث اليوم', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const DText('بث اليوم', style: TextStyle(color: Colors.grey, fontSize: 11)),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         '${(_todaySeconds / 3600).toStringAsFixed(1)} ساعة',
                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                       ),
-                      Text(
+                      DText(
                         '$_todayDiamonds 💎',
                         style: const TextStyle(color: Color(0xFF059669), fontSize: 12, fontWeight: FontWeight.w600),
                       ),
@@ -987,13 +988,13 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('بث هذا الأسبوع', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const DText('بث هذا الأسبوع', style: TextStyle(color: Colors.grey, fontSize: 11)),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         '${(_weekSeconds / 3600).toStringAsFixed(1)} ساعة',
                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                       ),
-                      Text(
+                      DText(
                         '$_weekDiamonds 💎',
                         style: const TextStyle(color: Color(0xFF059669), fontSize: 12, fontWeight: FontWeight.w600),
                       ),
@@ -1126,7 +1127,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
           children: [
             Icon(Icons.currency_exchange, color: Color(0xFF00B5B3), size: 24),
             SizedBox(width: 8),
-            Text(
+            DText(
               'تأكيد سحب الراتب الفوري',
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
             ),
@@ -1136,7 +1137,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            DText(
               'سيتم سحب $_diamonds ماسة وتحويلها إلى كوينزات فوراً في محفظة وكالة الشحن وتصفير راتبك للشهر الحالي.',
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
@@ -1151,13 +1152,13 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('وكيل الشحن: $agentName', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                  DText('وكيل الشحن: $agentName', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 4),
-                  Text('المعرف (ID): $agentKayanId', style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 12)),
+                  DText('المعرف (ID): $agentKayanId', style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 12)),
                   const SizedBox(height: 4),
-                  Text('الكوينزات المحولة: $_diamonds 🪙', style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
+                  DText('الكوينزات المحولة: $_diamonds 🪙', style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 4),
-                  const Text('عمولة الوكيل: تُحتسب وتُضاف تلقائياً لحساب الوكيل في السجلات.', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                  const DText('عمولة الوكيل: تُحتسب وتُضاف تلقائياً لحساب الوكيل في السجلات.', style: TextStyle(color: Colors.white60, fontSize: 11)),
                 ],
               ),
             ),
@@ -1166,7 +1167,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white38)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white38)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1175,7 +1176,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('تأكيد وسحب الآن ⚡', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const DText('تأكيد وسحب الآن ⚡', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1265,7 +1266,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
               children: [
                 const Icon(Icons.account_balance_wallet, color: Color(0xFF00B5B3), size: 22),
                 const SizedBox(width: 8),
-                const Text(
+                const DText(
                   'طلب سحب الراتب الفعلي وتحويله كوينزات',
                   style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
@@ -1287,8 +1288,8 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('رصيد الألماس المتاح للسحب:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  Text(
+                  const DText('رصيد الألماس المتاح للسحب:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  DText(
                     '${widget.availableDiamonds} 💎',
                     style: const TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold),
                   ),
@@ -1296,7 +1297,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
               ),
             ),
             const SizedBox(height: 14),
-            const Text('الكمية المراد سحبها:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+            const DText('الكمية المراد سحبها:', style: TextStyle(color: Colors.white70, fontSize: 12)),
             const SizedBox(height: 6),
             Row(
               children: [
@@ -1334,12 +1335,12 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
-                  child: const Text('سحب الكل', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const DText('سحب الكل', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
             const SizedBox(height: 14),
-            const Text('اختر وكيل الشحن المعتمد لتحويل الكوينز إليه:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+            const DText('اختر وكيل الشحن المعتمد لتحويل الكوينز إليه:', style: TextStyle(color: Colors.white70, fontSize: 12)),
             const SizedBox(height: 6),
             TextField(
               controller: _searchCtrl,
@@ -1361,7 +1362,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
             else if (_searchResults.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
-                child: Center(child: Text('لم يتم العثور على وكلاء شحن', style: TextStyle(color: Colors.white38, fontSize: 12))),
+                child: Center(child: DText('لم يتم العثور على وكلاء شحن', style: TextStyle(color: Colors.white38, fontSize: 12))),
               )
             else
               Container(
@@ -1384,8 +1385,8 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
                         backgroundColor: Color(0x3300B5B3),
                         child: Icon(Icons.person, color: Color(0xFF00B5B3), size: 18),
                       ),
-                      title: Text(aName, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                      subtitle: Text('ID: $aId', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                      title: DText(aName, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                      subtitle: DText('ID: $aId', style: const TextStyle(color: Colors.white54, fontSize: 11)),
                       trailing: isSel ? const Icon(Icons.check_circle, color: Color(0xFF00B5B3), size: 20) : null,
                       onTap: () => setState(() => _selectedAgent = agent),
                     );
@@ -1404,7 +1405,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
                 ),
                 child: _submitting
                     ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text(
+                    : const DText(
                         'تأكيد السحب والتحويل فوراً ⚡',
                         style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                       ),

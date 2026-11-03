@@ -4,6 +4,7 @@ import '../../../core/utils/server_time_service.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
 import '../../../services/supabase_service.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyJoinRequestsScreen — طلبات الانضمام (للمالك والمشرف)
@@ -263,14 +264,14 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ تم قبول العضو في الوكالة بنجاح'), backgroundColor: Color(0xFF2E7D32)),
+          const SnackBar(content: DText('✅ تم قبول العضو في الوكالة بنجاح'), backgroundColor: Color(0xFF2E7D32)),
         );
         _load();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
+          SnackBar(content: DText('خطأ: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -305,14 +306,14 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم رفض الطلب')),
+          const SnackBar(content: DText('تم رفض الطلب')),
         );
         _load();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
+          SnackBar(content: DText('خطأ: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -323,7 +324,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
     if (ServerTimeService.instance.dayOfMonth > 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ لا يمكن طرد الأعضاء بعد اليوم الخامس من الشهر.'),
+          content: DText('⚠️ لا يمكن طرد الأعضاء بعد اليوم الخامس من الشهر.'),
           backgroundColor: Color(0xFFFF6F00),
         ),
       );
@@ -335,12 +336,12 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('تأكيد الطرد', style: TextStyle(color: Colors.white)),
+        title: const DText('تأكيد الطرد', style: TextStyle(color: Colors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            DText(
               'هل تريد طرد هذا العضو من الوكالة؟',
               style: TextStyle(color: Colors.white.withOpacity(0.85)),
             ),
@@ -352,7 +353,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0xFFFF6F00).withOpacity(0.3)),
               ),
-              child: Text(
+              child: DText(
                 'سيمنح العضو 7 أيام للانتقال لوكالة أخرى أو سحب ألماسه.\n'
                 'بعد 7 أيام بدون انضمام، يتحول ألماسه لكوينز بنسبة 50%.',
                 style: TextStyle(color: Colors.orange.shade300, fontSize: 12, height: 1.5),
@@ -361,10 +362,10 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const DText('إلغاء')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('طرد', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            child: const DText('طرد', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -399,7 +400,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ تم طرد العضو من الوكالة بنجاح'),
+          content: DText('✅ تم طرد العضو من الوكالة بنجاح'),
           backgroundColor: Color(0xFFBF360C),
           duration: Duration(seconds: 4),
         ),
@@ -411,7 +412,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           ? e.toString().replaceAll(RegExp(r'^.*Exception: '), '')
           : 'خطأ في الطرد: $e';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red.shade900),
+        SnackBar(content: DText(msg), backgroundColor: Colors.red.shade900),
       );
     }
   }
@@ -423,7 +424,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D1A),
         foregroundColor: Colors.white,
-        title: const Text('طلبات الانضمام', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const DText('طلبات الانضمام', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         centerTitle: true,
         elevation: 0,
         bottom: TabBar(
@@ -454,9 +455,9 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
   Widget _buildList(List<Map<String, dynamic>> list, {required bool canAccept, required bool canKick}) {
     if (list.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('🏢', style: TextStyle(fontSize: 40)),
+        const DText('🏢', style: TextStyle(fontSize: 40)),
         const SizedBox(height: 12),
-        Text('لا توجد سجلات', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+        DText('لا توجد سجلات', style: TextStyle(color: Colors.white.withOpacity(0.4))),
       ]));
     }
     return RefreshIndicator(
@@ -553,7 +554,7 @@ class _MemberCard extends StatelessWidget {
                 backgroundColor: const Color(0xFFD4AF37).withOpacity(0.2),
                 backgroundImage: avatar != null ? EncryptedImageProvider(avatar) : null,
                 child: avatar == null
-                    ? Text(
+                    ? DText(
                         name.characters.first,
                         style: const TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold),
                       )
@@ -565,7 +566,7 @@ class _MemberCard extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Expanded(
-                      child: Text(name,
+                      child: DText(name,
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
                     ),
                     if (status == 'kicked')
@@ -576,19 +577,19 @@ class _MemberCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(color: Colors.red.withOpacity(0.4)),
                         ),
-                        child: const Text('مطرود 🔴', style: TextStyle(color: Colors.red, fontSize: 10)),
+                        child: const DText('مطرود 🔴', style: TextStyle(color: Colors.red, fontSize: 10)),
                       ),
                   ]),
                   const SizedBox(height: 2),
                   Row(children: [
-                    Text('Lv.$level', style: const TextStyle(color: Color(0xFFD4AF37), fontSize: 11)),
+                    DText('Lv.$level', style: const TextStyle(color: Color(0xFFD4AF37), fontSize: 11)),
                     if (kayanId != null) ...[
-                      Text(' · #$kayanId',
+                      DText(' · #$kayanId',
                           style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
                     ],
                   ]),
                   if (date != null)
-                    Text(_formatDate(date),
+                    DText(_formatDate(date),
                         style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 10)),
                 ]),
               ),
@@ -615,9 +616,9 @@ class _MemberCard extends StatelessWidget {
                 border: Border.all(color: Colors.orange.withOpacity(0.25)),
               ),
               child: Row(children: [
-                const Text('⏳', style: TextStyle(fontSize: 12)),
+                const DText('⏳', style: TextStyle(fontSize: 12)),
                 const SizedBox(width: 6),
-                Text(
+                DText(
                   'وكيل حر — متبقي ${freeRemaining.inDays} يوم و${freeRemaining.inHours % 24} ساعة',
                   style: TextStyle(color: Colors.orange.shade300, fontSize: 11),
                 ),
@@ -633,7 +634,7 @@ class _MemberCard extends StatelessWidget {
                 color: Colors.red.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
+              child: DText(
                 '⚠️ انتهت مهلة الوكيل الحر — تم تحويل الألماس لكوينز (50%)',
                 style: TextStyle(color: Colors.red.shade300, fontSize: 11),
               ),
@@ -672,7 +673,7 @@ class _SmallBtn extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: color.withOpacity(0.4)),
         ),
-        child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+        child: DText(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
       ),
     );
   }

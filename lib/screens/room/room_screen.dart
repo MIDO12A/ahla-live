@@ -84,6 +84,7 @@ import '../../core/widgets/user_id_display_widget.dart';
 import '../../widgets/user_id_widget.dart';
 import '../../services/room_cup_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Helper to navigate to a room, exiting any minimized room first
 Future<void> navigateToRoom(
@@ -128,7 +129,7 @@ Future<void> navigateToRoom(
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: const Color(0xFF211211),
-          title: const Text('كلمة المرور مطلوبة', style: TextStyle(color: Colors.white)),
+          title: const DText('كلمة المرور مطلوبة', style: TextStyle(color: Colors.white)),
           content: TextField(
             obscureText: true,
             style: const TextStyle(color: Colors.white),
@@ -143,17 +144,17 @@ Future<void> navigateToRoom(
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+              child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
             ),
             TextButton(
               onPressed: () {
                 if (inputPassword == roomPassword) {
                   Navigator.pop(ctx, true);
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('كلمة المرور غير صحيحة')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: DText('كلمة المرور غير صحيحة')));
                 }
               },
-              child: const Text('دخول', style: TextStyle(color: Color(0xFFD3A350))),
+              child: const DText('دخول', style: TextStyle(color: Color(0xFFD3A350))),
             ),
           ],
         );
@@ -898,7 +899,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 receiverId: receiverId,
               );
             }
-            await fb.sendGift(
+            final sent = await fb.sendGift(
               roomId: roomId,
               giftId: gift.id,
               giftName: gift.name,
@@ -912,6 +913,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               value: gift.value,
               count: count,
             );
+            if (!sent) {
+              unawaited(userProvider.reloadUser());
+            }
           }
         }));
       }));
@@ -1327,7 +1331,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         if (isBanned && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('تم حظرك من هذه الغرفة بواسطة المشرف'),
+              content: DText('تم حظرك من هذه الغرفة بواسطة المشرف'),
               duration: Duration(seconds: 4),
               backgroundColor: Colors.red,
             ),
@@ -1450,7 +1454,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     });
 
-    final joinedMs = _joinedAt?.millisecondsSinceEpoch ?? 0;
     bool _msgStreamInitial = true;
 
     _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
@@ -1471,26 +1474,31 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
       if (mounted) {
-        final clearedAt = _currentRoom?.chatClearedAt ?? 0;
-        final minTimestamp = joinedMs > 0
-            ? (clearedAt > joinedMs ? clearedAt : joinedMs)
-            : clearedAt;
+        // نعتمد فقط على وقت مسح الشات من الإدارة. لا نفلتر بتوقيت دخول الجهاز
+        // لأن فارق ساعة الجهاز عن السيرفر كان يخفي رسائل الأعضاء الآخرين.
+        final minTimestamp = _currentRoom?.chatClearedAt ?? 0;
         final currentSessionMsgs = minTimestamp > 0
             ? msgs.where((m) => m.timestamp >= minTimestamp).toList()
             : msgs;
 
-        // إزالة أي رسائل أقدم من وقت الدخول أو وقت المسح
+        // إزالة أي رسائل أقدم من وقت المسح فقط
         if (minTimestamp > 0) {
           _chatMessages.removeWhere((m) => m.timestamp < minTimestamp);
         }
 
         // الحفاظ على كامل الرسائل السابقة أثناء الجلسة مع استبدال الرسائل المؤقتة بالرسائل المؤكدة
         for (final m in currentSessionMsgs) {
-          final tempIdx = _chatMessages.indexWhere((e) =>
-              e.msgId.startsWith('temp_') &&
-              e.senderUid == m.senderUid &&
-              (e.text == m.text || (e.imageUrl != null && e.imageUrl == m.imageUrl)) &&
-              (e.timestamp - m.timestamp).abs() < 10000);
+          final tempIdx = _chatMessages.indexWhere((e) {
+            if (!e.msgId.startsWith('temp_') || e.senderUid != m.senderUid) {
+              return false;
+            }
+            final sameText = e.text.trim().isNotEmpty && e.text == m.text;
+            final sameImage = e.imageUrl != null &&
+                e.imageUrl!.isNotEmpty &&
+                e.imageUrl == m.imageUrl;
+            if (!sameText && !sameImage) return false;
+            return (e.timestamp - m.timestamp).abs() < 120000;
+          });
           if (tempIdx != -1) {
             _chatMessages[tempIdx] = m;
             continue;
@@ -1526,7 +1534,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
         // عرض هدايا الحظ (lucky_gift) والهدايا العادية (gift) والمظاريف الحمراء (lucky_bag) لكافة أعضاء الغرفة لحظياً للرسائل الجديدة فقط
         for (final m in currentSessionMsgs) {
-          if (m.timestamp < joinedMs) continue;
           final mId = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}';
           if (_seenMsgIds.contains(mId)) continue;
           _seenMsgIds.add(mId);
@@ -1701,7 +1708,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             if (kickedUid == _currentUserId && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(m.text.isNotEmpty ? m.text : 'تم طردك من الغرفة من قبل المشرف'),
+                  content: DText(m.text.isNotEmpty ? m.text : 'تم طردك من الغرفة من قبل المشرف'),
                   duration: const Duration(seconds: 4),
                   backgroundColor: Colors.red,
                 ),
@@ -2084,11 +2091,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E2E),
-        title: Text(
+        title: DText(
           isAr ? 'حذف كاريزما المقاعد' : 'Reset Seats Charisma',
           style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         ),
-        content: Text(
+        content: DText(
           isAr
               ? 'هل أنت متأكد من رغبتك في تصفير وحذف كاريزما المقاعد في الغرفة؟'
               : 'Are you sure you want to reset and clear all seat charisma in this room?',
@@ -2097,7 +2104,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white60)),
+            child: DText(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white60)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -2124,13 +2131,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(isAr ? 'تم تصفير وحذف كاريزما المقاعد نهائياً بنجاح' : 'Seats charisma cleared permanently'),
+                    content: DText(isAr ? 'تم تصفير وحذف كاريزما المقاعد نهائياً بنجاح' : 'Seats charisma cleared permanently'),
                     backgroundColor: Colors.green,
                   ),
                 );
               }
             },
-            child: Text(isAr ? 'تأكيد الحذف' : 'Confirm', style: const TextStyle(color: Colors.white)),
+            child: DText(isAr ? 'تأكيد الحذف' : 'Confirm', style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -2544,7 +2551,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
+                  DText(
                     isAr ? 'إعدادات الرسائل' : 'Message Settings',
                     style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
@@ -2552,7 +2559,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      DText(
                         isAr ? 'قفل الدردشة' : 'Lock Chat',
                         style: const TextStyle(color: Colors.white, fontSize: 16),
                       ),
@@ -2611,12 +2618,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     GlobalBannerService.instance.triggerGiftBannerLocally(enriched);
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final t = _chatCtrl.text.trim();
     if (t.isEmpty) return;
     if (_currentRoom?.isChatLocked == true && !_isOwnerOrModerator) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم قفل الدردشة من قبل الإدارة')),
+        const SnackBar(content: DText('تم قفل الدردشة من قبل الإدارة')),
       );
       setState(() => _showChatInput = false);
       return;
@@ -2651,7 +2658,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
 
       TaskService().recordActionByType(user.uid, 'chat');
-      _firebaseService.sendMessage(
+      FocusScope.of(context).unfocus();
+      _chatCtrl.clear();
+      setState(() => _showChatInput = false);
+
+      final ok = await _firebaseService.sendMessage(
         widget.roomId,
         t,
         user.uid,
@@ -2659,6 +2670,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         user.photoUrl,
         activeBubble: user.activeBubble,
       );
+      if (!ok && mounted) {
+        setState(() {
+          _chatMessages.removeWhere((m) => m.msgId == tempId);
+          _msgCount = _chatMessages.length;
+        });
+        _chatUpdateNotifier.value++;
+        _chatCtrl.text = t;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: DText('تعذّر إرسال الرسالة، حاول مرة أخرى')),
+        );
+      }
+      return;
     }
     FocusScope.of(context).unfocus();
     _chatCtrl.clear();
@@ -2679,7 +2702,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('جاري رفع وإرسال الصورة...'),
+            content: DText('جاري رفع وإرسال الصورة...'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -2696,7 +2719,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل إرسال الصورة: $e')),
+          SnackBar(content: DText('فشل إرسال الصورة: $e')),
         );
       }
     }
@@ -2903,7 +2926,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (isTargetOwner || isTargetModerator) {
         final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isAr ? 'لا يمكنك إنزال مالك الغرفة أو المشرفين من المايك' : 'Cannot kick owner or moderators off mic')),
+          SnackBar(content: DText(isAr ? 'لا يمكنك إنزال مالك الغرفة أو المشرفين من المايك' : 'Cannot kick owner or moderators off mic')),
         );
         return;
       }
@@ -2942,7 +2965,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (idx >= _seats.length || _seats[idx].isOccupied) {
       final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isAr ? 'المقعد مشغول بالفعل' : 'Seat is already occupied')),
+        SnackBar(content: DText(isAr ? 'المقعد مشغول بالفعل' : 'Seat is already occupied')),
       );
       return;
     }
@@ -2971,7 +2994,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    DText(
                       isAr ? 'دعوة مستخدم للمايك #${idx + 1}' : 'Invite User to Mic #${idx + 1}',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
@@ -2986,7 +3009,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               if (candidateMembers.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
-                  child: Text(
+                  child: DText(
                     isAr ? 'لا يوجد أعضاء متاحون للدعوة حالياً' : 'No available members to invite',
                     style: const TextStyle(color: Colors.white54, fontSize: 14),
                   ),
@@ -3004,8 +3027,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           backgroundImage: m.photoUrl.isNotEmpty ? R.cachedImage(m.photoUrl) : null,
                           child: m.photoUrl.isEmpty ? const Icon(Icons.person, color: Colors.white54) : null,
                         ),
-                        title: Text(m.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                        subtitle: Text('ID: ${m.customId.isNotEmpty ? m.customId : m.uid}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                        title: DText(m.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                        subtitle: DText('ID: ${m.customId.isNotEmpty ? m.customId : m.uid}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
                         trailing: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFFFC525),
@@ -3023,10 +3046,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                               seatIndex: idx,
                             );
                             ScaffoldMessenger.of(this.context).showSnackBar(
-                              SnackBar(content: Text(isAr ? 'تم إرسال الدعوة إلى ${m.name}' : 'Invitation sent to ${m.name}')),
+                              SnackBar(content: DText(isAr ? 'تم إرسال الدعوة إلى ${m.name}' : 'Invitation sent to ${m.name}')),
                             );
                           },
-                          child: Text(isAr ? 'دعوة' : 'Invite'),
+                          child: DText(isAr ? 'دعوة' : 'Invite'),
                         ),
                       );
                     },
@@ -3051,13 +3074,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           children: [
             const Icon(Icons.mic, color: Color(0xFFFFC525)),
             const SizedBox(width: 8),
-            Text(
+            DText(
               isAr ? 'دعوة للصعود على المايك' : 'Mic Seat Invitation',
               style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
             ),
           ],
         ),
-        content: Text(
+        content: DText(
           isAr
               ? 'قام $inviterName بدعوتك للصعود على المايك رقم ${seatIndex + 1}.\nهل توافق على الصعود؟'
               : '$inviterName invited you to take mic #${seatIndex + 1}.\nDo you accept?',
@@ -3066,7 +3089,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
-            child: Text(isAr ? 'رفض' : 'Decline', style: const TextStyle(color: Colors.white54)),
+            child: DText(isAr ? 'رفض' : 'Decline', style: const TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -3078,7 +3101,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               Navigator.pop(dialogCtx);
               _takeMic(seatIndex);
             },
-            child: Text(isAr ? 'موافقة' : 'Accept'),
+            child: DText(isAr ? 'موافقة' : 'Accept'),
           ),
         ],
       ),
@@ -3131,7 +3154,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (isTargetOwner || isTargetModerator) {
         final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isAr ? 'لا يمكنك طرد مالك الغرفة أو المشرفين' : 'Cannot kick room owner or moderators')),
+          SnackBar(content: DText(isAr ? 'لا يمكنك طرد مالك الغرفة أو المشرفين' : 'Cannot kick room owner or moderators')),
         );
         return;
       }
@@ -3154,7 +3177,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // tv_tips
-                    const Text(
+                    const DText(
                       'تنبيه',
                       style: TextStyle(
                         fontSize: 17,
@@ -3164,7 +3187,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(height: 12),
                     // tv_content
-                    Text(
+                    DText(
                       'هل أنت متأكد من طرد المستخدم ${user.name} من الغرفة؟',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -3189,7 +3212,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           ),
                           const SizedBox(width: 8),
                           const Expanded(
-                            child: Text(
+                            child: DText(
                               'إضافة إلى القائمة السوداء لمنع الدخول دائماً',
                               style: TextStyle(
                                 fontSize: 13,
@@ -3213,7 +3236,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                               onPressed: () => Navigator.pop(ctx),
-                              child: const Text(
+                              child: const DText(
                                 'إلغاء',
                                 style: TextStyle(
                                   color: Color(0xFF565964),
@@ -3242,7 +3265,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   Navigator.pop(ctx);
                                   _executeKick(user, seatIdx, addToBlacklist);
                                 },
-                                child: const Text(
+                                child: const DText(
                                   'تأكيد',
                                   style: TextStyle(
                                     color: Colors.white,
@@ -3287,7 +3310,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       );
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(addToBlacklist ? 'تم طرد وحظر ${user.name} بنجاح' : 'تم طرد ${user.name} من الغرفة')),
+      SnackBar(content: DText(addToBlacklist ? 'تم طرد وحظر ${user.name} بنجاح' : 'تم طرد ${user.name} من الغرفة')),
     );
   }
 
@@ -3312,7 +3335,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(isAdmin
+        content: DText(isAdmin
             ? (isAr ? 'تم تعيين ${user.name} كمشرف في الغرفة 👑' : 'Appointed ${user.name} as room admin')
             : (isAr ? 'تم إلغاء إشراف ${user.name}' : 'Removed ${user.name} from room admins')),
       ),
@@ -3570,7 +3593,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Center(
-                  child: Text(
+                  child: DText(
                     isAr ? 'إعدادات التأثيرات' : 'Effect Settings',
                     style: const TextStyle(
                       color: Colors.white,
@@ -3589,7 +3612,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      DText(
                         isAr ? 'تأثيرات الهدايا' : 'Gift Effects',
                         style: const TextStyle(
                           color: Colors.white,
@@ -3610,7 +3633,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(
+                DText(
                   isAr
                       ? 'الوصف:\n 1. تشغيل أو إيقاف التأثيرات الخاصة يؤثر عليك فقط ولا يؤثر على الآخرين. لتحسين تجربتك يوصى بإيقافها فقط عند حدوث بطء.\n 2. بعد إيقاف التأثيرات، لن يتم عرض الرسوم المتحركة الكبيرة للهدايا.'
                       : 'Description:\n 1. Turning effects on/off only affects you, not others.\n 2. After disabling, gift full-screen animations will be skipped.',
@@ -3661,7 +3684,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       alignment: Alignment.center,
-                      child: Text(
+                      child: DText(
                         _showCharmValues
                             ? (isAr ? 'إغلاق الكاريزما' : 'Close Charm')
                             : (isAr ? 'فتح الكاريزما' : 'Open Charm'),
@@ -3687,7 +3710,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       alignment: Alignment.center,
-                      child: Text(
+                      child: DText(
                         isAr ? 'إلغاء' : 'Cancel',
                         style: const TextStyle(
                           fontSize: 16,
@@ -3885,7 +3908,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 onChat: () {
                   if (_currentRoom?.isChatLocked == true && !_isOwnerOrModerator) {
                     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isAr ? 'تم قفل الدردشة من قبل الإدارة' : 'Chat is locked by admins')));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText(isAr ? 'تم قفل الدردشة من قبل الإدارة' : 'Chat is locked by admins')));
                     return;
                   }
                   final willShow = !_showChatInput;
@@ -3906,7 +3929,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   if (_currentUserSeat!.isMuted && !_isOwnerOrModerator) {
                     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(isAr ? 'تم كتم المايك بواسطة إدارة الغرفة' : 'Microphone was muted by room admin')),
+                      SnackBar(content: DText(isAr ? 'تم كتم المايك بواسطة إدارة الغرفة' : 'Microphone was muted by room admin')),
                     );
                     return;
                   }
@@ -4271,14 +4294,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       final updated = List<String>.from(_moderators);
                       unawaited(SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated}));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('تم إلغاء إشراف ${_selectedUser?.name}')),
+                        SnackBar(content: DText('تم إلغاء إشراف ${_selectedUser?.name}')),
                       );
                     } else {
                       setState(() => _moderators.add(targetUid));
                       final updated = List<String>.from(_moderators);
                       unawaited(SupabaseDataService().updateRoom(widget.roomId, {'moderators': updated}));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('تم تعيين ${_selectedUser?.name} كمشرف في الغرفة 👑')),
+                        SnackBar(content: DText('تم تعيين ${_selectedUser?.name} كمشرف في الغرفة 👑')),
                       );
                     }
                   } catch (e) {
@@ -4291,7 +4314,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   if (userId == null) return;
                   if (_blockedUsers.contains(userId)) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Cannot follow this user'), duration: Duration(seconds: 2)),
+                      const SnackBar(content: DText('Cannot follow this user'), duration: Duration(seconds: 2)),
                     );
                     return;
                   }
@@ -4300,13 +4323,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       _followedUsers.remove(userId);
                       _firebaseService.unfollowUser(_currentUserId!, userId);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Unfollowed ${_selectedUser?.name}')),
+                        SnackBar(content: DText('Unfollowed ${_selectedUser?.name}')),
                       );
                     } else {
                       _followedUsers.add(userId);
                       _firebaseService.followUser(_currentUserId!, userId);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Followed ${_selectedUser?.name}')),
+                        SnackBar(content: DText('Followed ${_selectedUser?.name}')),
                       );
                     }
                   });
@@ -4315,7 +4338,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   final userId = _selectedUser?.id;
                   if (userId != null && _blockedUsers.contains(userId)) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Cannot message this user'), duration: Duration(seconds: 2)),
+                      const SnackBar(content: DText('Cannot message this user'), duration: Duration(seconds: 2)),
                     );
                     return;
                   }
@@ -4332,7 +4355,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   final userId = _selectedUser?.id;
                   if (userId != null && _blockedUsers.contains(userId)) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Cannot mention this user'), duration: Duration(seconds: 2)),
+                      const SnackBar(content: DText('Cannot mention this user'), duration: Duration(seconds: 2)),
                     );
                     return;
                   }
@@ -4386,7 +4409,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   _firebaseService.blockUser(_currentUserId!, userId);
                   setState(() => _blockedUsers.add(userId));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${_selectedUser?.name} has been blocked'), duration: Duration(seconds: 2)),
+                    SnackBar(content: DText('${_selectedUser?.name} has been blocked'), duration: Duration(seconds: 2)),
                   );
                 },
                 onUnblock: () {
@@ -4395,7 +4418,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   _firebaseService.unblockUser(_currentUserId!, userId);
                   setState(() => _blockedUsers.remove(userId));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${_selectedUser?.name} has been unblocked'), duration: Duration(seconds: 2)),
+                    SnackBar(content: DText('${_selectedUser?.name} has been unblocked'), duration: Duration(seconds: 2)),
                   );
                 },
                 onKick: () {
@@ -4539,13 +4562,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                               ),
                             ),
                             child: const Center(
-                              child: Text('COMBO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: DText('COMBO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ),
                         ),
                         Positioned(
                           top: 12,
-                          child: Text(
+                          child: DText(
                             'x${combo.multiplier}',
                             style: const TextStyle(
                               color: Color(0xFFFFD700),
@@ -4646,7 +4669,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         } else {
           final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(isAr ? 'تعديل إعدادات وبيانات الغرفة متاح لمالك الغرفة فقط' : 'Room settings available for owner only')),
+            SnackBar(content: DText(isAr ? 'تعديل إعدادات وبيانات الغرفة متاح لمالك الغرفة فقط' : 'Room settings available for owner only')),
           );
         }
         break;
@@ -4655,7 +4678,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           _openSeatStyle();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'تغيير شكل المقاعد متاح للمالك والمشرفين فقط' : 'Seat style available for owner and admins only')),
+            SnackBar(content: DText(Localizations.localeOf(context).languageCode == 'ar' ? 'تغيير شكل المقاعد متاح للمالك والمشرفين فقط' : 'Seat style available for owner and admins only')),
           );
         }
         break;
@@ -4664,7 +4687,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           _openRoomBackground();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'تغيير خلفية الغرفة متاح للمالك والمشرفين فقط' : 'Room background available for owner and admins only')),
+            SnackBar(content: DText(Localizations.localeOf(context).languageCode == 'ar' ? 'تغيير خلفية الغرفة متاح للمالك والمشرفين فقط' : 'Room background available for owner and admins only')),
           );
         }
         break;
@@ -4780,7 +4803,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       ]
                     : null,
               ),
-              child: Text(
+              child: DText(
                 tab['label'] as String,
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -4894,7 +4917,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         ),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(
+      child: DText(
         'Lv.$lvl',
         style: const TextStyle(
           color: Colors.white,
@@ -4954,7 +4977,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      DText(
                         m.senderName.length > 15 ? m.senderName.substring(0, 15) : m.senderName,
                         style: const TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold),
                       ),
@@ -4973,7 +4996,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // tv_send_gift_msg (13sp white)
-                        Text(
+                        DText(
                           receiverName.isNotEmpty
                               ? 'أرسل إلى $receiverName $giftName'
                               : (m.text.isNotEmpty ? m.text : 'أرسل هدية $giftName'),
@@ -4987,7 +5010,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             _buildStaticGiftIcon(giftIcon, size: 40, giftName: giftName, giftId: giftId),
                             const SizedBox(width: 8),
                             // tv_gift_num (14sp, color #FFEB3B)
-                            Text(
+                            DText(
                               'x$count',
                               style: const TextStyle(
                                 fontSize: 14,
@@ -5066,7 +5089,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      DText(
                         senderDisplayName,
                         style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
                       ),
@@ -5081,7 +5104,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             ),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text(
+                          child: DText(
                             isAr ? 'فوز حظ' : 'LUCKY WIN',
                             style: const TextStyle(fontSize: 9, color: Colors.black, fontWeight: FontWeight.w900),
                           ),
@@ -5102,7 +5125,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // tv_msg_notice / tv_send_gift_msg
-                        Text(
+                        DText(
                           hasWon
                               ? (isAr
                                   ? '🎉 $senderDisplayName فاز بالمحظوظ! ربح $totalWon 🪙 بمضاعف ${maxMultiplier > 1 ? "${maxMultiplier}X" : ""}'
@@ -5128,7 +5151,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                               children: [
                                 Row(
                                   children: [
-                                    Text(
+                                    DText(
                                       giftName,
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -5146,7 +5169,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                           ),
                                           borderRadius: BorderRadius.circular(6),
                                         ),
-                                        child: Text(
+                                        child: DText(
                                           '${maxMultiplier}X',
                                           style: const TextStyle(
                                             color: Colors.white,
@@ -5169,7 +5192,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                         errorBuilder: (_, __, ___) => const Icon(Icons.monetization_on, color: Color(0xFFFFEB3B), size: 14),
                                       ),
                                       const SizedBox(width: 4),
-                                      Text(
+                                      DText(
                                         '+$totalWon ${isAr ? 'عملة' : 'coins'}',
                                         style: const TextStyle(
                                           color: Color(0xFFFFEB3B),
@@ -5180,7 +5203,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                     ],
                                   )
                                 else
-                                  Text(
+                                  DText(
                                     'x$count',
                                     style: const TextStyle(
                                       fontSize: 14,
@@ -5223,10 +5246,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('🍀', style: TextStyle(fontSize: 20)),
+                const DText('🍀', style: TextStyle(fontSize: 20)),
                 const SizedBox(width: 8),
                 Flexible(
-                  child: Text(
+                  child: DText(
                     m.text,
                     style: const TextStyle(
                       fontSize: 14,
@@ -5268,7 +5291,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 ),
                 const SizedBox(width: 6),
                 Flexible(
-                  child: Text(
+                  child: DText(
                     isExit
                         ? '${m.senderName.isNotEmpty ? m.senderName : m.text} غادر الغرفة'
                         : 'انضم ${m.senderName.isNotEmpty ? m.senderName : m.text} إلى الغرفة',
@@ -5298,7 +5321,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               color: const Color(0x33000000),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(
+            child: DText(
               m.text,
               style: const TextStyle(fontSize: 12, color: Color(0xFF41FE88)),
             ),
@@ -5334,7 +5357,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    DText(
                       m.senderName.length > 15
                           ? m.senderName.substring(0, 15)
                           : m.senderName,
@@ -5384,7 +5407,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   height: 32,
                                   fit: BoxFit.contain,
                                 ))
-                          : Text(imgUrl, style: const TextStyle(fontSize: 22)),
+                          : DText(imgUrl, style: const TextStyle(fontSize: 22)),
                     );
                   } else if (m.type == 'image' || (m.imageUrl != null && m.imageUrl!.isNotEmpty) || (isStorageUrl && isMediaExt)) {
                     final imgUrl = (m.imageUrl != null && m.imageUrl!.isNotEmpty)
@@ -5466,7 +5489,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     Widget bubbleContent = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      child: Text(
+      child: DText(
         text,
         textDirection: textDir,
         textAlign: textAlign,
@@ -5629,7 +5652,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               Expanded(
                 child: emojis.isEmpty
                     ? const Center(
-                        child: Text(
+                        child: DText(
                           'لا توجد إيموجيات مضافة من لوحة التحكم',
                           style: TextStyle(color: Colors.white54, fontSize: 13),
                         ),
@@ -5688,7 +5711,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             child: Center(
                               child: emojis[idx].startsWith('http')
                                   ? Image.network(emojis[idx], width: 44, height: 44, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.sentiment_satisfied, color: Colors.white70))
-                                  : Text(emojis[idx], style: const TextStyle(fontSize: 28)),
+                                  : DText(emojis[idx], style: const TextStyle(fontSize: 28)),
                             ),
                           ),
                         ),
@@ -5756,7 +5779,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             ? const Icon(Icons.person, size: 14, color: Colors.white)
                             : null,
                       ),
-                      label: Text(
+                      label: DText(
                         '@$displayName',
                         style: const TextStyle(color: Colors.white, fontSize: 12),
                       ),
@@ -5837,7 +5860,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   alignment: Alignment.center,
-                  child: Text(
+                  child: DText(
                     isAr ? 'إرسال' : 'Send',
                     style: const TextStyle(
                       fontSize: 14,
@@ -5974,7 +5997,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   // tv_room_title
-                                  Text(
+                                  DText(
                                     isAr ? 'معلومات الغرفة' : 'Room Info',
                                     style: const TextStyle(
                                       fontSize: 15,
@@ -6026,7 +6049,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                                   ),
                                                   const SizedBox(width: 3),
                                                   Flexible(
-                                                    child: Text(
+                                                    child: DText(
                                                       R.formatCoins(monthCoins),
                                                       maxLines: 1,
                                                       overflow: TextOverflow.ellipsis,
@@ -6051,7 +6074,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                               Row(
                                                 children: [
                                                   Flexible(
-                                                    child: Text(
+                                                    child: DText(
                                                       _currentRoom?.name.isNotEmpty == true
                                                           ? _currentRoom!.name
                                                           : widget.roomName,
@@ -6066,7 +6089,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                                   ),
                                                   if (_currentRoom?.country != null && _currentRoom!.country.isNotEmpty) ...[
                                                     const SizedBox(width: 6),
-                                                    Text(_currentRoom!.country, style: const TextStyle(fontSize: 14)),
+                                                    DText(_currentRoom!.country, style: const TextStyle(fontSize: 14)),
                                                   ],
                                                 ],
                                               ),
@@ -6085,7 +6108,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                                   color: const Color(0xFFFFC525).withValues(alpha: 0.2),
                                                   borderRadius: BorderRadius.circular(10),
                                                 ),
-                                                child: Text(
+                                                child: DText(
                                                   _currentRoom?.category.isNotEmpty == true ? _currentRoom!.category : (widget.gameDesc.isNotEmpty ? widget.gameDesc : (isAr ? 'دردشة' : 'Chat')),
                                                   style: const TextStyle(fontSize: 9, color: Color(0xFFFFC525), fontWeight: FontWeight.bold),
                                                 ),
@@ -6129,7 +6152,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   ),
                                   const SizedBox(height: 24),
                                   // room_owner_title
-                                  Text(
+                                  DText(
                                     isAr ? 'صاحب الغرفة' : 'Room Owner',
                                     style: const TextStyle(
                                       fontSize: 15,
@@ -6159,7 +6182,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(
+                                            DText(
                                               _currentRoom?.hostName.isNotEmpty == true
                                                   ? _currentRoom!.hostName
                                                   : widget.hostName,
@@ -6183,7 +6206,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   ),
                                   const SizedBox(height: 24),
                                   // room_owner_notice_title
-                                  Text(
+                                  DText(
                                     isAr ? 'إعلان الغرفة' : 'Room Announcement',
                                     style: const TextStyle(
                                       fontSize: 15,
@@ -6201,7 +6224,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       color: const Color(0x0FFFFFFF), // room_notice_bg
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: Text(
+                                    child: DText(
                                       _currentRoom?.announcement.isNotEmpty == true
                                           ? _currentRoom!.announcement
                                           : (_currentRoom?.description.isNotEmpty == true
@@ -6237,7 +6260,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                             size: 22,
                                           ),
                                           const SizedBox(width: 6),
-                                          Text(
+                                          DText(
                                             _isFollowed ? (isAr ? 'إلغاء المتابعة' : 'Unfollow') : (isAr ? 'متابعة' : 'Follow'),
                                             style: const TextStyle(
                                               fontSize: 15,
@@ -6260,7 +6283,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   // room_owner_data_introduce_title
-                                  Text(
+                                  DText(
                                     isAr ? 'بيانات الغرفة' : 'Room Data',
                                     style: const TextStyle(
                                       fontSize: 13,
@@ -6297,7 +6320,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            Text(
+                                            DText(
                                               '$totalCoins',
                                               style: const TextStyle(
                                                 fontSize: 22,
@@ -6309,7 +6332,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                         ),
                                         const SizedBox(height: 8),
                                         // room_owner_data_histroy_coin_title
-                                        Text(
+                                        DText(
                                           isAr ? 'إجمالي عملات الغرفة التاريخية' : 'Total Historical Room Coins',
                                           style: const TextStyle(
                                             fontSize: 13,
@@ -6340,7 +6363,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                                 gradient: AppColors.giftBtnGradient,
                                                 borderRadius: BorderRadius.circular(12),
                                               ),
-                                              child: Text(
+                                              child: DText(
                                                 'Lv.$roomLevel',
                                                 style: const TextStyle(
                                                   color: Colors.white,
@@ -6350,12 +6373,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                               ),
                                             ),
                                             const SizedBox(width: 10),
-                                            Text(
+                                            DText(
                                               isAr ? 'مستوى الغرفة الحالي' : 'Current Room Level',
                                               style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
                                             ),
                                             const Spacer(),
-                                            Text(
+                                            DText(
                                               '${totalCoins % 1000} / 1000',
                                               style: const TextStyle(color: Colors.white54, fontSize: 12),
                                             ),
@@ -6415,7 +6438,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // tv_time (12sp #979797)
-          Text(
+          DText(
             label,
             style: const TextStyle(color: Color(0xFF979797), fontSize: 12),
           ),
@@ -6430,7 +6453,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 errorBuilder: (_, __, ___) => const Icon(Icons.monetization_on, color: Color(0xFFFFD700), size: 20),
               ),
               const SizedBox(width: 6),
-              Text(
+              DText(
                 '$coins',
                 style: const TextStyle(
                   color: Color(0xFFFFF5AD),
@@ -6530,7 +6553,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 10),
               // idTitleTip
-              const Text(
+              const DText(
                 'المتواجدين',
                 style: TextStyle(
                   color: Color(0xFF333333),
@@ -6543,7 +6566,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: Text(
+                  child: DText(
                     'المتواجدين: $_onlineCount',
                     style: const TextStyle(color: Color(0xFF999999), fontSize: 12),
                   ),
@@ -6553,7 +6576,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               Expanded(
                 child: displayUsers.isEmpty
                     ? const Center(
-                        child: Text('لا يوجد مستخدمون متصلون', style: TextStyle(color: Color(0xFF999999), fontSize: 14)),
+                        child: DText('لا يوجد مستخدمون متصلون', style: TextStyle(color: Color(0xFF999999), fontSize: 14)),
                       )
                     : ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -6594,7 +6617,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       Row(
                                         children: [
                                           Flexible(
-                                            child: Text(
+                                            child: DText(
                                               u.name,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -6646,7 +6669,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                           children: [
                                             const Icon(Icons.star, size: 10, color: Colors.white),
                                             const SizedBox(width: 2),
-                                            Text(
+                                            DText(
                                               'Lv.${u.level}',
                                               style: const TextStyle(
                                                 color: Colors.white,
@@ -6667,7 +6690,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                     Navigator.pop(context);
                                     if (!isOnMic) {
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('تمت دعوة ${u.name} للمايك')),
+                                        SnackBar(content: DText('تمت دعوة ${u.name} للمايك')),
                                       );
                                     } else {
                                       _openChatUserProfile(u.id ?? '', u.name, u.avatar ?? '');
@@ -6679,7 +6702,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       border: Border.all(color: const Color(0xFFDE880F), width: 1),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: Text(
+                                    child: DText(
                                       isOnMic ? 'الملف الشخصي' : 'دعوة للمايك',
                                       style: const TextStyle(
                                         color: Color(0xFFDE880F),
@@ -6747,7 +6770,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       child: Row(
                         children: [
-                          Text(
+                          DText(
                             isAr ? 'إشعارات الغرفة والهدايا' : 'Room Notifications',
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
@@ -6772,7 +6795,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 children: [
                                   Icon(Icons.notifications_none_rounded, size: 48, color: Colors.white24),
                                   const SizedBox(height: 10),
-                                  Text(
+                                  DText(
                                     isAr ? 'لا توجد إشعارات هدايا حالياً' : 'No gift notifications yet',
                                     style: const TextStyle(color: Colors.white38, fontSize: 13),
                                   ),
@@ -6818,14 +6841,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(
+                                            DText(
                                               senderName,
                                               style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                             const SizedBox(height: 2),
-                                            Text(
+                                            DText(
                                               '${isAr ? "أرسل إلى" : "Sent to"} $receiverName: $giftName',
                                               style: const TextStyle(color: Color(0xFFFFA726), fontSize: 12),
                                               maxLines: 1,
@@ -6846,7 +6869,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                         ),
                                       ],
                                       const SizedBox(width: 8),
-                                      Text(
+                                      DText(
                                         'x$giftCount',
                                         style: const TextStyle(
                                           fontSize: 18,
@@ -7053,7 +7076,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _firebaseService.isUserBlockedFromRoom(widget.roomId, uid).then((isBlocked) {
       if (isBlocked && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You are banned from this room'), duration: Duration(seconds: 3)),
+          const SnackBar(content: DText('You are banned from this room'), duration: Duration(seconds: 3)),
         );
         Navigator.of(context).pop();
       }
@@ -7147,13 +7170,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   children: [
                                     const Icon(Icons.check_circle, color: Colors.greenAccent, size: 24),
                                     const SizedBox(width: 8),
-                                    Text(
+                                    DText(
                                       isAr ? 'تم استلام المكافأة بنجاح' : 'Reward Claimed',
                                       style: const TextStyle(color: Colors.white, fontSize: 16),
                                     ),
                                   ],
                                 ),
-                                content: Text(
+                                content: DText(
                                   isAr
                                       ? 'تم إيداع مكافآت الغرفة (+$profit كوينز 🪙) في محفظتك بنجاح 🎁!'
                                       : 'Room rewards (+$profit coins 🪙) deposited to your wallet 🎁!',
@@ -7162,7 +7185,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(ctx),
-                                    child: Text(isAr ? 'حسناً' : 'OK', style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold)),
+                                    child: DText(isAr ? 'حسناً' : 'OK', style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold)),
                                   ),
                                 ],
                               ),
@@ -7171,7 +7194,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         } else if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(res['message']?.toString() ?? (isAr ? 'لم ينتهِ الأسبوع الحالي بعد أو لم تتأهل الغرفة' : 'Not qualified or week not ended yet')),
+                              content: DText(res['message']?.toString() ?? (isAr ? 'لم ينتهِ الأسبوع الحالي بعد أو لم تتأهل الغرفة' : 'Not qualified or week not ended yet')),
                               backgroundColor: Colors.redAccent,
                             ),
                           );
@@ -7203,7 +7226,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           color: canClaim ? Colors.black87 : Colors.white54,
                         ),
                         const SizedBox(width: 6),
-                        Text(
+                        DText(
                           canClaim
                               ? (isAr ? 'استلام المكافأة (+$profitCoins كوينز 🪙)' : 'Claim Reward (+$profitCoins coins 🪙)')
                               : (!isPeriodCompleted
@@ -7282,7 +7305,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(height: 10),
-                      Text(
+                      DText(
                         isAr ? 'تصغير الغرفة' : 'Minimize Room',
                         style: const TextStyle(
                           color: Colors.white,
@@ -7310,7 +7333,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(height: 10),
-                      Text(
+                      DText(
                         isAr ? 'الخروج من الغرفة' : 'Exit Room',
                         style: const TextStyle(
                           color: Colors.white,
@@ -7357,7 +7380,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    DText(
                       isAr ? 'مشاركة الغرفة' : 'Share Room',
                       style: const TextStyle(
                         fontSize: 16,
@@ -7393,7 +7416,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           onTap: () {
                             Clipboard.setData(ClipboardData(text: 'https://ahla.live/room/${widget.roomId}'));
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(isAr ? 'تم نسخ رابط الغرفة' : 'Room link copied')),
+                              SnackBar(content: DText(isAr ? 'تم نسخ رابط الغرفة' : 'Room link copied')),
                             );
                             setState(() => _showShare = false);
                           },
@@ -7405,7 +7428,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     // Friends sharing section
                     Align(
                       alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Text(
+                      child: DText(
                         isAr ? 'إرسال للأصدقاء (رسالة خاصة)' : 'Send to Friends (Private Chat)',
                         style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
                       ),
@@ -7425,7 +7448,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           if (friends.isEmpty) {
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 20),
-                              child: Text(
+                              child: DText(
                                 isAr ? 'لا يوجد أصدقاء متابعون حالياً' : 'No followed friends found',
                                 style: const TextStyle(color: Colors.white38, fontSize: 13),
                               ),
@@ -7447,7 +7470,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   backgroundImage: fPhoto.isNotEmpty ? R.cachedImage(fPhoto) : null,
                                   child: fPhoto.isEmpty ? const Icon(Icons.person, color: Colors.white54, size: 18) : null,
                                 ),
-                                title: Text(fName, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                                title: DText(fName, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
                                 trailing: ElevatedButton(
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFFFFC525),
@@ -7472,7 +7495,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       );
                                       if (mounted) {
                                         ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text(isAr ? 'تمت مشاركة الغرفة مع $fName' : 'Shared room with $fName')),
+                                          SnackBar(content: DText(isAr ? 'تمت مشاركة الغرفة مع $fName' : 'Shared room with $fName')),
                                         );
                                       }
                                     } catch (e) {
@@ -7480,14 +7503,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       if (mounted) {
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
-                                            content: Text(isAr ? 'تعذر إرسال الرسالة' : 'Failed to send message'),
+                                            content: DText(isAr ? 'تعذر إرسال الرسالة' : 'Failed to send message'),
                                             backgroundColor: Colors.red,
                                           ),
                                         );
                                       }
                                     }
                                   },
-                                  child: Text(isAr ? 'إرسال' : 'Send', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                  child: DText(isAr ? 'إرسال' : 'Send', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                 ),
                               );
                             },
@@ -7506,7 +7529,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         alignment: Alignment.center,
-                        child: Text(
+                        child: DText(
                           isAr ? 'إغلاق' : 'Close',
                           style: const TextStyle(
                             fontSize: 14,
@@ -7541,7 +7564,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             child: Icon(icon, color: Colors.white, size: 26),
           ),
           const SizedBox(height: 8),
-          Text(
+          DText(
             label,
             style: const TextStyle(
               fontSize: 12,
@@ -7587,7 +7610,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   child: Container(
                     height: 33, // adapter_gift_count_item tv_item_count height
                     alignment: Alignment.center,
-                    child: Text(
+                    child: DText(
                       '${counts[i]}',
                       style: TextStyle(
                         fontSize: 12, // 12sp
@@ -7617,7 +7640,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       builder: (dCtx) => AlertDialog(
         backgroundColor: const Color(0xFF231B2A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('أدخل كمية الإرسال', style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: const DText('أدخل كمية الإرسال', style: TextStyle(color: Colors.white, fontSize: 16)),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
@@ -7634,7 +7657,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dCtx),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -7648,7 +7671,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               }
               Navigator.pop(dCtx);
             },
-            child: const Text('تأكيد'),
+            child: const DText('تأكيد'),
           ),
         ],
       ),
@@ -7667,7 +7690,7 @@ class _EmojiTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.center,
-      child: Text(
+      child: DText(
         label,
         style: TextStyle(
           fontSize: 22,

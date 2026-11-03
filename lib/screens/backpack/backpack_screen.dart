@@ -10,6 +10,7 @@ import '../../services/supabase_service.dart';
 import '../mall/mall_screen.dart';
 import '../room/widgets/svga_player.dart';
 import '../room/widgets/vap_player.dart';
+import 'package:zero/core/dtext.dart';
 
 class BackpackScreen extends StatefulWidget {
   const BackpackScreen({super.key});
@@ -193,7 +194,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
             ),
           ),
           const Spacer(),
-          const Text(
+          const DText(
             'الحقيبة',
             style: TextStyle(
               fontSize: 18,
@@ -225,7 +226,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                     height: 16,
                   ),
                   const SizedBox(width: 4),
-                  const Text(
+                  const DText(
                     'المتجر',
                     style: TextStyle(
                       fontSize: 12,
@@ -289,7 +290,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                             : R.loadImage(iconPath, fit: BoxFit.contain),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      DText(
                         cat['name']!,
                         style: TextStyle(
                           fontSize: 12,
@@ -484,7 +485,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                                   ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Text(
+                                child: const DText(
                                   'قيد الاستخدام',
                                   style: TextStyle(
                                     fontSize: 10,
@@ -518,7 +519,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                     // اسم العنصر tv_item_name
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
+                      child: DText(
                         item.name,
                         style: const TextStyle(
                           fontSize: 13,
@@ -562,7 +563,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                               fit: BoxFit.contain,
                             ),
                             const SizedBox(width: 4),
-                            Text(
+                            DText(
                               durationText,
                               style: const TextStyle(
                                 fontSize: 11,
@@ -600,7 +601,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
           ),
           const SizedBox(height: 10),
           // النص التوضيحي tv_tip
-          const Text(
+          const DText(
             'لا توجد عناصر حالياً في هذا القسم',
             style: TextStyle(
               fontSize: 13,
@@ -633,7 +634,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                 ],
               ),
               alignment: Alignment.center,
-              child: const Text(
+              child: const DText(
                 'الذهاب إلى المتجر',
                 style: TextStyle(
                   fontSize: 14,
@@ -659,7 +660,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
       child: Row(
         children: [
           if (selected != null)
-            Text(
+            DText(
               'العنصر المحدد: ${selected.name}',
               style: const TextStyle(
                 fontSize: 13,
@@ -668,7 +669,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
               ),
             )
           else
-            const Text(
+            const DText(
               'يرجى تحديد عنصر لارتدائه',
               style: TextStyle(
                 fontSize: 12,
@@ -702,7 +703,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                       : null,
                 ),
               ),
-              child: Text(
+              child: DText(
                 isEquipped ? 'إلغاء الارتداء' : 'ارتداء',
                 style: const TextStyle(
                   fontSize: 15,
@@ -809,7 +810,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                     color: Colors.black45,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
+                  child: DText(
                     item.name,
                     style: const TextStyle(
                       fontSize: 16,
@@ -832,7 +833,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
     final uid = userProvider.currentUser?.uid;
     if (uid == null) {
       return const Center(
-        child: Text(
+        child: DText(
           'لا توجد هدايا',
           style: TextStyle(color: Color(0xFF9BA1B6), fontSize: 14),
         ),
@@ -845,7 +846,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
         final gifts = snapshot.data ?? [];
         if (gifts.isEmpty) {
           return const Center(
-            child: Text(
+            child: DText(
               'لا توجد هدايا مستلمة حتى الآن',
               style: TextStyle(color: Color(0xFF9BA1B6), fontSize: 14),
             ),
@@ -872,7 +873,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                         ? R.cachedImage(g.senderPhotoUrl!)
                         : null,
                     child: g.senderPhotoUrl == null || g.senderPhotoUrl!.isEmpty
-                        ? Text(
+                        ? DText(
                             g.senderName.isNotEmpty ? g.senderName[0].toUpperCase() : '?',
                             style: const TextStyle(color: Colors.white),
                           )
@@ -883,7 +884,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        DText(
                           g.senderName,
                           style: const TextStyle(
                             color: Colors.white,
@@ -892,7 +893,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
+                        DText(
                           'أرسل ${g.giftName} (x${g.count})',
                           style: const TextStyle(
                             color: Color(0xFFFAE9B5),
@@ -902,7 +903,7 @@ class _BackpackScreenState extends State<BackpackScreen> {
                       ],
                     ),
                   ),
-                  Text(
+                  DText(
                     '${g.value} ذهب',
                     style: const TextStyle(
                       color: Color(0xFFFFC525),

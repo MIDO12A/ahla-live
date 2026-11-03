@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/ui/in_app_toast.dart';
+import 'package:zero/core/dtext.dart';
 
 class CommissionPeriodDialog extends StatefulWidget {
   final ValueChanged<String>? onSaved;
@@ -155,7 +156,7 @@ class _CommissionPeriodDialogState extends State<CommissionPeriodDialog> {
                 ),
                 const SizedBox(width: 12),
                 const Expanded(
-                  child: Text(
+                  child: DText(
                     'تحديد دورة احتساب عمولة الوكالة',
                     style: TextStyle(
                       color: Colors.white,
@@ -172,7 +173,7 @@ class _CommissionPeriodDialogState extends State<CommissionPeriodDialog> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
+            const DText(
               'اختر دورة احتساب وعرض أرباح عمولة الوكلاء في شاشات الوكالة:',
               style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Tajawal'),
             ),
@@ -218,7 +219,7 @@ class _CommissionPeriodDialogState extends State<CommissionPeriodDialog> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       onPressed: _saving ? null : () => Navigator.pop(context),
-                      child: const Text('إلغاء', style: TextStyle(fontFamily: 'Tajawal')),
+                      child: const DText('إلغاء', style: TextStyle(fontFamily: 'Tajawal')),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -237,7 +238,7 @@ class _CommissionPeriodDialogState extends State<CommissionPeriodDialog> {
                               height: 20,
                               child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
                             )
-                          : const Text(
+                          : const DText(
                               'حفظ التحديد',
                               style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Tajawal'),
                             ),
@@ -289,7 +290,7 @@ class _CommissionPeriodDialogState extends State<CommissionPeriodDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  DText(
                     title,
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
@@ -299,7 +300,7 @@ class _CommissionPeriodDialogState extends State<CommissionPeriodDialog> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
+                  DText(
                     subtitle,
                     style: const TextStyle(
                       color: Colors.white38,

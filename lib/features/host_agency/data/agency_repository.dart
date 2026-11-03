@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import '../../../core/supabase_compat.dart';
 
@@ -26,7 +27,8 @@ abstract final class AgencyRepository {
         return AgencyEngineSettings.fromMap(Map<String, dynamic>.from(resp));
       }
     } catch (e) {
-      debugPrint('[AgencyRepository] agency_get_engine_settings RPC unavailable: $e');
+      debugPrint(
+          '[AgencyRepository] agency_get_engine_settings RPC unavailable: $e');
     }
 
     // 2. الجلب المباشر من جداول قاعدة البيانات (commission_settings و app_config)
@@ -38,7 +40,8 @@ abstract final class AgencyRepository {
       double diamondToUsd = AgencyEngineSettings.defaults.diamondToUsdRate;
       double withdrawalFee = AgencyEngineSettings.defaults.withdrawalFeePct;
       double minWithdrawalUsd = AgencyEngineSettings.defaults.minWithdrawalUsd;
-      int minDiamondsToWithdraw = AgencyEngineSettings.defaults.minDiamondsToWithdraw;
+      int minDiamondsToWithdraw =
+          AgencyEngineSettings.defaults.minDiamondsToWithdraw;
       int dailyLimit = AgencyEngineSettings.defaults.dailyExchangeLimit;
       bool engineEnabled = AgencyEngineSettings.defaults.engineEnabled;
 
@@ -48,12 +51,13 @@ abstract final class AgencyRepository {
         if (commRows is List) {
           for (final row in commRows) {
             final key = row['key']?.toString();
-            final p = (row['percentage'] as num?)?.toDouble() ?? 
-                      (row['value'] as num?)?.toDouble();
+            final p = (row['percentage'] as num?)?.toDouble() ??
+                (row['value'] as num?)?.toDouble();
             if (p != null) {
               if (key == 'host_rate' || key == 'recharge_agent_host_rate') {
                 hostShare = p.toInt();
-              } else if (key == 'agency_rate' || key == 'recharge_agent_agency_rate') {
+              } else if (key == 'agency_rate' ||
+                  key == 'recharge_agent_agency_rate') {
                 agencyShare = p.toInt();
               } else if (key == 'platform_rate') {
                 platformShare = p.toInt();
@@ -79,9 +83,12 @@ abstract final class AgencyRepository {
               diamondToCoin = val.toDouble();
             } else if (key == 'diamond_exchange_config') {
               Map<String, dynamic>? dec;
-              if (val is Map) dec = Map<String, dynamic>.from(val);
+              if (val is Map)
+                dec = Map<String, dynamic>.from(val);
               else if (val is String) {
-                try { dec = jsonDecode(val) as Map<String, dynamic>?; } catch (_) {}
+                try {
+                  dec = jsonDecode(val) as Map<String, dynamic>?;
+                } catch (_) {}
               }
               if (dec != null) {
                 if (dec['coinsPerDiamond'] is num) {
@@ -125,17 +132,18 @@ abstract final class AgencyRepository {
   // ─── التصنيف ────────────────────────────────────────────────────
   static Future<List<AgencyLeaderboardEntry>> getLeaderboard({
     String? country,
-    int limit  = 50,
+    int limit = 50,
     int offset = 0,
   }) async {
     final resp = await _sb.rpc('agency_get_leaderboard', params: {
       'p_country': country,
-      'p_limit':   limit,
-      'p_offset':  offset,
+      'p_limit': limit,
+      'p_offset': offset,
     });
     final list = (resp as List<dynamic>?) ?? [];
     return list
-        .map((e) => AgencyLeaderboardEntry.fromMap(Map<String, dynamic>.from(e as Map)))
+        .map((e) =>
+            AgencyLeaderboardEntry.fromMap(Map<String, dynamic>.from(e as Map)))
         .toList();
   }
 
@@ -236,11 +244,11 @@ abstract final class AgencyRepository {
     String? phone,
   }) async {
     final resp = await _sb.rpc('agency_create', params: {
-      'p_name':        name,
+      'p_name': name,
       'p_description': description,
-      'p_country':     country,
-      'p_photo_url':   photoUrl,
-      'p_phone':       phone,
+      'p_country': country,
+      'p_photo_url': photoUrl,
+      'p_phone': phone,
     });
     return (resp as Map<String, dynamic>)['agency_id'] as String;
   }
@@ -251,7 +259,8 @@ abstract final class AgencyRepository {
     if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
 
     try {
-      final resp = await _sb.rpc('agency_request_join', params: {'p_agency_id': agencyId});
+      final resp = await _sb
+          .rpc('agency_request_join', params: {'p_agency_id': agencyId});
       if (resp is Map && resp['status'] == 'error') {
         throw Exception(resp['message'] ?? 'تعذر تقديم طلب الانضمام');
       }
@@ -294,11 +303,21 @@ abstract final class AgencyRepository {
 
     // Always notify the agency owner about the new host join request
     try {
-      final agRow = await _sb.from('host_agencies').select('owner_uid, owner_id, name').eq('id', agencyId).maybeSingle();
-      final ownerId = agRow?['owner_uid']?.toString() ?? agRow?['owner_id']?.toString() ?? '';
+      final agRow = await _sb
+          .from('host_agencies')
+          .select('owner_uid, owner_id, name')
+          .eq('id', agencyId)
+          .maybeSingle();
+      final ownerId = agRow?['owner_uid']?.toString() ??
+          agRow?['owner_id']?.toString() ??
+          '';
       final agName = agRow?['name']?.toString() ?? 'وكالتك';
       if (ownerId.isNotEmpty && ownerId != uid) {
-        final uRow = await _sb.from('users').select('name, custom_id').or('id.eq.$uid,uid.eq.$uid').maybeSingle();
+        final uRow = await _sb
+            .from('users')
+            .select('name, custom_id')
+            .or('id.eq.$uid,uid.eq.$uid')
+            .maybeSingle();
         final uName = uRow?['name']?.toString() ?? 'مستخدم';
         final cId = uRow?['custom_id']?.toString() ?? '';
         final nowIso = DateTime.now().toUtc().toIso8601String();
@@ -308,7 +327,8 @@ abstract final class AgencyRepository {
           'type': 'agency_host_request',
           'actor_uid': uid,
           'title': 'طلب انضمام مضيف جديد إلى وكالتك 📝',
-          'body': 'قدم المضيف [$uName] (معرف: $cId) طلباً للانضمام إلى وكالتك [$agName]. يرجى فتح شاشة طلبات الانضمام للموافقة أو الرفض.',
+          'body':
+              'قدم المضيف [$uName] (معرف: $cId) طلباً للانضمام إلى وكالتك [$agName]. يرجى فتح شاشة طلبات الانضمام للموافقة أو الرفض.',
           'data': {
             'action': 'host_join_request',
             'agency_id': agencyId,
@@ -371,47 +391,54 @@ abstract final class AgencyRepository {
 
             final mList = await _sb
                 .from('host_agency_members')
-                .select('diamonds_earned_monthly, diamonds_earned_cumulative, diamonds_pending_withdrawal')
+                .select(
+                    'diamonds_earned_monthly, diamonds_earned_cumulative, diamonds_pending_withdrawal')
                 .or('user_id.eq.$uid,host_uid.eq.$uid')
                 .limit(1);
             if (mList.isNotEmpty) {
-              liveMonthly = (mList.first['diamonds_earned_monthly'] as num?)?.toInt();
-              liveCumulative = (mList.first['diamonds_earned_cumulative'] as num?)?.toInt();
-              livePending = (mList.first['diamonds_pending_withdrawal'] as num?)?.toInt();
+              liveMonthly =
+                  (mList.first['diamonds_earned_monthly'] as num?)?.toInt();
+              liveCumulative =
+                  (mList.first['diamonds_earned_cumulative'] as num?)?.toInt();
+              livePending =
+                  (mList.first['diamonds_pending_withdrawal'] as num?)?.toInt();
             }
           } catch (_) {}
 
           final member = AgencyMemberInfo.fromMap({
-            'member_id':                   data['member_id'],
-            'user_id':                     uid,
-            'agency_id':                   data['agency_id'],
-            'role':                        data['role'],
-            'status':                      'active',
-            'diamonds_balance':            liveDiamonds ?? data['diamonds_balance'],
-            'diamonds_available':          liveDiamonds ?? data['diamonds_available'],
-            'diamonds_pending_withdrawal': livePending ?? data['diamonds_pending_withdrawal'],
-            'diamonds_earned_monthly':     liveMonthly ?? data['diamonds_earned_monthly'],
-            'diamonds_earned_cumulative':  liveCumulative ?? data['diamonds_earned_cumulative'],
-            'join_date':                   data['join_date'],
-            'is_in_trial':                 data['is_in_trial'],
-            'trial_ends_at':               data['trial_ends_at'],
+            'member_id': data['member_id'],
+            'user_id': uid,
+            'agency_id': data['agency_id'],
+            'role': data['role'],
+            'status': 'active',
+            'diamonds_balance': liveDiamonds ?? data['diamonds_balance'],
+            'diamonds_available': liveDiamonds ?? data['diamonds_available'],
+            'diamonds_pending_withdrawal':
+                livePending ?? data['diamonds_pending_withdrawal'],
+            'diamonds_earned_monthly':
+                liveMonthly ?? data['diamonds_earned_monthly'],
+            'diamonds_earned_cumulative':
+                liveCumulative ?? data['diamonds_earned_cumulative'],
+            'join_date': data['join_date'],
+            'is_in_trial': data['is_in_trial'],
+            'trial_ends_at': data['trial_ends_at'],
           });
 
           final targets = ((data['targets'] as List<dynamic>?) ?? [])
-              .map((e) => AgencyTarget.fromDashboardMap(Map<String, dynamic>.from(e as Map)))
+              .map((e) => AgencyTarget.fromDashboardMap(
+                  Map<String, dynamic>.from(e as Map)))
               .toList();
 
           final ledger = ((data['recent_ledger'] as List<dynamic>?) ?? [])
-              .map((e) => AgencyLedgerEntry.fromMap(Map<String, dynamic>.from(e as Map)))
+              .map((e) => AgencyLedgerEntry.fromMap(
+                  Map<String, dynamic>.from(e as Map)))
               .toList();
 
           final engineMap = data['engine'] as Map<String, dynamic>? ?? {};
           final engine = AgencyEngineSettings.fromMap(engineMap);
 
-          final achievedIds = targets
-              .where((t) => t.isAchieved)
-              .map((t) => t.id)
-              .toList();
+          final achievedIds =
+              targets.where((t) => t.isAchieved).map((t) => t.id).toList();
 
           final agency = data['agency_id'] != null
               ? AgencyCard(
@@ -419,19 +446,22 @@ abstract final class AgencyRepository {
                   name: data['agency_name']?.toString() ?? 'الوكالة',
                   tier: AgencyTier.bronze,
                   memberCount: 1,
-                  totalDiamondsMonthly: (data['diamonds_earned_monthly'] as num?)?.toInt() ?? 0,
-                  totalDiamondsCumulative: (data['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0,
+                  totalDiamondsMonthly:
+                      (data['diamonds_earned_monthly'] as num?)?.toInt() ?? 0,
+                  totalDiamondsCumulative:
+                      (data['diamonds_earned_cumulative'] as num?)?.toInt() ??
+                          0,
                   isHallOfFame: false,
                   status: 'active',
                 )
               : null;
 
           return HostAgencyStats(
-            member:            member,
-            agency:            agency,
-            targets:           targets,
-            recentLedger:      ledger,
-            engine:            engine,
+            member: member,
+            agency: agency,
+            targets: targets,
+            recentLedger: ledger,
+            engine: engine,
             achievedTargetIds: achievedIds,
           );
         }
@@ -442,7 +472,8 @@ abstract final class AgencyRepository {
 
     // ── Direct Supabase Fallback when RPC fails or is missing ──
     try {
-      final memList = await _sb.from('host_agency_members')
+      final memList = await _sb
+          .from('host_agency_members')
           .select('*')
           .or('user_id.eq.$uid,host_uid.eq.$uid')
           .limit(1);
@@ -451,15 +482,22 @@ abstract final class AgencyRepository {
         final agencyId = m['agency_id']?.toString() ?? '';
         final memberId = m['id']?.toString() ?? uid;
         final diamonds = (m['diamonds'] as num?)?.toInt() ?? 0;
-        final diamondsMonthly = (m['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-        final diamondsCumulative = (m['diamonds_earned_cumulative'] as num?)?.toInt() ?? diamondsMonthly;
+        final diamondsMonthly =
+            (m['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        final diamondsCumulative =
+            (m['diamonds_earned_cumulative'] as num?)?.toInt() ??
+                diamondsMonthly;
         // الرصيد القابل للسحب مصدره users.diamonds (تتم مزامنته عبر RPC ذرّي)
-        int diamondsBalance = (m['diamonds_available'] as num?)?.toInt()
-            ?? (m['diamonds_balance'] as num?)?.toInt()
-            ?? diamonds;
+        int diamondsBalance = (m['diamonds_available'] as num?)?.toInt() ??
+            (m['diamonds_balance'] as num?)?.toInt() ??
+            diamonds;
 
         try {
-          final uList = await _sb.from('users').select('diamonds').eq('uid', uid).limit(1);
+          final uList = await _sb
+              .from('users')
+              .select('diamonds')
+              .eq('uid', uid)
+              .limit(1);
           if (uList.isNotEmpty && uList.first['diamonds'] != null) {
             diamondsBalance = (uList.first['diamonds'] as num).toInt();
           }
@@ -467,7 +505,11 @@ abstract final class AgencyRepository {
 
         Map<String, dynamic>? agencyRow;
         if (agencyId.isNotEmpty) {
-          final agList = await _sb.from('host_agencies').select('*').eq('id', agencyId).limit(1);
+          final agList = await _sb
+              .from('host_agencies')
+              .select('*')
+              .eq('id', agencyId)
+              .limit(1);
           if (agList.isNotEmpty) {
             agencyRow = Map<String, dynamic>.from(agList.first as Map);
           }
@@ -476,16 +518,25 @@ abstract final class AgencyRepository {
         List<AgencyTarget> targets = [];
         if (agencyId.isNotEmpty) {
           try {
-            final tgList = await _sb.from('agency_targets').select('*').eq('agency_id', agencyId).order('target_diamonds', ascending: true);
+            final tgList = await _sb
+                .from('agency_targets')
+                .select('*')
+                .eq('agency_id', agencyId)
+                .order('target_diamonds', ascending: true);
             targets = (tgList as List).map((t) {
               final row = Map<String, dynamic>.from(t as Map);
-              final targetDiamonds = (row['target_diamonds'] as num?)?.toInt() ?? 0;
+              final targetDiamonds =
+                  (row['target_diamonds'] as num?)?.toInt() ?? 0;
               final earned = diamondsMonthly;
               final rem = (targetDiamonds - earned).clamp(0, targetDiamonds);
-              final pct = targetDiamonds > 0 ? (earned / targetDiamonds).clamp(0.0, 1.0) : 0.0;
+              final pct = targetDiamonds > 0
+                  ? (earned / targetDiamonds).clamp(0.0, 1.0)
+                  : 0.0;
               return AgencyTarget(
                 id: row['id']?.toString() ?? '',
-                title: row['title']?.toString() ?? row['name']?.toString() ?? 'المستوى $targetDiamonds',
+                title: row['title']?.toString() ??
+                    row['name']?.toString() ??
+                    'المستوى $targetDiamonds',
                 targetDiamonds: targetDiamonds,
                 rewardDiamonds: (row['reward_diamonds'] as num?)?.toInt() ?? 0,
                 rewardCoins: (row['reward_coins'] as num?)?.toInt() ?? 0,
@@ -512,21 +563,28 @@ abstract final class AgencyRepository {
           diamondsPendingWithdrawal: 0,
           diamondsEarnedMonthly: diamondsMonthly,
           diamondsEarnedCumulative: diamondsCumulative,
-          joinDate: DateTime.tryParse(m['created_at']?.toString() ?? '') ?? DateTime.now(),
+          joinDate: DateTime.tryParse(m['created_at']?.toString() ?? '') ??
+              DateTime.now(),
         );
 
         final agency = agencyRow != null
             ? AgencyCard(
                 id: agencyId,
-                name: agencyRow['name']?.toString() ?? agencyRow['agency_name']?.toString() ?? 'الوكالة',
+                name: agencyRow['name']?.toString() ??
+                    agencyRow['agency_name']?.toString() ??
+                    'الوكالة',
                 tier: AgencyTier.bronze,
-                memberCount: (agencyRow['total_hosts'] as num?)?.toInt() ?? (agencyRow['member_count'] as num?)?.toInt() ?? 1,
-                totalDiamondsMonthly: (agencyRow['total_diamonds_monthly'] as num?)?.toInt()
-                    ?? (agencyRow['monthly_diamonds'] as num?)?.toInt()
-                    ?? 0,
-                totalDiamondsCumulative: (agencyRow['total_diamonds_cumulative'] as num?)?.toInt()
-                    ?? (agencyRow['total_diamonds_earned'] as num?)?.toInt()
-                    ?? 0,
+                memberCount: (agencyRow['total_hosts'] as num?)?.toInt() ??
+                    (agencyRow['member_count'] as num?)?.toInt() ??
+                    1,
+                totalDiamondsMonthly:
+                    (agencyRow['total_diamonds_monthly'] as num?)?.toInt() ??
+                        (agencyRow['monthly_diamonds'] as num?)?.toInt() ??
+                        0,
+                totalDiamondsCumulative:
+                    (agencyRow['total_diamonds_cumulative'] as num?)?.toInt() ??
+                        (agencyRow['total_diamonds_earned'] as num?)?.toInt() ??
+                        0,
                 isHallOfFame: false,
                 status: agencyRow['status']?.toString() ?? 'active',
               )
@@ -538,7 +596,8 @@ abstract final class AgencyRepository {
           targets: targets,
           recentLedger: [],
           engine: AgencyEngineSettings.fromMap({}),
-          achievedTargetIds: targets.where((t) => t.isAchieved).map((t) => t.id).toList(),
+          achievedTargetIds:
+              targets.where((t) => t.isAchieved).map((t) => t.id).toList(),
         );
       }
     } catch (e) {
@@ -593,7 +652,7 @@ abstract final class AgencyRepository {
   // RPC يخصم من users.diamonds + diamonds_balance + diamonds_available
   // + diamonds_earned_monthly (التارجت) في معاملة واحدة، بدون أي عمولة وكيل.
   static Future<Map<String, dynamic>> exchangeDiamonds({
-    required int    diamondsAmount,
+    required int diamondsAmount,
     required String idempotencyKey,
   }) async {
     final uid = _sb.auth.currentUser?.id;
@@ -604,15 +663,16 @@ abstract final class AgencyRepository {
 
     try {
       final resp = await _sb.rpc('agency_exchange_diamonds', params: {
-        'p_diamonds':          diamondsAmount,
-        'p_idempotency_key':   idempotencyKey,
-        'p_user_id':           uid,
+        'p_diamonds': diamondsAmount,
+        'p_idempotency_key': idempotencyKey,
+        'p_user_id': uid,
         'p_coins_per_diamond': mult,
       });
       if (resp is Map) {
         final result = Map<String, dynamic>.from(resp);
         if (result['success'] == true) {
-          await AgencyTargetEvaluator.evaluateHostTargets(uid);
+          // لا نُبطئ التبديل بانتظار إعادة تقييم التارجت — تُنفَّذ في الخلفية
+          unawaited(AgencyTargetEvaluator.evaluateHostTargets(uid));
           return result;
         }
         throw StateError((result['error'] ?? 'exchange_failed').toString());
@@ -640,18 +700,23 @@ abstract final class AgencyRepository {
       }
     } catch (_) {}
 
-    final uRow = await _sb.from('users')
+    final uRow = await _sb
+        .from('users')
         .select('diamonds, coins')
         .or('uid.eq.$uid,id.eq.$uid')
         .maybeSingle();
     final curD = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
     final curC = (uRow?['coins'] as num?)?.toDouble() ?? 0;
 
-    final memRows = await _sb.from('host_agency_members')
-        .select('id, agency_id, diamonds_available, diamonds_balance, diamonds_earned_monthly, unpacked_target_diamonds')
+    final memRows = await _sb
+        .from('host_agency_members')
+        .select(
+            'id, agency_id, diamonds_available, diamonds_balance, diamonds_earned_monthly, unpacked_target_diamonds')
         .or('host_uid.eq.$uid,user_id.eq.$uid')
         .limit(1);
-    final mem = memRows.isNotEmpty ? Map<String, dynamic>.from(memRows.first as Map) : null;
+    final mem = memRows.isNotEmpty
+        ? Map<String, dynamic>.from(memRows.first as Map)
+        : null;
 
     final memAvailable = mem == null
         ? curD
@@ -675,12 +740,14 @@ abstract final class AgencyRepository {
 
     if (mem != null) {
       final curMonthly = (mem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-      final curUnpacked = (mem['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
+      final curUnpacked =
+          (mem['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
       await _sb.from('host_agency_members').update({
         'diamonds': newDiamonds,
         'diamonds_balance': newDiamonds,
         'diamonds_available': newDiamonds,
-        'diamonds_earned_monthly': (curMonthly - diamondsAmount).clamp(0, 999999999),
+        'diamonds_earned_monthly':
+            (curMonthly - diamondsAmount).clamp(0, 999999999),
         'unpacked_target_diamonds': curUnpacked + diamondsAmount,
         'has_unpacked_target': true,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -688,6 +755,11 @@ abstract final class AgencyRepository {
 
       final agencyId = mem['agency_id']?.toString() ?? '';
       if (agencyId.isNotEmpty) {
+        // مزامنة إجماليات الوكالة (لوحة المالك) بعد خصم التارجت الشهري
+        try {
+          await _sb
+              .rpc('agency_recalc_totals', params: {'p_agency_id': agencyId});
+        } catch (_) {}
         try {
           await _sb.from('agency_diamond_ledger').insert({
             'agency_id': agencyId,
@@ -715,7 +787,7 @@ abstract final class AgencyRepository {
       });
     } catch (_) {}
 
-    await AgencyTargetEvaluator.evaluateHostTargets(uid);
+    unawaited(AgencyTargetEvaluator.evaluateHostTargets(uid));
     return {
       'success': true,
       'duplicate': false,
@@ -729,7 +801,7 @@ abstract final class AgencyRepository {
   // ✅ إصلاح: DB signature = (p_diamonds bigint, p_bank_details jsonb, p_idempotency_key text)
   //    auth.uid() يُحدَّد داخل الدالة — bankDetails = {method, bank_name, iban, country}
   static Future<Map<String, dynamic>> requestWithdrawal({
-    required int    diamondsAmount,
+    required int diamondsAmount,
     required String paymentMethod,
     required Map<String, dynamic> paymentDetails,
     required String idempotencyKey,
@@ -740,10 +812,10 @@ abstract final class AgencyRepository {
     };
 
     final resp = await _sb.rpc('agency_request_withdrawal', params: {
-      'p_diamonds':        diamondsAmount,
-      'p_bank_details':    bankDetails,
+      'p_diamonds': diamondsAmount,
+      'p_bank_details': bankDetails,
       'p_idempotency_key': idempotencyKey,
-      'p_user_id':         _sb.auth.currentUser?.id,
+      'p_user_id': _sb.auth.currentUser?.id,
     });
     if (resp is! Map) {
       throw Exception('تعذر إنشاء طلب السحب — تحقق من الاتصال');
@@ -760,7 +832,7 @@ abstract final class AgencyRepository {
   //    auth.uid() يُحدَّد داخل الدالة — لا idempotency_key في هذه الدالة
   static Future<Map<String, dynamic>> transferToRecharge({
     required String agentUserId,
-    required int    diamondsAmount,
+    required int diamondsAmount,
   }) async {
     final resp = await _sb.rpc('agency_transfer_to_recharge', params: {
       'p_agent_id': agentUserId,
@@ -774,7 +846,7 @@ abstract final class AgencyRepository {
   /// p_source: 'host' للمضيف، 'agency_owner' لمالك الوكالة
   static Future<Map<String, dynamic>> transferDiamondsToAgentWallet({
     required String agentId,
-    required int    diamonds,
+    required int diamonds,
     required String idempotencyKey,
     String source = 'host',
     String? senderUid,
@@ -784,7 +856,11 @@ abstract final class AgencyRepository {
     double effectiveStageUsd = stageUsd ?? 0.0;
     if (effectiveStageUsd <= 0 && source == 'host') {
       try {
-        final cfgRow = await _sb.from('app_config').select('value').eq('key', 'host_milestones_list').maybeSingle();
+        final cfgRow = await _sb
+            .from('app_config')
+            .select('value')
+            .eq('key', 'host_milestones_list')
+            .maybeSingle();
         if (cfgRow != null && cfgRow['value'] != null) {
           final rawVal = cfgRow['value'];
           List mList = [];
@@ -797,9 +873,13 @@ abstract final class AgencyRepository {
             mList = rawVal;
           }
           for (final item in mList) {
-            final tDia = (item['target_diamonds'] ?? item['targetDiamonds'] as num?)?.toInt() ?? 0;
+            final tDia =
+                (item['target_diamonds'] ?? item['targetDiamonds'] as num?)
+                        ?.toInt() ??
+                    0;
             if (tDia == diamonds) {
-              final rVal = (item['reward_value'] ?? item['rewardValue'] as num?)?.toDouble();
+              final rVal = (item['reward_value'] ?? item['rewardValue'] as num?)
+                  ?.toDouble();
               if (rVal != null && rVal > 0) {
                 effectiveStageUsd = rVal;
                 break;
@@ -812,14 +892,17 @@ abstract final class AgencyRepository {
 
     try {
       final resp = await _sb.rpc('host_transfer_diamonds_to_agent', params: {
-        'p_agent_id':         agentId,
-        'p_diamonds':         diamonds,
-        'p_idempotency_key':  idempotencyKey,
-        'p_source':           source,
-        'p_host_uid':         senderUid ?? _sb.auth.currentUser?.id,
-        'p_stage_usd':        effectiveStageUsd,
+        'p_agent_id': agentId,
+        'p_diamonds': diamonds,
+        'p_idempotency_key': idempotencyKey,
+        'p_source': source,
+        'p_host_uid': senderUid ?? _sb.auth.currentUser?.id,
+        'p_stage_usd': effectiveStageUsd,
       });
-      if (resp != null && (resp['status'] == 'ok' || resp['ok'] == true || resp['success'] == true)) {
+      if (resp != null &&
+          (resp['status'] == 'ok' ||
+              resp['ok'] == true ||
+              resp['success'] == true)) {
         return Map<String, dynamic>.from(resp as Map);
       }
     } catch (_) {
@@ -854,21 +937,31 @@ abstract final class AgencyRepository {
           .or('uid.eq.$uid,id.eq.$uid')
           .maybeSingle();
       final userDiamonds = (userRow?['diamonds'] as num?)?.toInt() ?? 0;
-      final userName = userRow?['name']?.toString() ?? userRow?['custom_id']?.toString() ?? 'مستخدم';
+      final userName = userRow?['name']?.toString() ??
+          userRow?['custom_id']?.toString() ??
+          'مستخدم';
 
       if (source == 'host') {
         // Fetch host agency membership
         final memberRow = await _sb
             .from('host_agency_members')
-            .select('id, agency_id, diamonds, diamonds_balance, diamonds_earned_monthly')
+            .select(
+                'id, agency_id, diamonds, diamonds_balance, diamonds_earned_monthly')
             .or('user_id.eq.$uid,host_uid.eq.$uid')
             .maybeSingle();
 
-        final agencyId = memberRow?['agency_id']?.toString() ?? userRow?['agency_id']?.toString() ?? '';
-        final memberDiamonds = (memberRow?['diamonds'] as num?)?.toInt() ?? (memberRow?['diamonds_balance'] as num?)?.toInt() ?? userDiamonds;
+        final agencyId = memberRow?['agency_id']?.toString() ??
+            userRow?['agency_id']?.toString() ??
+            '';
+        final memberDiamonds = (memberRow?['diamonds'] as num?)?.toInt() ??
+            (memberRow?['diamonds_balance'] as num?)?.toInt() ??
+            userDiamonds;
 
         if (userDiamonds < diamonds && memberDiamonds < diamonds) {
-          return {'status': 'error', 'message': 'رصيد الألماس المتاح غير كافٍ لإتمام السحب'};
+          return {
+            'status': 'error',
+            'message': 'رصيد الألماس المتاح غير كافٍ لإتمام السحب'
+          };
         }
 
         // Fetch agency name
@@ -897,7 +990,7 @@ abstract final class AgencyRepository {
         }
 
         // 2. Deduct host's target & available diamonds in host_agency_members
-        final curMonthly = memberRow != null 
+        final curMonthly = memberRow != null
             ? ((memberRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0)
             : 0;
         final updatedBal = newHostDiamonds;
@@ -914,19 +1007,29 @@ abstract final class AgencyRepository {
 
         if (memberRow != null && memberRow['id'] != null) {
           try {
-            await _sb.from('host_agency_members').update(updatePayload).eq('id', memberRow['id']);
+            await _sb
+                .from('host_agency_members')
+                .update(updatePayload)
+                .eq('id', memberRow['id']);
           } catch (_) {}
         }
         try {
-          await _sb.from('host_agency_members').update(updatePayload).or('user_id.eq.$uid,host_uid.eq.$uid');
+          await _sb
+              .from('host_agency_members')
+              .update(updatePayload)
+              .or('user_id.eq.$uid,host_uid.eq.$uid');
         } catch (_) {}
 
         // تصفير الراتب المستحق للمضيف في جدول الرواتب
         try {
-          await _sb.from('host_salaries').update({
-            'status': 'disbursed',
-            'disbursed_at': DateTime.now().toIso8601String(),
-          }).or('user_id.eq.$uid,host_uid.eq.$uid').eq('status', 'pending');
+          await _sb
+              .from('host_salaries')
+              .update({
+                'status': 'disbursed',
+                'disbursed_at': DateTime.now().toIso8601String(),
+              })
+              .or('user_id.eq.$uid,host_uid.eq.$uid')
+              .eq('status', 'pending');
         } catch (_) {}
 
         // 3. Deposit diamonds into Recharge Agency Wallet (agency_wallets)
@@ -938,7 +1041,9 @@ abstract final class AgencyRepository {
                 .select('id, uid')
                 .or('uid.eq.$agentId,id.eq.$agentId,custom_id.eq.$agentId')
                 .maybeSingle();
-            final aId = agentRow?['uid']?.toString() ?? agentRow?['id']?.toString() ?? agentId;
+            final aId = agentRow?['uid']?.toString() ??
+                agentRow?['id']?.toString() ??
+                agentId;
 
             // إيداع الألماس حصراً في محفظة وكالة الشحن
             final aw = await _sb
@@ -974,18 +1079,24 @@ abstract final class AgencyRepository {
                 'agent_id': aId,
                 'sender_id': uid,
                 'sender_name': userName,
-                'sender_avatar': userRow?['avatar_url'] ?? userRow?['photo_url'],
+                'sender_avatar':
+                    userRow?['avatar_url'] ?? userRow?['photo_url'],
                 'sender_kayan_id': userRow?['custom_id'],
                 'txn_type': 'received_from_host',
                 'diamonds_amount': diamonds,
                 'coins_amount': 0,
                 'usd_amount': effectiveStageUsd,
                 'balance_after': agentBalAfter,
-                'notes': 'استلام راتب من المضيف $userName (وكالة: $agencyName) - $diamonds ماسة' + (effectiveStageUsd > 0 ? ' ($effectiveStageUsd\$)' : ''),
+                'notes':
+                    'استلام راتب من المضيف $userName (وكالة: $agencyName) - $diamonds ماسة' +
+                        (effectiveStageUsd > 0
+                            ? ' ($effectiveStageUsd\$)'
+                            : ''),
                 'created_at': DateTime.now().toIso8601String(),
               });
             } catch (e) {
-              debugPrint('[AgencyRepository] error logging agent_diamond_transactions: $e');
+              debugPrint(
+                  '[AgencyRepository] error logging agent_diamond_transactions: $e');
             }
 
             // إرسال إشعار فوري لوكيل الشحن
@@ -993,7 +1104,9 @@ abstract final class AgencyRepository {
               await _sb.from('private_messages').insert({
                 'sender_id': 'system',
                 'receiver_id': aId,
-                'text': '⚡ تم إيداع $diamonds ماسة' + (effectiveStageUsd > 0 ? ' ($effectiveStageUsd\$)' : '') + ' في محفظة وكالة الشحن الخاصة بك من سحب المضيف $userName (وكالة: $agencyName).',
+                'text': '⚡ تم إيداع $diamonds ماسة' +
+                    (effectiveStageUsd > 0 ? ' ($effectiveStageUsd\$)' : '') +
+                    ' في محفظة وكالة الشحن الخاصة بك من سحب المضيف $userName (وكالة: $agencyName).',
                 'type': 'system',
                 'created_at': DateTime.now().toIso8601String(),
               });
@@ -1011,7 +1124,8 @@ abstract final class AgencyRepository {
             'txn_type': 'withdrawal',
             'amount': diamonds,
             'direction': -1,
-            'gift_name': 'سحب راتب المضيف $userName وتحويله لكوينز لوكالة الشحن',
+            'gift_name':
+                'سحب راتب المضيف $userName وتحويله لكوينز لوكالة الشحن',
             'created_at': DateTime.now().toIso8601String(),
           });
         } catch (_) {}
@@ -1051,10 +1165,13 @@ abstract final class AgencyRepository {
             .select('*')
             .or('user_id.eq.$uid,host_uid.eq.$uid')
             .maybeSingle();
-        final agencyId = memberRow?['agency_id']?.toString() ?? userRow?['agency_id']?.toString() ?? '';
+        final agencyId = memberRow?['agency_id']?.toString() ??
+            userRow?['agency_id']?.toString() ??
+            '';
 
-        final oBal = (memberRow?['diamonds_balance'] as num?)?.toInt() ?? 
-                     (memberRow?['diamonds'] as num?)?.toInt() ?? 0;
+        final oBal = (memberRow?['diamonds_balance'] as num?)?.toInt() ??
+            (memberRow?['diamonds'] as num?)?.toInt() ??
+            0;
 
         // رصيد الراتب المتاح للصرف فقط دون دمج عمولة الوكيل أثناء صرف الراتب
         final effectiveBal = oBal > 0 ? oBal : userDiamonds;
@@ -1080,7 +1197,8 @@ abstract final class AgencyRepository {
 
         // Deduct from users table
         try {
-          final curUDia = (userRow?['diamonds'] as num?)?.toInt() ?? userDiamonds;
+          final curUDia =
+              (userRow?['diamonds'] as num?)?.toInt() ?? userDiamonds;
           await _sb.from('users').update({
             'diamonds': (curUDia - diamonds).clamp(0, 999999999),
           }).eq('uid', uid);
@@ -1097,13 +1215,20 @@ abstract final class AgencyRepository {
         // Deduct from host_agencies
         if (agencyId.isNotEmpty) {
           try {
-            final agRow = await _sb.from('host_agencies').select('monthly_diamonds, total_diamonds_monthly').eq('id', agencyId).maybeSingle();
+            final agRow = await _sb
+                .from('host_agencies')
+                .select('monthly_diamonds, total_diamonds_monthly')
+                .eq('id', agencyId)
+                .maybeSingle();
             if (agRow != null) {
-              final curMonthly = (agRow['monthly_diamonds'] as num?)?.toInt() ?? 0;
-              final curTotMonthly = (agRow['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
+              final curMonthly =
+                  (agRow['monthly_diamonds'] as num?)?.toInt() ?? 0;
+              final curTotMonthly =
+                  (agRow['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
               await _sb.from('host_agencies').update({
                 'monthly_diamonds': (curMonthly - diamonds).clamp(0, 999999999),
-                'total_diamonds_monthly': (curTotMonthly - diamonds).clamp(0, 999999999),
+                'total_diamonds_monthly':
+                    (curTotMonthly - diamonds).clamp(0, 999999999),
               }).eq('id', agencyId);
             }
           } catch (_) {}
@@ -1117,7 +1242,9 @@ abstract final class AgencyRepository {
                 .select('id, uid')
                 .or('uid.eq.$agentId,id.eq.$agentId,custom_id.eq.$agentId')
                 .maybeSingle();
-            final aId = agentRow?['uid']?.toString() ?? agentRow?['id']?.toString() ?? agentId;
+            final aId = agentRow?['uid']?.toString() ??
+                agentRow?['id']?.toString() ??
+                agentId;
 
             final aw = await _sb
                 .from('agency_wallets')
@@ -1147,7 +1274,8 @@ abstract final class AgencyRepository {
                 'agent_id': aId,
                 'sender_id': uid,
                 'sender_name': userName,
-                'sender_avatar': userRow?['avatar_url'] ?? userRow?['photo_url'],
+                'sender_avatar':
+                    userRow?['avatar_url'] ?? userRow?['photo_url'],
                 'sender_kayan_id': userRow?['custom_id'],
                 'txn_type': 'received_from_agency',
                 'diamonds_amount': diamonds,
@@ -1161,7 +1289,8 @@ abstract final class AgencyRepository {
               await _sb.from('private_messages').insert({
                 'sender_id': 'system',
                 'receiver_id': aId,
-                'text': '⚡ تم إيداع $diamonds ماسة في محفظة وكالة الشحن الخاصة بك من سحب مالك الوكالة $userName.',
+                'text':
+                    '⚡ تم إيداع $diamonds ماسة في محفظة وكالة الشحن الخاصة بك من سحب مالك الوكالة $userName.',
                 'type': 'system',
                 'created_at': DateTime.now().toIso8601String(),
               });
@@ -1211,14 +1340,15 @@ abstract final class AgencyRepository {
         };
       }
     } catch (err) {
-      debugPrint('[AgencyRepository] transferDiamondsToAgentWallet error: $err');
+      debugPrint(
+          '[AgencyRepository] transferDiamondsToAgentWallet error: $err');
       return {'status': 'error', 'message': 'حدث خطأ أثناء معالجة السحب: $err'};
     }
   }
 
   // ─── سجل المعاملات الكامل ────────────────────────────────────────
   static Future<List<AgencyLedgerEntry>> getTransactionHistory({
-    int limit  = 50,
+    int limit = 50,
     int offset = 0,
     String? type,
   }) async {
@@ -1227,7 +1357,8 @@ abstract final class AgencyRepository {
 
     var baseQuery = _sb
         .from('agency_diamond_ledger')
-        .select('id, txn_type, amount, direction, balance_after, note, created_at')
+        .select(
+            'id, txn_type, amount, direction, balance_after, note, created_at')
         .eq('user_id', uid);
 
     if (type != null) {
@@ -1238,7 +1369,8 @@ abstract final class AgencyRepository {
         .order('created_at', ascending: false)
         .range(offset, offset + limit - 1);
     return (rows as List<dynamic>)
-        .map((e) => AgencyLedgerEntry.fromMap(Map<String, dynamic>.from(e as Map)))
+        .map((e) =>
+            AgencyLedgerEntry.fromMap(Map<String, dynamic>.from(e as Map)))
         .toList();
   }
 
@@ -1266,13 +1398,14 @@ abstract final class AgencyRepository {
   }) async {
     await _sb.rpc('agency_send_announcement', params: {
       'p_agency_id': agencyId,
-      'p_title':     title,
-      'p_body':      body,
+      'p_title': title,
+      'p_body': body,
     });
   }
 
   // ─── إعلانات الوكالة ─────────────────────────────────────────────
-  static Future<List<Map<String, dynamic>>> getAnnouncements(String agencyId) async {
+  static Future<List<Map<String, dynamic>>> getAnnouncements(
+      String agencyId) async {
     final resp = await _sb
         .from('agency_announcements')
         .select()
@@ -1295,7 +1428,8 @@ abstract final class AgencyRepository {
         .maybeSingle();
     if (resp == null) return false;
     final freeUntil = DateTime.tryParse(resp['free_until'] as String? ?? '');
-    return freeUntil != null && ServerTimeService.instance.now().isBefore(freeUntil);
+    return freeUntil != null &&
+        ServerTimeService.instance.now().isBefore(freeUntil);
   }
 
   // ─── القائمة السوداء ─────────────────────────────────────────────
@@ -1317,17 +1451,13 @@ abstract final class AgencyRepository {
     int limit = 50,
   }) async {
     try {
-      final resp = await _sb
-          .from('host_agency_members')
-          .select('''
+      final resp = await _sb.from('host_agency_members').select('''
             id, user_id, role, status,
             diamonds_earned_monthly, diamonds_earned_cumulative,
             diamonds_balance, diamonds_pending_withdrawal,
             trial_ends_at,
             profile:profiles(display_name, avatar_url, kayan_id, level)
-          ''')
-          .eq('agency_id', agencyId)
-          .eq('status', 'active');
+          ''').eq('agency_id', agencyId).eq('status', 'active');
       final list = (resp as List<dynamic>)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
@@ -1352,22 +1482,33 @@ abstract final class AgencyRepository {
   // ─── محفظة مالك الوكالة ──────────────────────────────────────────
 
   /// لوحة تحكم المالك: محفظة + أسعار + آخر 20 حركة
-  static Future<AgencyOwnerDashboard?> getOwnerDashboard(String agencyId) async {
+  static Future<AgencyOwnerDashboard?> getOwnerDashboard(
+      String agencyId) async {
     try {
       final resp = await _sb.rpc('agency_get_owner_dashboard', params: {
         'p_agency_id': agencyId,
       });
       if (resp != null) {
-        return AgencyOwnerDashboard.fromMap(Map<String, dynamic>.from(resp as Map));
+        return AgencyOwnerDashboard.fromMap(
+            Map<String, dynamic>.from(resp as Map));
       }
     } catch (e) {
-      debugPrint('[AgencyRepository] agency_get_owner_dashboard RPC failed, using fallback: $e');
+      debugPrint(
+          '[AgencyRepository] agency_get_owner_dashboard RPC failed, using fallback: $e');
     }
 
     try {
-      final agRes = await _sb.from('host_agencies').select('*').eq('id', agencyId).maybeSingle();
-      final ownerUid = agRes?['owner_uid']?.toString() ?? agRes?['owner_id']?.toString() ?? _sb.auth.currentUser?.id ?? '';
-      final agencyRate = (agRes?['commission_rate'] as num?)?.toDouble() ?? 0.15;
+      final agRes = await _sb
+          .from('host_agencies')
+          .select('*')
+          .eq('id', agencyId)
+          .maybeSingle();
+      final ownerUid = agRes?['owner_uid']?.toString() ??
+          agRes?['owner_id']?.toString() ??
+          _sb.auth.currentUser?.id ??
+          '';
+      final agencyRate =
+          (agRes?['commission_rate'] as num?)?.toDouble() ?? 0.15;
 
       int ownerBalance = 0;
       int earnedCumulative = 0;
@@ -1382,24 +1523,27 @@ abstract final class AgencyRepository {
             .or('role.eq.owner,host_uid.eq.$ownerUid,user_id.eq.$ownerUid')
             .maybeSingle();
         if (memRes != null) {
-          ownerBalance = (memRes['diamonds_balance'] as num?)?.toInt()
-              ?? (memRes['diamonds_available'] as num?)?.toInt()
-              ?? 0;
-          earnedCumulative = (memRes['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
+          ownerBalance = (memRes['diamonds_balance'] as num?)?.toInt() ??
+              (memRes['diamonds_available'] as num?)?.toInt() ??
+              0;
+          earnedCumulative =
+              (memRes['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
         }
       } catch (_) {}
 
       // 2. users.diamonds هو المصدر الموحد للرصيد القابل للسحب (بدون كتابة رجعية)
       if (ownerUid.isNotEmpty) {
         try {
-          final uRes = await _sb.from('users').select('diamonds').eq('uid', ownerUid).maybeSingle();
+          final uRes = await _sb
+              .from('users')
+              .select('diamonds')
+              .eq('uid', ownerUid)
+              .maybeSingle();
           if (uRes != null && uRes['diamonds'] != null) {
             ownerBalance = (uRes['diamonds'] as num).toInt();
           }
         } catch (_) {}
       }
-
-
 
       // رصيد الراتب المتاح للصرف مستقل ولا تُدمج معه عمولة الوكالة أثناء صرف الراتب
       final totalAvailable = ownerBalance;
@@ -1418,15 +1562,21 @@ abstract final class AgencyRepository {
         for (final row in ledgerRows) {
           final r = Map<String, dynamic>.from(row as Map);
           final amt = (r['amount'] as num?)?.toInt() ?? 0;
-          final dir = (r['direction'] == 'out' || r['direction'] == -1) ? -1 : 1;
+          final dir =
+              (r['direction'] == 'out' || r['direction'] == -1) ? -1 : 1;
           ledgerEntries.add(AgencyOwnerLedgerEntry(
             id: (r['id'].toString().hashCode).abs(),
             txnType: r['txn_type']?.toString() ?? 'commission',
             amount: amt,
             direction: dir,
             balanceAfter: totalAvailable,
-            note: r['gift_name']?.toString() ?? r['note']?.toString() ?? (r['sender_name'] != null ? 'من المضيف: ${r['sender_name']}' : null),
-            createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ?? DateTime.now(),
+            note: r['gift_name']?.toString() ??
+                r['note']?.toString() ??
+                (r['sender_name'] != null
+                    ? 'من المضيف: ${r['sender_name']}'
+                    : null),
+            createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ??
+                DateTime.now(),
           ));
         }
       } catch (_) {}
@@ -1461,12 +1611,12 @@ abstract final class AgencyRepository {
   /// تبادل ألماس الوكالة → كوينز شخصية للمالك
   static Future<Map<String, dynamic>> ownerExchangeDiamonds({
     required String agencyId,
-    required int    diamondsAmount,
+    required int diamondsAmount,
     required String idempotencyKey,
   }) async {
     try {
       final resp = await _sb.rpc('agency_owner_exchange_diamonds', params: {
-        'p_agency_id':       agencyId,
+        'p_agency_id': agencyId,
         'p_diamonds_amount': diamondsAmount,
         'p_idempotency_key': idempotencyKey,
       });
@@ -1475,12 +1625,19 @@ abstract final class AgencyRepository {
 
     try {
       final uid = _sb.auth.currentUser?.id ?? '';
-      final uRes = await _sb.from('users').select('coins, diamonds').or('uid.eq.$uid,id.eq.$uid').maybeSingle();
+      final uRes = await _sb
+          .from('users')
+          .select('coins, diamonds')
+          .or('uid.eq.$uid,id.eq.$uid')
+          .maybeSingle();
       final curDia = (uRes?['diamonds'] as num?)?.toInt() ?? 0;
       final curCoins = (uRes?['coins'] as num?)?.toInt() ?? 0;
 
       if (curDia < diamondsAmount) {
-        return {'success': false, 'error': 'الرصيد المتاح غير كافٍ. رصيدك الحالي: $curDia ♦'};
+        return {
+          'success': false,
+          'error': 'الرصيد المتاح غير كافٍ. رصيدك الحالي: $curDia ♦'
+        };
       }
 
       final newDiamonds = (curDia - diamondsAmount).clamp(0, 999999999);
@@ -1491,7 +1648,12 @@ abstract final class AgencyRepository {
         'diamonds': newDiamonds,
       }).or('uid.eq.$uid,id.eq.$uid');
 
-      final mem = await _sb.from('host_agency_members').select('*').eq('agency_id', agencyId).or('role.eq.owner,host_uid.eq.$uid,user_id.eq.$uid').maybeSingle();
+      final mem = await _sb
+          .from('host_agency_members')
+          .select('*')
+          .eq('agency_id', agencyId)
+          .or('role.eq.owner,host_uid.eq.$uid,user_id.eq.$uid')
+          .maybeSingle();
       if (mem != null) {
         await _sb.from('host_agency_members').update({
           'diamonds': newDiamonds,
@@ -1500,7 +1662,12 @@ abstract final class AgencyRepository {
         }).eq('id', mem['id']);
       }
 
-      return {'success': true, 'coins': diamondsAmount, 'coins_credited': diamondsAmount, 'new_balance': newDiamonds};
+      return {
+        'success': true,
+        'coins': diamondsAmount,
+        'coins_credited': diamondsAmount,
+        'new_balance': newDiamonds
+      };
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
@@ -1509,15 +1676,15 @@ abstract final class AgencyRepository {
   /// طلب سحب نقدي من محفظة الوكالة (يتطلب KYC)
   static Future<Map<String, dynamic>> ownerRequestWithdrawal({
     required String agencyId,
-    required int    diamondsAmount,
+    required int diamondsAmount,
     required String paymentMethod,
     required Map<String, dynamic> paymentDetails,
   }) async {
     try {
       final resp = await _sb.rpc('agency_owner_request_withdrawal', params: {
-        'p_agency_id':       agencyId,
+        'p_agency_id': agencyId,
         'p_diamonds_amount': diamondsAmount,
-        'p_payment_method':  paymentMethod,
+        'p_payment_method': paymentMethod,
         'p_payment_details': paymentDetails,
       });
       if (resp != null) return Map<String, dynamic>.from(resp as Map);
@@ -1542,7 +1709,8 @@ abstract final class AgencyRepository {
 
   // ─── البحث عن وكلاء الشحن ────────────────────────────────────────
   // ─── البحث عن وكلاء الشحن المعتمدين وعرض وكالاتهم ─────────────────────────
-  static Future<List<Map<String, dynamic>>> searchRechargeAgents(String query) async {
+  static Future<List<Map<String, dynamic>>> searchRechargeAgents(
+      String query) async {
     final q = query.trim().replaceFirst('#', '').trim();
     final List<Map<String, dynamic>> results = [];
     final Set<String> seenIds = {};
@@ -1559,7 +1727,8 @@ abstract final class AgencyRepository {
     try {
       final uResp = await _sb
           .from('users')
-          .select('id, uid, name, avatar, photo_url, custom_id, is_recharge_agent, recharge_agency_name, recharge_agency_logo, whatsapp_number')
+          .select(
+              'id, uid, name, avatar, photo_url, custom_id, is_recharge_agent, recharge_agency_name, recharge_agency_logo, whatsapp_number')
           .eq('is_recharge_agent', true)
           .limit(100);
 
@@ -1567,11 +1736,16 @@ abstract final class AgencyRepository {
         final m = Map<String, dynamic>.from(e as Map);
         final agentName = m['name']?.toString() ?? 'وكيل شحن معتمد';
         final uidStr = m['uid']?.toString() ?? '';
-        final customId = m['custom_id']?.toString() ?? (uidStr.length >= 8 ? uidStr.substring(0, 8) : (m['id']?.toString() ?? ''));
-        final agencyName = (m['recharge_agency_name'] != null && m['recharge_agency_name'].toString().trim().isNotEmpty)
+        final customId = m['custom_id']?.toString() ??
+            (uidStr.length >= 8
+                ? uidStr.substring(0, 8)
+                : (m['id']?.toString() ?? ''));
+        final agencyName = (m['recharge_agency_name'] != null &&
+                m['recharge_agency_name'].toString().trim().isNotEmpty)
             ? m['recharge_agency_name'].toString().trim()
             : 'وكالة $agentName للشحن';
-        final logo = (m['recharge_agency_logo'] != null && m['recharge_agency_logo'].toString().isNotEmpty)
+        final logo = (m['recharge_agency_logo'] != null &&
+                m['recharge_agency_logo'].toString().isNotEmpty)
             ? m['recharge_agency_logo'].toString()
             : (m['avatar']?.toString() ?? '');
 
@@ -1580,20 +1754,24 @@ abstract final class AgencyRepository {
           final match = customId.toLowerCase().contains(q.toLowerCase()) ||
               agentName.toLowerCase().contains(q.toLowerCase()) ||
               agencyName.toLowerCase().contains(q.toLowerCase()) ||
-              (m['id']?.toString().toLowerCase().contains(q.toLowerCase()) ?? false) ||
-              (m['uid']?.toString().toLowerCase().contains(q.toLowerCase()) ?? false);
+              (m['id']?.toString().toLowerCase().contains(q.toLowerCase()) ??
+                  false) ||
+              (m['uid']?.toString().toLowerCase().contains(q.toLowerCase()) ??
+                  false);
           if (!match) continue;
         }
 
         addAgent({
           'id': m['uid'] ?? m['id'],
           'display_name': agentName,
-          'avatar_url': (m['avatar'] != null && m['avatar'].toString().trim().isNotEmpty)
-              ? m['avatar'].toString()
-              : (m['photo_url']?.toString() ?? ''),
+          'avatar_url':
+              (m['avatar'] != null && m['avatar'].toString().trim().isNotEmpty)
+                  ? m['avatar'].toString()
+                  : (m['photo_url']?.toString() ?? ''),
           'kayan_id': customId,
           'recharge_agency_name': agencyName,
-          'recharge_agency_logo': logo.isNotEmpty ? logo : (m['photo_url']?.toString() ?? ''),
+          'recharge_agency_logo':
+              logo.isNotEmpty ? logo : (m['photo_url']?.toString() ?? ''),
           'whatsapp_number': m['whatsapp_number'] ?? '',
         });
       }
@@ -1658,13 +1836,18 @@ abstract final class AgencyRepository {
         return {'success': false, 'message': 'كمية الألماس غير صالحة'};
       }
 
-      final requestId = 'host_wdr_${DateTime.now().millisecondsSinceEpoch}_${hostUid.substring(0, 4)}';
+      final requestId =
+          'host_wdr_${DateTime.now().millisecondsSinceEpoch}_${hostUid.substring(0, 4)}';
 
       // جلب مكافأة المرحلة المحددة بالدولار من إعدادات المراحل
       double stageUsd = milestoneUsd ?? 0.0;
       if (stageUsd <= 0) {
         try {
-          final cfgRow = await _sb.from('app_config').select('value').eq('key', 'host_milestones_list').maybeSingle();
+          final cfgRow = await _sb
+              .from('app_config')
+              .select('value')
+              .eq('key', 'host_milestones_list')
+              .maybeSingle();
           if (cfgRow != null && cfgRow['value'] != null) {
             final rawVal = cfgRow['value'];
             List mList = [];
@@ -1677,9 +1860,14 @@ abstract final class AgencyRepository {
               mList = rawVal;
             }
             for (final item in mList) {
-              final tDia = (item['target_diamonds'] ?? item['targetDiamonds'] as num?)?.toInt() ?? 0;
+              final tDia =
+                  (item['target_diamonds'] ?? item['targetDiamonds'] as num?)
+                          ?.toInt() ??
+                      0;
               if (tDia == diamonds) {
-                final rVal = (item['reward_value'] ?? item['rewardValue'] as num?)?.toDouble();
+                final rVal =
+                    (item['reward_value'] ?? item['rewardValue'] as num?)
+                        ?.toDouble();
                 if (rVal != null && rVal > 0) {
                   stageUsd = rVal;
                   break;
@@ -1725,7 +1913,8 @@ abstract final class AgencyRepository {
           'uid': agentId,
           'target': agentId,
           'title': 'طلب سحب ألماس جديد 💎',
-          'body': 'طلب المضيف $hostName سحب $diamonds ماسة ($stageUsd\$) عبر وكالتك. يرجى الدخول لبوابة الشحن للموافقة أو الرفض.',
+          'body':
+              'طلب المضيف $hostName سحب $diamonds ماسة ($stageUsd\$) عبر وكالتك. يرجى الدخول لبوابة الشحن للموافقة أو الرفض.',
           'type': 'agent_host_withdrawal_request',
           'actor_uid': hostUid,
           'data': {
@@ -1757,7 +1946,8 @@ abstract final class AgencyRepository {
   }
 
   // ─── جلب أحدث طلب سحب معلق للمضيف (إن وجد) ──────────────────────────────────
-  static Future<Map<String, dynamic>?> getHostPendingWithdrawal(String hostUid) async {
+  static Future<Map<String, dynamic>?> getHostPendingWithdrawal(
+      String hostUid) async {
     try {
       final res = await _sb
           .from('agent_withdrawal_requests')
@@ -1767,13 +1957,17 @@ abstract final class AgencyRepository {
           .limit(20);
       for (final row in (res as List)) {
         final m = Map<String, dynamic>.from(row as Map);
-        final details = m['account_details'] is Map ? Map<String, dynamic>.from(m['account_details']) : {};
+        final details = m['account_details'] is Map
+            ? Map<String, dynamic>.from(m['account_details'])
+            : {};
         if (details['host_uid'] == hostUid) {
           return {
             'id': m['id'],
             'agent_id': m['agent_id'],
             'agent_name': m['agent_name'],
-            'amount_usd': (m['amount_usd'] as num?)?.toDouble() ?? (details['stage_usd'] as num?)?.toDouble() ?? 0.0,
+            'amount_usd': (m['amount_usd'] as num?)?.toDouble() ??
+                (details['stage_usd'] as num?)?.toDouble() ??
+                0.0,
             'diamonds': (details['diamonds'] as num?)?.toInt() ?? 0,
             'status': m['status'],
             'created_at': m['created_at'],
@@ -1788,7 +1982,8 @@ abstract final class AgencyRepository {
   }
 
   // ─── جلب طلبات السحب الواردة لوكيل الشحن (Pending Host Withdrawals) ───────────
-  static Future<List<Map<String, dynamic>>> getAgentPendingWithdrawals(String agentUid) async {
+  static Future<List<Map<String, dynamic>>> getAgentPendingWithdrawals(
+      String agentUid) async {
     try {
       final res = await _sb
           .from('agent_withdrawal_requests')
@@ -1800,7 +1995,9 @@ abstract final class AgencyRepository {
       final List<Map<String, dynamic>> list = [];
       for (final r in (res as List<dynamic>)) {
         final m = Map<String, dynamic>.from(r as Map);
-        final details = m['account_details'] is Map ? Map<String, dynamic>.from(m['account_details']) : {};
+        final details = m['account_details'] is Map
+            ? Map<String, dynamic>.from(m['account_details'])
+            : {};
         if (details['request_type'] == 'host_diamonds_withdrawal') {
           list.add({
             'id': m['id'],
@@ -1810,7 +2007,9 @@ abstract final class AgencyRepository {
             'host_custom_id': details['host_custom_id'] ?? '',
             'host_avatar': details['host_avatar'] ?? '',
             'diamonds': (details['diamonds'] as num?)?.toInt() ?? 0,
-            'amount_usd': (details['stage_usd'] as num?)?.toDouble() ?? (m['amount_usd'] as num?)?.toDouble() ?? 0.0,
+            'amount_usd': (details['stage_usd'] as num?)?.toDouble() ??
+                (m['amount_usd'] as num?)?.toDouble() ??
+                0.0,
             'agency_name': details['agency_name'] ?? '',
             'created_at': m['created_at'],
             'status': m['status'],
@@ -1845,13 +2044,20 @@ abstract final class AgencyRepository {
 
       final status = reqRow['status']?.toString();
       if (status != 'pending') {
-        return {'success': false, 'message': 'تم التعامل مع هذا الطلب مسبقاً ($status)'};
+        return {
+          'success': false,
+          'message': 'تم التعامل مع هذا الطلب مسبقاً ($status)'
+        };
       }
 
-      final details = reqRow['account_details'] is Map ? Map<String, dynamic>.from(reqRow['account_details']) : {};
+      final details = reqRow['account_details'] is Map
+          ? Map<String, dynamic>.from(reqRow['account_details'])
+          : {};
       final hostUid = details['host_uid']?.toString() ?? '';
       final diamonds = (details['diamonds'] as num?)?.toInt() ?? 0;
-      final stageUsd = (details['stage_usd'] as num?)?.toDouble() ?? (reqRow['amount_usd'] as num?)?.toDouble() ?? 0.0;
+      final stageUsd = (details['stage_usd'] as num?)?.toDouble() ??
+          (reqRow['amount_usd'] as num?)?.toDouble() ??
+          0.0;
 
       if (approve) {
         // تنفيذ التحويل الفعلي للألماس
@@ -1866,7 +2072,10 @@ abstract final class AgencyRepository {
         );
 
         if (txRes['status'] != 'ok' && txRes['success'] != true) {
-          return {'success': false, 'message': txRes['message'] ?? 'فشل تحويل الألماس'};
+          return {
+            'success': false,
+            'message': txRes['message'] ?? 'فشل تحويل الألماس'
+          };
         }
 
         // تحديث حالة الطلب إلى approved
@@ -1882,16 +2091,24 @@ abstract final class AgencyRepository {
             'uid': hostUid,
             'target': hostUid,
             'title': 'تمت الموافقة على سحب الألماس! 🎉',
-            'body': 'وافق وكيل الشحن على طلب سحب $diamonds ماسة وتحويلها لمحفظة الوكالة بنجاح.',
+            'body':
+                'وافق وكيل الشحن على طلب سحب $diamonds ماسة وتحويلها لمحفظة الوكالة بنجاح.',
             'type': 'agent_withdrawal_approved',
-            'data': {'diamonds': diamonds, 'agent_id': agentUid, 'request_id': requestId},
+            'data': {
+              'diamonds': diamonds,
+              'agent_id': agentUid,
+              'request_id': requestId
+            },
             'sent_at': DateTime.now().toIso8601String(),
             'created_at': DateTime.now().toIso8601String(),
             'is_read': false,
           });
         } catch (_) {}
 
-        return {'success': true, 'message': 'تمت الموافقة على الطلب بنجاح وتحويل الألماس'};
+        return {
+          'success': true,
+          'message': 'تمت الموافقة على الطلب بنجاح وتحويل الألماس'
+        };
       } else {
         // رفض الطلب
         await _sb.from('agent_withdrawal_requests').update({
@@ -1906,9 +2123,14 @@ abstract final class AgencyRepository {
             'uid': hostUid,
             'target': hostUid,
             'title': 'تم رفض طلب سحب الألماس',
-            'body': 'اعتذر وكيل الشحن عن قبول طلب سحب $diamonds ماسة. السبب: ${rejectReason ?? "لم يحدد سبب"}',
+            'body':
+                'اعتذر وكيل الشحن عن قبول طلب سحب $diamonds ماسة. السبب: ${rejectReason ?? "لم يحدد سبب"}',
             'type': 'agent_withdrawal_rejected',
-            'data': {'diamonds': diamonds, 'agent_id': agentUid, 'request_id': requestId},
+            'data': {
+              'diamonds': diamonds,
+              'agent_id': agentUid,
+              'request_id': requestId
+            },
             'sent_at': DateTime.now().toIso8601String(),
             'created_at': DateTime.now().toIso8601String(),
             'is_read': false,
@@ -1936,17 +2158,25 @@ abstract final class AgencyRepository {
     String? senderPhone,
   }) async {
     try {
-      final reqId = 'topup_${DateTime.now().millisecondsSinceEpoch}_${agentUid.length >= 4 ? agentUid.substring(0, 4) : agentUid}';
+      final reqId =
+          'topup_${DateTime.now().millisecondsSinceEpoch}_${agentUid.length >= 4 ? agentUid.substring(0, 4) : agentUid}';
 
       String customId = '';
       String agencyName = '';
       String agencyLogo = '';
       try {
-        final u = await _sb.from('users').select('custom_id, recharge_agency_name, recharge_agency_logo, avatar').or('id.eq.$agentUid,uid.eq.$agentUid').maybeSingle();
+        final u = await _sb
+            .from('users')
+            .select(
+                'custom_id, recharge_agency_name, recharge_agency_logo, avatar')
+            .or('id.eq.$agentUid,uid.eq.$agentUid')
+            .maybeSingle();
         if (u != null) {
           customId = u['custom_id']?.toString() ?? '';
           agencyName = u['recharge_agency_name']?.toString() ?? '';
-          agencyLogo = u['recharge_agency_logo']?.toString() ?? u['avatar']?.toString() ?? '';
+          agencyLogo = u['recharge_agency_logo']?.toString() ??
+              u['avatar']?.toString() ??
+              '';
         }
       } catch (_) {}
 
@@ -2038,7 +2268,10 @@ abstract final class AgencyRepository {
         final val = configRow['value'];
         final List list = val is String ? jsonDecode(val) : (val as List);
         if (list.isNotEmpty) {
-          final res = list.map((e) => AgencyLevelConfigModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+          final res = list
+              .map((e) => AgencyLevelConfigModel.fromMap(
+                  Map<String, dynamic>.from(e as Map)))
+              .toList();
           res.sort((a, b) => a.level.compareTo(b.level));
           return res;
         }
@@ -2055,18 +2288,51 @@ abstract final class AgencyRepository {
           .order('level', ascending: true);
       final list = (rows as List<dynamic>?) ?? [];
       if (list.isNotEmpty) {
-        return list.map((e) => AgencyLevelConfigModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+        return list
+            .map((e) => AgencyLevelConfigModel.fromMap(
+                Map<String, dynamic>.from(e as Map)))
+            .toList();
       }
     } catch (e) {
       debugPrint('[AgencyRepository] Fallback to default level config: $e');
     }
 
     return const [
-      AgencyLevelConfigModel(level: 1, levelName: 'وكالة برونزية', minExp: 0, adminLimit: 2, membersLimit: 20, rewardCoins: 0),
-      AgencyLevelConfigModel(level: 2, levelName: 'وكالة فضية', minExp: 50000, adminLimit: 3, membersLimit: 50, rewardCoins: 500),
-      AgencyLevelConfigModel(level: 3, levelName: 'وكالة ذهبية', minExp: 200000, adminLimit: 5, membersLimit: 100, rewardCoins: 1500),
-      AgencyLevelConfigModel(level: 4, levelName: 'وكالة بلاتينية', minExp: 500000, adminLimit: 8, membersLimit: 200, rewardCoins: 3000),
-      AgencyLevelConfigModel(level: 5, levelName: 'وكالة ماسية', minExp: 1000000, adminLimit: 12, membersLimit: 500, rewardCoins: 10000),
+      AgencyLevelConfigModel(
+          level: 1,
+          levelName: 'وكالة برونزية',
+          minExp: 0,
+          adminLimit: 2,
+          membersLimit: 20,
+          rewardCoins: 0),
+      AgencyLevelConfigModel(
+          level: 2,
+          levelName: 'وكالة فضية',
+          minExp: 50000,
+          adminLimit: 3,
+          membersLimit: 50,
+          rewardCoins: 500),
+      AgencyLevelConfigModel(
+          level: 3,
+          levelName: 'وكالة ذهبية',
+          minExp: 200000,
+          adminLimit: 5,
+          membersLimit: 100,
+          rewardCoins: 1500),
+      AgencyLevelConfigModel(
+          level: 4,
+          levelName: 'وكالة بلاتينية',
+          minExp: 500000,
+          adminLimit: 8,
+          membersLimit: 200,
+          rewardCoins: 3000),
+      AgencyLevelConfigModel(
+          level: 5,
+          levelName: 'وكالة ماسية',
+          minExp: 1000000,
+          adminLimit: 12,
+          membersLimit: 500,
+          rewardCoins: 10000),
     ];
   }
 
@@ -2084,7 +2350,10 @@ abstract final class AgencyRepository {
         final val = configRow['value'];
         final List list = val is String ? jsonDecode(val) : (val as List);
         if (list.isNotEmpty) {
-          final res = list.map((e) => AgencyExpTaskModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+          final res = list
+              .map((e) => AgencyExpTaskModel.fromMap(
+                  Map<String, dynamic>.from(e as Map)))
+              .toList();
           return res.where((t) => t.isEnabled).toList();
         }
       }
@@ -2097,7 +2366,8 @@ abstract final class AgencyRepository {
         key: 'seat_mic',
         title: 'الجلوس والتفاعل على المايك',
         titleAr: 'الذهاب إلى المقعد / المايك',
-        description: 'جلوس المضيف على مقعد المايك والتفاعل الصوتي مع المستخدمين داخل الغرفة يمنح نقاط خبرة للوكالة.',
+        description:
+            'جلوس المضيف على مقعد المايك والتفاعل الصوتي مع المستخدمين داخل الغرفة يمنح نقاط خبرة للوكالة.',
         expRateDesc: '10 EXP لكل 10 دقائق جلوس على المايك',
         expPerUnit: 10,
         dailyMaxExp: 500,
@@ -2107,7 +2377,8 @@ abstract final class AgencyRepository {
         key: 'lucky_games',
         title: 'المشاركة في ألعاب الحظ',
         titleAr: 'ألعاب الحظ (عجلة الحظ / الروليت)',
-        description: 'لعب وتدوير ألعاب الحظ داخل التطبيق يرفع نقاط خبرة الوكالة بشكل كبير.',
+        description:
+            'لعب وتدوير ألعاب الحظ داخل التطبيق يرفع نقاط خبرة الوكالة بشكل كبير.',
         expRateDesc: '1 EXP لكل 10 كوينز لعب بألعاب الحظ',
         expPerUnit: 1,
         dailyMaxExp: 2000,
@@ -2117,7 +2388,8 @@ abstract final class AgencyRepository {
         key: 'recharge',
         title: 'الشحن المالي للرصيد',
         titleAr: 'الشحن المالي للكوينز',
-        description: 'عمليات شحن الكوينز التي ينفذها أعضاء ومضيفو الوكالة تمنح الوكالة دفعة نمو فورية.',
+        description:
+            'عمليات شحن الكوينز التي ينفذها أعضاء ومضيفو الوكالة تمنح الوكالة دفعة نمو فورية.',
         expRateDesc: '1 EXP لكل 1 كوين مشحون',
         expPerUnit: 1,
         dailyMaxExp: 0,
@@ -2127,7 +2399,8 @@ abstract final class AgencyRepository {
         key: 'send_gifts',
         title: 'إرسال الهدايا داخل الغرف',
         titleAr: 'إرسال الهدايا داخل الغرفة',
-        description: 'إرسال الهدايا الصوتية والتفاعلية داخل الغرف من أعضاء ومضيفي الوكالة.',
+        description:
+            'إرسال الهدايا الصوتية والتفاعلية داخل الغرف من أعضاء ومضيفي الوكالة.',
         expRateDesc: '1 EXP لكل 1 كوين من قيمة الهدايا المرسلة',
         expPerUnit: 1,
         dailyMaxExp: 0,
@@ -2154,7 +2427,11 @@ abstract final class AgencyRepository {
           .maybeSingle();
 
       // Count monthly >=2h, >=4h, >=6h days
-      final startOfMonth = DateTime(DateTime.now().year, DateTime.now().month, 1).toIso8601String().split('T').first;
+      final startOfMonth =
+          DateTime(DateTime.now().year, DateTime.now().month, 1)
+              .toIso8601String()
+              .split('T')
+              .first;
       final monthlyRecords = await _sb
           .from('full_agency_daily_records')
           .select('is_ge_2h, is_ge_4h, is_ge_6h')
@@ -2202,8 +2479,10 @@ abstract final class AgencyRepository {
   // ═══════════════════════════════════════════════════════════════════
   //  4. رواتب الوكالة والسحب على المكشوف (Salary & Overdraft)
   // ═══════════════════════════════════════════════════════════════════
-  static Future<AgencySalaryOverdraftModel> getSalaryAndOverdraft(String agencyId) async {
-    final periodMonth = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
+  static Future<AgencySalaryOverdraftModel> getSalaryAndOverdraft(
+      String agencyId) async {
+    final periodMonth =
+        '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
     try {
       final row = await _sb
           .from('full_agency_salaries_overdraft')
@@ -2213,7 +2492,8 @@ abstract final class AgencyRepository {
           .maybeSingle();
 
       if (row != null) {
-        return AgencySalaryOverdraftModel.fromMap(Map<String, dynamic>.from(row as Map));
+        return AgencySalaryOverdraftModel.fromMap(
+            Map<String, dynamic>.from(row as Map));
       }
     } catch (e) {
       debugPrint('[AgencyRepository] getSalaryAndOverdraft fallback: $e');
@@ -2236,12 +2516,14 @@ abstract final class AgencyRepository {
     required String agencyId,
     required double amountUsd,
   }) async {
-    final periodMonth = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
+    final periodMonth =
+        '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
     final current = await getSalaryAndOverdraft(agencyId);
 
     if (amountUsd <= 0) throw Exception('يجب إدخال مبلغ سحب صحيح أكبر من 0');
     if (amountUsd > current.remainingSalaryUsd) {
-      throw Exception('مبلغ السحب المطلوب يتجاوز الرصيد المتاح للسلفة (${current.remainingSalaryUsd}\$)');
+      throw Exception(
+          'مبلغ السحب المطلوب يتجاوز الرصيد المتاح للسلفة (${current.remainingSalaryUsd}\$)');
     }
 
     await _sb.from('full_agency_salaries_overdraft').upsert({
@@ -2268,7 +2550,8 @@ abstract final class AgencyRepository {
           .maybeSingle();
 
       if (row != null) {
-        return AgencyAdminPermissions.fromMap(Map<String, dynamic>.from(row as Map));
+        return AgencyAdminPermissions.fromMap(
+            Map<String, dynamic>.from(row as Map));
       }
     } catch (e) {
       debugPrint('[AgencyRepository] getAdminPermissions error: $e');
@@ -2277,7 +2560,8 @@ abstract final class AgencyRepository {
     return AgencyAdminPermissions(agencyId: agencyId, adminUid: adminUid);
   }
 
-  static Future<void> updateAdminPermissions(AgencyAdminPermissions permissions) async {
+  static Future<void> updateAdminPermissions(
+      AgencyAdminPermissions permissions) async {
     await _sb.from('full_agency_admins').upsert(permissions.toMap());
   }
 
@@ -2288,7 +2572,8 @@ abstract final class AgencyRepository {
     required String agencyId,
     required String hostUid,
   }) async {
-    final autoReleaseDate = DateTime.now().add(const Duration(days: 30)).toIso8601String();
+    final autoReleaseDate =
+        DateTime.now().add(const Duration(days: 30)).toIso8601String();
     await _sb
         .from('full_agency_contracts')
         .update({
@@ -2302,4 +2587,3 @@ abstract final class AgencyRepository {
         .eq('status', 'active');
   }
 }
-

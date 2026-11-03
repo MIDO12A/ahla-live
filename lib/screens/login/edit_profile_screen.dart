@@ -10,6 +10,7 @@ import '../../providers/user_provider.dart';
 import '../../core/ui/in_app_toast.dart';
 import '../../widgets/user_id_widget.dart';
 import '../country/country_picker_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -314,7 +315,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: const DText(
           'تعديل الملف الشخصي',
           style: TextStyle(
             color: Color(0xFF16151A),
@@ -380,7 +381,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Text(
+    return DText(
       title,
       style: const TextStyle(
         fontSize: 13,
@@ -394,7 +395,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
+        const DText(
           'تعديل الملف الشخصي',
           style: TextStyle(
             fontSize: 22,
@@ -529,7 +530,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  DText(
                     'ذكر',
                     style: TextStyle(
                       fontSize: 15,
@@ -570,7 +571,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  DText(
                     'أنثى',
                     style: TextStyle(
                       fontSize: 15,
@@ -697,11 +698,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 width: 24,
                 height: 16,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Text(flagEmoji, style: const TextStyle(fontSize: 20)),
+                errorBuilder: (_, __, ___) => DText(flagEmoji, style: const TextStyle(fontSize: 20)),
               ),
             ),
             const SizedBox(width: 10),
-            Text(
+            DText(
               displayName,
               style: const TextStyle(
                 fontSize: 15,
@@ -710,7 +711,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
             ),
             const SizedBox(width: 6),
-            Text(
+            DText(
               '($_selectedCountry)',
               style: const TextStyle(
                 fontSize: 12,
@@ -751,7 +752,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            Text(
+            DText(
               dateStr,
               style: TextStyle(
                 fontSize: 15,
@@ -835,7 +836,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     borderRadius: BorderRadius.circular(25),
                   ),
                 ),
-                child: const Text(
+                child: const DText(
                   'تأكيد',
                   style: TextStyle(
                     fontSize: 16,

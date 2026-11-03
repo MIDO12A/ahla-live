@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,7 @@ import '../../models/user_model.dart';
 import '../../core/supabase_compat.dart';
 import '../../features/events/screens/recharge_event_screen.dart';
 import '../../features/tasks/services/task_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class WalletMainScreen extends StatefulWidget {
   const WalletMainScreen({super.key});
@@ -34,11 +36,13 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     'googlePlayEnabled': true,
     'vodafoneCashEnabled': !DynamicConfigService().isReviewMode,
     'vodafoneCashNumber': '01000000000',
-    'vodafoneCashInstructions': 'حول المبلغ المطلوب لرقم فودافون كاش ثم اضغط تأكيد.',
+    'vodafoneCashInstructions':
+        'حول المبلغ المطلوب لرقم فودافون كاش ثم اضغط تأكيد.',
     'binanceEnabled': !DynamicConfigService().isReviewMode,
     'binanceId': '84920193',
     'binanceAddress': 'Txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-    'binanceInstructions': 'أرسل USDT (TRC-20) للعنوان الموضح أو استخدم Binance Pay ID.',
+    'binanceInstructions':
+        'أرسل USDT (TRC-20) للعنوان الموضح أو استخدم Binance Pay ID.',
   };
 
   @override
@@ -64,25 +68,35 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         }
 
         if (plansRaw != null) {
-          final List list = (plansRaw is String) ? jsonDecode(plansRaw) : (plansRaw as List);
+          final List list =
+              (plansRaw is String) ? jsonDecode(plansRaw) : (plansRaw as List);
           if (list.isNotEmpty) {
-            final parsed = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            final parsed =
+                list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
             if (mounted) {
               setState(() {
-                _coinPlans = parsed.where((p) => (p['currency'] ?? 'coins') == 'coins').toList();
-                _diamondPlans = parsed.where((p) => (p['currency'] ?? 'diamonds') == 'diamonds').toList();
+                _coinPlans = parsed
+                    .where((p) => (p['currency'] ?? 'coins') == 'coins')
+                    .toList();
+                _diamondPlans = parsed
+                    .where((p) => (p['currency'] ?? 'diamonds') == 'diamonds')
+                    .toList();
               });
             }
           }
         }
 
         if (gwRaw != null) {
-          final Map map = (gwRaw is String) ? jsonDecode(gwRaw) : (gwRaw as Map);
+          final Map map =
+              (gwRaw is String) ? jsonDecode(gwRaw) : (gwRaw as Map);
           _gatewayConfig.addAll(Map<String, dynamic>.from(map));
         }
 
         final grm = config['google_review_mode'];
-        final isReviewFromConfig = (grm == true || grm == 'true' || (grm is Map && (grm['enabled'] == true || grm['enabled'] == 'true')));
+        final isReviewFromConfig = (grm == true ||
+            grm == 'true' ||
+            (grm is Map &&
+                (grm['enabled'] == true || grm['enabled'] == 'true')));
         if (isReviewFromConfig || DynamicConfigService().isReviewMode) {
           _gatewayConfig['vodafoneCashEnabled'] = false;
           _gatewayConfig['binanceEnabled'] = false;
@@ -96,8 +110,12 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         final plans = await _api.getRechargePlans();
         if (plans.isNotEmpty && mounted) {
           setState(() {
-            _coinPlans = plans.where((p) => (p['currency'] ?? 'coins') == 'coins').toList();
-            _diamondPlans = plans.where((p) => (p['currency'] ?? 'diamonds') == 'diamonds').toList();
+            _coinPlans = plans
+                .where((p) => (p['currency'] ?? 'coins') == 'coins')
+                .toList();
+            _diamondPlans = plans
+                .where((p) => (p['currency'] ?? 'diamonds') == 'diamonds')
+                .toList();
           });
         }
       }
@@ -106,16 +124,64 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       if (_coinPlans.isEmpty && mounted) {
         setState(() {
           _coinPlans = [
-            {'id': 1, 'amount': 1000, 'price': 1.0, 'bonus': 0, 'currency': 'coins'},
-            {'id': 2, 'amount': 5000, 'price': 5.0, 'bonus': 200, 'currency': 'coins'},
-            {'id': 3, 'amount': 10000, 'price': 10.0, 'bonus': 500, 'currency': 'coins'},
-            {'id': 4, 'amount': 50000, 'price': 50.0, 'bonus': 3000, 'currency': 'coins'},
-            {'id': 5, 'amount': 100000, 'price': 100.0, 'bonus': 8000, 'currency': 'coins'},
+            {
+              'id': 1,
+              'amount': 1000,
+              'price': 1.0,
+              'bonus': 0,
+              'currency': 'coins'
+            },
+            {
+              'id': 2,
+              'amount': 5000,
+              'price': 5.0,
+              'bonus': 200,
+              'currency': 'coins'
+            },
+            {
+              'id': 3,
+              'amount': 10000,
+              'price': 10.0,
+              'bonus': 500,
+              'currency': 'coins'
+            },
+            {
+              'id': 4,
+              'amount': 50000,
+              'price': 50.0,
+              'bonus': 3000,
+              'currency': 'coins'
+            },
+            {
+              'id': 5,
+              'amount': 100000,
+              'price': 100.0,
+              'bonus': 8000,
+              'currency': 'coins'
+            },
           ];
           _diamondPlans = [
-            {'id': 101, 'amount': 1000, 'price': 1.0, 'bonus': 0, 'currency': 'diamonds'},
-            {'id': 102, 'amount': 5000, 'price': 5.0, 'bonus': 0, 'currency': 'diamonds'},
-            {'id': 103, 'amount': 10000, 'price': 10.0, 'bonus': 0, 'currency': 'diamonds'},
+            {
+              'id': 101,
+              'amount': 1000,
+              'price': 1.0,
+              'bonus': 0,
+              'currency': 'diamonds'
+            },
+            {
+              'id': 102,
+              'amount': 5000,
+              'price': 5.0,
+              'bonus': 0,
+              'currency': 'diamonds'
+            },
+            {
+              'id': 103,
+              'amount': 10000,
+              'price': 10.0,
+              'bonus': 0,
+              'currency': 'diamonds'
+            },
           ];
         });
       }
@@ -177,7 +243,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                       children: [
                         if (dc.walletHeaderBgImage.isNotEmpty)
                           Positioned.fill(
-                            child: R.loadAsset(dc.walletHeaderBgImage, fit: BoxFit.cover),
+                            child: R.loadAsset(dc.walletHeaderBgImage,
+                                fit: BoxFit.cover),
                           ),
                         Padding(
                           padding: const EdgeInsets.symmetric(
@@ -188,11 +255,12 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                                 onTap: () => Navigator.pop(context),
                                 child: Padding(
                                   padding: const EdgeInsets.all(8.0),
-                                  child: R.image(R.backWhite, width: 24, height: 24),
+                                  child: R.image(R.backWhite,
+                                      width: 24, height: 24),
                                 ),
                               ),
                               const Spacer(),
-                              Text(
+                              DText(
                                 dc.screenTitles['wallet'] ?? 'المحفظة',
                                 style: TextStyle(
                                   fontSize: 20,
@@ -205,7 +273,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                                 onTap: () {},
                                 child: Padding(
                                   padding: const EdgeInsets.all(8.0),
-                                  child: R.image(R.mineWalletFilterIc, width: 24, height: 24),
+                                  child: R.image(R.mineWalletFilterIc,
+                                      width: 24, height: 24),
                                 ),
                               ),
                             ],
@@ -214,9 +283,14 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                       ],
                     ),
                     Container(
-                      color: dc.walletSectionBgImage.isNotEmpty ? null : dc.tabBarColor,
+                      color: dc.walletSectionBgImage.isNotEmpty
+                          ? null
+                          : dc.tabBarColor,
                       decoration: dc.walletSectionBgImage.isNotEmpty
-                          ? BoxDecoration(image: DecorationImage(image: R.cachedImage(dc.walletSectionBgImage), fit: BoxFit.cover))
+                          ? BoxDecoration(
+                              image: DecorationImage(
+                                  image: R.cachedImage(dc.walletSectionBgImage),
+                                  fit: BoxFit.cover))
                           : null,
                       child: TabBar(
                         controller: _tabController,
@@ -297,14 +371,20 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      DText(
                         isAr ? 'اختر طريقة الشحن' : 'Select Payment Gateway',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        isAr ? 'شحن $amount $currencyLabel مقابل \$$price' : 'Recharge $amount $currencyLabel for \$$price',
-                        style: const TextStyle(fontSize: 13, color: Color(0xFFFFD54F)),
+                      DText(
+                        isAr
+                            ? 'شحن $amount $currencyLabel مقابل \$$price'
+                            : 'Recharge $amount $currencyLabel for \$$price',
+                        style: const TextStyle(
+                            fontSize: 13, color: Color(0xFFFFD54F)),
                       ),
                     ],
                   ),
@@ -323,7 +403,9 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 icon: Icons.shop_two_outlined,
                 iconColor: const Color(0xFF10B981),
                 title: 'Google Play Billing',
-                subtitle: isAr ? 'الشحن المباشر عبر متجر Google Play' : 'In-App Purchase via Google Play',
+                subtitle: isAr
+                    ? 'الشحن المباشر عبر متجر Google Play'
+                    : 'In-App Purchase via Google Play',
                 onTap: () {
                   Navigator.pop(ctx);
                   _processGooglePlayRecharge(plan, isCoins);
@@ -331,13 +413,16 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               ),
 
             // 2. Vodafone Cash (مخفي ومحجوب تماماً أثناء وضع مراجعة جوجل)
-            if (!DynamicConfigService().isReviewMode && _gatewayConfig['vodafoneCashEnabled'] == true) ...[
+            if (!DynamicConfigService().isReviewMode &&
+                _gatewayConfig['vodafoneCashEnabled'] == true) ...[
               const SizedBox(height: 10),
               _buildGatewayTile(
                 icon: Icons.phone_android_rounded,
                 iconColor: const Color(0xFFE60000),
                 title: 'Vodafone Cash / فودافون كاش',
-                subtitle: isAr ? 'تحويل مباشر لمحفظة فودافون كاش' : 'Direct transfer to Vodafone Cash wallet',
+                subtitle: isAr
+                    ? 'تحويل مباشر لمحفظة فودافون كاش'
+                    : 'Direct transfer to Vodafone Cash wallet',
                 onTap: () {
                   Navigator.pop(ctx);
                   _showVodafoneCashDialog(plan, isCoins);
@@ -346,13 +431,16 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             ],
 
             // 3. Binance Pay (مخفي ومحجوب تماماً أثناء وضع مراجعة جوجل)
-            if (!DynamicConfigService().isReviewMode && _gatewayConfig['binanceEnabled'] == true) ...[
+            if (!DynamicConfigService().isReviewMode &&
+                _gatewayConfig['binanceEnabled'] == true) ...[
               const SizedBox(height: 10),
               _buildGatewayTile(
                 icon: Icons.currency_bitcoin,
                 iconColor: const Color(0xFFF3BA2F),
                 title: 'Binance Pay / USDT Crypto',
-                subtitle: isAr ? 'دفع عبر بينانس باي أو شبكة TRC-20' : 'Binance Pay or TRC-20 USDT transfer',
+                subtitle: isAr
+                    ? 'دفع عبر بينانس باي أو شبكة TRC-20'
+                    : 'Binance Pay or TRC-20 USDT transfer',
                 onTap: () {
                   Navigator.pop(ctx);
                   _showBinancePayDialog(plan, isCoins);
@@ -398,26 +486,33 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  DText(
                     title,
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 2),
-                  Text(
+                  DText(
                     subtitle,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11),
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 11),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
+            const Icon(Icons.arrow_forward_ios,
+                color: Colors.white38, size: 14),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _processGooglePlayRecharge(Map<String, dynamic> plan, bool isCoins) async {
+  Future<void> _processGooglePlayRecharge(
+      Map<String, dynamic> plan, bool isCoins) async {
     final user = context.read<UserProvider>().currentUser;
     if (user == null) return;
     final amount = (plan['amount'] as int?) ?? 0;
@@ -430,19 +525,26 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E1D2A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(isAr ? 'شحن عبر Google Play' : 'Google Play Billing', style: const TextStyle(color: Colors.white)),
-        content: Text(
+        title: DText(isAr ? 'شحن عبر Google Play' : 'Google Play Billing',
+            style: const TextStyle(color: Colors.white)),
+        content: DText(
           isAr
               ? 'هل ترغب في إرسال طلب الشحن لحزمة $amount $currency مقابل \$$price؟\nسيتم التحقق من إشعار الدفع واعتماد الشحن بحسابك.'
               : 'Submit recharge order for $amount $currency for \$$price via Google Play? Payment will be verified by the admin.',
           style: const TextStyle(color: Colors.white70, height: 1.4),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: DText(isAr ? 'إلغاء' : 'Cancel',
+                  style: const TextStyle(color: Colors.white54))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isAr ? 'تأكيد الطلب' : 'Submit Order', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: DText(isAr ? 'تأكيد الطلب' : 'Submit Order',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -466,8 +568,10 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     final amount = (plan['amount'] as int?) ?? 0;
     final price = plan['price']?.toString() ?? '1.0';
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
-    final walletNumber = (_gatewayConfig['vodafoneCashNumber'] ?? '01000000000').toString();
-    final instructions = (_gatewayConfig['vodafoneCashInstructions'] ?? '').toString();
+    final walletNumber =
+        (_gatewayConfig['vodafoneCashNumber'] ?? '01000000000').toString();
+    final instructions =
+        (_gatewayConfig['vodafoneCashInstructions'] ?? '').toString();
     final phoneCtrl = TextEditingController();
 
     showDialog(
@@ -479,7 +583,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           children: [
             const Icon(Icons.phone_android, color: Color(0xFFE60000)),
             const SizedBox(width: 8),
-            Text(isAr ? 'فودافون كاش' : 'Vodafone Cash', style: const TextStyle(color: Colors.white, fontSize: 16)),
+            DText(isAr ? 'فودافون كاش' : 'Vodafone Cash',
+                style: const TextStyle(color: Colors.white, fontSize: 16)),
           ],
         ),
         content: SingleChildScrollView(
@@ -487,13 +592,19 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                isAr ? 'المبلغ المطلوب: \$$price (شحن $amount عملة)' : 'Amount: \$$price (Recharge $amount coins)',
-                style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 13),
+              DText(
+                isAr
+                    ? 'المبلغ المطلوب: \$$price (شحن $amount عملة)'
+                    : 'Amount: \$$price (Recharge $amount coins)',
+                style: const TextStyle(
+                    color: Color(0xFFFFD54F),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13),
               ),
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.black26,
                   borderRadius: BorderRadius.circular(10),
@@ -505,22 +616,33 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(isAr ? 'رقم محفظة التحويل' : 'Wallet Number', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                          DText(isAr ? 'رقم محفظة التحويل' : 'Wallet Number',
+                              style: const TextStyle(
+                                  color: Colors.white54, fontSize: 10)),
                           const SizedBox(height: 2),
                           SelectableText(
                             walletNumber,
-                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.copy, color: Color(0xFFFFD54F), size: 20),
+                      icon: const Icon(Icons.copy,
+                          color: Color(0xFFFFD54F), size: 20),
                       tooltip: 'Copy',
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: walletNumber));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(isAr ? 'تم نسخ الرقم بنجاح' : 'Number copied!'), duration: const Duration(seconds: 1)),
+                          SnackBar(
+                              content: DText(isAr
+                                  ? 'تم نسخ الرقم بنجاح'
+                                  : 'Number copied!'),
+                              duration: const Duration(seconds: 1)),
                         );
                       },
                     ),
@@ -529,7 +651,9 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               ),
               if (instructions.isNotEmpty) ...[
                 const SizedBox(height: 10),
-                Text(instructions, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                DText(instructions,
+                    style:
+                        const TextStyle(color: Colors.white70, fontSize: 11)),
               ],
               const SizedBox(height: 14),
               TextField(
@@ -537,12 +661,18 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 keyboardType: TextInputType.phone,
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: isAr ? 'رقم الهاتف المحول منه أو رقم العملية' : 'Sender Phone or Transaction ID',
-                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                  hintText: isAr
+                      ? 'رقم الهاتف المحول منه أو رقم العملية'
+                      : 'Sender Phone or Transaction ID',
+                  hintStyle:
+                      const TextStyle(color: Colors.white38, fontSize: 12),
                   filled: true,
                   fillColor: Colors.black26,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.white12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.white12)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
               ),
             ],
@@ -551,15 +681,20 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+            child: DText(isAr ? 'إلغاء' : 'Cancel',
+                style: const TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE60000)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE60000)),
             onPressed: () async {
               final ref = phoneCtrl.text.trim();
               if (ref.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(isAr ? 'يرجى إدخال رقم الهاتف أو رقم العملية' : 'Please enter reference number')),
+                  SnackBar(
+                      content: DText(isAr
+                          ? 'يرجى إدخال رقم الهاتف أو رقم العملية'
+                          : 'Please enter reference number')),
                 );
                 return;
               }
@@ -577,7 +712,9 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 );
               }
             },
-            child: Text(isAr ? 'تأكيد التحويل' : 'Confirm', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: DText(isAr ? 'تأكيد التحويل' : 'Confirm',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -591,7 +728,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
     final binanceId = (_gatewayConfig['binanceId'] ?? '').toString();
     final binanceAddress = (_gatewayConfig['binanceAddress'] ?? '').toString();
-    final instructions = (_gatewayConfig['binanceInstructions'] ?? '').toString();
+    final instructions =
+        (_gatewayConfig['binanceInstructions'] ?? '').toString();
     final txCtrl = TextEditingController();
 
     showDialog(
@@ -603,7 +741,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           children: [
             const Icon(Icons.currency_bitcoin, color: Color(0xFFF3BA2F)),
             const SizedBox(width: 8),
-            Text(isAr ? 'Binance Pay / USDT' : 'Binance Pay / USDT', style: const TextStyle(color: Colors.white, fontSize: 16)),
+            DText(isAr ? 'Binance Pay / USDT' : 'Binance Pay / USDT',
+                style: const TextStyle(color: Colors.white, fontSize: 16)),
           ],
         ),
         content: SingleChildScrollView(
@@ -611,15 +750,21 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                isAr ? 'المطلوب: \$$price USDT (شحن $amount عملة)' : 'Amount: \$$price USDT (Recharge $amount coins)',
-                style: const TextStyle(color: Color(0xFFFFD54F), fontWeight: FontWeight.bold, fontSize: 13),
+              DText(
+                isAr
+                    ? 'المطلوب: \$$price USDT (شحن $amount عملة)'
+                    : 'Amount: \$$price USDT (Recharge $amount coins)',
+                style: const TextStyle(
+                    color: Color(0xFFFFD54F),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13),
               ),
               const SizedBox(height: 12),
               if (binanceId.isNotEmpty)
                 Container(
                   margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.black26,
                     borderRadius: BorderRadius.circular(10),
@@ -631,17 +776,28 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Binance Pay ID', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                            SelectableText(binanceId, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                            const DText('Binance Pay ID',
+                                style: TextStyle(
+                                    color: Colors.white54, fontSize: 10)),
+                            SelectableText(binanceId,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.copy, color: Color(0xFFFFD54F), size: 18),
+                        icon: const Icon(Icons.copy,
+                            color: Color(0xFFFFD54F), size: 18),
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: binanceId));
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(isAr ? 'تم نسخ معرف Binance' : 'Binance ID copied!'), duration: const Duration(seconds: 1)),
+                            SnackBar(
+                                content: DText(isAr
+                                    ? 'تم نسخ معرف Binance'
+                                    : 'Binance ID copied!'),
+                                duration: const Duration(seconds: 1)),
                           );
                         },
                       ),
@@ -650,7 +806,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 ),
               if (binanceAddress.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.black26,
                     borderRadius: BorderRadius.circular(10),
@@ -662,17 +819,29 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('USDT (TRC-20) Address', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                            SelectableText(binanceAddress, style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace')),
+                            const DText('USDT (TRC-20) Address',
+                                style: TextStyle(
+                                    color: Colors.white54, fontSize: 10)),
+                            SelectableText(binanceAddress,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontFamily: 'monospace')),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.copy, color: Color(0xFFFFD54F), size: 18),
+                        icon: const Icon(Icons.copy,
+                            color: Color(0xFFFFD54F), size: 18),
                         onPressed: () {
-                          Clipboard.setData(ClipboardData(text: binanceAddress));
+                          Clipboard.setData(
+                              ClipboardData(text: binanceAddress));
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(isAr ? 'تم نسخ العنوان' : 'Address copied!'), duration: const Duration(seconds: 1)),
+                            SnackBar(
+                                content: DText(isAr
+                                    ? 'تم نسخ العنوان'
+                                    : 'Address copied!'),
+                                duration: const Duration(seconds: 1)),
                           );
                         },
                       ),
@@ -681,19 +850,27 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 ),
               if (instructions.isNotEmpty) ...[
                 const SizedBox(height: 10),
-                Text(instructions, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                DText(instructions,
+                    style:
+                        const TextStyle(color: Colors.white70, fontSize: 11)),
               ],
               const SizedBox(height: 12),
               TextField(
                 controller: txCtrl,
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: isAr ? 'أدخل رقم المعاملة (TxID)' : 'Enter TxID / Transaction Hash',
-                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                  hintText: isAr
+                      ? 'أدخل رقم المعاملة (TxID)'
+                      : 'Enter TxID / Transaction Hash',
+                  hintStyle:
+                      const TextStyle(color: Colors.white38, fontSize: 12),
                   filled: true,
                   fillColor: Colors.black26,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.white12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.white12)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
               ),
             ],
@@ -702,15 +879,20 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+            child: DText(isAr ? 'إلغاء' : 'Cancel',
+                style: const TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF3BA2F)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF3BA2F)),
             onPressed: () async {
               final tx = txCtrl.text.trim();
               if (tx.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(isAr ? 'يرجى إدخال رقم المعاملة' : 'Please enter TxID')),
+                  SnackBar(
+                      content: DText(isAr
+                          ? 'يرجى إدخال رقم المعاملة'
+                          : 'Please enter TxID')),
                 );
                 return;
               }
@@ -728,7 +910,9 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 );
               }
             },
-            child: Text(isAr ? 'تأكيد الدفع' : 'Confirm', style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+            child: DText(isAr ? 'تأكيد الدفع' : 'Confirm',
+                style: const TextStyle(
+                    color: Colors.black87, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -773,7 +957,6 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       debugPrint('[Wallet] Supabase recharge_requests error: $e');
     }
 
-
     if (!mounted) return;
 
     // Show luxury review dialog
@@ -786,30 +969,35 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           children: [
             const Icon(Icons.hourglass_top_rounded, color: Color(0xFFDE880F)),
             const SizedBox(width: 8),
-            Text(
+            DText(
               isAr ? 'طلبك قيد المراجعة' : 'Request Pending',
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
             ),
           ],
         ),
-        content: Text(
+        content: DText(
           isAr
               ? 'تم استلام طلب شحن $amount ${isCoins ? "عملة" : "ألماسة"} بنجاح!\nيقوم فريق الإدارة حالياً بالتحقق من عملية الدفع وسيتم إضافة الرصيد لحسابك فور الاعتماد.'
               : 'Your recharge request for $amount ${isCoins ? "coins" : "diamonds"} has been submitted!\nOur team is reviewing the payment and coins will be added upon approval.',
-          style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+          style:
+              const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
         ),
         actions: [
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDE880F)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDE880F)),
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isAr ? 'تم، حسناً' : 'OK', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: DText(isAr ? 'تم، حسناً' : 'OK',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
-
-
 
   int _exchangeDiamondAmount = 0;
   bool _exchanging = false;
@@ -827,7 +1015,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             ? '1 ألماس = ${multiplier % 1 == 0 ? multiplier.toInt() : multiplier} كوينز'
             : '${(1 / multiplier).round()} ألماس = 1 كوين');
 
-    final coinsPreview = (_exchangeDiamondAmount * multiplier * 100).round() / 100;
+    final coinsPreview =
+        (_exchangeDiamondAmount * multiplier * 100).round() / 100;
 
     return Container(
       width: double.infinity,
@@ -836,7 +1025,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       decoration: BoxDecoration(
         color: dc.walletCardBgColor.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(dc.borderRadius.toDouble()),
-        border: Border.all(color: dc.walletCardBorderColor.withValues(alpha: 0.3)),
+        border:
+            Border.all(color: dc.walletCardBorderColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -845,13 +1035,18 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             children: [
               R.image(R.commonDiamondIc, width: 20, height: 20),
               const SizedBox(width: 8),
-              Text('تبديل الألماس → كوينز',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: dc.walletTextColor),
+              DText(
+                'تبديل الألماس → كوينز',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: dc.walletTextColor),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          Text('المعدل: $rateLabel (الحد الأدنى: $minDiamonds ألماس)',
+          DText(
+            'المعدل: $rateLabel (الحد الأدنى: $minDiamonds ألماس)',
             style: TextStyle(fontSize: 13, color: dc.walletSubTextColor),
           ),
           if (isHost)
@@ -868,9 +1063,10 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                   Icon(Icons.info_outline, color: Colors.amber, size: 16),
                   SizedBox(width: 8),
                   Expanded(
-                    child: Text(
+                    child: DText(
                       'تنبيه للمضيفين: تبديل الألماس لكوينز يتم بمعدل 1:1 كامل، ويُخصم الألماس المفكوك من التارجت الشهري، وفي حال فك أي ألماس من التارجت يتم احتساب راتب التارجت بنسبة 60% فقط (يُخصم 40% من الراتب، مثلاً ينزل من 9\$ إلى 5.4\$).',
-                      style: TextStyle(fontSize: 11, color: Colors.amber, height: 1.3),
+                      style: TextStyle(
+                          fontSize: 11, color: Colors.amber, height: 1.3),
                     ),
                   ),
                 ],
@@ -884,38 +1080,61 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     hintText: 'عدد الألماس (الحد الأدنى $minDiamonds)',
-                    hintStyle: TextStyle(color: dc.walletSubTextColor.withValues(alpha: 0.5)),
+                    hintStyle: TextStyle(
+                        color: dc.walletSubTextColor.withValues(alpha: 0.5)),
                     filled: true,
                     fillColor: dc.walletCardBgColor,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                   ),
                   style: TextStyle(color: dc.walletTextColor),
-                  onChanged: (v) => setState(() => _exchangeDiamondAmount = int.tryParse(v) ?? 0),
+                  onChanged: (v) => setState(
+                      () => _exchangeDiamondAmount = int.tryParse(v) ?? 0),
                 ),
               ),
               const SizedBox(width: 12),
               if (_exchangeDiamondAmount >= minDiamonds)
-                Text('= ${R.formatCoinsFraction(coinsPreview)} كوينز',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: dc.goldColor),
+                DText(
+                  '= ${R.formatCoinsFraction(coinsPreview)} كوينز',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: dc.goldColor),
                 ),
             ],
           ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
-            children: [minDiamonds, minDiamonds * 5, minDiamonds * 10, minDiamonds * 50].where((a) => a > 0).map((a) {
+            children: [
+              minDiamonds,
+              minDiamonds * 5,
+              minDiamonds * 10,
+              minDiamonds * 50
+            ].where((a) => a > 0).map((a) {
               if (a > balance && balance > 0) return const SizedBox.shrink();
               return GestureDetector(
                 onTap: () => setState(() => _exchangeDiamondAmount = a),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _exchangeDiamondAmount == a ? dc.walletAccentColor : dc.walletCardBgColor,
+                    color: _exchangeDiamondAmount == a
+                        ? dc.walletAccentColor
+                        : dc.walletCardBgColor,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: dc.walletAccentColor.withValues(alpha: 0.5)),
+                    border: Border.all(
+                        color: dc.walletAccentColor.withValues(alpha: 0.5)),
                   ),
-                  child: Text('$a ♦', style: TextStyle(fontSize: 12, color: _exchangeDiamondAmount == a ? Colors.white : dc.walletTextColor)),
+                  child: DText('$a ♦',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: _exchangeDiamondAmount == a
+                              ? Colors.white
+                              : dc.walletTextColor)),
                 ),
               );
             }).toList(),
@@ -931,11 +1150,20 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                 backgroundColor: dc.walletAccentColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
               child: _exchanging
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text('تبديل', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: dc.walletTextColor)),
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : DText('تبديل',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: dc.walletTextColor)),
             ),
           ),
         ],
@@ -959,26 +1187,35 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       );
       if (result.success) {
         final updated = user.copyWith(
-          diamonds: user.diamonds >= _exchangeDiamondAmount ? user.diamonds - _exchangeDiamondAmount : 0,
+          diamonds: user.diamonds >= _exchangeDiamondAmount
+              ? user.diamonds - _exchangeDiamondAmount
+              : 0,
           coins: user.coins + result.coinsReceived,
         );
         userProvider.updateUser(updated);
-        await userProvider.loadUser(user.uid);
-        await TaskService().recordActionByType(user.uid, 'recharge', amount: 1);
         if (mounted) {
           setState(() {
             _exchangeDiamondAmount = 0;
             _exchanging = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('+${R.formatCoinsFraction(result.coinsReceived)} كوينز!'), backgroundColor: Colors.green),
+            SnackBar(
+                content: DText(
+                    '+${R.formatCoinsFraction(result.coinsReceived)} كوينز!'),
+                backgroundColor: Colors.green),
           );
         }
+        // لا نُبقي زر التبديل معلّقاً بانتظار إعادة تحميل المستخدم/تسجيل المهمة
+        unawaited(userProvider.loadUser(user.uid));
+        unawaited(
+            TaskService().recordActionByType(user.uid, 'recharge', amount: 1));
       } else {
         if (mounted) {
           setState(() => _exchanging = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result.error ?? 'فشل التبادل'), backgroundColor: Colors.red),
+            SnackBar(
+                content: DText(result.error ?? 'فشل التبادل'),
+                backgroundColor: Colors.red),
           );
         }
       }
@@ -986,7 +1223,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
       if (mounted) {
         setState(() => _exchanging = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
+          SnackBar(content: DText('حدث خطأ: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1006,10 +1243,16 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: dc.walletAccentImage.isNotEmpty ? null : (isCoins ? dc.walletAccentColor.withValues(alpha: 0.1) : dc.walletAccentColor.withValues(alpha: 0.1)),
+              color: dc.walletAccentImage.isNotEmpty
+                  ? null
+                  : (isCoins
+                      ? dc.walletAccentColor.withValues(alpha: 0.1)
+                      : dc.walletAccentColor.withValues(alpha: 0.1)),
               borderRadius: BorderRadius.circular(dc.borderRadius.toDouble()),
               image: dc.walletAccentImage.isNotEmpty
-                  ? DecorationImage(image: R.cachedImage(dc.walletAccentImage), fit: BoxFit.cover)
+                  ? DecorationImage(
+                      image: R.cachedImage(dc.walletAccentImage),
+                      fit: BoxFit.cover)
                   : null,
             ),
             child: Column(
@@ -1020,8 +1263,10 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                   children: [
                     R.image(icon, width: 32, height: 32),
                     const SizedBox(width: 8),
-                    Text(
-                      isCoins ? R.formatCoinsFraction(balance) : R.formatCoins(balance),
+                    DText(
+                      isCoins
+                          ? R.formatCoinsFraction(balance)
+                          : R.formatCoins(balance),
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -1049,12 +1294,18 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF2C1E0F), Color(0xFF1A1326), Color(0xFF0E0B16)],
+                  colors: [
+                    Color(0xFF2C1E0F),
+                    Color(0xFF1A1326),
+                    Color(0xFF0E0B16)
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6), width: 1.2),
+                border: Border.all(
+                    color: const Color(0xFFFFD700).withValues(alpha: 0.6),
+                    width: 1.2),
                 boxShadow: [
                   BoxShadow(
                     color: const Color(0xFFFF9800).withValues(alpha: 0.25),
@@ -1083,7 +1334,10 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                           width: 28,
                           height: 28,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.workspace_premium, color: Colors.amber, size: 24),
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.workspace_premium,
+                              color: Colors.amber,
+                              size: 24),
                         ),
                       ],
                     ),
@@ -1093,7 +1347,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
-                        Text(
+                        DText(
                           '👑 حدث الشحن الملكي الأسطوري',
                           style: TextStyle(
                             color: Color(0xFFFFD700),
@@ -1102,7 +1356,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                           ),
                         ),
                         SizedBox(height: 2),
-                        Text(
+                        DText(
                           'اشحن كوينز وافتح 14 مستوى من الجوائز ومؤثرات SVGA!',
                           style: TextStyle(
                             color: Colors.white70,
@@ -1113,15 +1367,18 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFFFFB300), Color(0xFFFF8F00)],
                       ),
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [BoxShadow(color: Color(0x66FF8F00), blurRadius: 4)],
+                      boxShadow: const [
+                        BoxShadow(color: Color(0x66FF8F00), blurRadius: 4)
+                      ],
                     ),
-                    child: const Text(
+                    child: const DText(
                       'دخول ⚡',
                       style: TextStyle(
                         color: Color(0xFF441200),
@@ -1136,7 +1393,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           ),
           const SizedBox(height: 16),
           if (!isCoins) _buildExchangeSection(dc, balance.toInt()),
-          Text(
+          DText(
             dc.getScreenTitle('recharge', 'Recharge'),
             style: TextStyle(
               fontSize: 16,
@@ -1149,7 +1406,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Text('No plans available', style: TextStyle(color: dc.walletSubTextColor)),
+                child: DText('No plans available',
+                    style: TextStyle(color: dc.walletSubTextColor)),
               ),
             )
           else
@@ -1173,50 +1431,73 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: dc.walletCardBgImage.isNotEmpty || dc.walletCardBorderImage.isNotEmpty
+                      color: dc.walletCardBgImage.isNotEmpty ||
+                              dc.walletCardBorderImage.isNotEmpty
                           ? null
                           : dc.walletCardBgColor,
-                      border: Border.all(color: dc.walletCardBorderColor.withValues(alpha: 0.2), width: 1),
-                      borderRadius: BorderRadius.circular(dc.borderRadius.toDouble()),
+                      border: Border.all(
+                          color:
+                              dc.walletCardBorderColor.withValues(alpha: 0.2),
+                          width: 1),
+                      borderRadius:
+                          BorderRadius.circular(dc.borderRadius.toDouble()),
                       image: dc.walletCardBgImage.isNotEmpty
-                          ? DecorationImage(image: R.cachedImage(dc.walletCardBgImage), fit: BoxFit.cover)
+                          ? DecorationImage(
+                              image: R.cachedImage(dc.walletCardBgImage),
+                              fit: BoxFit.cover)
                           : dc.walletCardBorderImage.isNotEmpty
-                              ? DecorationImage(image: R.cachedImage(dc.walletCardBorderImage), fit: BoxFit.cover)
+                              ? DecorationImage(
+                                  image:
+                                      R.cachedImage(dc.walletCardBorderImage),
+                                  fit: BoxFit.cover)
                               : null,
                     ),
                     child: Column(
                       children: [
                         if (bonus.isNotEmpty)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFF4444),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(bonus, style: const TextStyle(fontSize: 10, color: Colors.white)),
+                            child: DText(bonus,
+                                style: const TextStyle(
+                                    fontSize: 10, color: Colors.white)),
                           ),
                         const SizedBox(height: 6),
                         R.image(icon, width: 28, height: 28),
                         const SizedBox(height: 2),
-                        Text(
+                        DText(
                           '$amount',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: dc.walletTextColor),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: dc.walletTextColor),
                         ),
                         const SizedBox(height: 6),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           decoration: BoxDecoration(
-                            color: dc.walletAccentImage.isNotEmpty ? null : dc.walletAccentColor,
+                            color: dc.walletAccentImage.isNotEmpty
+                                ? null
+                                : dc.walletAccentColor,
                             borderRadius: BorderRadius.circular(8),
                             image: dc.walletAccentImage.isNotEmpty
-                                ? DecorationImage(image: R.cachedImage(dc.walletAccentImage), fit: BoxFit.cover)
+                                ? DecorationImage(
+                                    image: R.cachedImage(dc.walletAccentImage),
+                                    fit: BoxFit.cover)
                                 : null,
                           ),
-                          child: Text(
+                          child: DText(
                             price,
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: dc.walletTextColor),
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: dc.walletTextColor),
                           ),
                         ),
                       ],

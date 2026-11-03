@@ -4,6 +4,7 @@ import '../../../../config/r.dart';
 import '../../../../providers/user_provider.dart';
 import '../../../../services/supabase_service.dart';
 import '../data/anchor_agent_model.dart';
+import 'package:zero/core/dtext.dart';
 
 /// شاشة تحويل الكوينز والأرباح للمضيفين (AgentActivity)
 class AgentTransferScreen extends StatefulWidget {
@@ -101,7 +102,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: const DText(
           'تحويل كوينز الوكالة للمضيفين',
           style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         ),
@@ -133,19 +134,19 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
                     color: const Color(0xFF3ED78A).withOpacity(0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: const Text('🪙', style: TextStyle(fontSize: 22)),
+                  child: const DText('🪙', style: TextStyle(fontSize: 22)),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      const DText(
                         'رصيدك المتاح للتحويل:',
                         style: TextStyle(color: Color(0xFFC1EFD3), fontSize: 12, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      DText(
                         R.formatCoins(currentCoins),
                         style: const TextStyle(
                           color: Colors.white,
@@ -162,7 +163,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: const Color(0xFFFDB442), width: 1),
                   ),
-                  child: const Text(
+                  child: const DText(
                     'رصيد كوينز',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFFCD3E)),
                   ),
@@ -186,7 +187,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                const DText(
                   'معرف المضيف المستلم (User ID / No):',
                   style: TextStyle(color: Color(0xFFFEFEFD), fontSize: 13, fontWeight: FontWeight.bold),
                 ),
@@ -210,7 +211,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                const DText(
                   'عدد الكوينز المراد تحويلها:',
                   style: TextStyle(color: Color(0xFFFEFEFD), fontSize: 13, fontWeight: FontWeight.bold),
                 ),
@@ -261,7 +262,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
+                          child: DText(
                             _message!,
                             style: TextStyle(
                               color: _isSuccess ? const Color(0xFFC1EFD3) : const Color(0xFFFF8585),
@@ -309,7 +310,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
                               height: 20,
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                             )
-                          : const Text(
+                          : const DText(
                               'تأكيد التحويل الفوري 🚀',
                               style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                             ),

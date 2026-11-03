@@ -4,6 +4,7 @@ import '../../../../services/dynamic_config_service.dart';
 import '../../../../services/room_cup_service.dart';
 import '../../../../config/r.dart';
 import '../../user_profile/user_profile_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class RoomRankBottomSheet extends StatefulWidget {
   final String roomId;
@@ -177,7 +178,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
           errorBuilder: (_, __, ___) => const Icon(Icons.emoji_events, color: Color(0xFFFFD54F), size: 70),
         ),
         const SizedBox(height: 12),
-        const Text(
+        const DText(
           'لا توجد بيانات ترتيب حالياً',
           style: TextStyle(color: Colors.white54, fontSize: 14),
         ),
@@ -350,7 +351,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Name
-                    Text(
+                    DText(
                       name,
                       style: TextStyle(
                         color: Colors.white,
@@ -363,7 +364,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                     ),
                     if (customId.isNotEmpty) ...[
                       const SizedBox(height: 1),
-                      Text(
+                      DText(
                         'ID: $customId',
                         style: const TextStyle(
                           color: Color(0x99FFFFFF),
@@ -392,7 +393,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                             errorBuilder: (_, __, ___) => const Icon(Icons.monetization_on, size: 12, color: Color(0xFFFFD54F)),
                           ),
                           const SizedBox(width: 3),
-                          Text(
+                          DText(
                             '$value',
                             style: const TextStyle(
                               color: Color(0xFFFAE9B5),
@@ -460,7 +461,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                 ),
-                Text(
+                DText(
                   '$rank',
                   style: const TextStyle(
                     color: Colors.white,
@@ -497,7 +498,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
+                      child: DText(
                         name,
                         style: const TextStyle(
                           color: Colors.white,
@@ -518,7 +519,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                         ),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
+                      child: DText(
                         'Lv.$level',
                         style: const TextStyle(
                           color: Colors.white,
@@ -530,7 +531,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                   ],
                 ),
                 const SizedBox(height: 3),
-                Text(
+                DText(
                   'ID: ${customId.isNotEmpty ? customId : '------'}',
                   style: const TextStyle(color: Colors.white38, fontSize: 10),
                   maxLines: 1,
@@ -558,7 +559,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                   errorBuilder: (_, __, ___) => const Icon(Icons.monetization_on, size: 13, color: Color(0xFFFFD54F)),
                 ),
                 const SizedBox(width: 4),
-                Text(
+                DText(
                   '$value',
                   style: const TextStyle(
                     color: Color(0xFFFAE9B5),
@@ -601,7 +602,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
       behavior: HitTestBehavior.opaque,
       child: Column(
         children: [
-          Text(
+          DText(
             title,
             style: TextStyle(
               color: isActive ? const Color(0xFFFFD54F) : Colors.white70,
@@ -659,7 +660,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                   ),
                 )
               : null,
-          child: Text(
+          child: DText(
             title,
             style: TextStyle(
               color: isActive ? Colors.black : Colors.white70,
@@ -752,7 +753,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
                   children: const [
                     Icon(Icons.emoji_events, color: Color(0xFFFFD54F), size: 20),
                     SizedBox(width: 6),
-                    Text(
+                    DText(
                       'جوائز وقواعد كأس الغرفة',
                       style: TextStyle(
                         color: Colors.white,
@@ -817,7 +818,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
                     ),
                   ],
                 ),
-                child: const Text(
+                child: const DText(
                   'حسناً، فهمت',
                   style: TextStyle(
                     color: Colors.black,
@@ -848,7 +849,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
                   ),
                 )
               : null,
-          child: Text(
+          child: DText(
             title,
             style: TextStyle(
               color: active ? Colors.black : Colors.white70,
@@ -885,7 +886,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    const DText(
                       'نظام أرباح وكأس الغرفة لصاحب الغرفة 👑',
                       style: TextStyle(
                         color: Colors.white,
@@ -894,7 +895,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    DText(
                       _periodTab == 1
                           ? 'يتم تجميع كافة الكوينز المطلقة داخل الغرفة أسبوعياً، وعند انتهاء الأسبوع (فجر الإثنين) يتم صرف نسبة الأرباح (${periodConfig.basePercentage}%) تلقائياً لحساب صاحب الغرفة مع إطار ووسام الكأس الأسبوعي.'
                           : 'يتم تجميع كافة الكوينز المطلقة داخل الغرفة يومياً، وعند منتصف الليل (00:00) يتم صرف نسبة الأرباح (${periodConfig.basePercentage}%) تلقائياً لحساب صاحب الغرفة مع إطار ووسام الكأس اليومي.',
@@ -944,11 +945,11 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          const DText(
                             'نسبة أرباح مالك الغرفة',
                             style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                           ),
-                          Text(
+                          DText(
                             _periodTab == 1 ? 'من إجمالي كوينز الأسبوع' : 'من إجمالي كوينز اليوم',
                             style: const TextStyle(color: Colors.white54, fontSize: 10),
                           ),
@@ -964,7 +965,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
                       ),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(
+                    child: DText(
                       '${periodConfig.basePercentage}%',
                       style: const TextStyle(
                         color: Colors.black,
@@ -983,8 +984,8 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('الحد الأدنى لدخل الغرفة للتأهيل:', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                  Text(
+                  const DText('الحد الأدنى لدخل الغرفة للتأهيل:', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  DText(
                     '${periodConfig.minRoomCoinsToQualify} كوينز',
                     style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 11, fontWeight: FontWeight.bold),
                   ),
@@ -994,8 +995,8 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('مدة صلاحية إطار ووسام الكأس:', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                  Text(
+                  const DText('مدة صلاحية إطار ووسام الكأس:', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  DText(
                     '${periodConfig.daysValid} ${_periodTab == 1 ? 'أيام' : 'يوم'}',
                     style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                   ),
@@ -1008,7 +1009,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
         // Progressive Milestones (if enabled)
         if (periodConfig.useMilestones && periodConfig.milestones.isNotEmpty) ...[
           const SizedBox(height: 14),
-          const Text(
+          const DText(
             'شرائح الدخل التصاعدية لمالك الغرفة:',
             style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
           ),
@@ -1024,8 +1025,8 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(m.label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                Text('عند ${m.minCoins} كوينز ➔ ${m.percentage}%',
+                DText(m.label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                DText('عند ${m.minCoins} كوينز ➔ ${m.percentage}%',
                     style: const TextStyle(color: Color(0xFFFFD54F), fontSize: 11, fontWeight: FontWeight.w600)),
               ],
             ),

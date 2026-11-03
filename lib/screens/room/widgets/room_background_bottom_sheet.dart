@@ -11,6 +11,7 @@ import '../../../providers/user_provider.dart';
 import '../../../models/store_item_model.dart';
 import '../../../models/app_asset_model.dart';
 import 'svga_player.dart';
+import 'package:zero/core/dtext.dart';
 
 class RoomBackgroundBottomSheet extends StatefulWidget {
   final String roomId;
@@ -101,13 +102,13 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'تم تغيير الخلفية بنجاح' : 'Background changed successfully')),
+          SnackBar(content: DText(Localizations.localeOf(context).languageCode == 'ar' ? 'تم تغيير الخلفية بنجاح' : 'Background changed successfully')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'فشل تغيير الخلفية' : 'Failed to change background')),
+          SnackBar(content: DText(Localizations.localeOf(context).languageCode == 'ar' ? 'فشل تغيير الخلفية' : 'Failed to change background')),
         );
       }
     }
@@ -121,8 +122,8 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF16151A),
-        title: Text(isAr ? 'تأكيد' : 'Confirm', style: const TextStyle(color: Colors.white)),
-        content: Text(
+        title: DText(isAr ? 'تأكيد' : 'Confirm', style: const TextStyle(color: Colors.white)),
+        content: DText(
           isAr 
             ? 'رفع خلفية مخصصة سيكلفك $price عملة. هل تريد الاستمرار؟' 
             : 'Uploading a custom background will cost you $price coins. Continue?',
@@ -131,11 +132,11 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+            child: DText(isAr ? 'إلغاء' : 'Cancel', style: const TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isAr ? 'موافق' : 'Confirm', style: const TextStyle(color: Color(0xFFFFE082))),
+            child: DText(isAr ? 'موافق' : 'Confirm', style: const TextStyle(color: Color(0xFFFFE082))),
           ),
         ],
       ),
@@ -148,7 +149,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
     
     if (currentUser.coins < price) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isAr ? 'رصيدك غير كافٍ' : 'Insufficient coins')),
+        SnackBar(content: DText(isAr ? 'رصيدك غير كافٍ' : 'Insufficient coins')),
       );
       return;
     }
@@ -176,7 +177,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isAr ? 'حدث خطأ أثناء الرفع' : 'Error during upload')),
+          SnackBar(content: DText(isAr ? 'حدث خطأ أثناء الرفع' : 'Error during upload')),
         );
       }
     } finally {
@@ -216,7 +217,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                DText(
                   isAr ? 'خلفية الغرفة' : 'Room Background',
                   style: const TextStyle(
                     color: Colors.white,
@@ -265,7 +266,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
                     else ...[
                       const Icon(Icons.photo_library, color: Color(0xFFFFE082), size: 18),
                       const SizedBox(width: 8),
-                      Text(
+                      DText(
                         isAr ? 'إضافة خلفية من الجهاز' : 'Upload from Device',
                         style: const TextStyle(color: Color(0xFFFFE082), fontWeight: FontWeight.w600, fontSize: 13),
                       ),
@@ -281,7 +282,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
                             children: [
                               Image.asset('assets/images/coin.png', width: 12, height: 12),
                               const SizedBox(width: 4),
-                              Text(
+                              DText(
                                 price.toString(),
                                 style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                               ),
@@ -332,7 +333,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
                         ? Center(
                             child: Padding(
                               padding: const EdgeInsets.all(20),
-                              child: Text(
+                              child: DText(
                                 isAr
                                     ? 'لا توجد لديك خلفيات مشتراة حالياً\nيمكنك شراء خلفيات مميزة من المتجر'
                                     : 'No purchased backgrounds yet\nGet exclusive backgrounds from the Store',
@@ -388,7 +389,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
                                           child: Container(
                                             color: Colors.black54,
                                             padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-                                            child: Text(
+                                            child: DText(
                                               item.name,
                                               style: const TextStyle(color: Colors.white, fontSize: 10),
                                               textAlign: TextAlign.center,
@@ -415,7 +416,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
                 // 2. Admin Backgrounds List
                 backgrounds.isEmpty
                     ? Center(
-                        child: Text(
+                        child: DText(
                           isAr ? 'لا توجد خلفيات مجانية متاحة' : 'No free backgrounds available',
                           style: const TextStyle(color: Colors.white54),
                         ),

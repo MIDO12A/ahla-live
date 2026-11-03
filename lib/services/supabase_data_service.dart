@@ -609,7 +609,8 @@ class SupabaseDataService {
         'image_url': message.imageUrl ?? '',
         'active_bubble': message.activeBubble,
         'gift_payload': message.giftPayload ?? {},
-        'created_at': DateTime.fromMillisecondsSinceEpoch(message.timestamp).toUtc().toIso8601String(),
+        // نترك created_at للسيرفر (now) حتى يرى كل الأجهزة نفس التوقيت
+        // بدل الاعتماد على ساعة جهاز المُرسل.
       });
 
       final res = await http.post(

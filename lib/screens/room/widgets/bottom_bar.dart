@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class BottomBar extends StatelessWidget {
   final bool isMicOn;
@@ -188,7 +189,7 @@ class BottomBar extends StatelessWidget {
         color: const Color(0xFFE82323),
         borderRadius: BorderRadius.circular(100),
       ),
-      child: Text(
+      child: DText(
         '$msgCount',
         style: const TextStyle(
           fontSize: 9,

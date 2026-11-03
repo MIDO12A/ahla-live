@@ -1,6 +1,7 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/lucky_bag_model.dart';
+import 'package:zero/core/dtext.dart';
 
 /// طبقة عائمة أعلى الغرفة تُظهر المظروف الأحمر النشط مع زر «فتح».
 class LuckyBagGrabOverlay extends StatefulWidget {
@@ -120,7 +121,7 @@ class _LuckyBagGrabOverlayState extends State<LuckyBagGrabOverlay> {
                     border: Border.all(color: const Color(0xFFFFD54F), width: 1.5),
                   ),
                   alignment: Alignment.center,
-                  child: const Text('🧧', style: TextStyle(fontSize: 24)),
+                  child: const DText('🧧', style: TextStyle(fontSize: 24)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -131,7 +132,7 @@ class _LuckyBagGrabOverlayState extends State<LuckyBagGrabOverlay> {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(
+                            child: DText(
                               isAr
                                   ? (widget.bag.isSuper ? '👑 مظروف سوبر من ${widget.bag.ownerName}' : '🧧 مظروف حظ من ${widget.bag.ownerName}')
                                   : '${widget.bag.ownerName} Red Packet',
@@ -147,7 +148,7 @@ class _LuckyBagGrabOverlayState extends State<LuckyBagGrabOverlay> {
                         ],
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      DText(
                         widget.bag.greetingText.isNotEmpty
                             ? widget.bag.greetingText
                             : (isAr ? 'مجموع ${widget.bag.totalValue} 🪙 · ${widget.bag.totalBags} نصيب' : '${widget.bag.totalValue} coins · ${widget.bag.totalBags} shares'),
@@ -166,7 +167,7 @@ class _LuckyBagGrabOverlayState extends State<LuckyBagGrabOverlay> {
                       color: Colors.black38,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
+                    child: DText(
                       '${seconds}s',
                       style: const TextStyle(
                         color: Color(0xFFFFEB3B),
@@ -200,7 +201,7 @@ class _LuckyBagGrabOverlayState extends State<LuckyBagGrabOverlay> {
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : Text(
+                        : DText(
                             isAr ? 'افتح' : 'Open',
                             style: const TextStyle(
                               color: Color(0xFF5D1000),

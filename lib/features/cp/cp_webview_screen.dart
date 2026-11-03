@@ -7,6 +7,7 @@ import '../../providers/locale_provider.dart';
 import '../../services/dynamic_config_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/supabase_config.dart';
+import 'package:zero/core/dtext.dart';
 
 
 class CpWebViewScreen extends StatefulWidget {
@@ -179,7 +180,7 @@ class _CpWebViewScreenState extends State<CpWebViewScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: DText(message),
         backgroundColor: const Color(0xFF806C9D),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
@@ -198,7 +199,7 @@ class _CpWebViewScreenState extends State<CpWebViewScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF806C9D)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
+        title: DText(
           'CP 💑',
           style: const TextStyle(
             color: Color(0xFFd63384),

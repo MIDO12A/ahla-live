@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/cache/encrypted_image_provider.dart';
 import '../../services/dynamic_config_service.dart';
 import 'cp_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class CcInvitationListScreen extends StatefulWidget {
   const CcInvitationListScreen({super.key});
@@ -55,13 +56,13 @@ class _CcInvitationListScreenState extends State<CcInvitationListScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('قائمة الدعوات', style: TextStyle(color: Colors.white, fontSize: 18)),
+        title: const DText('قائمة الدعوات', style: TextStyle(color: Colors.white, fontSize: 18)),
         centerTitle: true,
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: cfg.cpGold))
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.white54)))
+              ? Center(child: DText(_error!, style: const TextStyle(color: Colors.white54)))
               : Column(
                   children: [
                     // Seat limit card
@@ -75,10 +76,10 @@ class _CcInvitationListScreenState extends State<CcInvitationListScreen> {
                       child: const Row(
                         children: [
                           SizedBox(width: 8),
-                          Expanded(child: Text('حد المقاعد', style: TextStyle(color: Color(0xFFd99d47), fontSize: 14, fontWeight: FontWeight.bold))),
+                          Expanded(child: DText('حد المقاعد', style: TextStyle(color: Color(0xFFd99d47), fontSize: 14, fontWeight: FontWeight.bold))),
                           Icon(Icons.add_box, color: Colors.white, size: 28),
                           SizedBox(width: 4),
-                          Text('بطاقة مقعد', style: TextStyle(color: Colors.white, fontSize: 12)),
+                          DText('بطاقة مقعد', style: TextStyle(color: Colors.white, fontSize: 12)),
                           Icon(Icons.arrow_forward_ios, color: Colors.white, size: 12),
                           SizedBox(width: 8),
                         ],
@@ -93,7 +94,7 @@ class _CcInvitationListScreenState extends State<CcInvitationListScreen> {
                                 children: [
                                   Icon(Icons.mail_outline, size: 64, color: Colors.white.withValues(alpha: 0.2)),
                                   const SizedBox(height: 12),
-                                  const Text('لا توجد دعوات', style: TextStyle(color: Colors.white54, fontSize: 16)),
+                                  const DText('لا توجد دعوات', style: TextStyle(color: Colors.white54, fontSize: 16)),
                                 ],
                               ),
                             )
@@ -143,14 +144,14 @@ class _CcInvitationListScreenState extends State<CcInvitationListScreen> {
                   children: [
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 100),
-                      child: Text(name,
+                      child: DText(name,
                           style: const TextStyle(color: Colors.white, fontSize: 16),
                           overflow: TextOverflow.ellipsis),
                     ),
                     if (msg.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
-                        child: Text(msg,
+                        child: DText(msg,
                             style: TextStyle(color: cfg.cpSubText, fontSize: 12),
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
@@ -161,7 +162,7 @@ class _CcInvitationListScreenState extends State<CcInvitationListScreen> {
                   children: [
                     _buildSmallChip(Icons.female, const Color(0xFFff6b9d)),
                     const SizedBox(width: 8),
-                    Text('نقاط: 0', style: TextStyle(color: cfg.cpSubText, fontSize: 12)),
+                    DText('نقاط: 0', style: TextStyle(color: cfg.cpSubText, fontSize: 12)),
                   ],
                 ),
               ],
@@ -176,7 +177,7 @@ class _CcInvitationListScreenState extends State<CcInvitationListScreen> {
                 padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(35)),
               ),
-              child: const Text('إرسال', style: TextStyle(color: Colors.white, fontSize: 14)),
+              child: const DText('إرسال', style: TextStyle(color: Colors.white, fontSize: 14)),
             ),
           ),
         ],

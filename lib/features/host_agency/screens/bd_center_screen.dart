@@ -7,6 +7,7 @@ import '../../../core/localization/app_strings.dart';
 import '../data/agency_models.dart';
 import '../../../config/r.dart';
 import '../../super_admin/widgets/salary_disburse_dialog.dart';
+import 'package:zero/core/dtext.dart';
 
 const Color _bgDeep    = Color(0xFF0A0E21);
 const Color _bgCard    = Color(0xFF141A32);
@@ -209,7 +210,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
         elevation: 0,
         systemOverlayStyle: SystemUiOverlayStyle.light,
         centerTitle: true,
-        title: Text(
+        title: DText(
           context.tr('مركز الـ BD والوكالات', 'BD & Agencies Center'),
           style: const TextStyle(
             color: _textMain,
@@ -249,12 +250,12 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
           children: [
             const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
             const SizedBox(height: 12),
-            Text(
+            DText(
               context.tr('حدث خطأ أثناء تحميل البيانات', 'Failed to load BD data'),
               style: const TextStyle(color: _textMain, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Text(
+            DText(
               _error ?? '',
               textAlign: TextAlign.center,
               style: const TextStyle(color: _textMuted, fontSize: 12),
@@ -266,7 +267,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                 backgroundColor: _primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: Text(context.tr('إعادة المحاولة', 'Retry')),
+              child: DText(context.tr('إعادة المحاولة', 'Retry')),
             ),
           ],
         ),
@@ -325,7 +326,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                 children: [
                   const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF0A0E21), size: 22),
                   const SizedBox(width: 8),
-                  Text(
+                  DText(
                     context.tr('صرف الراتب إلى وكيل شحن', 'Disburse Salary to Recharge Agent'),
                     style: const TextStyle(
                       color: Color(0xFF0A0E21),
@@ -355,7 +356,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  DText(
                     context.tr('الوكالات التابعة لك', 'Your Recruited Agencies'),
                     style: const TextStyle(
                       color: _textMain,
@@ -372,7 +373,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: _primary.withValues(alpha: 0.3)),
                 ),
-                child: Text(
+                child: DText(
                   '$_totalAgencies ${context.tr("وكالة", "Agencies")}',
                   style: const TextStyle(
                     color: _primary,
@@ -451,7 +452,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                     Row(
                       children: [
                         Flexible(
-                          child: Text(
+                          child: DText(
                             widget.currentUser.name.isNotEmpty
                                 ? widget.currentUser.name
                                 : context.tr('مسؤول BD', 'BD Manager'),
@@ -472,7 +473,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: _green.withValues(alpha: 0.4)),
                           ),
-                          child: Text(
+                          child: DText(
                             context.tr('معتمد', 'Active BD'),
                             style: const TextStyle(
                               color: _green,
@@ -484,7 +485,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    DText(
                       'ID: ${widget.currentUser.customId.isNotEmpty ? widget.currentUser.customId : widget.currentUser.uid}',
                       style: const TextStyle(
                         color: _cyan,
@@ -503,11 +504,11 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
               children: [
                 const Icon(Icons.shield_outlined, color: _gold, size: 16),
                 const SizedBox(width: 6),
-                Text(
+                DText(
                   context.tr('المشرف المسؤول: ', 'Assigned Supervisor: '),
                   style: const TextStyle(color: _textMuted, fontSize: 13),
                 ),
-                Text(
+                DText(
                   _supervisorName!,
                   style: const TextStyle(color: _gold, fontWeight: FontWeight.bold, fontSize: 13),
                 ),
@@ -590,7 +591,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              DText(
                 title,
                 style: const TextStyle(
                   color: _textMuted,
@@ -609,7 +610,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
+          DText(
             value,
             style: TextStyle(
               color: color,
@@ -619,7 +620,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
-            Text(
+            DText(
               subtitle,
               style: TextStyle(
                 color: color.withValues(alpha: 0.8),
@@ -646,13 +647,13 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
         children: [
           Icon(Icons.domain_disabled_rounded, size: 48, color: _textMuted.withValues(alpha: 0.5)),
           const SizedBox(height: 12),
-          Text(
+          DText(
             context.tr('لا توجد وكالات مسجلة تحت إدارتك بعد', 'No agencies registered under your BD code yet'),
             style: const TextStyle(color: _textMuted, fontSize: 14),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
-          Text(
+          DText(
             context.tr('عند انضمام وكالات جديدة برمز الـ BD الخاص بك، ستظهر إحصاءاتها هنا تلقائياً.',
                 'When agencies join with your BD referral code, their stats will appear here automatically.'),
             style: TextStyle(color: _textMuted.withValues(alpha: 0.6), fontSize: 11),
@@ -711,7 +712,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                     Row(
                       children: [
                         Flexible(
-                          child: Text(
+                          child: DText(
                             name,
                             style: const TextStyle(
                               color: _textMain,
@@ -729,7 +730,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                             color: (status == 'active' ? _green : _gold).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text(
+                          child: DText(
                             status,
                             style: TextStyle(
                               color: status == 'active' ? _green : _gold,
@@ -741,7 +742,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    DText(
                       'ID: $displayId • ${context.tr("عمولة الوكالة", "Commission")}: ${(commRate * 100).toInt()}%',
                       style: const TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.w500),
                     ),
@@ -763,7 +764,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                 children: [
                   const Icon(Icons.verified_user_rounded, size: 14, color: _gold),
                   const SizedBox(width: 6),
-                  Text(
+                  DText(
                     '${context.tr("المشرف المسؤول", "Supervisor")}: ${supName ?? "معتمد"} ${supId != null ? "($supId)" : ""}',
                     style: const TextStyle(color: _gold, fontSize: 11, fontWeight: FontWeight.w600),
                   ),
@@ -781,7 +782,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                 children: [
                   Icon(Icons.people_alt_rounded, size: 14, color: _textMuted),
                   const SizedBox(width: 4),
-                  Text(
+                  DText(
                     '$members ${context.tr("عضو", "Members")}',
                     style: const TextStyle(color: _textMuted, fontSize: 12),
                   ),
@@ -791,7 +792,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                 children: [
                   const Icon(Icons.calendar_month_rounded, size: 14, color: _cyan),
                   const SizedBox(width: 4),
-                  Text(
+                  DText(
                     '${context.tr("أرباح الشهر", "Monthly")}: ${_formatNumber(monthly)} 💎',
                     style: const TextStyle(color: _cyan, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
@@ -801,7 +802,7 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
                 children: [
                   const Icon(Icons.diamond_rounded, size: 14, color: _gold),
                   const SizedBox(width: 4),
-                  Text(
+                  DText(
                     '${context.tr("الإجمالي", "Total")}: ${_formatNumber(cumulative > 0 ? cumulative : diamonds)} 💎',
                     style: const TextStyle(color: _gold, fontWeight: FontWeight.bold, fontSize: 12),
                   ),

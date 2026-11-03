@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
 import '../screens/main_screen/main_screen.dart';
 import 'supabase_auth_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class AccountSwitchService {
   static const String _storageKey = 'saved_user_accounts';
@@ -145,7 +146,7 @@ class AccountSwitchService {
         } catch (_) {}
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تعذر التبديل إلى الحساب: $e'),
+            content: DText('تعذر التبديل إلى الحساب: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );

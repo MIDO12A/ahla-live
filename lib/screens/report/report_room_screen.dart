@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/r.dart';
+import 'package:zero/core/dtext.dart';
 
 class ReportRoomScreen extends StatefulWidget {
   final String roomName;
@@ -51,7 +52,7 @@ class _ReportRoomScreenState extends State<ReportRoomScreen> {
                   children: [
                     _buildRoomInfoCard(),
                     const SizedBox(height: 24),
-                    const Text(
+                    const DText(
                       'سبب الإبلاغ',
                       style: TextStyle(
                         fontSize: 16,
@@ -98,7 +99,7 @@ class _ReportRoomScreenState extends State<ReportRoomScreen> {
                           children: [
                             R.image(R.mineReportIc, width: 22, height: 22),
                             const SizedBox(width: 8),
-                            const Text(
+                            const DText(
                               'إرسال الإبلاغ',
                               style: TextStyle(
                                 fontSize: 16,
@@ -133,7 +134,7 @@ class _ReportRoomScreenState extends State<ReportRoomScreen> {
             ),
           ),
           const Spacer(),
-          const Text('الإبلاغ عن الغرفة', style: TextStyle(fontSize: 17, color: Color(0xFF16151A), fontWeight: FontWeight.w500)),
+          const DText('الإبلاغ عن الغرفة', style: TextStyle(fontSize: 17, color: Color(0xFF16151A), fontWeight: FontWeight.w500)),
           const Spacer(),
           const SizedBox(width: 32),
         ],
@@ -161,7 +162,7 @@ class _ReportRoomScreenState extends State<ReportRoomScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Text(
+          DText(
             widget.roomName,
             style: const TextStyle(
               fontSize: 16,
@@ -186,7 +187,7 @@ class _ReportRoomScreenState extends State<ReportRoomScreen> {
         child: Row(
           textDirection: TextDirection.rtl,
           children: [
-            Text(
+            DText(
               text,
               style: TextStyle(
                 fontSize: 15,

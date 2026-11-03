@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../models/seat_model.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // Seat action bottom sheets
@@ -303,7 +304,7 @@ class _OccupiedSeatSheet extends StatelessWidget {
                     // User name header
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Text(
+                      child: DText(
                         user.name,
                         style: const TextStyle(
                           fontSize: 16,
@@ -511,7 +512,7 @@ class _SheetItem extends StatelessWidget {
         width: double.infinity,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Text(
+          child: DText(
             label,
             style: TextStyle(fontSize: 16, color: color),
             textAlign: TextAlign.center,

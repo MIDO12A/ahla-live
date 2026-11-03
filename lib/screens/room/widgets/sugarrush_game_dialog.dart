@@ -9,6 +9,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../config/supabase_config.dart';
 import '../../../providers/user_provider.dart';
 import '../../../services/supabase_data_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class SugarRushGameDialog extends StatefulWidget {
   final String roomId;
@@ -368,7 +369,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
                         valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF3366)),
                       ),
                       SizedBox(height: 16),
-                      Text(
+                      DText(
                         'جاري تشغيل لعبة Sugar Rush...',
                         style: TextStyle(color: Colors.white, fontSize: 14),
                       ),

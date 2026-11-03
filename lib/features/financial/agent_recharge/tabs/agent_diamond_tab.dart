@@ -6,6 +6,7 @@ import '../../../../services/supabase_auth_service.dart';
 import '../../../host_agency/data/agency_repository.dart';
 
 import '../../agent_recharge_widgets.dart';
+import 'package:zero/core/dtext.dart';
 
 class AgentDiamondWalletTab extends StatefulWidget {
   const AgentDiamondWalletTab({super.key});
@@ -122,7 +123,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
           final ctrl = TextEditingController(text: 'الرصيد غير متطابق');
           return AlertDialog(
             backgroundColor: const Color(0xFF1A1A2E),
-            title: const Text('سبب الرفض', style: TextStyle(color: Colors.white, fontSize: 16)),
+            title: const DText('سبب الرفض', style: TextStyle(color: Colors.white, fontSize: 16)),
             content: TextField(
               controller: ctrl,
               style: const TextStyle(color: Colors.white),
@@ -134,12 +135,12 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, null),
-                child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+                child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
                 onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                child: const Text('تأكيد الرفض'),
+                child: const DText('تأكيد الرفض'),
               ),
             ],
           );
@@ -156,7 +157,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
       );
       setState(() => _actionLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? '')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText(res['message'] ?? '')));
         _load();
       }
       return;
@@ -167,20 +168,20 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('تأكيد قبول طلب السحب', style: TextStyle(color: Colors.white)),
-        content: const Text(
+        title: const DText('تأكيد قبول طلب السحب', style: TextStyle(color: Colors.white)),
+        content: const DText(
           'هل أنت متأكد من قبول الطلب؟ سيتم خصم الألماس من المضيف وتحويله إلى محفظتك بنجاح.',
           style: TextStyle(color: Colors.white70, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5A0), foregroundColor: Colors.black),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('موافقة وقبول', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const DText('موافقة وقبول', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -196,7 +197,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
     );
     setState(() => _actionLoading = false);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? '')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText(res['message'] ?? '')));
       _load();
     }
   }
@@ -308,18 +309,18 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('💎 محفظة الألماس',
+                DText('💎 محفظة الألماس',
                     style: GoogleFonts.tajawal(
                         color: Colors.white70,
                         fontSize: 14,
                         fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
-                Text(_fmt(_balance),
+                DText(_fmt(_balance),
                     style: GoogleFonts.tajawal(
                         color: Colors.white,
                         fontSize: 40,
                         fontWeight: FontWeight.w900)),
-                Text('ألماس متاح',
+                DText('ألماس متاح',
                     style: GoogleFonts.tajawal(
                         color: Colors.white60, fontSize: 13)),
                 const SizedBox(height: 16),
@@ -343,7 +344,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
                   child: ElevatedButton.icon(
                     onPressed: _showExchangeBottomSheet,
                     icon: const Icon(Icons.currency_exchange_rounded, color: Colors.black, size: 22),
-                    label: Text(
+                    label: DText(
                       'صرف الألماس إلى كوينز الوكالة 🔄',
                       style: GoogleFonts.tajawal(
                         color: Colors.black,
@@ -363,7 +364,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
                 ),
                 const SizedBox(height: 10),
                 Center(
-                  child: Text(
+                  child: DText(
                     '⚡ يتم تحويل الألماس فوراً إلى كوينز في محفظة وكالتك لشحن المستخدمين',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.tajawal(
@@ -384,7 +385,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
               children: [
                 const Icon(Icons.mark_email_unread_rounded, color: Color(0xFFFFB800), size: 20),
                 const SizedBox(width: 8),
-                Text('طلبات سحب الألماس الواردة',
+                DText('طلبات سحب الألماس الواردة',
                     style: GoogleFonts.tajawal(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -396,7 +397,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
                     color: Colors.redAccent,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
+                  child: DText(
                     '${_pendingWithdrawals.length} جديد',
                     style: GoogleFonts.tajawal(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                   ),
@@ -408,7 +409,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
             const SizedBox(height: 14),
           ],
 
-          Text('سجل العمليات',
+          DText('سجل العمليات',
               style: GoogleFonts.tajawal(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -420,7 +421,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
               decoration: BoxDecoration(
                   color: _cardBg, borderRadius: BorderRadius.circular(14)),
               child: Center(
-                  child: Text('لا توجد عمليات بعد',
+                  child: DText('لا توجد عمليات بعد',
                       style: GoogleFonts.tajawal(
                           color: Colors.black38, fontSize: 14))),
             )
@@ -475,9 +476,9 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(hostName, style: GoogleFonts.tajawal(fontWeight: FontWeight.w800, fontSize: 14)),
+                    DText(hostName, style: GoogleFonts.tajawal(fontWeight: FontWeight.w800, fontSize: 14)),
                     if (hostKid.isNotEmpty)
-                      Text('ID: #$hostKid', style: GoogleFonts.tajawal(color: Colors.black54, fontSize: 11)),
+                      DText('ID: #$hostKid', style: GoogleFonts.tajawal(color: Colors.black54, fontSize: 11)),
                   ],
                 ),
               ),
@@ -488,7 +489,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFF3F51B5).withValues(alpha: 0.3)),
                 ),
-                child: Text(
+                child: DText(
                   '💎 $diamonds ماسة',
                   style: GoogleFonts.tajawal(color: const Color(0xFF1A237E), fontWeight: FontWeight.w900, fontSize: 13),
                 ),
@@ -504,7 +505,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
                 child: OutlinedButton.icon(
                   onPressed: _actionLoading ? null : () => _handleWithdrawalAction(requestId, false),
                   icon: const Icon(Icons.close_rounded, size: 16, color: Colors.redAccent),
-                  label: Text('رفض', style: GoogleFonts.tajawal(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                  label: DText('رفض', style: GoogleFonts.tajawal(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.redAccent),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -517,7 +518,7 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
                 child: ElevatedButton.icon(
                   onPressed: _actionLoading ? null : () => _handleWithdrawalAction(requestId, true),
                   icon: const Icon(Icons.check_rounded, size: 16, color: Colors.black),
-                  label: Text('موافقة وقبول', style: GoogleFonts.tajawal(color: Colors.black, fontWeight: FontWeight.w900)),
+                  label: DText('موافقة وقبول', style: GoogleFonts.tajawal(color: Colors.black, fontWeight: FontWeight.w900)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00E5A0),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -585,16 +586,16 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name,
+              DText(name,
                   style: GoogleFonts.tajawal(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                       color: Colors.black87)),
               if (kayanId != null)
-                Text('ID: $kayanId',
+                DText('ID: $kayanId',
                     style: GoogleFonts.tajawal(
                         fontSize: 12, color: Colors.black45)),
-              Text(_txnLabel(txnType),
+              DText(_txnLabel(txnType),
                   style: GoogleFonts.tajawal(
                       fontSize: 12,
                       color: _txnColor(txnType),
@@ -604,20 +605,20 @@ class _AgentDiamondWalletTabState extends State<AgentDiamondWalletTab> {
         ),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(isIncoming ? '+' : '-',
+            DText(isIncoming ? '+' : '-',
                 style: TextStyle(
                     color: _txnColor(txnType),
                     fontWeight: FontWeight.w900,
                     fontSize: 16)),
-            Text(_fmt(amount),
+            DText(_fmt(amount),
                 style: GoogleFonts.tajawal(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
                     color: _txnColor(txnType))),
             const SizedBox(width: 4),
-            const Text('💎', style: TextStyle(fontSize: 14)),
+            const DText('💎', style: TextStyle(fontSize: 14)),
           ]),
-          Text(
+          DText(
             '${createdAt.year}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.day.toString().padLeft(2, '0')} '
             '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}',
             style:
@@ -756,7 +757,7 @@ class _ExchangeBottomSheetContentState
     if (widget.currentBalance < diamondsCost) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
+          content: DText(
             'عذراً، رصيد الألماس المتاح لديك لا يكفي ($diamondsCost 💎 مطلوب)',
             style: GoogleFonts.tajawal(),
           ),
@@ -770,7 +771,7 @@ class _ExchangeBottomSheetContentState
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: Text(
+        title: DText(
           'تأكيد صرف الألماس 🔄',
           style: GoogleFonts.tajawal(color: Colors.white, fontWeight: FontWeight.bold),
         ),
@@ -778,7 +779,7 @@ class _ExchangeBottomSheetContentState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            DText(
               'هل أنت متأكد من صرف $diamondsCost ماسة واستلام $coinsReceived كوينز في محفظة وكالة الشحن؟',
               style: GoogleFonts.tajawal(color: Colors.white70, fontSize: 13),
             ),
@@ -793,8 +794,8 @@ class _ExchangeBottomSheetContentState
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('💎 المطلوب خصمه:', style: GoogleFonts.tajawal(color: Colors.cyanAccent, fontSize: 12)),
-                  Text('$diamondsCost 💎', style: GoogleFonts.tajawal(color: Colors.white, fontWeight: FontWeight.bold)),
+                  DText('💎 المطلوب خصمه:', style: GoogleFonts.tajawal(color: Colors.cyanAccent, fontSize: 12)),
+                  DText('$diamondsCost 💎', style: GoogleFonts.tajawal(color: Colors.white, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -809,8 +810,8 @@ class _ExchangeBottomSheetContentState
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('🪙 الكوينز المستلمة:', style: GoogleFonts.tajawal(color: Colors.amber, fontSize: 12)),
-                  Text('$coinsReceived 🪙', style: GoogleFonts.tajawal(color: Colors.amber, fontWeight: FontWeight.bold)),
+                  DText('🪙 الكوينز المستلمة:', style: GoogleFonts.tajawal(color: Colors.amber, fontSize: 12)),
+                  DText('$coinsReceived 🪙', style: GoogleFonts.tajawal(color: Colors.amber, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -819,7 +820,7 @@ class _ExchangeBottomSheetContentState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('إلغاء', style: GoogleFonts.tajawal(color: Colors.white54)),
+            child: DText('إلغاء', style: GoogleFonts.tajawal(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -827,7 +828,7 @@ class _ExchangeBottomSheetContentState
               foregroundColor: Colors.black,
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('تأكيد الصرف الآن', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold)),
+            child: DText('تأكيد الصرف الآن', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -914,7 +915,7 @@ class _ExchangeBottomSheetContentState
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
+            content: DText(
               message.isNotEmpty ? message : 'تم صرف الكوينز بنجاح! 🪙',
               style: GoogleFonts.tajawal(fontWeight: FontWeight.bold),
             ),
@@ -928,7 +929,7 @@ class _ExchangeBottomSheetContentState
         setState(() => _exchanging = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('فشلت العملية: $e', style: GoogleFonts.tajawal()),
+            content: DText('فشلت العملية: $e', style: GoogleFonts.tajawal()),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -965,7 +966,7 @@ class _ExchangeBottomSheetContentState
             children: [
               const Icon(Icons.currency_exchange_rounded, color: Color(0xFFFFD700), size: 24),
               const SizedBox(width: 8),
-              Text(
+              DText(
                 'صرف الألماس إلى كوينز الوكالة',
                 style: GoogleFonts.tajawal(
                   color: Colors.white,
@@ -998,8 +999,8 @@ class _ExchangeBottomSheetContentState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('الألماس المتاح للصرف:', style: GoogleFonts.tajawal(color: Colors.white54, fontSize: 11)),
-                      Text('${widget.currentBalance.toString()} 💎',
+                      DText('الألماس المتاح للصرف:', style: GoogleFonts.tajawal(color: Colors.white54, fontSize: 11)),
+                      DText('${widget.currentBalance.toString()} 💎',
                           style: GoogleFonts.tajawal(color: Colors.cyanAccent, fontSize: 16, fontWeight: FontWeight.bold)),
                     ],
                   ),
@@ -1010,8 +1011,8 @@ class _ExchangeBottomSheetContentState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('رصيد كوينز الوكالة:', style: GoogleFonts.tajawal(color: Colors.white54, fontSize: 11)),
-                      Text('${_agencyCoins.toString()} 🪙',
+                      DText('رصيد كوينز الوكالة:', style: GoogleFonts.tajawal(color: Colors.white54, fontSize: 11)),
+                      DText('${_agencyCoins.toString()} 🪙',
                           style: GoogleFonts.tajawal(color: const Color(0xFFFFD700), fontSize: 16, fontWeight: FontWeight.bold)),
                     ],
                   ),
@@ -1027,7 +1028,7 @@ class _ExchangeBottomSheetContentState
                 children: [
                   CircularProgressIndicator(color: Color(0xFFFFD700)),
                   SizedBox(height: 10),
-                  Text('جاري إتمام عملية الصرف وتحديث المحفظة...', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  DText('جاري إتمام عملية الصرف وتحديث المحفظة...', style: TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
             )
@@ -1063,7 +1064,7 @@ class _ExchangeBottomSheetContentState
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(
+                              content: DText(
                                 'ليس لديك ماس كافي للتحويل',
                                 style: GoogleFonts.tajawal(fontWeight: FontWeight.bold),
                               ),
@@ -1114,7 +1115,7 @@ class _ExchangeBottomSheetContentState
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.3)),
                                   ),
-                                  child: Text(
+                                  child: DText(
                                     usd,
                                     style: GoogleFonts.tajawal(
                                       color: const Color(0xFFFFD700),
@@ -1130,7 +1131,7 @@ class _ExchangeBottomSheetContentState
                                       color: Colors.amber.withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: Text(
+                                    child: DText(
                                       badge,
                                       style: GoogleFonts.tajawal(
                                         color: Colors.amber,
@@ -1146,7 +1147,7 @@ class _ExchangeBottomSheetContentState
                             Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
+                                DText(
                                   title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -1160,9 +1161,9 @@ class _ExchangeBottomSheetContentState
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Text('🪙', style: TextStyle(fontSize: 14)),
+                                    const DText('🪙', style: TextStyle(fontSize: 14)),
                                     const SizedBox(width: 4),
-                                    Text(
+                                    DText(
                                       '$coins',
                                       style: GoogleFonts.tajawal(
                                         color: const Color(0xFFFFD700),
@@ -1173,7 +1174,7 @@ class _ExchangeBottomSheetContentState
                                   ],
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
+                                DText(
                                   'خصم: $cost 💎',
                                   style: GoogleFonts.tajawal(
                                     color: Colors.cyanAccent,
@@ -1204,7 +1205,7 @@ class _ExchangeBottomSheetContentState
                                     color: canAfford ? Colors.black : Colors.white38,
                                   ),
                                   const SizedBox(width: 4),
-                                  Text(
+                                  DText(
                                     canAfford ? 'صرف الآن' : 'غير كافٍ',
                                     style: GoogleFonts.tajawal(
                                       color: canAfford ? Colors.black : Colors.white38,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../config/r.dart';
 import '../../config/app_colors.dart';
+import 'package:zero/core/dtext.dart';
 
 class BindPhoneScreen extends StatefulWidget {
   const BindPhoneScreen({super.key});
@@ -52,21 +53,21 @@ class _BindPhoneScreenState extends State<BindPhoneScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 32),
-                    const Text(
+                    const DText(
                       'ربط الجوال',
                       style: TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    const DText(
                       'سيتم إرسال رمز تحقق إلى رقم جوالك',
                       style: TextStyle(fontSize: 14, color: Colors.white54),
                     ),
                     const SizedBox(height: 32),
-                    const Text('رقم الجوال', style: TextStyle(fontSize: 13, color: Color(0xB3FFFFFF))),
+                    const DText('رقم الجوال', style: TextStyle(fontSize: 13, color: Color(0xB3FFFFFF))),
                     const SizedBox(height: 8),
                     _buildPhoneField(),
                     const SizedBox(height: 20),
-                    const Text('رمز التحقق', style: TextStyle(fontSize: 13, color: Color(0xB3FFFFFF))),
+                    const DText('رمز التحقق', style: TextStyle(fontSize: 13, color: Color(0xB3FFFFFF))),
                     const SizedBox(height: 8),
                     _buildCodeField(),
                     const SizedBox(height: 40),
@@ -94,7 +95,7 @@ class _BindPhoneScreenState extends State<BindPhoneScreen> {
             ),
           ),
           const Spacer(),
-          const Text('ربط الجوال', style: TextStyle(fontSize: 17, color: Colors.white, fontWeight: FontWeight.w600)),
+          const DText('ربط الجوال', style: TextStyle(fontSize: 17, color: Colors.white, fontWeight: FontWeight.w600)),
           const Spacer(),
           const SizedBox(width: 32),
         ],
@@ -120,7 +121,7 @@ class _BindPhoneScreenState extends State<BindPhoneScreen> {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('+966', style: TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.w500)),
+                DText('+966', style: TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.w500)),
                 SizedBox(width: 4),
                 Icon(Icons.arrow_drop_down, color: Colors.white54, size: 18),
               ],
@@ -178,7 +179,7 @@ class _BindPhoneScreenState extends State<BindPhoneScreen> {
                 color: _countdown > 0 ? AppColors.cardBg : null,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
+              child: DText(
                 _countdown > 0 ? '$_countdown ثانية' : 'إرسال الرمز',
                 style: TextStyle(
                   fontSize: 12,
@@ -204,7 +205,7 @@ class _BindPhoneScreenState extends State<BindPhoneScreen> {
           borderRadius: BorderRadius.circular(26),
         ),
         alignment: Alignment.center,
-        child: const Text(
+        child: const DText(
           'تأكيد',
           style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
         ),

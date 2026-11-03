@@ -7,6 +7,7 @@ import '../../../services/supabase_data_service.dart';
 import '../widgets/salary_disburse_dialog.dart';
 import '../widgets/store_gift_dialog.dart';
 import '../widgets/commission_period_dialog.dart';
+import 'package:zero/core/dtext.dart';
 
 const Color _bgDeep    = Color(0xFF070A1E);
 const Color _bgCard    = Color(0xFF131835);
@@ -174,7 +175,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
       builder: (ctx) => AlertDialog(
         backgroundColor: _bgCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: _crimson, width: 1.5)),
-        title: const Text('دعوة مستخدم لفتح وكالة 🏢', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+        title: const DText('دعوة مستخدم لفتح وكالة 🏢', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -204,7 +205,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(color: Colors.white60))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const DText('إلغاء', style: TextStyle(color: Colors.white60))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: _crimson, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
             onPressed: () async {
@@ -241,7 +242,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
                 KayanInAppToast.error('فشل إرسال الدعوة: $e');
               }
             },
-            child: const Text('إرسال الدعوة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const DText('إرسال الدعوة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -266,13 +267,13 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
                 gradient: const LinearGradient(colors: [_crimson, Color(0xFFB30000)]),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text(
+              child: const DText(
                 'ADMIN',
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white),
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
+            const DText(
               'لوحة الإدارة',
               style: TextStyle(color: _textMain, fontWeight: FontWeight.bold, fontSize: 18),
             ),
@@ -306,11 +307,11 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
           children: [
             const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
             const SizedBox(height: 12),
-            const Text('تعذر تحميل بيانات الإدارة', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            const DText('تعذر تحميل بيانات الإدارة', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
-            Text(_error ?? '', textAlign: TextAlign.center, style: const TextStyle(color: _textMuted, fontSize: 12)),
+            DText(_error ?? '', textAlign: TextAlign.center, style: const TextStyle(color: _textMuted, fontSize: 12)),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _fetchData, child: const Text('إعادة المحاولة')),
+            ElevatedButton(onPressed: _fetchData, child: const DText('إعادة المحاولة')),
           ],
         ),
       ),
@@ -416,7 +417,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
+                      child: DText(
                         widget.currentUser.name.isNotEmpty ? widget.currentUser.name : 'Admin',
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
                         maxLines: 1,
@@ -428,7 +429,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(
+                DText(
                   'ID: ${widget.currentUser.customId.isNotEmpty ? widget.currentUser.customId : widget.currentUser.uid}',
                   style: const TextStyle(color: _cyan, fontWeight: FontWeight.w600, fontSize: 13),
                 ),
@@ -509,7 +510,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
           children: [
             Icon(icon, color: color, size: 22),
             const SizedBox(height: 6),
-            Text(
+            DText(
               label,
               style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
               maxLines: 1,
@@ -591,7 +592,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.w500)),
+              DText(title, style: const TextStyle(color: _textMuted, fontSize: 11, fontWeight: FontWeight.w500)),
               Container(
                 padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
@@ -600,10 +601,10 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
             ],
           ),
           const SizedBox(height: 6),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+          DText(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
-            Text(subtitle, style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 10, fontWeight: FontWeight.w600)),
+            DText(subtitle, style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 10, fontWeight: FontWeight.w600)),
           ],
         ],
       ),
@@ -618,7 +619,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
           children: const [
             Icon(Icons.domain_disabled_rounded, color: Colors.white24, size: 48),
             SizedBox(height: 8),
-            Text('لا توجد وكالات مسجلة تحتك حالياً', style: TextStyle(color: _textMuted, fontSize: 13)),
+            DText('لا توجد وكالات مسجلة تحتك حالياً', style: TextStyle(color: _textMuted, fontSize: 13)),
           ],
         ),
       );
@@ -653,9 +654,9 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(a['name'] ?? 'وكالة', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    DText(a['name'] ?? 'وكالة', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                     const SizedBox(height: 2),
-                    Text('المالك: ${a['owner_name'] ?? a['owner_uid'] ?? "-"} • ${a['hosts_count'] ?? 0} مضيف', style: const TextStyle(color: _textMuted, fontSize: 11)),
+                    DText('المالك: ${a['owner_name'] ?? a['owner_uid'] ?? "-"} • ${a['hosts_count'] ?? 0} مضيف', style: const TextStyle(color: _textMuted, fontSize: 11)),
                   ],
                 ),
               ),
@@ -666,11 +667,11 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
                     children: [
                       const Icon(Icons.diamond_rounded, color: _cyan, size: 14),
                       const SizedBox(width: 4),
-                      Text('${a['total_diamonds'] ?? 0}', style: const TextStyle(color: _gold, fontWeight: FontWeight.bold, fontSize: 14)),
+                      DText('${a['total_diamonds'] ?? 0}', style: const TextStyle(color: _gold, fontWeight: FontWeight.bold, fontSize: 14)),
                     ],
                   ),
                   const SizedBox(height: 2),
-                  const Text('تارجت الوكالة', style: TextStyle(color: _textMuted, fontSize: 10)),
+                  const DText('تارجت الوكالة', style: TextStyle(color: _textMuted, fontSize: 10)),
                 ],
               ),
             ],
@@ -688,7 +689,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
           children: const [
             Icon(Icons.person_off_rounded, color: Colors.white24, size: 48),
             SizedBox(height: 8),
-            Text('لا يوجد مسؤولو BD معينين تحت إشرافك', style: TextStyle(color: _textMuted, fontSize: 13)),
+            DText('لا يوجد مسؤولو BD معينين تحت إشرافك', style: TextStyle(color: _textMuted, fontSize: 13)),
           ],
         ),
       );
@@ -720,17 +721,17 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(b['name'] ?? 'مسؤول BD', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    DText(b['name'] ?? 'مسؤول BD', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                     const SizedBox(height: 2),
-                    Text('ID: ${b['custom_id'] ?? b['uid']}', style: const TextStyle(color: _cyan, fontSize: 11)),
+                    DText('ID: ${b['custom_id'] ?? b['uid']}', style: const TextStyle(color: _cyan, fontSize: 11)),
                   ],
                 ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('عمولة: ${b['bd_commission_rate'] ?? 10}%', style: const TextStyle(color: _green, fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text('راتب: \$${b['bd_salary'] ?? 0}', style: const TextStyle(color: _gold, fontSize: 11)),
+                  DText('عمولة: ${b['bd_commission_rate'] ?? 10}%', style: const TextStyle(color: _green, fontWeight: FontWeight.bold, fontSize: 12)),
+                  DText('راتب: \$${b['bd_salary'] ?? 0}', style: const TextStyle(color: _gold, fontSize: 11)),
                 ],
               ),
             ],

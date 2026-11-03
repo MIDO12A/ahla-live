@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../models/lucky_bag_model.dart';
 import '../services/lucky_bag_service.dart';
 import 'lucky_bag_claim_dialog.dart';
 import 'lucky_bag_list_dialog.dart';
+import 'package:zero/core/dtext.dart';
 
 /// أيقونة حقيبة الحظ العائمة داخل الغرفة المطابقة لـ view_luckybag_item.xml
 /// الحجم: 52.0dp x 52.0dp مع عداد تنازلي وشارة العدد
@@ -95,7 +96,7 @@ class _LuckyBagFloatingWidgetState extends State<LuckyBagFloatingWidget> with Si
                         borderRadius: BorderRadius.circular(5),
                         border: Border.all(color: Colors.white, width: 0.6),
                       ),
-                      child: Text(
+                      child: DText(
                         ' 🪙',
                         style: const TextStyle(
                           color: Colors.white,
@@ -120,7 +121,7 @@ class _LuckyBagFloatingWidgetState extends State<LuckyBagFloatingWidget> with Si
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.white, width: 1),
                         ),
-                        child: Text(
+                        child: DText(
                           '',
                           style: const TextStyle(
                             color: Colors.white,

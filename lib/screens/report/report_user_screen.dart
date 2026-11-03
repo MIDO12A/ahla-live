@@ -6,6 +6,7 @@ import '../../config/r.dart';
 import '../../services/supabase_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../providers/user_provider.dart';
+import 'package:zero/core/dtext.dart';
 
 class ReportUserScreen extends StatefulWidget {
   final String nickname;
@@ -45,7 +46,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
 
   Future<void> _submit() async {
     if (_selectedReason == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار سبب الإبلاغ')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: DText('الرجاء اختيار سبب الإبلاغ')));
       return;
     }
     final userProvider = Provider.of<UserProvider>(context, listen: false);
@@ -62,7 +63,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isUploading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل رفع الصورة: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText('فشل رفع الصورة: $e')));
       }
       return;
     }
@@ -84,13 +85,13 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
     try {
       await SupabaseService().setDoc('reports', '${user.uid}_${widget.reportedUid}_${DateTime.now().millisecondsSinceEpoch}', data);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال البلاغ بنجاح')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: DText('تم إرسال البلاغ بنجاح')));
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isUploading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText('حدث خطأ: $e')));
       }
     }
   }
@@ -119,7 +120,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
                   children: [
                     _buildUserInfoCard(),
                     const SizedBox(height: 24),
-                    const Text(
+                    const DText(
                       'سبب الإبلاغ',
                       style: TextStyle(
                         fontSize: 16,
@@ -172,7 +173,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
                                 children: [
                                   Icon(Icons.add_photo_alternate, color: Color(0xFF9BA1B6), size: 32),
                                   SizedBox(height: 8),
-                                  Text('إضافة سكرين شوت (اختياري)', style: TextStyle(color: Color(0xFF9BA1B6))),
+                                  DText('إضافة سكرين شوت (اختياري)', style: TextStyle(color: Color(0xFF9BA1B6))),
                                 ],
                               ),
                       ),
@@ -193,7 +194,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
                                 children: [
                                   R.image(R.mineReportIc, width: 22, height: 22),
                                   const SizedBox(width: 8),
-                                  const Text(
+                                  const DText(
                                     'إرسال الإبلاغ',
                                     style: TextStyle(
                                       fontSize: 16,
@@ -228,7 +229,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
             ),
           ),
           const Spacer(),
-          const Text('الإبلاغ عن المستخدم', style: TextStyle(fontSize: 17, color: Color(0xFF16151A), fontWeight: FontWeight.w500)),
+          const DText('الإبلاغ عن المستخدم', style: TextStyle(fontSize: 17, color: Color(0xFF16151A), fontWeight: FontWeight.w500)),
           const Spacer(),
           const SizedBox(width: 32),
         ],
@@ -256,7 +257,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Text(
+          DText(
             widget.nickname,
             style: const TextStyle(
               fontSize: 16,
@@ -281,7 +282,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
         child: Row(
           textDirection: TextDirection.rtl,
           children: [
-            Text(
+            DText(
               text,
               style: TextStyle(
                 fontSize: 15,

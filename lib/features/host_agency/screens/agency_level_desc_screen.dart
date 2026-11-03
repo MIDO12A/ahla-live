@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
+import 'package:zero/core/dtext.dart';
 
 class AgencyLevelDescScreen extends StatefulWidget {
   const AgencyLevelDescScreen({super.key});
@@ -41,7 +42,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0C2979),
       appBar: AppBar(
-        title: const Text('مستويات وامتيازات الوكالة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const DText('مستويات وامتيازات الوكالة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF0C2979),
         elevation: 0,
         centerTitle: true,
@@ -82,11 +83,11 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
             children: [
               Icon(Icons.bolt, color: Colors.amber, size: 24),
               SizedBox(width: 8),
-              Text('مهام نمو نقاط الخبرة للوكالة (EXP)', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              DText('مهام نمو نقاط الخبرة للوكالة (EXP)', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
+          const DText(
             'يقوم مضيفو وأعضاء الوكالة بالمشاركة في الأنشطة التالية لاكتساب نقاط الخبرة ورفع مستوى الوكالة تلقائياً:',
             style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
           ),
@@ -141,7 +142,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    DText(
                       task.titleAr.isNotEmpty ? task.titleAr : task.title,
                       style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                     ),
@@ -152,7 +153,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.amber.withOpacity(0.3)),
                       ),
-                      child: Text(
+                      child: DText(
                         task.expRateDesc,
                         style: const TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
@@ -160,14 +161,14 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                   ],
                 ),
                 const SizedBox(height: 3),
-                Text(
+                DText(
                   task.description,
                   style: const TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
                 ),
                 if (task.dailyMaxExp > 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
-                    child: Text(
+                    child: DText(
                       '• الحد الأقصى اليومي: ${task.dailyMaxExp} EXP',
                       style: const TextStyle(color: Colors.cyanAccent, fontSize: 10),
                     ),
@@ -187,7 +188,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
       children: [
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          child: Text(
+          child: DText(
             'مستويات الوكالة ومكافآت المضيفين 🏆',
             style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
           ),
@@ -228,13 +229,13 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                       color: const Color(0xFF223E9E),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
+                    child: DText(
                       'المستوى ${lvl.level}',
                       style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  DText(
                     lvl.levelName,
                     style: const TextStyle(color: Color(0xFF1B3B98), fontSize: 15, fontWeight: FontWeight.bold),
                   ),
@@ -246,7 +247,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                   color: Colors.indigo.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
+                child: DText(
                   '⚡ ${lvl.minExp} EXP',
                   style: const TextStyle(color: Color(0xFF223E9E), fontSize: 12, fontWeight: FontWeight.bold),
                 ),
@@ -263,7 +264,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
             children: [
               const Icon(Icons.card_giftcard, size: 16, color: Colors.amber),
               const SizedBox(width: 6),
-              const Text('مكافأة كل مضيف نشط بالوكالة:', style: TextStyle(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.bold)),
+              const DText('مكافأة كل مضيف نشط بالوكالة:', style: TextStyle(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 6),
@@ -284,9 +285,9 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('🪙', style: TextStyle(fontSize: 12)),
+                      const DText('🪙', style: TextStyle(fontSize: 12)),
                       const SizedBox(width: 4),
-                      Text(
+                      DText(
                         '${lvl.rewardCoins} كوينز',
                         style: const TextStyle(color: Color(0xFFB8860B), fontSize: 11, fontWeight: FontWeight.bold),
                       ),
@@ -304,9 +305,9 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('💎', style: TextStyle(fontSize: 12)),
+                      const DText('💎', style: TextStyle(fontSize: 12)),
                       const SizedBox(width: 4),
-                      Text(
+                      DText(
                         '${lvl.rewardDiamonds} ماسة',
                         style: const TextStyle(color: Colors.teal, fontSize: 11, fontWeight: FontWeight.bold),
                       ),
@@ -319,7 +320,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
           // Store Items Rewards
           if (lvl.storeRewardItems.isNotEmpty) ...[
             const SizedBox(height: 8),
-            const Text('جوائز المتجر المودعة بالحقيبة:', style: TextStyle(color: Colors.black54, fontSize: 11, fontWeight: FontWeight.w600)),
+            const DText('جوائز المتجر المودعة بالحقيبة:', style: TextStyle(color: Colors.black54, fontSize: 11, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             Wrap(
               spacing: 6,
@@ -349,9 +350,9 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                       else
                         const Icon(Icons.inventory_2, size: 14, color: Colors.purple),
                       const SizedBox(width: 5),
-                      Text(item.itemName, style: const TextStyle(color: Color(0xFF6B21A8), fontSize: 11, fontWeight: FontWeight.bold)),
+                      DText(item.itemName, style: const TextStyle(color: Color(0xFF6B21A8), fontSize: 11, fontWeight: FontWeight.bold)),
                       const SizedBox(width: 4),
-                      Text(
+                      DText(
                         item.days == 0 ? '(دائم)' : '(${item.days} يوم)',
                         style: const TextStyle(color: Color(0xFF9333EA), fontSize: 10),
                       ),
@@ -377,7 +378,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                   const Icon(Icons.info_outline, size: 14, color: Color(0xFFD97706)),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(
+                    child: DText(
                       'السبب: ${lvl.rewardReason}',
                       style: const TextStyle(color: Color(0xFF92400E), fontSize: 11),
                     ),
@@ -391,8 +392,8 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('سعة المشرفين: ${lvl.adminLimit}', style: const TextStyle(color: Colors.black54, fontSize: 11)),
-              Text('سعة الأعضاء: ${lvl.membersLimit}', style: const TextStyle(color: Colors.black54, fontSize: 11)),
+              DText('سعة المشرفين: ${lvl.adminLimit}', style: const TextStyle(color: Colors.black54, fontSize: 11)),
+              DText('سعة الأعضاء: ${lvl.membersLimit}', style: const TextStyle(color: Colors.black54, fontSize: 11)),
             ],
           ),
         ],
@@ -416,11 +417,11 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
             children: [
               Icon(Icons.shield_outlined, color: Colors.cyanAccent, size: 24),
               SizedBox(width: 8),
-              Text('شروط الترقية والحفاظ على المستوى', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+              DText('شروط الترقية والحفاظ على المستوى', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
             ],
           ),
           SizedBox(height: 8),
-          Text(
+          DText(
             '1. الترقية (Upgrade): تحدث الترقية فوراً في أي وقت بمجرد وصول نقاط الخبرة لتارجت المستوى الجديد، وتُصرف المكافآت لكافة المضيفين بالوكالة.\n\n'
             '2. الحفاظ على المستوى (Maintain): يجب تحقيق 30% على الأقل من نقاط المستوى شهرياً للحفاظ على رتبة الوكالة.\n\n'
             '3. التخفيض (Downgrade): إذا لم تحقق الوكالة حد الـ 30% خلال الشهر، سيتم تخفيض المستوى تلقائياً في بداية الشهر التالي.',

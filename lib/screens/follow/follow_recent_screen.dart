@@ -4,6 +4,7 @@ import '../../config/r.dart';
 import '../../services/supabase_service.dart';
 import '../../providers/user_provider.dart';
 import '../user_profile/user_profile_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class FollowRecentScreen extends StatefulWidget {
   final int initialTab;
@@ -134,7 +135,7 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
             SizedBox(
               height: MediaQuery.of(context).size.height * 0.4,
               child: Center(
-                child: Text(
+                child: DText(
                   isVisitor ? 'لا يوجد زوار حتى الآن' : 'لا يوجد مستخدمين حتى الآن',
                   style: const TextStyle(color: Color(0xFF9BA1B6), fontSize: 14),
                 ),
@@ -220,7 +221,7 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
                       ),
                       const SizedBox(width: 4),
                       Flexible(
-                        child: Text(
+                        child: DText(
                           name,
                           style: const TextStyle(fontSize: 14, color: Color(0xFF16151A)),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -238,7 +239,7 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  DText(
                     'ID: $displayId',
                     style: const TextStyle(fontSize: 12, color: Color(0xFF9BA1B6)),
                   ),
@@ -249,7 +250,7 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
                       gradient: const LinearGradient(colors: [Color(0xFFDE880F), Color(0xFFFFC525)]),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
+                    child: DText(
                       'Lv.$level',
                       style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
                     ),
@@ -259,7 +260,7 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
             ),
             const SizedBox(width: 8),
             if (isVisitor)
-              Text(
+              DText(
                 time,
                 style: const TextStyle(fontSize: 10, color: Color(0xFF9BA1B6)),
               )
@@ -289,7 +290,7 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
                     color: isFollowed ? const Color(0xFFDE880F) : Colors.transparent,
                   ),
                   child: Center(
-                    child: Text(
+                    child: DText(
                       isFollowed ? 'Following' : 'Follow',
                       style: TextStyle(
                         fontSize: 11,

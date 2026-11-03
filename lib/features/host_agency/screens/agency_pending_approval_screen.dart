@@ -7,6 +7,7 @@ import '../../../../services/supabase_data_service.dart';
 import '../../../../core/ui/in_app_toast.dart';
 import '../host_agency_screen.dart';
 import '../../../../services/dynamic_config_service.dart';
+import 'package:zero/core/dtext.dart';
 
 /// شاشة انتظار موافقة الإدارة على فتح الوكالة
 class AgencyPendingApprovalScreen extends StatefulWidget {
@@ -145,15 +146,15 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF232328),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('إلغاء طلب فتح الوكالة', style: TextStyle(color: Colors.white, fontSize: 16)),
-        content: const Text(
+        title: const DText('إلغاء طلب فتح الوكالة', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: const DText(
           'هل أنت متأكد من رغبتك في إلغاء طلب فتح الوكالة؟ ستتمكن من التقديم مرة أخرى لاحقاً.',
           style: TextStyle(color: Colors.white70, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('تراجع', style: TextStyle(color: Colors.white54)),
+            child: const DText('تراجع', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -161,7 +162,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
               backgroundColor: const Color(0xFFFF5252),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('تأكيد الإلغاء', style: TextStyle(color: Colors.white)),
+            child: const DText('تأكيد الإلغاء', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -224,7 +225,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
             onPressed: () => Navigator.pop(context),
           ),
-          title: Text(
+          title: DText(
             isRejected ? (isAr ? 'حالة طلب الوكالة' : 'Application Status') : (isAr ? 'انتظار موافقة الإدارة' : 'Pending Approval'),
             style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
           ),
@@ -278,7 +279,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
               const SizedBox(height: 20),
 
               // ── Main Status Title ──
-              Text(
+              DText(
                 isRejected
                     ? (isAr ? 'تم رفض طلب فتح الوكالة' : 'Application Rejected')
                     : (isAr ? 'طلب فتح الوكالة قيد مراجعة الإدارة ⏳' : 'Agency Application Under Review ⏳'),
@@ -292,7 +293,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
 
               const SizedBox(height: 8),
 
-              Text(
+              DText(
                 isRejected
                     ? (isAr ? 'نعتذر، لم تستوفِ الوكالة متطلبات الاعتماد الحالية.' : 'Agency application did not meet approval requirements.')
                     : (isAr ? 'تم استلام طلبك بنجاح وهو بانتظار مراجعة وقبول الإدارة من لوحة التحكم.' : 'Your application was received and is awaiting approval from the dashboard.'),
@@ -338,7 +339,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              DText(
                                 agencyName,
                                 style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                               ),
@@ -349,7 +350,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
                                   color: isRejected ? const Color(0x22FF5252) : const Color(0x22FFD700),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Text(
+                                child: DText(
                                   isRejected ? (isAr ? 'مرفوض' : 'Rejected') : (isAr ? '⏳ قيد الانتظار' : 'Pending Review'),
                                   style: TextStyle(
                                     color: isRejected ? const Color(0xFFFF5252) : const Color(0xFFFFD700),
@@ -415,12 +416,12 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  DText(
                                     isAr ? 'سبب الرفض من الإدارة:' : 'Rejection Reason:',
                                     style: const TextStyle(color: Color(0xFFFF5252), fontSize: 12, fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 3),
-                                  Text(
+                                  DText(
                                     _rejectionReason!,
                                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                                   ),
@@ -450,7 +451,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
                     const Icon(Icons.security, color: Color(0xFF4FC3F7), size: 22),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
+                      child: DText(
                         isAr
                             ? 'بمجرد اعتماد وقبول طلبك في لوحة التحكم، سيتم تفعيل الوكالة وتعيينك كمالك رسمي لها فوراً مع فتح إدارة المضيفين والأرباح.'
                             : 'Once approved by the admin dashboard, your agency will be activated immediately with full owner privileges.',
@@ -473,7 +474,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
                   icon: _checking
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5))
                       : const Icon(Icons.refresh_rounded, color: Colors.black, size: 22),
-                  label: Text(
+                  label: DText(
                     _checking ? (isAr ? 'جاري الفحص...' : 'Checking...') : (isAr ? 'فحص وتحديث الحالة الآن 🔄' : 'Check Status Now 🔄'),
                     style: const TextStyle(color: Colors.black, fontSize: 15, fontWeight: FontWeight.bold),
                   ),
@@ -496,7 +497,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
                   child: OutlinedButton.icon(
                     onPressed: _cancelApplication,
                     icon: const Icon(Icons.replay, color: Color(0xFFFFD700), size: 20),
-                    label: Text(
+                    label: DText(
                       isAr ? 'تقديم طلب جديد' : 'Reapply',
                       style: const TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold),
                     ),
@@ -509,7 +510,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
               ] else ...[
                 TextButton(
                   onPressed: _cancelApplication,
-                  child: Text(
+                  child: DText(
                     isAr ? 'إلغاء الطلب والتراجع' : 'Cancel Application',
                     style: const TextStyle(color: Colors.white38, fontSize: 13),
                   ),
@@ -527,13 +528,13 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
       children: [
         Icon(icon, size: 16, color: const Color(0xFFFFD700)),
         const SizedBox(width: 8),
-        Text(
+        DText(
           label,
           style: const TextStyle(color: Colors.white54, fontSize: 12),
         ),
         const Spacer(),
         Flexible(
-          child: Text(
+          child: DText(
             value,
             textAlign: TextAlign.end,
             style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),

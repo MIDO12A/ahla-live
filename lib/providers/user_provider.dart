@@ -20,6 +20,7 @@ class UserProvider extends ChangeNotifier {
   Timer? _expiryTimer;
   int _lastLocalCoinsUpdateMs = 0;
   num? _optimisticCoins;
+  bool _optimisticCoinsIsDecrease = false;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
@@ -36,7 +37,10 @@ class UserProvider extends ChangeNotifier {
         final now = DateTime.now().millisecondsSinceEpoch;
         // حماية رصيد العملات المكتسب لحظياً من أي تأخير في الشبكة أو استجابات قديمة (0ms Latency Protection)
         if (_optimisticCoins != null && (now - _lastLocalCoinsUpdateMs) < 5000) {
-          if (user.coins >= _optimisticCoins!) {
+          final reached = _optimisticCoinsIsDecrease
+              ? user.coins <= _optimisticCoins!
+              : user.coins >= _optimisticCoins!;
+          if (reached) {
             _optimisticCoins = null;
           } else {
             user = user.copyWith(coins: _optimisticCoins!);
@@ -169,6 +173,8 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> loadUser(String uid) async {
     _isLoading = true;
+    _optimisticCoins = null;
+    _optimisticCoinsIsDecrease = false;
     notifyListeners();
     try {
       _currentUser = await _supabaseService.getUser(uid);
@@ -311,6 +317,7 @@ class UserProvider extends ChangeNotifier {
     final newCoins = (_currentUser!.coins - amount).clamp(0, 999999999);
     _currentUser = _currentUser!.copyWith(coins: newCoins);
     _optimisticCoins = newCoins;
+    _optimisticCoinsIsDecrease = true;
     _lastLocalCoinsUpdateMs = DateTime.now().millisecondsSinceEpoch;
     notifyListeners();
   }
@@ -320,6 +327,7 @@ class UserProvider extends ChangeNotifier {
     final newCoins = _currentUser!.coins + amount;
     _currentUser = _currentUser!.copyWith(coins: newCoins);
     _optimisticCoins = newCoins;
+    _optimisticCoinsIsDecrease = false;
     _lastLocalCoinsUpdateMs = DateTime.now().millisecondsSinceEpoch;
     notifyListeners();
   }
@@ -328,6 +336,7 @@ class UserProvider extends ChangeNotifier {
     if (_currentUser == null) return;
     _currentUser = _currentUser!.copyWith(coins: newBalance);
     _optimisticCoins = newBalance;
+    _optimisticCoinsIsDecrease = false;
     _lastLocalCoinsUpdateMs = DateTime.now().millisecondsSinceEpoch;
     notifyListeners();
   }

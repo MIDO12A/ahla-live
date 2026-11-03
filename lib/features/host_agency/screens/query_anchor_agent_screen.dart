@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../config/r.dart';
 import '../data/anchor_agent_model.dart';
+import 'package:zero/core/dtext.dart';
 
 /// شاشة البحث عن المضيفين داخل الوكالة (QueryAnchorAgentActivity)
 class QueryAnchorAgentScreen extends StatefulWidget {
@@ -95,7 +96,7 @@ class _QueryAnchorAgentScreenState extends State<QueryAnchorAgentScreen> {
                 children: const [
                   Icon(Icons.search_off, size: 54, color: Colors.black26),
                   SizedBox(height: 10),
-                  Text('لا توجد نتائج مطابقة لبحثك', style: TextStyle(color: Colors.black45, fontSize: 13)),
+                  DText('لا توجد نتائج مطابقة لبحثك', style: TextStyle(color: Colors.black45, fontSize: 13)),
                 ],
               ),
             )
@@ -130,7 +131,7 @@ class _QueryAnchorAgentScreenState extends State<QueryAnchorAgentScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            DText(
                               a.nickname,
                               style: const TextStyle(
                                 fontSize: 14,
@@ -139,12 +140,12 @@ class _QueryAnchorAgentScreenState extends State<QueryAnchorAgentScreen> {
                               ),
                             ),
                             const SizedBox(height: 2),
-                            Text(
+                            DText(
                               'ID: ${a.userNo > 0 ? a.userNo : a.userId}',
                               style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
                             ),
                             const SizedBox(height: 2),
-                            Text(
+                            DText(
                               a.formattedTime,
                               style: const TextStyle(fontSize: 11, color: Color(0xFFDE880F)),
                             ),
@@ -154,7 +155,7 @@ class _QueryAnchorAgentScreenState extends State<QueryAnchorAgentScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(
+                          DText(
                             '${R.formatCoins(int.tryParse(a.diamonds) ?? 0)} 💎',
                             style: const TextStyle(
                               fontSize: 13,
@@ -169,7 +170,7 @@ class _QueryAnchorAgentScreenState extends State<QueryAnchorAgentScreen> {
                               color: a.targetProgress >= 1.0 ? Colors.green.shade50 : Colors.amber.shade50,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Text(
+                            child: DText(
                               a.targetProgress >= 1.0 ? 'مكتمل ✅' : '${(a.targetProgress * 100).toInt()}% من التارجت',
                               style: TextStyle(
                                 fontSize: 10,

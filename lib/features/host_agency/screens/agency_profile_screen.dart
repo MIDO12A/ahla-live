@@ -9,6 +9,7 @@ import '../../../services/level_service.dart';
 import '../../../widgets/user_id_widget.dart';
 import '../../../config/r.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyProfileScreen — شاشة تفاصيل وطلب الانضمام إلى الوكالة
@@ -63,7 +64,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ تم إرسال طلب الانضمام بنجاح'),
+          content: DText('✅ تم إرسال طلب الانضمام بنجاح'),
           backgroundColor: Color(0xFF2E7D32),
         ),
       );
@@ -72,7 +73,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('تعذر إرسال الطلب: $e'),
+          content: DText('تعذر إرسال الطلب: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -97,15 +98,15 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF222028),
-        title: const Text('تأكيد الانسحاب المباشر', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text(
+        title: const DText('تأكيد الانسحاب المباشر', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const DText(
           'هل تريد تأكيد الانسحاب المباشر من هذه الوكالة الآن؟ سيتم إنهاء عضويتك فوراً.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+            child: const DText('إلغاء', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -113,7 +114,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('تأكيد الانسحاب'),
+            child: const DText('تأكيد الانسحاب'),
           ),
         ],
       ),
@@ -127,7 +128,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ تم الانسحاب من الوكالة بنجاح'),
+          content: DText('✅ تم الانسحاب من الوكالة بنجاح'),
           backgroundColor: Color(0xFF2E7D32),
         ),
       );
@@ -136,7 +137,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('تعذر الانسحاب: $e'),
+          content: DText('تعذر الانسحاب: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -166,7 +167,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
         children: [
           const Icon(Icons.error_outline, color: Colors.white38, size: 48),
           const SizedBox(height: 12),
-          const Text(
+          const DText(
             'تعذر تحميل بيانات الوكالة',
             style: TextStyle(color: Colors.white70, fontSize: 15),
           ),
@@ -174,7 +175,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
           ElevatedButton.icon(
             onPressed: _load,
             icon: const Icon(Icons.refresh),
-            label: const Text('إعادة المحاولة'),
+            label: const DText('إعادة المحاولة'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFD4AF37),
               foregroundColor: Colors.black,
@@ -197,7 +198,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
             errorBuilder: (_, __, ___) => const Icon(Icons.search_off, color: Colors.white38, size: 64),
           ),
           const SizedBox(height: 16),
-          const Text(
+          const DText(
             'لم يتم العثور على الوكالة',
             style: TextStyle(color: Colors.white60, fontSize: 15),
           ),
@@ -205,7 +206,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
           ElevatedButton(
             onPressed: () => Navigator.of(context).maybePop(),
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF303030)),
-            child: const Text('رجوع', style: TextStyle(color: Colors.white)),
+            child: const DText('رجوع', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -258,7 +259,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                 SizedBox(height: topPadding + 44 + 20),
 
                 // عنوان التصنيف: Last week's ranking / تصنيف الأسبوع الماضي
-                const Text(
+                const DText(
                   'تصنيف الأسبوع الماضي',
                   style: TextStyle(
                     color: Colors.white,
@@ -281,7 +282,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                       errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                     ),
                     const SizedBox(width: 8),
-                    Text(
+                    DText(
                       'TOP $rank',
                       style: const TextStyle(
                         fontSize: 38,
@@ -379,7 +380,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           // اسم الوكالة (tv_name)
-                          Text(
+                          DText(
                             a.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -407,10 +408,10 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                                             width: 20,
                                             height: 13,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => const Text('📍', style: TextStyle(fontSize: 12)),
+                                            errorBuilder: (_, __, ___) => const DText('📍', style: TextStyle(fontSize: 12)),
                                           ),
                                         )
-                                      : const Text('📍', style: TextStyle(fontSize: 12)),
+                                      : const DText('📍', style: TextStyle(fontSize: 12)),
                                   text: a.country ?? 'عالمي',
                                 ),
                                 const SizedBox(height: 9),
@@ -478,7 +479,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                 ),
               ),
               // عنوان الشاشة: تفاصيل الوكالة (union_detail_title)
-              const Text(
+              const DText(
                 'تفاصيل الوكالة',
                 style: TextStyle(
                   color: Colors.white,
@@ -505,7 +506,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
     return Container(
       color: const Color(0xFF2C243B),
       alignment: Alignment.center,
-      child: Text(
+      child: DText(
         name.isNotEmpty ? name.characters.first : 'U',
         style: const TextStyle(
           color: Color(0xFFFFFFAD),
@@ -525,7 +526,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
           SizedBox(width: 22, height: 20, child: Center(child: icon)),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
+            child: DText(
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -610,7 +611,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                             const SizedBox(width: 4),
                           ],
                           Flexible(
-                            child: Text(
+                            child: DText(
                               user?.name ?? 'مستخدم',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -697,7 +698,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: const Color(0xFFFFD700), width: 0.8),
       ),
-      child: Text(
+      child: DText(
         'Lv.$level',
         style: const TextStyle(
           fontSize: 9,
@@ -725,7 +726,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
           children: [
             Icon(Icons.check_circle_rounded, color: Color(0xFF4CAF50), size: 20),
             SizedBox(width: 8),
-            Text(
+            DText(
               'أنت عضو في هذه الوكالة ✅',
               style: TextStyle(
                 color: Color(0xFF4CAF50),
@@ -748,7 +749,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
           borderRadius: BorderRadius.circular(24),
         ),
         alignment: Alignment.center,
-        child: const Text(
+        child: const DText(
           'تم التقديم (قيد المراجعة)',
           style: TextStyle(
             color: Color(0xFFB0B3C0),
@@ -787,7 +788,7 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                 height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF59370D)),
               )
-            : const Text(
+            : const DText(
                 'تقديم طلب الانضمام',
                 style: TextStyle(
                   color: Color(0xFF59370D),

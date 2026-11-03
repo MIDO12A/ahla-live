@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../room/widgets/vap_player.dart';
 import '../../config/r.dart';
 import 'vip_center_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class VipIntroScreen extends StatefulWidget {
   final String videoUrl;
@@ -42,7 +43,7 @@ class _VipIntroScreenState extends State<VipIntroScreen> {
                     image: R.cachedImage(widget.videoUrl),
                     fit: BoxFit.fill,
                     errorBuilder: (_, __, ___) => const Center(
-                      child: Text('Video not available', style: TextStyle(color: Colors.white)),
+                      child: DText('Video not available', style: TextStyle(color: Colors.white)),
                     ),
                   ),
             Positioned(
@@ -70,7 +71,7 @@ class _VipIntroScreenState extends State<VipIntroScreen> {
                       color: Colors.black.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text('Tap to enter VIP', style: TextStyle(color: Colors.white, fontSize: 18)),
+                    child: const DText('Tap to enter VIP', style: TextStyle(color: Colors.white, fontSize: 18)),
                   ),
                 ),
               ),

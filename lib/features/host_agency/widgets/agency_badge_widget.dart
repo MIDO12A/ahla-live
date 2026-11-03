@@ -6,6 +6,7 @@ import '../../../core/utils/server_time_service.dart';
 import '../../../core/widgets/ota_icon.dart';
 import '../data/agency_models.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  AgencyBadgeWidget — شارة الوكالة في البروفايل
@@ -65,12 +66,12 @@ class AgencyBadgeWidget extends StatelessWidget {
                 ),
               const SizedBox(width: 6),
               // Name
-              Flexible(child: Text(agencyName,
+              Flexible(child: DText(agencyName,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600))),
               if (isHOF) ...[
                 const SizedBox(width: 3),
-                const Text('🏆', style: TextStyle(fontSize: 10)),
+                const DText('🏆', style: TextStyle(fontSize: 10)),
               ],
             ]),
           ),
@@ -130,7 +131,7 @@ class FreeAgentBadge extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         OtaEmojiIcon(iconKey: OtaIconKeys.badgeFreeAgent, emoji: '🦅', size: 18),
         const SizedBox(width: 5),
-        Text('وكيل حر ($daysLeft أيام)',
+        DText('وكيل حر ($daysLeft أيام)',
           style: const TextStyle(color: Color(0xFF00E5A0), fontSize: 11, fontWeight: FontWeight.w600)),
       ]),
     );

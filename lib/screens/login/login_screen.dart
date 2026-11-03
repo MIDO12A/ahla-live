@@ -17,6 +17,7 @@ import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/device_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:zero/core/dtext.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -219,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تعذر تسجيل الدخول: $e'),
+            content: DText('تعذر تسجيل الدخول: $e'),
             backgroundColor: Colors.redAccent,
             duration: const Duration(seconds: 5),
           ),
@@ -291,10 +292,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444)),
                     SizedBox(width: 8),
-                    Text('تنبيه الحد الأقصى', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    DText('تنبيه الحد الأقصى', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 ),
-                content: const Text(
+                content: const DText(
                   'عفواً، لا يمكن تسجيل أكثر من حسابين من نفس الهاتف.\nيرجى تسجيل الدخول بأحد الحسابات المسجلة مسبقاً على هذا الجهاز.',
                   style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
                 ),
@@ -302,7 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDE880F)),
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('حسناً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    child: const DText('حسناً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -336,7 +337,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
+            content: DText(
               'تعذر تسجيل الدخول بجوجل: ${e.description ?? e.code.name}',
             ),
           ),
@@ -348,7 +349,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تعذر تسجيل الدخول: $e'),
+            content: DText('تعذر تسجيل الدخول: $e'),
           ),
         );
       }
@@ -411,7 +412,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
+        DText(
           _welcomeTitle.isNotEmpty ? _welcomeTitle : 'Welcome',
           style: TextStyle(
             fontSize: 22,
@@ -428,7 +429,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
+        DText(
           _welcomeSubtitle.isNotEmpty ? _welcomeSubtitle : 'AHLA LIVE',
           style: TextStyle(
             fontSize: 34,
@@ -515,7 +516,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
+                                DText(
                                   (_lastAccount!['name']?.toString().isNotEmpty == true)
                                       ? _lastAccount!['name']
                                       : 'مستخدم',
@@ -528,7 +529,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
+                                DText(
                                   'ID: ${_lastAccount!['customId'] ?? _lastAccount!['uid'] ?? ''}',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
@@ -549,7 +550,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             icon: const Icon(Icons.bolt_rounded, size: 16),
-                            label: const Text(
+                            label: const DText(
                               'دخول مباشر',
                               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                             ),
@@ -593,7 +594,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               height: 24,
                             ),
                           const SizedBox(width: 10),
-                          const Text(
+                          const DText(
                             'تسجيل الدخول بحساب Google',
                             style: TextStyle(
                               fontSize: 15,
@@ -643,7 +644,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             height: 24,
                           ),
                           const SizedBox(width: 10),
-                          const Text(
+                          const DText(
                             'تسجيل الدخول برقم الهاتف',
                             style: TextStyle(
                               fontSize: 15,
@@ -758,7 +759,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      const DText(
                         'سياسة الخصوصية وشروط الاستخدام',
                         style: TextStyle(
                           color: Colors.white,
@@ -777,7 +778,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ListView(
                       controller: scrollCtrl,
                       children: [
-                        Text(
+                        DText(
                           content,
                           style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
                         ),
@@ -790,7 +791,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         }
                       },
                       icon: const Icon(Icons.open_in_browser, color: Color(0xFF1E1528)),
-                      label: const Text(
+                      label: const DText(
                         'عرض الصفحة الرسمية على الويب',
                         style: TextStyle(color: Color(0xFF1E1528), fontWeight: FontWeight.bold),
                       ),

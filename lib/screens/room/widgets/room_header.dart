@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../../../widgets/user_id_widget.dart';
+import 'package:zero/core/dtext.dart';
 
 class RoomHeader extends StatelessWidget {
   final String? roomName;
@@ -174,7 +175,7 @@ class RoomHeader extends StatelessWidget {
                   ),
                 ),
               ] else ...[
-                Text(
+                DText(
                   'ID: ${roomId ?? '------'}',
                   style: const TextStyle(fontSize: 10, color: Color(0xB2FFFFFF)),
                 ),
@@ -186,7 +187,7 @@ class RoomHeader extends StatelessWidget {
               const SizedBox(width: 2),
               R.image(R.roomHotLogoIc, width: 10, height: 10),
               const SizedBox(width: 2),
-              Text(
+              DText(
                 hotValue ?? '0',
                 style: const TextStyle(fontSize: 10, color: Color(0xB2FFFFFF)),
               ),
@@ -205,7 +206,7 @@ class RoomHeader extends StatelessWidget {
                   color: Color(0xFFFFC525),
                 ),
                 const SizedBox(width: 2),
-                Text(
+                DText(
                   R.formatCoins(monthlyCoins),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -287,7 +288,7 @@ class RoomHeader extends StatelessWidget {
               ),
               const SizedBox(width: 3),
             ],
-            Text(
+            DText(
               onlineCount ?? '1',
               style: const TextStyle(
                 color: Colors.white,

@@ -16,6 +16,7 @@ import 'agency_invite_by_id_screen.dart';
 import 'agency_chat_screen.dart';
 import 'agency_leaderboard_screen.dart';
 import '../data/agency_chat_models.dart';
+import 'package:zero/core/dtext.dart';
 
 // ── palette ───────────────────────────────────────────────────────────────────
 const _bgDeep    = Color(0xFF03030A);
@@ -160,7 +161,7 @@ class _AgencySupervisorDashboardScreenState
     child: Column(mainAxisSize: MainAxisSize.min, children: [
       _NeonSpinner(),
       SizedBox(height: 16),
-      Text('جارٍ تحميل بيانات الوكالة…',
+      DText('جارٍ تحميل بيانات الوكالة…',
           style: TextStyle(color: _textMuted, fontFamily: 'IBM Plex Sans Arabic')),
     ]),
   );
@@ -169,7 +170,7 @@ class _AgencySupervisorDashboardScreenState
     child: Column(mainAxisSize: MainAxisSize.min, children: [
       const Icon(Icons.error_outline, color: _red, size: 48),
       const SizedBox(height: 12),
-      Text(_error ?? 'خطأ',
+      DText(_error ?? 'خطأ',
           style: const TextStyle(color: _red, fontFamily: 'IBM Plex Sans Arabic')),
       const SizedBox(height: 16),
       _GlassButton(
@@ -234,7 +235,7 @@ class _AgencySupervisorDashboardScreenState
                     const Icon(Icons.star_rounded, color: _cyan, size: 18),
                     const SizedBox(width: 8),
                     const Expanded(
-                      child: Text(
+                      child: DText(
                         'أنت مشرف في هذه الوكالة — يمكنك قبول الطلبات ودعوة الأعضاء',
                         style: TextStyle(color: _cyan, fontSize: 12,
                             fontFamily: 'IBM Plex Sans Arabic'),
@@ -364,12 +365,12 @@ class _SupervisorHeader extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name,
+                  DText(name,
                       style: const TextStyle(color: _textMain, fontSize: 18,
                           fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
                   Row(children: [
                     if (spec.isNotEmpty)
-                      Text(spec, style: const TextStyle(color: _textMuted,
+                      DText(spec, style: const TextStyle(color: _textMuted,
                           fontSize: 12, fontFamily: 'IBM Plex Sans Arabic')),
                     if (spec.isNotEmpty) const SizedBox(width: 8),
                     Container(
@@ -379,7 +380,7 @@ class _SupervisorHeader extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: _cyan.withOpacity(.4)),
                       ),
-                      child: const Text('مشرف',
+                      child: const DText('مشرف',
                           style: TextStyle(color: _cyan, fontSize: 11,
                               fontWeight: FontWeight.bold)),
                     ),
@@ -388,7 +389,7 @@ class _SupervisorHeader extends StatelessWidget {
               ),
             ]),
             const SizedBox(height: 12),
-            Text('${_fmt(totalDiamonds)} 💎 هذا الشهر',
+            DText('${_fmt(totalDiamonds)} 💎 هذا الشهر',
                 style: TextStyle(
                   color: _cyan, fontSize: 22, fontWeight: FontWeight.bold,
                   fontFamily: 'Space Grotesk',
@@ -495,9 +496,9 @@ class _QuickActionCard extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(action.emoji, style: const TextStyle(fontSize: 24)),
+              DText(action.emoji, style: const TextStyle(fontSize: 24)),
               const SizedBox(height: 6),
-              Text(action.label,
+              DText(action.label,
                 style: TextStyle(color: action.color, fontSize: 11, fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
                 maxLines: 2,
@@ -512,7 +513,7 @@ class _QuickActionCard extends StatelessWidget {
                     color: _red,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text('${action.badge}',
+                  child: DText('${action.badge}',
                       style: const TextStyle(color: Colors.white, fontSize: 10,
                           fontWeight: FontWeight.bold)),
                 ),
@@ -541,12 +542,12 @@ class _KpiTile extends StatelessWidget {
       boxShadow: [BoxShadow(color: color.withOpacity(.08), blurRadius: 12)],
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(icon, style: const TextStyle(fontSize: 20)),
+      DText(icon, style: const TextStyle(fontSize: 20)),
       const SizedBox(height: 6),
-      Text(value, style: TextStyle(color: color, fontSize: 18,
+      DText(value, style: TextStyle(color: color, fontSize: 18,
           fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk',
           shadows: [Shadow(color: color.withOpacity(.5), blurRadius: 6)])),
-      Text(label, style: const TextStyle(color: _textMuted, fontSize: 10,
+      DText(label, style: const TextStyle(color: _textMuted, fontSize: 10,
           fontFamily: 'IBM Plex Sans Arabic')),
     ]),
   );
@@ -594,7 +595,7 @@ class _LeaderboardList extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: barC.withOpacity(.4)),
               ),
-              child: Center(child: Text('${i + 1}',
+              child: Center(child: DText('${i + 1}',
                   style: TextStyle(color: barC, fontSize: 12,
                       fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk'))),
             ),
@@ -602,7 +603,7 @@ class _LeaderboardList extends StatelessWidget {
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(color: _textMain, fontSize: 13,
+                DText(name, style: const TextStyle(color: _textMain, fontSize: 13,
                     fontFamily: 'IBM Plex Sans Arabic')),
                 const SizedBox(height: 6),
                 Stack(children: [
@@ -633,7 +634,7 @@ class _LeaderboardList extends StatelessWidget {
               ],
             )),
             const SizedBox(width: 10),
-            Text('${fmtFn(weekD)} 💎',
+            DText('${fmtFn(weekD)} 💎',
                 style: TextStyle(color: barC, fontSize: 12,
                     fontFamily: 'Space Grotesk', fontWeight: FontWeight.w600)),
           ]),
@@ -673,7 +674,7 @@ class _MilestoneCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(name,
+          Expanded(child: DText(name,
               style: TextStyle(color: completed ? _gold : _textMain,
                   fontSize: 14, fontWeight: FontWeight.w600,
                   fontFamily: 'IBM Plex Sans Arabic'))),
@@ -685,7 +686,7 @@ class _MilestoneCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: _gold.withOpacity(.4)),
               ),
-              child: const Text('✅ مكتمل',
+              child: const DText('✅ مكتمل',
                   style: TextStyle(color: _gold, fontSize: 11,
                       fontFamily: 'IBM Plex Sans Arabic')),
             ),
@@ -716,10 +717,10 @@ class _MilestoneCard extends StatelessWidget {
         ]),
         const SizedBox(height: 8),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('${(pct * 100).toStringAsFixed(0)}%',
+          DText('${(pct * 100).toStringAsFixed(0)}%',
               style: TextStyle(color: barC, fontSize: 12,
                   fontFamily: 'Space Grotesk', fontWeight: FontWeight.bold)),
-          Text('${fmtFn(current)} / ${fmtFn(target)} 💎',
+          DText('${fmtFn(current)} / ${fmtFn(target)} 💎',
               style: const TextStyle(color: _textMuted, fontSize: 11,
                   fontFamily: 'Space Grotesk')),
         ]),
@@ -735,9 +736,9 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-    Text(icon, style: const TextStyle(fontSize: 18)),
+    DText(icon, style: const TextStyle(fontSize: 18)),
     const SizedBox(width: 8),
-    Text(label,
+    DText(label,
         style: const TextStyle(color: _textMain, fontSize: 16,
             fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
     const SizedBox(width: 12),
@@ -761,7 +762,7 @@ class _GlassButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(.4)),
       ),
-      child: Text(label, style: TextStyle(color: color,
+      child: DText(label, style: TextStyle(color: color,
           fontFamily: 'IBM Plex Sans Arabic', fontWeight: FontWeight.w600)),
     ),
   );

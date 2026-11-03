@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
 import '../../widgets/user_id_widget.dart';
 import '../../services/account_switch_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class AccountManagementScreen extends StatelessWidget {
   const AccountManagementScreen({super.key});
@@ -46,7 +47,7 @@ class AccountManagementScreen extends StatelessWidget {
                   ),
                   const SizedBox(width: AppDimensions.dp8),
                   const Expanded(
-                    child: Text(
+                    child: DText(
                       AppStrings.accountManagement,
                       style: TextStyle(
                         fontSize: AppDimensions.textSizeLg,
@@ -136,11 +137,11 @@ class AccountManagementScreen extends StatelessWidget {
                                         width: 22,
                                         height: 15,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Text(flagEmoji, style: const TextStyle(fontSize: 16)),
+                                        errorBuilder: (_, __, ___) => DText(flagEmoji, style: const TextStyle(fontSize: 16)),
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-                                    Text(
+                                    DText(
                                       countryCode.toUpperCase(),
                                       style: const TextStyle(fontSize: 13, color: Color(0xFF888888), fontWeight: FontWeight.w600),
                                     ),
@@ -185,7 +186,7 @@ class AccountManagementScreen extends StatelessWidget {
                     const SizedBox(height: 24),
                     _buildLogoutButton(context),
                     const SizedBox(height: 40),
-                    const Text(
+                    const DText(
                       AppStrings.securityTips,
                       style: TextStyle(
                         fontSize: AppDimensions.textSizeSm,
@@ -194,7 +195,7 @@ class AccountManagementScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppDimensions.dp16),
-                    const Text(
+                    const DText(
                       AppStrings.securityTipsDescription,
                       style: TextStyle(
                         fontSize: 13,
@@ -211,7 +212,7 @@ class AccountManagementScreen extends StatelessWidget {
                           ),
                         );
                       },
-                      child: Text(
+                      child: DText(
                         AppStrings.deleteAccount,
                         style: const TextStyle(
                           fontSize: 15,
@@ -257,7 +258,7 @@ class AccountManagementScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  DText(
                     title,
                     style: const TextStyle(
                       fontSize: AppDimensions.textSizeSm,
@@ -265,7 +266,7 @@ class AccountManagementScreen extends StatelessWidget {
                       color: AppColors.color16151A,
                     ),
                   ),
-                  Text(
+                  DText(
                     subtitle,
                     style: const TextStyle(
                       fontSize: 13,
@@ -293,16 +294,16 @@ class AccountManagementScreen extends StatelessWidget {
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text(AppStrings.logout),
-            content: const Text('هل أنت متأكد أنك تريد تسجيل الخروج؟'),
+            title: const DText(AppStrings.logout),
+            content: const DText('هل أنت متأكد أنك تريد تسجيل الخروج؟'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text(AppStrings.languageCancel),
+                child: const DText(AppStrings.languageCancel),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('تأكيد', style: TextStyle(color: Colors.red)),
+                child: const DText('تأكيد', style: TextStyle(color: Colors.red)),
               ),
             ],
           ),
@@ -333,7 +334,7 @@ class AccountManagementScreen extends StatelessWidget {
           children: [
             Icon(Icons.logout, color: Colors.red, size: 22),
             SizedBox(width: 8),
-            Text(
+            DText(
               'تسجيل الخروج',
               style: TextStyle(
                 fontSize: 16,
@@ -383,7 +384,7 @@ class AccountManagementScreen extends StatelessWidget {
                         children: [
                           Icon(Icons.switch_account_rounded, color: Color(0xFFFFD700), size: 24),
                           SizedBox(width: 10),
-                          Text(
+                          DText(
                             'تبديل الحساب',
                             style: TextStyle(
                               color: Colors.white,
@@ -397,7 +398,7 @@ class AccountManagementScreen extends StatelessWidget {
                       if (accounts.isEmpty)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Text(
+                          child: DText(
                             'لا توجد حسابات أخرى محفوظة على هذا الجهاز',
                             style: TextStyle(color: Colors.white54, fontSize: 13),
                           ),
@@ -436,7 +437,7 @@ class AccountManagementScreen extends StatelessWidget {
                                 title: Row(
                                   children: [
                                     Expanded(
-                                      child: Text(
+                                      child: DText(
                                         name,
                                         style: const TextStyle(
                                           color: Colors.white,
@@ -456,7 +457,7 @@ class AccountManagementScreen extends StatelessWidget {
                                           borderRadius: BorderRadius.circular(10),
                                           border: Border.all(color: const Color(0xFF00E5A0)),
                                         ),
-                                        child: const Text(
+                                        child: const DText(
                                           'الحالي',
                                           style: TextStyle(color: Color(0xFF00E5A0), fontSize: 11, fontWeight: FontWeight.bold),
                                         ),
@@ -464,7 +465,7 @@ class AccountManagementScreen extends StatelessWidget {
                                   ],
                                 ),
                                 subtitle: sub.isNotEmpty
-                                    ? Text(
+                                    ? DText(
                                         sub,
                                         style: const TextStyle(color: Colors.white54, fontSize: 12),
                                         maxLines: 1,
@@ -487,7 +488,7 @@ class AccountManagementScreen extends StatelessWidget {
                                           minimumSize: Size.zero,
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                         ),
-                                        child: const Text('تبديل', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                        child: const DText('تبديل', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.delete_outline_rounded, color: Colors.white38, size: 20),
@@ -516,7 +517,7 @@ class AccountManagementScreen extends StatelessWidget {
                             );
                           },
                           icon: const Icon(Icons.add, color: Color(0xFFFFD700)),
-                          label: const Text(
+                          label: const DText(
                             'تسجيل الدخول بحساب آخر',
                             style: TextStyle(color: Color(0xFFFFD700), fontSize: 14, fontWeight: FontWeight.bold),
                           ),
@@ -553,7 +554,7 @@ class AccountManagementScreen extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text(
+              child: DText(
                 title,
                 style: const TextStyle(
                   fontSize: AppDimensions.textSizeSm,

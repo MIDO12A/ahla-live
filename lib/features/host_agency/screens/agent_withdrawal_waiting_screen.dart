@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
 import '../../../providers/user_provider.dart';
+import 'package:zero/core/dtext.dart';
 
 class AgentWithdrawalWaitingScreen extends StatefulWidget {
   final String requestId;
@@ -173,21 +174,21 @@ class _AgentWithdrawalWaitingScreenState
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E2E),
-        title: const Text('إلغاء طلب الصرف',
+        title: const DText('إلغاء طلب الصرف',
             style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontWeight: FontWeight.bold)),
-        content: const Text(
+        content: const DText(
           'هل تريد بالتأكيد إلغاء طلب السحب الموجه لوكيل الشحن؟\nلن يتم خصم أو تحويل أي رصيد.',
           style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('تراجع', style: TextStyle(color: Colors.white54, fontFamily: 'Tajawal')),
+            child: const DText('تراجع', style: TextStyle(color: Colors.white54, fontFamily: 'Tajawal')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('نعم، إلغاء الطلب',
+            child: const DText('نعم، إلغاء الطلب',
                 style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontWeight: FontWeight.bold)),
           ),
         ],
@@ -211,7 +212,7 @@ class _AgentWithdrawalWaitingScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('تم إلغاء طلب الصرف بنجاح', style: TextStyle(fontFamily: 'Tajawal')),
+            content: DText('تم إلغاء طلب الصرف بنجاح', style: TextStyle(fontFamily: 'Tajawal')),
             backgroundColor: Colors.grey,
           ),
         );
@@ -221,7 +222,7 @@ class _AgentWithdrawalWaitingScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('فشل إلغاء الطلب: $e', style: const TextStyle(fontFamily: 'Tajawal')),
+            content: DText('فشل إلغاء الطلب: $e', style: const TextStyle(fontFamily: 'Tajawal')),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -240,22 +241,22 @@ class _AgentWithdrawalWaitingScreenState
                 context: context,
                 builder: (ctx) => AlertDialog(
                   backgroundColor: const Color(0xFF1E1E2E),
-                  title: const Text('مغادرة شاشة الانتظار؟',
+                  title: const DText('مغادرة شاشة الانتظار؟',
                       style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontWeight: FontWeight.bold)),
-                  content: const Text(
+                  content: const DText(
                     'الطلب لا يزال قيد الانتظار لموافقة الوكيل في الخلفية.\nيمكنك الرجوع في أي وقت لمتابعة حالته.',
                     style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', height: 1.4),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('البقاء هنا',
+                      child: const DText('البقاء هنا',
                           style: TextStyle(color: _teal, fontFamily: 'Tajawal')),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.white12),
                       onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('خروج',
+                      child: const DText('خروج',
                           style: TextStyle(color: Colors.white, fontFamily: 'Tajawal')),
                     ),
                   ],
@@ -272,7 +273,7 @@ class _AgentWithdrawalWaitingScreenState
           appBar: AppBar(
             backgroundColor: _card,
             elevation: 0,
-            title: const Text(
+            title: const DText(
               'متابعة طلب صرف الراتب',
               style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontSize: 16, fontWeight: FontWeight.bold),
             ),
@@ -320,13 +321,13 @@ class _AgentWithdrawalWaitingScreenState
               child: const Icon(Icons.check_circle_rounded, color: Color(0xFF00E5A0), size: 54),
             ),
             const SizedBox(height: 18),
-            const Text(
+            const DText(
               '🎉 تمت موافقة الوكيل بنجاح!',
               style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontSize: 20, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            const Text(
+            const DText(
               'تم سحب الراتب، وتصفير التارجت والخصم من الرصيد المحقق، وإيداع الرصيد في محفظة وكالة الشحن بنجاح.',
               style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 13, height: 1.5),
               textAlign: TextAlign.center,
@@ -351,13 +352,13 @@ class _AgentWithdrawalWaitingScreenState
               child: const Icon(Icons.cancel_rounded, color: Colors.redAccent, size: 54),
             ),
             const SizedBox(height: 18),
-            const Text(
+            const DText(
               'تم رفض طلب الصرف ❌',
               style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontSize: 20, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            Text(
+            DText(
               _rejectionReason ?? 'اعتذر وكيل الشحن عن قبول الطلب. لم يتم خصم أي رصيد من حسابك.',
               style: const TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 13, height: 1.5),
               textAlign: TextAlign.center,
@@ -379,12 +380,12 @@ class _AgentWithdrawalWaitingScreenState
               child: const Icon(Icons.remove_circle_outline_rounded, color: Colors.white54, size: 48),
             ),
             const SizedBox(height: 16),
-            const Text(
+            const DText(
               'تم إلغاء الطلب',
               style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            const Text(
+            const DText(
               'تم إلغاء طلب السحب بنجاح ولم يتم تحويل أي رصيد.',
               style: TextStyle(color: Colors.white54, fontFamily: 'Tajawal', fontSize: 13),
               textAlign: TextAlign.center,
@@ -422,13 +423,13 @@ class _AgentWithdrawalWaitingScreenState
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            const DText(
               'في انتظار موافقة الوكيل ⏳',
               style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontSize: 20, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            const Text(
+            const DText(
               'تم إرسال طلب الصرف وإشعار وكيل الشحن فوراً.\nيرجى الانتظار، سيتم الخصم وتصفير التارجت بمجرد قبول الوكيل.',
               style: TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 13, height: 1.5),
               textAlign: TextAlign.center,
@@ -458,7 +459,7 @@ class _AgentWithdrawalWaitingScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              const DText(
                 'تفاصيل طلب الصرف',
                 style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontSize: 14, fontWeight: FontWeight.bold),
               ),
@@ -490,14 +491,14 @@ class _AgentWithdrawalWaitingScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    DText(
                       widget.agentName,
                       style: const TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontSize: 13, fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    DText(
                       'وكيل شحن معتمد' + (widget.agentKayanId.isNotEmpty ? ' (#${widget.agentKayanId})' : ''),
                       style: const TextStyle(color: _teal, fontFamily: 'Tajawal', fontSize: 11),
                     ),
@@ -507,7 +508,7 @@ class _AgentWithdrawalWaitingScreenState
             ],
           ),
           const SizedBox(height: 14),
-          Text(
+          DText(
             'رقم الطلب: ${widget.requestId}',
             style: const TextStyle(color: Colors.white30, fontFamily: 'monospace', fontSize: 10),
           ),
@@ -552,7 +553,7 @@ class _AgentWithdrawalWaitingScreenState
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: fg.withOpacity(0.4)),
       ),
-      child: Text(
+      child: DText(
         text,
         style: TextStyle(color: fg, fontFamily: 'Tajawal', fontSize: 11, fontWeight: FontWeight.bold),
       ),
@@ -565,8 +566,8 @@ class _AgentWithdrawalWaitingScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 13)),
-          Text(
+          DText(label, style: const TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 13)),
+          DText(
             value,
             style: TextStyle(color: valColor ?? Colors.white, fontFamily: 'Tajawal', fontSize: 14, fontWeight: FontWeight.bold),
           ),
@@ -586,7 +587,7 @@ class _AgentWithdrawalWaitingScreenState
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           onPressed: () => Navigator.pop(context, true),
-          child: const Text(
+          child: const DText(
             'تم وتحديث الرصيد والتارجت ✨',
             style: TextStyle(color: Colors.black, fontFamily: 'Tajawal', fontSize: 15, fontWeight: FontWeight.bold),
           ),
@@ -604,7 +605,7 @@ class _AgentWithdrawalWaitingScreenState
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           onPressed: () => Navigator.pop(context, false),
-          child: const Text(
+          child: const DText(
             'إغلاق',
             style: TextStyle(color: Colors.white, fontFamily: 'Tajawal', fontSize: 15),
           ),
@@ -624,7 +625,7 @@ class _AgentWithdrawalWaitingScreenState
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             icon: const Icon(Icons.refresh_rounded, color: _teal, size: 18),
-            label: const Text(
+            label: const DText(
               'تحديث الحالة يدوياً',
               style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 13),
             ),
@@ -636,7 +637,7 @@ class _AgentWithdrawalWaitingScreenState
           width: double.infinity,
           child: TextButton(
             onPressed: _cancelling ? null : _cancelRequest,
-            child: Text(
+            child: DText(
               _cancelling ? 'جارٍ الإلغاء...' : 'إلغاء طلب الصرف',
               style: const TextStyle(color: Colors.redAccent, fontFamily: 'Tajawal', fontSize: 13),
             ),

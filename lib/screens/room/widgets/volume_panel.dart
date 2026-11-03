@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../config/app_colors.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../../../services/room_audio_service.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // VolumePanel — layout_room_volume.xml + Complete Room Deafen (Mute)
@@ -66,7 +67,7 @@ class _VolumePanelState extends State<VolumePanel> {
           Row(
             children: [
               Expanded(
-                child: Text(
+                child: DText(
                   isAr ? 'صوت الغرفة' : 'Room Volume',
                   style: const TextStyle(
                     fontSize: 17,
@@ -123,7 +124,7 @@ class _VolumePanelState extends State<VolumePanel> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          DText(
                             isAr ? 'كتم صوت الغرفة بالكامل' : 'Deafen Room Audio',
                             style: TextStyle(
                               fontSize: 14,
@@ -134,7 +135,7 @@ class _VolumePanelState extends State<VolumePanel> {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Text(
+                          DText(
                             isAr
                                 ? (isDeafened
                                     ? 'تم كتم أصوات الجميع في الغرفة (هم يسمعون بعض)'
@@ -200,7 +201,7 @@ class _VolumePanelState extends State<VolumePanel> {
           const SizedBox(height: 8),
 
           // Percentage display
-          Text(
+          DText(
             '${_volume.round()}%',
             style: const TextStyle(
               fontSize: 15,

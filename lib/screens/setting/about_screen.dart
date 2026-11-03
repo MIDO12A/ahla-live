@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../config/r.dart';
 import '../../services/supabase_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -62,7 +63,7 @@ class _AboutScreenState extends State<AboutScreen> {
                     const SizedBox(height: 32),
                     R.image(R.splashImgLogo, width: 80, height: 80),
                     const SizedBox(height: 16),
-                    Text(
+                    DText(
                       _title,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -72,7 +73,7 @@ class _AboutScreenState extends State<AboutScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    DText(
                       _version,
                       style: const TextStyle(
                         fontSize: 14,
@@ -82,7 +83,7 @@ class _AboutScreenState extends State<AboutScreen> {
                     const SizedBox(height: 24),
                     _buildSocialRow(),
                     const SizedBox(height: 24),
-                    Text(
+                    DText(
                       _description,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -103,7 +104,7 @@ class _AboutScreenState extends State<AboutScreen> {
                   top: BorderSide(color: Color(0xFFF0F0F0)),
                 ),
               ),
-              child: Text(
+              child: DText(
                 _copyright,
                 style: const TextStyle(
                   fontSize: 12,
@@ -130,7 +131,7 @@ class _AboutScreenState extends State<AboutScreen> {
             ),
           ),
           const Spacer(),
-          const Text('عن التطبيق', style: TextStyle(fontSize: 17, color: Color(0xFF16151A), fontWeight: FontWeight.w500)),
+          const DText('عن التطبيق', style: TextStyle(fontSize: 17, color: Color(0xFF16151A), fontWeight: FontWeight.w500)),
           const Spacer(),
           const SizedBox(width: 32),
         ],

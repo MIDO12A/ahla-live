@@ -1,10 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/ui/in_app_toast.dart';
 import '../../../models/store_item_model.dart';
 import '../../../models/user_model.dart';
 import '../../../services/supabase_data_service.dart';
 import '../../../services/supabase_service.dart';
+import 'package:zero/core/dtext.dart';
 
 class StoreGiftDialog extends StatefulWidget {
   final UserModel currentUser;
@@ -219,7 +220,7 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
-                    child: Text(
+                    child: DText(
                       'إرسال إهداء من المتجر',
                       style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                     ),
@@ -241,7 +242,7 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Search User
-                    const Text(
+                    const DText(
                       'المستلم (معرف المستخدم ID)',
                       style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                     ),
@@ -277,14 +278,14 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                                   height: 16,
                                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                 )
-                              : const Text('بحث', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              : const DText('بحث', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
 
                     if (_userSearchError != null) ...[
                       const SizedBox(height: 6),
-                      Text(_userSearchError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                      DText(_userSearchError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                     ],
 
                     if (_targetUser != null) ...[
@@ -314,11 +315,11 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  DText(
                                     _targetUser!['name'] ?? 'مستخدم',
                                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                   ),
-                                  Text(
+                                  DText(
                                     'ID: ${_targetUser!['custom_id'] ?? _targetUser!['uid']}',
                                     style: const TextStyle(color: Color(0xFF00D4FF), fontSize: 11),
                                   ),
@@ -362,7 +363,7 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.all(30.0),
-                          child: Text('لا توجد عناصر متاحة في هذا القسم', style: TextStyle(color: Colors.white38)),
+                          child: DText('لا توجد عناصر متاحة في هذا القسم', style: TextStyle(color: Colors.white38)),
                         ),
                       )
                     else
@@ -406,7 +407,7 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                                   ),
                                   Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                                    child: Text(
+                                    child: DText(
                                       item.name,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -438,7 +439,7 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                   Expanded(
                     child: TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('إلغاء', style: TextStyle(color: Colors.white60)),
+                      child: const DText('إلغاء', style: TextStyle(color: Colors.white60)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -457,7 +458,7 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : const Text(
+                          : const DText(
                               'إرسال الإهداء 🎁',
                               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                             ),
@@ -486,7 +487,7 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
             color: isSelected ? const Color(0xFF6C63FF) : Colors.white.withValues(alpha: 0.15),
           ),
         ),
-        child: Text(
+        child: DText(
           label,
           style: TextStyle(
             color: isSelected ? Colors.white : const Color(0xFF8E9BB0),

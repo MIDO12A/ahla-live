@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +19,7 @@ import 'svga_player.dart';
 import 'vap_player.dart';
 import 'vip_cover_animator.dart';
 import '../../../widgets/user_id_widget.dart';
+import 'package:zero/core/dtext.dart';
 
 class UserProfile extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -474,7 +475,7 @@ class _UserProfileState extends State<UserProfile> {
                   ),
                   const SizedBox(width: 6),
                   Flexible(
-                    child: Text(
+                    child: DText(
                       name,
                       style: TextStyle(
                         fontSize: 17,
@@ -500,7 +501,7 @@ class _UserProfileState extends State<UserProfile> {
                           width: 18,
                           height: 12,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Text(
+                          errorBuilder: (_, __, ___) => DText(
                             UserIdWidget.countryCodeToEmoji(UserIdWidget.resolveCountryCode(country)),
                             style: const TextStyle(fontSize: 12),
                           ),
@@ -578,7 +579,7 @@ class _UserProfileState extends State<UserProfile> {
                         child: _getAggregatedReceivedGifts().isEmpty
                             ? const Align(
                                 alignment: Alignment.centerLeft,
-                                child: Text(
+                                child: DText(
                                   'لا توجد هدايا بعد',
                                   style: TextStyle(color: Colors.white38, fontSize: 11),
                                 ),
@@ -625,7 +626,7 @@ class _UserProfileState extends State<UserProfile> {
                                                   borderRadius: BorderRadius.circular(4),
                                                   border: Border.all(color: Colors.amber.withOpacity(0.5), width: 0.5),
                                                 ),
-                                                child: Text(
+                                                child: DText(
                                                   'x$count',
                                                   style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold),
                                                 ),
@@ -648,12 +649,12 @@ class _UserProfileState extends State<UserProfile> {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
+                              DText(
                                 '$_totalReceivedGiftCount',
                                 style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(width: 2),
-                              const Text(
+                              const DText(
                                 'استلام',
                                 style: TextStyle(color: Colors.white70, fontSize: 11),
                               ),
@@ -747,8 +748,8 @@ class _UserProfileState extends State<UserProfile> {
                     _buildRoundActionBtn(
                       customBgImg: config.miniprofileGiftBtnBg,
                       icon: config.miniprofileGiftIcon.isNotEmpty
-                          ? Image(image: R.cachedImage(config.miniprofileGiftIcon), width: 52, height: 52, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Text('🎁', style: TextStyle(fontSize: 36)))
-                          : const Text('🎁', style: TextStyle(fontSize: 36)),
+                          ? Image(image: R.cachedImage(config.miniprofileGiftIcon), width: 52, height: 52, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const DText('🎁', style: TextStyle(fontSize: 36)))
+                          : const DText('🎁', style: TextStyle(fontSize: 36)),
                       onTap: () {
                         widget.onClose?.call();
                         widget.onGift?.call();
@@ -759,8 +760,8 @@ class _UserProfileState extends State<UserProfile> {
                     _buildRoundActionBtn(
                       customBgImg: config.miniprofileMentionBtnBg,
                       icon: config.miniprofileMentionIcon.isNotEmpty
-                          ? Image(image: R.cachedImage(config.miniprofileMentionIcon), width: 52, height: 52, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Text('@', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)))
-                          : const Text('@', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                          ? Image(image: R.cachedImage(config.miniprofileMentionIcon), width: 52, height: 52, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const DText('@', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)))
+                          : const DText('@', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
                       onTap: () {
                         widget.onClose?.call();
                         widget.onMention?.call();
@@ -918,7 +919,7 @@ class _UserProfileState extends State<UserProfile> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
+        DText(
           count,
           style: TextStyle(
             color: textColor,
@@ -927,7 +928,7 @@ class _UserProfileState extends State<UserProfile> {
           ),
         ),
         const SizedBox(height: 2),
-        Text(
+        DText(
           label,
           style: TextStyle(
             color: subTextColor,
@@ -1206,7 +1207,7 @@ class _UserProfileState extends State<UserProfile> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white24, width: 0.8),
       ),
-      child: Text(
+      child: DText(
         text,
         style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
       ),
@@ -1234,7 +1235,7 @@ class _UserProfileState extends State<UserProfile> {
                     widget.isTargetModerator ? Icons.admin_panel_settings : Icons.admin_panel_settings_outlined,
                     color: Colors.amber,
                   ),
-                  title: Text(
+                  title: DText(
                     widget.isTargetModerator ? 'إلغاء الإشراف في الغرفة' : 'تعيين كأدمن / مشرف في الغرفة',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                   ),
@@ -1248,7 +1249,7 @@ class _UserProfileState extends State<UserProfile> {
               if (widget.isModerator)
                 ListTile(
                   leading: const Icon(Icons.volume_off_outlined, color: Colors.amberAccent),
-                  title: const Text('كتم في الغرفة', style: TextStyle(color: Colors.white)),
+                  title: const DText('كتم في الغرفة', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     Navigator.pop(ctx);
                     widget.onMute?.call();
@@ -1259,7 +1260,7 @@ class _UserProfileState extends State<UserProfile> {
               if (widget.isRoomOwner || (widget.isModerator && !widget.isTargetRoomOwner && !widget.isTargetModerator))
                 ListTile(
                   leading: const Icon(Icons.exit_to_app, color: Colors.redAccent),
-                  title: const Text('طرد من الغرفة', style: TextStyle(color: Colors.white)),
+                  title: const DText('طرد من الغرفة', style: TextStyle(color: Colors.white)),
                   onTap: () {
                     Navigator.pop(ctx);
                     widget.onKick?.call();
@@ -1272,7 +1273,7 @@ class _UserProfileState extends State<UserProfile> {
                   widget.isBlocked ? Icons.lock_open : Icons.block,
                   color: Colors.redAccent,
                 ),
-                title: Text(
+                title: DText(
                   widget.isBlocked ? 'إلغاء حظر المستخدم' : 'حظر المستخدم',
                   style: const TextStyle(color: Colors.white),
                 ),
@@ -1289,7 +1290,7 @@ class _UserProfileState extends State<UserProfile> {
               // 5. Report User (إبلاغ عن المستخدم)
               ListTile(
                 leading: const Icon(Icons.report_problem_outlined, color: Colors.orangeAccent),
-                title: const Text('إبلاغ عن المستخدم', style: TextStyle(color: Colors.white)),
+                title: const DText('إبلاغ عن المستخدم', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showReportDialog();
@@ -1298,7 +1299,7 @@ class _UserProfileState extends State<UserProfile> {
             ] else ...[
               const Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('خيارات المستخدم', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                child: DText('خيارات المستخدم', style: TextStyle(color: Colors.white54, fontSize: 13)),
               ),
             ],
           ],
@@ -1316,20 +1317,20 @@ class _UserProfileState extends State<UserProfile> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E1B26),
-        title: const Text('إبلاغ عن المستخدم', style: TextStyle(fontSize: 16, color: Colors.white)),
+        title: const DText('إبلاغ عن المستخدم', style: TextStyle(fontSize: 16, color: Colors.white)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('سبب الإبلاغ', style: TextStyle(fontSize: 12, color: Colors.white54)),
+              const DText('سبب الإبلاغ', style: TextStyle(fontSize: 12, color: Colors.white54)),
               const SizedBox(height: 4),
               DropdownButtonFormField<String>(
                 value: selectedReason,
                 dropdownColor: const Color(0xFF2A2634),
                 style: const TextStyle(color: Colors.white, fontSize: 13),
-                hint: const Text('اختر السبب', style: TextStyle(fontSize: 13, color: Colors.white38)),
-                items: reasons.map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 13, color: Colors.white)))).toList(),
+                hint: const DText('اختر السبب', style: TextStyle(fontSize: 13, color: Colors.white38)),
+                items: reasons.map((r) => DropdownMenuItem(value: r, child: DText(r, style: const TextStyle(fontSize: 13, color: Colors.white)))).toList(),
                 onChanged: (v) => selectedReason = v,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
@@ -1338,7 +1339,7 @@ class _UserProfileState extends State<UserProfile> {
                 ),
               ),
               const SizedBox(height: 12),
-              const Text('تفاصيل إضافية (اختياري)', style: TextStyle(fontSize: 12, color: Colors.white54)),
+              const DText('تفاصيل إضافية (اختياري)', style: TextStyle(fontSize: 12, color: Colors.white54)),
               const SizedBox(height: 4),
               TextField(
                 controller: descCtrl,
@@ -1357,7 +1358,7 @@ class _UserProfileState extends State<UserProfile> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(color: Colors.white54))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const DText('إلغاء', style: TextStyle(color: Colors.white54))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
             onPressed: () {
@@ -1370,10 +1371,10 @@ class _UserProfileState extends State<UserProfile> {
               );
               Navigator.pop(ctx);
               ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                const SnackBar(content: Text('تم إرسال البلاغ بنجاح'), duration: Duration(seconds: 2)),
+                const SnackBar(content: DText('تم إرسال البلاغ بنجاح'), duration: Duration(seconds: 2)),
               );
             },
-            child: const Text('إرسال', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            child: const DText('إرسال', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

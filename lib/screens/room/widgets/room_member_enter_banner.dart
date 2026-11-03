@@ -1,6 +1,7 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
+import 'package:zero/core/dtext.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RoomMemberEnterBanner — layout_room_member_enter.xml
@@ -130,7 +131,7 @@ class _RoomMemberEnterBannerState extends State<RoomMemberEnterBanner>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Flexible(
-                              child: Text(
+                              child: DText(
                                 widget.userName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -149,7 +150,7 @@ class _RoomMemberEnterBannerState extends State<RoomMemberEnterBanner>
                                 color: const Color(0xFFFFD700),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Text(
+                              child: DText(
                                 'Lv.${widget.userLevel}',
                                 style: const TextStyle(
                                   color: Colors.black,
@@ -161,7 +162,7 @@ class _RoomMemberEnterBannerState extends State<RoomMemberEnterBanner>
                           ],
                         ),
                         const SizedBox(height: 1),
-                        const Text(
+                        const DText(
                           'دخل إلى الغرفة',
                           style: TextStyle(
                             color: Color(0xFF41FE88),

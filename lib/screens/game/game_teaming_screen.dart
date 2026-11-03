@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../config/r.dart';
 import '../../config/app_colors.dart';
+import 'package:zero/core/dtext.dart';
 
 class GameTeamingScreen extends StatefulWidget {
   const GameTeamingScreen({super.key});
@@ -42,7 +43,7 @@ class _GameTeamingScreenState extends State<GameTeamingScreen> {
                     child: R.image(R.backIc, width: 28, height: 28),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
+                  const DText(
                     'تشكيلة الألعاب',
                     style: TextStyle(
                       fontSize: 20,
@@ -103,7 +104,7 @@ class _GameTeamingScreenState extends State<GameTeamingScreen> {
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Center(
-                  child: Text(
+                  child: DText(
                     'إنشاء غرفة',
                     style: const TextStyle(
                       fontSize: 16,
@@ -140,14 +141,14 @@ class _GameTeamingScreenState extends State<GameTeamingScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
-                  child: Text(
+                  child: DText(
                     game['icon']!,
                     style: const TextStyle(fontSize: 32),
                   ),
                 ),
               ),
               const SizedBox(height: 10),
-              Text(
+              DText(
                 game['name']!,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
@@ -157,7 +158,7 @@ class _GameTeamingScreenState extends State<GameTeamingScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
+              DText(
                 game['players']!,
                 style: const TextStyle(
                   fontSize: 12,

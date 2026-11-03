@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/r.dart';
 import '../screens/wallet/wallet_main_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Reusable Insufficient Coins / Recharge Tip Dialog
 /// Matches authentic dialog_coin_recharge_tip.xml
@@ -83,7 +84,7 @@ class CoinRechargeTipDialog extends StatelessWidget {
             const SizedBox(height: 14),
 
             // tvContent (18sp #333333 matching dialog_coin_recharge_tip.xml)
-            Text(
+            DText(
               isAr
                   ? 'رصيد العملات غير كافٍ،\nهل ترغب في الشحن للحصول على المزيد؟'
                   : 'Insufficient coins balance.\nWould you like to recharge for more?',
@@ -98,7 +99,7 @@ class CoinRechargeTipDialog extends StatelessWidget {
 
             if (totalCost > 0) ...[
               const SizedBox(height: 8),
-              Text(
+              DText(
                 isAr
                     ? 'المطلوب: ${R.formatCoins(totalCost)} كوينز  |  لديك: ${R.formatCoinsFraction(currentCoins)} كوينز'
                     : 'Required: ${R.formatCoins(totalCost)} coins  |  Available: ${R.formatCoinsFraction(currentCoins)} coins',
@@ -128,7 +129,7 @@ class CoinRechargeTipDialog extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                       ),
-                      child: Text(
+                      child: DText(
                         isAr ? 'إلغاء' : 'Cancel',
                         style: const TextStyle(
                           fontSize: 15,
@@ -174,7 +175,7 @@ class CoinRechargeTipDialog extends StatelessWidget {
                           );
                         },
                         child: Center(
-                          child: Text(
+                          child: DText(
                             isAr ? 'شحن الآن' : 'Recharge Now',
                             style: const TextStyle(
                               fontSize: 15,

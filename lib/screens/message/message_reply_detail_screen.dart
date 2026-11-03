@@ -9,6 +9,7 @@ import '../../services/cloudinary_service.dart';
 import '../../providers/user_provider.dart';
 import '../../models/message_model.dart';
 import '../report/report_user_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 class MessageReplyDetailScreen extends StatefulWidget {
   final String conversationId;
@@ -107,12 +108,12 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('تأكيد الحظر'),
-        content: const Text('هل أنت متأكد أنك تريد حظر هذا المستخدم؟ لن يتمكن من إرسال رسائل إليك.'),
+        title: const DText('تأكيد الحظر'),
+        content: const DText('هل أنت متأكد أنك تريد حظر هذا المستخدم؟ لن يتمكن من إرسال رسائل إليك.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
+            child: const DText('إلغاء'),
           ),
           TextButton(
             onPressed: () async {
@@ -126,11 +127,11 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
                   'created_at': DateTime.now().toIso8601String(),
                 });
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حظر المستخدم بنجاح')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: DText('تم حظر المستخدم بنجاح')));
                 }
               }
             },
-            child: const Text('حظر', style: TextStyle(color: Colors.red)),
+            child: const DText('حظر', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -183,7 +184,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText(e.toString().replaceAll('Exception: ', ''))));
       }
     }
   }
@@ -222,7 +223,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: DText('Error: $e')),
         );
       }
     } finally {
@@ -264,7 +265,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
                   : null,
             ),
             const SizedBox(width: 8),
-            Text(
+            DText(
               _otherName,
               style: const TextStyle(
                 fontSize: 16,
@@ -290,11 +291,11 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
             itemBuilder: (context) => [
               const PopupMenuItem(
                 value: 'report',
-                child: Text('إبلاغ عن المستخدم'),
+                child: DText('إبلاغ عن المستخدم'),
               ),
               const PopupMenuItem(
                 value: 'block',
-                child: Text('حظر استلام رسائل (Block)'),
+                child: DText('حظر استلام رسائل (Block)'),
               ),
             ],
           ),
@@ -305,7 +306,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
           Expanded(
             child: _messages.isEmpty
                 ? const Center(
-                    child: Text(
+                    child: DText(
                       'No messages yet',
                       style: TextStyle(color: Color(0xFF9BA1B6)),
                     ),
@@ -372,7 +373,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
                   if (!isMe)
                     Padding(
                       padding: const EdgeInsets.only(left: 4, bottom: 4),
-                      child: Text(
+                      child: DText(
                         otherDisplayName,
                         style: const TextStyle(
                           fontSize: 12,
@@ -419,7 +420,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
                           ),
                         ],
                       ),
-                      child: Text(
+                      child: DText(
                         msg.text,
                         style: TextStyle(
                           fontSize: 14,
@@ -430,7 +431,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
                     ),
                   Padding(
                     padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-                    child: Text(
+                    child: DText(
                       _formatTime(msg.timestamp),
                       style: const TextStyle(
                         fontSize: 10,

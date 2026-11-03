@@ -34,6 +34,7 @@ import '../../features/signin/weekly_signin_screen.dart';
 import '../badges/badges_screen.dart';
 import '../../widgets/user_id_widget.dart';
 import '../../core/localization/app_strings.dart';
+import 'package:zero/core/dtext.dart';
 
 /// شاشة "أنا" (الملف الشخصي) المطابقة تماماً لملف fragment_mine.xml
 /// وكود MineFragment.java من المشروع الأصلي (F:\Medal\New folder\nu):
@@ -293,7 +294,7 @@ class ProfileScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
-                      child: Text(
+                      child: DText(
                         (user?.name != null && user!.name.isNotEmpty) ? user.name : 'مستخدم جديد',
                         style: const TextStyle(
                           fontSize: 17,
@@ -322,7 +323,7 @@ class ProfileScreen extends StatelessWidget {
                           width: 20,
                           height: 14,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Text(
+                          errorBuilder: (_, __, ___) => DText(
                             UserIdWidget.countryCodeToEmoji(UserIdWidget.resolveCountryCode(user.country)),
                             style: const TextStyle(fontSize: 14),
                           ),
@@ -340,7 +341,7 @@ class ProfileScreen extends StatelessWidget {
                     Clipboard.setData(ClipboardData(text: userId));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('تم نسخ المعرّف بنجاح!', textAlign: TextAlign.center),
+                        content: DText('تم نسخ المعرّف بنجاح!', textAlign: TextAlign.center),
                         duration: Duration(seconds: 1),
                         backgroundColor: Color(0xFF16151A),
                       ),
@@ -355,7 +356,7 @@ class ProfileScreen extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
+                        DText(
                           'ID:$userId',
                           style: const TextStyle(
                             fontSize: 12,
@@ -440,7 +441,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
+                child: DText(
                   'VIP $vipLevel',
                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
@@ -486,7 +487,7 @@ class ProfileScreen extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: Colors.white),
           const SizedBox(width: 3),
-          Text(
+          DText(
             'Lv.$level',
             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white),
           ),
@@ -661,7 +662,7 @@ class ProfileScreen extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Column(
         children: [
-          Text(
+          DText(
             '$count',
             style: const TextStyle(
               fontSize: 17,
@@ -670,7 +671,7 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
+          DText(
             context.trAuto(label),
             style: const TextStyle(
               fontSize: 12,
@@ -727,7 +728,7 @@ class ProfileScreen extends StatelessWidget {
                       fit: BoxFit.contain,
                     ),
                     const SizedBox(width: 8),
-                    Text(
+                    DText(
                       context.tr('المحفظة', 'Wallet'),
                       style: const TextStyle(
                         fontSize: 14,
@@ -736,7 +737,7 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    Text(
+                    DText(
                       context.tr('إعادة شحن العملات الذهبية', 'Recharge Gold Coins'),
                       style: const TextStyle(
                         fontSize: 11,
@@ -778,7 +779,7 @@ class ProfileScreen extends StatelessWidget {
                       fit: BoxFit.contain,
                     ),
                     const SizedBox(width: 8),
-                    Text(
+                    DText(
                       _formatCompactNumber(coins),
                       style: const TextStyle(
                         fontSize: 17,
@@ -834,7 +835,7 @@ class ProfileScreen extends StatelessWidget {
                       fit: BoxFit.contain,
                     ),
                     const SizedBox(width: 6),
-                    const Text(
+                    const DText(
                       'مركز VIP',
                       style: TextStyle(
                         fontSize: 17,
@@ -919,7 +920,7 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Text(
+                        const DText(
                           'لوحة السوبر أدمن',
                           style: TextStyle(
                             fontSize: 16,
@@ -934,7 +935,7 @@ class ProfileScreen extends StatelessWidget {
                             color: const Color(0xFFFFB800).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
+                          child: const DText(
                             'SUPER ADMIN',
                             style: TextStyle(color: Color(0xFFFFB800), fontSize: 9, fontWeight: FontWeight.bold),
                           ),
@@ -942,7 +943,7 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    const Text(
+                    const DText(
                       'إدارة الوكالات • تارجت الألماس • مدراء BD • صرف الراتب',
                       style: TextStyle(fontSize: 10, color: Color(0xFF8E9BB0)),
                       maxLines: 1,
@@ -1010,7 +1011,7 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Text(
+                        const DText(
                           'لوحة الإدارة',
                           style: TextStyle(
                             fontSize: 16,
@@ -1025,7 +1026,7 @@ class ProfileScreen extends StatelessWidget {
                             color: const Color(0xFFFF4D4D).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
+                          child: const DText(
                             'ADMIN',
                             style: TextStyle(color: Color(0xFFFF4D4D), fontSize: 9, fontWeight: FontWeight.bold),
                           ),
@@ -1033,7 +1034,7 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    const Text(
+                    const DText(
                       'إدارة الوكالات • تارجت الألماس • صرف الراتب',
                       style: TextStyle(fontSize: 10, color: Color(0xFF8E9BB0)),
                       maxLines: 1,
@@ -1101,7 +1102,7 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Text(
+                        const DText(
                           'مركز الـ BD والوكالات',
                           style: TextStyle(
                             fontSize: 16,
@@ -1116,7 +1117,7 @@ class ProfileScreen extends StatelessWidget {
                             color: const Color(0xFF6366F1).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
+                          child: const DText(
                             'BD MANAGER',
                             style: TextStyle(color: Color(0xFF818CF8), fontSize: 9, fontWeight: FontWeight.bold),
                           ),
@@ -1124,7 +1125,7 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    const Text(
+                    const DText(
                       'إدارة الوكالات التابعة • متابعة التارجت • صرف الراتب',
                       style: TextStyle(fontSize: 10, color: Color(0xFF8E9BB0)),
                       maxLines: 1,
@@ -1354,7 +1355,7 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Builder(
-              builder: (ctx) => Text(
+              builder: (ctx) => DText(
                 ctx.trAuto(title),
                 style: const TextStyle(
                   fontSize: 14,
@@ -1365,7 +1366,7 @@ class ProfileScreen extends StatelessWidget {
             ),
             const Spacer(),
             if (trailingText != null) ...[
-              Text(
+              DText(
                 trailingText,
                 style: const TextStyle(
                   fontSize: 14,
@@ -1400,7 +1401,7 @@ class ProfileScreen extends StatelessWidget {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
+          content: DText(
             'أنت تستخدم أحدث إصدار ($currentVer) ✅',
             textAlign: TextAlign.center,
           ),

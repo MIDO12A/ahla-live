@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:zero/core/dtext.dart';
 
 /// ويدجت عرض معرف المستخدم (User ID) المطابق تماماً للأصل مع دعم التأثير اللوني والمتحرك
 /// يدعم:
@@ -123,7 +124,7 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
 
   Widget _buildAnimatedText(bool effectiveBeauty) {
     if (!effectiveBeauty || _animCtrl == null) {
-      return Text(
+      return DText(
         widget.idText,
         style: TextStyle(
           fontSize: widget.fontSize,
@@ -180,7 +181,7 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
               transform: _SlidingGradientTransform(slidePercent: value),
             ).createShader(bounds);
           },
-          child: Text(
+          child: DText(
             widget.idText,
             style: TextStyle(
               fontSize: widget.fontSize,
@@ -220,7 +221,7 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
             width: 18,
             height: 12,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Text(flagEmoji, style: const TextStyle(fontSize: 12)),
+            errorBuilder: (_, __, ___) => DText(flagEmoji, style: const TextStyle(fontSize: 12)),
           ),
         ),
         const SizedBox(width: 5),
@@ -234,7 +235,7 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
             } else {
               ScaffoldMessenger.maybeOf(context)?.showSnackBar(
                 const SnackBar(
-                  content: Text('تم نسخ المعرف بنجاح'),
+                  content: DText('تم نسخ المعرف بنجاح'),
                   duration: Duration(seconds: 1),
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -381,7 +382,7 @@ class _SpecialTextWidgetState extends State<SpecialTextWidget> with SingleTicker
   @override
   Widget build(BuildContext context) {
     if (!widget.isSpecial || _animCtrl == null) {
-      return Text(
+      return DText(
         widget.text,
         style: widget.style,
         maxLines: widget.maxLines,
@@ -436,7 +437,7 @@ class _SpecialTextWidgetState extends State<SpecialTextWidget> with SingleTicker
               transform: _SlidingGradientTransform(slidePercent: value),
             ).createShader(bounds);
           },
-          child: Text(
+          child: DText(
             widget.text,
             style: widget.style.copyWith(
               color: Colors.white,

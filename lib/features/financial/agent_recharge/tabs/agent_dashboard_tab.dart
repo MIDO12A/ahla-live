@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/brand_colors.dart';
 import '../../agent_recharge_widgets.dart';
 import '../agent_recharge_models.dart';
+import 'package:zero/core/dtext.dart';
 
 class AgentDashboardTab extends StatelessWidget {
   const AgentDashboardTab({
@@ -73,9 +74,9 @@ class AgentDashboardTab extends StatelessWidget {
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Row(
             children: [
-              const Text('🏅', style: TextStyle(fontSize: 18)),
+              const DText('🏅', style: TextStyle(fontSize: 18)),
               const SizedBox(width: 6),
-              Text(
+              DText(
                 'رصيد محفظة وكالة الشحن',
                 style: GoogleFonts.tajawal(
                   fontSize: 14,
@@ -92,7 +93,7 @@ class AgentDashboardTab extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5)),
             ),
-            child: Text(
+            child: DText(
               'وكالة نشطة ⚡',
               style: GoogleFonts.tajawal(
                 fontSize: 11,
@@ -107,7 +108,7 @@ class AgentDashboardTab extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(
+              DText(
                 '${_fmt(d.agencyGold)} 🪙',
                 style: GoogleFonts.tajawal(
                   fontSize: 26,
@@ -115,7 +116,7 @@ class AgentDashboardTab extends StatelessWidget {
                   color: const Color(0xFFFFD700),
                 ),
               ),
-              Text(
+              DText(
                 'كوين متاح لشحن المستخدمين',
                 style: GoogleFonts.tajawal(fontSize: 11, color: Colors.white54),
               ),
@@ -123,7 +124,7 @@ class AgentDashboardTab extends StatelessWidget {
             ElevatedButton.icon(
               onPressed: onGoRecharge,
               icon: const Icon(Icons.send_rounded, size: 14),
-              label: Text('شحن فوري', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold, fontSize: 12)),
+              label: DText('شحن فوري', style: GoogleFonts.tajawal(fontWeight: FontWeight.bold, fontSize: 12)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFD700),
                 foregroundColor: Colors.black,
@@ -144,11 +145,11 @@ class AgentDashboardTab extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              DText(
                 '⚡ إجمالي شحن اليوم: ${_fmt(d.todayTotal)} كوين',
                 style: GoogleFonts.tajawal(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
               ),
-              Text(
+              DText(
                 '${d.todayCount} عملية اليوم',
                 style: GoogleFonts.tajawal(fontSize: 11, color: Colors.white70),
               ),
@@ -219,7 +220,7 @@ class AgentDashboardTab extends StatelessWidget {
                     Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(k['icon']!.toString(),
+                          DText(k['icon']!.toString(),
                               style: const TextStyle(fontSize: 20)),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -229,7 +230,7 @@ class AgentDashboardTab extends StatelessWidget {
                                   .withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Text(k['sub']!.toString(),
+                            child: DText(k['sub']!.toString(),
                                 style: GoogleFonts.tajawal(
                                     fontSize: 9,
                                     color: k['color'] as Color,
@@ -237,12 +238,12 @@ class AgentDashboardTab extends StatelessWidget {
                           ),
                         ]),
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(k['value']!.toString(),
+                      DText(k['value']!.toString(),
                           style: GoogleFonts.tajawal(
                               fontSize: 18,
                               fontWeight: FontWeight.w900,
                               color: k['color'] as Color)),
-                      Text(k['label']!.toString(),
+                      DText(k['label']!.toString(),
                           style: GoogleFonts.tajawal(
                               fontSize: 11, color: Colors.black45)),
                     ]),
@@ -270,12 +271,12 @@ class AgentDashboardTab extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('الأسبوع الأخير',
+          DText('الأسبوع الأخير',
               style: GoogleFonts.tajawal(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                   color: const Color(0xFF1a1a2e))),
-          Text('آخر 7 أيام',
+          DText('آخر 7 أيام',
               style: GoogleFonts.tajawal(fontSize: 11, color: Colors.black38)),
         ]),
         const SizedBox(height: 16),
@@ -296,7 +297,7 @@ class AgentDashboardTab extends StatelessWidget {
                         if (day.total > 0)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 3),
-                            child: Text(
+                            child: DText(
                               day.total >= 1000
                                   ? '${(day.total / 1000).toStringAsFixed(0)}K'
                                   : day.total.toString(),
@@ -334,7 +335,7 @@ class AgentDashboardTab extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
+                        DText(
                           isToday ? 'اليوم' : _shortDay(day.day),
                           style: GoogleFonts.tajawal(
                             fontSize: 9,
@@ -380,7 +381,7 @@ class AgentDashboardTab extends StatelessWidget {
         ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('آخر المعاملات',
+        DText('آخر المعاملات',
             style: GoogleFonts.tajawal(
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
@@ -390,7 +391,7 @@ class AgentDashboardTab extends StatelessWidget {
           Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text('لا توجد معاملات بعد',
+              child: DText('لا توجد معاملات بعد',
                   style: GoogleFonts.tajawal(
                       fontSize: 13, color: Colors.black38)),
             ),
@@ -416,18 +417,18 @@ class AgentDashboardTab extends StatelessWidget {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(t.recipientName,
+                        DText(t.recipientName,
                             style: GoogleFonts.tajawal(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 color: const Color(0xFF1a1a2e))),
                         if (t.recipientKayanId != null)
-                          Text('# ${t.recipientKayanId}',
+                          DText('# ${t.recipientKayanId}',
                               style: GoogleFonts.tajawal(
                                   fontSize: 11,
                                   color: KayanBrandColors.logoPrimary,
                                   fontWeight: FontWeight.w700)),
-                        Text(_fmtAgo(t.createdAt),
+                        DText(_fmtAgo(t.createdAt),
                             style: GoogleFonts.tajawal(
                                 fontSize: 10, color: Colors.black38)),
                       ]),
@@ -439,7 +440,7 @@ class AgentDashboardTab extends StatelessWidget {
                     color: KayanBrandColors.logoPrimary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Text('🪙 ${_fmt(t.goldAmount)}',
+                  child: DText('🪙 ${_fmt(t.goldAmount)}',
                       style: GoogleFonts.tajawal(
                           fontSize: 13,
                           fontWeight: FontWeight.w900,

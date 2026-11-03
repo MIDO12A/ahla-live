@@ -10,6 +10,7 @@ import 'message_reply_detail_screen.dart';
 import '../notifications/notifications_screen.dart';
 import 'event_info_screen.dart';
 import '../user_profile/user_profile_screen.dart';
+import 'package:zero/core/dtext.dart';
 
 /// Replicates [fragment_message_copy.xml] and [chat_message_info_fragment.xml]
 /// from the original decompiled app (F:\Medal\New folder\nu).
@@ -202,7 +203,7 @@ class _MessageScreenState extends State<MessageScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
+            DText(
               title,
               style: TextStyle(
                 color: const Color(0xFF16151A),
@@ -376,7 +377,7 @@ class _MessageScreenState extends State<MessageScreen>
               alignment: Alignment.centerLeft,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Text(
+                child: DText(
                   title,
                   style: const TextStyle(
                     fontSize: 12,
@@ -403,7 +404,7 @@ class _MessageScreenState extends State<MessageScreen>
                     border: Border.all(color: Colors.white, width: 1.5),
                   ),
                   child: Center(
-                    child: Text(
+                    child: DText(
                       unreadCount > 99 ? '99+' : '$unreadCount',
                       style: const TextStyle(
                         fontSize: 11,
@@ -506,7 +507,7 @@ class _MessageScreenState extends State<MessageScreen>
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
-                            child: Text(
+                            child: DText(
                               otherName,
                               style: const TextStyle(
                                 fontSize: 15,
@@ -517,7 +518,7 @@ class _MessageScreenState extends State<MessageScreen>
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Text(
+                          DText(
                             _formatTime(lastMessageTime),
                             style: const TextStyle(
                               fontSize: 11,
@@ -530,7 +531,7 @@ class _MessageScreenState extends State<MessageScreen>
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
+                            child: DText(
                               lastMessage,
                               style: const TextStyle(
                                 fontSize: 12,
@@ -551,7 +552,7 @@ class _MessageScreenState extends State<MessageScreen>
                                 borderRadius: BorderRadius.circular(9),
                               ),
                               child: Center(
-                                child: Text(
+                                child: DText(
                                   unread > 99 ? '99+' : '$unread',
                                   style: const TextStyle(
                                     fontSize: 10,
@@ -595,7 +596,7 @@ class _MessageScreenState extends State<MessageScreen>
               color: Colors.grey.shade300,
             ),
             const SizedBox(height: 12),
-            Text(
+            DText(
               isAr ? 'لا توجد رسائل حالياً' : 'No messages yet',
               style: const TextStyle(
                 fontSize: 14,
@@ -628,7 +629,7 @@ class _MessageScreenState extends State<MessageScreen>
               color: Colors.grey.shade300,
             ),
             const SizedBox(height: 14),
-            Text(
+            DText(
               isAr ? 'لا يوجد أصدقاء حالياً' : 'No friends yet',
               style: const TextStyle(
                 fontSize: 14,
@@ -710,7 +711,7 @@ class _MessageScreenState extends State<MessageScreen>
           title: Row(
             children: [
               Flexible(
-                child: Text(
+                child: DText(
                   name,
                   style: const TextStyle(
                     fontSize: 15,
@@ -729,7 +730,7 @@ class _MessageScreenState extends State<MessageScreen>
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFF81C784), width: 0.8),
                 ),
-                child: Text(
+                child: DText(
                   isAr ? 'صديق' : 'Friend',
                   style: const TextStyle(
                     color: Color(0xFF2E7D32),
@@ -751,7 +752,7 @@ class _MessageScreenState extends State<MessageScreen>
                 ),
               ),
               const SizedBox(width: 5),
-              Text(
+              DText(
                 isOnline
                     ? (isAr ? 'نشط الآن' : 'Active now')
                     : (isAr ? 'غير نشط' : 'Offline'),
