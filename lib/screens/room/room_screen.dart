@@ -3832,6 +3832,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     .where((u) => u.isNotEmpty)
                     .toList(),
                 isFollowed: _isFollowed,
+                monthlyCoins: _currentRoom?.monthlyCoins ?? 0,
+                onCupTap: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => RoomRankBottomSheet(roomId: widget.roomId),
+                  );
+                },
                 onExit: () => setState(() => _showExit = true),
                 onMinimize: _minimizeRoom,
                 onRank: () {

@@ -13,6 +13,7 @@ class RoomHeader extends StatelessWidget {
   final String? onlineCount;
   final List<String> onlineAvatars;
   final bool isFollowed;
+  final int monthlyCoins;
   final VoidCallback onExit;
   final VoidCallback? onMinimize;
   final VoidCallback? onRank;
@@ -20,6 +21,7 @@ class RoomHeader extends StatelessWidget {
   final VoidCallback? onOnlineTap;
   final VoidCallback? onGameTap;
   final VoidCallback? onFollow;
+  final VoidCallback? onCupTap;
 
   const RoomHeader({
     super.key,
@@ -32,6 +34,7 @@ class RoomHeader extends StatelessWidget {
     this.onlineCount,
     this.onlineAvatars = const [],
     this.isFollowed = false,
+    this.monthlyCoins = 0,
     required this.onExit,
     this.onMinimize,
     this.onRank,
@@ -39,6 +42,7 @@ class RoomHeader extends StatelessWidget {
     this.onOnlineTap,
     this.onGameTap,
     this.onFollow,
+    this.onCupTap,
   });
 
   @override
@@ -54,7 +58,7 @@ class RoomHeader extends StatelessWidget {
         children: [
           SizedBox(height: statusH),
           Container(
-            height: 50,
+            height: 56,
             child: Stack(
               children: [
                 Positioned(
@@ -187,6 +191,32 @@ class RoomHeader extends StatelessWidget {
                 style: const TextStyle(fontSize: 10, color: Color(0xB2FFFFFF)),
               ),
             ],
+          ),
+          const SizedBox(height: 1),
+          GestureDetector(
+            onTap: onCupTap,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.emoji_events_rounded,
+                  size: 11,
+                  color: Color(0xFFFFC525),
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  R.formatCoins(monthlyCoins),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFFF5AD),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

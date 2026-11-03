@@ -187,19 +187,30 @@ class SupabaseDataService {
     try {
       final now = DateTime.now().toUtc();
       final monthStart = DateTime.utc(now.year, now.month, 1).toIso8601String();
-      var path =
+      final base =
           '$_baseUrl/rest/v1/sent_gifts?select=room_id,count,value&created_at=gte.$monthStart';
-      if (roomId != null && roomId.isNotEmpty) {
-        path += '&room_id=eq.$roomId';
-      }
-      final res = await http.get(Uri.parse(path), headers: _headers);
-      if (res.statusCode != 200) return result;
-      for (final row in jsonDecode(res.body) as List) {
-        final rid = (row['room_id'] ?? '').toString();
-        if (rid.isEmpty) continue;
-        final count = (row['count'] as num?)?.toInt() ?? 1;
-        final value = (row['value'] as num?)?.toDouble() ?? 0;
-        result[rid] = (result[rid] ?? 0) + (count * value).round();
+      final filter = (roomId != null && roomId.isNotEmpty)
+          ? '&room_id=eq.$roomId'
+          : '';
+
+      // PostgREST يحدّ عدد الصفوف افتراضياً — نقرأ على صفحات
+      const pageSize = 1000;
+      var offset = 0;
+      for (var page = 0; page < 50; page++) {
+        final url = Uri.parse(
+            '$base$filter&order=created_at.asc&limit=$pageSize&offset=$offset');
+        final res = await http.get(url, headers: _headers);
+        if (res.statusCode != 200) break;
+        final rows = jsonDecode(res.body) as List;
+        for (final row in rows) {
+          final rid = (row['room_id'] ?? '').toString();
+          if (rid.isEmpty) continue;
+          final count = (row['count'] as num?)?.toInt() ?? 1;
+          final value = (row['value'] as num?)?.toDouble() ?? 0;
+          result[rid] = (result[rid] ?? 0) + (count * value).round();
+        }
+        if (rows.length < pageSize) break;
+        offset += pageSize;
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] _fetchMonthlyRoomCoins error: $e');
