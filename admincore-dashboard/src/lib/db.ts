@@ -554,6 +554,50 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
   }
 }
 
+/**
+ * مزامنة محفظة الوكالة (agency_wallets) مع رصيد المالك بعد أي تعديل إداري،
+ * حتى لا يظهر "ألماس متبقٍ" في شاشة الوكالة بعد خصم كامل رصيد المستخدم.
+ */
+async function syncAgencyOwnerDiamondWallets(uid: string, newDiamonds: number) {
+  const client = getAdminSupabase() || supabase;
+  const nowIso = new Date().toISOString();
+  try {
+    // مزامنة كل صفوف عضوية المضيف (وليس صفاً واحداً فقط)
+    await client
+      .from('host_agency_members')
+      .update({
+        diamonds: newDiamonds,
+        diamonds_balance: newDiamonds,
+        diamonds_available: newDiamonds,
+        updated_at: nowIso,
+      })
+      .or(`user_id.eq.${uid},host_uid.eq.${uid}`);
+  } catch (err) {
+    console.warn('[diamonds] sync host_agency_members failed:', err);
+  }
+  try {
+    const { data: agencies } = await client
+      .from('host_agencies')
+      .select('id, owner_id, owner_uid')
+      .or(`owner_id.eq.${uid},owner_uid.eq.${uid}`);
+    const agencyIds: string[] = (agencies || [])
+      .map((a: any) => a?.id?.toString())
+      .filter((v: string | undefined): v is string => !!v);
+    for (const agencyId of agencyIds) {
+      await client
+        .from('agency_wallets')
+        .update({ diamond_balance: newDiamonds, updated_at: nowIso })
+        .eq('agency_id', agencyId);
+    }
+    await client
+      .from('agency_wallets')
+      .update({ diamond_balance: newDiamonds, updated_at: nowIso })
+      .or(`owner_uid.eq.${uid},agency_profile_id.eq.${uid}`);
+  } catch (err) {
+    console.warn('[diamonds] sync agency_wallets failed:', err);
+  }
+}
+
 export async function adjustUserDiamonds(
   uid: string,
   amount: number,
@@ -604,6 +648,7 @@ export async function adjustUserDiamonds(
             });
           } catch (_) {}
 
+          await syncAgencyOwnerDiamondWallets(uid, finalDiamonds);
           return { success: true, newDiamonds: finalDiamonds };
         }
       } catch (rpcEx: any) {
@@ -657,11 +702,14 @@ export async function adjustUserDiamonds(
 
     // 3. Sync to host_agency_members if user is in an agency
     try {
-      const { data: member } = await client
+      // limit(1) بدل maybeSingle: maybeSingle يفشل بصمت عند تعدد صفوف العضوية
+      // فيبقى رصيد المضيف القديم ظاهراً وكأنه "ألماس متبقٍ".
+      const { data: memberRows } = await client
         .from('host_agency_members')
         .select('*')
         .or(`user_id.eq.${uid},host_uid.eq.${uid}`)
-        .maybeSingle();
+        .limit(1);
+      const member = memberRows && memberRows.length > 0 ? memberRows[0] : null;
 
       if (member) {
         const curMonthly = Number(member.diamonds_earned_monthly || 0);
@@ -719,7 +767,8 @@ export async function adjustUserDiamonds(
               sender_id: 'admin',
               sender_name: adminName,
               txn_type: type === 'add' ? 'admin_credit' : 'admin_deduct',
-              amount: absAmount,
+              // الفرق الفعلي بعد التقييد بالرصيد المتاح (وليس الكمية المطلوبة)
+              amount: Math.abs(diff),
               direction: type === 'add' ? 1 : -1,
               gift_name: reason || (type === 'add' ? `إضافة ${absAmount.toLocaleString()} ماسة من الإدارة` : `خصم ${absAmount.toLocaleString()} ماسة من الإدارة`),
               created_at: new Date().toISOString(),
@@ -753,14 +802,15 @@ export async function adjustUserDiamonds(
         userId: uid,
         title: type === 'add' ? '💎 إضافة رصيد ألماس لحسابك' : '💎 تعديل رصيد الألماس',
         body: type === 'add'
-          ? `مبروك! تم تزويد حسابك بـ ${absAmount.toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${newDiamonds.toLocaleString()} ماسة.`
-          : `تم خصم ${absAmount.toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${newDiamonds.toLocaleString()} ماسة.`,
+          ? `مبروك! تم تزويد حسابك بـ ${Math.abs(diff).toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${newDiamonds.toLocaleString()} ماسة.`
+          : `تم خصم ${Math.abs(diff).toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${newDiamonds.toLocaleString()} ماسة.`,
         type: 'system',
         action: 'diamonds_adjusted',
         extraData: { amount: diff, new_balance: newDiamonds },
       });
     } catch (_) {}
 
+    await syncAgencyOwnerDiamondWallets(uid, newDiamonds);
     return { success: true, newDiamonds };
   } catch (e: any) {
     const code = e?.code || e?.status;

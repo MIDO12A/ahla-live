@@ -1,7 +1,8 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef, useMemo, type ChangeEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { I18nContext } from '../lib/i18n';
 import { getAppConfig, updateAppConfig } from '../lib/db';
+import appTexts from '../data/appTexts.json';
 import { uploadAppAsset } from '../lib/storage';
 import {
   Palette, Smartphone, SlidersHorizontal, Image as ImageIcon, Sparkles,
@@ -52,6 +53,10 @@ export default function AppDesignCenter() {
   const [customStrings, setCustomStrings] = useState<Record<string, string>>({});
   const [screenTitles, setScreenTitles] = useState<Record<string, string>>({});
   const [visualManagerConfig, setVisualManagerConfig] = useState<Record<string, any>>({});
+  // ألوان النصوص الفردية: النص الأصلي -> #RRGGBB
+  const [textColors, setTextColors] = useState<Record<string, string>>({});
+  const [textSearch, setTextSearch] = useState('');
+  const [textLimit, setTextLimit] = useState(120);
 
   // Dynamic Custom Key-Value Strings
   const [customKeyValues, setCustomKeyValues] = useState<Array<{ key: string; value: string }>>([]);
@@ -69,6 +74,7 @@ export default function AppDesignCenter() {
   // 21 Comprehensive Screen Categories
   const categories = [
     { id: 'all', labelAr: '🌟 الكل (جميع الشاشات)', labelEn: 'All Screens', icon: '🌟' },
+    { id: 'all_texts', labelAr: '📝 جميع نصوص التطبيق الحرفية (تغيير أي نص أو لونه)', labelEn: 'All App Texts (change any text/color)', icon: '📝' },
     { id: 'agency', labelAr: '🎯 مستهدف الوكالات والمضيفين والرواتب', labelEn: 'Agency & Host Targets', icon: '🎯' },
     { id: 'profile', labelAr: '👤 بروفايل المستخدم الكامل (شاشة أنا)', labelEn: 'Full Profile ("Me" Screen)', icon: '👤' },
     { id: 'room_mini_profile', labelAr: '🪪 البروفايل المصغر داخل الغرفة', labelEn: 'Room Mini Profile Card', icon: '🪪' },
@@ -92,27 +98,46 @@ export default function AppDesignCenter() {
     { id: 'global', labelAr: '🌐 ألوان النظام وشريط التنقل السفلي', labelEn: 'Global App & Bottom Nav', icon: '🌐' },
   ];
 
+  // قائمة كل النصوص الحرفية المستخرجة من كود التطبيق (قابلة للتعديل)
+  const filteredAppTexts = useMemo(() => {
+    const q = textSearch.trim();
+    if (!q) return appTexts as string[];
+    return (appTexts as string[]).filter(t => t.includes(q));
+  }, [textSearch]);
+
   // Load configs on mount
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
-        const [svRes, csRes, stRes, vcRes] = await Promise.all([
+        const [svSnake, svCamel, csRes, stRes, vcRes, tcRes, allRes] = await Promise.all([
           getAppConfig('screen_visuals'),
+          getAppConfig('screenVisuals'),
           getAppConfig('custom_strings'),
           getAppConfig('screenTitles'),
           getAppConfig('visual_manager_config'),
+          getAppConfig('custom_text_colors'),
+          getAppConfig(),
         ]);
 
-        const sv = svRes || {};
+        // دمج الاتجاهين (screen_visuals القديم + screenVisuals الذي يقرأه التطبيق)
+        const sv: Record<string, any> = { ...(svCamel || {}) };
+        for (const [screen, fields] of Object.entries(svSnake || {})) {
+          sv[screen] = { ...(sv[screen] || {}), ...(fields as any) };
+        }
         const cs = csRes || {};
         const st = stRes || {};
-        const vc = vcRes || {};
+        const vc: Record<string, any> = { ...(vcRes || {}) };
+        // ألوان Visual Manager قد تكون محفوظة في الجذر مباشرة
+        for (const k of ['primaryBg', 'textPrimary', 'textSecondary', 'buttonColor', 'buttonTextColor', 'headerColor', 'goldColor']) {
+          if (vc[k] === undefined && allRes && allRes[k] !== undefined) vc[k] = allRes[k];
+        }
 
         setScreenVisuals(sv);
         setCustomStrings(cs);
         setScreenTitles(st);
         setVisualManagerConfig(vc);
+        setTextColors(tcRes || {});
 
         // Populate custom dynamic strings
         const knownKeys = new Set([
@@ -190,7 +215,7 @@ export default function AppDesignCenter() {
     }
   };
 
-  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !pendingUploadTarget) return;
 
@@ -220,6 +245,16 @@ export default function AppDesignCenter() {
           mergedCustomStrings[item.key.trim()] = item.value;
         }
       }
+      // القيمة الفارغة = إرجاع النص الأصلي
+      for (const [k, v] of Object.entries(mergedCustomStrings)) {
+        if (typeof v !== 'string' || v.trim() === '') delete mergedCustomStrings[k];
+      }
+      const cleanTextColors: Record<string, string> = {};
+      for (const [k, v] of Object.entries(textColors)) {
+        if (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim())) {
+          cleanTextColors[k] = v.trim();
+        }
+      }
 
       // 2. Build consolidated visual config
       const mergedVc = {
@@ -234,10 +269,16 @@ export default function AppDesignCenter() {
       };
 
       // 3. Persist to app_config table
+      //    - screenVisuals هو المفتاح الذي يقرأه تطبيق Flutter فعلياً
+      //    - mergedVc يُحفظ مسطّحاً في الجذر أيضاً حتى تصل ألوان Visual Manager
+      //    - custom_text_colors يحمل لون كل نص على حدة
       await Promise.all([
+        updateAppConfig('screenVisuals', screenVisuals),
         updateAppConfig('screen_visuals', screenVisuals),
         updateAppConfig('custom_strings', mergedCustomStrings),
         updateAppConfig('screenTitles', screenTitles),
+        updateAppConfig('custom_text_colors', cleanTextColors),
+        updateAppConfig(mergedVc),
         updateAppConfig('visual_manager_config', mergedVc),
       ]);
 
@@ -852,6 +893,96 @@ export default function AppDesignCenter() {
           {/* ================================================================= */}
           {/* SECTION 1: AGENCY & TARGETS                                      */}
           {/* ================================================================= */}
+          {(activeSection === 'all' || activeSection === 'all_texts') && (
+            <div className="bg-slate-900/60 border border-indigo-500/30 rounded-2xl p-5 mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Type className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-lg font-bold text-white">
+                  {isAr ? '📝 جميع نصوص التطبيق (غيّر أي نص أو لونه)' : '📝 All App Texts (change any text/color)'}
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400 mb-3 leading-5">
+                {isAr
+                  ? 'كل نص حرفي داخل شاشات التطبيق يظهر هنا. اكتب البديل بجانبه واختر لونه، واتركه فارغاً للإبقاء على الأصل. يُطبَّق بعد حفظ التعديلات وإعادة تشغيل التطبيق.'
+                  : 'Every literal text in the app is listed here. Enter a replacement and pick a color. Empty = keep original. Applies after saving and restarting the app.'}
+              </p>
+              <div className="flex flex-wrap gap-2 items-center mb-3">
+                <div className="relative flex-1 min-w-[220px]">
+                  <Search className="w-4 h-4 absolute right-3 top-2.5 text-slate-500" />
+                  <input
+                    value={textSearch}
+                    onChange={(e) => { setTextSearch(e.target.value); setTextLimit(120); }}
+                    placeholder={isAr ? 'ابحث في نصوص التطبيق...' : 'Search app texts...'}
+                    className="w-full bg-slate-950/60 border border-slate-700 rounded-xl py-2 pr-9 pl-3 text-sm text-white"
+                  />
+                </div>
+                <span className="text-xs text-slate-400">{filteredAppTexts.length} / {(appTexts as string[]).length}</span>
+                <button
+                  onClick={() => {
+                    if (confirm(isAr ? 'مسح كل تخصيصات النصوص والألوان؟' : 'Clear all text/color overrides?')) {
+                      setCustomStrings({});
+                      setTextColors({});
+                    }
+                  }}
+                  className="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 text-xs"
+                >
+                  {isAr ? 'مسح الكل' : 'Clear all'}
+                </button>
+              </div>
+              <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
+                {filteredAppTexts.slice(0, textLimit).map((t) => (
+                  <div key={t} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px_34px] gap-2 items-center">
+                    <div dir="rtl" className="text-[12px] text-slate-300 break-words leading-5">{t}</div>
+                    <input
+                      dir="rtl"
+                      value={customStrings[t] ?? ''}
+                      placeholder={t}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setCustomStrings((prev) => {
+                          const n = { ...prev };
+                          if (v.trim() === '') delete n[t]; else n[t] = v;
+                          return n;
+                        });
+                      }}
+                      className="w-full bg-slate-950/60 border border-slate-700 rounded-lg px-2 py-1.5 text-[12px] text-white"
+                    />
+                    <input
+                      type="color"
+                      title={isAr ? 'لون النص' : 'Text color'}
+                      value={/^#[0-9a-fA-F]{6}$/.test(textColors[t] || '') ? textColors[t] : '#ffffff'}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setTextColors((prev) => ({ ...prev, [t]: v }));
+                      }}
+                      className="w-10 h-8 bg-transparent border border-slate-700 rounded-lg"
+                    />
+                    <button
+                      title={isAr ? 'إرجاع الأصل' : 'Reset'}
+                      onClick={() => {
+                        setCustomStrings((prev) => { const n = { ...prev }; delete n[t]; return n; });
+                        setTextColors((prev) => { const n = { ...prev }; delete n[t]; return n; });
+                      }}
+                      className="h-8 rounded-lg bg-slate-800 text-slate-300 text-xs"
+                    >
+                      ↺
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {textLimit < filteredAppTexts.length && (
+                <div className="mt-3 text-center">
+                  <button
+                    onClick={() => setTextLimit((l) => l + 200)}
+                    className="px-4 py-2 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-200 text-xs"
+                  >
+                    {isAr ? 'عرض المزيد' : 'Show more'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {(activeSection === 'all' || activeSection === 'agency') && (
             <div className="bg-[#121316] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">

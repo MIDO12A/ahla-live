@@ -69,6 +69,8 @@ export default function RechargeSettings() {
     minDiamonds: 10,
     enabled: true,
   });
+  // المدخل المعروض للمشرف: عدد الألماس مقابل 1 كوين (وليس العكس)
+  const [diamondsPerCoin, setDiamondsPerCoin] = useState<number>(1);
   const [calcDiamonds, setCalcDiamonds] = useState<number>(100);
 
   // 2. Recharge Plans State
@@ -136,11 +138,13 @@ export default function RechargeSettings() {
         }
 
         if (cfg.diamond_exchange_config) {
+          const cpd = Number(cfg.diamond_exchange_config.coinsPerDiamond ?? 1.0);
           setExchangeConfig({
-            coinsPerDiamond: Number(cfg.diamond_exchange_config.coinsPerDiamond ?? 1.0),
+            coinsPerDiamond: cpd,
             minDiamonds: Number(cfg.diamond_exchange_config.minDiamonds ?? 10),
             enabled: cfg.diamond_exchange_config.enabled ?? true,
           });
+          setDiamondsPerCoin(cpd > 0 ? Number((1 / cpd).toFixed(6)) : 1);
         } else if (cfg.diamondToCoinRate !== undefined) {
           const legacyRate = Number(cfg.diamondToCoinRate);
           setExchangeConfig({
@@ -148,6 +152,7 @@ export default function RechargeSettings() {
             minDiamonds: 10,
             enabled: true,
           });
+          setDiamondsPerCoin(legacyRate > 0 ? legacyRate : 1);
         }
 
         if (cfg.recharge_plans) {
@@ -605,7 +610,7 @@ export default function RechargeSettings() {
                     معادلة تبديل الألماس إلى كوينز
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    حدد كم كوينز يحصل عليه المستخدم مقابل كل 1 ألماسة يستبدلها
+                    حدد كم ألماسة يدفعها المستخدم مقابل كل 1 كوين (عدد الألماس لكل كوين)
                   </p>
                 </div>
 
@@ -627,19 +632,22 @@ export default function RechargeSettings() {
                 <label className="text-xs text-slate-400 font-medium">النسب السريعة الجاهزة (Presets):</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {[
-                    { label: '1 ألماسة = 1 كوينز (1:1)', val: 1.0, color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' },
-                    { label: '1 ألماسة = 2 كوينز (1:2)', val: 2.0, color: 'border-indigo-500/50 bg-indigo-500/10 text-indigo-300' },
-                    { label: '1 ألماسة = 5 كوينز (1:5)', val: 5.0, color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
-                    { label: '1 ألماسة = 10 كوينز (1:10)', val: 10.0, color: 'border-purple-500/50 bg-purple-500/10 text-purple-300' },
-                    { label: '2 ألماسة = 1 كوين (0.5)', val: 0.5, color: 'border-slate-500/50 bg-slate-500/10 text-slate-300' },
-                    { label: '10 ألماسة = 1 كوين (0.1)', val: 0.1, color: 'border-rose-500/50 bg-rose-500/10 text-rose-300' },
+                    { label: '1 كوين = 1 ألماسة (1:1)', val: 1, color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' },
+                    { label: '1 كوين = 2 ألماسة (2:1)', val: 2, color: 'border-indigo-500/50 bg-indigo-500/10 text-indigo-300' },
+                    { label: '1 كوين = 5 ألماس (5:1)', val: 5, color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
+                    { label: '1 كوين = 10 ألماس (10:1)', val: 10, color: 'border-purple-500/50 bg-purple-500/10 text-purple-300' },
+                    { label: '2 كوين = 1 ألماسة (0.5)', val: 0.5, color: 'border-slate-500/50 bg-slate-500/10 text-slate-300' },
+                    { label: '10 كوين = 1 ألماسة (0.1)', val: 0.1, color: 'border-rose-500/50 bg-rose-500/10 text-rose-300' },
                   ].map((p, idx) => (
                     <button
                       key={idx}
                       type="button"
-                      onClick={() => setExchangeConfig({ ...exchangeConfig, coinsPerDiamond: p.val })}
+                      onClick={() => {
+                        setDiamondsPerCoin(p.val);
+                        setExchangeConfig({ ...exchangeConfig, coinsPerDiamond: p.val > 0 ? 1 / p.val : 0 });
+                      }}
                       className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
-                        exchangeConfig.coinsPerDiamond === p.val 
+                        Math.abs(diamondsPerCoin - p.val) < 0.000001
                           ? `${p.color} ring-2 ring-indigo-500 shadow-md` 
                           : 'border-white/5 bg-white/5 text-slate-300 hover:bg-white/10'
                       }`}
@@ -653,21 +661,25 @@ export default function RechargeSettings() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    عدد الكوينز لكل 1 ألماسة (Coins Per 1 Diamond):
+                    عدد الألماس لكل 1 كوين (Diamonds Per 1 Coin):
                   </label>
                   <div className="relative">
                     <input
                       type="number"
                       step="0.01"
                       min="0.01"
-                      value={exchangeConfig.coinsPerDiamond}
-                      onChange={(e) => setExchangeConfig({ ...exchangeConfig, coinsPerDiamond: parseFloat(e.target.value) || 0 })}
+                      value={diamondsPerCoin}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value) || 0;
+                        setDiamondsPerCoin(v);
+                        setExchangeConfig({ ...exchangeConfig, coinsPerDiamond: v > 0 ? 1 / v : 0 });
+                      }}
                       className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
                     />
-                    <span className="absolute left-3 top-2.5 text-xs text-amber-400 font-bold">كوينز / ألماسة</span>
+                    <span className="absolute left-3 top-2.5 text-xs text-amber-400 font-bold">ألماسة / كوين</span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    لو كتبت 1 تصبح 1 ماسة = 1 كوينز. ولو كتبت 2 تصبح 1 ماسة = 2 كوينز.
+                    لو كتبت 1 يصبح 1 كوين = 1 ألماسة. ولو كتبت 2 يصبح 1 كوين = 2 ألماسة (أي كل ألماسة = نصف كوين).
                   </p>
                 </div>
 
@@ -722,7 +734,7 @@ export default function RechargeSettings() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">المعدل المطبق:</span>
                     <span className="font-bold text-amber-400">
-                      1 💎 = {exchangeConfig.coinsPerDiamond} 🪙
+                      1 🪙 = {diamondsPerCoin} 💎
                     </span>
                   </div>
 
@@ -731,7 +743,7 @@ export default function RechargeSettings() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-semibold text-white">الكوينز المستلم:</span>
                     <span className="font-extrabold text-emerald-400 text-base flex items-center gap-1">
-                      {Math.floor(calcDiamonds * exchangeConfig.coinsPerDiamond).toLocaleString()} 🪙
+                      {diamondsPerCoin > 0 ? Math.floor(calcDiamonds / diamondsPerCoin).toLocaleString() : 0} 🪙
                     </span>
                   </div>
                 </div>
