@@ -248,8 +248,10 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
                 ),
                 child: TextField(
                   controller: _nameController,
+                  style: const TextStyle(color: Color(0xFF16151A), fontSize: 15),
                   decoration: const InputDecoration(
                     hintText: 'الاسم',
+                    hintStyle: TextStyle(color: Color(0x9916151A)),
                     contentPadding:
                         EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     border: InputBorder.none,
@@ -272,8 +274,10 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
                 child: TextField(
                   controller: _ageController,
                   keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Color(0xFF16151A), fontSize: 15),
                   decoration: const InputDecoration(
                     hintText: 'العمر',
+                    hintStyle: TextStyle(color: Color(0x9916151A)),
                     contentPadding:
                         EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     border: InputBorder.none,
@@ -303,6 +307,7 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
+                          color: Color(0xFF16151A),
                         ),
                       ),
                       const SizedBox(height: 12),

@@ -16,7 +16,7 @@ import 'vap_player.dart';
 
 class GiftPanel extends StatefulWidget {
   final int selectedCount;
-  final int coins;
+  final num coins;
   final List<Map<String, dynamic>> targetUsers;
   final List<Map<String, dynamic>> seatUsers;
   final List<Map<String, dynamic>> allRoomUsers;
@@ -1027,7 +1027,7 @@ class _GiftPanelState extends State<GiftPanel> {
             );
             ok = res != null;
             if (res != null && mounted) {
-              final newBal = (res['newBalance'] as num?)?.toInt();
+              final newBal = (res['newBalance'] as num?)?.toDouble();
               if (newBal != null) {
                 Provider.of<UserProvider>(context, listen: false).updateCoinsImmediately(newBal);
               }
@@ -1106,7 +1106,7 @@ class _GiftPanelState extends State<GiftPanel> {
     });
   }
 
-  void _showInsufficientCoinsDialog(BuildContext context, {int totalCost = 0, int currentCoins = 0}) {
+  void _showInsufficientCoinsDialog(BuildContext context, {int totalCost = 0, num currentCoins = 0}) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
     showDialog(
       context: context,
@@ -1179,8 +1179,8 @@ class _GiftPanelState extends State<GiftPanel> {
                 const SizedBox(height: 8),
                 Text(
                   isAr
-                      ? 'المطلوب: ${R.formatCoins(totalCost)} كوينز  |  لديك: ${R.formatCoins(currentCoins)} كوينز'
-                      : 'Required: ${R.formatCoins(totalCost)} coins  |  Available: ${R.formatCoins(currentCoins)} coins',
+                      ? 'المطلوب: ${R.formatCoins(totalCost)} كوينز  |  لديك: ${R.formatCoinsFraction(currentCoins)} كوينز'
+                      : 'Required: ${R.formatCoins(totalCost)} coins  |  Available: ${R.formatCoinsFraction(currentCoins)} coins',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF888888),
@@ -1328,7 +1328,7 @@ class _GiftPanelState extends State<GiftPanel> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        R.formatCoins(liveCoins),
+                        R.formatCoinsFraction(liveCoins),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,

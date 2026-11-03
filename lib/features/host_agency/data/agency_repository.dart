@@ -634,7 +634,7 @@ abstract final class AgencyRepository {
         return {
           'success': true,
           'duplicate': true,
-          'coins_received': (existing['coins'] as num?)?.toInt() ?? 0,
+          'coins_received': (existing['coins'] as num?)?.toDouble() ?? 0,
           'new_balance': (existing['balance_after'] as num?)?.toInt() ?? 0,
         };
       }
@@ -645,7 +645,7 @@ abstract final class AgencyRepository {
         .or('uid.eq.$uid,id.eq.$uid')
         .maybeSingle();
     final curD = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
-    final curC = (uRow?['coins'] as num?)?.toInt() ?? 0;
+    final curC = (uRow?['coins'] as num?)?.toDouble() ?? 0;
 
     final memRows = await _sb.from('host_agency_members')
         .select('id, agency_id, diamonds_available, diamonds_balance, diamonds_earned_monthly, unpacked_target_diamonds')
@@ -665,7 +665,7 @@ abstract final class AgencyRepository {
       throw Exception('الرصيد المتاح غير كافٍ');
     }
 
-    final coinsReceived = (diamondsAmount * mult).floor();
+    final coinsReceived = (diamondsAmount * mult * 100).round() / 100;
     final newDiamonds = (curD - diamondsAmount).clamp(0, 999999999);
 
     await _sb.from('users').update({

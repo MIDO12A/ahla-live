@@ -6,7 +6,7 @@ class UserModel {
   final String name;
   final String email;
   final String photoUrl;
-  final int coins;
+  final num coins;
   final int diamonds;
   final String gender;
   final String? activeFrame;
@@ -167,7 +167,7 @@ class UserModel {
     String? email,
     String? phone,
     String? photoUrl,
-    int? coins,
+    num? coins,
     int? diamonds,
     String? gender,
     String? activeFrame,
@@ -480,7 +480,7 @@ class UserModel {
       email: map['email']?.toString() ?? '',
       photoUrl: _extractPhotoUrl(map),
       album: _extractAlbum(map),
-      coins: (map['coins'] ?? 0).toInt(),
+      coins: (map['coins'] as num?)?.toDouble() ?? 0,
       diamonds: (map['diamonds'] ?? 0).toInt(),
       gender: map['gender']?.toString() ?? 'male',
       activeFrame: map['active_frame']?.toString() ?? map['activeFrame']?.toString(),

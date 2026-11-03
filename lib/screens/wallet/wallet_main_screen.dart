@@ -827,7 +827,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             ? '1 ألماس = ${multiplier % 1 == 0 ? multiplier.toInt() : multiplier} كوينز'
             : '${(1 / multiplier).round()} ألماس = 1 كوين');
 
-    final coinsPreview = (_exchangeDiamondAmount * multiplier).floor();
+    final coinsPreview = (_exchangeDiamondAmount * multiplier * 100).round() / 100;
 
     return Container(
       width: double.infinity,
@@ -896,7 +896,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               ),
               const SizedBox(width: 12),
               if (_exchangeDiamondAmount >= minDiamonds)
-                Text('= $coinsPreview كوينز',
+                Text('= ${R.formatCoinsFraction(coinsPreview)} كوينز',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: dc.goldColor),
                 ),
             ],
@@ -971,7 +971,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             _exchanging = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('+${result.coinsReceived} كوينز!'), backgroundColor: Colors.green),
+            SnackBar(content: Text('+${R.formatCoinsFraction(result.coinsReceived)} كوينز!'), backgroundColor: Colors.green),
           );
         }
       } else {
@@ -992,7 +992,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     }
   }
 
-  Widget _buildRechargeSection(int balance, bool isCoins) {
+  Widget _buildRechargeSection(num balance, bool isCoins) {
     final dc = DynamicConfigService();
     final plans = isCoins ? _coinPlans : _diamondPlans;
     final icon = isCoins ? R.commonGoldIc3 : R.commonDiamondIc;
@@ -1021,7 +1021,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                     R.image(icon, width: 32, height: 32),
                     const SizedBox(width: 8),
                     Text(
-                      '$balance',
+                      isCoins ? R.formatCoinsFraction(balance) : R.formatCoins(balance),
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -1135,7 +1135,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             ),
           ),
           const SizedBox(height: 16),
-          if (!isCoins) _buildExchangeSection(dc, balance),
+          if (!isCoins) _buildExchangeSection(dc, balance.toInt()),
           Text(
             dc.getScreenTitle('recharge', 'Recharge'),
             style: TextStyle(

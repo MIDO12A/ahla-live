@@ -1118,7 +1118,9 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
           onChanged: _onSearchChanged,
           textDirection: TextDirection.rtl,
           style: GoogleFonts.tajawal(
-              fontSize: 15, fontWeight: FontWeight.w600),
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF16151A)),
           decoration: InputDecoration(
             hintText: 'ابحث بالمعرف ID أو الاسم أو رقم الحساب...',
             hintStyle:

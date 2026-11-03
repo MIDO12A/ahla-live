@@ -120,7 +120,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
           userId: int.tryParse(user?.customId ?? '0') ?? 0,
           agencyName: user?.name ?? 'وكالتي الرسمية',
           avatarUrl: user?.photoUrl ?? '',
-          agentBean: user?.coins ?? 0,
+          agentBean: (user?.coins ?? 0).toInt(),
           transferMoney: user?.diamonds ?? 0,
           transferDollar: ((user?.diamonds ?? 0) / 1000).toInt(),
           milestones: globalMilestones,
@@ -225,7 +225,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       // تجميع إجمالي دخل الوكالة التراكمي من جميع المضيفين لضمان الثبات الكامل وعدم الحذف عند الصرف أو الاستبدال
       int membersCumDiamonds = 0;
       for (final a in rawAnchors) {
-        membersCumDiamonds += a.effectiveDiamonds;
+        membersCumDiamonds += a.commissionDiamonds;
       }
 
       if (infoModel != null) {
@@ -382,7 +382,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
           .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
 
-    final hostDia = member.effectiveDiamonds;
+    final hostDia = member.commissionDiamonds;
     final hostDays = member.days;
     final hostHours = (member.minute / 60.0);
 
@@ -1742,7 +1742,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
     // فحص جميع الأعضاء واحتساب رواتب المضيفين وعمولة الوكيل بدقة 100%
     for (final m in _members) {
       // نعتمد الألماس الفعلي المحقق (شاملاً المفكوك) لتبقى عمولة الوكيل 100% محفوظة ولا تتأثر بالفك إطلاقاً
-      final hostDia = m.effectiveDiamonds;
+      final hostDia = m.commissionDiamonds;
       final hostDays = m.days;
       final hostHours = (m.minute / 60.0);
 

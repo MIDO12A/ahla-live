@@ -1140,18 +1140,20 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (room.hotValue > 0) ...[
-                                const SizedBox(width: 2),
-                                R.image(R.roomHotLogoIc, width: 12, height: 12),
-                                const SizedBox(width: 1),
-                                Text(
-                                  '${room.hotValue}',
-                                  style: const TextStyle(
-                                    fontSize: 11, fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
+                              const SizedBox(width: 2),
+                              const Icon(
+                                Icons.group_rounded,
+                                size: 12,
+                                color: Colors.white70,
+                              ),
+                              const SizedBox(width: 1),
+                              Text(
+                                '${room.memberCount}',
+                                style: const TextStyle(
+                                  fontSize: 11, fontWeight: FontWeight.bold,
+                                  color: Colors.white,
                                 ),
-                              ],
+                              ),
                             ],
                           ),
                         ],

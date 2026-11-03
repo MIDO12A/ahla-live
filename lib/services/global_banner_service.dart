@@ -139,14 +139,17 @@ class GlobalBannerService extends ChangeNotifier {
       final multiplier = (b['multiplier'] as num?)?.toInt() ?? 0;
 
       // ── أولوية العرض الذكية لمنع التكرار والتراكم ──
-      // 1. إذا كان فوز حظ كبير (50X فما فوق أو 100X) -> نظهر بانر الفوز الأسطوري فقط
-      if (isLucky && (multiplier >= 50 || b['is_big_win'] == true)) {
+      // هدايا الحظ تبدأ لافتتها من مضاعف 10X فقط، ولا تُعرض لها لافتة الشريط/الماركي
+      if (isLucky && multiplier < 10 && b['is_big_win'] != true) continue;
+
+      // 1. فوز الحظ (10X فما فوق) -> نظهر بانر الفوز الأسطوري فقط
+      if (isLucky) {
         showBigWin({
           'id': bId,
           'senderName': b['sender_name']?.toString() ?? 'مستخدم',
           'senderAvatar': b['sender_photo_url']?.toString() ?? '',
           'giftName': b['gift_name']?.toString() ?? '',
-          'multiplier': multiplier > 0 ? multiplier : 100,
+          'multiplier': multiplier > 0 ? multiplier : 10,
           'totalWon': (b['won_coins'] as num?)?.toInt() ?? (b['coins'] as num?)?.toInt() ?? 0,
         });
       } else {
@@ -187,7 +190,7 @@ class GlobalBannerService extends ChangeNotifier {
         (DateTime.tryParse(winData['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
     if (winTs != 0 && winTs < _sessionStartTime - 10000) return;
     final mult = (winData['multiplier'] as num?)?.toInt() ?? 0;
-    if (mult < 50) return;
+    if (mult < 10) return;
 
     final winId = winData['id']?.toString() ?? '${winTs}_${winData['sender_name']}_$mult';
     if (_seenBroadcastIds.contains(winId)) return;

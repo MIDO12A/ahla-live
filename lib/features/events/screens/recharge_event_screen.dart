@@ -278,7 +278,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
 
     try {
       final user = await SupabaseDataService().getUser(uid);
-      final rechargedCoins = user?.rechargeExp ?? user?.coins ?? 0;
+      final rechargedCoins = (user?.rechargeExp ?? user?.coins ?? 0).toInt();
 
       final now = DateTime.now();
       final eventId = 'recharge_${now.year}_${now.month.toString().padLeft(2, '0')}';

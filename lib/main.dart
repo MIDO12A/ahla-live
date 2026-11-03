@@ -94,10 +94,29 @@ class _ZeroAppState extends State<ZeroApp> {
                 ],
                 builder: (context, child) {
                   final isRtl = localeProvider.locale?.languageCode == 'ar';
+                  final media = MediaQuery.of(context);
+                  const maxAppWidth = 360.0;
+                  final appWidth = media.size.width > maxAppWidth
+                      ? maxAppWidth
+                      : media.size.width;
                   return Directionality(
                     textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-                    child: GlobalBannerOverlay(
-                      child: GlobalFloatingRoomOverlay(child: child!),
+                    child: ColoredBox(
+                      color: Colors.black,
+                      child: Center(
+                        child: SizedBox(
+                          width: appWidth,
+                          height: media.size.height,
+                          child: MediaQuery(
+                            data: media.copyWith(
+                              size: Size(appWidth, media.size.height),
+                            ),
+                            child: GlobalBannerOverlay(
+                              child: GlobalFloatingRoomOverlay(child: child!),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   );
                 },

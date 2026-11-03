@@ -72,8 +72,8 @@ class LuckyGiftService {
       }
     }
 
-    // 2. إذا كان فوزاً كبيراً بمضاعف 100X فما فوق، نعرض بانر الفوز العام الأسطوري لكافة الغرف
-    if (nextData.isBigWin && nextData.maxMultiplier >= 100) {
+    // 2. إذا كان فوزاً كبيراً بمضاعف 10X فما فوق، نعرض بانر الفوز العام الأسطوري لكافة الغرف
+    if (nextData.isBigWin && nextData.maxMultiplier >= 10) {
       showBigWinBanner(
         context,
         senderName: nextData.senderName,

@@ -8,6 +8,9 @@ class GlobalSearchDelegate extends SearchDelegate<String?> {
   String get searchFieldLabel => 'ابحث عن مستخدم، غرفة، ID...';
 
   @override
+  TextStyle? get searchFieldStyle => const TextStyle(color: Colors.white, fontSize: 16);
+
+  @override
   ThemeData appBarTheme(BuildContext context) {
     final theme = Theme.of(context);
     return theme.copyWith(

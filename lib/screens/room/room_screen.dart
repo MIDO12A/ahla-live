@@ -786,7 +786,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 cards: cards,
                 totalWonCoins: won,
                 maxMultiplier: mult,
-                isBigWin: mult >= 50,
+                isBigWin: mult >= 10,
                 comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
                 comboCount: comboMultiplier,
                 isSender: true,
@@ -836,7 +836,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       'multipliers': multList,
                       'totalWonCoins': won,
                       'maxMultiplier': mult,
-                      'isBigWin': mult >= 50,
+                      'isBigWin': mult >= 10,
                     },
                   };
 
@@ -857,6 +857,26 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     giftPayload: luckyPayload,
                     timestamp: DateTime.now().millisecondsSinceEpoch,
                   ));
+
+                  // ✅ إشعار نصي فوري في شات الغرفة عند فوز المحظوظ
+                  if (won > 0 || mult > 1) {
+                    final winMsgId = '${localMsgId}_win';
+                    if (!_seenMsgIds.contains(winMsgId)) {
+                      _seenMsgIds.add(winMsgId);
+                      _chatMessages.add(MessageModel(
+                        msgId: winMsgId,
+                        roomId: roomId,
+                        senderUid: 'system',
+                        senderName: 'نظام',
+                        senderPhotoUrl: '',
+                        type: 'system',
+                        text: mult > 1
+                            ? '🍀 $receiverName فاز بالمحظوظ! مضاعف ${mult}X — ربح $won 🪙'
+                            : '🍀 $receiverName فاز بهدية الحظ "${gift.name}" وربح $won 🪙!',
+                        timestamp: DateTime.now().millisecondsSinceEpoch + 100,
+                      ));
+                    }
+                  }
                   _msgCount = _chatMessages.length;
                   _chatUpdateNotifier.value++;
                   if (_chatScroll.hasClients) {
@@ -1012,8 +1032,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   List<MessageModel> get _filteredChatMessages {
     if (_chatTabIndex == 1) {
-      // الدردشة: الرسائل النصية الخاصة بالمستخدمين فقط
-      return _chatMessages.where((m) => m.type == 'text' || m.type.isEmpty).toList();
+      // الدردشة: الرسائل النصية + إشعارات فوز المحظوظ
+      return _chatMessages
+          .where((m) => m.type == 'text' || m.type.isEmpty || m.type == 'system')
+          .toList();
     } else if (_chatTabIndex == 2) {
       // الهدايا: إرسال الهدايا، فوز الحظ، المضاعفات والمظاريف
       return _chatMessages.where((m) =>
@@ -5965,18 +5987,50 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                     child: Row(
                                       crossAxisAlignment: CrossAxisAlignment.center,
                                       children: [
-                                        // iv_room_avatar (RoundImageView 72dp)
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: SizedBox(
-                                            width: 72,
-                                            height: 72,
-                                            child: _memberAvatar(
-                                              _currentRoom?.roomPhotoUrl.isNotEmpty == true
-                                                  ? _currentRoom!.roomPhotoUrl
-                                                  : _seats[0].user?.avatar,
-                                              72,
-                                            ),
+                                        // iv_room_avatar (RoundImageView 72dp) + كأس إجمالي كوينز الغرفة
+                                        SizedBox(
+                                          width: 72,
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius: BorderRadius.circular(8),
+                                                child: SizedBox(
+                                                  width: 72,
+                                                  height: 72,
+                                                  child: _memberAvatar(
+                                                    _currentRoom?.roomPhotoUrl.isNotEmpty == true
+                                                        ? _currentRoom!.roomPhotoUrl
+                                                        : _seats[0].user?.avatar,
+                                                    72,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  const Icon(
+                                                    Icons.emoji_events_rounded,
+                                                    size: 13,
+                                                    color: Color(0xFFFFC525),
+                                                  ),
+                                                  const SizedBox(width: 3),
+                                                  Flexible(
+                                                    child: Text(
+                                                      R.formatCoins(totalCoins),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Color(0xFFFFF5AD),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
                                         ),
                                         const SizedBox(width: 14),

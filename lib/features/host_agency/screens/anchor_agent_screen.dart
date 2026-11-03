@@ -119,7 +119,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           userId: int.tryParse(user?.customId ?? '0') ?? 0,
           agencyName: user?.name ?? 'وكالتي الرسمية',
           avatarUrl: user?.photoUrl ?? '',
-          agentBean: user?.coins ?? 0,
+          agentBean: (user?.coins ?? 0).toInt(),
           transferMoney: 0,
           transferDollar: 0,
           milestones: globalMilestones,
@@ -370,7 +370,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     // تجميع إجمالي دخل الوكالة الكامل والتراكمي لضمان ثبات نقاط الخبرة وعدم تأثرها بالصرف أو الاستبدال
     int membersIncome = 0;
     for (final a in _anchors) {
-      membersIncome += a.effectiveDiamonds;
+      membersIncome += a.commissionDiamonds;
     }
     final cumulativeIncome = (info?.totalDiamondsCumulative != null && info!.totalDiamondsCumulative > 0)
         ? info.totalDiamondsCumulative
@@ -1196,7 +1196,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               const SizedBox(width: 8),
                               Builder(
                                 builder: (_) {
-                                  final mDiamonds = anchor.effectiveDiamonds;
+                                  final mDiamonds = anchor.commissionDiamonds;
                                   final dc = DynamicConfigService.instance;
                                   final rawRate = (_agentInfo?.commissionRate ?? 0) > 0 
                                       ? _agentInfo!.commissionRate 
@@ -1315,6 +1315,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   /// نافذة تفاصيل المضيف الشاملة لمالك الوكالة (Host Details & Commission Modal)
   void _showHostDetailsModal(AnchorAgentUserInfoDataModel anchor, bool isAr) {
     final hostDiamonds = anchor.effectiveDiamonds;
+    final commissionBase = anchor.commissionDiamonds;
     final liveHours = (anchor.minute / 60.0).toStringAsFixed(1);
     final dc = DynamicConfigService.instance;
     final rawRate = (_agentInfo?.commissionRate ?? 0) > 0 
@@ -1326,7 +1327,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     if (_agentInfo?.milestones != null && _agentInfo!.milestones.isNotEmpty) {
       for (final m in _agentInfo!.milestones) {
         final t = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
-        if (hostDiamonds >= t && t > 0) {
+        if (commissionBase >= t && t > 0) {
           achievedMs = m;
         }
       }
@@ -1351,8 +1352,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       final tDia = (achievedMs['target_diamonds'] as num?)?.toInt() ?? 0;
       agentEarnedDiamonds = (tDia * commRate).round();
     }
-    if (agentEarnedDiamonds == 0 && hostDiamonds > 0) {
-      agentEarnedDiamonds = (hostDiamonds * commRate).round();
+    if (agentEarnedDiamonds == 0 && commissionBase > 0) {
+      agentEarnedDiamonds = (commissionBase * commRate).round();
     }
     final agentEarnedUsd = earnedUsd.toStringAsFixed(2);
     final stageName = _getAnchorStage(anchor.totalDiamond, isAr);
@@ -1792,11 +1793,12 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final normCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : (rawAgencyRate > 0 ? rawAgencyRate : 0.20);
 
     for (final a in _anchors) {
-      // نعتمد الألماس الفعلي المحقق للشهر (بما فيه المفكوك) لضمان حماية عمولة وكيل المضيفين بنسبة 100%
-      final hostMonthlyDiamonds = a.effectiveDiamonds;
+      // العمولة تُحسَب على الإنتاج قبل الفك (حماية عمولة الوكيل)،
+      // بينما إنتاج الوكالة/التارجت يُحسَب على الصافي بعد التبديل.
+      final hostMonthlyDiamonds = a.commissionDiamonds;
       final hostDays = a.days;
       final hostHours = (a.minute / 60.0);
-      totalAnchorsDiamonds += hostMonthlyDiamonds;
+      totalAnchorsDiamonds += a.effectiveDiamonds;
 
       if (info?.milestones != null && info!.milestones.isNotEmpty) {
         Map<String, dynamic>? highestAchieved;

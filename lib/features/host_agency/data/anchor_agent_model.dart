@@ -264,10 +264,15 @@ class AnchorAgentUserInfoDataModel {
   String get avatarUrl => headImage;
   String get totalDiamond => diamonds;
 
-  /// إجمالي الألماس الفعلي المحقق للشهر (بما فيه الألماس المفكوك) لضمان حماية عمولة وكيل المضيفين وتارجت الوكالة
+  /// إنتاج الشهر الصافي بعد خصم الألماس المفكوك (تبديل/سحب).
+  /// يُستخدم لعرض "الرصيد المحقق" وحساب التارجت — ينخفض عند التبديل.
   int get effectiveDiamonds {
-    final cur = int.tryParse(diamonds) ?? 0;
-    return cur + unpackedDiamonds;
+    return int.tryParse(diamonds) ?? 0;
+  }
+
+  /// الإنتاج الإجمالي قبل فك التارجت — لحماية عمولة وكيل المضيفين فقط.
+  int get commissionDiamonds {
+    return effectiveDiamonds + unpackedDiamonds;
   }
 
   double get targetProgress {

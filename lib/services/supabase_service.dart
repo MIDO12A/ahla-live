@@ -313,7 +313,7 @@ class SupabaseService {
     int maxMultiplier = 0;
     bool isBigWin = false;
     List<int> multipliers = [];
-    int serverNewBalance = 0;
+    num serverNewBalance = 0;
     final totalCost = value * count;
     final bool isSelfSend = senderId == receiverId;
 
@@ -340,8 +340,8 @@ class SupabaseService {
           if (rpcData['success'] == true) {
             totalWonCoins = (rpcData['won_coins'] as num?)?.toInt() ?? 0;
             maxMultiplier = (rpcData['multiplier'] as num?)?.toInt() ?? 0;
-            isBigWin = rpcData['is_big_win'] == true || maxMultiplier >= 50;
-            serverNewBalance = (rpcData['new_balance'] as num?)?.toInt() ?? 0;
+            isBigWin = rpcData['is_big_win'] == true || maxMultiplier >= 10;
+            serverNewBalance = (rpcData['new_balance'] as num?)?.toDouble() ?? 0;
             final rawMults = rpcData['multipliers'] as List<dynamic>?;
             if (rawMults != null) {
               multipliers = rawMults.map((e) => (e as num).toInt()).toList();
@@ -387,7 +387,7 @@ class SupabaseService {
             if (m > maxMultiplier) maxMultiplier = m;
           }
         }
-        isBigWin = maxMultiplier >= 50;
+        isBigWin = maxMultiplier >= 10;
         serverNewBalance = math.max(0, currentCoins - totalCost + totalWonCoins);
 
         await _ds.updateUser(senderId, {
@@ -535,7 +535,7 @@ class SupabaseService {
         type: 'lucky_gift',
       ).catchError((_) => false));
 
-      if (isBigWin || maxMultiplier >= 50) {
+      if (isBigWin || maxMultiplier >= 10) {
         unawaited(_ds.recordGlobalAnnouncement(
           type: 'lucky_big_win',
           senderName: senderName,
@@ -1216,7 +1216,7 @@ class SupabaseService {
     return items;
   }
 
-  Future<({bool success, int coinsReceived, String? error})> exchangeDiamondsToCoins({
+  Future<({bool success, num coinsReceived, String? error})> exchangeDiamondsToCoins({
     required String uid,
     required int diamonds,
     int? rate,
@@ -1251,7 +1251,7 @@ class SupabaseService {
       if (resp is Map) {
         final m = Map<String, dynamic>.from(resp);
         if (m['success'] == true) {
-          final coins = (m['coins_received'] as num?)?.toInt() ?? 0;
+          final coins = (m['coins_received'] as num?)?.toDouble() ?? 0;
           unawaited(AgencyTargetEvaluator.evaluateHostTargets(uid).catchError((_) {}));
           return (success: true, coinsReceived: coins, error: null);
         }
@@ -1276,7 +1276,7 @@ class SupabaseService {
         if (existing != null) {
           return (
             success: true,
-            coinsReceived: (existing['coins'] as num?)?.toInt() ?? 0,
+            coinsReceived: (existing['coins'] as num?)?.toDouble() ?? 0,
             error: null,
           );
         }
@@ -1287,7 +1287,7 @@ class SupabaseService {
           .or('uid.eq.$uid,id.eq.$uid')
           .maybeSingle();
       final curDiamonds = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
-      final curCoins = (uRow?['coins'] as num?)?.toInt() ?? 0;
+      final curCoins = (uRow?['coins'] as num?)?.toDouble() ?? 0;
 
       final memRows = await _sb.from('host_agency_members')
           .select('id, agency_id, diamonds_balance, diamonds_available, diamonds_earned_monthly, unpacked_target_diamonds')
@@ -1310,7 +1310,7 @@ class SupabaseService {
         return (success: false, coinsReceived: 0, error: 'رصيد الألماس غير كافٍ');
       }
 
-      final coinsToReceive = (diamonds * effectiveMultiplier).floor();
+      final coinsToReceive = (diamonds * effectiveMultiplier * 100).round() / 100;
       if (coinsToReceive <= 0) {
         return (success: false, coinsReceived: 0, error: 'كمية الألماس غير كافية للحصول على كوينز');
       }

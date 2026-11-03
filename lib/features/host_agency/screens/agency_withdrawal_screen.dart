@@ -168,7 +168,7 @@ class _WalletHeader extends StatelessWidget {
   final bool isKycVerified;
   const _WalletHeader({required this.member, required this.isKycVerified});
 
-  static String _fmtK(int n) {
+  static String _fmtK(num n) {
     if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
     if (n >= 1000)    return '${(n / 1000).toStringAsFixed(0)}K';
     return n.toString();
@@ -271,11 +271,11 @@ class _ExchangeTabState extends State<_ExchangeTab> {
   int  _diamonds   = 0;
 
   /// يستخدم المعدل من إعدادات الشحن في لوحة التحكم (diamond_exchange_config)
-  int get _coinsResult {
+  num get _coinsResult {
     final mult = DynamicConfigService().coinsPerDiamond > 0
         ? DynamicConfigService().coinsPerDiamond
         : widget.engine.diamondToCoinRate;
-    return (_diamonds * mult).floor();
+    return (_diamonds * mult * 100).round() / 100;
   }
 
   @override
@@ -294,7 +294,7 @@ class _ExchangeTabState extends State<_ExchangeTab> {
         idempotencyKey: key,
       );
       if (!mounted) return;
-      final coins = (result['coins_received'] as num?)?.toInt() ?? _coinsResult;
+      final coins = (result['coins_received'] as num?)?.toDouble() ?? _coinsResult;
       _snack('✅ تم التبادل! حصلت على ${_fmtK(coins)} كوينز');
       _ctrl.clear();
       setState(() => _diamonds = 0);
@@ -1321,7 +1321,7 @@ InputDecoration _deco({required String hint, String? suffix, Color? color}) {
   );
 }
 
-String _fmtK(int n) {
+String _fmtK(num n) {
   if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
   if (n >= 1000)    return '${(n / 1000).toStringAsFixed(0)}K';
   return n.toString();

@@ -750,4 +750,22 @@ class R {
     }
     return amount.toInt().toString();
   }
+
+  /// يعرض رصيد الكوينز مع كسوره (منزلتان عشريتان) — مثال: 12.5 → "12.50"
+  static String formatCoinsFraction(num amount) {
+    final abs = amount.abs();
+    if (abs >= 1000000000) {
+      final v = amount / 1000000000.0;
+      return '${v.toStringAsFixed(2)}B';
+    }
+    if (abs >= 1000000) {
+      final v = amount / 1000000.0;
+      return '${v.toStringAsFixed(2)}M';
+    }
+    if (abs >= 1000) {
+      final v = amount / 1000.0;
+      return '${v.toStringAsFixed(2)}K';
+    }
+    return amount.toDouble().toStringAsFixed(2);
+  }
 }

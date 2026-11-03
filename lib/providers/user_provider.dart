@@ -19,7 +19,7 @@ class UserProvider extends ChangeNotifier {
   StreamSubscription? _giftedSub;
   Timer? _expiryTimer;
   int _lastLocalCoinsUpdateMs = 0;
-  int? _optimisticCoins;
+  num? _optimisticCoins;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
@@ -324,7 +324,7 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateCoinsImmediately(int newBalance) {
+  void updateCoinsImmediately(num newBalance) {
     if (_currentUser == null) return;
     _currentUser = _currentUser!.copyWith(coins: newBalance);
     _optimisticCoins = newBalance;

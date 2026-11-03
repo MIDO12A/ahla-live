@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/user_provider.dart';
+import '../../../config/r.dart';
 import '../services/lucky_bag_service.dart';
 
 /// حوار إرسال حقيبة الحظ (Lucky Bag Send Dialog) — مطابق تماماً لتصميم dialog_send_lucky_box.xml و frag_send_coin_lucky_box.xml
@@ -196,7 +197,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
   }
 
   /// شريط الرصيد coinBtn وزر القواعد ruleBtn
-  Widget _buildHeaderBar(int coins) {
+  Widget _buildHeaderBar(num coins) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -230,7 +231,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  '$coins',
+                  R.formatCoinsFraction(coins),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,

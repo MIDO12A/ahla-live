@@ -60,11 +60,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         _seenBroadcastIds.add(bId);
         _broadcastNotifier.value = latest;
 
-        // إذا كان فوزاً كبيراً 100X أو 250X أو 500X+، تشغيل بانر SVGA العالمي الأسطوري
+        // إذا كان فوزاً كبيراً 10X فما فوق، تشغيل بانر SVGA العالمي الأسطوري
         final mult = latest['multiplier'] is num
             ? (latest['multiplier'] as num).toInt()
             : int.tryParse(latest['multiplier']?.toString() ?? '0') ?? 0;
-        if (mult >= 100 && mounted) {
+        if (mult >= 10 && mounted) {
           LuckyGiftService().showBigWinBanner(
             context,
             senderName: latest['sender_name']?.toString() ?? 'مستخدم',

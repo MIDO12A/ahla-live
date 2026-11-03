@@ -6,7 +6,7 @@ import '../screens/wallet/wallet_main_screen.dart';
 /// Matches authentic dialog_coin_recharge_tip.xml
 class CoinRechargeTipDialog extends StatelessWidget {
   final int totalCost;
-  final int currentCoins;
+  final num currentCoins;
 
   const CoinRechargeTipDialog({
     super.key,
@@ -17,7 +17,7 @@ class CoinRechargeTipDialog extends StatelessWidget {
   static Future<void> show(
     BuildContext context, {
     int totalCost = 0,
-    int currentCoins = 0,
+    num currentCoins = 0,
   }) {
     return showDialog<void>(
       context: context,
@@ -100,8 +100,8 @@ class CoinRechargeTipDialog extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 isAr
-                    ? 'المطلوب: ${R.formatCoins(totalCost)} كوينز  |  لديك: ${R.formatCoins(currentCoins)} كوينز'
-                    : 'Required: ${R.formatCoins(totalCost)} coins  |  Available: ${R.formatCoins(currentCoins)} coins',
+                    ? 'المطلوب: ${R.formatCoins(totalCost)} كوينز  |  لديك: ${R.formatCoinsFraction(currentCoins)} كوينز'
+                    : 'Required: ${R.formatCoins(totalCost)} coins  |  Available: ${R.formatCoinsFraction(currentCoins)} coins',
                 style: const TextStyle(
                   fontSize: 12,
                   color: Color(0xFF888888),
