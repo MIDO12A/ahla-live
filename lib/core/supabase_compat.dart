@@ -511,6 +511,13 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
         for (final item in _wheres) {
           queryParams.add('${item.$1}=eq.${item.$3}');
         }
+        for (final raw in _orRawStrings) {
+          queryParams.add('or=($raw)');
+        }
+        if (queryParams.isEmpty) {
+          debugPrint('[SupabaseQueryBuilder] refused unfiltered UPDATE on $_table');
+          return [];
+        }
         final uri = Uri.parse('$baseUrl/rest/v1/$_table?${queryParams.join('&')}');
         final res = await http.patch(uri, headers: headers, body: jsonEncode(_payload));
         if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -518,6 +525,8 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
           if (decoded is List) {
             return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
           }
+        } else {
+          debugPrint('[SupabaseQueryBuilder] UPDATE $_table HTTP ${res.statusCode}: ${res.body}');
         }
         return [];
 
@@ -525,6 +534,13 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
         final queryParams = <String>[];
         for (final item in _wheres) {
           queryParams.add('${item.$1}=eq.${item.$3}');
+        }
+        for (final raw in _orRawStrings) {
+          queryParams.add('or=($raw)');
+        }
+        if (queryParams.isEmpty) {
+          debugPrint('[SupabaseQueryBuilder] refused unfiltered DELETE on $_table');
+          return [];
         }
         final uri = Uri.parse('$baseUrl/rest/v1/$_table?${queryParams.join('&')}');
         await http.delete(uri, headers: headers);

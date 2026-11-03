@@ -11,6 +11,7 @@
 
   <!--https://developer.apple.com/library/safari/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html-->
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
 
@@ -88,6 +89,16 @@
       else {
         window.boot();
       }
+    });
+    ['click', 'touchstart', 'keydown'].forEach(function(evt) {
+      window.addEventListener(evt, function() {
+        try {
+          var actx = (window.cc && cc.sys && cc.sys.__audioSupport && cc.sys.__audioSupport.context);
+          if (actx && actx.state === 'suspended' && actx.resume) {
+            actx.resume();
+          }
+        } catch(e) {}
+      }, { once: true });
     });
 })();
 </script>

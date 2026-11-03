@@ -1554,16 +1554,81 @@ class SupabaseService {
     }
   }
 
+  static int _convSortTime(Map<String, dynamic> row) {
+    final raw = row['last_time'] ?? row['last_timestamp'] ?? row['timestamp'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    if (raw != null) {
+      final parsed = DateTime.tryParse(raw.toString());
+      if (parsed != null) return parsed.millisecondsSinceEpoch;
+    }
+    return 0;
+  }
+
   Stream<List<Map<String, dynamic>>> conversationsStream(String uid) async* {
+    final profileCache = <String, Map<String, String>>{};
     while (true) {
       try {
-        final url = Uri.parse('$_baseUrl/rest/v1/conversations?uid=eq.$uid&order=last_time.desc');
-        final res = await http.get(url, headers: _headers);
-        if (res.statusCode == 200) {
-          final List list = jsonDecode(res.body);
-          yield list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        final List rows = await _sb
+            .from('conversations')
+            .select()
+            .or('uid.eq.$uid,other_uid.eq.$uid')
+            .order('last_time', ascending: false);
+
+        final byConv = <String, Map<String, dynamic>>{};
+        for (final raw in rows) {
+          final row = Map<String, dynamic>.from(raw as Map);
+          final convId = (row['conv_id'] ?? '').toString();
+          if (convId.isEmpty) continue;
+          final rowUid = (row['uid'] ?? '').toString();
+          if (rowUid != uid) {
+            row['other_uid'] = rowUid;
+            row['other_name'] = '';
+            row['other_photo_url'] = '';
+          }
+          final existing = byConv[convId];
+          if (existing == null ||
+              ((existing['uid'] ?? '').toString() != uid && rowUid == uid)) {
+            byConv[convId] = row;
+          }
         }
-      } catch (_) {}
+
+        final missing = byConv.values
+            .where((r) =>
+                (r['other_name'] ?? '').toString().isEmpty &&
+                (r['other_uid'] ?? '').toString().isNotEmpty)
+            .map((r) => r['other_uid'].toString())
+            .toSet()
+            .where((u) => !profileCache.containsKey(u))
+            .toList();
+        for (final otherUid in missing) {
+          try {
+            final u = await _ds.getUser(otherUid);
+            if (u != null) {
+              profileCache[otherUid] = {
+                'name': u.name,
+                'photo': u.photoUrl,
+              };
+            }
+          } catch (_) {}
+        }
+        for (final row in byConv.values) {
+          final cached = profileCache[(row['other_uid'] ?? '').toString()];
+          if (cached == null) continue;
+          if ((row['other_name'] ?? '').toString().isEmpty) {
+            row['other_name'] = cached['name'] ?? '';
+          }
+          if ((row['other_photo_url'] ?? '').toString().isEmpty) {
+            row['other_photo_url'] = cached['photo'] ?? '';
+          }
+        }
+
+        final list = byConv.values.toList()
+          ..sort((a, b) => _convSortTime(b).compareTo(_convSortTime(a)));
+        yield list;
+      } catch (e) {
+        debugPrint('[SupabaseService] conversationsStream error: $e');
+      }
       await Future.delayed(const Duration(seconds: 3));
     }
   }
@@ -1571,28 +1636,50 @@ class SupabaseService {
   Stream<List<MessageModel>> privateMessagesStream(String conversationId) async* {
     while (true) {
       try {
-        final convParts = conversationId.split('_');
-        String filter = 'or=(conversation_id.eq.$conversationId,conv_id.eq.$conversationId';
-        if (convParts.length == 2 && convParts[0].isNotEmpty && convParts[1].isNotEmpty) {
-          final u1 = convParts[0];
-          final u2 = convParts[1];
-          filter += ',and(sender_uid.eq.$u1,receiver_uid.eq.$u2),and(sender_uid.eq.$u2,receiver_uid.eq.$u1)';
-        }
-        filter += ')&order=created_at.asc';
+        List<MessageModel> parse(http.Response res) => (jsonDecode(res.body) as List)
+            .map((e) {
+              final m = Map<String, dynamic>.from(e as Map);
+              if (m['image_url'] == null || m['image_url'].toString().isEmpty) {
+                m['image_url'] = m['media_url'];
+              }
+              return MessageModel.fromMap(m);
+            })
+            .toList();
 
-        final url = Uri.parse('$_baseUrl/rest/v1/private_messages?$filter');
-        final res = await http.get(url, headers: _headers);
-        if (res.statusCode == 200) {
-          final List list = jsonDecode(res.body);
-          yield list.map((e) {
-            final m = Map<String, dynamic>.from(e as Map);
-            if (m['image_url'] == null || m['image_url'].toString().isEmpty) {
-              m['image_url'] = m['media_url'];
-            }
-            return MessageModel.fromMap(m);
-          }).toList();
+        List<MessageModel> messages = [];
+        final primaryUrl = Uri.parse(
+            '$_baseUrl/rest/v1/private_messages?conv_id=eq.$conversationId&order=created_at.asc');
+        final primary = await http.get(primaryUrl, headers: _headers);
+        if (primary.statusCode == 200) {
+          messages = parse(primary);
         }
-      } catch (_) {}
+
+        if (messages.isEmpty) {
+          final convParts = conversationId.split('_');
+          String filter =
+              'or=(conversation_id.eq.$conversationId,conv_id.eq.$conversationId';
+          if (convParts.length == 2 &&
+              convParts[0].isNotEmpty &&
+              convParts[1].isNotEmpty) {
+            final u1 = convParts[0];
+            final u2 = convParts[1];
+            filter +=
+                ',and(sender_uid.eq.$u1,receiver_uid.eq.$u2),and(sender_uid.eq.$u2,receiver_uid.eq.$u1)';
+          }
+          filter += ')&order=created_at.asc';
+
+          final legacy = await http.get(
+              Uri.parse('$_baseUrl/rest/v1/private_messages?$filter'),
+              headers: _headers);
+          if (legacy.statusCode == 200) {
+            messages = parse(legacy);
+          }
+        }
+
+        yield messages;
+      } catch (e) {
+        debugPrint('[SupabaseService] privateMessagesStream error: $e');
+      }
       await Future.delayed(const Duration(milliseconds: 1000));
     }
   }
@@ -1637,8 +1724,24 @@ class SupabaseService {
         'other_name': receiverName ?? '',
         'other_photo_url': receiverPhotoUrl ?? '',
         'last_message': lastMsgText,
+        'last_time': now,
         'unread_count': 0,
       };
+
+      int receiverUnread = 1;
+      try {
+        final existing = await _sb
+            .from('conversations')
+            .select('unread_count')
+            .eq('uid', effectiveReceiverUid)
+            .eq('conv_id', effectiveConvId)
+            .maybeSingle();
+        if (existing != null) {
+          receiverUnread =
+              ((existing['unread_count'] as num?)?.toInt() ?? 0) + 1;
+        }
+      } catch (_) {}
+
       final receiverConv = {
         'conv_id': effectiveConvId,
         'uid': effectiveReceiverUid,
@@ -1646,17 +1749,46 @@ class SupabaseService {
         'other_name': senderName,
         'other_photo_url': senderPhotoUrl ?? '',
         'last_message': lastMsgText,
-        'unread_count': 1,
+        'last_time': now,
+        'unread_count': receiverUnread,
       };
 
+      bool convReady = false;
       try {
-        await http.post(
+        final dualRes = await http.post(
           Uri.parse('$_baseUrl/rest/v1/conversations'),
-          headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
+          headers: {
+            ..._headers,
+            'Prefer': 'resolution=merge-duplicates,return=minimal',
+          },
           body: jsonEncode([senderConv, receiverConv]),
         );
-      } catch (convErr) {
-        debugPrint('[SupabaseService] conversations upsert error: $convErr');
+        convReady = dualRes.statusCode >= 200 && dualRes.statusCode < 300;
+        if (!convReady) {
+          debugPrint(
+              '[SupabaseService] conversations dual upsert HTTP ${dualRes.statusCode}: ${dualRes.body}');
+        }
+      } catch (e) {
+        debugPrint('[SupabaseService] conversations dual upsert failed: $e');
+      }
+      if (!convReady) {
+        try {
+          final singleRes = await http.post(
+            Uri.parse('$_baseUrl/rest/v1/conversations'),
+            headers: {
+              ..._headers,
+              'Prefer': 'resolution=merge-duplicates,return=minimal',
+            },
+            body: jsonEncode(senderConv),
+          );
+          convReady = singleRes.statusCode >= 200 && singleRes.statusCode < 300;
+          if (!convReady) {
+            debugPrint(
+                '[SupabaseService] conversations single upsert HTTP ${singleRes.statusCode}: ${singleRes.body}');
+          }
+        } catch (e) {
+          debugPrint('[SupabaseService] conversations single upsert failed: $e');
+        }
       }
 
       // 2. إدراج الرسالة في جدول private_messages بالحقول المعتمدة بقاعدة البيانات
@@ -1676,32 +1808,68 @@ class SupabaseService {
         'is_read': false,
       };
 
-      final msgRes = await http.post(
-        Uri.parse('$_baseUrl/rest/v1/private_messages'),
-        headers: _headers,
-        body: jsonEncode(msgBody),
-      );
-
-      if (msgRes.statusCode < 200 || msgRes.statusCode >= 300) {
-        debugPrint('[SupabaseService] private_messages HTTP status: ${msgRes.statusCode} - ${msgRes.body}');
-        try {
-          await Supabase.instance.client.from('private_messages').insert(msgBody);
-        } catch (err) {
-          debugPrint('[SupabaseService] private_messages SDK insert fallback: $err');
-        }
+      Object? lastError;
+      try {
+        await _sb.from('private_messages').insert(msgBody);
+        return;
+      } catch (e) {
+        lastError = e;
+        debugPrint('[SupabaseService] private_messages SDK insert failed: $e');
       }
+
+      try {
+        final msgRes = await http.post(
+          Uri.parse('$_baseUrl/rest/v1/private_messages'),
+          headers: _headers,
+          body: jsonEncode(msgBody),
+        );
+        if (msgRes.statusCode >= 200 && msgRes.statusCode < 300) return;
+        lastError =
+            'HTTP ${msgRes.statusCode} - ${msgRes.body}';
+        debugPrint('[SupabaseService] private_messages HTTP failed: $lastError');
+      } catch (e) {
+        lastError = e;
+        debugPrint('[SupabaseService] private_messages HTTP error: $e');
+      }
+
+      // 3. محاولة أخيرة بأقل الحقول المطلوبة (توافق مع مخططات قديمة)
+      try {
+        await _sb.from('private_messages').insert({
+          'id': msgId,
+          'conv_id': effectiveConvId,
+          'sender_uid': effectiveSenderUid,
+          'receiver_uid': effectiveReceiverUid,
+          'text': text,
+          'created_at': isoNow,
+        });
+        return;
+      } catch (e) {
+        lastError = e;
+        debugPrint('[SupabaseService] private_messages minimal insert failed: $e');
+      }
+
+      throw Exception('تعذر إرسال الرسالة: $lastError');
     } catch (e) {
       debugPrint('[SupabaseService] sendPrivateMessage error: $e');
+      rethrow;
     }
   }
 
   Future<void> markConversationRead(String uid, String conversationId) async {
     try {
-      await http.patch(
-        Uri.parse('$_baseUrl/rest/v1/conversations?uid=eq.$uid&conv_id=eq.$conversationId'),
-        headers: _headers,
-        body: jsonEncode({'unread_count': 0}),
-      );
+      await _sb
+          .from('conversations')
+          .update({'unread_count': 0})
+          .eq('uid', uid)
+          .eq('conv_id', conversationId);
+    } catch (_) {}
+    try {
+      await _sb
+          .from('private_messages')
+          .update({'is_read': true})
+          .eq('receiver_uid', uid)
+          .eq('conv_id', conversationId)
+          .eq('is_read', false);
     } catch (_) {}
   }
 

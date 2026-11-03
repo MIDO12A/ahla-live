@@ -10,8 +10,12 @@ const quickActions = [
   { label: 'Revenue Report', icon: TrendingUp, color: 'text-amber-300', bg: 'from-amber-500/20 to-amber-500/5', to: '/reports' },
 ];
 
+const SUPABASE_PROJECT_REF = (import.meta.env.VITE_SUPABASE_URL || 'https://pxyqgeitjdsilgfftnyd.supabase.co')
+  .replace(/^https?:\/\//, '')
+  .split('.')[0];
+
 const systemInfo = [
-  { label: 'Supabase Project', value: 'mnpoiobmargjlnxwczgi', icon: Database },
+  { label: 'Supabase Project', value: SUPABASE_PROJECT_REF, icon: Database },
   { label: 'DB Region', value: 'auto (Supabase)', icon: Server },
   { label: 'Auth Provider', value: 'Supabase Auth', icon: ShieldCheck },
   { label: 'Storage', value: 'Cloudinary + Supabase', icon: Database },

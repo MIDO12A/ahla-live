@@ -13,6 +13,29 @@ import type {
   AgencyLevelModel, AgencyExpTaskConfig, BDAgencyDetail,
 } from '../types'
 
+// ---- PostgREST helpers ----
+// بعض دوال RPC قد لا تكون مطبّقة على المشروع البعيد (PGRST202 / 42883).
+// نتجاوزها بهدوء ونستخدم المسار البديل بدل إغراق الكونسول بأخطاء 404.
+const missingRpcCache = new Set<string>()
+
+function isMissingRpcError(err: any): boolean {
+  if (!err) return false
+  const code = String(err.code || err.status || '')
+  const msg = String(err.message || err.details || err || '')
+  return (
+    code === 'PGRST202' ||
+    code === '42883' ||
+    code === '404' ||
+    /PGRST202/i.test(msg) ||
+    /Could not find the function/i.test(msg) ||
+    /schema cache/i.test(msg)
+  )
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 // ---- Auth Admin ----
 
 export async function updateUserPassword(uid: string, password: string) {
@@ -545,49 +568,72 @@ export async function adjustUserDiamonds(
     if (absAmount <= 0) throw new Error('الكمية يجب أن تكون أكبر من صفر');
 
     // محاولة تنفيذ المعاملة المالية عبر الباك إند المركزي (Postgres RPC) لضمان القفل الذري والمزامنة الشاملة
-    try {
-      const { data: rpcRes, error: rpcErr } = await client.rpc('admin_process_diamond_transaction', {
-        p_user_id: uid,
-        p_amount: absAmount,
-        p_type: type,
-        p_reason: reason || (type === 'add' ? `إضافة ${absAmount.toLocaleString()} ماسة من الإدارة` : `خصم ${absAmount.toLocaleString()} ماسة من الإدارة`),
-        p_admin_name: adminName,
-        p_sync_monthly_target: syncMonthlyTarget,
-      });
+    if (!missingRpcCache.has('admin_process_diamond_transaction')) {
+      try {
+        const { data: rpcRes, error: rpcErr } = await client.rpc('admin_process_diamond_transaction', {
+          p_user_id: uid,
+          p_amount: absAmount,
+          p_type: type,
+          p_reason: reason || (type === 'add' ? `إضافة ${absAmount.toLocaleString()} ماسة من الإدارة` : `خصم ${absAmount.toLocaleString()} ماسة من الإدارة`),
+          p_admin_name: adminName,
+          p_sync_monthly_target: syncMonthlyTarget,
+        });
 
-      if (!rpcErr && rpcRes && rpcRes.success) {
-        const finalDiamonds = Number(rpcRes.new_diamonds ?? 0);
-        const diff = finalDiamonds - Number(rpcRes.old_diamonds ?? finalDiamonds);
+        if (rpcErr) {
+          if (isMissingRpcError(rpcErr)) {
+            missingRpcCache.add('admin_process_diamond_transaction');
+            console.info('[diamonds] RPC admin_process_diamond_transaction غير مطبّقة — استخدام التحديث المباشر.');
+          } else {
+            console.warn('[diamonds] RPC admin_process_diamond_transaction فشل — استخدام التحديث المباشر:', rpcErr);
+          }
+        } else if (rpcRes && (rpcRes as any).success) {
+          const finalDiamonds = Number((rpcRes as any).new_diamonds ?? 0);
+          const diff = finalDiamonds - Number((rpcRes as any).old_diamonds ?? finalDiamonds);
 
-        // إرسال إشعار النظام للمستخدم
-        try {
-          await sendSystemNotification({
-            userId: uid,
-            title: type === 'add' ? '💎 إضافة رصيد ألماس لحسابك' : '💎 تعديل رصيد الألماس',
-            body: type === 'add'
-              ? `مبروك! تم تزويد حسابك بـ ${Math.abs(diff).toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`
-              : `تم خصم ${Math.abs(diff).toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`,
-            type: 'system',
-            action: 'diamonds_adjusted',
-            extraData: { amount: diff, new_balance: finalDiamonds },
-          });
-        } catch (_) {}
+          // إرسال إشعار النظام للمستخدم
+          try {
+            await sendSystemNotification({
+              userId: uid,
+              title: type === 'add' ? '💎 إضافة رصيد ألماس لحسابك' : '💎 تعديل رصيد الألماس',
+              body: type === 'add'
+                ? `مبروك! تم تزويد حسابك بـ ${Math.abs(diff).toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`
+                : `تم خصم ${Math.abs(diff).toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`,
+              type: 'system',
+              action: 'diamonds_adjusted',
+              extraData: { amount: diff, new_balance: finalDiamonds },
+            });
+          } catch (_) {}
 
-        return { success: true, newDiamonds: finalDiamonds };
+          return { success: true, newDiamonds: finalDiamonds };
+        }
+      } catch (rpcEx: any) {
+        if (isMissingRpcError(rpcEx)) {
+          missingRpcCache.add('admin_process_diamond_transaction');
+          console.info('[diamonds] RPC admin_process_diamond_transaction غير متاحة — استخدام التحديث المباشر.');
+        } else {
+          console.warn('[diamonds] RPC admin_process_diamond_transaction fallback:', rpcEx);
+        }
       }
-    } catch (rpcEx) {
-      console.warn('Backend RPC admin_process_diamond_transaction fallback:', rpcEx);
     }
 
-    // 1. Fetch current user diamonds (Fallback)
-    const { data: userRow, error: uErr } = await client
-      .from('users')
-      .select('uid, diamonds, name, custom_id')
-      .eq('uid', uid)
-      .maybeSingle();
+    // 1. Fetch current user diamonds (Fallback) — مع إعادة المحاولة عند أخطاء الشبكة/التحميل المؤقتة
+    let userRow: any = null;
+    let uErr: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await client
+        .from('users')
+        .select('uid, diamonds, name, custom_id')
+        .eq('uid', uid)
+        .maybeSingle();
+      userRow = res.data;
+      uErr = res.error;
+      if (!uErr && userRow) break;
+      if (attempt < 2) await sleep(350 * (attempt + 1));
+    }
 
     if (uErr || !userRow) {
-      throw new Error('لم يتم العثور على المستخدم');
+      const detail = uErr ? ` (${uErr.code || uErr.status || ''} ${uErr.message || ''})`.trim() : '';
+      throw new Error('لم يتم العثور على المستخدم' + detail);
     }
 
     const currentDiamonds = Number(userRow.diamonds || 0);
@@ -598,12 +644,16 @@ export async function adjustUserDiamonds(
     const diff = newDiamonds - currentDiamonds;
 
     // 2. Update users table
-    const { error: updErr } = await client
+    const { data: updatedRows, error: updErr } = await client
       .from('users')
       .update({ diamonds: newDiamonds })
-      .eq('uid', uid);
+      .eq('uid', uid)
+      .select('uid');
 
     if (updErr) throw updErr;
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new Error('تعذّر تحديث رصيد المستخدم — تأكد من صلاحيات حساب الأدمن (RLS)');
+    }
 
     // 3. Sync to host_agency_members if user is in an agency
     try {
@@ -713,8 +763,10 @@ export async function adjustUserDiamonds(
 
     return { success: true, newDiamonds };
   } catch (e: any) {
-    console.error('adjustUserDiamonds error:', e);
-    return { success: false, newDiamonds: 0, error: e?.message || String(e) };
+    const code = e?.code || e?.status;
+    const msg = e?.message || String(e);
+    console.error('adjustUserDiamonds error:', code ? `[${code}] ${msg}` : msg);
+    return { success: false, newDiamonds: 0, error: code ? `${msg} (${code})` : msg };
   }
 }
 

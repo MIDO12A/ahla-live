@@ -2,7 +2,7 @@ import { useContext, useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { I18nContext, langs } from '../lib/i18n';
 import { getCloudinaryStatus, saveCloudinaryConfig, uploadLoginMedia, uploadLoginLogo } from '../lib/storage';
-import { supabase, isAdminConnected } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Save, Crown, Database, Mic, ArrowLeft, Sparkles, Flame, Palette, ShieldAlert, ShieldCheck, CheckCircle2, Upload, Film, Image as ImageIcon, Trash2, Eye, Play, Check, FileCode, Video } from 'lucide-react';
 
 
@@ -15,8 +15,6 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [vipUrl, setVipUrl] = useState('');
   const [vipSaving, setVipSaving] = useState(false);
-  const [supabaseServiceKey, setSupabaseServiceKey] = useState('');
-  const [supabaseSaving, setSupabaseSaving] = useState(false);
 
   // Google Play Review Mode State
   const [reviewModeEnabled, setReviewModeEnabled] = useState<boolean>(false);
@@ -634,34 +632,17 @@ export default function Settings() {
         </div>
 
         <div>
-          <label className="block text-[10px] uppercase text-slate-400 font-bold mb-2 flex items-center gap-1"><Database className="w-3 h-3" /> Supabase Service Role Key</label>
-          <div className="bg-[#161618] rounded-lg border border-white/5 p-4 space-y-3">
+          <label className="block text-[10px] uppercase text-slate-400 font-bold mb-2 flex items-center gap-1"><Database className="w-3 h-3" /> Supabase Connection</label>
+          <div className="bg-[#161618] rounded-lg border border-white/5 p-4 space-y-2">
             <p className="text-xs text-slate-400">
-              {isAdminConnected()
-                ? <><span className="text-green-400">✓</span> Service role configured — RLS bypass active</>
-                : <><span className="text-rose-400">✗</span> Not configured — some features may not show all data</>
-              }
+              <span className="text-green-400">✓</span> متصل بمشروع Supabase الحقيقي عبر جلسة Firebase/Supabase Auth الخاصة بالأدمن.
             </p>
-            <input
-              type="password"
-              value={supabaseServiceKey}
-              onChange={e => setSupabaseServiceKey(e.target.value)}
-              className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono"
-              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-            />
-            <p className="text-[9px] text-slate-600">Paste your Supabase service_role key to bypass RLS and see all users/data</p>
-            <button onClick={() => {
-              setSupabaseSaving(true);
-              localStorage.setItem('supabase_admin_config', JSON.stringify({
-                supabaseUrl: 'https://mnpoiobmargjlnxwczgi.supabase.co',
-                serviceRoleKey: supabaseServiceKey,
-              }));
-              setSupabaseSaving(false);
-              alert('Supabase key saved! Page will refresh to apply changes.');
-              setTimeout(() => window.location.reload(), 500);
-            }} disabled={supabaseSaving} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-[10px] text-white font-semibold rounded-lg flex items-center gap-1">
-              <Save className="w-3 h-3" /> {supabaseSaving ? t('saving') : 'Save Supabase Key'}
-            </button>
+            <p className="text-[10px] text-slate-500 font-mono break-all">
+              {(import.meta.env.VITE_SUPABASE_URL || 'https://pxyqgeitjdsilgfftnyd.supabase.co')}
+            </p>
+            <p className="text-[9px] text-slate-600">
+              لا حاجة لإدخال service_role هنا. الصلاحيات تُدار عبر سياسات RLS في Supabase. لتجاوز RLS استخدم مفتاح service_role من متغيرات بيئة الخادم فقط، وليس المتصفح.
+            </p>
           </div>
         </div>
 

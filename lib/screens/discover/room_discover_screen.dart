@@ -1154,6 +1154,25 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                                   color: Colors.white,
                                 ),
                               ),
+                              const SizedBox(width: 6),
+                              const Icon(
+                                Icons.emoji_events_rounded,
+                                size: 12,
+                                color: Color(0xFFFFC525),
+                              ),
+                              const SizedBox(width: 2),
+                              Flexible(
+                                child: Text(
+                                  R.formatCoins(room.monthlyCoins),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFFFF5AD),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ],

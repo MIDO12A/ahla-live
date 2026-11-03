@@ -126,7 +126,9 @@ class SupabaseDataService {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
           final m = Map<String, dynamic>.from(list.first as Map);
-          return RoomModel.fromMap(m);
+          final room = RoomModel.fromMap(m);
+          final monthly = await _fetchMonthlyRoomCoins(roomId: roomId);
+          return room.copyWith(monthlyCoins: monthly[roomId] ?? 0);
         }
       }
     } catch (e) {
@@ -158,12 +160,91 @@ class SupabaseDataService {
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
-        return list.map((e) => RoomModel.fromMap(e as Map<String, dynamic>)).toList();
+        final rooms =
+            list.map((e) => RoomModel.fromMap(e as Map<String, dynamic>)).toList();
+
+        // العدّاد الحقيقي: عدد الأعضاء المتواجدين حالياً في room_members
+        final liveCounts = await _fetchLiveRoomMemberCounts();
+        final monthlyCoins = await _fetchMonthlyRoomCoins();
+        return rooms
+            .map((r) => r.copyWith(
+                  memberCount: liveCounts == null
+                      ? r.memberCount
+                      : (liveCounts[r.roomId] ?? 0),
+                  monthlyCoins: monthlyCoins[r.roomId] ?? 0,
+                ))
+            .toList();
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getAllRooms error: $e');
     }
     return [];
+  }
+
+  /// إجمالي الكوينز المُرسَلة داخل الغرفة خلال الشهر الحالي (من sent_gifts)
+  Future<Map<String, int>> _fetchMonthlyRoomCoins({String? roomId}) async {
+    final result = <String, int>{};
+    try {
+      final now = DateTime.now().toUtc();
+      final monthStart = DateTime.utc(now.year, now.month, 1).toIso8601String();
+      var path =
+          '$_baseUrl/rest/v1/sent_gifts?select=room_id,count,value&created_at=gte.$monthStart';
+      if (roomId != null && roomId.isNotEmpty) {
+        path += '&room_id=eq.$roomId';
+      }
+      final res = await http.get(Uri.parse(path), headers: _headers);
+      if (res.statusCode != 200) return result;
+      for (final row in jsonDecode(res.body) as List) {
+        final rid = (row['room_id'] ?? '').toString();
+        if (rid.isEmpty) continue;
+        final count = (row['count'] as num?)?.toInt() ?? 1;
+        final value = (row['value'] as num?)?.toDouble() ?? 0;
+        result[rid] = (result[rid] ?? 0) + (count * value).round();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] _fetchMonthlyRoomCoins error: $e');
+    }
+    return result;
+  }
+
+  Future<Map<String, int>?> _fetchLiveRoomMemberCounts() async {
+    try {
+      // نعتبر العضو "متواجداً" فقط إذا كانت نبضته حديثة (آخر 5 دقائق)
+      final cutoff = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(minutes: 5))
+          .toIso8601String();
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/room_members?select=room_id&joined_at=gte.$cutoff');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode != 200) return null;
+      final counts = <String, int>{};
+      for (final row in jsonDecode(res.body) as List) {
+        final rid = (row['room_id'] ?? '').toString();
+        if (rid.isNotEmpty) counts[rid] = (counts[rid] ?? 0) + 1;
+      }
+      return counts;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] _fetchLiveRoomMemberCounts error: $e');
+      return null;
+    }
+  }
+
+  Future<void> _syncRoomMemberCount(String roomId) async {
+    try {
+      final cutoff = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(minutes: 5))
+          .toIso8601String();
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/room_members?room_id=eq.$roomId&joined_at=gte.$cutoff&select=uid');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode != 200) return;
+      final count = (jsonDecode(res.body) as List).length;
+      await updateRoom(roomId, {'member_count': count});
+    } catch (e) {
+      debugPrint('[SupabaseDataService] _syncRoomMemberCount error: $e');
+    }
   }
 
   Future<bool> updateRoom(String roomId, Map<String, dynamic> updates) async {
@@ -456,7 +537,11 @@ class SupabaseDataService {
         },
         body: body,
       );
-      return res.statusCode >= 200 && res.statusCode < 300;
+      final ok = res.statusCode >= 200 && res.statusCode < 300;
+      if (ok) {
+        await _syncRoomMemberCount(roomId);
+      }
+      return ok;
     } catch (e) {
       debugPrint('[SupabaseDataService] joinRoom error: $e');
       return false;
@@ -467,7 +552,11 @@ class SupabaseDataService {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_members?room_id=eq.$roomId&uid=eq.$uid');
       final res = await http.delete(url, headers: _headers);
-      return res.statusCode >= 200 && res.statusCode < 300;
+      final ok = res.statusCode >= 200 && res.statusCode < 300;
+      if (ok) {
+        await _syncRoomMemberCount(roomId);
+      }
+      return ok;
     } catch (e) {
       debugPrint('[SupabaseDataService] leaveRoom error: $e');
       return false;

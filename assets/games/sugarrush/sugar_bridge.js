@@ -55,6 +55,75 @@ try {
   if (qAvatar) window.__sugarGame.userAvatar = qAvatar;
 } catch(e) {}
 
+// ============================================================
+// Supabase Online Integration for Ahla-Live Sugar Rush
+// ============================================================
+var SUPABASE_URL = 'https://pxyqgeitjdsilgfftnyd.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eXFnZWl0amRzaWxnZmZ0bnlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NzU5OTIsImV4cCI6MjEwNjI1MTk5Mn0.mWskb4-YFQNPDpGbF23g0ysmVGGkcm68SsJpNp_Y_bk';
+
+function supabaseRequest(path, options) {
+  options = options || {};
+  options.headers = options.headers || {};
+  options.headers['apikey'] = SUPABASE_ANON_KEY;
+  options.headers['Authorization'] = 'Bearer ' + SUPABASE_ANON_KEY;
+  options.headers['Content-Type'] = 'application/json';
+  if (options.body && typeof options.body === 'object') {
+    options.body = JSON.stringify(options.body);
+  }
+  return fetch(SUPABASE_URL + path, options).then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var ct = res.headers.get('content-type');
+    if (ct && ct.includes('application/json')) return res.json();
+    return res.text();
+  });
+}
+
+function syncPoolConfig() {
+  supabaseRequest('/rest/v1/game_jackpot_pool?id=eq.sugarrush&select=*')
+    .then(function(data) {
+      if (Array.isArray(data) && data.length > 0) {
+        var cfg = data[0];
+        if (cfg.win_rate != null) window.__sugarGame.winRate = Number(cfg.win_rate);
+        if (cfg.pool_balance != null) window.__sugarGame.poolBalance = Number(cfg.pool_balance);
+        if (cfg.max_multiplier != null) window.__sugarGame.maxMultiplier = Number(cfg.max_multiplier);
+        console.log('[SugarGame] Synced pool config from Supabase: WinRate=' + window.__sugarGame.winRate + '% Pool=' + window.__sugarGame.poolBalance);
+      }
+    })
+    .catch(function(err) {
+      console.warn('[SugarGame] Could not sync pool config:', err);
+    });
+}
+
+function syncUserData(uid) {
+  if (!uid) return;
+  var query = '/rest/v1/users?or=(uid.eq.' + encodeURIComponent(uid) + ',custom_id.eq.' + encodeURIComponent(uid) + ')&select=uid,name,coins,photo_url';
+  supabaseRequest(query)
+    .then(function(data) {
+      if (Array.isArray(data) && data.length > 0) {
+        var u = data[0];
+        if (u.uid) window.__sugarGame.userId = String(u.uid);
+        if (u.name) window.__sugarGame.userName = String(u.name);
+        if (u.photo_url) window.__sugarGame.userAvatar = String(u.photo_url);
+        if (u.coins != null) {
+          window.__sugarGame.userCoins = Number(u.coins);
+          console.log('[SugarGame] Synced user from Supabase:', u.name, 'Coins:', u.coins);
+        }
+      }
+    })
+    .catch(function(err) {
+      console.warn('[SugarGame] Could not sync user data:', err);
+    });
+}
+
+// Initial sync
+try {
+  syncPoolConfig();
+  if (window.__sugarGame.userId) {
+    syncUserData(window.__sugarGame.userId);
+  }
+} catch(e) {}
+
+
 // Implement androidJsObj for NativeManager
 window.androidJsObj = {
   getUid: function() {
@@ -233,6 +302,22 @@ window.__BridgeWebSocket.prototype._handlePacket = function(header, protoBytes) 
     return;
   }
 
+  // 1.5. MATCH REQ (.hall.MatchReq)
+  if (header.includes('MATCH') || header.includes('Match') || header.includes('match') || header === '.hall.MatchReq') {
+    setTimeout(function() {
+      if (root.hall && root.hall.MatchRes) {
+        var res = new root.hall.MatchRes({
+          code: 0,
+          desc: 'success',
+          tableId: 'table_1'
+        });
+        var body = root.hall.MatchRes.encode(res).finish();
+        self._sendPacket('.hall.MatchRes', body);
+      }
+    }, 50);
+    return;
+  }
+
   // 2. GETCONFIG / CHIP CONFIG
   if (header.includes('CONFIG') || header.includes('ChipCfg')) {
     setTimeout(function() {
@@ -321,6 +406,16 @@ window.__BridgeWebSocket.prototype._handlePacket = function(header, protoBytes) 
         roomId: window.__sugarGame.roomId,
         userId: window.__sugarGame.userId
       }));
+    } else {
+      // Direct Web Mode: Sync bet deduction to Supabase
+      try {
+        var uid = window.__sugarGame.userId;
+        var postBetCoins = Math.max(0, window.__sugarGame.userCoins - betAmount);
+        supabaseRequest('/rest/v1/users?or=(uid.eq.' + encodeURIComponent(uid) + ',custom_id.eq.' + encodeURIComponent(uid) + ')', {
+          method: 'PATCH',
+          body: { coins: postBetCoins }
+        }).catch(function(e){ console.warn('[SugarGame] Supabase bet coins sync error:', e); });
+      } catch(e) {}
     }
 
     window.__sugarGame.userCoins = Math.max(0, window.__sugarGame.userCoins - betAmount);
@@ -346,11 +441,76 @@ window.__BridgeWebSocket.prototype._handlePacket = function(header, protoBytes) 
         userCoins: window.__sugarGame.userCoins,
         isWin: isWin
       }));
+    } else {
+      // Direct Web Mode: Sync win coins and log bet record to Supabase
+      try {
+        var uid = window.__sugarGame.userId;
+        var finalCoins = window.__sugarGame.userCoins;
+        if (winAmount > 0) {
+          supabaseRequest('/rest/v1/users?or=(uid.eq.' + encodeURIComponent(uid) + ',custom_id.eq.' + encodeURIComponent(uid) + ')', {
+            method: 'PATCH',
+            body: { coins: finalCoins }
+          }).catch(function(e){ console.warn('[SugarGame] Supabase win coins sync error:', e); });
+        }
+        // Insert game bet record
+        supabaseRequest('/rest/v1/game_bet_records', {
+          method: 'POST',
+          body: {
+            game_id: 'sugarrush',
+            user_id: uid,
+            room_id: window.__sugarGame.roomId || '1',
+            user_name: window.__sugarGame.userName || 'Player',
+            bet_amount: betAmount,
+            win_amount: winAmount,
+            net_result: winAmount - betAmount,
+            is_win: isWin,
+            created_at: new Date().toISOString()
+          }
+        }).catch(function(e){ console.warn('[SugarGame] Supabase bet record insert error:', e); });
+
+        // Update pool balance in game_jackpot_pool
+        var netChange = betAmount - winAmount;
+        if (netChange !== 0) {
+          window.__sugarGame.poolBalance += netChange;
+          supabaseRequest('/rest/v1/game_jackpot_pool?id=eq.sugarrush', {
+            method: 'PATCH',
+            body: {
+              pool_balance: window.__sugarGame.poolBalance,
+              updated_at: new Date().toISOString()
+            }
+          }).catch(function(e){ console.warn('[SugarGame] Supabase pool balance update error:', e); });
+        }
+      } catch(e) {}
     }
 
+    // Ensure symbolInfo decode safety net for out-of-bound item access
+    if (root.game && root.game.symbolInfo && !root.game.symbolInfo.__safePatched) {
+      root.game.symbolInfo.__safePatched = true;
+      var origDecode = root.game.symbolInfo.decode;
+      root.game.symbolInfo.decode = function(r, l) {
+        var obj = origDecode.call(this, r, l);
+        if (obj && obj.matrixProtoList && typeof Proxy !== 'undefined') {
+          var rawList = obj.matrixProtoList;
+          obj.matrixProtoList = new Proxy(rawList, {
+            get: function(target, prop) {
+              if (typeof prop === 'string' && !isNaN(prop)) {
+                var n = parseInt(prop, 10);
+                if (n >= 0 && (!target[n] || target[n].number === undefined)) {
+                  return { row: 0, column: 0, number: Math.floor(Math.random() * 7) + 1 };
+                }
+              }
+              return target[prop];
+            }
+          });
+        }
+        return obj;
+      };
+    }
+
+    // Grid in SugarRush is 6 columns by 6 rows (36 items total)
     var matrix = [];
-    for (var r = 0; r < 5; r++) {
-      for (var c = 0; c < 3; c++) {
+    for (var c = 0; c < 6; c++) {
+      for (var r = 0; r < 6; r++) {
         var num = Math.floor(Math.random() * 7) + 1;
         matrix.push(new root.game.posInfo({
           row: r,
@@ -362,10 +522,9 @@ window.__BridgeWebSocket.prototype._handlePacket = function(header, protoBytes) 
 
     if (isWin) {
       var winNum = Math.floor(Math.random() * 6) + 1;
-      matrix[0].number = winNum;
-      matrix[1].number = winNum;
-      matrix[3].number = winNum;
-      matrix[4].number = winNum;
+      for (var w = 0; w < 6; w++) {
+        matrix[w].number = winNum;
+      }
     }
 
     setTimeout(function() {

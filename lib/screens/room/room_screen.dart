@@ -5864,7 +5864,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final totalCoins = _currentRoom?.totalGifts ?? _currentRoom?.hotValue ?? 0;
     final todayCoins = (totalCoins * 0.25).toInt();
     final weekCoins = (totalCoins * 0.65).toInt();
-    final monthCoins = totalCoins;
+    final monthCoins = _currentRoom?.monthlyCoins ?? 0;
     final roomLevel = max(1, (totalCoins / 1000).floor() + 1);
 
     final roomBg = _currentRoom?.bgImage.isNotEmpty == true
@@ -6018,7 +6018,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                                   const SizedBox(width: 3),
                                                   Flexible(
                                                     child: Text(
-                                                      R.formatCoins(totalCoins),
+                                                      R.formatCoins(monthCoins),
                                                       maxLines: 1,
                                                       overflow: TextOverflow.ellipsis,
                                                       style: const TextStyle(
@@ -7449,21 +7449,33 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   ),
                                   onPressed: () async {
                                     final curUser = Provider.of<UserProvider>(context, listen: false).currentUser;
-                                    await _firebaseService.sendPrivateMessage(
-                                      senderId: _currentUserId ?? '',
-                                      senderName: curUser?.name ?? _currentUserName ?? '',
-                                      senderPhotoUrl: curUser?.photoUrl ?? '',
-                                      receiverId: fUid,
-                                      receiverName: fName,
-                                      receiverPhotoUrl: fPhoto,
-                                      text: isAr
-                                          ? 'تعال إلى غرفتي "${widget.roomName}" الآن! رابط الغرفة: https://ahla.live/room/${widget.roomId}'
-                                          : 'Join my room "${widget.roomName}" now! Link: https://ahla.live/room/${widget.roomId}',
-                                    );
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text(isAr ? 'تمت مشاركة الغرفة مع $fName' : 'Shared room with $fName')),
+                                    try {
+                                      await _firebaseService.sendPrivateMessage(
+                                        senderId: _currentUserId ?? '',
+                                        senderName: curUser?.name ?? _currentUserName ?? '',
+                                        senderPhotoUrl: curUser?.photoUrl ?? '',
+                                        receiverId: fUid,
+                                        receiverName: fName,
+                                        receiverPhotoUrl: fPhoto,
+                                        text: isAr
+                                            ? 'تعال إلى غرفتي "${widget.roomName}" الآن! رابط الغرفة: https://ahla.live/room/${widget.roomId}'
+                                            : 'Join my room "${widget.roomName}" now! Link: https://ahla.live/room/${widget.roomId}',
                                       );
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text(isAr ? 'تمت مشاركة الغرفة مع $fName' : 'Shared room with $fName')),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      debugPrint('[RoomScreen] share room message error: $e');
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(isAr ? 'تعذر إرسال الرسالة' : 'Failed to send message'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
                                     }
                                   },
                                   child: Text(isAr ? 'إرسال' : 'Send', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),

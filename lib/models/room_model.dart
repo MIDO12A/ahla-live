@@ -19,6 +19,7 @@ class RoomModel {
   final SeatStyle seatStyle;
   final SeatColor seatColor;
   final int totalGifts;
+  final int monthlyCoins;
   final int hotValue;
   final List<String> moderators;
   final String country;
@@ -47,6 +48,7 @@ class RoomModel {
     this.seatStyle = SeatStyle.circle,
     this.seatColor = SeatColor.silver,
     this.totalGifts = 0,
+    this.monthlyCoins = 0,
     this.hotValue = 0,
     this.moderators = const [],
     this.country = '',
@@ -76,6 +78,7 @@ class RoomModel {
     SeatStyle? seatStyle,
     SeatColor? seatColor,
     int? totalGifts,
+    int? monthlyCoins,
     int? hotValue,
     List<String>? moderators,
     String? country,
@@ -104,6 +107,7 @@ class RoomModel {
       seatStyle: seatStyle ?? this.seatStyle,
       seatColor: seatColor ?? this.seatColor,
       totalGifts: totalGifts ?? this.totalGifts,
+      monthlyCoins: monthlyCoins ?? this.monthlyCoins,
       hotValue: hotValue ?? this.hotValue,
       moderators: moderators ?? this.moderators,
       country: country ?? this.country,
@@ -146,6 +150,7 @@ class RoomModel {
             : int.tryParse(map['seat_color']?.toString() ?? '') ?? SeatColor.silver.index)
       ],
       totalGifts: (map['total_gifts'] ?? 0).toInt(),
+      monthlyCoins: (map['monthly_coins'] ?? 0).toInt(),
       hotValue: (map['hot_value'] ?? 0).toInt(),
       moderators: () {
         final m = map['moderators'];
@@ -188,6 +193,7 @@ class RoomModel {
         'seat_style': seatStyle.index.toString(),
         'seat_color': seatColor.index.toString(),
         'total_gifts': totalGifts,
+        'monthly_coins': monthlyCoins,
         'hot_value': hotValue,
         'moderators': moderators,
         'country': country,
