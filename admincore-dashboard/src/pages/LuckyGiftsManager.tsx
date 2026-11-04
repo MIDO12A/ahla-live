@@ -245,6 +245,9 @@ export default function LuckyGiftsManager() {
   // نسبة دخول هدايا الحظ في تارجت وماسات المستلم (%)
   const [targetPercentage, setTargetPercentage] = useState<number>(10.0);
 
+  // الحد الأدنى لمضاعف ظهور لافتة الحظ (room_all_gift_banner_bg) داخل الغرف
+  const [bannerMinMultiplier, setBannerMinMultiplier] = useState<number>(5);
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -321,6 +324,19 @@ export default function LuckyGiftsManager() {
         const val = Number(directData.value);
         if (!isNaN(val)) {
           setTargetPercentage(val);
+        }
+      }
+
+      const { data: bannerData } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'lucky_banner_min_multiplier')
+        .maybeSingle();
+
+      if (bannerData?.value !== undefined && bannerData?.value !== null) {
+        const val = Number(bannerData.value);
+        if (!isNaN(val) && val >= 0) {
+          setBannerMinMultiplier(val);
         }
       }
 
@@ -523,6 +539,11 @@ export default function LuckyGiftsManager() {
         await supabase.from('app_config').upsert({
           key: 'lucky_gift_target_percentage',
           value: targetPercentage,
+        }, { onConflict: 'key' });
+
+        await supabase.from('app_config').upsert({
+          key: 'lucky_banner_min_multiplier',
+          value: bannerMinMultiplier,
         }, { onConflict: 'key' });
 
         // Save pool configuration
@@ -904,6 +925,76 @@ export default function LuckyGiftsManager() {
                     className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:border-amber-500 outline-none pr-7 font-bold text-center"
                   />
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-amber-400 font-bold">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* كارت الحد الأدنى لمضاعف ظهور لافتة الحظ داخل الغرف */}
+          <div className="bg-gradient-to-r from-fuchsia-500/10 via-purple-500/10 to-transparent border border-fuchsia-500/30 rounded-2xl p-5 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-300">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>الحد الأدنى لمضاعف ظهور لافتة الحظ في الغرف</span>
+                    <span className="text-xs bg-fuchsia-500 text-black font-extrabold px-2 py-0.5 rounded-full">
+                      {bannerMinMultiplier}X
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1">
+                    لا تظهر لافتة <code className="text-fuchsia-300">room_all_gift_banner_bg</code> إلا عند فوز بمضاعف
+                    أكبر من أو يساوي هذا الحد (مثال: 5 تعني ظهور اللافتة من 5X وأعلى فقط، ولا شيء لـ 1X–4X).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[0, 2, 5, 10, 20, 50, 100].map(mult => (
+                  <button
+                    key={mult}
+                    onClick={() => setBannerMinMultiplier(mult)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
+                      bannerMinMultiplier === mult
+                        ? 'bg-fuchsia-500 text-black border-fuchsia-400 shadow-lg shadow-fuchsia-500/20'
+                        : 'bg-black/40 text-slate-300 border-white/10 hover:border-fuchsia-500/50 hover:text-white'
+                    }`}
+                  >
+                    {mult}X
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pt-3 border-t border-white/5">
+              <div className="md:col-span-8 flex items-center gap-3">
+                <span className="text-xs text-slate-400 shrink-0">0X</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={bannerMinMultiplier}
+                  onChange={e => setBannerMinMultiplier(Number(e.target.value))}
+                  className="w-full accent-fuchsia-500 cursor-pointer"
+                />
+                <span className="text-xs text-slate-400 shrink-0">100X</span>
+              </div>
+              <div className="md:col-span-4 flex items-center gap-2">
+                <span className="text-xs text-slate-300 font-medium shrink-0">الحد الأدنى:</span>
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="10000"
+                    step="1"
+                    value={bannerMinMultiplier}
+                    onChange={e => setBannerMinMultiplier(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:border-fuchsia-500 outline-none pl-8 font-bold text-center"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-fuchsia-400 font-bold">X</span>
                 </div>
               </div>
             </div>

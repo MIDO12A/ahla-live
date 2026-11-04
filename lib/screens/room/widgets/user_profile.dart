@@ -1224,10 +1224,12 @@ class _UserProfileState extends State<UserProfile> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!widget.isCurrentUser) ...[
+        child: Material(
+          color: Colors.transparent,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!widget.isCurrentUser) ...[
               // 1. Assign / Remove Admin/Moderator (تعيين كأدمن / مشرف)
               if (widget.isRoomOwner || widget.isModerator)
                 ListTile(
@@ -1301,8 +1303,9 @@ class _UserProfileState extends State<UserProfile> {
                 padding: EdgeInsets.all(16),
                 child: DText('خيارات المستخدم', style: TextStyle(color: Colors.white54, fontSize: 13)),
               ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

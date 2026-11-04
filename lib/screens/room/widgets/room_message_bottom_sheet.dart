@@ -310,7 +310,9 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
       } catch (_) {}
     }
 
-    return ListTile(
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
       onTap: () {
         if (otherUid.isNotEmpty) {
           final myUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid ?? '';
@@ -402,6 +404,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
               ),
             ),
         ],
+      ),
       ),
     );
   }

@@ -2385,6 +2385,18 @@ class DynamicConfigService extends ChangeNotifier {
     return 10.0;
   }
 
+  /// الحد الأدنى لمضاعف هدية الحظ الذي تظهر عنده اللافتة (افتراضياً 5X)
+  int get luckyBannerMinMultiplier {
+    final v = _rawConfig['lucky_banner_min_multiplier'] ??
+        _rawConfig['luckyBannerMinMultiplier'] ??
+        _rawConfig['lucky_gift_banner_min_multiplier'];
+    if (v != null) {
+      final parsed = int.tryParse(v.toString());
+      if (parsed != null && parsed >= 0) return parsed;
+    }
+    return 5;
+  }
+
   /// سعر الصرف: عدد الكوينز لكل 1 دولار أمريكي (افتراضياً 15,000 كوينز)
   int get diamondsPerUsd => coinsPerUsd;
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/user_provider.dart';
 import '../../../config/r.dart';
+import '../models/lucky_bag_config.dart';
 import '../services/lucky_bag_service.dart';
 import 'package:zero/core/dtext.dart';
 
@@ -31,21 +32,70 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
   String _distributionType = 'random'; // 'random' (عشوائي) أو 'equal' (بالتساوي)
   int _selectedAmount = 1000;
   int _sharesCount = 10;
+  int _durationSeconds = 30;
   bool _sending = false;
   bool _showRules = false;
 
+  LuckyBagConfig _config = const LuckyBagConfig();
+
   final TextEditingController _customAmountCtrl = TextEditingController();
 
-  static const _coinPresets = [500, 1000, 2000, 5000, 10000, 20000];
-  static const _sharesPresets = [5, 10, 15, 20, 30, 50];
+  List<int> get _coinPresets => _config.amountPresets;
+  List<int> get _sharesPresets {
+    final list = _config.sharesPresets
+        .where((e) => e >= _config.minShares && e <= _config.maxBagsPerSend)
+        .toList();
+    return list.isEmpty ? [5] : list;
+  }
+  List<int> get _durationPresets => _config.durationPresets;
+
+  Color _parseColor(String raw, Color fallback) {
+    final cleaned = raw.replaceAll('#', '').trim();
+    if (cleaned.length == 6) {
+      final v = int.tryParse(cleaned, radix: 16);
+      if (v != null) return Color(0xFF000000 | v);
+    }
+    if (cleaned.length == 8) {
+      final v = int.tryParse(cleaned, radix: 16);
+      if (v != null) return Color(v);
+    }
+    return fallback;
+  }
+
+  Color get _primary =>
+      _parseColor(_config.primaryColor, const Color(0xFFFFF295));
+  Color get _secondary =>
+      _parseColor(_config.secondaryColor, const Color(0xFF134015));
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadConfig();
     _tabController.addListener(() {
       if (_tabController.indexIsChanging || _tabController.index != _activeTabIndex) {
         setState(() => _activeTabIndex = _tabController.index);
+      }
+    });
+  }
+
+  Future<void> _loadConfig() async {
+    final cfg = await LuckyBagService().loadConfig();
+    if (!mounted) return;
+    setState(() {
+      _config = cfg;
+      if (!_coinPresets.contains(_selectedAmount) && _coinPresets.isNotEmpty) {
+        _selectedAmount = _coinPresets.first;
+      }
+      if (!_sharesPresets.contains(_sharesCount) && _sharesPresets.isNotEmpty) {
+        _sharesCount = _sharesPresets.first;
+      }
+      if (!_durationPresets.contains(_durationSeconds) &&
+          _durationPresets.isNotEmpty) {
+        _durationSeconds = cfg.ttlSeconds;
+        if (!_durationPresets.contains(_durationSeconds)) {
+          _durationSeconds = _durationPresets.first;
+        }
       }
     });
   }
@@ -89,6 +139,16 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
       return;
     }
 
+    if (!_config.enabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: DText('نظام حقيبة الحظ غير مفعّل حالياً'),
+          backgroundColor: Color(0xFFB71C1C),
+        ),
+      );
+      return;
+    }
+
     setState(() => _sending = true);
     final res = await LuckyBagService().sendLuckyBag(
       roomId: widget.roomId,
@@ -96,7 +156,13 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
       scope: _scope,
       totalCoins: cost,
       count: _sharesCount,
-      greetingText: _distributionType == 'random' ? 'حظ سعيد للجميع ✨' : 'توزيع بالتساوي للجميع 🎁',
+      durationSeconds: _durationSeconds,
+      distribution: _distributionType,
+      greetingText: _activeTabIndex == 1
+          ? 'هدية حظ مميزة 🎁'
+          : (_distributionType == 'random'
+              ? 'حظ سعيد للجميع ✨'
+              : 'توزيع بالتساوي للجميع 🎁'),
       isSuper: _activeTabIndex == 1,
     );
 
@@ -121,27 +187,42 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
     }
   }
 
+  Widget _buildPanelBackground() {
+    if (_config.panelBackground.isNotEmpty) {
+      return Image(
+        image: R.cachedImage(_config.panelBackground),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Image.asset(
+          'assets/images/ic_send_lucky_box_panel_bg.png',
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        ),
+      );
+    }
+    return Image.asset(
+      'assets/images/ic_send_lucky_box_panel_bg.png',
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context).currentUser;
     final coins = user?.coins ?? 0;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF013C1B), // اللون الأساسي الداكن
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: _secondary, // اللون الأساسي الداكن
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Stack(
         children: [
-          // 1. الخلفية المكررة ic_send_lucky_box_panel_bg
+          // 1. الخلفية المكررة ic_send_lucky_box_panel_bg (أو خلفية لوحة التحكم)
           Positioned.fill(
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: Image.asset(
-                'assets/images/ic_send_lucky_box_panel_bg.png',
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-              ),
+              child: _buildPanelBackground(),
             ),
           ),
 
@@ -219,7 +300,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
             decoration: BoxDecoration(
               color: const Color(0xFF0B3A09),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFFFF295), width: 1.0),
+              border: Border.all(color: _primary, width: 1.0),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -233,16 +314,38 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                 const SizedBox(width: 5),
                 DText(
                   R.formatCoinsFraction(coins),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFFFF295),
+                    color: _primary,
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.arrow_forward_ios, size: 10, color: Color(0xFFFFF295)),
+                Icon(Icons.arrow_forward_ios, size: 10, color: _primary),
               ],
             ),
+          ),
+
+        // صورة الحقيبة (قابلة للتحكم من لوحة التحكم)
+        if (_config.bagImage.isNotEmpty)
+          Image(
+            image: R.cachedImage(_config.bagImage),
+            width: 34,
+            height: 34,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => Image.asset(
+              'assets/images/ic_luckybag.png',
+              width: 34,
+              height: 34,
+              fit: BoxFit.contain,
+            ),
+          )
+        else
+          Image.asset(
+            'assets/images/ic_luckybag.png',
+            width: 34,
+            height: 34,
+            fit: BoxFit.contain,
           ),
 
         // زر القواعد ruleBtn
@@ -274,7 +377,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
       decoration: BoxDecoration(
         color: const Color(0xFF003C1B),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xFFFFF295), width: 1.0),
+        border: Border.all(color: _primary, width: 1.0),
       ),
       child: Stack(
         children: [
@@ -316,8 +419,8 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(26),
             gradient: isSelected
-                ? const LinearGradient(
-                    colors: [Color(0xFFFFF295), Color(0xFFFFB606)],
+                ? LinearGradient(
+                    colors: [_primary, _primary.withValues(alpha: 0.75)],
                   )
                 : null,
           ),
@@ -339,9 +442,9 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF134015),
+        color: _secondary,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFFF295), width: 1.0),
+        border: Border.all(color: _primary, width: 1.0),
       ),
       child: Stack(
         children: [
@@ -377,10 +480,10 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFFFF295) : const Color(0xFF0B2E10),
+                        color: isSelected ? _primary : const Color(0xFF0B2E10),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isSelected ? const Color(0xFFFFF295) : const Color(0xFF2E6333),
+                          color: isSelected ? _primary : const Color(0xFF2E6333),
                         ),
                       ),
                       child: DText(
@@ -388,7 +491,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: isSelected ? const Color(0xFF134015) : const Color(0xFFFFF295),
+                          color: isSelected ? _secondary : _primary,
                         ),
                       ),
                     ),
@@ -411,10 +514,10 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFFFF295) : const Color(0xFF0B2E10),
+                        color: isSelected ? _primary : const Color(0xFF0B2E10),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isSelected ? const Color(0xFFFFF295) : const Color(0xFF2E6333),
+                          color: isSelected ? _primary : const Color(0xFF2E6333),
                         ),
                       ),
                       child: DText(
@@ -422,7 +525,48 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: isSelected ? const Color(0xFF134015) : const Color(0xFFFFF295),
+                          color: isSelected ? _secondary : _primary,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 12),
+
+              // 2.1 مدة الحقيبة (العداد التنازلي) — تحت عدد الحقائب
+              _buildSectionTitle('مدة حقيبة الحظ (العداد)'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _durationPresets.map((sec) {
+                  final isSelected = _durationSeconds == sec;
+                  return GestureDetector(
+                    onTap: () => setState(() => _durationSeconds = sec),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFFFFF295)
+                            : const Color(0xFF0B2E10),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFFFFF295)
+                              : const Color(0xFF2E6333),
+                        ),
+                      ),
+                      child: DText(
+                        _formatDuration(sec),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected
+                              ? const Color(0xFF134015)
+                              : const Color(0xFFFFF295),
                         ),
                       ),
                     ),
@@ -478,6 +622,14 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
     );
   }
 
+  String _formatDuration(int seconds) {
+    if (seconds >= 60 && seconds % 60 == 0) {
+      final minutes = seconds ~/ 60;
+      return minutes >= 60 ? '${minutes ~/ 60} ساعة' : '$minutes دقيقة';
+    }
+    return '$seconds ثانية';
+  }
+
   Widget _buildSectionTitle(String title) {
     return Row(
       children: [
@@ -490,10 +642,10 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
         const SizedBox(width: 6),
         DText(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
-            color: Color(0xFFFFFB7B), // #fffb7b
+            color: _primary,
           ),
         ),
       ],
@@ -512,10 +664,10 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
           padding: const EdgeInsets.symmetric(vertical: 8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFFFF295) : const Color(0xFF0B2E10),
+            color: isSelected ? _primary : const Color(0xFF0B2E10),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? const Color(0xFFFFF295) : const Color(0xFF2E6333),
+              color: isSelected ? _primary : const Color(0xFF2E6333),
             ),
           ),
           child: DText(
@@ -523,7 +675,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: isSelected ? const Color(0xFF134015) : const Color(0xFFFFF295),
+              color: isSelected ? _secondary : _primary,
             ),
           ),
         ),
@@ -541,7 +693,7 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFFFF295).withValues(alpha: 0.3),
+              color: _primary.withValues(alpha: 0.3),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -557,9 +709,9 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
                   'assets/images/ic_send_luckybag_btn.png',
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Color(0xFFFFF295), Color(0xFFFFB606)],
+                        colors: [_primary, _primary.withValues(alpha: 0.75)],
                       ),
                     ),
                   ),
@@ -592,9 +744,9 @@ class _LuckyBagSendDialogState extends State<LuckyBagSendDialog> with SingleTick
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF134015),
+        color: _secondary,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFFF295), width: 1.0),
+        border: Border.all(color: _primary, width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

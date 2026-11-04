@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../config/r.dart';
+import '../models/lucky_bag_config.dart';
 import '../models/lucky_bag_model.dart';
+import '../services/lucky_bag_service.dart';
 import 'lucky_bag_claim_dialog.dart';
 import 'package:zero/core/dtext.dart';
 
@@ -34,6 +37,7 @@ class LuckyBagListDialog extends StatefulWidget {
 
 class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
   Timer? _timer;
+  LuckyBagConfig _config = const LuckyBagConfig();
 
   @override
   void initState() {
@@ -41,6 +45,43 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+    LuckyBagService().loadConfig().then((cfg) {
+      if (mounted) setState(() => _config = cfg);
+    });
+  }
+
+  Color _parseColor(String raw, Color fallback) {
+    final cleaned = raw.replaceAll('#', '').trim();
+    if (cleaned.length == 6) {
+      final v = int.tryParse(cleaned, radix: 16);
+      if (v != null) return Color(0xFF000000 | v);
+    }
+    if (cleaned.length == 8) {
+      final v = int.tryParse(cleaned, radix: 16);
+      if (v != null) return Color(v);
+    }
+    return fallback;
+  }
+
+  Color get _primary =>
+      _parseColor(_config.primaryColor, const Color(0xFFFBA806));
+  Color get _countdownColor =>
+      _parseColor(_config.countdownColor, const Color(0xB3000000));
+
+  Duration _remaining(LuckyBagModel bag) {
+    final expires = DateTime.tryParse(bag.expiresAt ?? '');
+    if (expires == null) return Duration.zero;
+    final diff = expires.difference(DateTime.now());
+    return diff.isNegative ? Duration.zero : diff;
+  }
+
+  String _formatRemaining(LuckyBagModel bag) {
+    final total = _remaining(bag).inSeconds;
+    if (total <= 0) return 'انتهى';
+    final m = total ~/ 60;
+    final s = total % 60;
+    if (m > 0) return '$m:${s.toString().padLeft(2, '0')}';
+    return '${s}s';
   }
 
   @override
@@ -73,14 +114,16 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFBA806).withValues(alpha: 0.2),
+                    color: _primary.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFFBA806), width: 1),
+                    border: Border.all(color: _primary, width: 1),
                   ),
                   child: DText(
-                    isAr ? 'حقائب الحظ النشطة ()' : 'Active Lucky Bags ()',
-                    style: const TextStyle(
-                      color: Color(0xFFFBA806),
+                    isAr
+                        ? 'حقائب الحظ النشطة (${widget.bags.length})'
+                        : 'Active Lucky Bags (${widget.bags.length})',
+                    style: TextStyle(
+                      color: _primary,
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
@@ -122,7 +165,7 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
                       crossAxisCount: 3,
                       crossAxisSpacing: 14,
                       mainAxisSpacing: 14,
-                      childAspectRatio: 0.85,
+                      childAspectRatio: 0.62,
                     ),
                     itemCount: widget.bags.length,
                     itemBuilder: (context, index) {
@@ -155,30 +198,59 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
             height: 65,
             child: Stack(
               alignment: Alignment.center,
+              clipBehavior: Clip.none,
               children: [
-                Image.asset(
-                  'assets/images/ic_luckybag.png',
-                  width: 65,
-                  height: 65,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.card_giftcard,
-                    color: Color(0xFFFBA806),
-                    size: 48,
+                _config.bagImage.trim().isNotEmpty
+                    ? Image(
+                        image: R.cachedImage(_config.bagImage),
+                        width: 65,
+                        height: 65,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => _fallbackBagIcon(),
+                      )
+                    : Image.asset(
+                        'assets/images/ic_luckybag.png',
+                        width: 65,
+                        height: 65,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => _fallbackBagIcon(),
+                      ),
+                // عدد الحقائب المتبقية
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 1),
+                    constraints: const BoxConstraints(minWidth: 16),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF2442),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white, width: 0.8),
+                    ),
+                    child: DText(
+                      '${bag.remainingCount}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
-                // countDownTv / remaining value badge at bottom of icon
+                // العدّاد التنازلي أسفل الصورة
                 Positioned(
-                  bottom: 0,
+                  bottom: -4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                     decoration: BoxDecoration(
-                      color: const Color(0xB3000000), // black_trans_70
+                      color: _countdownColor,
                       borderRadius: BorderRadius.circular(5),
                       border: Border.all(color: Colors.white, width: 0.6),
                     ),
                     child: DText(
-                      ' 🪙',
+                      _formatRemaining(bag),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 8,
@@ -190,7 +262,7 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           // nameTv
           DText(
             bag.ownerName.isNotEmpty ? bag.ownerName : (isAr ? 'حقيبة الحظ' : 'Lucky Bag'),
@@ -203,8 +275,26 @@ class _LuckyBagListDialogState extends State<LuckyBagListDialog> {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
           ),
+          const SizedBox(height: 2),
+          // القيمة المتبقية داخل الحقيبة
+          DText(
+            '${bag.remainingValue} 🪙',
+            style: TextStyle(
+              color: _primary,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _fallbackBagIcon() {
+    return Icon(
+      Icons.card_giftcard,
+      color: _primary,
+      size: 48,
     );
   }
 }

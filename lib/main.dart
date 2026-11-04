@@ -23,6 +23,7 @@ import 'config/r.dart';
 
 import 'core/ui/in_app_toast.dart';
 import 'features/host_agency/widgets/agency_notification_handler.dart';
+import 'features/lucky_bag/services/lucky_bag_service.dart';
 import 'services/global_banner_service.dart';
 import 'widgets/global_banner_overlay.dart';
 
@@ -46,6 +47,7 @@ await SupabaseAuthService().init();
   await localeProvider.init();
 
   GlobalBannerService.instance.init();
+  LuckyBagService().startExpiryWatcher();
   WakelockPlus.enable();
   runApp(ZeroApp(localeProvider: localeProvider));
 }

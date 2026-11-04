@@ -706,7 +706,7 @@ abstract final class AgencyRepository {
         .or('uid.eq.$uid,id.eq.$uid')
         .maybeSingle();
     final curD = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
-    final curC = (uRow?['coins'] as num?)?.toDouble() ?? 0;
+    final curC = (uRow?['coins'] as num?)?.toInt() ?? 0;
 
     final memRows = await _sb
         .from('host_agency_members')
@@ -731,11 +731,11 @@ abstract final class AgencyRepository {
     }
 
     final coinsReceived = (diamondsAmount * mult * 100).round() / 100;
-    final newDiamonds = (curD - diamondsAmount).clamp(0, 999999999);
+    final newDiamonds = (curD - diamondsAmount).clamp(0, 999999999).toInt();
 
     await _sb.from('users').update({
       'diamonds': newDiamonds,
-      'coins': curC + coinsReceived,
+      'coins': (curC + coinsReceived).round(),
     }).or('uid.eq.$uid,id.eq.$uid');
 
     if (mem != null) {
@@ -780,7 +780,7 @@ abstract final class AgencyRepository {
       await _sb.from('diamond_exchange_log').insert({
         'user_id': uid,
         'diamonds': diamondsAmount,
-        'coins': coinsReceived,
+        'coins': coinsReceived.round(),
         'balance_after': newDiamonds,
         'idempotency_key': idempotencyKey,
         'created_at': DateTime.now().toUtc().toIso8601String(),

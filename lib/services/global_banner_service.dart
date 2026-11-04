@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/gift_banner_config_model.dart';
 import 'supabase_service.dart';
 import 'supabase_data_service.dart';
+import 'dynamic_config_service.dart';
 
 /// أنواع لافتات الهدايا المدعومة في الطابور الموحد
 enum GlobalBannerType {
@@ -120,9 +121,11 @@ class GlobalBannerService extends ChangeNotifier {
     for (final b in broadcasts) {
       final bTs = (b['timestamp'] as num?)?.toInt() ??
           (DateTime.tryParse(b['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-      // تجاهل أي بث تم إنشاؤه قبل فتح التطبيق أو قديم جداً
-      if (bTs == 0 || bTs < _sessionStartTime - 10000) continue;
-      final isFresh = (nowMs - bTs).abs() < 60000;
+      // تجاهل أي بث قديم جداً (نسمح بهامش دقيقتين لفارق ساعة الجهاز/السيرفر)
+      if (bTs == 0 || bTs < _sessionStartTime - 120000) continue;
+      // نسمح بفارق ساعة يصل إلى 5 دقائق بين الأجهزة حتى لا يختفي نص الفوز
+      // عند وجود فرق توقيت بسيط بين ساعة الهاتف والسيرفر.
+      final isFresh = (nowMs - bTs).abs() < 300000;
       if (!isFresh) continue;
 
       final bId = b['id']?.toString() ?? '${bTs}_${b['sender_uid']}_${b['gift_name']}';
@@ -137,21 +140,45 @@ class GlobalBannerService extends ChangeNotifier {
 
       final isLucky = b['is_lucky'] == true || b['type'] == 'lucky_gift';
       final multiplier = (b['multiplier'] as num?)?.toInt() ?? 0;
+      final minLuckyMult = DynamicConfigService().luckyBannerMinMultiplier;
 
       // ── أولوية العرض الذكية لمنع التكرار والتراكم ──
-      // هدايا الحظ تبدأ لافتتها من مضاعف 10X فقط، ولا تُعرض لها لافتة الشريط/الماركي
-      if (isLucky && multiplier < 10 && b['is_big_win'] != true) continue;
+      final wonCoins = (b['won_coins'] as num?)?.toInt() ??
+          (b['coins'] as num?)?.toInt() ??
+          0;
+      final isWinText = wonCoins > 0 ||
+          (b['content']?.toString().contains('فاز') ?? false) ||
+          (b['content']?.toString().contains('ربح') ?? false);
 
-      // 1. فوز الحظ (10X فما فوق) -> نظهر بانر الفوز الأسطوري فقط
+      // الحد الأدنى يحكم لافتة الهدية فقط؛ نص الفوز يُعرض دائماً للجميع.
+      if (isLucky && multiplier < minLuckyMult && b['is_big_win'] != true && !isWinText) {
+        continue;
+      }
+
+      // 1. هدايا الحظ (نص الفوز يظهر فوراً في كل الغرف)
       if (isLucky) {
-        showBigWin({
-          'id': bId,
-          'senderName': b['sender_name']?.toString() ?? 'مستخدم',
-          'senderAvatar': b['sender_photo_url']?.toString() ?? '',
-          'giftName': b['gift_name']?.toString() ?? '',
-          'multiplier': multiplier > 0 ? multiplier : 10,
-          'totalWon': (b['won_coins'] as num?)?.toInt() ?? (b['coins'] as num?)?.toInt() ?? 0,
+        final luckyContent = (b['content']?.toString().isNotEmpty == true)
+            ? b['content'].toString()
+            : (wonCoins > 0
+                ? '🍀 فاز بمضاعف ${multiplier}X — ربح $wonCoins 🪙!'
+                : '🍀 فاز بمضاعف ${multiplier}X!');
+        showMarquee({
+          ...b,
+          'multiplier': multiplier,
+          'content': luckyContent,
         });
+
+        // بانر الفوز الأسطوري يبقى للمضاعف 10X فما فوق
+        if (multiplier >= 10 || b['is_big_win'] == true) {
+          showBigWin({
+            'id': '${bId}_bigwin',
+            'senderName': b['sender_name']?.toString() ?? 'مستخدم',
+            'senderAvatar': b['sender_photo_url']?.toString() ?? '',
+            'giftName': b['gift_name']?.toString() ?? '',
+            'multiplier': multiplier > 0 ? multiplier : 10,
+            'totalWon': wonCoins,
+          });
+        }
       } else {
         // 2. فحص لافتة الهدية المخصصة SVGA (Gift Banner Config)
         final totalCost = (b['total_cost'] as num?)?.toInt() ??
@@ -356,6 +383,31 @@ class GlobalBannerService extends ChangeNotifier {
         'numberKey': 'number',
         'giftKey': 'gift',
       });
+    }
+  }
+
+  /// تسجيل حقيبة الحظ في جدول البث العام ليصل إشعارها لكل الأجهزة فوراً.
+  Future<void> recordLuckyBagBroadcast({
+    required String roomId,
+    required String senderUid,
+    required String senderName,
+    required String senderPhotoUrl,
+    required int totalCoins,
+    required int bagCount,
+  }) async {
+    try {
+      await SupabaseDataService().recordBroadcast(
+        senderUid: senderUid,
+        senderName: senderName,
+        senderPhotoUrl: senderPhotoUrl,
+        roomId: roomId,
+        roomName: '',
+        content: '🧧 أطلق حقيبة حظ بقيمة $totalCoins 🪙 ($bagCount حقيبة)',
+        giftIcon: 'assets/images/ic_luckybag.png',
+        type: 'lucky_bag',
+      );
+    } catch (e) {
+      debugPrint('[GlobalBannerService] recordLuckyBagBroadcast error: $e');
     }
   }
 

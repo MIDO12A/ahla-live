@@ -75,11 +75,11 @@ class SupabaseService {
       num newCoins = user.coins;
       num newDiamonds = user.diamonds;
       if (coinsDelta != 0) {
-        newCoins = (user.coins + coinsDelta).clamp(0, 999999999);
+        newCoins = (user.coins + coinsDelta).clamp(0, 999999999).toInt();
         updates['coins'] = newCoins;
       }
       if (diamondsDelta != 0) {
-        newDiamonds = (user.diamonds + diamondsDelta).clamp(0, 999999999);
+        newDiamonds = (user.diamonds + diamondsDelta).clamp(0, 999999999).toInt();
         updates['diamonds'] = newDiamonds;
       }
       final ok = await _ds.updateUser(uid, updates);
@@ -230,12 +230,49 @@ class SupabaseService {
   }
 
   Stream<List<Map<String, dynamic>>> globalBroadcastStream() async* {
+    String? watermark;
     while (true) {
       try {
-        final broadcasts = await _ds.getRecentBroadcasts(limit: 10);
-        yield broadcasts;
+        if (watermark == null) {
+          final broadcasts = await _ds.getRecentBroadcasts(limit: 10);
+          if (broadcasts.isNotEmpty) {
+            yield broadcasts;
+            for (final b in broadcasts) {
+              final ts = b['created_at']?.toString();
+              if (ts != null && ts.isNotEmpty) {
+                if (watermark == null || ts.compareTo(watermark) > 0) {
+                  watermark = ts;
+                }
+              }
+            }
+          }
+          // نبدأ من نقطة متأخرة 60 ثانية لتغطية أي فارق بين ساعة الجهاز والسيرفر
+          watermark ??= DateTime.now()
+              .toUtc()
+              .subtract(const Duration(seconds: 60))
+              .toIso8601String();
+        } else {
+          // تداخل بسيط لضمان عدم فقدان أي بث عند تزامن الطلبات
+          final since = DateTime.tryParse(watermark)
+                  ?.toUtc()
+                  .subtract(const Duration(seconds: 2))
+                  .toIso8601String() ??
+              watermark;
+          final broadcasts =
+              await _ds.getBroadcastsSince(since, limit: 20);
+          if (broadcasts.isNotEmpty) {
+            yield broadcasts;
+            for (final b in broadcasts) {
+              final ts = b['created_at']?.toString();
+              if (ts != null && ts.isNotEmpty && ts.compareTo(watermark!) > 0) {
+                watermark = ts;
+              }
+            }
+          }
+        }
       } catch (_) {}
-      await Future.delayed(const Duration(seconds: 3));
+      // أقل من ثانية: نص فوز هدية الحظ يظهر في كل الغرف فوراً (250ms)
+      await Future.delayed(const Duration(milliseconds: 250));
     }
   }
 
@@ -253,7 +290,7 @@ class SupabaseService {
           }
         }
       } catch (_) {}
-      await Future.delayed(const Duration(seconds: 3));
+      await Future.delayed(const Duration(seconds: 1));
     }
   }
 
@@ -399,7 +436,7 @@ class SupabaseService {
             maxMultiplier = (rpcData['multiplier'] as num?)?.toInt() ?? 0;
             isBigWin = rpcData['is_big_win'] == true || maxMultiplier >= 10;
             serverNewBalance =
-                (rpcData['new_balance'] as num?)?.toDouble() ?? 0;
+                (rpcData['new_balance'] as num?)?.toInt() ?? 0;
             final rawMults = rpcData['multipliers'] as List<dynamic>?;
             if (rawMults != null) {
               multipliers = rawMults.map((e) => (e as num).toInt()).toList();
@@ -450,7 +487,7 @@ class SupabaseService {
         }
         isBigWin = maxMultiplier >= 10;
         serverNewBalance =
-            math.max(0, currentCoins - totalCost + totalWonCoins);
+            math.max(0, currentCoins - totalCost + totalWonCoins).toInt();
 
         await _ds.updateUser(senderId, {
           'coins': serverNewBalance,
@@ -594,21 +631,34 @@ class SupabaseService {
             .catchError((_) => false));
       }
 
-      // 5. بث الفوز لكافة الغرف عبر جدول broadcasts (لكل هدية محظوظة)
+      // 5. بث نص الفوز لكافة الغرف فوراً عبر جدول broadcasts (لكل هدية محظوظة)
+      //    نُظهر نص الفوز حتى لو كان المضاعف 1X لكن هناك عملات مكتسبة.
+      final String broadcastContent;
+      if (maxMultiplier > 1) {
+        broadcastContent =
+            '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!';
+      } else if (totalWonCoins > 0) {
+        broadcastContent =
+            '🎉 فاز بـ $totalWonCoins 🪙 في هدية الحظ $giftNameAr!';
+      } else {
+        broadcastContent = '🍀 أرسل هدية الحظ $giftNameAr x$count';
+      }
+
       unawaited(_ds
           .recordBroadcast(
             senderUid: senderId,
             senderName: senderName,
             senderPhotoUrl: senderPhotoUrl,
             roomId: roomId,
-            content: maxMultiplier > 1
-                ? '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!'
-                : 'أرسل هدية الحظ $giftNameAr x$count',
+            content: broadcastContent,
             giftIcon: giftIconUrl,
             multiplier: maxMultiplier,
             type: 'lucky_gift',
           )
           .catchError((_) => false));
+
+      // نص الفوز يصل لكل الأجهزة (بما فيها المرسل) عبر Supabase Realtime
+      // مع polling احتياطي كل 500ms في GlobalBannerService.
 
       if (isBigWin || maxMultiplier >= 10) {
         unawaited(_ds
@@ -1096,7 +1146,7 @@ class SupabaseService {
   Future<bool> deductCoins(String uid, int amount, [String? reason]) async {
     final u = await _ds.getUser(uid);
     if (u != null && u.coins >= amount) {
-      await _ds.updateUser(uid, {'coins': math.max(0, u.coins - amount)});
+      await _ds.updateUser(uid, {'coins': math.max(0, u.coins - amount).toInt()});
       return true;
     }
     return false;
@@ -1470,12 +1520,12 @@ class SupabaseService {
           error: 'كمية الألماس غير كافية للحصول على كوينز'
         );
       }
-      final newDiamonds = (curDiamonds - diamonds).clamp(0, 999999999);
+      final newDiamonds = (curDiamonds - diamonds).clamp(0, 999999999).toInt();
       final newCoins = curCoins + coinsToReceive;
 
       await _sb.from('users').update({
         'diamonds': newDiamonds,
-        'coins': newCoins,
+        'coins': newCoins.round(),
       }).or('uid.eq.$uid,id.eq.$uid');
 
       if (member != null) {
@@ -1517,7 +1567,7 @@ class SupabaseService {
         await _sb.from('diamond_exchange_log').insert({
           'user_id': uid,
           'diamonds': diamonds,
-          'coins': coinsToReceive,
+          'coins': coinsToReceive.round(),
           'balance_after': newDiamonds,
           'idempotency_key': idem,
           'created_at': DateTime.now().toUtc().toIso8601String(),

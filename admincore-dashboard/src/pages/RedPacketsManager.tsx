@@ -17,6 +17,7 @@ import {
   Award
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { uploadAppAsset } from '../lib/storage';
 
 interface RedPacketConfig {
   enabled: boolean;
@@ -25,45 +26,99 @@ interface RedPacketConfig {
   max_coins: number;
   min_shares: number;
   max_shares: number;
+  max_bags_per_send: number;
+  max_active_per_room: number;
   amount_presets: number[];
   shares_presets: number[];
+  duration_presets: number[];
   greetings: string[];
+  bag_image: string;
+  panel_background: string;
+  primary_color: string;
+  secondary_color: string;
+  countdown_color: string;
+}
+
+interface LuckyBagClaimRow {
+  claimerId?: string;
+  claimerName?: string;
+  claimer_name?: string;
+  amount?: number;
+}
+
+interface LuckyBagClaimsMeta {
+  type?: string;
+  scope?: string;
+  distribution?: string;
+  greeting?: string;
 }
 
 interface ActiveBag {
   id: string;
   room_id: string;
-  owner_name: string;
-  owner_photo: string;
-  type: string;
-  scope: string;
-  is_super: boolean;
+  sender_name: string;
+  sender_photo: string;
   total_value: number;
   remaining_value: number;
-  total_shares: number;
-  claimed_shares: number;
-  luckiest_name?: string;
-  luckiest_amount?: number;
+  total_count: number;
+  remaining_count: number;
   status: string;
   created_at: string;
   expires_at: string;
+  claims?: { meta?: LuckyBagClaimsMeta; list?: LuckyBagClaimRow[] } | LuckyBagClaimRow[];
 }
 
 const defaultConfig: RedPacketConfig = {
   enabled: true,
-  ttl_seconds: 90,
+  ttl_seconds: 30,
   min_coins: 100,
   max_coins: 1000000,
   min_shares: 2,
   max_shares: 200,
-  amount_presets: [500, 1000, 2000, 5000, 10000, 20000, 50000, 100000],
-  shares_presets: [5, 10, 20, 30, 50, 100],
+  max_bags_per_send: 200,
+  max_active_per_room: 3,
+  amount_presets: [500, 1000, 2000, 5000, 10000, 20000],
+  shares_presets: [5, 10, 15, 20, 30, 50],
+  duration_presets: [10, 30, 240, 600],
   greetings: [
-    'مبروك وموفقين ✨',
+    'حظ سعيد للجميع ✨',
+    'مبروك وموفقين 🎁',
     'كل عام وأنتم بخير 🌙',
-    'ألف مبروك للفائزين 🎁',
-    'تحياتي للجميع ❤️',
   ],
+  bag_image: '',
+  panel_background: '',
+  primary_color: '#FFF295',
+  secondary_color: '#134015',
+  countdown_color: '#000000',
+};
+
+const claimMeta = (bag: ActiveBag): LuckyBagClaimsMeta => {
+  if (!bag.claims || Array.isArray(bag.claims)) return {};
+  return bag.claims.meta || {};
+};
+
+const claimList = (bag: ActiveBag): LuckyBagClaimRow[] => {
+  if (!bag.claims) return [];
+  return Array.isArray(bag.claims) ? bag.claims : (bag.claims.list || []);
+};
+
+const luckiestClaim = (bag: ActiveBag): LuckyBagClaimRow | null => {
+  const list = claimList(bag);
+  if (list.length === 0) return null;
+  return list.reduce((best, c) =>
+    (c.amount || 0) > (best.amount || 0) ? c : best, list[0]);
+};
+
+const statusLabel = (status: string) => {
+  if (status === 'active') return '🟢 نشط';
+  if (status === 'claimed') return '✅ مكتمل';
+  return '⏰ منتهي';
+};
+
+const toColorInput = (value: string) => {
+  const cleaned = (value || '').replace('#', '').trim();
+  if (cleaned.length >= 6) return `#${cleaned.slice(0, 6)}`;
+  return '#ffffff';
 };
 
 export default function RedPacketsManager() {
@@ -71,8 +126,25 @@ export default function RedPacketsManager() {
   const [activeBags, setActiveBags] = useState<ActiveBag[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  const handleUpload = async (file: File, field: 'bag_image' | 'panel_background') => {
+    setUploadingField(field);
+    setErrorMsg('');
+    try {
+      const url = await uploadAppAsset(file, `lucky_bag_${field}`);
+      setConfig((prev) => ({ ...prev, [field]: url }));
+      setSuccessMsg('تم رفع الصورة بنجاح ✅');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      console.error('upload failed', err);
+      setErrorMsg('فشل رفع الصورة، حاول مرة أخرى');
+    } finally {
+      setUploadingField(null);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -203,7 +275,7 @@ export default function RedPacketsManager() {
               <input
                 type="number"
                 value={config.ttl_seconds}
-                onChange={(e) => setConfig({ ...config, ttl_seconds: parseInt(e.target.value) || 90 })}
+                onChange={(e) => setConfig({ ...config, ttl_seconds: parseInt(e.target.value) || 30 })}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white font-mono focus:border-amber-500 outline-none"
               />
             </div>
@@ -215,6 +287,31 @@ export default function RedPacketsManager() {
                 type="number"
                 value={config.max_shares}
                 onChange={(e) => setConfig({ ...config, max_shares: parseInt(e.target.value) || 200 })}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white font-mono focus:border-amber-500 outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-400 mb-1">
+                أقصى عدد حقائب في الإرسال الواحد
+              </label>
+              <input
+                type="number"
+                value={config.max_bags_per_send}
+                onChange={(e) => setConfig({ ...config, max_bags_per_send: parseInt(e.target.value) || 200 })}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white font-mono focus:border-amber-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-400 mb-1">
+                أقصى عدد حقائب نشطة في الغرفة
+              </label>
+              <input
+                type="number"
+                value={config.max_active_per_room}
+                onChange={(e) => setConfig({ ...config, max_active_per_room: parseInt(e.target.value) || 0 })}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white font-mono focus:border-amber-500 outline-none"
               />
             </div>
@@ -299,6 +396,28 @@ export default function RedPacketsManager() {
 
           <div>
             <label className="block text-xs font-semibold text-neutral-400 mb-1">
+              خيارات مدة الحقيبة بالثواني (10 / 30 / 240 / 600)
+            </label>
+            <input
+              type="text"
+              value={config.duration_presets.join(', ')}
+              onChange={(e) => {
+                const arr = e.target.value.split(',').map((s) => parseInt(s.trim())).filter((n) => !isNaN(n) && n > 0);
+                setConfig({ ...config, duration_presets: arr });
+              }}
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white font-mono focus:border-amber-500 outline-none"
+            />
+            <div className="flex flex-wrap gap-2 mt-2">
+              {config.duration_presets.map((sec) => (
+                <span key={sec} className="px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-lg text-xs font-bold">
+                  {sec >= 60 ? `${Math.round(sec / 60)} دقيقة` : `${sec} ثانية`}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-400 mb-1">
               عبارات التهنئة الافتراضية
             </label>
             <div className="space-y-2">
@@ -316,6 +435,107 @@ export default function RedPacketsManager() {
                 />
               ))}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Appearance: images & colors (reads by Flutter via LuckyBagConfig) */}
+      <div className="bg-neutral-900/80 rounded-2xl p-6 border border-neutral-800 space-y-5">
+        <div className="flex items-center space-x-2 space-x-reverse text-amber-400 font-bold text-lg border-b border-neutral-800 pb-3">
+          <Sparkles className="w-5 h-5" />
+          <span>المظهر: الصور والألوان</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Images */}
+          <div className="space-y-4">
+            {([
+              { key: 'bag_image' as const, label: 'صورة الحقيبة' },
+              { key: 'panel_background' as const, label: 'خلفية لوحة الإرسال' },
+            ]).map(({ key, label }) => (
+              <div key={key} className="p-4 bg-neutral-950/60 rounded-xl border border-neutral-800">
+                <label className="block text-xs font-semibold text-neutral-400 mb-2">{label}</label>
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-xl bg-neutral-900 border border-neutral-700 flex items-center justify-center overflow-hidden">
+                    {config[key] ? (
+                      <img src={config[key]} alt="" className="w-full h-full object-contain" />
+                    ) : (
+                      <span className="text-2xl">🧧</span>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <input
+                      type="text"
+                      value={config[key]}
+                      onChange={(e) => setConfig({ ...config, [key]: e.target.value })}
+                      placeholder="https://..."
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500 outline-none"
+                    />
+                    <div className="flex items-center gap-2">
+                      <label className={`cursor-pointer text-xs font-bold px-3 py-1.5 rounded-lg border ${
+                        uploadingField === key
+                          ? 'bg-neutral-800 text-neutral-500 border-neutral-700'
+                          : 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25'
+                      }`}>
+                        {uploadingField === key ? 'جارٍ الرفع...' : 'رفع صورة'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingField === key}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUpload(file, key);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {config[key] && (
+                        <button
+                          onClick={() => setConfig({ ...config, [key]: '' })}
+                          className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 px-3 py-1.5 rounded-lg hover:bg-red-500/20"
+                        >
+                          مسح
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Colors */}
+          <div className="space-y-4">
+            {([
+              { key: 'primary_color' as const, label: 'اللون الأساسي (الذهبي)' },
+              { key: 'secondary_color' as const, label: 'اللون الثانوي (الأخضر)' },
+              { key: 'countdown_color' as const, label: 'لون العدّاد التنازلي' },
+            ]).map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between gap-3 p-3 bg-neutral-950/60 rounded-xl border border-neutral-800">
+                <div>
+                  <div className="text-xs font-semibold text-neutral-300">{label}</div>
+                  <div className="text-[10px] text-neutral-500 font-mono">{config[key] || '-'}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={toColorInput(config[key])}
+                    onChange={(e) => setConfig({ ...config, [key]: e.target.value.toUpperCase() })}
+                    className="w-10 h-10 bg-transparent border border-neutral-700 rounded-lg cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={config[key]}
+                    onChange={(e) => setConfig({ ...config, [key]: e.target.value })}
+                    className="w-28 bg-neutral-950 border border-neutral-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono focus:border-amber-500 outline-none"
+                  />
+                </div>
+              </div>
+            ))}
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              الألوان تُطبّق على الحقيبة العائمة، حوار الفتح، وقائمة الحقائب داخل التطبيق مباشرة بعد الحفظ.
+            </p>
           </div>
         </div>
       </div>
@@ -359,38 +579,43 @@ export default function RedPacketsManager() {
                   </td>
                 </tr>
               ) : (
-                activeBags.map((bag) => (
+                activeBags.map((bag) => {
+                  const meta = claimMeta(bag);
+                  const claimed = claimList(bag).length;
+                  const luckiest = luckiestClaim(bag);
+                  return (
                   <tr key={bag.id} className="hover:bg-neutral-800/40 transition">
                     <td className="p-3">
                       <div className="flex items-center space-x-2 space-x-reverse">
                         <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden border border-neutral-700">
-                          {bag.owner_photo ? (
-                            <img src={bag.owner_photo} alt="" className="w-full h-full object-cover" />
+                          {bag.sender_photo ? (
+                            <img src={bag.sender_photo} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <span>👤</span>
                           )}
                         </div>
-                        <span className="font-semibold text-white">{bag.owner_name || 'مستخدم'}</span>
+                        <span className="font-semibold text-white">{bag.sender_name || 'مستخدم'}</span>
                       </div>
                     </td>
                     <td className="p-3 text-neutral-300 font-mono">{bag.room_id}</td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        bag.is_super ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                        meta.type === 'super' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'
                       }`}>
-                        {bag.is_super ? '👑 سوبر' : '🧧 عادي'} · {bag.scope === 'mic' ? 'المايك' : 'الغرفة'}
+                        {meta.type === 'super' ? '👑 سوبر' : '🧧 عادي'} · {meta.scope === 'mic' ? 'المايك' : 'الغرفة'}
                       </span>
                     </td>
                     <td className="p-3 text-amber-400 font-bold">{bag.total_value?.toLocaleString()} 🪙</td>
                     <td className="p-3 text-neutral-300">{bag.remaining_value?.toLocaleString()} 🪙</td>
                     <td className="p-3 text-neutral-300">
-                      {bag.claimed_shares || 0} / {bag.total_shares || 0}
+                      {claimed} / {bag.total_count || 0}
+                      <span className="text-[10px] text-neutral-500 block">متبقي {bag.remaining_count || 0}</span>
                     </td>
                     <td className="p-3">
-                      {bag.luckiest_name ? (
+                      {luckiest ? (
                         <span className="text-amber-300 font-semibold flex items-center space-x-1 space-x-reverse">
-                          <span>👑 {bag.luckiest_name}</span>
-                          <span className="text-[10px] text-neutral-400">({bag.luckiest_amount} 🪙)</span>
+                          <span>👑 {luckiest.claimerName || luckiest.claimer_name || 'مستخدم'}</span>
+                          <span className="text-[10px] text-neutral-400">({luckiest.amount} 🪙)</span>
                         </span>
                       ) : (
                         <span className="text-neutral-500">-</span>
@@ -400,14 +625,15 @@ export default function RedPacketsManager() {
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         bag.status === 'active' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-neutral-800 text-neutral-400'
                       }`}>
-                        {bag.status === 'active' ? '🟢 نشط' : 'منتهي'}
+                        {statusLabel(bag.status)}
                       </span>
                     </td>
                     <td className="p-3 text-neutral-400 text-[10px]">
                       {bag.created_at ? new Date(bag.created_at).toLocaleTimeString('ar-EG') : '-'}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

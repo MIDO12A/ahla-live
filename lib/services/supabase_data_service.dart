@@ -685,6 +685,13 @@ class SupabaseDataService {
         'last_ip', 'updated_at'
       };
 
+      const intColumns = {
+        'coins', 'diamonds', 'age', 'charm', 'level', 'experience',
+        'followers', 'following', 'visitors', 'wealth_level', 'wealth_exp',
+        'recharge_level', 'recharge_exp', 'gems_level', 'gems_exp',
+        'total_gifts_sent', 'total_gifts_received',
+      };
+
       const keyMap = {
         'customId': 'custom_id',
         'photoUrl': 'photo_url',
@@ -728,7 +735,10 @@ class SupabaseDataService {
         if (v != null) {
           final mappedKey = keyMap[k] ?? k;
           if (allowedColumns.contains(mappedKey)) {
-            clean[mappedKey] = v;
+            // أعمدة bigint/int في Postgres تقبل int فقط — تحويل 100.0 إلى 100
+            // وإلا يرد PostgREST بـ 400 (invalid input syntax for type bigint)
+            clean[mappedKey] =
+                intColumns.contains(mappedKey) && v is num ? v.toInt() : v;
           }
         }
       });
@@ -749,7 +759,8 @@ class SupabaseDataService {
           body: jsonEncode(clean),
         );
       }
-      debugPrint('[SupabaseDataService] updateUser ($uid) status: ${res.statusCode}');
+      debugPrint('[SupabaseDataService] updateUser ($uid) status: ${res.statusCode}'
+          '${res.statusCode >= 300 ? ' body: ${res.body.length > 300 ? res.body.substring(0, 300) : res.body}' : ''}');
       if (res.statusCode >= 200 && res.statusCode < 300) {
         if (clean.containsKey('custom_id') && !clean.containsKey('hosted_room_id')) {
           final newCid = clean['custom_id']?.toString() ?? '';
@@ -2885,7 +2896,8 @@ class SupabaseDataService {
           'gift_icon': giftIcon,
           'multiplier': multiplier,
           'type': type,
-          'created_at': DateTime.now().toUtc().toIso8601String(),
+          // لا نرسل created_at من جهاز العميل حتى لا يؤثر فارق الساعة
+          // بين الأجهزة على ظهور البث في كل الغرف. السيرفر يضبطه تلقائياً.
         }),
       );
       return res.statusCode >= 200 && res.statusCode < 300;
@@ -2905,6 +2917,28 @@ class SupabaseDataService {
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getRecentBroadcasts error: $e');
+    }
+    return [];
+  }
+
+  /// جلب البثوث الأحدث من نقطة زمنية معينة فقط (للتحديث السريع دون إعادة كل السجل).
+  Future<List<Map<String, dynamic>>> getBroadcastsSince(
+    String sinceIso, {
+    int limit = 20,
+  }) async {
+    try {
+      final encoded = Uri.encodeComponent(sinceIso);
+      final url = Uri.parse(
+        '$_baseUrl/rest/v1/broadcasts?select=*&created_at=gt.$encoded'
+        '&order=created_at.asc&limit=$limit',
+      );
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getBroadcastsSince error: $e');
     }
     return [];
   }
