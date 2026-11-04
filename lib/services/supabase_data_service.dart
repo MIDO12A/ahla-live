@@ -1446,19 +1446,25 @@ class SupabaseDataService {
                 // FIX: إعادة حساب إجمالي الماس الشهري للوكالة من مجموع أعضائها الفعلي
                 // بدلاً من الإضافة التراكمية الخاطئة (agMonthly + diamondsToAdd)
                 final membersUrl = Uri.parse(
-                  '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&select=diamonds_earned_monthly',
+                  '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&select=diamonds_earned_monthly,diamonds_earned_cumulative',
                 );
                 final membersRes = await http.get(membersUrl, headers: _headers);
                 int trueTotalMonthly = 0;
+                int trueTotalCumulative = 0;
                 if (membersRes.statusCode == 200) {
                   final List mList = jsonDecode(membersRes.body);
                   for (final mm in mList) {
-                    trueTotalMonthly += ((mm['diamonds_earned_monthly'] as num?)?.toInt() ?? 0);
+                    trueTotalMonthly +=
+                        ((mm['diamonds_earned_monthly'] as num?)?.toInt() ?? 0);
+                    trueTotalCumulative +=
+                        ((mm['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0);
                   }
                 } else {
                   // fallback: نستخدم الإضافة التراكمية فقط إذا فشل استعلام الأعضاء
-                  final agMonthly = (ag['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
+                  final agMonthly =
+                      (ag['total_diamonds_monthly'] as num?)?.toInt() ?? 0;
                   trueTotalMonthly = agMonthly + diamondsToAdd;
+                  trueTotalCumulative = agCumul + diamondsToAdd;
                 }
 
                 await http.patch(
@@ -1466,7 +1472,7 @@ class SupabaseDataService {
                   headers: _headers,
                   body: jsonEncode({
                     'total_diamonds_monthly': trueTotalMonthly,
-                    'total_diamonds_cumulative': agCumul + diamondsToAdd,
+                    'total_diamonds_cumulative': trueTotalCumulative,
                   }),
                 );
 
