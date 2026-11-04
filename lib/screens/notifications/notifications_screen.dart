@@ -403,52 +403,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       }
                                     }
 
-                                    // إذا كان الطلب من نوع salary_transfer_requests كاحتياط أو لم تنجح الدالة
+                                    // اعتماد صرف الراتب فقط — دون نقل أي ألماس إلى محفظة وكالة الشحن
                                     if (res['success'] != true && amount > 0) {
                                       try {
                                         final sb = Supabase.instance.client;
-                                        // إيداع الألماس في محفظة وكالة الشحن حصراً (agency_wallets)
-                                        final aw = await sb
-                                            .from('agency_wallets')
-                                            .select('id, diamond_balance')
-                                            .eq('agency_profile_id', currentUid)
-                                            .maybeSingle();
-                                        if (aw != null) {
-                                          final curDia = (aw['diamond_balance'] as num?)?.toInt() ?? 0;
-                                          await sb.from('agency_wallets').update({
-                                            'diamond_balance': curDia + amount,
-                                            'updated_at': DateTime.now().toIso8601String(),
-                                          }).eq('agency_profile_id', currentUid);
-                                        } else {
-                                          await sb.from('agency_wallets').insert({
-                                            'agency_profile_id': currentUid,
-                                            'diamond_balance': amount,
-                                            'gold_balance': 0,
-                                            'total_earnings': amount,
-                                            'updated_at': DateTime.now().toIso8601String(),
-                                          });
-                                        }
-
-                                        // تصفير تارجت وراتب الراسل فوراً
                                         if (senderUid.isNotEmpty) {
-                                          // تصفير تارجت المضيف
-                                          try {
-                                            final mRow = await sb.from('host_agency_members')
-                                                .select('id, diamonds_earned_monthly, diamonds_balance')
-                                                .or('user_id.eq.$senderUid,host_uid.eq.$senderUid')
-                                                .maybeSingle();
-                                            if (mRow != null) {
-                                              final curM = (mRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-                                              final curB = (mRow['diamonds_balance'] as num?)?.toInt() ?? 0;
-                                              await sb.from('host_agency_members').update({
-                                                'diamonds_earned_monthly': (curM - amount).clamp(0, 999999999),
-                                                'diamonds_balance': (curB - amount).clamp(0, 999999999),
-                                                'diamonds': (curB - amount).clamp(0, 999999999),
-                                              }).eq('id', mRow['id']);
-                                            }
-                                          } catch (_) {}
-
-                                          // تصفير رواتب المضيفين والمشرفين
                                           try {
                                             await sb.from('host_salaries').update({
                                               'status': 'disbursed',
@@ -456,7 +415,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                             }).eq('user_id', senderUid).eq('status', 'pending');
                                           } catch (_) {}
 
-                                          // تصفير رواتب الإدارة إن وجدت
                                           try {
                                             await sb.from('users').update({
                                               'super_admin_salary': 0,
@@ -466,13 +424,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           } catch (_) {}
                                         }
 
-                                        // إشعار الراسل
                                         await SupabaseDataService().sendNotification(
                                           uid: senderUid,
                                           type: 'salary_transfer_accepted',
                                           actorUid: currentUid,
                                           title: 'تم قبول صرف الراتب بنجاح 🎉',
-                                          body: 'وافق وكيل الشحن على طلب الصرف وتم تحويل $amount ماسة وتصفير تارجتك بنجاح.',
+                                          body: 'وافق وكيل الشحن على طلب صرف الراتب. لم يتم المساس بمحافظ الألماس.',
                                         );
                                       } catch (e) {
                                         debugPrint('[notifications] fallback error: $e');
@@ -490,8 +447,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
                                           content: DText(isAr
-                                              ? '✅ تمت الموافقة وتصفير تارجت المستخدم وإيداع الرصيد في محفظة وكالة الشحن.'
-                                              : '✅ Approved! User target reset and balance credited to recharge agency wallet.'),
+                                              ? '✅ تمت الموافقة على صرف الراتب دون المساس بمحافظ الألماس.'
+                                              : '✅ Salary transfer approved without touching diamond wallets.'),
                                           backgroundColor: const Color(0xFF10B981),
                                         ),
                                       );
@@ -665,9 +622,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   final agencyName = notif.data?['agency_name']
                                           ?.toString() ??
                                       'وكالة جديدة';
-                                  final adminName = notif.data?['admin_name']
-                                          ?.toString() ??
-                                      'إدارة التطبيق';
                                   final agencyType = notif.data?['agency_type']
                                           ?.toString() ??
                                       'host';

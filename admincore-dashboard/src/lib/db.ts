@@ -500,53 +500,8 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
       }
     }
 
-    // Automatically sync updated user diamonds to agency records
-    if (data.diamonds !== undefined) {
-      try {
-        const newDia = Number(data.diamonds);
-        const { data: member } = await client
-          .from('host_agency_members')
-          .select('*')
-          .or(`user_id.eq.${uid},host_uid.eq.${uid}`)
-          .maybeSingle();
-
-        if (member) {
-          // تعديل الملف الشخصي يغيّر المحفظة فقط.
-          // لا يلمس diamonds_earned_monthly / diamonds_earned_cumulative.
-          await client.from('host_agency_members').update({
-            diamonds: newDia,
-            diamonds_balance: newDia,
-            diamonds_available: newDia,
-            updated_at: new Date().toISOString(),
-          }).eq('id', member.id);
-
-          if (member.agency_id) {
-            const { data: allMembers } = await client
-              .from('host_agency_members')
-              .select('diamonds_earned_monthly, diamonds_earned_cumulative')
-              .eq('agency_id', member.agency_id);
-
-            const totalAgMonthly = (allMembers || []).reduce(
-              (acc: number, m: any) => acc + Number(m.diamonds_earned_monthly || 0),
-              0
-            );
-            const totalAgCum = (allMembers || []).reduce(
-              (acc: number, m: any) => acc + Number(m.diamonds_earned_cumulative || 0),
-              0
-            );
-
-            await client.from('host_agencies').update({
-              total_diamonds_monthly: totalAgMonthly,
-              monthly_diamonds: totalAgMonthly,
-              total_diamonds_cumulative: totalAgCum,
-              total_diamonds_earned: totalAgCum,
-            }).eq('id', member.agency_id);
-          }
-        }
-      } catch (agSyncErr) {
-        console.warn('Error syncing updated user diamonds to agency:', agSyncErr);
-      }
-    }
+    // المحفظة الشخصية (users.diamonds) مستقلة تماماً عن محفظة الوكالة
+    // (host_agency_members) ومحفظة وكيل الشحن (agency_wallets) — لا مزامنة تلقائية.
 
   } catch (e) {
     console.error('updateUser failed:', e)
@@ -554,49 +509,6 @@ export async function updateUser(uid: string, data: Partial<UserModel>) {
   }
 }
 
-/**
- * مزامنة محفظة الوكالة (agency_wallets) مع رصيد المالك بعد أي تعديل إداري،
- * حتى لا يظهر "ألماس متبقٍ" في شاشة الوكالة بعد خصم كامل رصيد المستخدم.
- */
-async function syncAgencyOwnerDiamondWallets(uid: string, newDiamonds: number) {
-  const client = getAdminSupabase() || supabase;
-  const nowIso = new Date().toISOString();
-  try {
-    // مزامنة كل صفوف عضوية المضيف (وليس صفاً واحداً فقط)
-    await client
-      .from('host_agency_members')
-      .update({
-        diamonds: newDiamonds,
-        diamonds_balance: newDiamonds,
-        diamonds_available: newDiamonds,
-        updated_at: nowIso,
-      })
-      .or(`user_id.eq.${uid},host_uid.eq.${uid}`);
-  } catch (err) {
-    console.warn('[diamonds] sync host_agency_members failed:', err);
-  }
-  try {
-    const { data: agencies } = await client
-      .from('host_agencies')
-      .select('id, owner_id, owner_uid')
-      .or(`owner_id.eq.${uid},owner_uid.eq.${uid}`);
-    const agencyIds: string[] = (agencies || [])
-      .map((a: any) => a?.id?.toString())
-      .filter((v: string | undefined): v is string => !!v);
-    for (const agencyId of agencyIds) {
-      await client
-        .from('agency_wallets')
-        .update({ diamond_balance: newDiamonds, updated_at: nowIso })
-        .eq('agency_id', agencyId);
-    }
-    await client
-      .from('agency_wallets')
-      .update({ diamond_balance: newDiamonds, updated_at: nowIso })
-      .or(`owner_uid.eq.${uid},agency_profile_id.eq.${uid}`);
-  } catch (err) {
-    console.warn('[diamonds] sync agency_wallets failed:', err);
-  }
-}
 
 export async function adjustUserDiamonds(
   uid: string,
@@ -648,7 +560,6 @@ export async function adjustUserDiamonds(
             });
           } catch (_) {}
 
-          await syncAgencyOwnerDiamondWallets(uid, finalDiamonds);
           return { success: true, newDiamonds: finalDiamonds };
         }
       } catch (rpcEx: any) {
@@ -700,85 +611,7 @@ export async function adjustUserDiamonds(
       throw new Error('تعذّر تحديث رصيد المستخدم — تأكد من صلاحيات حساب الأدمن (RLS)');
     }
 
-    // 3. Sync to host_agency_members if user is in an agency
-    try {
-      // limit(1) بدل maybeSingle: maybeSingle يفشل بصمت عند تعدد صفوف العضوية
-      // فيبقى رصيد المضيف القديم ظاهراً وكأنه "ألماس متبقٍ".
-      const { data: memberRows } = await client
-        .from('host_agency_members')
-        .select('*')
-        .or(`user_id.eq.${uid},host_uid.eq.${uid}`)
-        .limit(1);
-      const member = memberRows && memberRows.length > 0 ? memberRows[0] : null;
-
-      if (member) {
-        const curMonthly = Number(member.diamonds_earned_monthly || 0);
-        const curCum = Number(member.diamonds_earned_cumulative || 0);
-        // الشهري: يزيد/ينقص فقط إذا كان التزامن مطلوباً وبالفرق الفعلي
-        const newMonthly = syncMonthlyTarget
-          ? Math.max(0, curMonthly + diff)
-          : curMonthly;
-        // التراكمي: يزيد بالإضافة فقط، ولا ينقص بالخصم الإداري
-        const newCum = type === 'add' ? curCum + diff : curCum;
-
-        await client
-          .from('host_agency_members')
-          .update({
-            diamonds: newDiamonds,
-            diamonds_balance: newDiamonds,
-            diamonds_available: newDiamonds,
-            diamonds_earned_monthly: newMonthly,
-            diamonds_earned_cumulative: newCum,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', member.id);
-
-        // Sync agency totals from members (single source of truth)
-        if (member.agency_id) {
-          const { data: allMembers } = await client
-            .from('host_agency_members')
-            .select('diamonds_earned_monthly, diamonds_earned_cumulative')
-            .eq('agency_id', member.agency_id);
-
-          const totalAgMonthly = (allMembers || []).reduce(
-            (acc: number, m: any) => acc + Number(m.diamonds_earned_monthly || 0),
-            0
-          );
-          const totalAgCum = (allMembers || []).reduce(
-            (acc: number, m: any) => acc + Number(m.diamonds_earned_cumulative || 0),
-            0
-          );
-
-          await client
-            .from('host_agencies')
-            .update({
-              total_diamonds_monthly: totalAgMonthly,
-              monthly_diamonds: totalAgMonthly,
-              total_diamonds_cumulative: totalAgCum,
-              total_diamonds_earned: totalAgCum,
-            })
-            .eq('id', member.agency_id);
-
-          // Also log to agency_diamond_ledger
-          try {
-            await client.from('agency_diamond_ledger').insert({
-              agency_id: member.agency_id,
-              user_id: uid,
-              sender_id: 'admin',
-              sender_name: adminName,
-              txn_type: type === 'add' ? 'admin_credit' : 'admin_deduct',
-              // الفرق الفعلي بعد التقييد بالرصيد المتاح (وليس الكمية المطلوبة)
-              amount: Math.abs(diff),
-              direction: type === 'add' ? 1 : -1,
-              gift_name: reason || (type === 'add' ? `إضافة ${absAmount.toLocaleString()} ماسة من الإدارة` : `خصم ${absAmount.toLocaleString()} ماسة من الإدارة`),
-              created_at: new Date().toISOString(),
-            });
-          } catch (_) {}
-        }
-      }
-    } catch (agErr) {
-      console.warn('Error syncing diamonds to agency:', agErr);
-    }
+    // 3. المحفظة الشخصية فقط — لا مزامنة مع host_agency_members أو agency_wallets
 
     // 4. Log to user_diamond_logs
     try {
@@ -810,7 +643,6 @@ export async function adjustUserDiamonds(
       });
     } catch (_) {}
 
-    await syncAgencyOwnerDiamondWallets(uid, newDiamonds);
     return { success: true, newDiamonds };
   } catch (e: any) {
     const code = e?.code || e?.status;
@@ -2164,35 +1996,8 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
       // عرض إنتاج الشهر مباشرةً — لا نمزجه مع رصيد المحفظة
       const monthlyVal = Math.max(0, Number(m.diamonds_earned_monthly || 0));
       const cumulativeVal = Math.max(monthlyVal, Number(m.diamonds_earned_cumulative || 0));
-      const walletVal = Math.max(0, Number(u?.diamonds ?? m.diamonds_balance ?? m.diamonds ?? 0));
-
-      // معالجة ديناميكية فورية: مزامنة محفظة العضو فقط مع users.diamonds
-      const curBalance = Math.max(0, Number(m.diamonds_balance || 0));
-      const curAvail = Math.max(0, Number(m.diamonds_available || 0));
-      const curUserDiamonds = Math.max(0, Number(u?.diamonds || 0));
-
-      if (!String(m.id).startsWith('owner_') && m.id) {
-        if (curBalance !== walletVal || curAvail !== walletVal || curUserDiamonds !== walletVal) {
-          Promise.resolve().then(async () => {
-            try {
-              const client = getAdminSupabase() || supabase;
-              await client.from('host_agency_members').update({
-                diamonds: walletVal,
-                diamonds_balance: walletVal,
-                diamonds_available: walletVal,
-                updated_at: new Date().toISOString(),
-              }).eq('id', m.id);
-              if (uid && curUserDiamonds !== walletVal) {
-                await client.from('users').update({
-                  diamonds: walletVal,
-                }).eq('uid', uid);
-              }
-            } catch (syncEx) {
-              console.warn('Auto-healing wallet drift failed:', syncEx);
-            }
-          });
-        }
-      }
+      // محفظة المضيف/الوكالة تُقرأ من صف العضو فقط — لا تُخلط مع users.diamonds
+      const walletVal = Math.max(0, Number(m.diamonds_balance ?? m.diamonds_available ?? m.diamonds ?? 0));
 
       const joinedDate = m.joined_at || m.joinedAt || m.created_at || m.createdAt || new Date().toISOString();
       return {
@@ -3953,17 +3758,27 @@ export async function approveWithdrawal(id: string): Promise<boolean> {
     if (!req) return false
     const frozen = req?.details?.frozen === true || req?.payment_details?.frozen === true
     const amount = Number(req.diamonds_amount ?? req.amount ?? 0)
-    if (frozen && req.agency_id && req.user_id) {
+    if (req.agency_id && req.user_id) {
       const { data: member } = await supabase
         .from('host_agency_members')
-        .select('id, diamonds_pending_withdrawal')
+        .select('id, diamonds, diamonds_balance, diamonds_available, diamonds_pending_withdrawal')
         .eq('agency_id', req.agency_id)
         .or(`user_id.eq.${req.user_id},host_uid.eq.${req.user_id}`)
         .maybeSingle()
       if (member) {
-        await supabase.from('host_agency_members').update({
-          diamonds_pending_withdrawal: Math.max(0, Number(member.diamonds_pending_withdrawal || 0) - amount),
-        }).eq('id', member.id)
+        const pending = Math.max(0, Number(member.diamonds_pending_withdrawal || 0) - amount)
+        if (frozen) {
+          await supabase.from('host_agency_members').update({
+            diamonds_pending_withdrawal: pending,
+          }).eq('id', member.id)
+        } else {
+          await supabase.from('host_agency_members').update({
+            diamonds: Math.max(0, Number(member.diamonds || 0) - amount),
+            diamonds_balance: Math.max(0, Number(member.diamonds_balance || 0) - amount),
+            diamonds_available: Math.max(0, Number(member.diamonds_available || 0) - amount),
+            diamonds_pending_withdrawal: pending,
+          }).eq('id', member.id)
+        }
       }
     }
     await supabase.from('agency_withdrawal_requests').update({
@@ -4006,7 +3821,7 @@ export async function rejectWithdrawal(id: string): Promise<boolean> {
         .or(`user_id.eq.${req.user_id},host_uid.eq.${req.user_id}`)
         .maybeSingle()
       if (member) {
-        const curBal = Number(member.diamonds_balance || member.diamonds || 0)
+        const curBal = Number(member.diamonds_available ?? member.diamonds_balance ?? member.diamonds ?? 0)
         const newBal = curBal + amount
         await supabase.from('host_agency_members').update({
           diamonds: newBal,
@@ -4015,9 +3830,6 @@ export async function rejectWithdrawal(id: string): Promise<boolean> {
           diamonds_pending_withdrawal: Math.max(0, Number(member.diamonds_pending_withdrawal || 0) - amount),
           updated_at: new Date().toISOString(),
         }).eq('id', member.id)
-        await supabase.from('users').update({
-          diamonds: newBal,
-        }).eq('uid', req.user_id)
       }
     }
     await supabase.from('agency_withdrawal_requests').update({

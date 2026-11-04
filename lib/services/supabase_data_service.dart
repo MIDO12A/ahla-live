@@ -1365,11 +1365,12 @@ class SupabaseDataService {
   Future<bool> creditHostAgencyMemberDiamonds(String hostUid, int diamondsToAdd) async {
     if (diamondsToAdd <= 0) return true;
 
-    // 1) المسار الذري: RPC يحدّث users + العضو + الوكالة + المحفظة في معاملة واحدة
+    // 1) المسار الذري: RPC يحدّث محفظة الوكالة (التارجت) + عمولة المالك فقط
     try {
       final rpcRes = await http
           .post(
-            Uri.parse('$_baseUrl/rest/v1/rpc/agency_credit_gift_diamonds'),
+            Uri.parse(
+                '$_baseUrl/rest/v1/rpc/agency_credit_host_target_diamonds'),
             headers: _headers,
             body: jsonEncode({
               'p_host_uid': hostUid,
@@ -1381,37 +1382,28 @@ class SupabaseDataService {
           )
           .timeout(const Duration(seconds: 8));
       if (rpcRes.statusCode >= 200 && rpcRes.statusCode < 300) {
-        return true;
+        try {
+          final body = jsonDecode(rpcRes.body);
+          if (body is Map) {
+            final status = body['status']?.toString();
+            if (status == 'ok' || status == 'already_processed') {
+              return true;
+            }
+          }
+        } catch (_) {
+          return true;
+        }
       }
-      debugPrint('[SupabaseDataService] agency_credit_gift_diamonds RPC status: '
+      debugPrint(
+          '[SupabaseDataService] agency_credit_host_target_diamonds status: '
           '${rpcRes.statusCode} ${rpcRes.body}');
     } catch (e) {
-      debugPrint('[SupabaseDataService] agency_credit_gift_diamonds RPC error: $e');
+      debugPrint(
+          '[SupabaseDataService] agency_credit_host_target_diamonds error: $e');
     }
 
-    // 2) مسار احتياطي متوافق مع المخطط القديم
+    // 2) مسار احتياطي — عضو وكالة: محفظة الوكالة فقط. غير عضو: users.diamonds.
     try {
-      // users.diamonds (المصدر الموحد)
-      try {
-        final uUrl = Uri.parse(
-          '$_baseUrl/rest/v1/users?or=(uid.eq.$hostUid,id.eq.$hostUid)&select=diamonds&limit=1',
-        );
-        final uRes = await http.get(uUrl, headers: _headers);
-        if (uRes.statusCode == 200) {
-          final List uList = jsonDecode(uRes.body);
-          if (uList.isNotEmpty) {
-            final cur = (uList.first['diamonds'] as num?)?.toInt() ?? 0;
-            await http.patch(
-              Uri.parse('$_baseUrl/rest/v1/users?or=(uid.eq.$hostUid,id.eq.$hostUid)'),
-              headers: _headers,
-              body: jsonEncode({'diamonds': cur + diamondsToAdd}),
-            );
-          }
-        }
-      } catch (e) {
-        debugPrint('[SupabaseDataService] fallback users.diamonds error: $e');
-      }
-
       final url = Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(host_uid.eq.$hostUid,user_id.eq.$hostUid)&select=*&limit=1');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
@@ -1480,38 +1472,9 @@ class SupabaseDataService {
 
 
                 final ownerUid = (ag['owner_uid'] ?? ag['owner_id'])?.toString() ?? '';
-                // العمولة تُضاف لمحفظة الوكالة دائماً (حتى لو كان المالك هو المضيف نفسه)
+                // العمولة تُضاف لمحفظة مالك الوكالة فقط — لا تُلمس محفظة الشحن
                 if (agentSalary > 0) {
-                  // تحديث محفظة الوكالة agency_wallets بالعمولة
-                  try {
-                    final awUrl = Uri.parse('$_baseUrl/rest/v1/agency_wallets?agency_id=eq.$agencyId&select=*&limit=1');
-                    final awRes = await http.get(awUrl, headers: _headers);
-                    if (awRes.statusCode == 200) {
-                      final List awList = jsonDecode(awRes.body);
-                      if (awList.isNotEmpty) {
-                        final curBal = (awList.first['diamond_balance'] as num?)?.toInt() ?? 0;
-                        await http.patch(
-                          Uri.parse('$_baseUrl/rest/v1/agency_wallets?agency_id=eq.$agencyId'),
-                          headers: _headers,
-                          body: jsonEncode({'diamond_balance': curBal + agentSalary}),
-                        );
-                      } else {
-                        await http.post(
-                          Uri.parse('$_baseUrl/rest/v1/agency_wallets'),
-                          headers: _headers,
-                          body: jsonEncode({
-                            'agency_id': agencyId,
-                            'diamond_balance': agentSalary,
-                            'gold_balance': 0,
-                          }),
-                        );
-                      }
-                    }
-                  } catch (e) {
-                    debugPrint('[SupabaseDataService] error updating agency_wallets: $e');
-                  }
-
-                  // رصيد المالك الشخصي يُحدَّث فقط عندما يكون المالك شخصاً آخر (منعاً للازدواج)
+                  // رصيد المالك يُحدَّث فقط عندما يكون المالك شخصاً آخر (منعاً للازدواج)
                   if (ownerUid.isNotEmpty && ownerUid != hostUid) {
                   // تحديث عضوية مالك الوكالة في host_agency_members
                   final ownerMemUrl = Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&or=(host_uid.eq.$ownerUid,user_id.eq.$ownerUid)&select=*&limit=1');
@@ -1521,7 +1484,9 @@ class SupabaseDataService {
                     if (oList.isNotEmpty) {
                       final oMem = Map<String, dynamic>.from(oList.first as Map);
                       final oMemId = oMem['id'];
+                      final oCurD = (oMem['diamonds'] as num?)?.toInt() ?? 0;
                       final oCurBal = (oMem['diamonds_balance'] as num?)?.toInt() ?? 0;
+                      final oCurAvail = (oMem['diamonds_available'] as num?)?.toInt() ?? oCurBal;
                       final oCurMonthly = (oMem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
                       final oCurCumul = (oMem['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
 
@@ -1529,7 +1494,9 @@ class SupabaseDataService {
                         Uri.parse('$_baseUrl/rest/v1/host_agency_members?id=eq.$oMemId'),
                         headers: _headers,
                         body: jsonEncode({
+                          'diamonds': oCurD + agentSalary,
                           'diamonds_balance': oCurBal + agentSalary,
+                          'diamonds_available': oCurAvail + agentSalary,
                           'diamonds_earned_monthly': oCurMonthly + agentSalary,
                           'diamonds_earned_cumulative': oCurCumul + agentSalary,
                         }),
@@ -1537,26 +1504,34 @@ class SupabaseDataService {
                     }
                   }
 
-                  // تحديث رصيد الوكيل في users أيضاً
-                  final oUserUrl = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$ownerUid&select=diamonds&limit=1');
-                  final ouRes = await http.get(oUserUrl, headers: _headers);
-                  if (ouRes.statusCode == 200) {
-                    final List ouList = jsonDecode(ouRes.body);
-                    if (ouList.isNotEmpty) {
-                      final curD = (ouList.first['diamonds'] as num?)?.toInt() ?? 0;
-                      await http.patch(
-                        Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$ownerUid'),
-                        headers: _headers,
-                        body: jsonEncode({
-                          'diamonds': curD + agentSalary,
-                        }),
-                      );
-                    }
-                  }
                   }
                 }
               }
             }
+          }
+          return true;
+        } else {
+          // غير عضو في وكالة: يُضاف الهدية للمحفظة الشخصية فقط
+          try {
+            final uUrl = Uri.parse(
+              '$_baseUrl/rest/v1/users?or=(uid.eq.$hostUid,id.eq.$hostUid)&select=diamonds&limit=1',
+            );
+            final uRes = await http.get(uUrl, headers: _headers);
+            if (uRes.statusCode == 200) {
+              final List uList = jsonDecode(uRes.body);
+              if (uList.isNotEmpty) {
+                final cur = (uList.first['diamonds'] as num?)?.toInt() ?? 0;
+                await http.patch(
+                  Uri.parse(
+                      '$_baseUrl/rest/v1/users?or=(uid.eq.$hostUid,id.eq.$hostUid)'),
+                  headers: _headers,
+                  body: jsonEncode({'diamonds': cur + diamondsToAdd}),
+                );
+              }
+            }
+          } catch (e) {
+            debugPrint(
+                '[SupabaseDataService] fallback users.diamonds error: $e');
           }
           return true;
         }
@@ -1576,39 +1551,56 @@ class SupabaseDataService {
     try {
       if (amount <= 0) return false;
 
-      // 1. استعلام محفظة الوكالة agency_wallets
-      int curBalance = 0;
-      bool hasRecord = false;
+      // 1. خصم الصرف من محفظة العضو في وكالة المضيف فقط — لا تُلمس محفظة الشحن
+      bool hasMember = false;
       try {
-        final awUrl = Uri.parse('$_baseUrl/rest/v1/agency_wallets?or=(agency_id.eq.$agencyId,agency_profile_id.eq.$hostUid)&select=*&limit=1');
-        final awRes = await http.get(awUrl, headers: _headers);
-        if (awRes.statusCode == 200) {
-          final List awList = jsonDecode(awRes.body);
-          if (awList.isNotEmpty) {
-            hasRecord = true;
-            final aw = awList.first as Map;
-            curBalance = (aw['diamond_balance'] as num?)?.toInt() ?? (aw['balance'] as num?)?.toInt() ?? 0;
+        final mUrl = Uri.parse(
+            '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&or=(user_id.eq.$hostUid,host_uid.eq.$hostUid)&select=id,diamonds,diamonds_balance,diamonds_available&limit=1');
+        final mRes = await http.get(mUrl, headers: _headers);
+        if (mRes.statusCode == 200) {
+          final List mList = jsonDecode(mRes.body);
+          if (mList.isNotEmpty) {
+            hasMember = true;
+            final m = mList.first as Map;
+            final curD = (m['diamonds'] as num?)?.toInt() ?? 0;
+            final curBal = (m['diamonds_balance'] as num?)?.toInt() ?? curD;
+            final curAvail =
+                (m['diamonds_available'] as num?)?.toInt() ?? curBal;
+            if (curAvail < amount) {
+              debugPrint(
+                  '[SupabaseDataService] disburseSalary: insufficient member balance $curAvail < $amount');
+              return false;
+            }
+            final patchRes = await http.patch(
+              Uri.parse(
+                  '$_baseUrl/rest/v1/host_agency_members?id=eq.${m['id']}'),
+              headers: _headers,
+              body: jsonEncode({
+                'diamonds': (curD - amount).clamp(0, 999999999999),
+                'diamonds_balance':
+                    (curBal - amount).clamp(0, 999999999999),
+                'diamonds_available':
+                    (curAvail - amount).clamp(0, 999999999999),
+              }),
+            );
+            if (patchRes.statusCode < 200 || patchRes.statusCode >= 300) {
+              debugPrint(
+                  '[SupabaseDataService] disburseSalary member deduction failed: ${patchRes.statusCode} ${patchRes.body}');
+              return false;
+            }
           }
         }
       } catch (e) {
-        debugPrint('[SupabaseDataService] disburseSalary check wallet error: $e');
+        debugPrint(
+            '[SupabaseDataService] disburseSalary member deduction error: $e');
+      }
+      if (!hasMember) {
+        debugPrint(
+            '[SupabaseDataService] disburseSalary: host is not an agency member');
+        return false;
       }
 
-      final newBalance = (curBalance - amount).clamp(0, 999999999999);
-      if (hasRecord) {
-        try {
-          await http.patch(
-            Uri.parse('$_baseUrl/rest/v1/agency_wallets?or=(agency_id.eq.$agencyId,agency_profile_id.eq.$hostUid)'),
-            headers: _headers,
-            body: jsonEncode({
-              'diamond_balance': newBalance,
-              'updated_at': DateTime.now().toIso8601String(),
-            }),
-          );
-        } catch (_) {}
-      }
-
-      // 2. إضافة إلى رصيد المضيف / المالك (users.diamonds)
+      // 2. إضافة إلى رصيد المضيف / المالك الشخصي (users.diamonds)
       if (hostUid.isNotEmpty) {
         try {
           final uUrl = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$hostUid&select=diamonds&limit=1');
@@ -1626,33 +1618,6 @@ class SupabaseDataService {
           }
         } catch (e) {
           debugPrint('[SupabaseDataService] disburseSalary credit user error: $e');
-        }
-
-        // 2.b مزامنة عضوية الوكالة (بدون تغيير أرباح الشهر)
-        try {
-          final mUrl = Uri.parse(
-              '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&or=(user_id.eq.$hostUid,host_uid.eq.$hostUid)&select=id,diamonds,diamonds_balance,diamonds_available&limit=1');
-          final mRes = await http.get(mUrl, headers: _headers);
-          if (mRes.statusCode == 200) {
-            final List mList = jsonDecode(mRes.body);
-            if (mList.isNotEmpty) {
-              final m = mList.first as Map;
-              final curD = (m['diamonds'] as num?)?.toInt() ?? 0;
-              final curBal = (m['diamonds_balance'] as num?)?.toInt() ?? curD;
-              final curAvail = (m['diamonds_available'] as num?)?.toInt() ?? curBal;
-              await http.patch(
-                Uri.parse('$_baseUrl/rest/v1/host_agency_members?id=eq.${m['id']}'),
-                headers: _headers,
-                body: jsonEncode({
-                  'diamonds': curD + amount,
-                  'diamonds_balance': curBal + amount,
-                  'diamonds_available': curAvail + amount,
-                }),
-              );
-            }
-          }
-        } catch (e) {
-          debugPrint('[SupabaseDataService] disburseSalary member sync error: $e');
         }
       }
 

@@ -272,23 +272,7 @@ class AgencyTargetEvaluator {
         if (ownerId.isNotEmpty) {
           final profit = (targetDiamonds * agentCommissionRate).toInt();
 
-          final awSnap = await _sb.from('agency_wallets')
-              .select('*')
-              .eq('agency_id', agencyId)
-              .maybeSingle();
-          if (awSnap != null) {
-            final currentDiamondBalance = (awSnap['diamond_balance'] as num?)?.toInt() ?? 0;
-            await _sb.from('agency_wallets').update({
-              'diamond_balance': currentDiamondBalance + profit,
-            }).eq('agency_id', agencyId);
-          } else {
-            await _sb.from('agency_wallets').insert({
-              'agency_id': agencyId,
-              'diamond_balance': profit,
-              'gold_balance': 0,
-            });
-          }
-
+          // العمولة تُضاف لمحفظة مالك الوكالة فقط — لا تُلمس محفظة الشحن
           // Also update owner agency member diamonds balance
           try {
             final ownerMemSnap = await _sb.from('host_agency_members')
@@ -327,29 +311,31 @@ class AgencyTargetEvaluator {
           'coins': cur + rewardValue.toInt(),
         }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
       } else if (rewardType == 'diamonds' && rewardValue > 0) {
-        final u = await _sb.from('users').select('diamonds').or('uid.eq.$hostUserId,id.eq.$hostUserId').maybeSingle();
-        final cur = (u?['diamonds'] as num?)?.toInt() ?? 0;
-        await _sb.from('users').update({
-          'diamonds': cur + rewardValue.toInt(),
-        }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
-
-        // Also update host_agency_members
+        // عضو وكالة: تُضاف لمحفظة الوكالة فقط. غير عضو: للمحفظة الشخصية.
+        Map<String, dynamic>? mSnap;
         try {
-          final mSnap = await _sb.from('host_agency_members')
+          mSnap = await _sb.from('host_agency_members')
               .select('id, diamonds, diamonds_balance, diamonds_available')
               .or('user_id.eq.$hostUserId,host_uid.eq.$hostUserId')
               .maybeSingle();
-          if (mSnap != null) {
-            final d1 = (mSnap['diamonds'] as num?)?.toInt() ?? 0;
-            final d2 = (mSnap['diamonds_balance'] as num?)?.toInt() ?? 0;
-            final d3 = (mSnap['diamonds_available'] as num?)?.toInt() ?? 0;
-            await _sb.from('host_agency_members').update({
-              'diamonds': d1 + rewardValue.toInt(),
-              'diamonds_balance': d2 + rewardValue.toInt(),
-              'diamonds_available': d3 + rewardValue.toInt(),
-            }).eq('id', mSnap['id']);
-          }
         } catch (_) {}
+
+        if (mSnap != null) {
+          final d1 = (mSnap['diamonds'] as num?)?.toInt() ?? 0;
+          final d2 = (mSnap['diamonds_balance'] as num?)?.toInt() ?? 0;
+          final d3 = (mSnap['diamonds_available'] as num?)?.toInt() ?? 0;
+          await _sb.from('host_agency_members').update({
+            'diamonds': d1 + rewardValue.toInt(),
+            'diamonds_balance': d2 + rewardValue.toInt(),
+            'diamonds_available': d3 + rewardValue.toInt(),
+          }).eq('id', mSnap['id']);
+        } else {
+          final u = await _sb.from('users').select('diamonds').or('uid.eq.$hostUserId,id.eq.$hostUserId').maybeSingle();
+          final cur = (u?['diamonds'] as num?)?.toInt() ?? 0;
+          await _sb.from('users').update({
+            'diamonds': cur + rewardValue.toInt(),
+          }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
+        }
       } else if (rewardType == 'salary_usd' && rewardValue > 0) {
         await _sb.from('host_salaries').insert({
           'user_id': hostUserId,

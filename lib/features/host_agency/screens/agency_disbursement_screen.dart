@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
-import '../../../core/utils/server_time_service.dart';
-import 'package:provider/provider.dart';
-import '../../../providers/user_provider.dart';
 import 'agent_withdrawal_waiting_screen.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
@@ -397,6 +394,11 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
         'diamonds_amount': amount,
         'payment_method': _selectedMethod,
         'payment_details': {'details': details, 'source': 'disbursement_screen'},
+        'details': {
+          'details': details,
+          'source': 'disbursement_screen',
+          'frozen': true,
+        },
         'status': 'pending',
         'created_at': DateTime.now().toIso8601String(),
       });
@@ -404,13 +406,17 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
       // تصفير / خصم التارجت والرصيد المتاح للمستخدم فوراً
       try {
         final mRow = await Supabase.instance.client
-            .from('host_agency_members')
-            .select('id, diamonds_earned_monthly, diamonds_balance, diamonds')
-            .or('user_id.eq.$uid,host_uid.eq.$uid')
-            .maybeSingle();
+          .from('host_agency_members')
+          .select('id, diamonds_earned_monthly, diamonds_balance, diamonds, diamonds_available')
+          .eq('agency_id', widget.agencyId)
+          .or('user_id.eq.$uid,host_uid.eq.$uid')
+          .maybeSingle();
 
         final curM = (mRow?['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-        final curB = (mRow?['diamonds_balance'] as num?)?.toInt() ?? (mRow?['diamonds'] as num?)?.toInt() ?? widget.availableDiamonds;
+        final curB = (mRow?['diamonds_available'] as num?)?.toInt() ??
+            (mRow?['diamonds_balance'] as num?)?.toInt() ??
+            (mRow?['diamonds'] as num?)?.toInt() ??
+            widget.availableDiamonds;
         final newBal = (curB - amount).clamp(0, 999999999);
         final newMonthly = (curM - amount).clamp(0, 999999999);
 
@@ -429,22 +435,14 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
           } catch (_) {}
         }
         try {
-          await Supabase.instance.client.from('host_agency_members').update(updatePayload).or('user_id.eq.$uid,host_uid.eq.$uid');
+          await Supabase.instance.client
+              .from('host_agency_members')
+              .update(updatePayload)
+              .eq('agency_id', widget.agencyId)
+              .or('user_id.eq.$uid,host_uid.eq.$uid');
         } catch (_) {}
 
-        // خصم الألماس من جدول المستخدمين users
-        try {
-          final uRow = await Supabase.instance.client.from('users').select('diamonds').eq('uid', uid).maybeSingle();
-          final curUDia = (uRow?['diamonds'] as num?)?.toInt() ?? 0;
-          await Supabase.instance.client.from('users').update({
-            'diamonds': (curUDia - amount).clamp(0, 999999999),
-          }).or('uid.eq.$uid,id.eq.$uid');
-        } catch (_) {}
-
-        // تحديث الـ UserProvider محلياً فوراً
-        try {
-          Provider.of<UserProvider>(context, listen: false).deductDiamondsLocally(amount);
-        } catch (_) {}
+        // لا نلمس users.diamonds — المبلغ يُجمّد من محفظة الوكالة فقط
 
         // تصفير الرواتب المستحقة في جدول الرواتب
         try {

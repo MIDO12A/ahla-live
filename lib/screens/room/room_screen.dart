@@ -1032,6 +1032,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _isFollowed = false;
   int _msgCount = 0;
   final List<MessageModel> _chatMessages = [];
+  int _localChatClearedAt = 0;
   int _chatTabIndex = 0; // 0: الكل, 1: الدردشة, 2: الهدايا
 
   List<MessageModel> get _filteredChatMessages {
@@ -1459,16 +1460,48 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
       if (!mounted || broadcasts.isEmpty) return;
       final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final roomCleared = _currentRoom?.chatClearedAt ?? 0;
+      final minTimestamp = _localChatClearedAt > roomCleared ? _localChatClearedAt : roomCleared;
+      var changed = false;
       for (final latest in broadcasts) {
-        final bTs = (latest['timestamp'] as num?)?.toInt() ??
+        final rawTs = (latest['timestamp'] as num?)?.toInt() ??
             (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-        final isRecent = bTs == 0 || (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
+        final bTs = rawTs == 0 ? nowMs : rawTs;
+        final isRecent = rawTs == 0 || (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
         if (!isRecent) continue;
+        if (minTimestamp > 0 && bTs < minTimestamp) continue;
         final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
         if (_seenMsgIds.contains(bId)) continue;
         _seenMsgIds.add(bId);
         _broadcastNotifier.value = latest;
-        break;
+
+        final bRoomId = latest['room_id']?.toString() ?? '';
+        final bType = latest['type']?.toString() ?? '';
+        final content = latest['content']?.toString() ?? '';
+        // غرف أخرى: نضيف نص البث إلى شات الغرفة ليظهر لجميع المستخدمين.
+        // داخل نفس الغرفة لا نكرر lucky_gift لأن رسالة النظام الحقيقية موجودة أصلاً.
+        if (content.isEmpty || (bRoomId == widget.roomId && bType == 'lucky_gift')) continue;
+
+        _chatMessages.add(MessageModel(
+          msgId: 'broadcast_$bId',
+          roomId: widget.roomId,
+          senderUid: latest['sender_uid']?.toString() ?? 'system',
+          senderName: latest['sender_name']?.toString() ?? 'نظام',
+          senderPhotoUrl: latest['sender_photo_url']?.toString() ?? '',
+          type: 'system',
+          text: content,
+          imageUrl: latest['gift_icon']?.toString(),
+          timestamp: bTs,
+        ));
+        changed = true;
+      }
+      if (changed) {
+        _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        if (_chatMessages.length > 1000) {
+          _chatMessages.removeRange(0, _chatMessages.length - 1000);
+        }
+        _msgCount = _chatMessages.length;
+        _chatUpdateNotifier.value++;
       }
     });
 
@@ -1476,7 +1509,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (mounted) {
         // نعتمد فقط على وقت مسح الشات من الإدارة. لا نفلتر بتوقيت دخول الجهاز
         // لأن فارق ساعة الجهاز عن السيرفر كان يخفي رسائل الأعضاء الآخرين.
-        final minTimestamp = _currentRoom?.chatClearedAt ?? 0;
+        final roomCleared = _currentRoom?.chatClearedAt ?? 0;
+        final minTimestamp = _localChatClearedAt > roomCleared ? _localChatClearedAt : roomCleared;
         final currentSessionMsgs = minTimestamp > 0
             ? msgs.where((m) => m.timestamp >= minTimestamp).toList()
             : msgs;
@@ -2077,12 +2111,21 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
 
   void _clearMessages() {
-    // Persist a chat_cleared_at stamp so every user's stream filter hides old messages
-    final now = DateTime.now().millisecondsSinceEpoch;
+    // نستخدم آخر توقيت رسالة من السيرفر بدل ساعة الجهاز لتفادي فارق التوقيت
+    // الذي قد يخفي رسائل جديدة أو يعيد إظهار رسائل قديمة.
+    int latest = 0;
+    for (final m in _chatMessages) {
+      if (m.timestamp > latest) latest = m.timestamp;
+    }
+    final now = latest > 0 ? latest + 1 : DateTime.now().millisecondsSinceEpoch;
+    _localChatClearedAt = now;
     _firebaseService.updateRoom(widget.roomId, {'chat_cleared_at': now});
     setState(() {
+      _currentRoom = _currentRoom?.copyWith(chatClearedAt: now);
       _chatMessages.clear();
+      _msgCount = 0;
     });
+    _chatUpdateNotifier.value++;
   }
 
   void _resetSeatsCharisma() {

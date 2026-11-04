@@ -1376,23 +1376,29 @@ Future<void> showAgencyDisbursementDialog({
   int availableBalance = 0;
   try {
     final res = await sb
-        .from('agency_wallets')
-        .select('diamond_balance, balance')
-        .or('agency_id.eq.$agencyId,agency_profile_id.eq.$hostUid')
+        .from('host_agency_members')
+        .select('diamonds_available, diamonds_balance, diamonds')
+        .eq('agency_id', agencyId)
+        .or('user_id.eq.$hostUid,host_uid.eq.$hostUid')
         .maybeSingle();
     if (res != null) {
-      availableBalance = (res['diamond_balance'] as num?)?.toInt() ??
-          (res['balance'] as num?)?.toInt() ??
+      availableBalance = (res['diamonds_available'] as num?)?.toInt() ??
+          (res['diamonds_balance'] as num?)?.toInt() ??
+          (res['diamonds'] as num?)?.toInt() ??
           0;
     }
   } catch (_) {}
 
   final totalInt = (totalDiamonds is num ? totalDiamonds : num.tryParse(totalDiamonds.toString()) ?? 0).toInt();
   final defaultCommission = (totalInt * commissionRate).toInt();
-  if (availableBalance <= 0) availableBalance = defaultCommission;
 
   String selectedSchedule = 'monthly';
-  final amountCtrl = TextEditingController(text: '$defaultCommission');
+  final initialAmount = availableBalance <= 0
+      ? 0
+      : (defaultCommission > availableBalance
+          ? availableBalance
+          : defaultCommission);
+  final amountCtrl = TextEditingController(text: '$initialAmount');
   bool isSubmitting = false;
 
   await showDialog(
@@ -1425,7 +1431,7 @@ Future<void> showAgencyDisbursementDialog({
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. عرض رصيد الوكالة القابل للصرف (agency_wallets.balance)
+                // 1. عرض رصيد عضو الوكالة القابل للصرف (host_agency_members)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
@@ -1438,7 +1444,7 @@ Future<void> showAgencyDisbursementDialog({
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const DText(
-                        'رصيد الوكالة القابل للصرف (agency_wallets)',
+                        'رصيد محفظة الوكالة القابل للصرف',
                         style: TextStyle(
                           color: _textMuted,
                           fontSize: 11,

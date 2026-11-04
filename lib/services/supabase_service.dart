@@ -514,14 +514,9 @@ class SupabaseService {
                 rUser.totalGiftsReceived + recipientDiamonds,
           });
         }
-        // الرصيد (users + العضو + الوكالة) يُحدَّث ذرّياً داخل RPC
-        final credited = await _ds.creditHostAgencyMemberDiamonds(
+        // الرصيد يُحدَّث داخل RPC/المسار الاحتياطي (عضو وكالة أو محفظة شخصية)
+        await _ds.creditHostAgencyMemberDiamonds(
             receiverId, recipientDiamonds);
-        if (!credited && rUser != null) {
-          await _ds.updateUser(receiverId, {
-            'diamonds': rUser.diamonds + recipientDiamonds,
-          });
-        }
       }
 
       // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase بنسبة كاريزما المستلم المحددة
@@ -758,12 +753,8 @@ class SupabaseService {
 
       // 2. توزيع الماس وفق سياسة النظام المعتمدة (100% للمضيف كاملة، وعمولة وكيل المضيف تُضاف لرصيده دون أي خصم من المضيف)
       if (isSelfSend) {
-        // الرصيد (users + العضو + الوكالة) يُحدَّث ذرّياً داخل RPC
-        final credited =
-            await _ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds);
-        if (!credited) {
-          await adjustUserBalance(senderId, diamondsDelta: hostDiamonds);
-        }
+        // الرصيد يُحدَّث داخل RPC/المسار الاحتياطي (عضو وكالة أو محفظة شخصية)
+        await _ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds);
       } else {
         final rUser = await _ds.getUser(receiverId);
         if (rUser != null) {
@@ -771,12 +762,8 @@ class SupabaseService {
             'total_gifts_received': rUser.totalGiftsReceived + hostDiamonds,
           });
         }
-        // الرصيد (users + العضو + الوكالة) يُحدَّث ذرّياً داخل RPC
-        final credited =
-            await _ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds);
-        if (!credited) {
-          await adjustUserBalance(receiverId, diamondsDelta: hostDiamonds);
-        }
+        // الرصيد يُحدَّث داخل RPC/المسار الاحتياطي (عضو وكالة أو محفظة شخصية)
+        await _ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds);
       }
 
       // 3. تسجيل الهدية وبثها في الغرفة
@@ -1432,9 +1419,9 @@ class SupabaseService {
 
     final idem = 'wallet_xchg_${uid}_${DateTime.now().millisecondsSinceEpoch}';
 
-    // 1) المسار الذري: RPC يخصم من كل الجداول + التارجت في معاملة واحدة
+    // 1) المسار الذري: RPC يخصم من محفظة العضو فقط ويضيف الكوينز للشخصية
     try {
-      final resp = await _sb.rpc('agency_exchange_diamonds', params: {
+      final resp = await _sb.rpc('agency_exchange_diamonds_v2', params: {
         'p_diamonds': diamonds,
         'p_idempotency_key': idem,
         'p_user_id': uid,
@@ -1456,7 +1443,7 @@ class SupabaseService {
       }
     } catch (e) {
       debugPrint(
-          '[exchangeDiamondsToCoins] agency_exchange_diamonds RPC error: $e');
+          '[exchangeDiamondsToCoins] agency_exchange_diamonds_v2 RPC error: $e');
     }
 
     // 2) Fallback متوافق مع مخطط قديم — نفس المعادلة وبدون خصم مزدوج
@@ -1494,16 +1481,14 @@ class SupabaseService {
           ? Map<String, dynamic>.from(memRows.first as Map)
           : null;
 
-      final memAvailable = member == null
+      // عضو وكالة: الرصيد من محفظة الوكالة فقط. غير عضو: من المحفظة الشخصية.
+      final memberBalance = member == null
           ? curDiamonds
-          : [
-              (member['diamonds_available'] as num?)?.toInt() ?? 0,
-              (member['diamonds_balance'] as num?)?.toInt() ?? 0,
-              curDiamonds,
-            ].reduce((a, b) => a > b ? a : b);
-      final available = memAvailable < curDiamonds ? memAvailable : curDiamonds;
+          : ((member['diamonds_available'] as num?)?.toInt() ??
+              (member['diamonds_balance'] as num?)?.toInt() ??
+              0);
 
-      if (curDiamonds < diamonds || available < diamonds) {
+      if (memberBalance < diamonds) {
         return (
           success: false,
           coinsReceived: 0,
@@ -1520,13 +1505,21 @@ class SupabaseService {
           error: 'كمية الألماس غير كافية للحصول على كوينز'
         );
       }
-      final newDiamonds = (curDiamonds - diamonds).clamp(0, 999999999).toInt();
+      final newDiamonds =
+          (memberBalance - diamonds).clamp(0, 999999999).toInt();
       final newCoins = curCoins + coinsToReceive;
 
-      await _sb.from('users').update({
-        'diamonds': newDiamonds,
-        'coins': newCoins.round(),
-      }).or('uid.eq.$uid,id.eq.$uid');
+      if (member == null) {
+        await _sb.from('users').update({
+          'diamonds': newDiamonds,
+          'coins': newCoins.round(),
+        }).or('uid.eq.$uid,id.eq.$uid');
+      } else {
+        // لا نمسّ users.diamonds لعضو الوكالة — الكوينز فقط
+        await _sb.from('users').update({
+          'coins': newCoins.round(),
+        }).or('uid.eq.$uid,id.eq.$uid');
+      }
 
       if (member != null) {
         final curMonthly =
