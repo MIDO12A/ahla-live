@@ -1136,12 +1136,78 @@ abstract final class AgencyRepository {
 
         final newOwnerBalance = (oBal - diamonds).clamp(0, 999999999);
 
-        // خصم من محفظة الوكالة فقط — دون المساس بالمحفظة الشخصية أو محفظة الشحن
+        // خصم من محفظة الوكالة فقط — دون المساس بالمحفظة الشخصية
         await _sb.from('host_agency_members').update({
           'diamonds': newOwnerBalance,
           'diamonds_balance': newOwnerBalance,
           'diamonds_available': newOwnerBalance,
         }).eq('id', memberRow['id']);
+
+        // إيداع المبلغ في محفظة وكيل الشحن (agency_wallets) + تسجيل الحركة.
+        // إن فشل الإيداع نُعيد الرصيد للمالك حتى لا يضيع الألماس.
+        int agentNewBalance = 0;
+        try {
+          if (agentId.isEmpty) {
+            throw Exception('معرّف وكيل الشحن غير صالح');
+          }
+          final walletRows = await _sb
+              .from('agency_wallets')
+              .select('id, diamond_balance, total_received')
+              .eq('agency_profile_id', agentId)
+              .limit(1);
+          final walletRow =
+              walletRows.isNotEmpty ? walletRows.first as Map : null;
+          final agentBalance =
+              (walletRow?['diamond_balance'] as num?)?.toInt() ?? 0;
+          final agentReceived =
+              (walletRow?['total_received'] as num?)?.toInt() ?? 0;
+          agentNewBalance = agentBalance + diamonds;
+
+          if (walletRow?['id'] != null) {
+            await _sb.from('agency_wallets').update({
+              'diamond_balance': agentNewBalance,
+              'total_received': agentReceived + diamonds,
+              'updated_at': DateTime.now().toIso8601String(),
+            }).eq('id', walletRow!['id']);
+          } else {
+            await _sb.from('agency_wallets').insert({
+              'agency_profile_id': agentId,
+              'diamond_balance': agentNewBalance,
+              'total_received': diamonds,
+              'total_withdrawn': 0,
+              'total_earnings': 0,
+              'updated_at': DateTime.now().toIso8601String(),
+            });
+          }
+
+          await _sb.from('agent_diamond_transactions').insert({
+            'agent_id': agentId,
+            'sender_id': uid,
+            'sender_name': userName,
+            'sender_kayan_id': userRow?['custom_id']?.toString(),
+            'txn_type': 'received_from_agency',
+            'diamonds_amount': diamonds,
+            'coins_amount': 0,
+            'balance_after': agentNewBalance,
+            'notes': 'تحويل من محفظة الوكالة $agencyId',
+            'created_at': DateTime.now().toIso8601String(),
+          });
+        } catch (e) {
+          // استرجاع المبلغ للمالك عند فشل الإيداع
+          try {
+            await _sb.from('host_agency_members').update({
+              'diamonds': oBal,
+              'diamonds_balance': oBal,
+              'diamonds_available': oBal,
+            }).eq('id', memberRow['id']);
+          } catch (_) {}
+          debugPrint('[AgencyRepository] credit agent wallet error: $e');
+          return {
+            'status': 'error',
+            'success': false,
+            'message': 'فشل إيداع المبلغ في محفظة وكيل الشحن، تم إرجاع الرصيد',
+          };
+        }
 
         // Log in agency_diamond_ledger
         try {
@@ -1327,12 +1393,15 @@ abstract final class AgencyRepository {
   /// لوحة تحكم المالك: محفظة + أسعار + آخر 20 حركة
   static Future<AgencyOwnerDashboard?> getOwnerDashboard(
       String agencyId) async {
+    // RPC القديم كان يقرأ agency_wallets. نستخدمه فقط للأسعار والسجل،
+    // بينما رصيد المحفظة يُقرأ دائماً من host_agency_members (المصدر الموحد).
+    AgencyOwnerDashboard? rpcDash;
     try {
       final resp = await _sb.rpc('agency_get_owner_dashboard', params: {
         'p_agency_id': agencyId,
       });
       if (resp != null) {
-        return AgencyOwnerDashboard.fromMap(
+        rpcDash = AgencyOwnerDashboard.fromMap(
             Map<String, dynamic>.from(resp as Map));
       }
     } catch (e) {
@@ -1354,28 +1423,35 @@ abstract final class AgencyRepository {
           (agRes?['commission_rate'] as num?)?.toDouble() ?? 0.15;
 
       int ownerBalance = 0;
+      int ownerAvailable = 0;
       int earnedCumulative = 0;
 
       // 1. Check host_agency_members for owner
       Map<String, dynamic>? memRes;
+      int pendingWithdrawal = 0;
       try {
-        memRes = await _sb
+        final memRows = await _sb
             .from('host_agency_members')
             .select('*')
             .eq('agency_id', agencyId)
             .or('role.eq.owner,host_uid.eq.$ownerUid,user_id.eq.$ownerUid')
-            .maybeSingle();
-        if (memRes != null) {
+            .limit(1);
+        if (memRows.isNotEmpty) {
+          memRes = Map<String, dynamic>.from(memRows.first as Map);
           ownerBalance = (memRes['diamonds_balance'] as num?)?.toInt() ??
               (memRes['diamonds_available'] as num?)?.toInt() ??
               0;
+          ownerAvailable = (memRes['diamonds_available'] as num?)?.toInt() ??
+              ownerBalance;
+          pendingWithdrawal =
+              (memRes['diamonds_pending_withdrawal'] as num?)?.toInt() ?? 0;
           earnedCumulative =
               (memRes['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
         }
       } catch (_) {}
 
       // رصيد المالك من محفظة الوكالة فقط — لا يُدمج مع users.diamonds الشخصية
-      final totalAvailable = ownerBalance;
+      final totalBalance = ownerBalance;
       // إجمالي المكتسب تراكمي فقط — لا يُدمج مع رصيد المحفظة القابل للصرف
       final totalEarned = earnedCumulative;
 
@@ -1398,7 +1474,7 @@ abstract final class AgencyRepository {
             txnType: r['txn_type']?.toString() ?? 'commission',
             amount: amt,
             direction: dir,
-            balanceAfter: totalAvailable,
+            balanceAfter: totalBalance,
             note: r['gift_name']?.toString() ??
                 r['note']?.toString() ??
                 (r['sender_name'] != null
@@ -1410,22 +1486,29 @@ abstract final class AgencyRepository {
         }
       } catch (_) {}
 
+      final memberWallet = memRes != null
+          ? AgencyOwnerWallet(
+              balance: totalBalance,
+              available: ownerAvailable,
+              pending: pendingWithdrawal,
+              earnedTotal: totalEarned,
+            )
+          : null;
+
       return AgencyOwnerDashboard(
-        wallet: AgencyOwnerWallet(
-          balance: totalAvailable,
-          available: totalAvailable,
-          pending: 0,
-          earnedTotal: totalEarned,
-        ),
-        rates: AgencyEngineSettings.fromMap({
-          'diamond_to_coin_rate': 1.0,
-          'diamond_to_usd_rate': 0.001,
-          'withdrawal_fee_pct': 0.0,
-          'min_diamonds_to_withdraw': 1000,
-          'agency_share_pct': (agencyRate * 100).toInt(),
-          'host_share_pct': 100 - (agencyRate * 100).toInt(),
-        }),
-        ledger: ledgerEntries,
+        wallet: memberWallet ?? rpcDash?.wallet ?? AgencyOwnerWallet.empty(),
+        rates: rpcDash?.rates ??
+            AgencyEngineSettings.fromMap({
+              'diamond_to_coin_rate': 1.0,
+              'diamond_to_usd_rate': 0.001,
+              'withdrawal_fee_pct': 0.0,
+              'min_diamonds_to_withdraw': 1000,
+              'agency_share_pct': (agencyRate * 100).toInt(),
+              'host_share_pct': 100 - (agencyRate * 100).toInt(),
+            }),
+        ledger: ledgerEntries.isNotEmpty
+            ? ledgerEntries
+            : (rpcDash?.ledger ?? const []),
       );
     } catch (e) {
       debugPrint('[AgencyRepository] getOwnerDashboard fallback error: $e');

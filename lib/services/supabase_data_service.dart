@@ -1490,6 +1490,7 @@ class SupabaseDataService {
                       final oCurMonthly = (oMem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
                       final oCurCumul = (oMem['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
 
+                      // العمولة تُضاف للمحفظة والتراكمي فقط، ولا تُحتسب إنتاجاً/تارجت شهرياً
                       await http.patch(
                         Uri.parse('$_baseUrl/rest/v1/host_agency_members?id=eq.$oMemId'),
                         headers: _headers,
@@ -1497,7 +1498,7 @@ class SupabaseDataService {
                           'diamonds': oCurD + agentSalary,
                           'diamonds_balance': oCurBal + agentSalary,
                           'diamonds_available': oCurAvail + agentSalary,
-                          'diamonds_earned_monthly': oCurMonthly + agentSalary,
+                          'diamonds_earned_monthly': oCurMonthly,
                           'diamonds_earned_cumulative': oCurCumul + agentSalary,
                         }),
                       );
