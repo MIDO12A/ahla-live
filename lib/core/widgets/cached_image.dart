@@ -2,8 +2,8 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../config/r.dart';
+import '../cache/encrypted_image_provider.dart';
 import '../../screens/room/widgets/svga_player.dart';
 
 ImageProvider cachedNetworkImageProvider(String url) {
@@ -12,7 +12,7 @@ ImageProvider cachedNetworkImageProvider(String url) {
     if (detectAssetType(url) == AssetType.svga) {
       return MemoryImage(Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]));
     }
-    return CachedNetworkImageProvider(url);
+    return EncryptedImageProvider(url);
   }
   if (url.startsWith('/') || url.startsWith('file://')) {
     final filePath = url.startsWith('file://') ? url.replaceFirst('file://', '') : url;
@@ -54,26 +54,32 @@ class CachedNetImage extends StatelessWidget {
       if (detectAssetType(safeUrl) == AssetType.svga) {
         return SvgaPlayer(assetPath: safeUrl, width: width ?? 100, height: height ?? 100, fit: fit);
       }
-      return CachedNetworkImage(
-        imageUrl: safeUrl,
+      return Image(
+        image: EncryptedImageProvider(safeUrl),
         width: width,
         height: height,
         fit: fit,
         color: color,
-        placeholder: placeholder != null ? (ctx, u) => placeholder!(ctx, u) : null,
-        errorWidget: error != null
-            ? (ctx, u, err) => error!(ctx, err, null)
-            : (ctx, u, err) {
-                final lower = u.toLowerCase();
-                if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
-                  return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+        frameBuilder: placeholder != null
+            ? (ctx, child, frame, wasSynchronouslyLoaded) {
+                if (frame == null && !wasSynchronouslyLoaded) {
+                  return placeholder!(ctx, safeUrl);
                 }
-                return Container(
-                  width: width,
-                  height: height,
-                  color: Colors.transparent,
-                );
-              },
+                return child;
+              }
+            : null,
+        errorBuilder: (ctx, err, stack) {
+          if (error != null) return error!(ctx, err, stack);
+          final lower = safeUrl.toLowerCase();
+          if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
+            return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+          }
+          return Container(
+            width: width,
+            height: height,
+            color: Colors.transparent,
+          );
+        },
       );
     }
     if (safeUrl.startsWith('/') || safeUrl.startsWith('file://')) {
@@ -144,25 +150,27 @@ class CachedImg extends StatelessWidget {
       if (detectAssetType(safeUrl) == AssetType.svga) {
         return SvgaPlayer(assetPath: safeUrl, width: width ?? 100, height: height ?? 100, fit: fit);
       }
-      return CachedNetworkImage(
-        imageUrl: safeUrl,
+      return Image(
+        image: EncryptedImageProvider(safeUrl),
         width: width,
         height: height,
         fit: fit,
-        placeholder: placeholder != null ? (ctx, u) => placeholder!(ctx, u) : null,
-        errorWidget: error != null
-            ? (ctx, u, err) => error!(ctx, u, err)
-            : (ctx, u, err) {
-                final lower = u.toLowerCase();
-                if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
-                  return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+        frameBuilder: placeholder != null
+            ? (ctx, child, frame, wasSynchronouslyLoaded) {
+                if (frame == null && !wasSynchronouslyLoaded) {
+                  return placeholder!(ctx, safeUrl);
                 }
-                return Container(
-                  width: width,
-                  height: height,
-                  color: Colors.transparent,
-                );
-              },
+                return child;
+              }
+            : null,
+        errorBuilder: (ctx, err, stack) {
+          if (error != null) return error!(ctx, safeUrl, err);
+          final lower = safeUrl.toLowerCase();
+          if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
+            return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+          }
+          return const SizedBox();
+        },
       );
     }
     if (safeUrl.startsWith('/') || safeUrl.startsWith('file://')) {

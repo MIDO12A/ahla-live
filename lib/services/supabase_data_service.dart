@@ -1798,12 +1798,9 @@ class SupabaseDataService {
   Future<bool> clearRoomCharisma(String roomId) async {
     try {
       final now = DateTime.now().millisecondsSinceEpoch;
-      // 1. Permanently delete all sent_gifts for this room from Supabase
-      if (roomId.isNotEmpty) {
-        final delUrl = Uri.parse('$_baseUrl/rest/v1/sent_gifts?room_id=eq.$roomId');
-        await http.delete(delUrl, headers: _headers);
-      }
-      // 2. Persist charisma_cleared_at timestamp in rooms table
+      // لا نحذف سجلات sent_gifts لأنها مصدر الترتيب العام (الثروة/الجاذبية).
+      // نكتفي بختم وقت التصفير في الغرفة، وكل قراءات كاريزما الغرفة تستخدمه
+      // كحد أدنى لاحتساب هدايا الغرفة فقط.
       await updateRoom(roomId, {
         'charisma_cleared_at': now,
       });

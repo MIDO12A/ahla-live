@@ -7,6 +7,7 @@ import '../../../screens/rank/rank_screen.dart';
 import '../../../services/supabase_data_service.dart';
 import '../../../services/supabase_auth_service.dart';
 import '../../../config/supabase_config.dart';
+import '../../../config/r.dart';
 import 'package:zero/core/dtext.dart';
 
 /// بيانات المكافأة الفردية داخل مستوى الشحن
@@ -331,8 +332,8 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
 
   Widget _buildImage(String pathOrUrl, {double? width, double? height, BoxFit fit = BoxFit.contain}) {
     if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-      return Image.network(
-        pathOrUrl,
+      return Image(
+        image: R.cachedImage(pathOrUrl),
         width: width,
         height: height,
         fit: fit,
@@ -856,7 +857,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                                   radius: 20,
                                   backgroundColor: Colors.white12,
                                   backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                                      ? NetworkImage(photoUrl)
+                                      ? R.cachedImage(photoUrl)
                                       : null,
                                   child: photoUrl == null || photoUrl.isEmpty
                                       ? const Icon(Icons.person, color: Colors.white60, size: 22)

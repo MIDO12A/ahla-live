@@ -5,6 +5,7 @@ import '../../core/supabase_compat.dart';
 import '../../services/supabase_service.dart';
 import '../../services/dynamic_config_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../config/r.dart';
 import '../user_profile/user_profile_screen.dart';
 import '../room/room_screen.dart';
 import 'package:zero/core/dtext.dart';
@@ -289,7 +290,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                 child: Container(
                   decoration: mainBg.isNotEmpty
                       ? BoxDecoration(
-                          image: DecorationImage(image: NetworkImage(mainBg), fit: BoxFit.fill),
+                          image: DecorationImage(image: R.cachedImage(mainBg), fit: BoxFit.fill),
                         )
                       : null,
                   child: TabBar(
@@ -297,7 +298,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                     dividerColor: Colors.transparent,
                     indicator: mainIndicator.isNotEmpty
                         ? BoxDecoration(
-                            image: DecorationImage(image: NetworkImage(mainIndicator), fit: BoxFit.fill),
+                            image: DecorationImage(image: R.cachedImage(mainIndicator), fit: BoxFit.fill),
                           )
                         : const UnderlineTabIndicator(borderSide: BorderSide(color: Color(0xFFFFD54F), width: 3)),
                     labelColor: mainTextColor,
@@ -334,7 +335,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
           margin: const EdgeInsets.symmetric(horizontal: 40),
           decoration: subBg.isNotEmpty
               ? BoxDecoration(
-                  image: DecorationImage(image: NetworkImage(subBg), fit: BoxFit.fill),
+                  image: DecorationImage(image: R.cachedImage(subBg), fit: BoxFit.fill),
                   borderRadius: BorderRadius.circular(18),
                 )
               : BoxDecoration(
@@ -347,7 +348,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
             dividerColor: Colors.transparent,
             indicator: subIndicator.isNotEmpty
                 ? BoxDecoration(
-                    image: DecorationImage(image: NetworkImage(subIndicator), fit: BoxFit.fill),
+                    image: DecorationImage(image: R.cachedImage(subIndicator), fit: BoxFit.fill),
                     borderRadius: BorderRadius.circular(18),
                   )
                 : BoxDecoration(

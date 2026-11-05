@@ -496,8 +496,8 @@ class _UserProfileState extends State<UserProfile> {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(2),
-                        child: Image.network(
-                          'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(country)}.png',
+                        child: Image(
+                          image: R.cachedImage('https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(country)}.png'),
                           width: 18,
                           height: 12,
                           fit: BoxFit.cover,

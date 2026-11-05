@@ -318,8 +318,10 @@ class ProfileScreen extends StatelessWidget {
                       const SizedBox(width: 6),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(3),
-                        child: Image.network(
-                          'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(user.country)}.png',
+                        child: Image(
+                          image: R.cachedImage(
+                            'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(user.country)}.png',
+                          ),
                           width: 20,
                           height: 14,
                           fit: BoxFit.cover,

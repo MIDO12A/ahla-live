@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/widgets/cached_image.dart';
+import '../../config/r.dart';
 import '../../screens/room/widgets/svga_frame.dart';
 import '../../services/dynamic_config_service.dart';
 import 'cp_service.dart';
@@ -248,7 +249,7 @@ class _CPRewardsScreenState extends State<CPRewardsScreen> {
             borderRadius: BorderRadius.circular(12),
             image: bgUrl.isNotEmpty
                 ? DecorationImage(
-                    image: NetworkImage(bgUrl),
+                    image: R.cachedImage(bgUrl),
                     fit: BoxFit.fill,
                   )
                 : null,

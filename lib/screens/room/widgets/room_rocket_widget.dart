@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/r.dart';
 import '../../../../services/dynamic_config_service.dart';
 import 'svga_player.dart';
 import 'package:zero/core/dtext.dart';
@@ -47,8 +48,8 @@ class RoomRocketWidget extends StatelessWidget {
                       fit: BoxFit.contain,
                     )
                   : (rocketIcon.startsWith('http://') || rocketIcon.startsWith('https://'))
-                      ? Image.network(
-                          rocketIcon,
+                      ? Image(
+                          image: R.cachedImage(rocketIcon),
                           width: 44,
                           height: 44,
                           fit: BoxFit.contain,

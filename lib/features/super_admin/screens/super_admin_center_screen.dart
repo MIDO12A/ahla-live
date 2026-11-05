@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/supabase_compat.dart';
+import '../../../config/r.dart';
 import '../../../core/ui/in_app_toast.dart';
 import '../../../models/user_model.dart';
 import '../../../services/supabase_data_service.dart';
@@ -522,7 +523,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
           CircleAvatar(
             radius: 28,
             backgroundImage: widget.currentUser.photoUrl.isNotEmpty
-                ? NetworkImage(widget.currentUser.photoUrl)
+                ? R.cachedImage(widget.currentUser.photoUrl)
                 : null,
             child: widget.currentUser.photoUrl.isEmpty
                 ? const Icon(Icons.shield, color: Color(0xFFFFD700), size: 30)
@@ -721,7 +722,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundImage: (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
+              backgroundImage: (photo != null && photo.isNotEmpty) ? R.cachedImage(photo) : null,
               child: (photo == null || photo.isEmpty) ? const Icon(Icons.person, color: Colors.blueAccent) : null,
             ),
             title: DText(admin['name'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -750,7 +751,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundImage: (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
+              backgroundImage: (photo != null && photo.isNotEmpty) ? R.cachedImage(photo) : null,
               child: (photo == null || photo.isEmpty) ? const Icon(Icons.person, color: Color(0xFFFFD700)) : null,
             ),
             title: DText(bd['name'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),

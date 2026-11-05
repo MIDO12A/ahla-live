@@ -242,8 +242,8 @@ class _DailyTasksScreenState extends State<DailyTasksScreen> with SingleTickerPr
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: _bannerUrl != null && _bannerUrl!.isNotEmpty
-            ? Image.network(
-                _bannerUrl!,
+            ? Image(
+                image: R.cachedImage(_bannerUrl!),
                 fit: BoxFit.cover,
                 width: double.infinity,
                 errorBuilder: (_, __, ___) => _buildDefaultBanner(),

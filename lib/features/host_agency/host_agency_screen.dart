@@ -761,7 +761,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: cfg.hostAgencyBannerImage.startsWith('http')
-                    ? Image.network(cfg.hostAgencyBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover)
+                    ? Image(image: R.cachedImage(cfg.hostAgencyBannerImage), height: 90, width: double.infinity, fit: BoxFit.cover)
                     : Image.asset(cfg.hostAgencyBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover),
               ),
             ),
@@ -793,7 +793,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
               ? Container(
                   decoration: BoxDecoration(
                     image: bgImg.startsWith('http')
-                        ? DecorationImage(image: NetworkImage(bgImg), fit: BoxFit.cover)
+                        ? DecorationImage(image: R.cachedImage(bgImg), fit: BoxFit.cover)
                         : DecorationImage(image: AssetImage(bgImg), fit: BoxFit.cover),
                   ),
                   child: scrollView,
@@ -1035,7 +1035,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
           Positioned.fill(
             child: cfg.hostAgencyHeaderBgImage.isNotEmpty
                 ? (cfg.hostAgencyHeaderBgImage.startsWith('http')
-                    ? Image.network(cfg.hostAgencyHeaderBgImage, fit: BoxFit.cover)
+                    ? Image(image: R.cachedImage(cfg.hostAgencyHeaderBgImage), fit: BoxFit.cover)
                     : Image.asset(cfg.hostAgencyHeaderBgImage, fit: BoxFit.cover))
                 : Image.asset(
                     'assets/mipmap-xxhdpi/unions_rank_header_bg.webp',

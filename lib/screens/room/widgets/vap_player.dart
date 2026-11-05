@@ -7,6 +7,7 @@ import 'package:flutter_vap_plugin/flutter_vap_plugin.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../../services/media_cache_service.dart';
+import '../../../config/r.dart';
 
 /// Rock-solid VAP Player supporting alpha transparency (Tencent VAP)
 /// and Injected Dynamic Parameters (VAP المحقون: dynamic text and avatar replacement).
@@ -248,8 +249,8 @@ class _VapPlayerState extends State<VapPlayer> with SingleTickerProviderStateMix
 
   Widget _buildFallback(double w, double h) {
     if (widget.defaultImageUrl != null && widget.defaultImageUrl!.isNotEmpty) {
-      return Image.network(
-        widget.defaultImageUrl!,
+      return Image(
+        image: R.cachedImage(widget.defaultImageUrl!),
         width: w,
         height: h,
         fit: widget.fit,

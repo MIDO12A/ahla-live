@@ -83,7 +83,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(14),
                             child: cfg.cpSpaceBannerImage.startsWith('http')
-                                ? Image.network(cfg.cpSpaceBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover)
+                                ? Image(image: R.cachedImage(cfg.cpSpaceBannerImage), height: 90, width: double.infinity, fit: BoxFit.cover)
                                 : Image.asset(cfg.cpSpaceBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover),
                           ),
                         ),
@@ -105,7 +105,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
           ? Container(
               decoration: BoxDecoration(
                 image: bgImg.startsWith('http')
-                    ? DecorationImage(image: NetworkImage(bgImg), fit: BoxFit.cover)
+                    ? DecorationImage(image: R.cachedImage(bgImg), fit: BoxFit.cover)
                     : DecorationImage(image: AssetImage(bgImg), fit: BoxFit.cover),
               ),
               child: body,
@@ -122,7 +122,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
         Positioned.fill(
           child: bgImg.isNotEmpty
               ? (bgImg.startsWith('http')
-                  ? Image.network(bgImg, fit: BoxFit.cover)
+                  ? Image(image: R.cachedImage(bgImg), fit: BoxFit.cover)
                   : Image.asset(bgImg, fit: BoxFit.cover))
               : Image.asset(
                   'assets/cp/ic_cp_main_bg_top.webp',
@@ -298,7 +298,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
       decoration: BoxDecoration(
         image: cfg.cpSpaceBgImage.isNotEmpty
             ? (cfg.cpSpaceBgImage.startsWith('http')
-                ? DecorationImage(image: NetworkImage(cfg.cpSpaceBgImage), fit: BoxFit.cover)
+                ? DecorationImage(image: R.cachedImage(cfg.cpSpaceBgImage), fit: BoxFit.cover)
                 : DecorationImage(image: AssetImage(cfg.cpSpaceBgImage), fit: BoxFit.cover))
             : const DecorationImage(
                 image: AssetImage('assets/cp/ic_cp_main_bg_top.webp'),

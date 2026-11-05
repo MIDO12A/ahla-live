@@ -6,7 +6,6 @@ import '../screens/room/widgets/svga_player.dart';
 import '../screens/room/widgets/vap_player.dart';
 import '../core/cache/encrypted_image_provider.dart';
 import '../core/widgets/cached_image.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 enum AssetType { svga, vap, mp4, webp, gif, png, other }
 
@@ -416,7 +415,7 @@ class R {
       return FileImage(File(filePath));
     }
     if (clean.startsWith('http://') || clean.startsWith('https://')) {
-      return CachedNetworkImageProvider(clean);
+      return EncryptedImageProvider(clean);
     }
     if (clean.startsWith('assets/')) {
       return AssetImage(clean);

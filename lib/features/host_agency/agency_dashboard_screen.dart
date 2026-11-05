@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
+import '../../config/r.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -561,8 +562,8 @@ class _AgencyHeader extends StatelessWidget {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: (photoUrl != null && photoUrl!.isNotEmpty)
-                    ? Image.network(
-                        photoUrl!,
+                    ? Image(
+                        image: R.cachedImage(photoUrl!),
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const Center(child: DText('🎙️', style: TextStyle(fontSize: 24))),
                       )

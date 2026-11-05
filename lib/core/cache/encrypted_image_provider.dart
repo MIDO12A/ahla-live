@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
   final String url;
   static const int _maxMemoryEntries = 200;
+  static const int _maxDiskEntries = 1500;
   static final Map<String, Uint8List> _memoryCache = {};
   static final List<String> _memoryCacheOrder = [];
   static final Map<String, Completer<Uint8List>> _pendingCompleters = {};
@@ -30,11 +31,45 @@ class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
   static Future<void> _doInit() async {
     final hash = sha256.convert(utf8.encode('enc_img_cache_default'));
     _aesKey = enc.Key(Uint8List.fromList(hash.bytes.sublist(0, 32)));
-    final appDir = await getApplicationCacheDirectory();
+    // Support directory is persistent (unlike the cache directory which the OS
+    // may clear at any time). This keeps downloaded images across app restarts
+    // and prevents re-downloading them on every cold start.
+    Directory appDir;
+    try {
+      appDir = await getApplicationSupportDirectory();
+    } catch (_) {
+      appDir = await getApplicationCacheDirectory();
+    }
     _cacheDir = Directory('${appDir.path}/.enc_img_cache');
     if (!await _cacheDir!.exists()) {
       await _cacheDir!.create(recursive: true);
     }
+    unawaited(_pruneDiskCache());
+  }
+
+  /// Keeps the on-disk image cache bounded. Without this it would grow forever
+  /// as users browse new rooms/profiles, eventually wasting storage.
+  static Future<void> _pruneDiskCache() async {
+    try {
+      final files = <File>[];
+      await for (final entity in _cacheDir!.list()) {
+        if (entity is File && entity.path.endsWith('.enc')) files.add(entity);
+      }
+      if (files.length <= _maxDiskEntries) return;
+      files.sort((a, b) {
+        try {
+          return a.statSync().modified.compareTo(b.statSync().modified);
+        } catch (_) {
+          return 0;
+        }
+      });
+      final excess = files.length - _maxDiskEntries;
+      for (var i = 0; i < excess; i++) {
+        try {
+          await files[i].delete();
+        } catch (_) {}
+      }
+    } catch (_) {}
   }
 
   String get _key => sha256.convert(utf8.encode(url)).toString();
@@ -66,9 +101,13 @@ class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
   }
 
   static void _storeInMemory(String key, Uint8List bytes) {
+    if (_memoryCache.containsKey(key)) {
+      _memoryCache[key] = bytes;
+      return;
+    }
     _memoryCache[key] = bytes;
     _memoryCacheOrder.add(key);
-    if (_memoryCacheOrder.length > _maxMemoryEntries) {
+    while (_memoryCacheOrder.length > _maxMemoryEntries) {
       final removed = _memoryCacheOrder.removeAt(0);
       _memoryCache.remove(removed);
     }

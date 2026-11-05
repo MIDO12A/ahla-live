@@ -403,8 +403,10 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                                   icon: (a.country != null && a.country!.isNotEmpty)
                                       ? ClipRRect(
                                           borderRadius: BorderRadius.circular(2),
-                                          child: Image.network(
-                                            'https://flagcdn.com/w40/${a.country!.toLowerCase()}.png',
+                                          child: Image(
+                                            image: R.cachedImage(
+                                              'https://flagcdn.com/w40/${a.country!.toLowerCase()}.png',
+                                            ),
                                             width: 20,
                                             height: 13,
                                             fit: BoxFit.cover,
@@ -600,8 +602,10 @@ class _AgencyProfileScreenState extends State<AgencyProfileScreen> {
                           if (user?.country != null && user!.country.isNotEmpty) ...[
                             ClipRRect(
                               borderRadius: BorderRadius.circular(2),
-                              child: Image.network(
-                                'https://flagcdn.com/w40/${user.country.toLowerCase()}.png',
+                              child: Image(
+                                image: R.cachedImage(
+                                  'https://flagcdn.com/w40/${user.country.toLowerCase()}.png',
+                                ),
                                 width: 20,
                                 height: 12,
                                 fit: BoxFit.cover,

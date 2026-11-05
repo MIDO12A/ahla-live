@@ -392,7 +392,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
             children: [
               dc.hostAgencyHeaderBgImage.isNotEmpty
                   ? (dc.hostAgencyHeaderBgImage.startsWith('http')
-                      ? Image.network(dc.hostAgencyHeaderBgImage, fit: BoxFit.cover)
+                      ? Image(image: R.cachedImage(dc.hostAgencyHeaderBgImage), fit: BoxFit.cover)
                       : Image.asset(dc.hostAgencyHeaderBgImage, fit: BoxFit.cover))
                   : Image.asset(
                       R.unionMyAgencyBg,
@@ -3510,7 +3510,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         if (info?.countryFlagUrl.isNotEmpty ?? false)
                           Padding(
                             padding: const EdgeInsets.only(right: 6),
-                            child: Image.network(info!.countryFlagUrl, width: 18, height: 12),
+                            child: Image(image: R.cachedImage(info!.countryFlagUrl), width: 18, height: 12),
                           ),
                         Expanded(
                           child: DText(

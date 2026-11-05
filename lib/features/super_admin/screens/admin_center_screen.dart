@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/supabase_compat.dart';
+import '../../../config/r.dart';
 import '../../../core/ui/in_app_toast.dart';
 import '../../../models/user_model.dart';
 import '../../../services/supabase_data_service.dart';
@@ -713,7 +714,7 @@ class _AdminCenterScreenState extends State<AdminCenterScreen> with SingleTicker
               CircleAvatar(
                 radius: 20,
                 backgroundColor: _crimson.withValues(alpha: 0.2),
-                backgroundImage: b['photo_url'] != null && b['photo_url'].toString().isNotEmpty ? NetworkImage(b['photo_url']) : null,
+                backgroundImage: b['photo_url'] != null && b['photo_url'].toString().isNotEmpty ? R.cachedImage(b['photo_url'].toString()) : null,
                 child: b['photo_url'] == null || b['photo_url'].toString().isEmpty ? const Icon(Icons.person, color: _crimson) : null,
               ),
               const SizedBox(width: 12),

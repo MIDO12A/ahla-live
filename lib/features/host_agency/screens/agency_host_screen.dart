@@ -11,6 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
+import '../../../config/r.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/supabase_compat.dart';
@@ -474,7 +475,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           CircleAvatar(
             radius: 26,
             backgroundImage: host.headImage.isNotEmpty
-                ? NetworkImage(host.headImage)
+                ? R.cachedImage(host.headImage)
                 : null,
             child: host.headImage.isEmpty
                 ? const Icon(Icons.person, size: 28, color: Colors.grey)

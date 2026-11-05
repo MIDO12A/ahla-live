@@ -1,4 +1,5 @@
 // lib/features/host_agency/screens/agency_owner_screen.dart
+import '../../../config/r.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // Exact Replica of Hayuki's act_union_center_v2.xml & Supporting Layouts:
 // • vh_union_center_top_info.xml: Agency avatar, edit, name, ID, broadcast banner
@@ -494,8 +495,8 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                   fit: StackFit.expand,
                   children: [
                     if (coverBg.isNotEmpty)
-                      Image.network(
-                        coverBg,
+                      Image(
+                        image: R.cachedImage(coverBg),
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(color: const Color(0xFF221F3B)),
                       )
@@ -693,7 +694,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                         border: Border.all(color: Colors.white, width: 1.5),
                         image: (user?.photoUrl != null && user!.photoUrl.isNotEmpty)
                             ? DecorationImage(
-                                image: NetworkImage(user.photoUrl),
+                                image: R.cachedImage(user.photoUrl),
                                 fit: BoxFit.cover,
                               )
                             : null,
@@ -1473,7 +1474,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                     radius: 26,
                     backgroundColor: const Color(0xFFE0E0E0),
                     backgroundImage: member.headImage.isNotEmpty
-                        ? NetworkImage(member.headImage)
+                        ? R.cachedImage(member.headImage)
                         : null,
                     child: member.headImage.isEmpty
                         ? const Icon(Icons.person, color: Colors.grey, size: 28)
@@ -2353,7 +2354,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                           CircleAvatar(
                             radius: 24,
                             backgroundImage: (foundUser!['photo_url'] ?? foundUser!['avatar']) != null
-                                ? NetworkImage(foundUser!['photo_url'] ?? foundUser!['avatar'])
+                                ? R.cachedImage((foundUser!['photo_url'] ?? foundUser!['avatar']).toString())
                                 : null,
                             child: (foundUser!['photo_url'] ?? foundUser!['avatar']) == null
                                 ? const Icon(Icons.person)
@@ -2529,7 +2530,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                               border: Border.all(color: Colors.white, width: 3),
                               image: currentAvatar.isNotEmpty
                                   ? DecorationImage(
-                                      image: NetworkImage(currentAvatar),
+                                      image: R.cachedImage(currentAvatar),
                                       fit: BoxFit.cover,
                                     )
                                   : null,
@@ -2752,7 +2753,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                         CircleAvatar(
                           radius: 28,
                           backgroundImage: member.headImage.isNotEmpty
-                              ? NetworkImage(member.headImage)
+                              ? R.cachedImage(member.headImage)
                               : null,
                           child: member.headImage.isEmpty ? const Icon(Icons.person) : null,
                         ),
@@ -2953,7 +2954,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundImage: member.headImage.isNotEmpty ? NetworkImage(member.headImage) : null,
+                backgroundImage: member.headImage.isNotEmpty ? R.cachedImage(member.headImage) : null,
                 child: member.headImage.isEmpty ? const Icon(Icons.person) : null,
               ),
               const SizedBox(width: 8),

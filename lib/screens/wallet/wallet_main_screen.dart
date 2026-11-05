@@ -31,6 +31,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   List<Map<String, dynamic>> _diamondPlans = [];
   bool _loadingPlans = true;
   bool _isHost = false;
+  int _hostDiamonds = 0;
+  int _hostMonthlyDiamonds = 0;
 
   late final Map<String, dynamic> _gatewayConfig = {
     'googlePlayEnabled': true,
@@ -192,11 +194,22 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         if (uid != null) {
           final mem = await Supabase.instance.client
               .from('host_agency_members')
-              .select('id')
+              .select(
+                  'diamonds_available, diamonds_balance, diamonds_earned_monthly')
               .or('host_uid.eq.$uid,user_id.eq.$uid')
+              .limit(1)
               .maybeSingle();
           if (mem != null && mounted) {
-            setState(() => _isHost = true);
+            final available = (mem['diamonds_available'] as num?)?.toInt() ??
+                (mem['diamonds_balance'] as num?)?.toInt() ??
+                0;
+            final monthly =
+                (mem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+            setState(() {
+              _isHost = true;
+              _hostDiamonds = available;
+              _hostMonthlyDiamonds = monthly;
+            });
           }
         }
       } catch (_) {}
@@ -204,6 +217,32 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     } finally {
       if (mounted) setState(() => _loadingPlans = false);
     }
+  }
+
+  /// Re-reads the agency wallet after an exchange so the diamonds tab shows the
+  /// live balance instead of the stale personal `users.diamonds` value.
+  Future<void> _refreshHostWallet() async {
+    try {
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      if (uid == null) return;
+      final mem = await Supabase.instance.client
+          .from('host_agency_members')
+          .select(
+              'diamonds_available, diamonds_balance, diamonds_earned_monthly')
+          .or('host_uid.eq.$uid,user_id.eq.$uid')
+          .limit(1)
+          .maybeSingle();
+      if (mem != null && mounted) {
+        final available = (mem['diamonds_available'] as num?)?.toInt() ??
+            (mem['diamonds_balance'] as num?)?.toInt() ??
+            0;
+        final monthly = (mem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        setState(() {
+          _hostDiamonds = available;
+          _hostMonthlyDiamonds = monthly;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -217,7 +256,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     final userProvider = Provider.of<UserProvider>(context);
     final user = userProvider.currentUser;
     final coins = user?.coins ?? 0;
-    final diamonds = user?.diamonds ?? 0;
+    final diamonds = _isHost ? _hostDiamonds : (user?.diamonds ?? 0);
     final dc = DynamicConfigService();
 
     return ListenableBuilder(
@@ -1002,7 +1041,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   int _exchangeDiamondAmount = 0;
   bool _exchanging = false;
 
-  Widget _buildExchangeSection(DynamicConfigService dc, int balance) {
+  Widget _buildExchangeSection(DynamicConfigService dc, int balance,
+      {int? monthlyDiamonds}) {
     if (!dc.diamondExchangeEnabled) {
       return const SizedBox.shrink();
     }
@@ -1049,6 +1089,13 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             'المعدل: $rateLabel (الحد الأدنى: $minDiamonds ألماس)',
             style: TextStyle(fontSize: 13, color: dc.walletSubTextColor),
           ),
+          if (isHost) ...[
+            const SizedBox(height: 6),
+            DText(
+              'المتاح للتبديل: $balance ♦   •   المحقق هذا الشهر: ${monthlyDiamonds ?? 0} ♦',
+              style: TextStyle(fontSize: 12, color: dc.walletSubTextColor),
+            ),
+          ],
           if (isHost)
             Container(
               margin: const EdgeInsets.only(top: 8, bottom: 4),
@@ -1143,7 +1190,9 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _exchangeDiamondAmount >= minDiamonds && !_exchanging
+              onPressed: _exchangeDiamondAmount >= minDiamonds &&
+                      !_exchanging &&
+                      (!_isHost || _exchangeDiamondAmount <= balance)
                   ? () => _doExchange(dc)
                   : null,
               style: ElevatedButton.styleFrom(
@@ -1186,12 +1235,14 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         rate: dc.diamondToCoinRate,
       );
       if (result.success) {
-        final updated = user.copyWith(
-          diamonds: user.diamonds >= _exchangeDiamondAmount
-              ? user.diamonds - _exchangeDiamondAmount
-              : 0,
-          coins: user.coins + result.coinsReceived,
-        );
+        final updated = _isHost
+            ? user.copyWith(coins: user.coins + result.coinsReceived)
+            : user.copyWith(
+                diamonds: user.diamonds >= _exchangeDiamondAmount
+                    ? user.diamonds - _exchangeDiamondAmount
+                    : 0,
+                coins: user.coins + result.coinsReceived,
+              );
         userProvider.updateUser(updated);
         if (mounted) {
           setState(() {
@@ -1207,6 +1258,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         }
         // لا نُبقي زر التبديل معلّقاً بانتظار إعادة تحميل المستخدم/تسجيل المهمة
         unawaited(userProvider.loadUser(user.uid));
+        if (_isHost) unawaited(_refreshHostWallet());
         unawaited(
             TaskService().recordActionByType(user.uid, 'recharge', amount: 1));
       } else {
@@ -1392,7 +1444,9 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             ),
           ),
           const SizedBox(height: 16),
-          if (!isCoins) _buildExchangeSection(dc, balance.toInt()),
+          if (!isCoins)
+            _buildExchangeSection(dc, balance.toInt(),
+                monthlyDiamonds: _isHost ? _hostMonthlyDiamonds : null),
           DText(
             dc.getScreenTitle('recharge', 'Recharge'),
             style: TextStyle(

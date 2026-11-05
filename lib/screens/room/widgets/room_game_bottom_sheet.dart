@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'sugarrush_game_dialog.dart';
 import '../../game/game_teaming_screen.dart';
+import '../../game/ludo_game_screen.dart';
 import 'package:zero/core/dtext.dart';
 
 class RoomGameBottomSheet extends StatefulWidget {
@@ -121,12 +122,22 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
   }
 
   void _handleGameTap(Map<String, String> game, bool isAr) {
+    final navigator = Navigator.of(context, rootNavigator: true);
     Navigator.pop(context);
     final gameName = isAr ? game['name_ar']! : game['name_en']!;
     widget.onGameSelect?.call(game['key']!, gameName);
 
     if (game['key'] == 'sugarrush') {
       SugarRushGameDialog.show(context, roomId: widget.roomId);
+      return;
+    }
+
+    if (game['key'] == 'ludo') {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => LudoGameScreen(roomId: widget.roomId),
+        ),
+      );
       return;
     }
 

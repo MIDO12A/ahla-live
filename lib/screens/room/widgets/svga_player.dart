@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svga/flutter_svga.dart';
 
 import '../../../services/media_cache_service.dart';
+import '../../../config/r.dart';
 import '../../../services/performance_monitor.dart';
 
 
@@ -561,7 +562,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
                 : const Center(child: CircularProgressIndicator(strokeWidth: 2)))
             : hasError
                 ? (widget.defaultImageUrl != null && widget.defaultImageUrl!.isNotEmpty
-                    ? Image.network(widget.defaultImageUrl!, width: w, height: h, fit: widget.fit,
+                    ? Image(image: R.cachedImage(widget.defaultImageUrl!), width: w, height: h, fit: widget.fit,
                         errorBuilder: (_, __, ___) => const SizedBox.shrink())
                     : const SizedBox.shrink())
                 : animationController?.videoItem != null

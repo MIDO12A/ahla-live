@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/brand_colors.dart';
 import '../../core/cache/encrypted_image_provider.dart';
+import '../../config/r.dart';
 import '../../services/dynamic_config_service.dart';
 import 'package:zero/core/dtext.dart';
 
@@ -44,7 +45,7 @@ class AgentRechargeHeader extends StatelessWidget {
         color: dc.agentRechargeHeaderColor,
         image: headerBg.isNotEmpty
             ? (headerBg.startsWith('http')
-                ? DecorationImage(image: NetworkImage(headerBg), fit: BoxFit.cover)
+                ? DecorationImage(image: R.cachedImage(headerBg), fit: BoxFit.cover)
                 : DecorationImage(image: AssetImage(headerBg), fit: BoxFit.cover))
             : null,
       ),

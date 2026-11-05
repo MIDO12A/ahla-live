@@ -7,6 +7,7 @@ import '../../services/supabase_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../providers/user_provider.dart';
+import '../../config/r.dart';
 import '../../core/ui/in_app_toast.dart';
 import '../../widgets/user_id_widget.dart';
 import '../country/country_picker_screen.dart';
@@ -420,8 +421,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: _selectedImage != null
                       ? Image.file(_selectedImage!, fit: BoxFit.cover)
                       : (currentPhotoUrl.isNotEmpty
-                          ? Image.network(
-                              currentPhotoUrl,
+                          ? Image(
+                              image: R.cachedImage(currentPhotoUrl),
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 54, color: Colors.grey),
                             )
@@ -630,8 +631,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: isNetwork
-                    ? Image.network(
-                        photoPath,
+                    ? Image(
+                        image: R.cachedImage(photoPath),
                         width: 76,
                         height: 76,
                         fit: BoxFit.cover,
@@ -693,8 +694,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(3),
-              child: Image.network(
-                'https://flagcdn.com/w40/$cleanCode.png',
+              child: Image(
+                image: R.cachedImage('https://flagcdn.com/w40/$cleanCode.png'),
                 width: 24,
                 height: 16,
                 fit: BoxFit.cover,

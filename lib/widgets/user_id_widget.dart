@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zero/core/dtext.dart';
+import '../config/r.dart';
 
 /// ويدجت عرض معرف المستخدم (User ID) المطابق تماماً للأصل مع دعم التأثير اللوني والمتحرك
 /// يدعم:
@@ -216,8 +217,8 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
         // رمز علم الدولة مع بديل إيموجي فوري
         ClipRRect(
           borderRadius: BorderRadius.circular(2),
-          child: Image.network(
-            'https://flagcdn.com/w40/$cleanCountry.png',
+          child: Image(
+            image: R.cachedImage('https://flagcdn.com/w40/$cleanCountry.png'),
             width: 18,
             height: 12,
             fit: BoxFit.cover,
@@ -266,8 +267,8 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
               children: [
                 // أيقونة شارة ID المميزة الأصلية أو GIF مخصص
                 if (widget.gifUrl != null && widget.gifUrl!.isNotEmpty) ...[
-                  Image.network(
-                    widget.gifUrl!,
+                  Image(
+                    image: R.cachedImage(widget.gifUrl!),
                     width: 18,
                     height: 18,
                     fit: BoxFit.contain,

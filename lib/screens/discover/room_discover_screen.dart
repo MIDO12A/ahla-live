@@ -1116,8 +1116,10 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(2),
-                                child: Image.network(
-                                  'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(room.country)}.png',
+                                child: Image(
+                                  image: R.cachedImage(
+                                    'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(room.country)}.png',
+                                  ),
                                   width: 18,
                                   height: 12,
                                   fit: BoxFit.cover,

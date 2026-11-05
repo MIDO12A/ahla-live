@@ -54,7 +54,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       for (final latest in broadcasts) {
         final bTs = (latest['timestamp'] as num?)?.toInt() ??
             (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-        final isRecent = bTs == 0 || (nowMs - bTs).abs() < 90000;
+        // تجاهل البثوث التي لا تحمل وقت سيرفر صالح حتى لا تُعاد القديمة عند كل فتح.
+        if (bTs <= 0) continue;
+        final isRecent = (nowMs - bTs).abs() < 90000;
         if (!isRecent) continue;
         final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
         if (_seenBroadcastIds.contains(bId)) continue;

@@ -1029,6 +1029,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _showNotifications = false;
   bool _showShare = false;
   bool _isMinimized = false;
+  bool _sessionLeaveHandled = false;
   bool _isFollowed = false;
   int _msgCount = 0;
   final List<MessageModel> _chatMessages = [];
@@ -1466,8 +1467,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       for (final latest in broadcasts) {
         final rawTs = (latest['timestamp'] as num?)?.toInt() ??
             (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-        final bTs = rawTs == 0 ? nowMs : rawTs;
-        final isRecent = rawTs == 0 || (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
+        // بدون وقت سيرفر صالح لا يمكن اعتبار البث حديثاً؛ وإلا تُعاد بثوث قديمة
+        // (بدون created_at) في كل غرفة عند الدخول.
+        if (rawTs <= 0) continue;
+        final bTs = rawTs;
+        final isRecent = (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
         if (!isRecent) continue;
         if (minTimestamp > 0 && bTs < minTimestamp) continue;
         final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
@@ -3843,8 +3847,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     );
                   } else {
                     return SizedBox.expand(
-                      child: Image.network(
-                        customBg,
+                      child: Image(
+                        image: R.cachedImage(customBg),
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
@@ -5753,7 +5757,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             },
                             child: Center(
                               child: emojis[idx].startsWith('http')
-                                  ? Image.network(emojis[idx], width: 44, height: 44, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.sentiment_satisfied, color: Colors.white70))
+                                  ? Image(image: R.cachedImage(emojis[idx]), width: 44, height: 44, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.sentiment_satisfied, color: Colors.white70))
                                   : DText(emojis[idx], style: const TextStyle(fontSize: 28)),
                             ),
                           ),
@@ -5969,7 +5973,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 // iv_room_bg: خلفية الغرفة الأساسية في أعلى النافذة
                 Positioned.fill(
                   child: roomBg.startsWith('http')
-                      ? Image.network(roomBg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/images/room_bg_friend.webp', fit: BoxFit.cover))
+                      ? Image(image: R.cachedImage(roomBg), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Image.asset('assets/images/room_bg_friend.webp', fit: BoxFit.cover))
                       : Image.asset(roomBg, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                 ),
                 // iv_room_mask: قناع التعتيم الأصلي المتدرج
@@ -6872,7 +6876,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                         backgroundColor: Colors.white12,
                                         backgroundImage: gift.senderAvatar.isNotEmpty
                                             ? (gift.senderAvatar.startsWith('http')
-                                                ? NetworkImage(gift.senderAvatar) as ImageProvider
+                                                ? R.cachedImage(gift.senderAvatar)
                                                 : AssetImage(gift.senderAvatar))
                                             : null,
                                         child: gift.senderAvatar.isEmpty
@@ -6907,7 +6911,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                           child: iconAsset.isNotEmpty
                                               ? R.image(iconAsset, width: 36, height: 36, fit: BoxFit.contain)
                                               : (defaultImg.startsWith('http')
-                                                  ? Image.network(defaultImg, width: 36, height: 36, fit: BoxFit.contain)
+                                                  ? Image(image: R.cachedImage(defaultImg), width: 36, height: 36, fit: BoxFit.contain)
                                                   : R.image(defaultImg, width: 36, height: 36, fit: BoxFit.contain)),
                                         ),
                                       ],
@@ -6977,10 +6981,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     Navigator.of(context).pop();
   }
 
-  Future<void> _leaveRoomSession() async {
-    final uid = _currentUserId ?? Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+  Future<void> _leaveRoomSession({String? uid, String? name, bool logExit = true}) async {
+    if (_sessionLeaveHandled) return;
+    _sessionLeaveHandled = true;
+
+    String? resolvedUid = uid ?? _currentUserId;
+    if (resolvedUid == null && mounted) {
+      try {
+        resolvedUid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+      } catch (_) {}
+    }
     final roomId = widget.roomId;
-    final name = _currentUserName;
+    final resolvedName = name ?? _currentUserName;
+    final resolvedPhoto = (resolvedUid != null ? _cachedUsers[resolvedUid]?.photoUrl : null) ?? '';
 
     final mySeatIdx = _currentUserSeatIndex;
     _currentUserSeatIndex = null;
@@ -6995,7 +7008,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
 
     for (int i = 0; i < _seats.length; i++) {
-      if ((uid != null && _seats[i].user?.id == uid) || (mySeatIdx != null && i == mySeatIdx)) {
+      if ((resolvedUid != null && _seats[i].user?.id == resolvedUid) || (mySeatIdx != null && i == mySeatIdx)) {
         _seats[i].state = SeatState.empty;
         _seats[i].user = null;
         _seats[i].isMuted = false;
@@ -7005,21 +7018,27 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     }
 
-    if (uid != null && uid.isNotEmpty) {
-      cleanupTasks.add(safeCall(() => _firebaseService.leaveSeatForUser(roomId, uid)));
-      cleanupTasks.add(safeCall(() => SupabaseService().leaveSeatForUser(roomId, uid)));
-      cleanupTasks.add(safeCall(() => SupabaseDataService().leaveSeatForUser(roomId, uid)));
-      cleanupTasks.add(safeCall(() => SupabaseDataService().leaveRoom(roomId, uid)));
+    final leaveUid = resolvedUid;
+    if (leaveUid != null && leaveUid.isNotEmpty) {
+      cleanupTasks.add(safeCall(() => _firebaseService.leaveSeatForUser(roomId, leaveUid)));
+      cleanupTasks.add(safeCall(() => SupabaseService().leaveSeatForUser(roomId, leaveUid)));
+      cleanupTasks.add(safeCall(() => SupabaseDataService().leaveSeatForUser(roomId, leaveUid)));
+      cleanupTasks.add(safeCall(() => SupabaseDataService().leaveRoom(roomId, leaveUid)));
       cleanupTasks.add(safeCall(() => Supabase.instance.client
           .from('room_members')
           .delete()
           .eq('room_id', roomId)
-          .eq('uid', uid)));
-      cleanupTasks.add(safeCall(() => _firebaseService.leaveRoom(roomId, uid)));
+          .eq('uid', leaveUid)));
+      cleanupTasks.add(safeCall(() => _firebaseService.leaveRoom(roomId, leaveUid)));
     }
 
-    if (name != null && name.isNotEmpty) {
-      cleanupTasks.add(safeCall(() => _firebaseService.logExit(roomId, name)));
+    if (logExit && resolvedName != null && resolvedName.isNotEmpty) {
+      cleanupTasks.add(safeCall(() => _firebaseService.logExit(
+            roomId,
+            resolvedName,
+            uid: resolvedUid,
+            photoUrl: resolvedPhoto,
+          )));
     }
 
     if (cleanupTasks.isNotEmpty) {
@@ -7088,6 +7107,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _exitRoom() async {
+    // Snapshot identity before the route is removed so cleanup never relies on
+    // a deactivated BuildContext (which used to abort leave-room tasks).
+    String? uid = _currentUserId;
+    if (uid == null && mounted) {
+      try {
+        uid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+      } catch (_) {}
+    }
+    final name = _currentUserName ?? '';
     _chatMessages.clear();
     _msgCount = 0;
     // 1. Dismiss UI immediately — 0ms instant visual response!
@@ -7106,13 +7134,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     } catch (_) {}
     // 3. Immediately clean up minimized room if active
     try {
-      final uid = _currentUserId ?? Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
       if (uid != null) {
         MinimizedRoomService().exitRoom(uid);
       }
     } catch (_) {}
     // 4. Run seat & server session cleanups concurrently in background
-    unawaited(_leaveRoomSession());
+    unawaited(_leaveRoomSession(uid: uid, name: name));
   }
 
   void _checkRoomBan(String uid) {

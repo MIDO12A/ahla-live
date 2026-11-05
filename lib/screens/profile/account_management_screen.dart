@@ -132,8 +132,8 @@ class AccountManagementScreen extends StatelessWidget {
                                   children: [
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(3),
-                                      child: Image.network(
-                                        'https://flagcdn.com/w40/$cleanCode.png',
+                                      child: Image(
+                                        image: R.cachedImage('https://flagcdn.com/w40/$cleanCode.png'),
                                         width: 22,
                                         height: 15,
                                         fit: BoxFit.cover,
@@ -428,7 +428,7 @@ class AccountManagementScreen extends StatelessWidget {
                                   radius: 22,
                                   backgroundColor: const Color(0xFF33333F),
                                   backgroundImage: photo.isNotEmpty && photo.startsWith('http')
-                                      ? NetworkImage(photo)
+                                      ? R.cachedImage(photo)
                                       : null,
                                   child: photo.isEmpty || !photo.startsWith('http')
                                       ? const Icon(Icons.person, color: Colors.white54)

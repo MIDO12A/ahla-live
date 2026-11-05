@@ -1600,11 +1600,42 @@ class SupabaseService {
     String? entranceItem, {
     String? carItem,
   }) async {
-    // Entrance logged
+    if (roomId.isEmpty || uid.isEmpty) return;
+    try {
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      await _ds.sendMessage(MessageModel(
+        msgId: 'entrance_${uid}_$ts',
+        roomId: roomId,
+        senderUid: uid,
+        senderName: name,
+        senderPhotoUrl: photoUrl,
+        text: 'joined',
+        type: 'entrance',
+        timestamp: ts,
+      ));
+    } catch (_) {}
   }
 
-  Future<void> logExit(String roomId, String name) async {
-    // Exit logged
+  Future<void> logExit(
+    String roomId,
+    String name, {
+    String? uid,
+    String? photoUrl,
+  }) async {
+    if (roomId.isEmpty || name.isEmpty) return;
+    try {
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      await _ds.sendMessage(MessageModel(
+        msgId: 'exit_${uid ?? name}_$ts',
+        roomId: roomId,
+        senderUid: uid ?? 'system',
+        senderName: name,
+        senderPhotoUrl: photoUrl ?? '',
+        text: 'left',
+        type: 'entrance',
+        timestamp: ts,
+      ));
+    } catch (_) {}
   }
 
   Future<void> sendSeatInvite(
@@ -2382,13 +2413,40 @@ class SupabaseService {
         cutoff = DateTime.utc(now.year, now.month, 1);
       }
 
+      // احترام وقت تصفير كاريزما الغرفة: نستبعد الهدايا الأقدم من التصفير
+      // من ترتيب الغرفة فقط دون المساس بالترتيب العام.
+      DateTime? clearedAt;
+      if (roomId.isNotEmpty) {
+        try {
+          final roomRes = await http.get(
+            Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId&select=charisma_cleared_at&limit=1'),
+            headers: _headers,
+          );
+          if (roomRes.statusCode == 200) {
+            final roomList = jsonDecode(roomRes.body);
+            if (roomList is List && roomList.isNotEmpty) {
+              final ms = ((roomList.first as Map)['charisma_cleared_at'] as num?)?.toInt() ?? 0;
+              if (ms > 0) {
+                clearedAt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      final effectiveCutoff = (cutoff == null ||
+              (clearedAt != null && clearedAt.isAfter(cutoff)))
+          ? (clearedAt ?? cutoff)
+          : cutoff;
+
       final allGifts =
-          await _ds.getSentGifts(roomId, limit: 1000, after: cutoff);
+          await _ds.getSentGifts(roomId, limit: 1000, after: effectiveCutoff);
       if (allGifts.isEmpty) return [];
 
-      // تصفير القائمة عند انتهاء الفترة وسحب بيانات الفترة الجديدة فقط
-      final filtered = cutoff != null
-          ? allGifts.where((g) => g.timestamp.isAfter(cutoff!)).toList()
+      // تصفير القائمة عند انتهاء الفترة أو تصفير كاريزما الغرفة
+      final filtered = effectiveCutoff != null
+          ? allGifts
+              .where((g) => g.timestamp.isAfter(effectiveCutoff))
+              .toList()
           : allGifts;
 
       if (filtered.isEmpty) return [];

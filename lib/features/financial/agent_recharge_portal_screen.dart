@@ -15,6 +15,7 @@ import 'agent_recharge/tabs/agent_history_tab.dart';
 import 'agent_recharge/tabs/agent_diamond_tab.dart';
 import 'agent_recharge_widgets.dart';
 import '../../services/dynamic_config_service.dart';
+import '../../config/r.dart';
 import 'package:zero/core/dtext.dart';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -287,7 +288,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: dc.agentRechargeBannerImage.startsWith('http')
-                ? Image.network(dc.agentRechargeBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover)
+                ? Image(image: R.cachedImage(dc.agentRechargeBannerImage), height: 90, width: double.infinity, fit: BoxFit.cover)
                 : Image.asset(dc.agentRechargeBannerImage, height: 90, width: double.infinity, fit: BoxFit.cover),
           ),
         ),
@@ -347,7 +348,7 @@ class _AgentRechargePortalScreenState extends State<AgentRechargePortalScreen>
           ? Container(
               decoration: BoxDecoration(
                 image: bgImg.startsWith('http')
-                    ? DecorationImage(image: NetworkImage(bgImg), fit: BoxFit.cover)
+                    ? DecorationImage(image: R.cachedImage(bgImg), fit: BoxFit.cover)
                     : DecorationImage(image: AssetImage(bgImg), fit: BoxFit.cover),
               ),
               child: content,

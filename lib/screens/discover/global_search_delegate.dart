@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:zero/screens/user_profile/user_profile_screen.dart';
 import 'package:zero/screens/room/room_screen.dart';
 import '../../services/supabase_data_service.dart';
+import '../../config/r.dart';
 import 'package:zero/core/dtext.dart';
 
 class GlobalSearchDelegate extends SearchDelegate<String?> {
@@ -216,8 +217,8 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
                     decoration: const BoxDecoration(shape: BoxShape.circle),
                     clipBehavior: Clip.hardEdge,
                     child: photoUrl.isNotEmpty
-                        ? Image.network(
-                            photoUrl,
+                        ? Image(
+                            image: R.cachedImage(photoUrl),
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white54, size: 30),
                           )
@@ -254,7 +255,7 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
                       color: Colors.white10,
                       image: photoUrl.isNotEmpty
                           ? DecorationImage(
-                              image: NetworkImage(photoUrl),
+                              image: R.cachedImage(photoUrl),
                               fit: BoxFit.cover,
                             )
                           : null,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/r.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
 import '../../../../core/supabase_compat.dart';
@@ -326,8 +327,8 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
                             height: 60,
                             color: Colors.white12,
                             child: agencyLogo.isNotEmpty
-                                ? Image.network(
-                                    agencyLogo,
+                                ? Image(
+                                    image: R.cachedImage(agencyLogo),
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => const Icon(Icons.shield, color: Color(0xFFFFD700), size: 30),
                                   )

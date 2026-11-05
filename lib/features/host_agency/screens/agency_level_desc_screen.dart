@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/r.dart';
 import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 import 'package:zero/core/dtext.dart';
@@ -339,8 +340,8 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                       if (item.itemIcon.isNotEmpty)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
-                          child: Image.network(
-                            item.itemIcon,
+                          child: Image(
+                            image: R.cachedImage(item.itemIcon),
                             width: 18,
                             height: 18,
                             fit: BoxFit.contain,

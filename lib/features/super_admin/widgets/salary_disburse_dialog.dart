@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/supabase_compat.dart';
+import '../../../config/r.dart';
 import '../../../core/ui/in_app_toast.dart';
 import '../../../models/user_model.dart';
 import '../../../services/supabase_data_service.dart';
@@ -406,7 +407,7 @@ class _SalaryDisburseDialogState extends State<SalaryDisburseDialog> {
                         backgroundColor: const Color(0xFF6C63FF),
                         backgroundImage: _selectedAgent!['photo_url'] != null &&
                                 _selectedAgent!['photo_url'].toString().isNotEmpty
-                            ? NetworkImage(_selectedAgent!['photo_url'])
+                            ? R.cachedImage(_selectedAgent!['photo_url'].toString())
                             : null,
                         child: _selectedAgent!['photo_url'] == null ||
                                 _selectedAgent!['photo_url'].toString().isEmpty

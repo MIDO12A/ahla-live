@@ -340,7 +340,7 @@ class _RoomMessageBottomSheetState extends State<RoomMessageBottomSheet> {
             backgroundColor: Colors.white12,
             backgroundImage: otherAvatar.isNotEmpty
                 ? (otherAvatar.startsWith('http')
-                    ? NetworkImage(otherAvatar) as ImageProvider
+                    ? R.cachedImage(otherAvatar)
                     : AssetImage(otherAvatar))
                 : null,
             child: otherAvatar.isEmpty

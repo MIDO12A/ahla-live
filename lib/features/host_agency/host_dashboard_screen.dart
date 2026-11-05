@@ -1402,7 +1402,7 @@ class _AgencyWalletCard extends StatelessWidget {
                 children: [
                   Row(children: [
                     DText('🎯 الهدف التالي: ', style: TextStyle(color: _textMuted, fontSize: 12)),
-              DText('♦ محفظة الوكالة', style: TextStyle(color: tierColor, fontWeight: FontWeight.bold, fontSize: 15)),
+                    DText('${_fmtK(nextTarget.targetDiamonds)} ♦', style: TextStyle(color: tierColor, fontWeight: FontWeight.bold, fontSize: 13)),
                     const Spacer(),
                     DText('${(progress * 100).toStringAsFixed(0)}%', style: TextStyle(color: tierColor, fontSize: 12, fontWeight: FontWeight.bold)),
                   ]),

@@ -379,7 +379,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
                                             if (detectAssetType(assetUrl) == AssetType.svga) {
                                               return SvgaPlayer(assetPath: assetUrl, fit: BoxFit.cover, loops: true);
                                             }
-                                            return Image.network(assetUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.black26));
+                                            return Image(image: R.cachedImage(assetUrl), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.black26));
                                           },
                                         ),
                                         Positioned(
@@ -456,7 +456,7 @@ class _RoomBackgroundBottomSheetState extends State<RoomBackgroundBottomSheet>
                                         if (detectAssetType(url) == AssetType.svga) {
                                           return SvgaPlayer(assetPath: url, fit: BoxFit.cover, loops: true);
                                         }
-                                        return Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.black26));
+                                        return Image(image: R.cachedImage(url), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.black26));
                                       },
                                     ),
                                     if (isSelected)

@@ -6,6 +6,7 @@ import '../../../models/user_model.dart';
 import '../../../services/supabase_data_service.dart';
 import '../../../services/supabase_service.dart';
 import 'package:zero/core/dtext.dart';
+import '../../../config/r.dart';
 
 class StoreGiftDialog extends StatefulWidget {
   final UserModel currentUser;
@@ -303,7 +304,7 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                               radius: 18,
                               backgroundImage: _targetUser!['photo_url'] != null &&
                                       _targetUser!['photo_url'].toString().isNotEmpty
-                                  ? NetworkImage(_targetUser!['photo_url'])
+                                  ? R.cachedImage(_targetUser!['photo_url'])
                                   : null,
                               child: _targetUser!['photo_url'] == null ||
                                       _targetUser!['photo_url'].toString().isEmpty
@@ -401,7 +402,7 @@ class _StoreGiftDialogState extends State<StoreGiftDialog> {
                                     child: Padding(
                                       padding: const EdgeInsets.all(8.0),
                                       child: item.iconAsset.startsWith('http')
-                                          ? Image.network(item.iconAsset, fit: BoxFit.contain)
+                                          ? Image(image: R.cachedImage(item.iconAsset), fit: BoxFit.contain)
                                           : Image.asset(item.iconAsset, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.image, color: Colors.white38)),
                                     ),
                                   ),
