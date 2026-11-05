@@ -1322,11 +1322,14 @@ class SupabaseService {
         type: type, imageUrl: imageUrl);
   }
 
+  Future<int?> fetchServerTimeMs() => _ds.fetchServerTimeMs();
+
   Stream<List<MessageModel>> messagesStream(String roomId,
       {String? since}) async* {
+    final sinceMs = int.tryParse(since ?? '');
     while (true) {
       try {
-        final msgs = await _ds.getRoomMessages(roomId);
+        final msgs = await _ds.getRoomMessages(roomId, sinceMs: sinceMs);
         yield msgs;
       } catch (_) {}
       await Future.delayed(const Duration(milliseconds: 500));
@@ -1487,12 +1490,17 @@ class SupabaseService {
           : ((member['diamonds_available'] as num?)?.toInt() ??
               (member['diamonds_balance'] as num?)?.toInt() ??
               0);
+      final memberMonthly =
+          (member?['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+      final exchangeable = member == null
+          ? memberBalance
+          : (memberBalance < memberMonthly ? memberBalance : memberMonthly);
 
-      if (memberBalance < diamonds) {
+      if (exchangeable < diamonds) {
         return (
           success: false,
           coinsReceived: 0,
-          error: 'رصيد الألماس غير كافٍ'
+          error: 'المتاح للتبديل من التارجت الشهري غير كافٍ'
         );
       }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -623,6 +624,24 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] sendMessage error: $e');
       return false;
     }
+  }
+
+  /// وقت السيرفر من ترويسة HTTP (Date) — يُستخدم لضبط بداية جلسة الشات
+  /// بدل ساعة الجهاز التي قد تكون غير متزامنة.
+  Future<int?> fetchServerTimeMs() async {
+    try {
+      final res = await http.head(
+        Uri.parse('$_baseUrl/rest/v1/room_messages?select=created_at&limit=1'),
+        headers: _headers,
+      );
+      final date = res.headers['date'];
+      if (date != null) {
+        return HttpDate.parse(date).millisecondsSinceEpoch;
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] fetchServerTimeMs error: $e');
+    }
+    return null;
   }
 
   Future<List<MessageModel>> getRoomMessages(String roomId, {int limit = 1000, int? sinceMs}) async {

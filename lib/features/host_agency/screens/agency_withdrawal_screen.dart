@@ -193,6 +193,17 @@ class _WalletHeader extends StatelessWidget {
           const SizedBox(width: 8),
           _BalanceTile(icon: '🔒', label: 'مجمّد', value: _fmtK(member.diamondsPendingWithdrawal), color: const Color(0xFFFF9800)),
         ]),
+        const SizedBox(height: 6),
+        Row(children: [
+          const Icon(Icons.swap_horiz_rounded, color: Color(0xFFB39DDB), size: 12),
+          const SizedBox(width: 4),
+          Expanded(
+            child: DText(
+              'متاح للتبديل من التارجت الشهري: ${_fmtK(member.diamondsExchangeable)} ♦',
+              style: const TextStyle(color: Color(0xFFB39DDB), fontSize: 11),
+            ),
+          ),
+        ]),
         if (member.diamondsPendingWithdrawal > 0) ...[
           const SizedBox(height: 6),
           Row(children: [
@@ -284,8 +295,8 @@ class _ExchangeTabState extends State<_ExchangeTab> {
 
   Future<void> _exchange() async {
     if (_diamonds < 100) { _snack('الحد الأدنى للتبادل 100 ألماس'); return; }
-    if (_diamonds > widget.member.diamondsAvailable) {
-      _snack('الرصيد المتاح غير كافٍ. المتاح: ${widget.member.diamondsAvailable} ♦'); return;
+    if (_diamonds > widget.member.diamondsExchangeable) {
+      _snack('المتاح للتبديل من التارجت الشهري غير كافٍ. المتاح: ${widget.member.diamondsExchangeable} ♦'); return;
     }
     setState(() => _processing = true);
     try {
@@ -329,6 +340,7 @@ class _ExchangeTabState extends State<_ExchangeTab> {
             'معدل التبادل: 1 ♦ = $rateStr كوينز (حسب إعدادات لوحة التحكم)',
             'حد يومي: ${_fmtK(limit)} ألماس',
             'الحد الأدنى للعملية: 100 ألماس',
+            'المتاح للتبديل الآن: ${_fmtK(widget.member.diamondsExchangeable)} ♦ (من التارجت الشهري)',
             'يخصم من الرصيد المتاح ومن التارجت الشهري للمضيف ويتراجع التارجت بمقداره',
             'تنبيه: فك الألماس من التارجت يجعل احتساب الراتب بنسبة 60% (خصم 40% من الراتب)',
             'عمولة وكيل المضيفين محفوظة ولا يتم الخصم منها نهائياً',
@@ -354,7 +366,9 @@ class _ExchangeTabState extends State<_ExchangeTab> {
             label: DText('${_fmtK(v)}♦'),
             backgroundColor: const Color(0xFFB39DDB).withOpacity(0.12),
             labelStyle: const TextStyle(color: Color(0xFFB39DDB), fontSize: 12),
-            onPressed: () { _ctrl.text = v.toString(); setState(() => _diamonds = v); },
+            onPressed: v <= widget.member.diamondsExchangeable
+                ? () { _ctrl.text = v.toString(); setState(() => _diamonds = v); }
+                : null,
           ),
         ).toList()),
 
@@ -387,7 +401,11 @@ class _ExchangeTabState extends State<_ExchangeTab> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: (_processing || _diamonds < 100) ? null : _exchange,
+            onPressed: (_processing ||
+                    _diamonds < 100 ||
+                    _diamonds > widget.member.diamondsExchangeable)
+                ? null
+                : _exchange,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFB39DDB),
               foregroundColor: Colors.white,

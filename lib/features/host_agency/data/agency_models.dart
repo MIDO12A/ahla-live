@@ -308,6 +308,13 @@ class AgencyMemberInfo {
     );
   }
 
+  /// الألماس القابل للتبديل فعلياً: لا يمكن تبديل أكثر من التارجت الشهري
+  /// المحقق، حتى لو كان الرصيد المتاح أكبر بسبب الإيداعات الشخصية/المكافآت.
+  int get diamondsExchangeable {
+    final monthly = diamondsEarnedMonthly < 0 ? 0 : diamondsEarnedMonthly;
+    return diamondsAvailable < monthly ? diamondsAvailable : monthly;
+  }
+
   bool get isInTrial {
     if (trialEndsAt == null) return false;
     return ServerTimeService.instance.now().isBefore(trialEndsAt!);

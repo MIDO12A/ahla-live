@@ -709,8 +709,12 @@ abstract final class AgencyRepository {
         : ((mem['diamonds_available'] as num?)?.toInt() ??
             (mem['diamonds_balance'] as num?)?.toInt() ??
             0);
-    if (available < diamondsAmount) {
-      throw Exception('الرصيد المتاح غير كافٍ');
+    final monthly = (mem?['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+    final exchangeable = mem == null
+        ? available
+        : (available < monthly ? available : monthly);
+    if (exchangeable < diamondsAmount) {
+      throw Exception('المتاح للتبديل من التارجت الشهري غير كافٍ');
     }
 
     final coinsReceived = (diamondsAmount * mult * 100).round() / 100;

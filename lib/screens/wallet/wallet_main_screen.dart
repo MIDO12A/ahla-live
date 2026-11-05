@@ -1049,6 +1049,10 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     final isHost = _isHost;
     final multiplier = dc.coinsPerDiamond;
     final minDiamonds = dc.minDiamondsToExchange;
+    final monthly = monthlyDiamonds ?? 0;
+    final exchangeable = isHost
+        ? (balance < monthly ? balance : monthly)
+        : balance;
     final rateLabel = multiplier == 1.0
         ? '1 ألماس = 1 كوين (تبديل كامل 1:1)'
         : (multiplier > 1.0
@@ -1092,7 +1096,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
           if (isHost) ...[
             const SizedBox(height: 6),
             DText(
-              'المتاح للتبديل: $balance ♦   •   المحقق هذا الشهر: ${monthlyDiamonds ?? 0} ♦',
+              'المتاح للتبديل: $exchangeable ♦   •   المحقق هذا الشهر: $monthly ♦',
               style: TextStyle(fontSize: 12, color: dc.walletSubTextColor),
             ),
           ],
@@ -1192,7 +1196,7 @@ class _WalletMainScreenState extends State<WalletMainScreen>
             child: ElevatedButton(
               onPressed: _exchangeDiamondAmount >= minDiamonds &&
                       !_exchanging &&
-                      (!_isHost || _exchangeDiamondAmount <= balance)
+                      _exchangeDiamondAmount <= exchangeable
                   ? () => _doExchange(dc)
                   : null,
               style: ElevatedButton.styleFrom(
@@ -1224,6 +1228,25 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     final userProvider = context.read<UserProvider>();
     final user = userProvider.currentUser;
     if (user == null) return;
+    if (_exchangeDiamondAmount < dc.minDiamondsToExchange) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: DText('الحد الأدنى للتبديل ${dc.minDiamondsToExchange} ألماس'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (_isHost && _exchangeDiamondAmount > _hostMonthlyDiamonds) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: DText(
+              'المتاح للتبديل من التارجت الشهري: $_hostMonthlyDiamonds ♦'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     setState(() => _exchanging = true);
     try {
       final svc = SupabaseService();

@@ -123,27 +123,36 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
 
   void _handleGameTap(Map<String, String> game, bool isAr) {
     final navigator = Navigator.of(context, rootNavigator: true);
+    final appContext = navigator.context;
+    final sheetHeight = MediaQuery.of(context).size.height * 0.58;
     Navigator.pop(context);
     final gameName = isAr ? game['name_ar']! : game['name_en']!;
     widget.onGameSelect?.call(game['key']!, gameName);
 
     if (game['key'] == 'sugarrush') {
-      SugarRushGameDialog.show(context, roomId: widget.roomId);
+      SugarRushGameDialog.show(appContext, roomId: widget.roomId);
       return;
     }
 
     if (game['key'] == 'ludo') {
-      navigator.push(
-        MaterialPageRoute(
-          builder: (_) => LudoGameScreen(roomId: widget.roomId),
+      showModalBottomSheet(
+        context: appContext,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => SizedBox(
+          height: sheetHeight,
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: LudoGameScreen(roomId: widget.roomId),
+          ),
         ),
       );
       return;
     }
 
     // Launch Teaming screen or game lobby
-    Navigator.push(
-      context,
+    navigator.push(
       MaterialPageRoute(
         builder: (_) => const GameTeamingScreen(),
       ),

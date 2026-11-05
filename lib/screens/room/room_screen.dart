@@ -1241,7 +1241,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     //    أول إطار مكتمل — يمنع "Skipped N frames!" عند فتح الغرفة.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _loadRoomData();
+      unawaited(_loadRoomData());
       _startPresencePing();
     });
   }
@@ -1270,8 +1270,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _loadRoomData() {
-    _joinedAt = DateTime.now();
+  Future<void> _loadRoomData() async {
+    // استخدم وقت السيرفر كبداية جلسة الشات حتى لا تعود الرسائل القديمة عند
+    // الدخول، مع تفادي فارق ساعة الجهاز الذي كان يخفي رسائل الآخرين.
+    int? serverJoinedMs;
+    try {
+      serverJoinedMs = await _firebaseService.fetchServerTimeMs();
+    } catch (_) {}
+    if (!mounted) return;
+    final joinedMs =
+        serverJoinedMs ?? DateTime.now().millisecondsSinceEpoch;
+    _joinedAt = DateTime.fromMillisecondsSinceEpoch(joinedMs);
     _chatMessages.clear();
     _msgCount = 0;
     final uProvInit = Provider.of<UserProvider>(context, listen: false).currentUser;
@@ -1509,10 +1518,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     });
 
-    _msgSub = _firebaseService.messagesStream(widget.roomId).listen((msgs) {
+    // لو فشل جلب وقت السيرفر نرجع لعدم الفلترة بدل الاعتماد على ساعة جهاز
+    // قد تكون متقدمة فتحجب رسائل الأعضاء الآخرين.
+    final sessionSince = serverJoinedMs != null
+        ? (serverJoinedMs - 2000).toString()
+        : null;
+    _msgSub = _firebaseService.messagesStream(
+      widget.roomId,
+      since: sessionSince,
+    ).listen((msgs) {
       if (mounted) {
-        // نعتمد فقط على وقت مسح الشات من الإدارة. لا نفلتر بتوقيت دخول الجهاز
-        // لأن فارق ساعة الجهاز عن السيرفر كان يخفي رسائل الأعضاء الآخرين.
+        // فلتر المصدر يعتمد على وقت السيرفر لبداية الجلسة؛ هنا نضيف فقط
+        // وقت مسح الشات من الإدارة حتى لا تظهر رسائل ما قبل المسح.
         final roomCleared = _currentRoom?.chatClearedAt ?? 0;
         final minTimestamp = _localChatClearedAt > roomCleared ? _localChatClearedAt : roomCleared;
         final currentSessionMsgs = minTimestamp > 0
