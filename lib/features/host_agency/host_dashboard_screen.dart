@@ -421,6 +421,9 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     final weekD  = d['week_diamonds']  ?? 0;
     final todayD = d['today_diamonds'] ?? 0;
 
+    final configPct = DynamicConfigService.instance.agencyRatePercentage;
+    final agencyCommRate = configPct > 0 ? configPct / 100.0 : 0.20;
+
     return RefreshIndicator(
       color: _purple,
       backgroundColor: _bgCard,
@@ -500,7 +503,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                             agencyName: (agency?['name'] as String?) ?? 'الوكالة',
                             periodTitle: 'اليوم',
                             totalDiamonds: todayD,
-                            commissionRate: 0.10,
+                            commissionRate: agencyCommRate,
                             members: const [],
                           ),
                         ),
@@ -521,7 +524,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                             agencyName: (agency?['name'] as String?) ?? 'الوكالة',
                             periodTitle: 'هذا الأسبوع',
                             totalDiamonds: weekD,
-                            commissionRate: 0.10,
+                            commissionRate: agencyCommRate,
                             members: const [],
                           ),
                         ),
@@ -542,7 +545,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                             agencyName: (agency?['name'] as String?) ?? 'الوكالة',
                             periodTitle: 'هذا الشهر',
                             totalDiamonds: monthD,
-                            commissionRate: 0.10,
+                            commissionRate: agencyCommRate,
                             members: const [],
                           ),
                         ),
@@ -921,7 +924,8 @@ class _AgencyCard extends StatelessWidget {
     context.watch<DynamicConfigService>();
     final name    = agency['name']            ?? 'وكالة';
     final spec    = agency['specialty']       ?? '';
-    final rate    = agency['commission_rate'] ?? 0.05;
+    final configPct = DynamicConfigService().agencyRatePercentage;
+    final rate = configPct > 0 ? configPct / 100.0 : 0.20;
     final members = agency['member_count']    ?? 0;
 
     return Container(
@@ -1370,12 +1374,12 @@ class _AgencyWalletCard extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          // Diamond wallet stats (✅ يعرض الرصيد المتاح بعد خصم المجمد)
+          // Diamond wallet stats (✅ يعرض المتاح للصرف من التارجت الشهري)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(children: [
               _WalletStat(label: '♦ الشهر',    value: _fmtK(m.diamondsEarnedMonthly),  color: _purple),
-              _WalletStat(label: '♦ المتاح',   value: _fmtK(m.diamondsAvailable),       color: _cyan),
+              _WalletStat(label: '♦ للصرف',   value: _fmtK(m.diamondsExchangeable),    color: _cyan),
               _WalletStat(label: '♦ التراكمي', value: _fmtK(m.diamondsEarnedCumulative),color: _gold),
             ]),
           ),

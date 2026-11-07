@@ -76,10 +76,15 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
   RealtimeSubscription? _rtTransactions;
   Timer? _debounce;   // debounce 800ms لمنع التحديثات المتكررة
   bool   _reloading = false;
+  String _lastAgencyConfigSignature = '';
 
   @override
   void initState() {
     super.initState();
+
+    _lastAgencyConfigSignature =
+        DynamicConfigService.instance.agencyConfigSignature;
+    DynamicConfigService.instance.addListener(_onAgencyConfigChanged);
 
     _pulseCtrl = AnimationController(
       vsync: this, duration: const Duration(seconds: 2),
@@ -96,8 +101,17 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
     _loadData();
   }
 
+  void _onAgencyConfigChanged() {
+    final signature = DynamicConfigService.instance.agencyConfigSignature;
+    if (signature == _lastAgencyConfigSignature) return;
+    _lastAgencyConfigSignature = signature;
+    if (!mounted) return;
+    _loadData();
+  }
+
   @override
   void dispose() {
+    DynamicConfigService.instance.removeListener(_onAgencyConfigChanged);
     _pulseCtrl.dispose();
     _shimmerCtrl.dispose();
     _rewardCtrl.dispose();
@@ -274,8 +288,18 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
 
     final name          = agency['name']             ?? 'الوكالة';
     final spec          = agency['specialty']        ?? '';
-    final rate          = agency['commission_rate']  ?? 0.05;
-    final totalD        = agency['monthly_diamonds'] ?? 0;
+    final configPct = DynamicConfigService().agencyRatePercentage;
+    final rate = configPct > 0 ? configPct / 100.0 : 0.20;
+    final memberMonthlySum = members.fold<int>(
+      0,
+      (sum, m) => sum +
+          (((m['diamonds_earned_monthly'] ?? m['diamondsEarnedMonthly']) as num?)
+                  ?.toInt() ??
+              0),
+    );
+    final totalD = memberMonthlySum > 0
+        ? memberMonthlySum
+        : ((agency['monthly_diamonds'] as num?)?.toInt() ?? 0);
     final agencyPubId   = formatAgencyNumericId(agency);
 
     // sort members by diamonds desc for leaderboard
@@ -703,7 +727,10 @@ class _OriginalHalfMonthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final expectedUsd = (diamonds * rate / 100).toStringAsFixed(1);
+    final coinsPerUsd = DynamicConfigService().coinsPerUsd;
+    final expectedUsd = coinsPerUsd > 0
+        ? ((diamonds * rate) / coinsPerUsd).toStringAsFixed(1)
+        : '0.0';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(

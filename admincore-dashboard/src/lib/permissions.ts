@@ -118,6 +118,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { key: 'notifications', ar: 'إرسال الإشعارات العامة', en: 'Push Notifications' },
       { key: 'app_updates', ar: 'إصدارات وتحديثات التطبيق', en: 'App Updates' },
       { key: 'error_analysis', ar: 'تحليل وسجلات الأخطاء', en: 'Error Analysis' },
+      { key: 'security_audit', ar: 'سجل ثغرات التطبيق', en: 'Security Audit Log' },
       { key: 'settings', ar: 'إعدادات اللوحة ومفاتيح الربط', en: 'Settings' },
     ],
   },

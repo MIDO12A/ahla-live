@@ -312,7 +312,8 @@ class AgencyMemberInfo {
   /// المحقق، حتى لو كان الرصيد المتاح أكبر بسبب الإيداعات الشخصية/المكافآت.
   int get diamondsExchangeable {
     final monthly = diamondsEarnedMonthly < 0 ? 0 : diamondsEarnedMonthly;
-    return diamondsAvailable < monthly ? diamondsAvailable : monthly;
+    final available = diamondsAvailable < 0 ? 0 : diamondsAvailable;
+    return available < monthly ? available : monthly;
   }
 
   bool get isInTrial {

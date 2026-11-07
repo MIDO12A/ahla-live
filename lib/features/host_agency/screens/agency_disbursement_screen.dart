@@ -112,7 +112,7 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
         _availableDiamonds = ownerDash.wallet.available;
       } else if (hostStats?.member != null) {
         _member = hostStats!.member;
-        _availableDiamonds = _member!.diamondsAvailable;
+        _availableDiamonds = _member!.diamondsExchangeable;
         _monthlyTarget = _member!.diamondsEarnedMonthly;
       } else {
         // فحص مباشر من جدول المستخدمين
@@ -237,30 +237,42 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _gold.withOpacity(0.3)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: Column(
         children: [
-          Column(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              const DText('الرصيد المتاح للصرف',
-                  style: TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 12)),
-              const SizedBox(height: 4),
-              DText('${_fmt(_availableDiamonds)} 💎',
-                  style: const TextStyle(
-                      color: _gold, fontFamily: 'Tajawal', fontSize: 18, fontWeight: FontWeight.bold)),
+              Column(
+                children: [
+                  DText(_isOwner ? 'الرصيد المتاح للصرف' : 'المتاح للصرف من التارجت',
+                      style: const TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 12)),
+                  const SizedBox(height: 4),
+                  DText('${_fmt(_availableDiamonds)} 💎',
+                      style: const TextStyle(
+                          color: _gold, fontFamily: 'Tajawal', fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              Container(width: 1, height: 36, color: Colors.white12),
+              Column(
+                children: [
+                  DText(_isOwner ? 'تارجت الوكالة' : 'تارجت الشهر الحالي',
+                      style: const TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 12)),
+                  const SizedBox(height: 4),
+                  DText('${_fmt(_monthlyTarget)} ♦',
+                      style: const TextStyle(
+                          color: Color(0xFF00E5A0), fontFamily: 'Tajawal', fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ],
           ),
-          Container(width: 1, height: 36, color: Colors.white12),
-          Column(
-            children: [
-              DText(_isOwner ? 'تارجت الوكالة' : 'تارجت الشهر الحالي',
-                  style: const TextStyle(color: Colors.white60, fontFamily: 'Tajawal', fontSize: 12)),
-              const SizedBox(height: 4),
-              DText('${_fmt(_monthlyTarget)} ♦',
-                  style: const TextStyle(
-                      color: Color(0xFF00E5A0), fontFamily: 'Tajawal', fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
+          if (!_isOwner) ...[
+            const SizedBox(height: 10),
+            const DText(
+              'الصرف محسوب من التارجت الشهري المحقق فقط. الرصيد الإضافي من الإيداعات الشخصية لا يُصرف كراتب.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white54, fontFamily: 'Tajawal', fontSize: 11, height: 1.4),
+            ),
+          ],
         ],
       ),
     );
@@ -336,7 +348,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
       return;
     }
     if (amount > widget.availableDiamonds) {
-      _snack('الرصيد المتاح لديك غير كافٍ للصرف (${widget.availableDiamonds} 💎)');
+      _snack('المتاح للصرف من التارجت الشهري غير كافٍ (${widget.availableDiamonds} 💎)');
       return;
     }
     if (details.isEmpty) {
@@ -392,12 +404,15 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
         'user_id': uid,
         'agency_id': widget.agencyId,
         'diamonds_amount': amount,
+        'amount': amount,
         'payment_method': _selectedMethod,
         'payment_details': {'details': details, 'source': 'disbursement_screen'},
         'details': {
           'details': details,
           'source': 'disbursement_screen',
           'frozen': true,
+          'monthly_deducted': true,
+          'request_type': 'host_cash_withdrawal',
         },
         'status': 'pending',
         'created_at': DateTime.now().toIso8601String(),
@@ -407,7 +422,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
       try {
         final mRow = await Supabase.instance.client
           .from('host_agency_members')
-          .select('id, diamonds_earned_monthly, diamonds_balance, diamonds, diamonds_available')
+          .select('id, diamonds_earned_monthly, diamonds_balance, diamonds, diamonds_available, diamonds_pending_withdrawal')
           .eq('agency_id', widget.agencyId)
           .or('user_id.eq.$uid,host_uid.eq.$uid')
           .maybeSingle();
@@ -417,16 +432,17 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
             (mRow?['diamonds_balance'] as num?)?.toInt() ??
             (mRow?['diamonds'] as num?)?.toInt() ??
             widget.availableDiamonds;
+        final curP = (mRow?['diamonds_pending_withdrawal'] as num?)?.toInt() ?? 0;
         final newBal = (curB - amount).clamp(0, 999999999);
         final newMonthly = (curM - amount).clamp(0, 999999999);
+        final newPending = curP + amount;
 
         final updatePayload = {
           'diamonds_earned_monthly': newMonthly,
           'diamonds_balance': newBal,
           'diamonds': newBal,
           'diamonds_available': newBal,
-          'daily_target': 0,
-          'monthly_target': 0,
+          'diamonds_pending_withdrawal': newPending,
         };
 
         if (mRow != null && mRow['id'] != null) {
@@ -673,7 +689,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
       return;
     }
     if (diamonds > widget.availableDiamonds) {
-      _snack('الرصيد المتاح غير كافٍ (${widget.availableDiamonds} 💎)');
+      _snack('المتاح للصرف من التارجت الشهري غير كافٍ (${widget.availableDiamonds} 💎)');
       return;
     }
 

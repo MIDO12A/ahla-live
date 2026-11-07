@@ -845,7 +845,7 @@ abstract final class AgencyRepository {
     final memberRows = await _sb
         .from('host_agency_members')
         .select(
-            'id, agency_id, diamonds, diamonds_balance, diamonds_available, diamonds_pending_withdrawal')
+            'id, agency_id, diamonds, diamonds_balance, diamonds_available, diamonds_earned_monthly, diamonds_pending_withdrawal')
         .or('user_id.eq.$uid,host_uid.eq.$uid')
         .limit(1);
     if (memberRows.isEmpty) {
@@ -856,16 +856,22 @@ abstract final class AgencyRepository {
         (member['diamonds_balance'] as num?)?.toInt() ??
         (member['diamonds'] as num?)?.toInt() ??
         0;
-    if (available < diamondsAmount) {
-      throw Exception('الرصيد المتاح غير كافٍ ($available 💎)');
+    final monthly =
+        (member['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+    final exchangeable = available < monthly ? available : monthly;
+    if (exchangeable < diamondsAmount) {
+      throw Exception(
+          'المتاح للصرف من التارجت الشهري غير كافٍ ($exchangeable 💎)');
     }
     final newBalance = available - diamondsAmount;
+    final newMonthly = (monthly - diamondsAmount).clamp(0, 999999999);
     final pending =
         (member['diamonds_pending_withdrawal'] as num?)?.toInt() ?? 0;
     await _sb.from('host_agency_members').update({
       'diamonds': newBalance,
       'diamonds_balance': newBalance,
       'diamonds_available': newBalance,
+      'diamonds_earned_monthly': newMonthly,
       'diamonds_pending_withdrawal': pending + diamondsAmount,
       'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', member['id']);
@@ -883,6 +889,8 @@ abstract final class AgencyRepository {
             ...bankDetails,
             'idempotency_key': idempotencyKey,
             'frozen': true,
+            'monthly_deducted': true,
+            'request_type': 'host_cash_withdrawal',
           },
           'status': 'pending',
           'created_at': DateTime.now().toIso8601String(),
@@ -1011,11 +1019,16 @@ abstract final class AgencyRepository {
             (memberRow?['diamonds_balance'] as num?)?.toInt() ??
             (memberRow?['diamonds'] as num?)?.toInt() ??
             0;
+        final memberMonthly =
+            (memberRow?['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        final exchangeable =
+            memberDiamonds < memberMonthly ? memberDiamonds : memberMonthly;
 
-        if (memberRow == null || memberDiamonds < diamonds) {
+        if (memberRow == null || exchangeable < diamonds) {
           return {
             'status': 'error',
-            'message': 'رصيد محفظة الوكالة غير كافٍ لإتمام السحب'
+            'message':
+                'المتاح للصرف من التارجت الشهري غير كافٍ ($exchangeable ♦)'
           };
         }
 
@@ -1041,11 +1054,9 @@ abstract final class AgencyRepository {
           'diamonds_balance': updatedBal,
           'diamonds_available': updatedBal,
           'diamonds_earned_monthly': updatedMonthly,
-          'daily_target': 0,
-          'monthly_target': 0,
         };
 
-        if (memberRow != null && memberRow['id'] != null) {
+        if (memberRow['id'] != null) {
           try {
             await _sb
                 .from('host_agency_members')
@@ -1423,8 +1434,9 @@ abstract final class AgencyRepository {
           agRes?['owner_id']?.toString() ??
           _sb.auth.currentUser?.id ??
           '';
+      final generalPct = DynamicConfigService().agencyRatePercentage;
       final agencyRate =
-          (agRes?['commission_rate'] as num?)?.toDouble() ?? 0.15;
+          generalPct > 0 ? (generalPct > 1 ? generalPct / 100.0 : generalPct) : 0.20;
 
       int ownerBalance = 0;
       int ownerAvailable = 0;
@@ -1792,6 +1804,35 @@ abstract final class AgencyRepository {
       }
       if (diamonds <= 0) {
         return {'success': false, 'message': 'كمية الألماس غير صالحة'};
+      }
+
+      final existingPending = await getHostPendingWithdrawal(hostUid);
+      if (existingPending != null) {
+        return {
+          'success': false,
+          'message': 'لديك طلب سحب معلق بالفعل. انتظر مراجعة الوكيل.'
+        };
+      }
+
+      final memberRow = await _sb
+          .from('host_agency_members')
+          .select(
+              'diamonds, diamonds_balance, diamonds_available, diamonds_earned_monthly')
+          .or('user_id.eq.$hostUid,host_uid.eq.$hostUid')
+          .maybeSingle();
+      final available = (memberRow?['diamonds_available'] as num?)?.toInt() ??
+          (memberRow?['diamonds_balance'] as num?)?.toInt() ??
+          (memberRow?['diamonds'] as num?)?.toInt() ??
+          0;
+      final monthly =
+          (memberRow?['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+      final exchangeable = available < monthly ? available : monthly;
+      if (memberRow == null || exchangeable < diamonds) {
+        return {
+          'success': false,
+          'message':
+              'المتاح للصرف من التارجت الشهري غير كافٍ ($exchangeable ♦)'
+        };
       }
 
       final requestId =

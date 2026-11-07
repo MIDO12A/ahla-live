@@ -249,6 +249,60 @@ export async function getUsers(): Promise<UserModel[]> {
     }
   }
 
+  // 5. Overlay agency ownership/membership + agency wallet (users.agency_id is often stale/null)
+  try {
+    const client = adminClient || supabase
+    const [agRes, memRes] = await Promise.all([
+      client.from('host_agencies').select('id,owner_uid,owner_id'),
+      client.from('host_agency_members').select('agency_id,user_id,host_uid,diamonds_earned_monthly,diamonds_earned_cumulative,diamonds_balance,diamonds_available'),
+    ])
+    const agencyByUid = new Map<string, string>()
+    const walletByUid = new Map<string, { agencyId: string; monthly: number; cumulative: number; balance: number; withdrawable: number }>()
+    for (const ag of agRes?.data ?? []) {
+      const owner = (ag as any).owner_uid || (ag as any).owner_id
+      if (owner && (ag as any).id) agencyByUid.set(String(owner), String((ag as any).id))
+    }
+    for (const m of memRes?.data ?? []) {
+      const uid = (m as any).user_id || (m as any).host_uid
+      const agencyId = (m as any).agency_id ? String((m as any).agency_id) : ''
+      if (uid && agencyId) agencyByUid.set(String(uid), agencyId)
+      if (uid) {
+        const monthly = Math.max(0, Number((m as any).diamonds_earned_monthly || 0))
+        const balance = Math.max(0, Number((m as any).diamonds_balance ?? (m as any).diamonds_available ?? 0))
+        const cumulative = Math.max(monthly, Number((m as any).diamonds_earned_cumulative || 0))
+        walletByUid.set(String(uid), {
+          agencyId,
+          monthly,
+          cumulative,
+          balance,
+          withdrawable: Math.min(balance, monthly),
+        })
+      }
+    }
+    for (const u of results) {
+      const agencyId = agencyByUid.get(u.uid)
+      if (agencyId) {
+        u.agencyId = u.agencyId || agencyId
+        u.agency_id = u.agency_id || agencyId
+        u.isHostAgent = true
+        u.is_host_agent = true
+      }
+      const w = walletByUid.get(u.uid)
+      if (w) {
+        u.agencyDiamondsMonthly = w.monthly
+        u.agency_diamonds_monthly = w.monthly
+        u.agencyDiamondsBalance = w.balance
+        u.agency_diamonds_balance = w.balance
+        u.agencyDiamondsCumulative = w.cumulative
+        u.agency_diamonds_cumulative = w.cumulative
+        u.agencyDiamondsWithdrawable = w.withdrawable
+        u.agency_diamonds_withdrawable = w.withdrawable
+      }
+    }
+  } catch (e) {
+    console.warn('getUsers: failed to overlay agency links', e)
+  }
+
   // الرصيد الرسمي هو users.diamonds — تتم مزامنة بقية الجداول عبر RPC ذري
   // (تمت إزالة "التوفيق التلقائي" القديم لأنه كان يرفع الأرصدة عشوائياً من عضويات الوكالة)
 
@@ -1431,9 +1485,37 @@ export function subscribeAgencies(cb: (agencies: AgencyModel[]) => void) {
 
 // ---- Host Agencies ----
 
+let _generalAgencyRateCache: { value: number; ts: number } | null = null;
+
+export async function getGeneralAgencyCommissionRate(): Promise<number> {
+  if (_generalAgencyRateCache && Date.now() - _generalAgencyRateCache.ts < 15000) {
+    return _generalAgencyRateCache.value;
+  }
+  let raw = NaN;
+  try {
+    const { data } = await supabase.from('commission_settings').select('value').eq('key', 'agency_rate').maybeSingle();
+    raw = Number(data?.value);
+  } catch (_) {}
+  if (!Number.isFinite(raw) || raw <= 0) {
+    try {
+      const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'agency_financial_policy').maybeSingle();
+      const policy = cfg?.value ? (typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value) : null;
+      if (policy?.agency_rate_pct != null) raw = Number(policy.agency_rate_pct);
+    } catch (_) {}
+  }
+  const value = Number.isFinite(raw) && raw > 0 ? (raw > 1 ? raw / 100 : raw) : 0.2;
+  _generalAgencyRateCache = { value, ts: Date.now() };
+  return value;
+}
+
+export function invalidateGeneralAgencyCommissionRate() {
+  _generalAgencyRateCache = null;
+}
+
 export async function getHostAgencies(): Promise<HostAgencyModel[]> {
   try {
     const agencies: any[] = [];
+    const generalRate = await getGeneralAgencyCommissionRate();
     const existingIds = new Set<string>();
     const existingOwnerIds = new Set<string>();
     const existingNames = new Set<string>();
@@ -1456,7 +1538,8 @@ export async function getHostAgencies(): Promise<HostAgencyModel[]> {
           specialty: a.data?.specialty || a.specialty || 'mixed',
           tier: a.data?.tier || a.tier || 'bronze',
           country: a.data?.country || a.country || '',
-          commission_rate: typeof a.data?.commission_rate === 'number' ? a.data.commission_rate : (a.commission_rate ?? 0.10),
+          commission_rate: Math.round(generalRate * 100),
+          commission_rate_pct: Math.round(generalRate * 100),
           is_active: a.is_active !== false && a.status !== 'inactive',
           member_count: a.member_count ?? 1,
           total_diamonds_monthly: a.total_diamonds_monthly ?? 0,
@@ -1593,7 +1676,9 @@ export async function createHostAgency(name: string, ownerId: string, commission
     }
 
     const agencyId = extra?.id || `ag_${Date.now()}`;
-    const commRate = typeof commissionRate === 'number' ? commissionRate : (parseFloat(String(commissionRate)) || 0.1);
+    const generalRate = await getGeneralAgencyCommissionRate();
+    let commRate = typeof commissionRate === 'number' ? commissionRate : (parseFloat(String(commissionRate)) || generalRate);
+    if (commRate > 1) commRate = commRate / 100;
     const photoUrl = extra?.photo_url || '';
     const nowIso = new Date().toISOString();
 
@@ -1614,6 +1699,7 @@ export async function createHostAgency(name: string, ownerId: string, commission
       status: 'active',
       is_active: true,
       member_count: 1,
+      commission_rate: Math.round(commRate * 100),
       data: {
         commission_rate: commRate,
         specialty: specialty || 'mixed',
@@ -1893,6 +1979,16 @@ export async function updateCommissionSetting(id: string, value: number): Promis
             }
           }
         } catch (_) {}
+        try {
+          const { data: agencies } = await supabase.from('host_agencies').select('id,data');
+          await Promise.all((agencies ?? []).map((ag: any) =>
+            supabase.from('host_agencies').update({
+              commission_rate: value,
+              data: { ...(ag.data || {}), commission_rate: value / 100 },
+            }).eq('id', ag.id)
+          ));
+        } catch (_) {}
+        invalidateGeneralAgencyCommissionRate();
       }
       else if (id === 'recharge_agent_host_rate') current.recharge_agent_host_rate_pct = value;
       else if (id === 'recharge_agent_agency_rate') current.recharge_agent_agency_rate_pct = value;
@@ -1998,6 +2094,7 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
       const cumulativeVal = Math.max(monthlyVal, Number(m.diamonds_earned_cumulative || 0));
       // محفظة المضيف/الوكالة تُقرأ من صف العضو فقط — لا تُخلط مع users.diamonds
       const walletVal = Math.max(0, Number(m.diamonds_balance ?? m.diamonds_available ?? m.diamonds ?? 0));
+      const withdrawableVal = Math.min(walletVal, monthlyVal);
 
       const joinedDate = m.joined_at || m.joinedAt || m.created_at || m.createdAt || new Date().toISOString();
       return {
@@ -2022,6 +2119,8 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
         diamonds_balance: walletVal,
         diamondsBalance: walletVal,
         diamonds_available: walletVal,
+        diamonds_withdrawable: withdrawableVal,
+        diamondsWithdrawable: withdrawableVal,
         joined_at: joinedDate,
         joinedAt: joinedDate,
       };
@@ -2238,6 +2337,7 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
     const now = new Date().toISOString();
 
     if (app.agency_type === 'host') {
+      const generalRate = await getGeneralAgencyCommissionRate();
       let agencyCode = (app as any).agency_code || (app as any).agency_public_id || '';
       if (!agencyCode) {
         try {
@@ -2287,11 +2387,12 @@ export async function approveAgencyApplication(app: AgencyApplicationModel, admi
         admin_count: 0,
         status: 'active',
         is_active: true,
+        commission_rate: Math.round(generalRate * 100),
         data: {
           whatsapp: app.whatsapp || existingData.whatsapp || null,
           country: app.country || existingData.country || null,
           tier: existingData.tier || 'bronze',
-          commission_rate: existingData.commission_rate || 0.1,
+          commission_rate: generalRate,
           bd_uid: appBdUid,
           bd_id: appBdId,
           supervisor_uid: appSupUid,
@@ -2425,13 +2526,18 @@ export async function createAgencyApplication(payload: Partial<AgencyApplication
 }
 
 export async function getHostMilestones(): Promise<HostMilestoneModel[]> {
+  const generalRate = await getGeneralAgencyCommissionRate();
   // 1. Try fetching from app_config 'host_milestones_list'
   try {
     const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'host_milestones_list').maybeSingle();
     if (cfg && cfg.value) {
       const list = typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value;
       if (Array.isArray(list) && list.length > 0) {
-        return list as HostMilestoneModel[];
+        return list.map((m: any) => ({
+          ...m,
+          agent_commission_rate: generalRate,
+          agentCommissionRate: generalRate,
+        })) as HostMilestoneModel[];
       }
     }
   } catch {}
@@ -2452,8 +2558,8 @@ export async function getHostMilestones(): Promise<HostMilestoneModel[]> {
     rewardImageUrl: 'https://res.cloudinary.com/r5kohqhd/image/upload/v1791072360/config/target_gold.png',
     background_url: null,
     backgroundUrl: null,
-    agent_commission_rate: 0.1,
-    agentCommissionRate: 0.1,
+    agent_commission_rate: generalRate,
+    agentCommissionRate: generalRate,
     period_type: 'monthly',
     periodType: 'monthly',
     is_active: true,

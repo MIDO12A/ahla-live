@@ -1268,11 +1268,29 @@ class SupabaseDataService {
           }
           if (list.isNotEmpty) {
             final result = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            // استجب فوراً لحالة التفعيل من لوحة التحكم: الأهداف المعطّلة لا تدخل
+            // في حساب المرحلة أو العمولة داخل التطبيق.
+            result.removeWhere((m) {
+              final active = m['is_active'] ?? m['isActive'];
+              if (active is String) {
+                return active.toLowerCase() == 'false' || active == '0';
+              }
+              return active == false || active == 0;
+            });
             result.sort((a, b) {
               final ta = (a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0;
               final tb = (b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0;
               return ta.compareTo(tb);
             });
+            // النسبة العامة في لوحة التحكم هي المصدر الوحيد لعمولة الوكيل.
+            final generalPct = DynamicConfigService().agencyRatePercentage;
+            if (generalPct > 0) {
+              final generalRate = generalPct > 1 ? generalPct / 100.0 : generalPct;
+              for (final m in result) {
+                m['agent_commission_rate'] = generalRate;
+                m['agentCommissionRate'] = generalRate;
+              }
+            }
             return result;
           }
         }
@@ -1286,10 +1304,18 @@ class SupabaseDataService {
       final url = Uri.parse('$_baseUrl/rest/v1/host_milestones?select=*&order=target_diamonds.asc');
       final res = await http.get(url, headers: _headers);
       if (res.statusCode == 200) {
-        final List list = jsonDecode(res.body);
-        if (list.isNotEmpty) {
-          return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        }
+      final List list = jsonDecode(res.body);
+      if (list.isNotEmpty) {
+        final result = list.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          ..removeWhere((m) {
+            final active = m['is_active'] ?? m['isActive'];
+            if (active is String) {
+              return active.toLowerCase() == 'false' || active == '0';
+            }
+            return active == false || active == 0;
+          });
+        return result;
+      }
       }
     } catch (_) {}
 

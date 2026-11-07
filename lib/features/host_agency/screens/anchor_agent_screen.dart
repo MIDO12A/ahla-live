@@ -45,6 +45,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   StreamSubscription? _membersSub;
   StreamSubscription? _agencySub;
   Timer? _debounceTimer;
+  String _lastAgencyConfigSignature = '';
 
   // Invite Host State
   final TextEditingController _inviteSearchCtrl = TextEditingController();
@@ -57,11 +58,23 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   @override
   void initState() {
     super.initState();
+    _lastAgencyConfigSignature =
+        DynamicConfigService.instance.agencyConfigSignature;
+    DynamicConfigService.instance.addListener(_onAgencyConfigChanged);
     _loadAgencyData();
+  }
+
+  void _onAgencyConfigChanged() {
+    final signature = DynamicConfigService.instance.agencyConfigSignature;
+    if (signature == _lastAgencyConfigSignature) return;
+    _lastAgencyConfigSignature = signature;
+    if (!mounted) return;
+    _loadAgencyData(silent: true);
   }
 
   @override
   void dispose() {
+    DynamicConfigService.instance.removeListener(_onAgencyConfigChanged);
     _inviteSearchCtrl.dispose();
     _membersSub?.cancel();
     _agencySub?.cancel();
@@ -1199,10 +1212,10 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 builder: (_) {
                                   final mDiamonds = anchor.commissionDiamonds;
                                   final dc = DynamicConfigService.instance;
-                                  final rawRate = (_agentInfo?.commissionRate ?? 0) > 0 
-                                      ? _agentInfo!.commissionRate 
-                                      : (dc.agencyRatePercentage > 0 ? (dc.agencyRatePercentage / 100.0) : 0.0);
-                                  final double agencyCommRate = rawRate > 1.0 ? (rawRate / 100.0) : rawRate;
+                                  final double agencyCommRate =
+                                      dc.agencyRatePercentage > 0
+                                          ? (dc.agencyRatePercentage / 100.0)
+                                          : 0.20;
                                   Map<String, dynamic>? achievedMs;
                                   if (_agentInfo?.milestones != null && _agentInfo!.milestones.isNotEmpty) {
                                     for (final m in _agentInfo!.milestones) {
@@ -1212,24 +1225,23 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                       }
                                     }
                                   }
-                                  double earnedUsd = 0.0;
                                   int earnedDiamonds = 0;
                                   if (achievedMs != null) {
-                                    final rewardVal = (achievedMs['reward_value'] ?? achievedMs['rewardValue'] ?? achievedMs['reward'] as num?)?.toDouble() ?? 
-                                                      (((achievedMs['target_diamonds'] as num?)?.toDouble() ?? 40000) / 15000.0);
                                     final double cRate;
                                     final rawMComm = (achievedMs['agent_commission_rate'] as num?)?.toDouble();
-                                    if (rawMComm != null && rawMComm > 0) {
-                                      cRate = rawMComm > 1.0 ? rawMComm / 100.0 : rawMComm;
-                                    } else if (agencyCommRate > 0) {
+                                    if (agencyCommRate > 0) {
                                       cRate = agencyCommRate;
+                                    } else if (rawMComm != null && rawMComm > 0) {
+                                      cRate = rawMComm > 1.0 ? rawMComm / 100.0 : rawMComm;
                                     } else {
                                       cRate = 0.20;
                                     }
-                                    earnedUsd = rewardVal * cRate;
                                     final tDia = (achievedMs['target_diamonds'] as num?)?.toInt() ?? 0;
                                     earnedDiamonds = (tDia * cRate).round();
                                   }
+                                  final double coinsPerUsd =
+                                      dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 10000.0;
+                                  final double earnedUsd = earnedDiamonds / coinsPerUsd;
                                   final earnedUsdStr = earnedUsd > 0 ? (earnedUsd % 1 == 0 ? earnedUsd.toInt().toString() : earnedUsd.toStringAsFixed(2)) : '0';
                                   return Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
@@ -1319,10 +1331,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final commissionBase = anchor.commissionDiamonds;
     final liveHours = (anchor.minute / 60.0).toStringAsFixed(1);
     final dc = DynamicConfigService.instance;
-    final rawRate = (_agentInfo?.commissionRate ?? 0) > 0 
-        ? _agentInfo!.commissionRate 
-        : (dc.agencyRatePercentage > 0 ? (dc.agencyRatePercentage / 100.0) : 0.0);
-    final double agencyCommRate = rawRate > 1.0 ? (rawRate / 100.0) : rawRate;
+    final double agencyCommRate = dc.agencyRatePercentage > 0
+        ? (dc.agencyRatePercentage / 100.0)
+        : 0.20;
 
     Map<String, dynamic>? achievedMs;
     if (_agentInfo?.milestones != null && _agentInfo!.milestones.isNotEmpty) {
@@ -1336,26 +1347,24 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
     final double commRate;
     final rawMComm = (achievedMs?['agent_commission_rate'] as num?)?.toDouble();
-    if (rawMComm != null && rawMComm > 0) {
-      commRate = rawMComm > 1.0 ? rawMComm / 100.0 : rawMComm;
-    } else if (agencyCommRate > 0) {
+    if (agencyCommRate > 0) {
       commRate = agencyCommRate;
+    } else if (rawMComm != null && rawMComm > 0) {
+      commRate = rawMComm > 1.0 ? rawMComm / 100.0 : rawMComm;
     } else {
       commRate = 0.20;
     }
 
-    double earnedUsd = 0.0;
     int agentEarnedDiamonds = 0;
     if (achievedMs != null) {
-      final rewardVal = (achievedMs['reward_value'] ?? achievedMs['rewardValue'] ?? achievedMs['reward'] as num?)?.toDouble() ?? 
-                        (((achievedMs['target_diamonds'] as num?)?.toDouble() ?? 40000) / 15000.0);
-      earnedUsd = rewardVal * commRate;
-      final tDia = (achievedMs['target_diamonds'] as num?)?.toInt() ?? 0;
+      final tDia = (achievedMs['target_diamonds'] ?? achievedMs['targetDiamonds'] as num?)?.toInt() ?? 0;
       agentEarnedDiamonds = (tDia * commRate).round();
     }
     if (agentEarnedDiamonds == 0 && commissionBase > 0) {
       agentEarnedDiamonds = (commissionBase * commRate).round();
     }
+    final double coinsPerUsd = dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 10000.0;
+    final double earnedUsd = agentEarnedDiamonds / coinsPerUsd;
     final agentEarnedUsd = earnedUsd.toStringAsFixed(2);
     final stageName = _getAnchorStage(anchor.totalDiamond, isAr);
     final defaultTarget = (_agentInfo?.milestones.isNotEmpty == true)
@@ -1788,10 +1797,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     int totalAnchorsDiamonds = 0;
     int totalAgencyCommDiamonds = 0;
     double totalCommissionUsd = 0.0;
-    final rawAgencyRate = (info?.commissionRate ?? 0.0) > 0 
-        ? info!.commissionRate 
-        : (dc.agencyRatePercentage > 0 ? dc.agencyRatePercentage : 20.0);
-    final normCommRate = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : (rawAgencyRate > 0 ? rawAgencyRate : 0.20);
+    final normCommRate =
+        dc.agencyRatePercentage > 0 ? (dc.agencyRatePercentage / 100.0) : 0.20;
 
     for (final a in _anchors) {
       // العمولة تُحسَب على الإنتاج قبل الفك (حماية عمولة الوكيل)،
@@ -1819,16 +1826,16 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
 
         if (highestAchieved != null) {
           final tDia = (highestAchieved['target_diamonds'] ?? highestAchieved['targetDiamonds'] as num?)?.toInt() ?? 0;
-          final rewardVal = (highestAchieved['reward_value'] ?? 
-                             highestAchieved['rewardValue'] ?? 
-                             highestAchieved['reward'] as num?)?.toDouble() ?? 
-                            (((highestAchieved['target_diamonds'] as num?)?.toDouble() ?? 40000) / (dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 15000.0));
           final rawComm = (highestAchieved['agent_commission_rate'] as num?)?.toDouble();
-          final double milestoneNormRate = (rawComm != null && rawComm > 0)
-              ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
-              : normCommRate;
-          totalCommissionUsd += (rewardVal * milestoneNormRate);
-          totalAgencyCommDiamonds = (totalAgencyCommDiamonds + (tDia * milestoneNormRate).round()).toInt();
+          final double milestoneNormRate = normCommRate > 0
+              ? normCommRate
+              : ((rawComm != null && rawComm > 0)
+                  ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
+                  : 0.20);
+          final commissionDiamonds = (tDia * milestoneNormRate).round();
+          totalAgencyCommDiamonds = (totalAgencyCommDiamonds + commissionDiamonds).toInt();
+          final double coinsPerUsd = dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 10000.0;
+          totalCommissionUsd += commissionDiamonds / coinsPerUsd;
         }
       }
     }
@@ -1851,9 +1858,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           final tDia = (agencyMilestone['target_diamonds'] ?? agencyMilestone['targetDiamonds'] as num?)?.toInt() ?? 0;
           final rewardVal = (agencyMilestone['reward_value'] ?? agencyMilestone['rewardValue'] ?? agencyMilestone['reward'] as num?)?.toDouble() ?? 2.0;
           final rawComm = (agencyMilestone['agent_commission_rate'] as num?)?.toDouble();
-          final double milestoneNormRate = (rawComm != null && rawComm > 0)
-              ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
-              : normCommRate;
+          final double milestoneNormRate = normCommRate > 0
+              ? normCommRate
+              : ((rawComm != null && rawComm > 0)
+                  ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
+                  : 0.20);
           totalCommissionUsd = rewardVal * milestoneNormRate;
           totalAgencyCommDiamonds = (tDia * milestoneNormRate).round().toInt();
         }
@@ -1864,7 +1873,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     }
 
     if (totalCommissionUsd == 0 && totalAgencyCommDiamonds > 0) {
-      final diaPerUsd = dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 15000.0;
+      final diaPerUsd = dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 10000.0;
       totalCommissionUsd = totalAgencyCommDiamonds / diaPerUsd;
     }
 
@@ -2636,7 +2645,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
               agencyName: _agentInfo?.agencyName ?? '',
               periodTitle: title,
               totalDiamonds: diamonds,
-              commissionRate: _agentInfo?.commissionRate ?? 0.10,
+              commissionRate: DynamicConfigService.instance.agencyRatePercentage > 0
+                  ? DynamicConfigService.instance.agencyRatePercentage / 100.0
+                  : 0.20,
               members: _anchors.map((a) => {
                 'id': a.uid,
                 'nickname': a.nickname,
@@ -2801,19 +2812,10 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                         final m = milestones[i];
                         final title = m['title']?.toString() ?? '${isAr ? 'المرحلة' : 'Stage'} ${i + 1}';
                         final targetDiamonds = (m['target_diamonds'] as num?)?.toInt() ?? 0;
-                        final rawMComm = (m['agent_commission_rate'] as num?)?.toDouble();
-                        final rawAgencyRate = (info?.commissionRate ?? 0) > 0 
-                            ? info!.commissionRate 
-                            : (DynamicConfigService.instance.agencyRatePercentage > 0 ? DynamicConfigService.instance.agencyRatePercentage : 20.0);
-                        final double rawComm;
-                        if (rawMComm != null && rawMComm > 0) {
-                          rawComm = rawMComm;
-                        } else if (rawAgencyRate > 0) {
-                          rawComm = rawAgencyRate;
-                        } else {
-                          rawComm = 0.20;
-                        }
-                        final normComm = rawComm > 1.0 ? (rawComm / 100.0) : rawComm;
+                        final rawAgencyRate = DynamicConfigService.instance.agencyRatePercentage > 0
+                            ? DynamicConfigService.instance.agencyRatePercentage
+                            : 20.0;
+                        final normComm = rawAgencyRate > 1.0 ? (rawAgencyRate / 100.0) : rawAgencyRate;
                         final commPct = (normComm * 100).toInt();
                         final rewardVal = (m['reward_value'] as num?)?.toDouble() ?? 0.0;
                         final rewardType = m['reward_type']?.toString() ?? 'salary_usd';

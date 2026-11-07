@@ -675,7 +675,8 @@ class _BDCenterScreenState extends State<BDCenterScreen> {
     final displayId = formatAgencyNumericId(agency);
     final supName = agency['supervisor_name']?.toString();
     final supId = agency['supervisor_id']?.toString() ?? agency['supervisor_custom_id']?.toString();
-    final commRate = (agency['commission_rate'] as num?)?.toDouble() ?? 0.10;
+    final rawCommRate = (agency['commission_rate'] as num?)?.toDouble() ?? 20.0;
+    final commRate = rawCommRate > 1.0 ? rawCommRate / 100.0 : rawCommRate;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

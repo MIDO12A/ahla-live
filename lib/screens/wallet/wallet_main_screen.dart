@@ -34,6 +34,12 @@ class _WalletMainScreenState extends State<WalletMainScreen>
   int _hostDiamonds = 0;
   int _hostMonthlyDiamonds = 0;
 
+  int get _hostExchangeable {
+    final available = _hostDiamonds < 0 ? 0 : _hostDiamonds;
+    final monthly = _hostMonthlyDiamonds < 0 ? 0 : _hostMonthlyDiamonds;
+    return available < monthly ? available : monthly;
+  }
+
   late final Map<String, dynamic> _gatewayConfig = {
     'googlePlayEnabled': true,
     'vodafoneCashEnabled': !DynamicConfigService().isReviewMode,
@@ -1166,7 +1172,9 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               minDiamonds * 10,
               minDiamonds * 50
             ].where((a) => a > 0).map((a) {
-              if (a > balance && balance > 0) return const SizedBox.shrink();
+              if (a > exchangeable && exchangeable > 0) {
+                return const SizedBox.shrink();
+              }
               return GestureDetector(
                 onTap: () => setState(() => _exchangeDiamondAmount = a),
                 child: Container(
@@ -1308,6 +1316,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
     final dc = DynamicConfigService();
     final plans = isCoins ? _coinPlans : _diamondPlans;
     final icon = isCoins ? R.commonGoldIc3 : R.commonDiamondIc;
+    final displayBalance =
+        !isCoins && _isHost ? _hostExchangeable : balance;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -1340,8 +1350,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                     const SizedBox(width: 8),
                     DText(
                       isCoins
-                          ? R.formatCoinsFraction(balance)
-                          : R.formatCoins(balance),
+                          ? R.formatCoinsFraction(displayBalance)
+                          : R.formatCoins(displayBalance),
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -1350,6 +1360,22 @@ class _WalletMainScreenState extends State<WalletMainScreen>
                     ),
                   ],
                 ),
+                if (!isCoins && _isHost) ...[
+                  const SizedBox(height: 4),
+                  DText(
+                    'المتاح للصرف من التارجت الشهري',
+                    style: TextStyle(
+                        fontSize: 11, color: dc.walletSubTextColor),
+                  ),
+                  if (balance > _hostExchangeable) ...[
+                    const SizedBox(height: 2),
+                    DText(
+                      'إجمالي الرصيد: ${R.formatCoins(balance)} ♦ (يشمل إيداعات شخصية)',
+                      style: TextStyle(
+                          fontSize: 10, color: dc.walletSubTextColor),
+                    ),
+                  ],
+                ],
               ],
             ),
           ),

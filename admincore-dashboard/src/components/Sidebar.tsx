@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Gift, Store, DoorOpen,
   Building2, Crown, BarChart3, Award, Handshake,
-  TrendingUp, Palette, Bug,
+  TrendingUp, Palette, Bug, ShieldAlert,
   Bell, Settings, Shield, ChevronLeft, LogOut, SlidersHorizontal, Gift as GiftIcon,
   Tag, Sparkles, ImageIcon, Calendar, Rocket, CheckSquare, Volume2, Mic, User, Zap, X, Coins, Trophy,
   Gamepad2,
@@ -47,6 +47,7 @@ const navItems = [
   { to: '/bd', icon: TrendingUp, label: 'nav.bd', permKey: 'bd' },
   { to: '/profile-customize', icon: User, label: 'nav.profileCustomize', permKey: 'profile_customize' },
   { to: '/error-analysis', icon: Bug, label: 'nav.errors', permKey: 'error_analysis' },
+  { to: '/security-audit', icon: ShieldAlert, label: 'nav.securityAudit', permKey: 'security_audit' },
   { to: '/admins', icon: Shield, label: 'nav.admins', permKey: 'admins' },
   { to: '/notifications', icon: Bell, label: 'nav.notifications', permKey: 'notifications' },
   { to: '/reports', icon: Shield, label: 'nav.reports', permKey: 'reports' },

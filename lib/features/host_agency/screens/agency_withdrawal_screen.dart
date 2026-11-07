@@ -189,7 +189,7 @@ class _WalletHeader extends StatelessWidget {
         Row(children: [
           _BalanceTile(icon: '♦', label: 'الرصيد الكلي', value: _fmtK(member.diamondsBalance), color: const Color(0xFFB39DDB)),
           const SizedBox(width: 8),
-          _BalanceTile(icon: '✅', label: 'المتاح', value: _fmtK(member.diamondsAvailable), color: const Color(0xFF00E5A0)),
+          _BalanceTile(icon: '✅', label: 'المتاح للصرف', value: _fmtK(member.diamondsExchangeable), color: const Color(0xFF00E5A0)),
           const SizedBox(width: 8),
           _BalanceTile(icon: '🔒', label: 'مجمّد', value: _fmtK(member.diamondsPendingWithdrawal), color: const Color(0xFFFF9800)),
         ]),
@@ -199,11 +199,24 @@ class _WalletHeader extends StatelessWidget {
           const SizedBox(width: 4),
           Expanded(
             child: DText(
-              'متاح للتبديل من التارجت الشهري: ${_fmtK(member.diamondsExchangeable)} ♦',
+              'التارجت الشهري المحقق: ${_fmtK(member.diamondsEarnedMonthly)} ♦ — الصرف من المتاح للصرف فقط',
               style: const TextStyle(color: Color(0xFFB39DDB), fontSize: 11),
             ),
           ),
         ]),
+        if (member.diamondsBalance > member.diamondsExchangeable) ...[
+          const SizedBox(height: 4),
+          const Row(children: [
+            Icon(Icons.info_outline_rounded, color: Colors.white38, size: 12),
+            SizedBox(width: 4),
+            Expanded(
+              child: DText(
+                'الرصيد الكلي قد يشمل إيداعات شخصية غير قابلة للصرف كراتب.',
+                style: TextStyle(color: Colors.white38, fontSize: 10),
+              ),
+            ),
+          ]),
+        ],
         if (member.diamondsPendingWithdrawal > 0) ...[
           const SizedBox(height: 6),
           Row(children: [
@@ -469,8 +482,8 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
     if (_bankNameCtrl.text.trim().isEmpty || _bankIbanCtrl.text.trim().isEmpty) {
       _snack('الرجاء إدخال معلومات الحساب البنكي'); return;
     }
-    if (_diamonds > widget.member.diamondsAvailable) {
-      _snack('الرصيد المتاح غير كافٍ. المتاح: ${widget.member.diamondsAvailable} ♦'); return;
+    if (_diamonds > widget.member.diamondsExchangeable) {
+      _snack('المتاح للصرف من التارجت الشهري غير كافٍ. المتاح: ${widget.member.diamondsExchangeable} ♦'); return;
     }
     if (_diamonds < widget.engine.minDiamondsToWithdraw) {
       _snack('الحد الأدنى: ${widget.engine.minDiamondsToWithdraw} ألماس'); return;
@@ -519,6 +532,7 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
             'رسوم السحب: ${e.withdrawalFeePct.toStringAsFixed(0)}%',
             'الحد الأدنى: \$${e.minWithdrawalUsd.toStringAsFixed(0)} صافي',
             'الحد الأدنى: ${_fmtK(e.minDiamondsToWithdraw)} ألماس',
+            'المتاح للصرف من التارجت الشهري: ${_fmtK(widget.member.diamondsExchangeable)} ♦',
             'معالجة: 5 أيام عمل عبر Wise / تحويل بنكي',
             'يستلزم التحقق من الهوية (KYC)',
           ],
@@ -592,7 +606,8 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
           width: double.infinity,
           child: ElevatedButton(
             onPressed: (_processing || !widget.isKycVerified ||
-                        _netUsd < e.minWithdrawalUsd) ? null : _withdraw,
+                        _netUsd < e.minWithdrawalUsd ||
+                        _diamonds > widget.member.diamondsExchangeable) ? null : _withdraw,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFD4AF37),
               foregroundColor: Colors.black,
@@ -739,8 +754,8 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
     if (_selectedAgent == null || _diamonds <= 0) {
       _snack('اختر وكيل شحن وأدخل كمية الألماس'); return;
     }
-    if (_diamonds > widget.member.diamondsAvailable) {
-      _snack('الرصيد المتاح غير كافٍ. المتاح: ${widget.member.diamondsAvailable} ♦'); return;
+    if (_diamonds > widget.member.diamondsExchangeable) {
+      _snack('المتاح للصرف من التارجت الشهري غير كافٍ. المتاح: ${widget.member.diamondsExchangeable} ♦'); return;
     }
 
     final agencyName = _selectedAgent!['recharge_agency_name'] ?? _selectedAgent!['display_name'] ?? 'وكالة الشحن';
@@ -1126,6 +1141,11 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
         ],
 
         const SizedBox(height: 20),
+        DText(
+          'المتاح للصرف من التارجت الشهري: ${_fmtK(widget.member.diamondsExchangeable)} ♦',
+          style: const TextStyle(color: Color(0xFF00E5A0), fontSize: 12, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
         DText('كمية الألماس المراد سحبها', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         TextField(
@@ -1141,7 +1161,8 @@ class _TransferRechargeTabState extends State<_TransferRechargeTab> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: (_processing || _selectedAgent == null || _diamonds <= 0) ? null : _confirmTransfer,
+            onPressed: (_processing || _selectedAgent == null || _diamonds <= 0 ||
+                    _diamonds > widget.member.diamondsExchangeable) ? null : _confirmTransfer,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF00D4FF),
               foregroundColor: Colors.black,

@@ -25,6 +25,7 @@ import UserGifting from './pages/UserGifting';
 import ImageCustomize from './pages/ImageCustomize';
 import ColorCustomize from './pages/ColorCustomize';
 import ErrorAnalysis from './pages/ErrorAnalysis';
+import SecurityAudit from './pages/SecurityAudit';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import Banners from './pages/Banners';
@@ -125,6 +126,7 @@ export default function App() {
             <Route path="/image-customize" element={<ImageCustomize />} />
             <Route path="/color-customize" element={<ColorCustomize />} />
             <Route path="/error-analysis" element={<ErrorAnalysis />} />
+          <Route path="/security-audit" element={<SecurityAudit />} />
             <Route path="/gift-items" element={<GiftItems />} />
             <Route path="/gift-categories" element={<GiftCategories />} />
             <Route path="/gift-banner-configs" element={<GiftBannerConfigs />} />

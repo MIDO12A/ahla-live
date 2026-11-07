@@ -528,6 +528,21 @@ export default function UsersPage() {
                     </div>
                   </div>
 
+                  {(() => {
+                    const monthly = Number(editing.agencyDiamondsMonthly ?? editing.agency_diamonds_monthly ?? 0);
+                    const balance = Number(editing.agencyDiamondsBalance ?? editing.agency_diamonds_balance ?? 0);
+                    const withdrawable = Number(editing.agencyDiamondsWithdrawable ?? editing.agency_diamonds_withdrawable ?? Math.min(balance, monthly));
+                    if (!monthly && !balance) return null;
+                    return (
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-xl px-3 py-2 text-fuchsia-200">
+                        <span className="font-bold">رصيد الوكالة (host_agency_members):</span>
+                        <span>قابل للسحب: <b className="font-mono">{withdrawable.toLocaleString()} 💎</b></span>
+                        <span>إجمالي: <b className="font-mono">{balance.toLocaleString()} 💎</b></span>
+                        <span>إنتاج الشهر: <b className="font-mono">{monthly.toLocaleString()} 💎</b></span>
+                      </div>
+                    );
+                  })()}
+
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                     {/* Left: Adjustment Controls */}
                     <div className="lg:col-span-7 space-y-4">
@@ -1150,6 +1165,18 @@ export default function UsersPage() {
           { key: 'level', label: 'Lv', sortable: true, width: '35px' },
           { key: 'coins', label: 'Coins', sortable: true, render: u => <span className="flex items-center gap-1 text-amber-400"><Coins className="w-3 h-3" />{u.coins?.toLocaleString()}</span> },
           { key: 'diamonds', label: 'Dia', sortable: true, render: u => <span className="flex items-center gap-1 text-cyan-400"><Gem className="w-3 h-3" />{u.diamonds?.toLocaleString()}</span> },
+          { key: 'agencyDiamonds', label: 'Agency Dia', sortable: true, render: u => {
+            const monthly = Number(u.agencyDiamondsMonthly ?? u.agency_diamonds_monthly ?? 0);
+            const balance = Number(u.agencyDiamondsBalance ?? u.agency_diamonds_balance ?? 0);
+            if (!monthly && !balance) return <span className="text-slate-600">—</span>;
+            const withdrawable = Number(u.agencyDiamondsWithdrawable ?? u.agency_diamonds_withdrawable ?? Math.min(balance, monthly));
+            return (
+              <div className="flex flex-col leading-tight">
+                <span className="flex items-center gap-1 text-fuchsia-400 font-mono"><Gem className="w-3 h-3" />{withdrawable.toLocaleString()}</span>
+                <span className="text-[9px] text-slate-500">شهر {monthly.toLocaleString()} • إجمالي {balance.toLocaleString()}</span>
+              </div>
+            );
+          }},
           { key: 'totalGiftsReceived', label: 'Gifts', sortable: true },
           { key: 'followers', label: 'Followers', sortable: true },
           { key: 'charm', label: 'Charm', sortable: true },

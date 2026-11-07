@@ -50,11 +50,29 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
   int _todayDiamonds = 0;
   int _weekSeconds = 0;
   int _weekDiamonds = 0;
+  String _lastAgencyConfigSignature = '';
 
   @override
   void initState() {
     super.initState();
+    _lastAgencyConfigSignature =
+        DynamicConfigService.instance.agencyConfigSignature;
+    DynamicConfigService.instance.addListener(_onAgencyConfigChanged);
     _loadHostData();
+  }
+
+  void _onAgencyConfigChanged() {
+    final signature = DynamicConfigService.instance.agencyConfigSignature;
+    if (signature == _lastAgencyConfigSignature) return;
+    _lastAgencyConfigSignature = signature;
+    if (!mounted) return;
+    _loadHostData(silent: true);
+  }
+
+  @override
+  void dispose() {
+    DynamicConfigService.instance.removeListener(_onAgencyConfigChanged);
+    super.dispose();
   }
 
   Future<void> _loadHostData({bool silent = false}) async {

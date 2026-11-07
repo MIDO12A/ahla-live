@@ -50,6 +50,18 @@ export interface UserModel {
   bdSupervisorId?: string | null;
   bdSalary?: number;
   bdCommissionRate?: number;
+  agencyId?: string | null;
+  agency_id?: string | null;
+  isHostAgent?: boolean;
+  is_host_agent?: boolean;
+  agencyDiamondsMonthly?: number;
+  agency_diamonds_monthly?: number;
+  agencyDiamondsBalance?: number;
+  agency_diamonds_balance?: number;
+  agencyDiamondsCumulative?: number;
+  agency_diamonds_cumulative?: number;
+  agencyDiamondsWithdrawable?: number;
+  agency_diamonds_withdrawable?: number;
 }
 
 export interface RechargeRequestModel {
@@ -596,6 +608,9 @@ export interface HostAgencyMemberModel {
   diamonds_earned_monthly?: number;
   diamonds_earned_cumulative?: number;
   diamonds_balance?: number;
+  diamonds_available?: number;
+  diamonds_withdrawable?: number;
+  diamondsWithdrawable?: number;
   trial_ends_at?: string;
   user_name?: string;
   custom_id?: string;

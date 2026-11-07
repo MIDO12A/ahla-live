@@ -475,7 +475,6 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
           'whatsapp': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
           'country': _selectedCountry ?? 'عالمي',
           'tier': 'bronze',
-          'commission_rate': 0.10,
           'supervisor_id': supervisorCustomId,
           'supervisor_uid': supervisorUid,
           'supervisor_custom_id': supervisorCustomId,

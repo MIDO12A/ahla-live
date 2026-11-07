@@ -2412,10 +2412,27 @@ class DynamicConfigService extends ChangeNotifier {
       final p = int.tryParse(pol['coins_per_usd'].toString());
       if (p != null && p > 0) return p;
     }
-    return 15000;
+    return 10000;
   }
 
-  /// نسبة عمولة وكيل المضيف من ماس المضيف (%) (افتراضياً 10%)
+  /// بصمة إعدادات الوكالات من لوحة التحكم. تتغير فقط عند تعديل الأهداف أو
+  /// النسبة أو العملة، وتُستخدم لإعادة تحميل شاشات الوكالة فوراً بدل الانتظار.
+  String get agencyConfigSignature {
+    try {
+      return jsonEncode({
+        'host_milestones_list': _rawConfig['host_milestones_list'],
+        'agency_rate': _rawConfig['agency_rate'],
+        'agency_rate_pct': _rawConfig['agency_rate_pct'],
+        'agency_financial_policy': _rawConfig['agency_financial_policy'],
+        'coins_per_usd': _rawConfig['coins_per_usd'],
+        'agency_commission_period': _rawConfig['agency_commission_period'],
+      });
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// نسبة عمولة وكيل المضيف من ماس المضيف (%) (افتراضياً 20%)
   double get agencyRatePercentage {
     final candidates = [
       _rawConfig['agency_rate'],
@@ -2453,7 +2470,7 @@ class DynamicConfigService extends ChangeNotifier {
       } catch (_) {}
     }
 
-    return 10.0; // 10% افتراضياً
+    return 20.0; // 20% افتراضياً — نفس نسبة لوحة التحكم
   }
 
   /// دورة احتساب وعرض عمولة الوكالة ('daily' | 'weekly' | 'monthly')

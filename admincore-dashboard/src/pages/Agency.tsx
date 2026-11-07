@@ -552,7 +552,9 @@ export function getMemberStageAndCommission(
   if (!highest) {
     const first = activeMilestones[0];
     const firstTarget = Number(first.target_diamonds ?? (first as any).targetDiamonds ?? 0);
-    const rawRate = first.agent_commission_rate ?? (first as any).agentCommissionRate ?? normAgencyRate;
+    const rawRate = agencyCommissionRate != null
+      ? normAgencyRate
+      : (first.agent_commission_rate ?? (first as any).agentCommissionRate ?? normAgencyRate);
     const rate = Number(rawRate) > 1.0 ? Number(rawRate) / 100.0 : Number(rawRate || normAgencyRate);
     return {
       stageTitle: `تحت ${first.title || 'المرحلة 1'}`,
@@ -563,7 +565,9 @@ export function getMemberStageAndCommission(
     };
   }
 
-  const rawRate = highest.agent_commission_rate ?? (highest as any).agentCommissionRate ?? normAgencyRate;
+  const rawRate = agencyCommissionRate != null
+    ? normAgencyRate
+    : (highest.agent_commission_rate ?? (highest as any).agentCommissionRate ?? normAgencyRate);
   const rate = Number(rawRate) > 1.0 ? Number(rawRate) / 100.0 : Number(rawRate || normAgencyRate);
   const targetDiamonds = Number(highest.target_diamonds ?? (highest as any).targetDiamonds ?? 0);
   const commissionDiamonds = Math.round(targetDiamonds * rate);
@@ -799,9 +803,17 @@ function MembersTab({ initialAgencyId }: { initialAgencyId?: string }) {
               <span className="text-slate-600 text-xs">0 💎</span>
             );
           }},
-          { key: 'diamonds_balance', label: 'الرصيد القابل للسحب', sortable: true, render: m => {
-            const v = (m as HostAgencyMemberModel).diamonds_balance;
-            return <span className="text-cyan-400 font-semibold font-mono">{v?.toLocaleString() ?? '0'} 💎</span>;
+          { key: 'diamonds_withdrawable', label: 'الرصيد القابل للسحب', sortable: true, render: m => {
+            const member = m as HostAgencyMemberModel;
+            const balance = Math.max(0, Number(member.diamonds_balance ?? 0));
+            const monthly = Math.max(0, Number(member.diamonds_earned_monthly ?? 0));
+            const withdrawable = Math.min(balance, monthly);
+            return (
+              <div className="flex flex-col">
+                <span className="text-cyan-400 font-semibold font-mono">{(member.diamonds_withdrawable ?? withdrawable).toLocaleString()} 💎</span>
+                <span className="text-[10px] text-slate-500">الإجمالي: {balance.toLocaleString()} 💎</span>
+              </div>
+            );
           }},
           { key: 'joined_at', label: 'تاريخ الانضمام', sortable: true, render: m => new Date((m as HostAgencyMemberModel).joined_at).toLocaleDateString('ar-EG') },
           { key: 'actions', label: 'الإجراءات', render: m => {
@@ -1479,7 +1491,6 @@ function MilestonesTab() {
   const [rewardImageUrl, setRewardImageUrl] = useState('');
   const [backgroundUrl, setBackgroundUrl] = useState('');
   const [generalCommissionRate, setGeneralCommissionRate] = useState<number>(20);
-  const [agentCommissionRate, setAgentCommissionRate] = useState<string>('20');
   const [targetDays, setTargetDays] = useState<string>('0');
   const [targetHours, setTargetHours] = useState<string>('0');
   const [periodType, setPeriodType] = useState('monthly');
@@ -1494,7 +1505,6 @@ function MilestonesTab() {
       const ar = cs.find(c => c.key === 'agency_rate')?.value;
       if (ar != null) {
         setGeneralCommissionRate(ar);
-        setAgentCommissionRate(String(ar));
       }
     }).catch(err => {
       console.warn('Failed to load commission settings for agency rate:', err);
@@ -1509,7 +1519,6 @@ function MilestonesTab() {
   const resetForm = () => {
     setTitle(''); setTargetDiamonds('1000000'); setRewardType('salary_usd');
     setRewardValue('100'); setRewardItemId(''); setRewardImageUrl(''); setBackgroundUrl('');
-    setAgentCommissionRate(String(generalCommissionRate || 20));
     setTargetDays('0'); setTargetHours('0');
     setPeriodType('monthly'); setSortOrder('0'); setIsActive(true);
     setEditId(null); setShowItemPicker(false);
@@ -1524,8 +1533,6 @@ function MilestonesTab() {
     setRewardItemId(m.reward_item_id ?? m.rewardItemId ?? '');
     setRewardImageUrl(m.reward_image_url ?? m.rewardImageUrl ?? m.image_url ?? '');
     setBackgroundUrl(m.background_url ?? m.backgroundUrl ?? '');
-    const comm = m.agent_commission_rate ?? m.agentCommissionRate;
-    setAgentCommissionRate(comm != null ? String(Math.round(comm * 100)) : String(generalCommissionRate || 20));
     setTargetDays(String(m.target_days ?? m.targetDays ?? 0));
     setTargetHours(String(m.target_hours ?? m.targetHours ?? 0));
     setPeriodType(m.period_type ?? m.periodType ?? 'monthly');
@@ -1536,7 +1543,7 @@ function MilestonesTab() {
 
   const handleSubmit = async () => {
     if (!title.trim()) return;
-    const commRateNum = (parseFloat(agentCommissionRate) || (generalCommissionRate || 20)) / 100;
+    const commRateNum = (generalCommissionRate || 20) / 100;
     const payload = {
       title: title.trim(),
       target_diamonds: parseInt(targetDiamonds) || 0,
@@ -1604,20 +1611,20 @@ function MilestonesTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3">
             <div>
               <label className="text-[11px] text-amber-300 font-bold block mb-1">
-                💎 نسبة عمولة الوكيل لهذه المرحلة (%) *
+                💎 نسبة عمولة الوكيل (من النسب العامة) *
               </label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  value={agentCommissionRate}
-                  onChange={e => setAgentCommissionRate(e.target.value)}
-                  placeholder="20"
-                  className="w-full bg-[#121214] border border-amber-500/30 rounded-xl py-2 px-3 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400"
+                  value={generalCommissionRate || 20}
+                  readOnly
+                  disabled
+                  className="w-full bg-[#121214] border border-amber-500/30 rounded-xl py-2 px-3 text-xs text-amber-300 font-bold opacity-80 cursor-not-allowed"
                 />
                 <span className="text-xs text-slate-400 font-bold">%</span>
               </div>
               <span className="text-[10px] text-slate-400 block mt-1">
-                عمولة الوكيل: 💎 {Math.round(((parseInt(targetDiamonds) || 0) * (parseFloat(agentCommissionRate) || 0)) / 100).toLocaleString()}
+                تُدار من تبويب «نسب العمولات العامة» — عمولة الوكيل: 💎 {Math.round(((parseInt(targetDiamonds) || 0) * (generalCommissionRate || 20)) / 100).toLocaleString()}
               </span>
             </div>
             <div>
