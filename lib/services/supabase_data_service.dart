@@ -1523,39 +1523,37 @@ class SupabaseDataService {
 
 
                 final ownerUid = (ag['owner_uid'] ?? ag['owner_id'])?.toString() ?? '';
-                // العمولة تُضاف لمحفظة مالك الوكالة فقط — لا تُلمس محفظة الشحن
-                if (agentSalary > 0) {
-                  // رصيد المالك يُحدَّث فقط عندما يكون المالك شخصاً آخر (منعاً للازدواج)
-                  if (ownerUid.isNotEmpty && ownerUid != hostUid) {
-                  // تحديث عضوية مالك الوكالة في host_agency_members
-                  final ownerMemUrl = Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&or=(host_uid.eq.$ownerUid,user_id.eq.$ownerUid)&select=*&limit=1');
-                  final oRes = await http.get(ownerMemUrl, headers: _headers);
-                  if (oRes.statusCode == 200) {
-                    final List oList = jsonDecode(oRes.body);
-                    if (oList.isNotEmpty) {
-                      final oMem = Map<String, dynamic>.from(oList.first as Map);
-                      final oMemId = oMem['id'];
-                      final oCurD = (oMem['diamonds'] as num?)?.toInt() ?? 0;
-                      final oCurBal = (oMem['diamonds_balance'] as num?)?.toInt() ?? 0;
-                      final oCurAvail = (oMem['diamonds_available'] as num?)?.toInt() ?? oCurBal;
-                      final oCurMonthly = (oMem['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
-                      final oCurCumul = (oMem['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
-
-                      // العمولة تُضاف للمحفظة والتراكمي فقط، ولا تُحتسب إنتاجاً/تارجت شهرياً
+                // العمولة تُحتسب كاستحقاق معلّق (pending) ولا تُضاف للرصيد القابل للصرف.
+                // لا يتم إصدارها إلا حسب دورة العمولة المعتمدة من لوحة التحكم.
+                if (agentSalary > 0 && ownerUid.isNotEmpty && ownerUid != hostUid) {
+                  try {
+                    final pendingUrl = Uri.parse(
+                      '$_baseUrl/rest/v1/rpc/agency_accrue_commission',
+                    );
+                    final rpcRes = await http.post(
+                      pendingUrl,
+                      headers: _headers,
+                      body: jsonEncode({
+                        'p_agency_id': agencyId,
+                        'p_diamonds': agentSalary,
+                        'p_note': 'استحقاق عمولة وكالة — بانتظار دورة الإصدار',
+                      }),
+                    );
+                    if (rpcRes.statusCode < 200 || rpcRes.statusCode >= 300) {
+                      final curPending =
+                          (ag['pending_commission_diamonds'] as num?)?.toInt() ?? 0;
                       await http.patch(
-                        Uri.parse('$_baseUrl/rest/v1/host_agency_members?id=eq.$oMemId'),
+                        Uri.parse(
+                            '$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
                         headers: _headers,
                         body: jsonEncode({
-                          'diamonds': oCurD + agentSalary,
-                          'diamonds_balance': oCurBal + agentSalary,
-                          'diamonds_available': oCurAvail + agentSalary,
-                          'diamonds_earned_monthly': oCurMonthly,
-                          'diamonds_earned_cumulative': oCurCumul + agentSalary,
+                          'pending_commission_diamonds': curPending + agentSalary,
                         }),
                       );
                     }
-                  }
-
+                  } catch (e) {
+                    debugPrint(
+                        '[SupabaseDataService] accrue commission fallback error: $e');
                   }
                 }
               }

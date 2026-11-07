@@ -58,6 +58,10 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
   int _pendingRequestsCount = 0;
   String _agencyCommissionPeriod = 'monthly';
   double _generalAgencyRate = 0.0;
+  int _commissionPending = 0;
+  int _commissionReleased = 0;
+  DateTime? _commissionNextRelease;
+  String _commissionCycleLabel = '';
   List<AgencyLevelConfigModel> _agencyLevelConfigs = [];
   String _lastAgencyConfigSignature = '';
 
@@ -231,6 +235,38 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         }
       } catch (_) {}
 
+      // Fetch commission release cycle info (pending/released/next release)
+      int commissionPending = 0;
+      int commissionReleased = 0;
+      DateTime? commissionNextRelease;
+      String commissionCycleLabel = '';
+      if (aid.isNotEmpty) {
+        try {
+          final info = await AgencyRepository.getCommissionReleaseInfo(aid);
+          if (info != null) {
+            final cfgMap = info['cycle'];
+            final cfg = cfgMap is Map
+                ? Map<String, dynamic>.from(cfgMap)
+                : <String, dynamic>{};
+            commissionPending =
+                (info['pending'] as num?)?.toInt() ?? 0;
+            commissionReleased =
+                (info['released'] as num?)?.toInt() ?? 0;
+            commissionNextRelease =
+                DateTime.tryParse(info['next_release_at']?.toString() ?? '')
+                    ?.toLocal();
+            final p = cfg['period']?.toString() ?? 'monthly';
+            final tz = cfg['timezone']?.toString() ?? '';
+            commissionCycleLabel = p == 'daily'
+                ? 'يومي'
+                : (p == 'weekly' ? 'أسبوعي' : 'شهري');
+            if (tz.isNotEmpty) commissionCycleLabel += ' • $tz';
+          }
+        } catch (e) {
+          debugPrint('[AgencyOwnerScreen] commission release info error: $e');
+        }
+      }
+
       // Fetch agency levels ladder from config
       List<AgencyLevelConfigModel> levelConfigs = [];
       try {
@@ -262,6 +298,10 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
           _pendingRequestsCount = pendingCount;
           _agencyCommissionPeriod = commPeriod;
           _generalAgencyRate = generalRate;
+          _commissionPending = commissionPending;
+          _commissionReleased = commissionReleased;
+          _commissionNextRelease = commissionNextRelease;
+          _commissionCycleLabel = commissionCycleLabel;
           _loading = false;
         });
       }
@@ -2076,10 +2116,28 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       const SizedBox(height: 6),
                       DText(
                         isPeriodCompleted
-                            ? '✅ اكتملت الدورة: أُدرجت العمولة في التارجت المحقق ومتاحة للصرف كراتب'
-                            : '⏳ تُدرج العمولة في التارجت المحقق للصرف كراتب فور اكتمال الدورة ($periodRemainingText)',
+                            ? '✅ اكتملت الدورة: تُصدر العمولة المعلّقة حسب دورة الإصدار المعتمدة'
+                            : '⏳ تُحتسب العمولة كمستحقات معلّقة وتُصدر عند حلول موعد الإصدار ($periodRemainingText)',
                         style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
                       ),
+                      if (_commissionPending > 0 || _commissionReleased > 0) ...[
+                        const SizedBox(height: 4),
+                        DText(
+                          'معلّق للإصدار: $_commissionPending 💎 • تم إصداره: $_commissionReleased 💎',
+                          style: const TextStyle(
+                              color: Color(0xFFFFF3C4),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                      if (_commissionNextRelease != null) ...[
+                        const SizedBox(height: 2),
+                        DText(
+                          'موعد الإصدار القادم: ${_formatReleaseDate(_commissionNextRelease!)}'
+                          '${_commissionCycleLabel.isNotEmpty ? ' ($_commissionCycleLabel)' : ''}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 10),
+                        ),
+                      ],
                       const SizedBox(height: 4),
                       DText(
                         'إجمالي رواتب المضيفين المستحقة: \$$totalSalary USD (المقفلين للتارجت: $completedHostsCount)',
@@ -2128,6 +2186,11 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         ],
       ),
     );
+  }
+
+  String _formatReleaseDate(DateTime dt) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
   Widget _buildSummaryHourItem(String title, String val) {

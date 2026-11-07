@@ -1164,7 +1164,20 @@ export default function UsersPage() {
           )},
           { key: 'level', label: 'Lv', sortable: true, width: '35px' },
           { key: 'coins', label: 'Coins', sortable: true, render: u => <span className="flex items-center gap-1 text-amber-400"><Coins className="w-3 h-3" />{u.coins?.toLocaleString()}</span> },
-          { key: 'diamonds', label: 'Dia', sortable: true, render: u => <span className="flex items-center gap-1 text-cyan-400"><Gem className="w-3 h-3" />{u.diamonds?.toLocaleString()}</span> },
+          { key: 'diamonds', label: 'Dia', sortable: true, render: u => {
+            const personal = Number(u.diamonds ?? 0);
+            const agencyBalance = Number(u.agencyDiamondsBalance ?? u.agency_diamonds_balance ?? 0);
+            const effective = Math.max(personal, agencyBalance);
+            if (effective <= 0) return <span className="flex items-center gap-1 text-slate-600"><Gem className="w-3 h-3" />0</span>;
+            return (
+              <div className="flex flex-col leading-tight">
+                <span className="flex items-center gap-1 text-cyan-400 font-mono"><Gem className="w-3 h-3" />{effective.toLocaleString()}</span>
+                {agencyBalance > 0 && (
+                  <span className="text-[9px] text-slate-500">شخصي {personal.toLocaleString()} • وكالة {agencyBalance.toLocaleString()}</span>
+                )}
+              </div>
+            );
+          }},
           { key: 'agencyDiamonds', label: 'Agency Dia', sortable: true, render: u => {
             const monthly = Number(u.agencyDiamondsMonthly ?? u.agency_diamonds_monthly ?? 0);
             const balance = Number(u.agencyDiamondsBalance ?? u.agency_diamonds_balance ?? 0);
@@ -1172,8 +1185,8 @@ export default function UsersPage() {
             const withdrawable = Number(u.agencyDiamondsWithdrawable ?? u.agency_diamonds_withdrawable ?? Math.min(balance, monthly));
             return (
               <div className="flex flex-col leading-tight">
-                <span className="flex items-center gap-1 text-fuchsia-400 font-mono"><Gem className="w-3 h-3" />{withdrawable.toLocaleString()}</span>
-                <span className="text-[9px] text-slate-500">شهر {monthly.toLocaleString()} • إجمالي {balance.toLocaleString()}</span>
+                <span className="flex items-center gap-1 text-fuchsia-400 font-mono"><Gem className="w-3 h-3" />{balance.toLocaleString()}</span>
+                <span className="text-[9px] text-slate-500">قابل للسحب {withdrawable.toLocaleString()} • شهر {monthly.toLocaleString()}</span>
               </div>
             );
           }},

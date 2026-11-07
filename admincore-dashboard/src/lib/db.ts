@@ -2157,6 +2157,150 @@ export async function getHostAgencyMembers(agencyId?: string): Promise<HostAgenc
   } catch { return []; }
 }
 
+// ─── دورة إصدار عمولة الوكالة ────────────────────────────────────────────────
+export type AgencyCommissionPeriod = 'daily' | 'weekly' | 'monthly';
+
+export interface AgencyCommissionCycle {
+  period: AgencyCommissionPeriod;
+  week_start: number;   // 1=الاثنين .. 7=الأحد
+  release_day: number;  // أسبوعياً 1..7 — شهرياً 1..28
+  release_time: string; // HH:MM
+  timezone: string;
+  auto_release: boolean;
+}
+
+const DEFAULT_COMMISSION_CYCLE: AgencyCommissionCycle = {
+  period: 'monthly',
+  week_start: 1,
+  release_day: 1,
+  release_time: '00:00',
+  timezone: 'Asia/Riyadh',
+  auto_release: false,
+};
+
+function normalizeCommissionCycle(raw: any): AgencyCommissionCycle {
+  let map: any = raw;
+  if (typeof raw === 'string') {
+    try { map = JSON.parse(raw); } catch { map = {}; }
+  }
+  if (!map || typeof map !== 'object') map = {};
+  const p = String(map.period || '').toLowerCase();
+  const period: AgencyCommissionPeriod =
+    p === 'daily' || p === 'weekly' || p === 'monthly' ? (p as any) : DEFAULT_COMMISSION_CYCLE.period;
+  return {
+    period,
+    week_start: Math.min(7, Math.max(1, Number(map.week_start) || 1)),
+    release_day: Math.min(28, Math.max(1, Number(map.release_day) || 1)),
+    release_time: /^\d{1,2}:\d{2}$/.test(String(map.release_time || ''))
+      ? String(map.release_time)
+      : DEFAULT_COMMISSION_CYCLE.release_time,
+    timezone: String(map.timezone || '').trim() || DEFAULT_COMMISSION_CYCLE.timezone,
+    auto_release: map.auto_release === true || String(map.auto_release).toLowerCase() === 'true',
+  };
+}
+
+export async function getAgencyCommissionCycle(): Promise<AgencyCommissionCycle> {
+  try {
+    const { data } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', 'agency_commission_cycle')
+      .maybeSingle();
+    if (data?.value != null) return normalizeCommissionCycle(data.value);
+
+    // fallback للإعداد القديم
+    const { data: legacy } = await supabase
+      .from('commission_settings')
+      .select('description')
+      .eq('key', 'agency_commission_period')
+      .maybeSingle();
+    if (legacy?.description) {
+      return normalizeCommissionCycle({ ...DEFAULT_COMMISSION_CYCLE, period: legacy.description });
+    }
+  } catch (e) {
+    console.warn('getAgencyCommissionCycle failed:', e);
+  }
+  return { ...DEFAULT_COMMISSION_CYCLE };
+}
+
+export async function saveAgencyCommissionCycle(
+  cycle: Partial<AgencyCommissionCycle>,
+): Promise<AgencyCommissionCycle> {
+  const normalized = normalizeCommissionCycle(cycle);
+  await supabase.from('app_config').upsert({
+    key: 'agency_commission_cycle',
+    value: normalized,
+  }, { onConflict: 'key' });
+
+  // التوافق مع الإعداد القديم
+  try {
+    await supabase.from('app_config').upsert({
+      key: 'agency_commission_period',
+      value: normalized.period,
+    }, { onConflict: 'key' });
+  } catch (_) {}
+  try {
+    const periodVal = normalized.period === 'daily' ? 1 : normalized.period === 'weekly' ? 7 : 30;
+    await supabase.from('commission_settings').upsert({
+      key: 'agency_commission_period',
+      value: periodVal,
+      percentage: periodVal,
+      description: normalized.period,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'key' });
+  } catch (_) {}
+
+  return normalized;
+}
+
+export interface AgencyCommissionOverviewRow {
+  agency_id: string;
+  name: string;
+  pending: number;
+  released: number;
+  next_release: string | null;
+  last_release: string | null;
+}
+
+export async function getAgencyCommissionOverview(): Promise<AgencyCommissionOverviewRow[]> {
+  try {
+    const { data } = await supabase
+      .from('host_agencies')
+      .select('id, name, pending_commission_diamonds, released_commission_diamonds, next_commission_release_at, last_commission_release_at')
+      .order('name', { ascending: true });
+    return (data ?? []).map((row: any) => ({
+      agency_id: row.id,
+      name: row.name || row.id,
+      pending: Number(row.pending_commission_diamonds || 0),
+      released: Number(row.released_commission_diamonds || 0),
+      next_release: row.next_commission_release_at || null,
+      last_release: row.last_commission_release_at || null,
+    }));
+  } catch (e) {
+    console.warn('getAgencyCommissionOverview failed:', e);
+    return [];
+  }
+}
+
+export async function releaseAgencyCommission(
+  agencyId: string,
+  note = 'إصدار يدوي من لوحة التحكم',
+): Promise<any> {
+  const { data, error } = await supabase.rpc('agency_release_commission', {
+    p_agency_id: agencyId,
+    p_force: true,
+    p_note: note,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function releaseDueCommissions(): Promise<any> {
+  const { data, error } = await supabase.rpc('agency_release_due_commissions');
+  if (error) throw error;
+  return data;
+}
+
 
 export async function addAgencyMember(agencyId: string, userQuery: string, role: string = 'host'): Promise<{ success: boolean; message: string }> {
   try {

@@ -1405,6 +1405,53 @@ abstract final class AgencyRepository {
 
   // ─── محفظة مالك الوكالة ──────────────────────────────────────────
 
+  /// معلومات دورة إصدار عمولة الوكالة: المعلّق، المُصدر، الموعد القادم، والإعدادات.
+  static Future<Map<String, dynamic>?> getCommissionReleaseInfo(
+      String agencyId) async {
+    try {
+      final resp = await _sb.rpc('agency_commission_release_info', params: {
+        'p_agency_id': agencyId,
+      });
+      if (resp == null) return null;
+      return Map<String, dynamic>.from(resp as Map);
+    } catch (e) {
+      debugPrint('[AgencyRepository] getCommissionReleaseInfo error: $e');
+      return null;
+    }
+  }
+
+  /// إصدار العمولة المعلّقة يدوياً (لوحة الإدارة / المالك).
+  static Future<Map<String, dynamic>?> releaseCommission(
+    String agencyId, {
+    bool force = true,
+    String? note,
+  }) async {
+    try {
+      final resp = await _sb.rpc('agency_release_commission', params: {
+        'p_agency_id': agencyId,
+        'p_force': force,
+        'p_note': note,
+      });
+      if (resp == null) return null;
+      return Map<String, dynamic>.from(resp as Map);
+    } catch (e) {
+      debugPrint('[AgencyRepository] releaseCommission error: $e');
+      return null;
+    }
+  }
+
+  /// إصدار كل العمولات المستحقة تلقائياً حسب الدورة المعتمدة.
+  static Future<Map<String, dynamic>?> releaseDueCommissions() async {
+    try {
+      final resp = await _sb.rpc('agency_release_due_commissions');
+      if (resp == null) return null;
+      return Map<String, dynamic>.from(resp as Map);
+    } catch (e) {
+      debugPrint('[AgencyRepository] releaseDueCommissions error: $e');
+      return null;
+    }
+  }
+
   /// لوحة تحكم المالك: محفظة + أسعار + آخر 20 حركة
   static Future<AgencyOwnerDashboard?> getOwnerDashboard(
       String agencyId) async {

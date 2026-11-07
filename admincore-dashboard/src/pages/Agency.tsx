@@ -24,6 +24,9 @@ import {
   searchUserProfile, sendSystemNotification, sendAgencyInvitation,
   getAgencyLevels, saveAgencyLevels, distributeAgencyLevelReward,
   getAgencyExpTasks, saveAgencyExpTasks,
+  getAgencyCommissionCycle, saveAgencyCommissionCycle, getAgencyCommissionOverview,
+  releaseAgencyCommission,
+  type AgencyCommissionCycle, type AgencyCommissionOverviewRow,
 } from '../lib/db';
 import { uploadStoreItem } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -38,7 +41,7 @@ import {
   Save, CheckCircle2, RefreshCw, ClipboardCheck, Plus, Trash2, Edit3,
   XCircle, Check, ShieldCheck, UserMinus, Eye, ExternalLink,
   ArrowRightLeft, RotateCcw, Coins, FileText, AlertTriangle,
-  Mic, Dices, CreditCard, Gift, Clock, Package, Search, Zap,
+  Mic, Dices, CreditCard, Gift, Clock, Package, Search, Zap, CalendarClock,
 } from 'lucide-react';
 
 /* =============================================================
@@ -2749,8 +2752,22 @@ function CommissionTab() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [simCoins, setSimCoins] = useState<number>(15000);
   const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
-  const [commissionPeriod, setCommissionPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [cycle, setCycle] = useState<AgencyCommissionCycle>({
+    period: 'monthly', week_start: 1, release_day: 1,
+    release_time: '00:00', timezone: 'Asia/Riyadh', auto_release: false,
+  });
   const [savingPeriod, setSavingPeriod] = useState(false);
+  const [overview, setOverview] = useState<AgencyCommissionOverviewRow[]>([]);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+  const [releasingId, setReleasingId] = useState<string | null>(null);
+
+  const loadOverview = () => {
+    setLoadingOverview(true);
+    getAgencyCommissionOverview()
+      .then(rows => setOverview(rows))
+      .catch(err => console.warn('commission overview failed:', err))
+      .finally(() => setLoadingOverview(false));
+  };
 
   const load = () => {
     setLoading(true);
@@ -2758,48 +2775,72 @@ function CommissionTab() {
       setSettings(d);
       const cp = d.find(x => x.key === 'agency_commission_period');
       if (cp && cp.value && ['daily', 'weekly', 'monthly'].includes(String(cp.value))) {
-        setCommissionPeriod(String(cp.value) as any);
-      } else {
-        supabase.from('app_config').select('value').eq('key', 'agency_commission_period').maybeSingle().then(({ data: cfg }) => {
-          if (cfg?.value) {
-            const val = typeof cfg.value === 'string' ? cfg.value.replace(/"/g, '') : cfg.value;
-            if (['daily', 'weekly', 'monthly'].includes(val)) {
-              setCommissionPeriod(val as any);
-            }
-          }
-        });
+        setCycle(prev => ({ ...prev, period: String(cp.value) as any }));
       }
       setLoading(false);
     }).catch(err => {
       console.warn('Failed to load commission settings:', err);
       setLoading(false);
     });
+    getAgencyCommissionCycle()
+      .then(c => setCycle(c))
+      .catch(err => console.warn('Failed to load commission cycle:', err));
+    loadOverview();
   };
 
-  const handleSavePeriod = async (period: 'daily' | 'weekly' | 'monthly') => {
+  const handleSaveCycle = async (next?: Partial<AgencyCommissionCycle>) => {
+    const merged: AgencyCommissionCycle = { ...cycle, ...(next || {}) };
     setSavingPeriod(true);
     try {
-      await supabase.from('commission_settings').upsert({
-        key: 'agency_commission_period',
-        value: period,
-        description: 'دورة صرف وتأكيد عمولة الوكيل (daily / weekly / monthly)',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'key' });
-
-      await supabase.from('app_config').upsert({
-        key: 'agency_commission_period',
-        value: period,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'key' });
-
-      setCommissionPeriod(period);
-      alert(`✅ تم حفظ وتحديث دورة صرف عمولة الوكيل إلى (${period === 'daily' ? 'يومي' : period === 'weekly' ? 'أسبوعي' : 'شهري'}) بنجاح!`);
+      const saved = await saveAgencyCommissionCycle(merged);
+      setCycle(saved);
+      alert(`✅ تم حفظ دورة إصدار عمولة الوكالة (${saved.period === 'daily' ? 'يومي' : saved.period === 'weekly' ? 'أسبوعي' : 'شهري'}) — ${saved.release_time} ${saved.timezone}`);
     } catch (err) {
       console.error(err);
-      alert('حدث خطأ أثناء حفظ دورة الصرف');
+      alert('حدث خطأ أثناء حفظ دورة الإصدار');
     } finally {
       setSavingPeriod(false);
     }
+  };
+
+  const handleRelease = async (agencyId: string, name: string) => {
+    if (!confirm(`إصدار العمولة المعلّقة لوكالة "${name}" الآن وإضافتها لرصيد المالك؟`)) return;
+    setReleasingId(agencyId);
+    try {
+      const res = await releaseAgencyCommission(agencyId);
+      const released = res?.released ?? res?.amount ?? 0;
+      alert(`✅ تم إصدار ${Number(released).toLocaleString()} 💎 لوكالة "${name}"`);
+      loadOverview();
+    } catch (err: any) {
+      console.error(err);
+      alert('فشل الإصدار: ' + (err?.message || err));
+    } finally {
+      setReleasingId(null);
+    }
+  };
+
+  const handleReleaseDue = async () => {
+    const now = new Date();
+    const due = overview.filter(r =>
+      r.pending > 0 && (!r.next_release || new Date(r.next_release) <= now));
+    if (due.length === 0) {
+      alert('لا توجد عمولات مستحقة الآن (لم يحل موعد الإصدار بعد)');
+      return;
+    }
+    if (!confirm(`إصدار العمولات المستحقة لعدد ${due.length} وكالة الآن؟`)) return;
+    let total = 0;
+    let ok = 0;
+    for (const row of due) {
+      try {
+        const res = await releaseAgencyCommission(row.agency_id, 'إصدار المستحق — لوحة التحكم');
+        total += Number(res?.released || 0);
+        ok += 1;
+      } catch (err) {
+        console.error('release due failed for', row.agency_id, err);
+      }
+    }
+    alert(`✅ تم إصدار ${total.toLocaleString()} 💎 لعدد ${ok} وكالة`);
+    loadOverview();
   };
 
   useEffect(() => { load(); }, []);
@@ -3006,19 +3047,19 @@ function CommissionTab() {
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-blue-300">📅 دورة صرف عمولة الوكيل</span>
               <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-mono font-bold">
-                {commissionPeriod === 'daily' ? 'يومي' : commissionPeriod === 'weekly' ? 'أسبوعي' : 'شهري'}
+                {cycle.period === 'daily' ? 'يومي' : cycle.period === 'weekly' ? 'أسبوعي' : 'شهري'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">موعد اعتماد وإيداع عمولة الوكيل بالمحفظة</p>
+            <p className="text-[11px] text-slate-400">موعد اعتماد وإصدار عمولة الوكيل (لا تُضاف للرصيد قبل الإصدار)</p>
             <div className="grid grid-cols-3 gap-1 bg-black/60 p-1 rounded-lg border border-white/10">
               {(['daily', 'weekly', 'monthly'] as const).map(p => (
                 <button
                   key={p}
                   type="button"
                   disabled={savingPeriod}
-                  onClick={() => handleSavePeriod(p)}
+                  onClick={() => handleSaveCycle({ period: p })}
                   className={`py-1.5 text-xs font-bold rounded transition-all ${
-                    commissionPeriod === p
+                    cycle.period === p
                       ? 'bg-blue-500 text-white shadow-md'
                       : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }`}
@@ -3031,7 +3072,159 @@ function CommissionTab() {
         </div>
       </div>
 
-      {/* 2. Interactive Live Gift Distribution Simulator */}
+      {/* 2. Commission Release Cycle & Pending Overview */}
+      <div className="bg-[#141417] border border-blue-500/30 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="w-5 h-5 text-blue-400" />
+            <div>
+              <h3 className="text-sm font-bold text-white">🗓️ إعدادات دورة إصدار عمولة الوكالة</h3>
+              <p className="text-[11px] text-slate-400">
+                تُحتسب العمولة كمستحقات معلّقة، وتُضاف لرصيد مالك الوكالة القابل للصرف فقط عند الإصدار في الموعد المحدد
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadOverview}
+              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingOverview ? 'animate-spin' : ''}`} />
+              تحديث
+            </button>
+            <button
+              onClick={handleReleaseDue}
+              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              إصدار المستحق الآن
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {cycle.period === 'weekly' && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-300">بداية الأسبوع</label>
+              <select
+                value={cycle.week_start}
+                onChange={e => setCycle(prev => ({ ...prev, week_start: Number(e.target.value) }))}
+                className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-blue-400"
+              >
+                {[['1','الاثنين'],['2','الثلاثاء'],['3','الأربعاء'],['4','الخميس'],['5','الجمعة'],['6','السبت'],['7','الأحد']].map(([v,l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {cycle.period !== 'daily' && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-300">
+                {cycle.period === 'weekly' ? 'يوم الإصدار (اليوم)' : 'يوم الإصدار (من الشهر)'}
+              </label>
+              <select
+                value={cycle.release_day}
+                onChange={e => setCycle(prev => ({ ...prev, release_day: Number(e.target.value) }))}
+                className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-blue-400"
+              >
+                {cycle.period === 'weekly'
+                  ? [['1','الاثنين'],['2','الثلاثاء'],['3','الأربعاء'],['4','الخميس'],['5','الجمعة'],['6','السبت'],['7','الأحد']].map(([v,l]) => (
+                      <option key={v} value={v}>{l}</option>
+                    ))
+                  : Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                      <option key={d} value={d}>يوم {d}</option>
+                    ))}
+              </select>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-300">وقت الإصدار</label>
+            <input
+              type="time"
+              value={cycle.release_time}
+              onChange={e => setCycle(prev => ({ ...prev, release_time: e.target.value }))}
+              className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-blue-400"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-300">المنطقة الزمنية</label>
+            <select
+              value={cycle.timezone}
+              onChange={e => setCycle(prev => ({ ...prev, timezone: e.target.value }))}
+              className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-blue-400"
+            >
+              {[['Asia/Riyadh','الرياض (GMT+3)'],['Asia/Dubai','دبي (GMT+4)'],['Asia/Kuwait','الكويت (GMT+3)'],['Asia/Baghdad','بغداد (GMT+3)'],['Asia/Amman','عمّان (GMT+3)'],['Asia/Cairo','القاهرة (GMT+2)'],['Europe/London','لندن (GMT+0)'],['UTC','UTC']].map(([v,l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between flex-wrap gap-3 pt-1">
+          <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={cycle.auto_release}
+              onChange={e => setCycle(prev => ({ ...prev, auto_release: e.target.checked }))}
+              className="accent-blue-500"
+            />
+            إصدار تلقائي عند حلول الموعد (عند التعطيل يتم الإصدار يدوياً)
+          </label>
+          <button
+            onClick={() => handleSaveCycle()}
+            disabled={savingPeriod}
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition-colors"
+          >
+            {savingPeriod ? 'جارٍ الحفظ...' : 'حفظ إعدادات الدورة'}
+          </button>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-white/10">
+          <table className="w-full text-xs">
+            <thead className="bg-white/5 text-slate-400">
+              <tr>
+                <th className="text-right px-3 py-2 font-bold">الوكالة</th>
+                <th className="text-right px-3 py-2 font-bold">معلّق للإصدار 💎</th>
+                <th className="text-right px-3 py-2 font-bold">تم إصداره 💎</th>
+                <th className="text-right px-3 py-2 font-bold">الإصدار القادم</th>
+                <th className="text-center px-3 py-2 font-bold">إجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingOverview ? (
+                <tr><td colSpan={5} className="text-center py-4 text-slate-400">جارٍ التحميل...</td></tr>
+              ) : overview.length === 0 ? (
+                <tr><td colSpan={5} className="text-center py-4 text-slate-500">لا توجد وكالات</td></tr>
+              ) : overview.map(row => (
+                <tr key={row.agency_id} className="border-t border-white/5">
+                  <td className="px-3 py-2 text-white font-bold">{row.name}</td>
+                  <td className={`px-3 py-2 font-mono ${row.pending > 0 ? 'text-amber-300' : 'text-slate-400'}`}>
+                    {row.pending.toLocaleString()}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-emerald-300">{row.released.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-slate-300">
+                    {row.next_release ? new Date(row.next_release).toLocaleString('ar-SA') : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <button
+                      onClick={() => handleRelease(row.agency_id, row.name)}
+                      disabled={row.pending <= 0 || releasingId === row.agency_id}
+                      className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-30 text-black font-bold rounded-md text-[11px] transition-colors"
+                    >
+                      {releasingId === row.agency_id ? '...' : 'إصدار الآن'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 3. Interactive Live Gift Distribution Simulator */}
       <div className="bg-gradient-to-br from-indigo-950/40 via-purple-950/20 to-slate-900 border border-indigo-500/30 rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">

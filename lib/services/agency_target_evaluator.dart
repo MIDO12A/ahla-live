@@ -256,7 +256,7 @@ class AgencyTargetEvaluator {
       debugPrint('[AgencyTargetEvaluator] error upserting achieved target: $e');
     }
 
-    // 2. Give agent commission to Agency Owner
+    // 2. Accrue agent commission for the Agency Owner (pending until release cycle)
     if (agentCommissionRate > 0 && agencyId.isNotEmpty) {
       try {
         final agencySnap = await _sb.from('host_agencies')
@@ -267,28 +267,37 @@ class AgencyTargetEvaluator {
         if (ownerId.isNotEmpty) {
           final profit = (targetDiamonds * agentCommissionRate).toInt();
 
-          // العمولة تُضاف لمحفظة مالك الوكالة فقط — لا تُلمس محفظة الشحن
-          // Also update owner agency member diamonds balance
+          // العمولة تُحتسب كاستحقاق معلّق ولا تُضاف للرصيد القابل للصرف
+          // إلا عند إصدارها حسب دورة العمولة المعتمدة من لوحة التحكم.
+          var accrued = false;
           try {
-            final ownerMemSnap = await _sb.from('host_agency_members')
-                .select('id, diamonds, diamonds_balance, diamonds_available')
-                .eq('agency_id', agencyId)
-                .or('user_id.eq.$ownerId,host_uid.eq.$ownerId')
-                .maybeSingle();
-            if (ownerMemSnap != null) {
-              final d1 = (ownerMemSnap['diamonds'] as num?)?.toInt() ?? 0;
-              final d2 = (ownerMemSnap['diamonds_balance'] as num?)?.toInt() ?? 0;
-              final d3 = (ownerMemSnap['diamonds_available'] as num?)?.toInt() ?? 0;
-              await _sb.from('host_agency_members').update({
-                'diamonds': d1 + profit,
-                'diamonds_balance': d2 + profit,
-                'diamonds_available': d3 + profit,
-              }).eq('id', ownerMemSnap['id']);
-            }
-          } catch (_) {}
+            final rpcRes = await _sb.rpc('agency_accrue_commission', params: {
+              'p_agency_id': agencyId,
+              'p_diamonds': profit,
+              'p_note': 'عمولة تارجت مضيف — بانتظار دورة الإصدار',
+            });
+            accrued = rpcRes is Map && rpcRes['status'] == 'ok';
+          } catch (e) {
+            debugPrint('[AgencyTargetEvaluator] agency_accrue_commission failed: $e');
+          }
+
+          if (!accrued) {
+            try {
+              final agRow = await _sb
+                  .from('host_agencies')
+                  .select('pending_commission_diamonds')
+                  .eq('id', agencyId)
+                  .maybeSingle();
+              final pending =
+                  (agRow?['pending_commission_diamonds'] as num?)?.toInt() ?? 0;
+              await _sb.from('host_agencies').update({
+                'pending_commission_diamonds': pending + profit,
+              }).eq('id', agencyId);
+            } catch (_) {}
+          }
 
           // Notify owner
-          await _sendSystemMessage(ownerId, 'مبروك! تمت إضافة عمولة بقيمة $profit ماسة (بنسبة ${(agentCommissionRate * 100).toStringAsFixed(1)}%) إلى محفظة وكالتك، لنجاح مضيفك في تحقيق تارجت $targetDiamonds 💎.');
+          await _sendSystemMessage(ownerId, 'مبروك! تم تسجيل عمولة بقيمة $profit ماسة (بنسبة ${(agentCommissionRate * 100).toStringAsFixed(1)}%) كمستحقة معلّقة لوكالتك، وستُصرف حسب دورة العمولة المعتمدة، لنجاح مضيفك في تحقيق تارجت $targetDiamonds 💎.');
         }
       } catch (e) {
         debugPrint('[AgencyTargetEvaluator] error awarding commission: $e');

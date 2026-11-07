@@ -2426,6 +2426,7 @@ class DynamicConfigService extends ChangeNotifier {
         'agency_financial_policy': _rawConfig['agency_financial_policy'],
         'coins_per_usd': _rawConfig['coins_per_usd'],
         'agency_commission_period': _rawConfig['agency_commission_period'],
+        'agency_commission_cycle': _rawConfig['agency_commission_cycle'],
       });
     } catch (_) {
       return '';
@@ -2492,6 +2493,61 @@ class DynamicConfigService extends ChangeNotifier {
     }
     return 'monthly';
   }
+
+  /// إعدادات دورة إصدار عمولة الوكالة الكاملة (من لوحة التحكم).
+  /// المفاتيح: period, week_start (1=الاثنين..7=الأحد), release_day,
+  /// release_time (HH:MM), timezone, auto_release.
+  Map<String, dynamic> get agencyCommissionCycle {
+    Map<String, dynamic> map = {};
+    final raw = _rawConfig['agency_commission_cycle'];
+    if (raw is Map) {
+      map = Map<String, dynamic>.from(raw);
+    } else if (raw is String && raw.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) map = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
+
+    final periodRaw = map['period']?.toString().toLowerCase() ?? '';
+    final period = (periodRaw == 'daily' || periodRaw == 'weekly' || periodRaw == 'monthly')
+        ? periodRaw
+        : agencyCommissionPeriod;
+
+    return {
+      'period': period,
+      'week_start': int.tryParse(map['week_start']?.toString() ?? '') ?? 1,
+      'release_day': int.tryParse(map['release_day']?.toString() ?? '') ?? 1,
+      'release_time': (map['release_time']?.toString().isNotEmpty ?? false)
+          ? map['release_time'].toString()
+          : '00:00',
+      'timezone': (map['timezone']?.toString().isNotEmpty ?? false)
+          ? map['timezone'].toString()
+          : 'UTC',
+      'auto_release': map['auto_release'] == true ||
+          map['auto_release']?.toString().toLowerCase() == 'true',
+    };
+  }
+
+  /// أول يوم في الأسبوع لدورة العمولة (1=الاثنين .. 7=الأحد)
+  int get agencyCommissionWeekStart =>
+      (agencyCommissionCycle['week_start'] as int?) ?? 1;
+
+  /// يوم الإصدار: أسبوعياً (1..7) أو شهرياً (1..28)
+  int get agencyCommissionReleaseDay =>
+      (agencyCommissionCycle['release_day'] as int?) ?? 1;
+
+  /// وقت الإصدار بصيغة HH:MM
+  String get agencyCommissionReleaseTime =>
+      (agencyCommissionCycle['release_time'] as String?) ?? '00:00';
+
+  /// المنطقة الزمنية المعتمدة لتوقيت الإصدار على مستوى التطبيق
+  String get agencyCommissionTimezone =>
+      (agencyCommissionCycle['timezone'] as String?) ?? 'UTC';
+
+  /// هل يتم الإصدار تلقائياً عند حلول الموعد؟
+  bool get agencyCommissionAutoRelease =>
+      (agencyCommissionCycle['auto_release'] as bool?) ?? false;
 
   /// نسبة راتب المضيف من الكوينز المستلمة (%)
   /// القيمة الافتراضية 100.0 (أي 100% كاملة)
