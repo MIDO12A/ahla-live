@@ -76,15 +76,11 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
       final candidateAgencyIds = <String>{widget.agencyId};
       try {
         final aRow = await _sb.from('host_agencies')
-            .select('id, agency_id, custom_id, user_id, owner_id, owner_uid')
+            .select('id')
             .eq('id', widget.agencyId)
             .maybeSingle();
-        if (aRow != null) {
-          for (final k in ['id', 'agency_id', 'custom_id', 'user_id', 'owner_id', 'owner_uid']) {
-            if (aRow[k] != null && aRow[k].toString().isNotEmpty) {
-              candidateAgencyIds.add(aRow[k].toString());
-            }
-          }
+        if (aRow != null && aRow['id'] != null && aRow['id'].toString().isNotEmpty) {
+          candidateAgencyIds.add(aRow['id'].toString());
         }
       } catch (_) {}
 
@@ -210,22 +206,39 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
       }
 
       // Update Supabase
+      final nowIso = DateTime.now().toUtc().toIso8601String();
       try {
         await _sb.from('host_agency_join_requests')
-            .update({'status': 'accepted', 'resolved_at': DateTime.now().toUtc().toIso8601String()})
+            .update({'status': 'approved', 'resolved_at': nowIso})
             .eq('id', reqId);
       } catch (_) {}
 
       if (userId.isNotEmpty) {
         try {
-          await _sb.from('host_agency_members').upsert({
-            'agency_id': widget.agencyId,
-            'host_uid': userId,
-            'user_id': userId,
-            'role': 'host',
-            'status': 'active',
-            'joined_at': DateTime.now().toUtc().toIso8601String(),
-          });
+          final existing = await _sb
+              .from('host_agency_members')
+              .select('id')
+              .eq('agency_id', widget.agencyId)
+              .or('host_uid.eq.$userId,user_id.eq.$userId')
+              .maybeSingle();
+          if (existing != null) {
+            await _sb.from('host_agency_members').update({
+              'host_uid': userId,
+              'user_id': userId,
+              'role': 'host',
+              'status': 'active',
+              'joined_at': nowIso,
+            }).eq('id', existing['id']);
+          } else {
+            await _sb.from('host_agency_members').insert({
+              'agency_id': widget.agencyId,
+              'host_uid': userId,
+              'user_id': userId,
+              'role': 'host',
+              'status': 'active',
+              'joined_at': nowIso,
+            });
+          }
         } catch (_) {}
         try {
           await _sb.from('users').update({'agency_id': widget.agencyId}).eq('uid', userId);
@@ -569,15 +582,16 @@ class _MemberCard extends StatelessWidget {
                       child: DText(name,
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
                     ),
-                    if (status == 'kicked')
+                    if (_statusBadge(status) != null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.2),
+                          color: _statusColor(status).withOpacity(0.2),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.red.withOpacity(0.4)),
+                          border: Border.all(color: _statusColor(status).withOpacity(0.4)),
                         ),
-                        child: const DText('مطرود 🔴', style: TextStyle(color: Colors.red, fontSize: 10)),
+                        child: DText(_statusBadge(status)!,
+                            style: TextStyle(color: _statusColor(status), fontSize: 10)),
                       ),
                   ]),
                   const SizedBox(height: 2),
@@ -643,6 +657,40 @@ class _MemberCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String? _statusBadge(String status) {
+    switch (status) {
+      case 'kicked':
+        return 'مطرود';
+      case 'left':
+        return 'منسحب';
+      case 'rejected':
+        return 'مرفوض';
+      case 'terminated':
+        return 'منتهي';
+      case 'suspended':
+        return 'موقوف';
+      case 'pending_exit':
+        return 'بانتظار الخروج';
+      default:
+        return null;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'kicked':
+      case 'rejected':
+      case 'terminated':
+        return Colors.red;
+      case 'left':
+        return Colors.orange;
+      case 'suspended':
+        return Colors.amber;
+      default:
+        return Colors.orange;
+    }
   }
 
   String _formatDate(String iso) {

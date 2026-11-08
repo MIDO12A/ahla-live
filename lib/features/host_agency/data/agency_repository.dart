@@ -225,6 +225,22 @@ abstract final class AgencyRepository {
       } else {
         canJoin = true;
       }
+
+      if (!isMember) {
+        try {
+          final jr = await _sb
+              .from('host_agency_join_requests')
+              .select('status')
+              .eq('agency_id', agencyId)
+              .eq('host_uid', uid)
+              .eq('status', 'pending')
+              .maybeSingle();
+          if (jr != null) {
+            hasPendingRequest = true;
+            canJoin = false;
+          }
+        } catch (_) {}
+      }
     }
 
     return AgencyCard.fromMap({
@@ -258,46 +274,50 @@ abstract final class AgencyRepository {
     final uid = _sb.auth.currentUser?.id;
     if (uid == null) throw Exception('يجب تسجيل الدخول أولاً');
 
+    bool created = false;
+
     try {
-      final resp = await _sb
-          .rpc('agency_request_join', params: {'p_agency_id': agencyId});
+      final resp = await _sb.rpc('agency_request_join', params: {
+        'p_agency_id': agencyId,
+        'p_user_id': uid,
+      });
       if (resp is Map && resp['status'] == 'error') {
         throw Exception(resp['message'] ?? 'تعذر تقديم طلب الانضمام');
       }
+      if (resp is Map && (resp['status'] == 'ok' || resp['success'] == true)) {
+        created = true;
+      }
     } catch (e) {
-      if (e is Exception &&
-          (e.toString().contains('عضو بالفعل') ||
-              e.toString().contains('طلب معلق') ||
-              e.toString().contains('مسجل بالفعل'))) {
+      final msg = e.toString();
+      if (msg.contains('عضو بالفعل') ||
+          msg.contains('طلب معلق') ||
+          msg.contains('مسجل بالفعل')) {
         rethrow;
       }
-      // Fallback: insert directly into host_agency_join_requests and host_agency_members
-      final reqId = const Uuid().v4();
+    }
+
+    if (!created) {
+      final nowIso = DateTime.now().toUtc().toIso8601String();
       try {
-        await _sb.from('host_agency_join_requests').insert({
-          'id': reqId,
-          'agency_id': agencyId,
-          'user_id': uid,
-          'status': 'pending',
-          'created_at': DateTime.now().toUtc().toIso8601String(),
-        });
-      } catch (_) {}
-      try {
-        await _sb.from('host_agency_members').insert({
-          'agency_id': agencyId,
-          'user_id': uid,
-          'role': 'host',
-          'status': 'pending',
-        });
-      } catch (_) {
-        try {
-          await _sb.from('host_agency_members').insert({
+        final existing = await _sb
+            .from('host_agency_join_requests')
+            .select('id, status')
+            .eq('agency_id', agencyId)
+            .eq('host_uid', uid)
+            .eq('status', 'pending')
+            .maybeSingle();
+        if (existing == null) {
+          await _sb.from('host_agency_join_requests').insert({
+            'id': const Uuid().v4(),
             'agency_id': agencyId,
             'host_uid': uid,
-            'role': 'host',
+            'user_id': uid,
             'status': 'pending',
+            'created_at': nowIso,
           });
-        } catch (_) {}
+        }
+      } catch (e) {
+        debugPrint('[AgencyRepository] insert join request error: $e');
       }
     }
 
@@ -342,6 +362,23 @@ abstract final class AgencyRepository {
       }
     } catch (ne) {
       debugPrint('[AgencyRepository] send join notification error: $ne');
+    }
+
+    if (!created) {
+      try {
+        final check = await _sb
+            .from('host_agency_join_requests')
+            .select('id')
+            .eq('agency_id', agencyId)
+            .eq('host_uid', uid)
+            .eq('status', 'pending')
+            .maybeSingle();
+        if (check == null) {
+          throw Exception('تعذر إرسال طلب الانضمام، حاول مرة أخرى');
+        }
+      } catch (e) {
+        if (e is Exception && e.toString().contains('تعذر إرسال')) rethrow;
+      }
     }
   }
 
@@ -845,7 +882,7 @@ abstract final class AgencyRepository {
     final memberRows = await _sb
         .from('host_agency_members')
         .select(
-            'id, agency_id, diamonds, diamonds_balance, diamonds_available, diamonds_earned_monthly, diamonds_pending_withdrawal')
+            'id, agency_id, diamonds, diamonds_balance, diamonds_available, diamonds_earned_monthly, diamonds_pending_withdrawal, unpacked_target_diamonds')
         .or('user_id.eq.$uid,host_uid.eq.$uid')
         .limit(1);
     if (memberRows.isEmpty) {
@@ -867,12 +904,16 @@ abstract final class AgencyRepository {
     final newMonthly = (monthly - diamondsAmount).clamp(0, 999999999);
     final pending =
         (member['diamonds_pending_withdrawal'] as num?)?.toInt() ?? 0;
+    final curUnpacked =
+        (member['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
     await _sb.from('host_agency_members').update({
       'diamonds': newBalance,
       'diamonds_balance': newBalance,
       'diamonds_available': newBalance,
       'diamonds_earned_monthly': newMonthly,
       'diamonds_pending_withdrawal': pending + diamondsAmount,
+      'unpacked_target_diamonds': curUnpacked + diamondsAmount,
+      'has_unpacked_target': true,
       'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', member['id']);
 
@@ -1009,7 +1050,7 @@ abstract final class AgencyRepository {
         final memberRow = await _sb
             .from('host_agency_members')
             .select(
-                'id, agency_id, diamonds, diamonds_balance, diamonds_available, diamonds_earned_monthly')
+                'id, agency_id, diamonds, diamonds_balance, diamonds_available, diamonds_earned_monthly, unpacked_target_diamonds, has_unpacked_target')
             .or('user_id.eq.$uid,host_uid.eq.$uid')
             .maybeSingle();
 
@@ -1047,6 +1088,8 @@ abstract final class AgencyRepository {
         // 1. خصم من محفظة الوكالة (التارجت) فقط — دون المساس بـ users.diamonds
         final curMonthly =
             (memberRow['diamonds_earned_monthly'] as num?)?.toInt() ?? 0;
+        final curUnpacked =
+            (memberRow['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
         final updatedBal = (memberDiamonds - diamonds).clamp(0, 999999999);
         final updatedMonthly = (curMonthly - diamonds).clamp(0, 999999999);
 
@@ -1055,6 +1098,8 @@ abstract final class AgencyRepository {
           'diamonds_balance': updatedBal,
           'diamonds_available': updatedBal,
           'diamonds_earned_monthly': updatedMonthly,
+          'unpacked_target_diamonds': curUnpacked + diamonds,
+          'has_unpacked_target': true,
         };
 
         if (memberRow['id'] != null) {
@@ -1079,9 +1124,8 @@ abstract final class AgencyRepository {
               .from('host_salaries')
               .update({
                 'status': 'disbursed',
-                'disbursed_at': DateTime.now().toIso8601String(),
               })
-              .or('user_id.eq.$uid,host_uid.eq.$uid')
+              .eq('host_uid', uid)
               .eq('status', 'pending');
         } catch (_) {}
 
@@ -1167,6 +1211,8 @@ abstract final class AgencyRepository {
             'diamonds_balance': memberDiamonds,
             'diamonds_available': memberDiamonds,
             'diamonds_earned_monthly': curMonthly,
+            'unpacked_target_diamonds': curUnpacked,
+            'has_unpacked_target': memberRow['has_unpacked_target'] == true,
           };
           try {
             if (memberRow['id'] != null) {

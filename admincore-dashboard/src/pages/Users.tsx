@@ -99,7 +99,20 @@ export default function UsersPage() {
         'المدير العام'
       );
       if (res.success) {
-        const updated = { ...editing, diamonds: res.newDiamonds };
+        const updated = {
+          ...editing,
+          diamonds: res.newDiamonds,
+          ...(res.memberBalance != null ? {
+            agencyDiamondsBalance: res.memberBalance,
+            agency_diamonds_balance: res.memberBalance,
+            agencyDiamondsMonthly: res.memberMonthly,
+            agency_diamonds_monthly: res.memberMonthly,
+            agencyDiamondsCumulative: res.memberCumulative,
+            agency_diamonds_cumulative: res.memberCumulative,
+            agencyDiamondsWithdrawable: res.memberWithdrawable,
+            agency_diamonds_withdrawable: res.memberWithdrawable,
+          } : {}),
+        };
         setEditing(updated);
         setUsers(prev => prev.map(u => u.uid === editing.uid ? updated : u));
         showMsg(`✅ تم ${diamondMode === 'add' ? 'إضافة' : 'خصم'} ${amt.toLocaleString()} ماسة بنجاح وتحديث بيانات الوكالة!`);

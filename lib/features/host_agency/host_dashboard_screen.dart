@@ -165,11 +165,6 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
       topic: 'agency_achieved:$uid',
       event: PostgresChangeEvent.insert,
       table: 'agency_achieved_targets',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'user_id',
-        value: uid,
-      ),
       onPayload: (_) => _scheduleReload(),
     );
   }

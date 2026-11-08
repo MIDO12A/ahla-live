@@ -1742,62 +1742,27 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         cfg.agencyRatePercentage > 0 ? (cfg.agencyRatePercentage / 100.0) : 0.20;
     final double coinsPerUsd = cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 10000.0;
 
-    double totalDueSalaries = 0.0;
     double totalCommissionUsd = 0.0;
     int totalCommissionDiamonds = 0;
-    int completedHostsCount = 0;
-
-    final sortedMilestones = List<Map<String, dynamic>>.from(_milestones)
-      ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
-          .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
 
     // عمولة وكيل المضيفين: النسبة العامة من لوحة التحكم على إنتاج المضيف الفعلي.
     final double normCommRate = _generalAgencyRate > 0
         ? _generalAgencyRate
         : (agencyCommRate > 0 ? agencyCommRate : 0.20);
 
-    // فحص جميع الأعضاء واحتساب رواتب المضيفين وعمولة الوكيل بدقة 100%
+    // احتساب عمولة الوكيل من إنتاج المضيفين الفعلي (ألماس فقط)
     for (final m in _members) {
       // نعتمد الألماس الفعلي المحقق (شاملاً المفكوك) لتبقى عمولة الوكيل 100% محفوظة ولا تتأثر بالفك إطلاقاً
       final hostDia = m.commissionDiamonds;
-      final hostDays = m.days;
-      final hostHours = (m.minute / 60.0);
 
       final int hostCommissionDiamonds = (hostDia * normCommRate).round().toInt();
       totalCommissionDiamonds = (totalCommissionDiamonds + hostCommissionDiamonds).toInt();
       final hostCommissionUsd =
           coinsPerUsd > 0 ? hostCommissionDiamonds / coinsPerUsd : 0.0;
       totalCommissionUsd += hostCommissionUsd;
-
-      Map<String, dynamic>? highestAchievedMilestone;
-      for (final ms in sortedMilestones) {
-        final tDia = (ms['target_diamonds'] ?? ms['targetDiamonds'] as num?)?.toInt() ?? 0;
-        final tDays = (ms['target_days'] ?? ms['targetDays'] as num?)?.toInt() ?? 0;
-        final tHours = (ms['target_hours'] ?? ms['targetHours'] as num?)?.toInt() ?? 0;
-
-        final diaOk = hostDia >= tDia;
-        final daysOk = tDays > 0 ? (hostDays >= tDays) : true;
-        final hoursOk = tHours > 0 ? (hostHours >= tHours) : true;
-
-        if (diaOk && (daysOk || hoursOk) && tDia > 0) {
-          highestAchievedMilestone = ms;
-        }
-      }
-
-      if (highestAchievedMilestone != null) {
-        completedHostsCount++;
-        final tDia = (highestAchievedMilestone['target_diamonds'] ?? highestAchievedMilestone['targetDiamonds'] as num?)?.toInt() ?? 0;
-        final rewardVal = (highestAchievedMilestone['reward_value'] ?? 
-                           highestAchievedMilestone['rewardValue'] ?? 
-                           highestAchievedMilestone['reward'] as num?)?.toDouble() ?? 
-                          (tDia > 0 ? tDia / coinsPerUsd : 40000.0 / coinsPerUsd);
-        // راتب المضيف: يخصم 40% (يحصل على 60%) فقط في حال فك التارجت
-        final hostSalary = m.unpackedDiamonds > 0 ? (rewardVal * 0.60) : rewardVal;
-        totalDueSalaries += hostSalary;
-      }
     }
 
-    // إجمالي عمولة الوكيل بالألماس والدولار مطابقة لنسبة لوحة التحكم 100% (مثال: 20% على 40000 = 8000 💎)
+    // إجمالي عمولة الوكيل بالألماس مطابقة لنسبة لوحة التحكم 100% (مثال: 20% على 40000 = 8000 💎)
     final int agentCommissionDiamonds = totalCommissionDiamonds > 0 
         ? totalCommissionDiamonds 
         : (totalCommissionUsd * coinsPerUsd).round();
@@ -1856,14 +1821,6 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         : hostsAchievedDiamonds;
 
     final int periodCommissionDiamonds = agentCommissionDiamonds;
-    final double periodCommissionUsd = totalCommissionUsd;
-
-    final totalSalary = totalDueSalaries > 0 
-        ? (totalDueSalaries % 1 == 0 ? totalDueSalaries.toInt().toString() : totalDueSalaries.toStringAsFixed(2))
-        : '0';
-    final commission = periodCommissionUsd > 0
-        ? (periodCommissionUsd % 1 == 0 ? periodCommissionUsd.toInt().toString() : periodCommissionUsd.toStringAsFixed(2))
-        : '0';
 
     return Container(
       color: Colors.white,
@@ -1988,7 +1945,7 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
 
           const SizedBox(height: 12),
 
-          // Agent Salary and Commission Card with USD and Diamonds side-by-side
+          // Agent Salary and Commission Card (diamonds only)
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -2035,15 +1992,6 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          DText(
-                            '\$$commission USD',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
@@ -2094,11 +2042,6 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
                           style: const TextStyle(color: Colors.white70, fontSize: 10),
                         ),
                       ],
-                      const SizedBox(height: 4),
-                      DText(
-                        'إجمالي رواتب المضيفين المستحقة: \$$totalSalary USD (المقفلين للتارجت: $completedHostsCount)',
-                        style: const TextStyle(color: Colors.white70, fontSize: 10),
-                      ),
                     ],
                   ),
                 ),

@@ -571,7 +571,15 @@ export async function adjustUserDiamonds(
   reason: string = '',
   adminName: string = 'الإدارة',
   syncMonthlyTarget: boolean = true
-): Promise<{ success: boolean; newDiamonds: number; error?: string }> {
+): Promise<{
+  success: boolean
+  newDiamonds: number
+  memberBalance?: number
+  memberMonthly?: number
+  memberCumulative?: number
+  memberWithdrawable?: number
+  error?: string
+}> {
   const client = getAdminSupabase() || supabase;
   try {
     const absAmount = Math.abs(amount);
@@ -600,21 +608,36 @@ export async function adjustUserDiamonds(
           const finalDiamonds = Number((rpcRes as any).new_diamonds ?? 0);
           const diff = finalDiamonds - Number((rpcRes as any).old_diamonds ?? finalDiamonds);
 
+          const memberBalance = (rpcRes as any).member_balance
+          const memberMonthly = (rpcRes as any).member_monthly
+          const memberCumulative = (rpcRes as any).member_cumulative
+          const memberWithdrawable = (rpcRes as any).member_withdrawable
+          const memberDiff = (rpcRes as any).member_diff
+          const displayBalance = memberBalance != null ? Number(memberBalance) : finalDiamonds
+          const displayDiff = memberDiff != null ? Math.abs(Number(memberDiff)) : Math.abs(diff)
+
           // إرسال إشعار النظام للمستخدم
           try {
             await sendSystemNotification({
               userId: uid,
               title: type === 'add' ? '💎 إضافة رصيد ألماس لحسابك' : '💎 تعديل رصيد الألماس',
               body: type === 'add'
-                ? `مبروك! تم تزويد حسابك بـ ${Math.abs(diff).toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`
-                : `تم خصم ${Math.abs(diff).toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${finalDiamonds.toLocaleString()} ماسة.`,
+                ? `مبروك! تم تزويد حسابك بـ ${displayDiff.toLocaleString()} ماسة بنجاح من قبل الإدارة. رصيدك الآن: ${displayBalance.toLocaleString()} ماسة.`
+                : `تم خصم ${displayDiff.toLocaleString()} ماسة من حسابك من قبل الإدارة. رصيدك الآن: ${displayBalance.toLocaleString()} ماسة.`,
               type: 'system',
               action: 'diamonds_adjusted',
-              extraData: { amount: diff, new_balance: finalDiamonds },
+              extraData: { amount: displayDiff, new_balance: displayBalance },
             });
           } catch (_) {}
 
-          return { success: true, newDiamonds: finalDiamonds };
+          return {
+            success: true,
+            newDiamonds: finalDiamonds,
+            memberBalance: memberBalance != null ? Number(memberBalance) : undefined,
+            memberMonthly: memberMonthly != null ? Number(memberMonthly) : undefined,
+            memberCumulative: memberCumulative != null ? Number(memberCumulative) : undefined,
+            memberWithdrawable: memberWithdrawable != null ? Number(memberWithdrawable) : undefined,
+          };
         }
       } catch (rpcEx: any) {
         if (isMissingRpcError(rpcEx)) {
@@ -665,7 +688,8 @@ export async function adjustUserDiamonds(
       throw new Error('تعذّر تحديث رصيد المستخدم — تأكد من صلاحيات حساب الأدمن (RLS)');
     }
 
-    // 3. المحفظة الشخصية فقط — لا مزامنة مع host_agency_members أو agency_wallets
+    // 3. المسار المباشر (عند غياب RPC) يحدّث المحفظة الشخصية فقط؛
+    //    المزامنة مع host_agency_members / agency_wallets تتم داخل RPC الإداري.
 
     // 4. Log to user_diamond_logs
     try {

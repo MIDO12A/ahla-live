@@ -411,8 +411,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           try {
                                             await sb.from('host_salaries').update({
                                               'status': 'disbursed',
-                                              'disbursed_at': DateTime.now().toIso8601String(),
-                                            }).eq('user_id', senderUid).eq('status', 'pending');
+                                            }).eq('host_uid', senderUid).eq('status', 'pending');
                                           } catch (_) {}
 
                                           try {

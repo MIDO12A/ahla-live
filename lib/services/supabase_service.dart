@@ -1438,11 +1438,24 @@ class SupabaseService {
               .catchError((_) {}));
           return (success: true, coinsReceived: coins, error: null);
         }
-        return (
-          success: false,
-          coinsReceived: 0,
-          error: (m['error'] ?? 'exchange_failed').toString(),
-        );
+        final rpcError = (m['error'] ?? 'exchange_failed').toString();
+        if (rpcError == 'insufficient_balance') {
+          final available = (m['available'] as num?)?.toInt();
+          return (
+            success: false,
+            coinsReceived: 0,
+            error: available != null
+                ? 'المتاح للتبديل من التارجت الشهري: $available ألماس'
+                : 'الرصيد المتاح للتبديل غير كافٍ',
+          );
+        }
+        if (rpcError != 'unauthorized' && rpcError != 'forbidden') {
+          return (
+            success: false,
+            coinsReceived: 0,
+            error: rpcError,
+          );
+        }
       }
     } catch (e) {
       debugPrint(

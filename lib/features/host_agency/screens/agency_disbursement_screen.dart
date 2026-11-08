@@ -422,7 +422,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
       try {
         final mRow = await Supabase.instance.client
           .from('host_agency_members')
-          .select('id, diamonds_earned_monthly, diamonds_balance, diamonds, diamonds_available, diamonds_pending_withdrawal')
+          .select('id, diamonds_earned_monthly, diamonds_balance, diamonds, diamonds_available, diamonds_pending_withdrawal, unpacked_target_diamonds')
           .eq('agency_id', widget.agencyId)
           .or('user_id.eq.$uid,host_uid.eq.$uid')
           .maybeSingle();
@@ -433,6 +433,8 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
             (mRow?['diamonds'] as num?)?.toInt() ??
             widget.availableDiamonds;
         final curP = (mRow?['diamonds_pending_withdrawal'] as num?)?.toInt() ?? 0;
+        final curUnpacked =
+            (mRow?['unpacked_target_diamonds'] as num?)?.toInt() ?? 0;
         final newBal = (curB - amount).clamp(0, 999999999);
         final newMonthly = (curM - amount).clamp(0, 999999999);
         final newPending = curP + amount;
@@ -443,6 +445,8 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
           'diamonds': newBal,
           'diamonds_available': newBal,
           'diamonds_pending_withdrawal': newPending,
+          'unpacked_target_diamonds': curUnpacked + amount,
+          'has_unpacked_target': true,
         };
 
         if (mRow != null && mRow['id'] != null) {
@@ -464,8 +468,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
         try {
           await Supabase.instance.client.from('host_salaries').update({
             'status': 'disbursed',
-            'disbursed_at': DateTime.now().toIso8601String(),
-          }).or('user_id.eq.$uid,host_uid.eq.$uid').eq('status', 'pending');
+          }).eq('host_uid', uid).eq('status', 'pending');
         } catch (_) {}
       } catch (_) {}
 

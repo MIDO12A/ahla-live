@@ -140,13 +140,6 @@ class AgencyTargetEvaluator {
               );
             }
           } catch (_) {}
-        } else if (targetDiamonds > 0 && diamondsMonthly < targetDiamonds) {
-          // في حال تراجع رصيد الألماس الشهري نتيجة فك الألماس، يتم تراجع التارجت وإلغاء حالة التحقيق
-          try {
-            await _sb.from('agency_achieved_targets')
-                .delete()
-                .eq('id', achievedId);
-          } catch (_) {}
         }
       }
     } catch (e) {
@@ -244,13 +237,10 @@ class AgencyTargetEvaluator {
     try {
       await _sb.from('agency_achieved_targets').upsert({
         'id': achievedId,
-        'user_id': hostUserId,
         'agency_id': agencyId,
-        'target_id': targetId,
+        'target_diamonds': targetDiamonds,
+        'reward_amount': rewardValue,
         'month': currentMonth,
-        'reward_type': rewardType,
-        'reward_value': rewardValue,
-        'reward_item_id': rewardItemId,
         'achieved_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
@@ -329,15 +319,15 @@ class AgencyTargetEvaluator {
         }
       } else if (rewardType == 'salary_usd' && rewardValue > 0) {
         await _sb.from('host_salaries').insert({
-          'user_id': hostUserId,
+          'id': 'sal_${hostUserId}_${targetId}_$currentMonth',
+          'host_uid': hostUserId,
           'agency_id': agencyId,
-          'target_id': targetId,
-          'amount_usd': rewardValue,
-          'target_diamonds': targetDiamonds,
           'month': currentMonth,
-          'status': 'pending_payout',
-          'has_unpacked_penalty': hasUnpacked,
-          'original_amount_usd': rawRewardValue,
+          'total_diamonds': targetDiamonds,
+          'base_salary_usd': rewardValue,
+          'bonus_usd': 0,
+          'total_salary_usd': rewardValue,
+          'status': 'pending',
           'created_at': DateTime.now().toIso8601String(),
         });
 
@@ -353,19 +343,21 @@ class AgencyTargetEvaluator {
         // Update host_usd_wallets
         try {
           final uwSnap = await _sb.from('host_usd_wallets')
-              .select('usd_balance')
-              .eq('user_id', hostUserId)
+              .select('balance_usd')
+              .eq('host_uid', hostUserId)
               .maybeSingle();
           if (uwSnap != null) {
-            final curUsd = (uwSnap['usd_balance'] as num?)?.toDouble() ?? 0.0;
+            final curUsd = (uwSnap['balance_usd'] as num?)?.toDouble() ?? 0.0;
             await _sb.from('host_usd_wallets').update({
-              'usd_balance': curUsd + rewardValue,
-            }).eq('user_id', hostUserId);
+              'balance_usd': curUsd + rewardValue,
+              'updated_at': DateTime.now().toIso8601String(),
+            }).eq('host_uid', hostUserId);
           } else {
             await _sb.from('host_usd_wallets').insert({
-              'user_id': hostUserId,
-              'usd_balance': rewardValue,
-              'created_at': DateTime.now().toIso8601String(),
+              'host_uid': hostUserId,
+              'balance_usd': rewardValue,
+              'frozen_usd': 0,
+              'updated_at': DateTime.now().toIso8601String(),
             });
           }
         } catch (_) {}
