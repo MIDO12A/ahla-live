@@ -1216,29 +1216,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                       dc.agencyRatePercentage > 0
                                           ? (dc.agencyRatePercentage / 100.0)
                                           : 0.20;
-                                  Map<String, dynamic>? achievedMs;
-                                  if (_agentInfo?.milestones != null && _agentInfo!.milestones.isNotEmpty) {
-                                    for (final m in _agentInfo!.milestones) {
-                                      final t = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
-                                      if (mDiamonds >= t && t > 0) {
-                                        achievedMs = m;
-                                      }
-                                    }
-                                  }
-                                  int earnedDiamonds = 0;
-                                  if (achievedMs != null) {
-                                    final double cRate;
-                                    final rawMComm = (achievedMs['agent_commission_rate'] as num?)?.toDouble();
-                                    if (agencyCommRate > 0) {
-                                      cRate = agencyCommRate;
-                                    } else if (rawMComm != null && rawMComm > 0) {
-                                      cRate = rawMComm > 1.0 ? rawMComm / 100.0 : rawMComm;
-                                    } else {
-                                      cRate = 0.20;
-                                    }
-                                    final tDia = (achievedMs['target_diamonds'] as num?)?.toInt() ?? 0;
-                                    earnedDiamonds = (tDia * cRate).round();
-                                  }
+                                  final int earnedDiamonds =
+                                      (mDiamonds * agencyCommRate).round();
                                   final double coinsPerUsd =
                                       dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 10000.0;
                                   final double earnedUsd = earnedDiamonds / coinsPerUsd;
@@ -1252,8 +1231,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                     ),
                                     child: DText(
                                       earnedDiamonds > 0
-                                          ? ': 💎  (\earnedUsdStr)'
-                                          : ': \earnedUsdStr',
+                                          ? ': 💎  ($earnedUsdStr)'
+                                          : ': $earnedUsdStr',
                                       style: const TextStyle(color: Color(0xFF69F0AE), fontSize: 10, fontWeight: FontWeight.bold),
                                     ),
                                   );
@@ -1328,44 +1307,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
   /// نافذة تفاصيل المضيف الشاملة لمالك الوكالة (Host Details & Commission Modal)
   void _showHostDetailsModal(AnchorAgentUserInfoDataModel anchor, bool isAr) {
     final hostDiamonds = anchor.effectiveDiamonds;
-    final commissionBase = anchor.commissionDiamonds;
     final liveHours = (anchor.minute / 60.0).toStringAsFixed(1);
-    final dc = DynamicConfigService.instance;
-    final double agencyCommRate = dc.agencyRatePercentage > 0
-        ? (dc.agencyRatePercentage / 100.0)
-        : 0.20;
 
-    Map<String, dynamic>? achievedMs;
-    if (_agentInfo?.milestones != null && _agentInfo!.milestones.isNotEmpty) {
-      for (final m in _agentInfo!.milestones) {
-        final t = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
-        if (commissionBase >= t && t > 0) {
-          achievedMs = m;
-        }
-      }
-    }
-
-    final double commRate;
-    final rawMComm = (achievedMs?['agent_commission_rate'] as num?)?.toDouble();
-    if (agencyCommRate > 0) {
-      commRate = agencyCommRate;
-    } else if (rawMComm != null && rawMComm > 0) {
-      commRate = rawMComm > 1.0 ? rawMComm / 100.0 : rawMComm;
-    } else {
-      commRate = 0.20;
-    }
-
-    int agentEarnedDiamonds = 0;
-    if (achievedMs != null) {
-      final tDia = (achievedMs['target_diamonds'] ?? achievedMs['targetDiamonds'] as num?)?.toInt() ?? 0;
-      agentEarnedDiamonds = (tDia * commRate).round();
-    }
-    if (agentEarnedDiamonds == 0 && commissionBase > 0) {
-      agentEarnedDiamonds = (commissionBase * commRate).round();
-    }
-    final double coinsPerUsd = dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 10000.0;
-    final double earnedUsd = agentEarnedDiamonds / coinsPerUsd;
-    final agentEarnedUsd = earnedUsd.toStringAsFixed(2);
     final stageName = _getAnchorStage(anchor.totalDiamond, isAr);
     final defaultTarget = (_agentInfo?.milestones.isNotEmpty == true)
         ? ((_agentInfo!.milestones.first['target_diamonds'] ?? _agentInfo!.milestones.first['targetDiamonds'] as num?)?.toInt() ?? 150000)
@@ -1804,40 +1747,15 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
       // العمولة تُحسَب على الإنتاج قبل الفك (حماية عمولة الوكيل)،
       // بينما إنتاج الوكالة/التارجت يُحسَب على الصافي بعد التبديل.
       final hostMonthlyDiamonds = a.commissionDiamonds;
-      final hostDays = a.days;
-      final hostHours = (a.minute / 60.0);
       totalAnchorsDiamonds += a.effectiveDiamonds;
 
-      if (info?.milestones != null && info!.milestones.isNotEmpty) {
-        Map<String, dynamic>? highestAchieved;
-        for (final m in info.milestones) {
-          final tDia = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
-          final tDays = (m['target_days'] ?? m['targetDays'] as num?)?.toInt() ?? 0;
-          final tHours = (m['target_hours'] ?? m['targetHours'] as num?)?.toInt() ?? 0;
-
-          final diaOk = hostMonthlyDiamonds >= tDia;
-          final daysOk = tDays > 0 ? (hostDays >= tDays) : true;
-          final hoursOk = tHours > 0 ? (hostHours >= tHours) : true;
-
-          if (diaOk && (daysOk || hoursOk) && tDia > 0) {
-            highestAchieved = m;
-          }
-        }
-
-        if (highestAchieved != null) {
-          final tDia = (highestAchieved['target_diamonds'] ?? highestAchieved['targetDiamonds'] as num?)?.toInt() ?? 0;
-          final rawComm = (highestAchieved['agent_commission_rate'] as num?)?.toDouble();
-          final double milestoneNormRate = normCommRate > 0
-              ? normCommRate
-              : ((rawComm != null && rawComm > 0)
-                  ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
-                  : 0.20);
-          final commissionDiamonds = (tDia * milestoneNormRate).round();
-          totalAgencyCommDiamonds = (totalAgencyCommDiamonds + commissionDiamonds).toInt();
-          final double coinsPerUsd = dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 10000.0;
-          totalCommissionUsd += commissionDiamonds / coinsPerUsd;
-        }
-      }
+      final int commissionDiamonds =
+          (hostMonthlyDiamonds * normCommRate).round().toInt();
+      totalAgencyCommDiamonds =
+          (totalAgencyCommDiamonds + commissionDiamonds).toInt();
+      final double coinsPerUsd =
+          dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 10000.0;
+      totalCommissionUsd += commissionDiamonds / coinsPerUsd;
     }
     final rawTransfer = info?.transferMoney ?? 0;
     final monthlyFromInfo = info?.totalDiamondsMonthly ?? 0;
@@ -1846,30 +1764,11 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         : (monthlyFromInfo > 0 ? monthlyFromInfo : rawTransfer);
 
     if (totalAgencyCommDiamonds == 0 && totalAgencyDiamonds > 0) {
-      if (info?.milestones != null && info!.milestones.isNotEmpty) {
-        Map<String, dynamic>? agencyMilestone;
-        for (final m in info.milestones) {
-          final tDia = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
-          if (totalAgencyDiamonds >= tDia && tDia > 0) {
-            agencyMilestone = m;
-          }
-        }
-        if (agencyMilestone != null) {
-          final tDia = (agencyMilestone['target_diamonds'] ?? agencyMilestone['targetDiamonds'] as num?)?.toInt() ?? 0;
-          final rewardVal = (agencyMilestone['reward_value'] ?? agencyMilestone['rewardValue'] ?? agencyMilestone['reward'] as num?)?.toDouble() ?? 2.0;
-          final rawComm = (agencyMilestone['agent_commission_rate'] as num?)?.toDouble();
-          final double milestoneNormRate = normCommRate > 0
-              ? normCommRate
-              : ((rawComm != null && rawComm > 0)
-                  ? (rawComm > 1.0 ? rawComm / 100.0 : rawComm)
-                  : 0.20);
-          totalCommissionUsd = rewardVal * milestoneNormRate;
-          totalAgencyCommDiamonds = (tDia * milestoneNormRate).round().toInt();
-        }
-      }
-      if (totalAgencyCommDiamonds == 0) {
-        totalAgencyCommDiamonds = (totalAgencyDiamonds * normCommRate).round().toInt();
-      }
+      totalAgencyCommDiamonds =
+          (totalAgencyDiamonds * normCommRate).round().toInt();
+      final double diaPerUsd =
+          dc.coinsPerUsd > 0 ? dc.coinsPerUsd.toDouble() : 10000.0;
+      totalCommissionUsd = totalAgencyCommDiamonds / diaPerUsd;
     }
 
     if (totalCommissionUsd == 0 && totalAgencyCommDiamonds > 0) {
@@ -1893,7 +1792,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
     final hostHours = ((_myAnchor?.minute ?? 0.0) / 60.0);
     // ألماس الوكالة هو إنتاج الألماس الفعلي بدون تضخيم
     final effectiveDiamonds = _isAgencyOwner ? totalAgencyDiamonds : hostDiamonds;
-    final hostDollar = (hostDiamonds / 1000).toStringAsFixed(1);
+    final int hostCoinsPerUsd = dc.coinsPerUsd > 0 ? dc.coinsPerUsd : 10000;
+    final hostDollar = (hostDiamonds / hostCoinsPerUsd).toStringAsFixed(1);
 
     final milestonesList = (info?.milestones ?? []).toList();
     milestonesList.sort((a, b) {
@@ -2383,7 +2283,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                         ],
                                       ),
                                       child: DText(
-                                        _isAgencyOwner ? (isAr ? 'السحب' : 'Withdraw') : (isAr ? 'سحب الراتب ككوينز' : 'Withdraw Salary'),
+                                        _isAgencyOwner ? (isAr ? 'السحب' : 'Withdraw') : (isAr ? 'سحب الراتب' : 'Withdraw Salary'),
                                         style: TextStyle(
                                           color: dc.hostAgencyWithdrawBtnImage.isNotEmpty ? Colors.white : const Color(0xFF00B5B3),
                                           fontSize: 13,
@@ -3965,7 +3865,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                   ),
                   const SizedBox(height: 4),
                   DText(
-                    '${isAr ? 'الكمية المحولة كوينز فوراً:' : 'Coins credited:'} $_diamonds 🪙',
+                    '${isAr ? 'الكمية المحولة ألماس فوراً:' : 'Diamonds credited:'} $_diamonds 💎',
                     style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ],
@@ -3974,8 +3874,8 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
             const SizedBox(height: 10),
             DText(
               isAr
-                  ? '⚡ ستصل الكوينز فوراً لمحفظة وكيل الشحن مع إشعار رسمي ببياناتك كمرسل.'
-                  : '⚡ Coins will be credited to agent instantly with notification of your ID and Name.',
+                  ? '⚡ ستصل الألماسات فوراً لمحفظة وكيل الشحن مع إشعار رسمي ببياناتك كمرسل.'
+                  : '⚡ Diamonds will be credited to agent instantly with notification of your ID and Name.',
               style: const TextStyle(color: Colors.white54, fontSize: 11),
             ),
           ],
@@ -4110,7 +4010,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                           DText(
-                            isAr ? 'تحويل فوري من ألماس المضيف إلى كوينز الوكيل' : 'Instant host diamonds to agent coins',
+                            isAr ? 'تحويل فوري من ألماس المضيف إلى محفظة الوكيل' : 'Instant host diamonds to agent wallet',
                             style: const TextStyle(color: Colors.white54, fontSize: 11),
                           ),
                         ],

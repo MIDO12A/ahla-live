@@ -970,8 +970,9 @@ abstract final class AgencyRepository {
       } catch (_) {}
     }
 
-    // ملاحظة: لا نستخدم RPC القديم host_transfer_diamonds_to_agent لأنه يودع
-    // ألماس التارجت في محفظة وكالة الشحن (agency_wallets) — وهو تداخل مرفوض.
+    // ملاحظة: لا نستخدم RPC القديم host_transfer_diamonds_to_agent، بل ننفذ
+    // الخصم والإيداع هنا بشكل صريح: خصم من محفظة المضيف + إيداع في محفظة
+    // وكيل الشحن (agency_wallets.diamond_balance) مع تسجيل الحركة في السجل.
     try {
       final uid = senderUid ?? _sb.auth.currentUser?.id;
       if (uid == null || uid.isEmpty) {
@@ -1084,7 +1085,111 @@ abstract final class AgencyRepository {
               .eq('status', 'pending');
         } catch (_) {}
 
-        // لا يتم إيداع ألماس التارجت في محفظة وكالة الشحن — فصل تام للمحافظ.
+        // إيداع المبلغ في محفظة وكيل الشحن (agency_wallets) + تسجيل الحركة.
+        // إن فشل الإيداع نُعيد الرصيد للمضيف حتى لا يضيع الألماس.
+        int agentNewBalance = 0;
+        int agentPrevBalance = 0;
+        int agentPrevReceived = 0;
+        String? walletId;
+        bool walletInserted = false;
+        bool walletCredited = false;
+        try {
+          if (agentId.isEmpty) {
+            throw Exception('معرّف وكيل الشحن غير صالح');
+          }
+          final walletRows = await _sb
+              .from('agency_wallets')
+              .select('id, diamond_balance, total_received')
+              .eq('agency_profile_id', agentId)
+              .limit(1);
+          final walletRow =
+              walletRows.isNotEmpty ? walletRows.first as Map : null;
+          walletId = walletRow?['id']?.toString();
+          agentPrevBalance =
+              (walletRow?['diamond_balance'] as num?)?.toInt() ?? 0;
+          agentPrevReceived =
+              (walletRow?['total_received'] as num?)?.toInt() ?? 0;
+          agentNewBalance = agentPrevBalance + diamonds;
+
+          if (walletId != null) {
+            await _sb.from('agency_wallets').update({
+              'diamond_balance': agentNewBalance,
+              'total_received': agentPrevReceived + diamonds,
+              'updated_at': DateTime.now().toIso8601String(),
+            }).eq('id', walletId!);
+          } else {
+            await _sb.from('agency_wallets').insert({
+              'agency_profile_id': agentId,
+              'diamond_balance': agentNewBalance,
+              'total_received': diamonds,
+              'total_withdrawn': 0,
+              'total_earnings': 0,
+              'updated_at': DateTime.now().toIso8601String(),
+            });
+            walletInserted = true;
+          }
+          walletCredited = true;
+
+          await _sb.from('agent_diamond_transactions').insert({
+            'agent_id': agentId,
+            'sender_id': uid,
+            'sender_name': userName,
+            'sender_kayan_id': userRow?['custom_id']?.toString(),
+            'txn_type': 'received_from_host',
+            'diamonds_amount': diamonds,
+            'coins_amount': 0,
+            'balance_after': agentNewBalance,
+            'notes': 'سحب راتب مضيف $userName — $agencyName',
+            'created_at': DateTime.now().toIso8601String(),
+          });
+        } catch (e) {
+          // التراجع عن إيداع المحفظة إن تم قبل فشل تسجيل الحركة
+          if (walletCredited) {
+            try {
+              if (walletInserted) {
+                await _sb
+                    .from('agency_wallets')
+                    .delete()
+                    .eq('agency_profile_id', agentId)
+                    .eq('diamond_balance', agentNewBalance);
+              } else if (walletId != null) {
+                await _sb.from('agency_wallets').update({
+                  'diamond_balance': agentPrevBalance,
+                  'total_received': agentPrevReceived,
+                  'updated_at': DateTime.now().toIso8601String(),
+                }).eq('id', walletId!);
+              }
+            } catch (_) {}
+          }
+          // استرجاع المبلغ للمضيف عند فشل الإيداع
+          final restorePayload = {
+            'diamonds': memberDiamonds,
+            'diamonds_balance': memberDiamonds,
+            'diamonds_available': memberDiamonds,
+            'diamonds_earned_monthly': curMonthly,
+          };
+          try {
+            if (memberRow['id'] != null) {
+              await _sb
+                  .from('host_agency_members')
+                  .update(restorePayload)
+                  .eq('id', memberRow['id']);
+            }
+          } catch (_) {}
+          try {
+            await _sb
+                .from('host_agency_members')
+                .update(restorePayload)
+                .eq('agency_id', agencyId)
+                .or('user_id.eq.$uid,host_uid.eq.$uid');
+          } catch (_) {}
+          debugPrint('[AgencyRepository] credit agent wallet (host) error: $e');
+          return {
+            'status': 'error',
+            'success': false,
+            'message': 'فشل إيداع المبلغ في محفظة وكيل الشحن، تم إرجاع الرصيد',
+          };
+        }
 
         // 3. Log withdrawal in agency_diamond_ledger
         try {
@@ -2138,7 +2243,7 @@ abstract final class AgencyRepository {
             'target': hostUid,
             'title': 'تمت الموافقة على سحب الألماس! 🎉',
             'body':
-                'وافق وكيل الشحن على طلب سحب $diamonds ماسة وتم خصمها من محفظة وكالة المضيف.',
+                'وافق وكيل الشحن على طلب سحب $diamonds ماسة، وتم خصمها من محفظة وكالة المضيف وإضافتها لمحفظة وكيل الشحن.',
             'type': 'agent_withdrawal_approved',
             'data': {
               'diamonds': diamonds,

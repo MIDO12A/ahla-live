@@ -199,7 +199,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
         'remainingDiamonds': 50000,
         'remainingDays': 10,
         'remainingHours': 20,
-        'salary': '50',
+        'salary': '0',
       };
     }
 
@@ -247,7 +247,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
           'remainingDiamonds': (s1Dia - currentDiamonds).clamp(0, s1Dia),
           'remainingDays': (s1Days - currentDays).clamp(0, s1Days),
           'remainingHours': 0,
-          'salary': '10',
+          'salary': '0',
         };
       }
     }
@@ -276,7 +276,6 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
       final tDia = (first['target_diamonds'] ?? first['targetDiamonds'] as num?)?.toInt() ?? 150000;
       final tDays = (first['target_days'] ?? first['targetDays'] as num?)?.toInt() ?? 0;
       final tHours = (first['target_hours'] ?? first['targetHours'] as num?)?.toInt() ?? 0;
-      final firstSalary = (first['reward_value'] ?? first['rewardValue'] ?? first['reward'] ?? 10).toString();
 
       return {
         'currentStage': 1,
@@ -287,7 +286,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
         'remainingDiamonds': (tDia - currentDiamonds).clamp(0, tDia),
         'remainingDays': (tDays - currentDays).clamp(0, tDays),
         'remainingHours': (tHours - currentHours).clamp(0, tHours),
-        'salary': firstSalary,
+        'salary': '0',
       };
     } else if (completedIdx < sorted.length - 1) {
       final cur = sorted[completedIdx];
@@ -444,7 +443,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
               const SizedBox(height: 16),
 
               // ── 4. Salary & Overdraft Card (salaryAndOverdraft: #00b5b3) ──
-              _buildSalaryCard(salary, currentDiamonds),
+              _buildSalaryCard(salary, currentDiamonds, isCompleted),
 
               const SizedBox(height: 16),
 
@@ -792,7 +791,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
   // ─────────────────────────────────────────────────────────────────────────────
   // 4. SALARY & OVERDRAFT CARD (#00b5b3 with ic_salary_panel2 watermark)
   // ─────────────────────────────────────────────────────────────────────────────
-  Widget _buildSalaryCard(String salary, int currentDiamonds) {
+  Widget _buildSalaryCard(String salary, int currentDiamonds, bool isCompleted) {
     return Container(
       height: 120,
       decoration: BoxDecoration(
@@ -826,13 +825,15 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const DText(
-                        'الراتب المستحق للمرحلة الحالية',
-                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      DText(
+                        isCompleted
+                            ? 'الراتب المستحق للمرحلة الحالية'
+                            : 'لم يتم تحقيق التارجت بعد',
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
                       ),
                       const SizedBox(height: 4),
                       DText(
-                        '\$$salary USD',
+                        isCompleted ? '\$$salary USD' : '\$0 USD',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 24,
@@ -1157,7 +1158,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             DText(
-              'سيتم سحب $_diamonds ماسة وتحويلها إلى كوينزات فوراً في محفظة وكالة الشحن وتصفير راتبك للشهر الحالي.',
+              'سيتم سحب $_diamonds ماسة وإضافتها فوراً إلى محفظة ألماس وكيل الشحن وتصفير راتبك للشهر الحالي.',
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const SizedBox(height: 12),
@@ -1175,7 +1176,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
                   const SizedBox(height: 4),
                   DText('المعرف (ID): $agentKayanId', style: const TextStyle(color: Color(0xFF00B5B3), fontSize: 12)),
                   const SizedBox(height: 4),
-                  DText('الكوينزات المحولة: $_diamonds 🪙', style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
+                  DText('الألماسات المحولة: $_diamonds ♦', style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 4),
                   const DText('عمولة الوكيل: تُحتسب وتُضاف تلقائياً لحساب الوكيل في السجلات.', style: TextStyle(color: Colors.white60, fontSize: 11)),
                 ],
@@ -1286,7 +1287,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
                 const Icon(Icons.account_balance_wallet, color: Color(0xFF00B5B3), size: 22),
                 const SizedBox(width: 8),
                 const DText(
-                  'طلب سحب الراتب الفعلي وتحويله كوينزات',
+                  'طلب سحب الراتب الفعلي وتحويله لوكيل الشحن',
                   style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
@@ -1359,7 +1360,7 @@ class _HostDirectWithdrawModalState extends State<_HostDirectWithdrawModal> {
               ],
             ),
             const SizedBox(height: 14),
-            const DText('اختر وكيل الشحن المعتمد لتحويل الكوينز إليه:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              const DText('اختر وكيل الشحن المعتمد لتحويل الألماس إليه:', style: TextStyle(color: Colors.white70, fontSize: 12)),
             const SizedBox(height: 6),
             TextField(
               controller: _searchCtrl,
