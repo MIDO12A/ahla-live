@@ -113,10 +113,10 @@
 - يزيد `released_commission_diamonds` ويصفّر `pending_commission_diamonds` ويحدّث `next_commission_release_at`.
 - يسجّل حركة `commission_release` في الدفتر.
 
-### أين تُحتسب؟
-- `agency_credit_host_target_diamonds` (المسار الرئيسي عند الهدايا).
-- `AgencyTargetEvaluator._awardTarget` (Flutter) عند تحقق التارجت — عبر RPC `agency_accrue_commission`.
-- المسار الاحتياطي في `SupabaseDataService.creditHostAgencyMemberDiamonds` — عبر RPC أيضاً.
+### أين تُحتسب؟ (مصدر واحد فقط)
+- **العمولة تُحتسب على الإنتاج فقط** (ألماس الهدايا الوارد للمضيف) — عبر `agency_credit_host_target_diamonds` (المسار الرئيسي) والمسار الاحتياطي في `SupabaseDataService.creditHostAgencyMemberDiamonds`.
+- **لا تُحتسب أي عمولة إضافية عند تحقق التارجت** — تم إزالة احتساب `target_diamonds × rate` من `AgencyTargetEvaluator._awardTarget` لأنه كان يضاعف العمولة (الإنتاج + التارجت).
+- مكافآت التارجت من نوع `diamonds` تُصرف عبر RPC `agency_credit_member_reward` وتُسجَّل في الدفتر بنوع `target_reward` (بدون احتساب عمولة عليها).
 
 ---
 
@@ -127,7 +127,8 @@
 - يُقيَّم المضيف في `AgencyTargetEvaluator` حسب إنتاجه (`commissionDiamonds`) وساعاته/أيامه.
 - عند تحقق أعلى مرحلة:
   - يُمنح **راتب المضيف** (`reward_value`) في محفظة العضو.
-  - تُحتسب **عمولة الوكالة** على `target_diamonds × rate` وتُسجَّل **معلّقة**.
+  - **لا تُحتسب عمولة وكالة إضافية على التارجت** — العمولة تُحتسب مسبقاً على الإنتاج الفعلي فقط (20% من ألماس الهدايا).
+  - مكافآت نوع `diamonds` تُصرف عبر `agency_credit_member_reward` وتُسجَّل في الدفتر.
 - في حال "فك التارجت" (unpack) يُخصم 40% من راتب المضيف (يحصل على 60%).
 
 ---

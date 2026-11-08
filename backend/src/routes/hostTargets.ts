@@ -74,14 +74,6 @@ export async function evaluateHostTargets(hostUserId: string): Promise<string[]>
     const rewardType = String(t.targetData.reward_type ?? 'salary_usd');
     const rewardValue = asNum(t.targetData.reward_value);
     const rewardItemId = String(t.targetData.reward_item_id ?? '');
-    const rawRate = t.targetData.agent_commission_rate;
-    const rawProfit = t.targetData.agency_profit_percent;
-    const commissionRate =
-      typeof rawRate === 'number'
-        ? rawRate
-        : typeof rawProfit === 'number'
-          ? rawProfit / 100
-          : 0.1;
     const rewardFrameId =
       rewardType === 'frame' && rewardItemId.length > 0
         ? rewardItemId
@@ -95,14 +87,6 @@ export async function evaluateHostTargets(hostUserId: string): Promise<string[]>
 
     // Run the whole reward in one transaction to stay consistent.
     await db.runTransaction(async (txn) => {
-      // ── ALL READS FIRST ──
-      // Firestore transactions forbid ANY read after the first write.
-      // Reading the agency AFTER txn.set below cancelled the transaction.
-      let agencySnap: any = null;
-      if (commissionRate > 0 && agencyId.length > 0) {
-        agencySnap = await txn.get(db.collection('host_agencies').doc(agencyId));
-      }
-
       txn.set(achievedRef, {
         user_id: hostUserId,
         agency_id: agencyId,
@@ -114,35 +98,9 @@ export async function evaluateHostTargets(hostUserId: string): Promise<string[]>
         achieved_at: new Date().toISOString(),
       });
 
-      // Agency owner commission.
-      if (commissionRate > 0 && agencyId.length > 0) {
-        if (agencySnap && agencySnap.exists) {
-          const ownerId = String(agencySnap.data()?.owner_id ?? '');
-          if (ownerId.length > 0) {
-            const profit = Math.trunc(targetDiamonds * commissionRate);
-            txn.set(
-              db.collection('agency_wallets').doc(agencyId),
-              { diamond_balance: FieldValue.increment(profit) },
-              { merge: true },
-            );
-            txn.set(
-              db.collection('private_messages').doc(),
-              {
-                sender_id: 'system',
-                receiver_id: ownerId,
-                text: `مبروك! تمت إضافة عمولة بقيمة $profit ماسة إلى محفظة وكالتك، لنجاح مضيفك في تحقيق تارجت $targetDiamonds 💎.`,
-                type: 'system',
-                created_at: new Date().toISOString(),
-                is_read: false,
-                conversationId: `system_${ownerId}`,
-              },
-              { merge: true },
-            );
-          }
-        }
-      }
-
       // Host rewards.
+      // NOTE: لا تُحتسب عمولة وكالة على التارجت — العمولة تُحتسب على الإنتاج فقط
+      // عبر مسار الهدايا (agency_credit_host_target_diamonds) لتفادي ازدواج العمولة.
       const hostRef = db.collection('users').doc(hostUserId);
       if (rewardType === 'gold' && rewardValue > 0) {
         txn.update(hostRef, { coins: FieldValue.increment(Math.trunc(rewardValue)) });

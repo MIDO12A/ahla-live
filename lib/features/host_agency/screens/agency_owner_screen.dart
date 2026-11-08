@@ -141,7 +141,11 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
           avatarUrl: user?.photoUrl ?? '',
           agentBean: (user?.coins ?? 0).toInt(),
           transferMoney: user?.diamonds ?? 0,
-          transferDollar: ((user?.diamonds ?? 0) / 1000).toInt(),
+          transferDollar: ((user?.diamonds ?? 0) /
+                  (DynamicConfigService().coinsPerUsd > 0
+                      ? DynamicConfigService().coinsPerUsd
+                      : 10000))
+              .toInt(),
           milestones: globalMilestones,
         );
       }
@@ -429,54 +433,6 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         'nextStageName': 'الحد الأقصى 👑',
       };
     }
-  }
-
-  Map<String, dynamic>? _getHighestAchievedMilestone(AnchorAgentUserInfoDataModel member) {
-    if (_milestones.isEmpty) return null;
-    final sortedMilestones = List<Map<String, dynamic>>.from(_milestones)
-      ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
-          .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
-
-    final hostDia = member.commissionDiamonds;
-    final hostDays = member.days;
-    final hostHours = (member.minute / 60.0);
-
-    Map<String, dynamic>? highest;
-    for (final ms in sortedMilestones) {
-      final tDia = (ms['target_diamonds'] ?? ms['targetDiamonds'] as num?)?.toInt() ?? 0;
-      final tDays = (ms['target_days'] ?? ms['targetDays'] as num?)?.toInt() ?? 0;
-      final tHours = (ms['target_hours'] ?? ms['targetHours'] as num?)?.toInt() ?? 0;
-
-      final diaOk = hostDia >= tDia;
-      final daysOk = tDays > 0 ? (hostDays >= tDays) : true;
-      final hoursOk = tHours > 0 ? (hostHours >= tHours) : true;
-
-      if (diaOk && (daysOk || hoursOk) && tDia > 0) {
-        highest = ms;
-      }
-    }
-    return highest;
-  }
-
-  double _calculateHostCommissionUsd(AnchorAgentUserInfoDataModel member) {
-    final cfg = DynamicConfigService.instance;
-    final agencyCommRate =
-        cfg.agencyRatePercentage > 0 ? (cfg.agencyRatePercentage / 100.0) : 0.20;
-
-    final highest = _getHighestAchievedMilestone(member);
-    if (highest != null) {
-      final targetDiamonds =
-          (highest['target_diamonds'] ?? highest['targetDiamonds'] as num?)
-                  ?.toDouble() ??
-              0.0;
-      final commissionDiamonds = targetDiamonds * agencyCommRate;
-      final coinsPerUsd =
-          cfg.coinsPerUsd > 0 ? cfg.coinsPerUsd.toDouble() : 10000.0;
-      return commissionDiamonds / coinsPerUsd;
-    }
-
-    // العمولة تُحتسب فقط على التارجت المقفلة (المراحل المحققة بالكامل)
-    return 0.0;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1795,12 +1751,23 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
       ..sort((a, b) => ((a['target_diamonds'] ?? a['targetDiamonds'] as num?)?.toInt() ?? 0)
           .compareTo((b['target_diamonds'] ?? b['targetDiamonds'] as num?)?.toInt() ?? 0));
 
+    // عمولة وكيل المضيفين: النسبة العامة من لوحة التحكم على إنتاج المضيف الفعلي.
+    final double normCommRate = _generalAgencyRate > 0
+        ? _generalAgencyRate
+        : (agencyCommRate > 0 ? agencyCommRate : 0.20);
+
     // فحص جميع الأعضاء واحتساب رواتب المضيفين وعمولة الوكيل بدقة 100%
     for (final m in _members) {
       // نعتمد الألماس الفعلي المحقق (شاملاً المفكوك) لتبقى عمولة الوكيل 100% محفوظة ولا تتأثر بالفك إطلاقاً
       final hostDia = m.commissionDiamonds;
       final hostDays = m.days;
       final hostHours = (m.minute / 60.0);
+
+      final int hostCommissionDiamonds = (hostDia * normCommRate).round().toInt();
+      totalCommissionDiamonds = (totalCommissionDiamonds + hostCommissionDiamonds).toInt();
+      final hostCommissionUsd =
+          coinsPerUsd > 0 ? hostCommissionDiamonds / coinsPerUsd : 0.0;
+      totalCommissionUsd += hostCommissionUsd;
 
       Map<String, dynamic>? highestAchievedMilestone;
       for (final ms in sortedMilestones) {
@@ -1827,17 +1794,6 @@ class _AgencyOwnerScreenState extends State<AgencyOwnerScreen>
         // راتب المضيف: يخصم 40% (يحصل على 60%) فقط في حال فك التارجت
         final hostSalary = m.unpackedDiamonds > 0 ? (rewardVal * 0.60) : rewardVal;
         totalDueSalaries += hostSalary;
-
-        // عمولة وكيل المضيفين: النسبة العامة من لوحة التحكم هي المصدر الوحيد.
-        final double normCommRate = _generalAgencyRate > 0
-            ? _generalAgencyRate
-            : (agencyCommRate > 0 ? agencyCommRate : 0.20);
-        final int hostCommissionDiamonds = (tDia * normCommRate).round().toInt();
-        totalCommissionDiamonds = (totalCommissionDiamonds + hostCommissionDiamonds).toInt();
-        // العمولة بالدولار تُشتق من عمولة الألماس وبسعر الصرف من لوحة التحكم.
-        final hostCommissionUsd =
-            coinsPerUsd > 0 ? hostCommissionDiamonds / coinsPerUsd : 0.0;
-        totalCommissionUsd += hostCommissionUsd;
       }
     }
 

@@ -538,7 +538,7 @@ export function getMemberStageAndCommission(
     return {
       stageTitle: 'تحت التارجت',
       targetDiamonds: 0,
-      commissionDiamonds: 0,
+      commissionDiamonds: Math.round(diamonds * normAgencyRate),
       rate: normAgencyRate,
       isReached: false,
     };
@@ -562,7 +562,7 @@ export function getMemberStageAndCommission(
     return {
       stageTitle: `تحت ${first.title || 'المرحلة 1'}`,
       targetDiamonds: firstTarget,
-      commissionDiamonds: 0,
+      commissionDiamonds: Math.round(diamonds * rate),
       rate,
       isReached: false,
     };
@@ -573,7 +573,7 @@ export function getMemberStageAndCommission(
     : (highest.agent_commission_rate ?? (highest as any).agentCommissionRate ?? normAgencyRate);
   const rate = Number(rawRate) > 1.0 ? Number(rawRate) / 100.0 : Number(rawRate || normAgencyRate);
   const targetDiamonds = Number(highest.target_diamonds ?? (highest as any).targetDiamonds ?? 0);
-  const commissionDiamonds = Math.round(targetDiamonds * rate);
+  const commissionDiamonds = Math.round(diamonds * rate);
 
   return {
     stageTitle: highest.title || 'مرحلة محققة',

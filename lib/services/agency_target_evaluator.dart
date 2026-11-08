@@ -111,6 +111,10 @@ class AgencyTargetEvaluator {
         final requiredDays = (td['required_days'] as num?)?.toInt() ?? (td['target_days'] as num?)?.toInt() ?? 0;
         final targetId = td['id']?.toString() ?? '';
 
+        // تجاهل المراحل المعطّلة من لوحة التحكم.
+        final activeFlag = td['is_active'] ?? td['isActive'];
+        if (activeFlag == false || activeFlag == 0) continue;
+
         final achievedId = '${hostUserId}_${targetId}_$currentMonth';
 
         if (targetDiamonds > 0 && diamondsMonthly >= targetDiamonds) {
@@ -214,9 +218,6 @@ class AgencyTargetEvaluator {
     final rewardType = targetData['reward_type']?.toString() ?? 'salary_usd';
     final rawRewardValue = (targetData['reward_value'] as num?)?.toDouble() ?? 0.0;
     final rewardItemId = targetData['reward_item_id']?.toString() ?? '';
-    final cfg = DynamicConfigService();
-    final double agentCommissionRate =
-        cfg.agencyRatePercentage > 0 ? (cfg.agencyRatePercentage / 100.0) : 0.20;
     final rewardFrameId = targetData['reward_frame_id']?.toString() ?? (rewardType == 'frame' ? rewardItemId : null);
     final rewardBadgeId = targetData['reward_badge_id']?.toString() ?? (rewardType == 'badge' ? rewardItemId : null);
     final rewardDurationDays = (targetData['reward_duration_days'] as num?)?.toInt() ?? 30;
@@ -256,55 +257,7 @@ class AgencyTargetEvaluator {
       debugPrint('[AgencyTargetEvaluator] error upserting achieved target: $e');
     }
 
-    // 2. Accrue agent commission for the Agency Owner (pending until release cycle)
-    if (agentCommissionRate > 0 && agencyId.isNotEmpty) {
-      try {
-        final agencySnap = await _sb.from('host_agencies')
-            .select('owner_id, owner_uid')
-            .eq('id', agencyId)
-            .maybeSingle();
-        final ownerId = agencySnap?['owner_id']?.toString() ?? agencySnap?['owner_uid']?.toString() ?? '';
-        if (ownerId.isNotEmpty) {
-          final profit = (targetDiamonds * agentCommissionRate).toInt();
-
-          // العمولة تُحتسب كاستحقاق معلّق ولا تُضاف للرصيد القابل للصرف
-          // إلا عند إصدارها حسب دورة العمولة المعتمدة من لوحة التحكم.
-          var accrued = false;
-          try {
-            final rpcRes = await _sb.rpc('agency_accrue_commission', params: {
-              'p_agency_id': agencyId,
-              'p_diamonds': profit,
-              'p_note': 'عمولة تارجت مضيف — بانتظار دورة الإصدار',
-            });
-            accrued = rpcRes is Map && rpcRes['status'] == 'ok';
-          } catch (e) {
-            debugPrint('[AgencyTargetEvaluator] agency_accrue_commission failed: $e');
-          }
-
-          if (!accrued) {
-            try {
-              final agRow = await _sb
-                  .from('host_agencies')
-                  .select('pending_commission_diamonds')
-                  .eq('id', agencyId)
-                  .maybeSingle();
-              final pending =
-                  (agRow?['pending_commission_diamonds'] as num?)?.toInt() ?? 0;
-              await _sb.from('host_agencies').update({
-                'pending_commission_diamonds': pending + profit,
-              }).eq('id', agencyId);
-            } catch (_) {}
-          }
-
-          // Notify owner
-          await _sendSystemMessage(ownerId, 'مبروك! تم تسجيل عمولة بقيمة $profit ماسة (بنسبة ${(agentCommissionRate * 100).toStringAsFixed(1)}%) كمستحقة معلّقة لوكالتك، وستُصرف حسب دورة العمولة المعتمدة، لنجاح مضيفك في تحقيق تارجت $targetDiamonds 💎.');
-        }
-      } catch (e) {
-        debugPrint('[AgencyTargetEvaluator] error awarding commission: $e');
-      }
-    }
-
-    // 3. Give rewards to Host automatically
+    // 2. Give rewards to Host automatically
     final expiresAt = DateTime.now().add(Duration(days: rewardDurationDays)).toIso8601String();
 
     try {
@@ -315,30 +268,64 @@ class AgencyTargetEvaluator {
           'coins': cur + rewardValue.toInt(),
         }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
       } else if (rewardType == 'diamonds' && rewardValue > 0) {
-        // عضو وكالة: تُضاف لمحفظة الوكالة فقط. غير عضو: للمحفظة الشخصية.
-        Map<String, dynamic>? mSnap;
+        final rewardDiamonds = rewardValue.toInt();
+        final idem = 'target_reward_${hostUserId}_${targetId}_$currentMonth';
+        var credited = false;
         try {
-          mSnap = await _sb.from('host_agency_members')
-              .select('id, diamonds, diamonds_balance, diamonds_available')
-              .or('user_id.eq.$hostUserId,host_uid.eq.$hostUserId')
-              .maybeSingle();
-        } catch (_) {}
+          final rpcRes = await _sb.rpc('agency_credit_member_reward', params: {
+            'p_host_uid': hostUserId,
+            'p_diamonds': rewardDiamonds,
+            'p_idem_key': idem,
+            'p_note': 'مكافأة تارجت $targetDiamonds 💎',
+          });
+          credited = rpcRes is Map &&
+              (rpcRes['status'] == 'ok' ||
+                  rpcRes['status'] == 'already_processed');
+        } catch (e) {
+          debugPrint(
+              '[AgencyTargetEvaluator] agency_credit_member_reward failed: $e');
+        }
 
-        if (mSnap != null) {
-          final d1 = (mSnap['diamonds'] as num?)?.toInt() ?? 0;
-          final d2 = (mSnap['diamonds_balance'] as num?)?.toInt() ?? 0;
-          final d3 = (mSnap['diamonds_available'] as num?)?.toInt() ?? 0;
-          await _sb.from('host_agency_members').update({
-            'diamonds': d1 + rewardValue.toInt(),
-            'diamonds_balance': d2 + rewardValue.toInt(),
-            'diamonds_available': d3 + rewardValue.toInt(),
-          }).eq('id', mSnap['id']);
-        } else {
-          final u = await _sb.from('users').select('diamonds').or('uid.eq.$hostUserId,id.eq.$hostUserId').maybeSingle();
-          final cur = (u?['diamonds'] as num?)?.toInt() ?? 0;
-          await _sb.from('users').update({
-            'diamonds': cur + rewardValue.toInt(),
-          }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
+        if (!credited) {
+          Map<String, dynamic>? mSnap;
+          try {
+            mSnap = await _sb.from('host_agency_members')
+                .select('id, diamonds, diamonds_balance, diamonds_available')
+                .or('user_id.eq.$hostUserId,host_uid.eq.$hostUserId')
+                .maybeSingle();
+          } catch (_) {}
+
+          if (mSnap != null) {
+            final d1 = (mSnap['diamonds'] as num?)?.toInt() ?? 0;
+            final d2 = (mSnap['diamonds_balance'] as num?)?.toInt() ?? 0;
+            final d3 = (mSnap['diamonds_available'] as num?)?.toInt() ?? 0;
+            final newBalance = d2 + rewardDiamonds;
+            await _sb.from('host_agency_members').update({
+              'diamonds': d1 + rewardDiamonds,
+              'diamonds_balance': newBalance,
+              'diamonds_available': d3 + rewardDiamonds,
+            }).eq('id', mSnap['id']);
+            try {
+              await _sb.from('agency_diamond_ledger').insert({
+                'agency_id': agencyId,
+                'user_id': hostUserId,
+                'txn_type': 'target_reward',
+                'amount': rewardDiamonds,
+                'direction': 1,
+                'balance_after': newBalance,
+                'note': 'مكافأة تارجت $targetDiamonds 💎',
+                'sender_name': 'النظام',
+                'idempotency_key': idem,
+                'created_at': DateTime.now().toUtc().toIso8601String(),
+              });
+            } catch (_) {}
+          } else {
+            final u = await _sb.from('users').select('diamonds').or('uid.eq.$hostUserId,id.eq.$hostUserId').maybeSingle();
+            final cur = (u?['diamonds'] as num?)?.toInt() ?? 0;
+            await _sb.from('users').update({
+              'diamonds': cur + rewardDiamonds,
+            }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
+          }
         }
       } else if (rewardType == 'salary_usd' && rewardValue > 0) {
         await _sb.from('host_salaries').insert({
