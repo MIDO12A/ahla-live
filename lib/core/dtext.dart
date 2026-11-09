@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/dynamic_config_service.dart';
+import '../services/lang_service.dart';
 
 /// نص قابل للتخصيص من لوحة التحكم.
 ///
@@ -49,8 +50,11 @@ class DText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cfg = DynamicConfigService();
+    final lang = Localizations.maybeLocaleOf(context)?.languageCode ?? 'ar';
+    final resolved = cfg.resolveText(data);
+    final translated = LangService.instance.translate(resolved, lang);
     return Text(
-      cfg.resolveText(data),
+      translated,
       style: _resolvedStyle(cfg, data),
       strutStyle: strutStyle,
       textAlign: textAlign,

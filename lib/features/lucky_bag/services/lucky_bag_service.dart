@@ -333,6 +333,18 @@ class LuckyBagService {
             ))
             .catchError((_) => false));
 
+        // بث نص الفوز لكل الغرف — نفس النص الذي يراه الفائز في شات الغرفة
+        unawaited(_ds
+            .recordBroadcast(
+              senderUid: uid,
+              senderName: user.name,
+              senderPhotoUrl: user.photoUrl,
+              roomId: roomId,
+              content: '🎉 $wonAmount 🪙 من حقيبة الحظ!',
+              type: 'lucky_bag_win',
+            )
+            .catchError((_) => false));
+
         return LuckyBagClaimResult(
           success: true,
           bagId: targetBagId,

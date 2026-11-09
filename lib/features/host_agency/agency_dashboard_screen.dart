@@ -1336,10 +1336,10 @@ class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Row(children: [
-            DText('💰', style: TextStyle(fontSize: 18)),
-            SizedBox(width: 8),
-            DText('صرف عمولة الوكيل', style: TextStyle(color: _textMain, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
+          Row(children: [
+            const DText('💰', style: TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            DText(DynamicConfigService().agencyCommissionLabels['title']!, style: const TextStyle(color: _textMain, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
           ]),
           // زر خيارات الجدول
           GestureDetector(
@@ -1362,6 +1362,12 @@ class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard
         const SizedBox(height: 12),
         Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if ((DynamicConfigService().agencyCommissionLabels['subtitle'] ?? '').isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: DText(DynamicConfigService().agencyCommissionLabels['subtitle']!,
+                  style: const TextStyle(color: _textMuted, fontSize: 10, fontFamily: 'IBM Plex Sans Arabic')),
+              ),
             DText('العمولة المستحقة (${(widget.commissionRate * 100).toStringAsFixed(0)}%)',
               style: const TextStyle(color: _textMuted, fontSize: 11, fontFamily: 'IBM Plex Sans Arabic')),
             const SizedBox(height: 4),
@@ -1439,12 +1445,12 @@ Future<void> showAgencyDisbursementDialog({
             borderRadius: BorderRadius.circular(20),
             side: BorderSide(color: _gold.withOpacity(0.3)),
           ),
-          title: const Row(
+          title: Row(
             children: [
-              DText('💰', style: TextStyle(fontSize: 22)),
-              SizedBox(width: 8),
+              const DText('💰', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
               DText(
-                'صرف عمولة الوكيل',
+                DynamicConfigService().agencyCommissionLabels['title']!,
                 style: TextStyle(
                   color: _textMain,
                   fontSize: 16,

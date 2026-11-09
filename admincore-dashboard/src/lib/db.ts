@@ -1205,6 +1205,57 @@ export async function deleteRoom(id: string) {
   }
 }
 
+// ─── قائمة حظر الغرفة (room_blocks) ────────────────────────────────────────
+export interface RoomBlockRow {
+  id: string;
+  room_id: string;
+  blocker_uid: string;
+  blocked_uid: string;
+  reason: string;
+  created_at: string;
+}
+
+export async function getRoomBlocks(roomId: string): Promise<RoomBlockRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from('room_blocks')
+      .select('*')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as RoomBlockRow[];
+  } catch (e) {
+    console.warn('getRoomBlocks failed:', e);
+    return [];
+  }
+}
+
+export async function deleteRoomBlock(blockId: string): Promise<void> {
+  try {
+    await supabase.from('room_blocks').delete().eq('id', blockId);
+  } catch (e) {
+    console.warn('deleteRoomBlock failed:', e);
+  }
+}
+
+export async function getUsersByUids(uids: string[]): Promise<Map<string, { name: string; custom_id: string }>> {
+  const map = new Map<string, { name: string; custom_id: string }>();
+  if (uids.length === 0) return map;
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('uid,id,name,custom_id')
+      .or(`uid.in.(${uids.join(',')}),id.in.(${uids.join(',')})`);
+    for (const u of data ?? []) {
+      const uid = String(u.uid ?? u.id ?? '');
+      if (uid) map.set(uid, { name: String(u.name ?? ''), custom_id: String(u.custom_id ?? '') });
+    }
+  } catch (e) {
+    console.warn('getUsersByUids failed:', e);
+  }
+  return map;
+}
+
 // ---- Unions ----
 
 export async function getUnions(): Promise<UnionModel[]> {
@@ -2274,6 +2325,17 @@ export async function saveAgencyCommissionCycle(
     }, { onConflict: 'key' });
   } catch (_) {}
 
+  // إعادة حساب موعد الإصدار القادم لكل الوكالات فوراً
+  // حتى تنعكس الدورة الجديدة في التطبيق بدون انتظار استحقاق جديد
+  try {
+    const { data: nextAt } = await supabase.rpc('agency_compute_next_release');
+    if (nextAt) {
+      await supabase
+        .from('host_agencies')
+        .update({ next_commission_release_at: nextAt });
+    }
+  } catch (_) {}
+
   return normalized;
 }
 
@@ -2323,6 +2385,55 @@ export async function releaseDueCommissions(): Promise<any> {
   const { data, error } = await supabase.rpc('agency_release_due_commissions');
   if (error) throw error;
   return data;
+}
+
+// ─── عناوين بطاقة عمولة الوكالة في التطبيق (قابلة للتعديل من اللوحة) ────────
+export interface AgencyCommissionLabels {
+  title: string;
+  subtitle: string;
+}
+
+const DEFAULT_AGENCY_COMM_LABELS: AgencyCommissionLabels = {
+  title: 'صرف عمولة الوكيل',
+  subtitle: '',
+};
+
+export async function getAgencyCommissionLabels(): Promise<AgencyCommissionLabels> {
+  try {
+    const { data } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', 'agency_commission_labels')
+      .maybeSingle();
+    let map: any = data?.value;
+    if (typeof map === 'string') {
+      try { map = JSON.parse(map); } catch { map = {}; }
+    }
+    if (map && typeof map === 'object') {
+      return {
+        title: String(map.title ?? '').trim() || DEFAULT_AGENCY_COMM_LABELS.title,
+        subtitle: String(map.subtitle ?? '').trim(),
+      };
+    }
+  } catch (e) {
+    console.warn('getAgencyCommissionLabels failed:', e);
+  }
+  return { ...DEFAULT_AGENCY_COMM_LABELS };
+}
+
+export async function saveAgencyCommissionLabels(
+  labels: Partial<AgencyCommissionLabels>,
+): Promise<AgencyCommissionLabels> {
+  const current = await getAgencyCommissionLabels();
+  const merged: AgencyCommissionLabels = {
+    title: (labels.title ?? current.title).trim() || DEFAULT_AGENCY_COMM_LABELS.title,
+    subtitle: (labels.subtitle ?? current.subtitle).trim(),
+  };
+  await supabase.from('app_config').upsert({
+    key: 'agency_commission_labels',
+    value: merged,
+  }, { onConflict: 'key' });
+  return merged;
 }
 
 

@@ -949,6 +949,9 @@ class _BackpackScreenState extends State<BackpackScreen> {
         return user.activeMicWave == item.itemId ||
             (item.svgaAsset != null && item.svgaAsset!.isNotEmpty && user.activeMicWave == item.svgaAsset) ||
             user.activeMicWave == item.iconAsset;
+      case 'special_id':
+        final cid = item.effectiveCustomId;
+        return cid != null && user.customId == cid;
       default:
         return false;
     }

@@ -241,6 +241,24 @@ class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
     }
   }
 
+  /// Removes [url] from the RAM + disk cache (and Flutter's image cache) so
+  /// the next render re-downloads the fresh copy from the server.
+  static Future<void> evictCached(String url) async {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return;
+    final key = sha256.convert(utf8.encode(url)).toString();
+    _memoryCache.remove(key);
+    _memoryCacheOrder.remove(key);
+    _pendingCompleters.remove(key);
+    try {
+      await _init();
+      final file = File('${_cacheDir!.path}/$key.enc');
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+    try {
+      PaintingBinding.instance.imageCache.evict(EncryptedImageProvider(url));
+    } catch (_) {}
+  }
+
   static Future<void> clearMemoryCache() async {
     _memoryCache.clear();
     _memoryCacheOrder.clear();

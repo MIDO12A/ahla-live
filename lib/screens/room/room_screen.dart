@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:math' as math;
@@ -31,6 +32,7 @@ import '../../services/global_banner_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/room_audio_service.dart';
 import '../../services/room_state_service.dart';
+import '../../services/network_watchdog_service.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/supabase_compat.dart';
 import '../../providers/user_provider.dart';
@@ -49,6 +51,7 @@ import 'widgets/mixer_panel.dart';
 import 'widgets/bottom_bar.dart';
 import 'widgets/gift_panel.dart';
 import 'widgets/user_profile.dart';
+import '../../widgets/special_name_text.dart';
 import 'widgets/function_panel.dart';
 import 'widgets/room_marquee_broadcast.dart';
 import 'widgets/room_rocket_widget.dart';
@@ -215,6 +218,7 @@ class RoomScreen extends StatefulWidget {
   static String? _lastPushRoomId;
   static final Map<String, int> cachedRoomSeatCount = {};
   static final Map<String, seat_model.SeatStyle> cachedRoomSeatStyle = {};
+  static final Map<String, Map<int, Map<String, dynamic>>> cachedRoomSeatMaps = {};
   static SharedPreferences? sharedPrefs;
 
   static Future<void> initPrefs() async {
@@ -234,9 +238,65 @@ class RoomScreen extends StatefulWidget {
           if (count != null && count > 0) {
             cachedRoomSeatCount[rId] = count;
           }
+        } else if (k.startsWith('room_seats_map_')) {
+          final rId = k.replaceFirst('room_seats_map_', '');
+          final raw = sharedPrefs!.getString(k);
+          if (raw == null || raw.isEmpty) continue;
+          try {
+            final decoded = jsonDecode(raw) as Map<String, dynamic>;
+            final restored = <int, Map<String, dynamic>>{};
+            decoded.forEach((key, value) {
+              final idx = int.tryParse(key);
+              if (idx != null && value is Map) {
+                restored[idx] = Map<String, dynamic>.from(value);
+              }
+            });
+            if (restored.isNotEmpty) cachedRoomSeatMaps[rId] = restored;
+          } catch (_) {}
         }
       }
     } catch (_) {}
+  }
+
+  /// Stores the latest seat occupancy for [roomId] so the next entry shows the
+  /// exact same seats instead of flashing an empty room while the network call
+  /// is still in flight.
+  static void persistRoomSeatMap(
+      String roomId, Map<int, Map<String, dynamic>> seatMap) {
+    if (roomId.isEmpty) return;
+    cachedRoomSeatMaps[roomId] = seatMap;
+    try {
+      sharedPrefs?.setString(
+        'room_seats_map_$roomId',
+        jsonEncode({
+          for (final entry in seatMap.entries)
+            entry.key.toString(): entry.value,
+        }),
+      );
+    } catch (_) {}
+  }
+
+  static int? cachedSeatIndexFor(String roomId, String uid) {
+    if (uid.isEmpty) return null;
+    final map = cachedRoomSeatMaps[roomId];
+    if (map == null) return null;
+    for (final entry in map.entries) {
+      final seatUid = entry.value['uid']?.toString();
+      if (seatUid == uid) return entry.key;
+    }
+    return null;
+  }
+
+  static void removeUserFromCachedSeatMap(String roomId, String uid) {
+    if (uid.isEmpty) return;
+    final map = cachedRoomSeatMaps[roomId];
+    if (map == null) return;
+    final cleaned = <int, Map<String, dynamic>>{};
+    for (final entry in map.entries) {
+      if (entry.value['uid']?.toString() == uid) continue;
+      cleaned[entry.key] = entry.value;
+    }
+    persistRoomSeatMap(roomId, cleaned);
   }
 
   /// Returns true if this push is allowed (debounces double-taps on the same
@@ -1029,6 +1089,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _showNotifications = false;
   bool _showShare = false;
   bool _isMinimized = false;
+  bool _offlineExitTriggered = false;
   bool _sessionLeaveHandled = false;
   bool _isFollowed = false;
   int _msgCount = 0;
@@ -1117,6 +1178,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   StreamSubscription? _msgSub;
   StreamSubscription? _entranceSub;
   StreamSubscription? _userBanSub;
+  StreamSubscription? _kickNotifSub;
+  bool _kickExitHandled = false;
   StreamSubscription? _broadcastSub;
   final ValueNotifier<Map<String, dynamic>?> _broadcastNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final ValueNotifier<Map<String, dynamic>?> _giftBannerNotifier = ValueNotifier<Map<String, dynamic>?>(null);
@@ -1125,6 +1188,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Timer? _seatsRefreshTimer;
   Timer? _bannerHideTimer;
   Timer? _presencePingTimer; // ✅ ping دوري للـ presence — يكتشف الخروج الصامت
+  Timer? _zombieCleanupTimer; // ✅ تنظيف دوري للمقاعد/الأعضاء الصامتين
+  DateTime? _backgroundedAt; // ✅ وقت انتقال التطبيق للخلفية — طرد إجباري بعد 10 دقائق
   Timer? _taskStayTimer; // ✅ تتبع مدة التواجد في الغرفة والمايك للمهام اليومية
   final RoomAudioService _roomAudio = RoomAudioService();
   bool _takingSeat = false;
@@ -1243,6 +1308,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       unawaited(_loadRoomData());
       _startPresencePing();
+      _zombieCleanupTimer?.cancel();
+      _zombieCleanupTimer = Timer.periodic(
+          const Duration(minutes: 1), (_) => _cleanupZombieUsers());
+      NetworkWatchdogService().start(onOffline: _handleOfflineTimeout);
     });
   }
 
@@ -1254,9 +1323,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     // the gift/message subscriptions when the room becomes active again.
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _roomAudio.pauseForBackground();
+      _backgroundedAt ??= DateTime.now();
       // ✅ تحديث ping عند التوقف — الـ TTL checker سيرى آخر ping
       _updatePresencePing();
     } else if (state == AppLifecycleState.resumed) {
+      // ✅ إذا بقي التطبيق في الخلفية أكثر من 10 دقائق: طرد إجباري من الغرفة والمقعد
+      final bgAt = _backgroundedAt;
+      _backgroundedAt = null;
+      if (bgAt != null &&
+          DateTime.now().difference(bgAt) > const Duration(minutes: 10)) {
+        unawaited(_forceExitAfterLongBackground());
+        return;
+      }
       _roomAudio.resumeFromBackground();
       // ✅ تجديد الـ ping عند العودة
       _updatePresencePing();
@@ -1336,8 +1414,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       } else if (currentUser.hostedRoomId == widget.roomId) {
         _resolveHostCustomId(currentUser.uid);
       }
-      _checkRoomBan(currentUser.uid);
-      _userBanSub?.cancel();
+      final isBannedNow = await _firebaseService
+          .isUserBlockedFromRoom(widget.roomId, currentUser.uid);
+      if (isBannedNow) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: DText('You are banned from this room'),
+              duration: Duration(seconds: 3),
+              backgroundColor: Colors.red,
+            ),
+          );
+          Navigator.of(context).pop();
+        }
+        return;
+      }
+    _userBanSub?.cancel();
+    _kickNotifSub?.cancel();
       _userBanSub = _firebaseService.userRoomBanStream(widget.roomId, currentUser.uid).listen((isBanned) {
         if (isBanned && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1350,21 +1443,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           _exitRoom();
         }
       });
-      // Clear any stale seats for this user before registering (await to avoid race)
-      // Only on fresh joins – on minimized-room re-entry the current seat must survive.
-      if (!isReturningFromMinimized) {
-        Future(() async {
-          await _firebaseService.leaveSeatForUser(widget.roomId, currentUser.uid);
-        });
-      } else if (userWasOnSeat && restoredSeatIndex != null && restoredSeatIndex >= 0 && restoredSeatIndex < _seats.length) {
-        _currentUserSeatIndex = restoredSeatIndex;
+      // Restore the user's own seat from the last local snapshot (or the
+      // minimized-room hand-off) so re-entering never drops them off the mic.
+      final snapshotSeatIndex =
+          RoomScreen.cachedSeatIndexFor(widget.roomId, currentUser.uid);
+      final seatToRestore = restoredSeatIndex ?? snapshotSeatIndex;
+      if (seatToRestore != null &&
+          seatToRestore >= 0 &&
+          seatToRestore < _seats.length) {
+        _currentUserSeatIndex = seatToRestore;
         _takingSeat = true;
-        _pendingSeatIndex = restoredSeatIndex;
+        _pendingSeatIndex = seatToRestore;
         // Immediately restore seat optimistically
         setState(() {
           final restoredFrame = _resolveFrameAsset(currentUser.activeFrame);
-          _seats[restoredSeatIndex] = SeatModel(
-            index: restoredSeatIndex,
+          _seats[seatToRestore] = SeatModel(
+            index: seatToRestore,
             user: UserModel(
               name: currentUser.name,
               avatar: currentUser.photoUrl,
@@ -1379,13 +1473,25 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             state: SeatState.occupied,
           );
         });
-        _firebaseService.takeSeat(widget.roomId, restoredSeatIndex, currentUser).then((_) {
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) setState(() => _takingSeat = false);
-          });
+        if (restoredSeatIndex != null) {
+          _firebaseService.takeSeat(widget.roomId, seatToRestore, currentUser);
+        } else {
+          _firebaseService.restoreSeatIfFree(
+            roomId: widget.roomId,
+            seatIndex: seatToRestore,
+            user: currentUser,
+          );
+        }
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _takingSeat = false);
         });
         _roomAudio.startPublishing();
         _roomAudio.toggleMic(!widget.wasMicMuted);
+      } else if (!isReturningFromMinimized) {
+        // Clear only this user's stale seat; never touch other members' seats.
+        Future(() async {
+          await _firebaseService.leaveSeatForUser(widget.roomId, currentUser.uid);
+        });
       }
       // Register in Firebase so others see this user
       _firebaseService.joinRoom(widget.roomId, currentUser);
@@ -1412,6 +1518,35 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       // Load blocked users list
       _firebaseService.getBlockedUids(currentUser.uid).then((list) {
         if (mounted) setState(() { _blockedUsers.clear(); _blockedUsers.addAll(list); });
+      });
+
+      // Server-side kick notification (works even if the room message stream
+      // missed the kick event while the app was backgrounded).
+      _kickNotifSub?.cancel();
+      _kickNotifSub = _firebaseService
+          .notificationsStream(uid: currentUser.uid)
+          .listen((notifs) {
+        for (final n in notifs) {
+          if (n.type != 'room_kick') continue;
+          final rid = n.data?['room_id']?.toString();
+          if (rid != widget.roomId) continue;
+          final kickSince = _joinedAt ?? DateTime.now();
+          if (n.createdAt
+              .isBefore(kickSince.subtract(const Duration(seconds: 20)))) {
+            continue;
+          }
+          if (_kickExitHandled || !mounted) return;
+          _kickExitHandled = true;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: DText(n.body.isNotEmpty ? n.body : 'تم طردك من الغرفة'),
+              duration: const Duration(seconds: 4),
+              backgroundColor: Colors.red,
+            ),
+          );
+          _exitRoom();
+          return;
+        }
       });
     }
     // Initialize audio service (use customId for Zego, not real uid)
@@ -1493,7 +1628,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final content = latest['content']?.toString() ?? '';
         // غرف أخرى: نضيف نص البث إلى شات الغرفة ليظهر لجميع المستخدمين.
         // داخل نفس الغرفة لا نكرر lucky_gift لأن رسالة النظام الحقيقية موجودة أصلاً.
-        if (content.isEmpty || (bRoomId == widget.roomId && bType == 'lucky_gift')) continue;
+        if (content.isEmpty) continue;
+        if (bRoomId == widget.roomId &&
+            (bType == 'lucky_gift' ||
+                bType == 'gift' ||
+                bType == 'big_gift' ||
+                bType == 'lucky_bag_win')) {
+          continue;
+        }
 
         _chatMessages.add(MessageModel(
           msgId: 'broadcast_$bId',
@@ -1759,8 +1901,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               }
             }
           } else if (m.type == 'room_kick' && m.giftPayload != null) {
-            final kickedUid = m.giftPayload!['kickedUid']?.toString();
+            final kickedUid = (m.giftPayload!['kickedUid'] ??
+                    m.giftPayload!['kicked_uid'])
+                ?.toString();
             if (kickedUid == _currentUserId && mounted) {
+              if (_kickExitHandled) return;
+              _kickExitHandled = true;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: DText(m.text.isNotEmpty ? m.text : 'تم طردك من الغرفة من قبل المشرف'),
@@ -1936,7 +2082,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       try {
         final seatMap = await SupabaseDataService().getSeats(widget.roomId);
-        if (seatMap.isNotEmpty && mounted) {
+        if (seatMap != null && mounted) {
           _processSeatMap(seatMap);
         }
         final members = await SupabaseDataService().getRoomMembers(widget.roomId);
@@ -2245,6 +2391,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       return;
     }
     _lastProcessedSeatMap = Map<int, Map<String, dynamic>>.from(seatMap);
+    RoomScreen.persistRoomSeatMap(widget.roomId, seatMap);
 
     // Preserve locked state from both local and remote state
     final lockedIndices = <int>{};
@@ -2338,6 +2485,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final gender = data['gender']?.toString() ?? cachedUser?.gender ?? 'male';
       final country = data['country']?.toString() ?? data['country_code']?.toString() ?? cachedUser?.country ?? 'EG';
 
+      final seatCustomId = cachedUser?.customId ?? data['custom_id']?.toString();
+      if (seatCustomId != null && seatCustomId.isNotEmpty && uid != null) {
+        UserProfile.customIdCache[uid] = seatCustomId;
+      }
       newSeats[idx] = SeatModel(
         index: idx,
         state: isMuted ? SeatState.muted : SeatState.occupied,
@@ -2345,7 +2496,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           name: data['name']?.toString() ?? '',
           avatar: data['photo_url']?.toString() ?? data['avatar']?.toString() ?? cachedUser?.photoUrl ?? (uid == _currentUserId ? currentUser?.photoUrl : null),
           id: uid,
-          customId: cachedUser?.customId ?? data['custom_id']?.toString(),
+          customId: seatCustomId,
           activeMicWave: activeMicWave,
           gender: gender,
           country: country,
@@ -2527,6 +2678,65 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     for (int i = 0; i < count; i++) {
       seats.add(SeatModel(index: i));
     }
+    // Restore the last known seat layout immediately so the room never flashes
+    // an empty stage while the first network request is still in flight.
+    final cached = RoomScreen.cachedRoomSeatMaps[widget.roomId];
+    if (cached != null) {
+      for (final entry in cached.entries) {
+        final idx = entry.key;
+        if (idx < 0 || idx >= count) continue;
+        final data = entry.value;
+        final rawUid = data['uid']?.toString();
+        final uid = (rawUid != null &&
+                rawUid.trim().isNotEmpty &&
+                rawUid.trim() != 'null')
+            ? rawUid.trim()
+            : null;
+        final isLocked = data['is_locked'] == true;
+        if (uid == null) {
+          if (isLocked) {
+            seats[idx] = SeatModel(
+              index: idx,
+              state: SeatState.locked,
+              isLocked: true,
+            );
+          }
+          continue;
+        }
+        final isMuted = data['is_muted'] == true;
+        final activeFrame = data['active_frame']?.toString();
+        final frameAsset = _resolveFrameAsset(activeFrame);
+        final activeCar = data['active_car']?.toString();
+        final carStoreItem = activeCar != null && !activeCar.startsWith('http')
+            ? _storeItemsIndex[activeCar]
+            : null;
+        final carAsset = activeCar != null && activeCar.startsWith('http')
+            ? activeCar
+            : carStoreItem?.svgaAsset;
+        seats[idx] = SeatModel(
+          index: idx,
+          state: isLocked
+              ? SeatState.locked
+              : (isMuted ? SeatState.muted : SeatState.occupied),
+          isLocked: isLocked,
+          isMuted: isMuted,
+          hasFrame: frameAsset != null && frameAsset.isNotEmpty,
+          frameAsset: frameAsset,
+          carAsset: carAsset,
+          user: UserModel(
+            name: data['name']?.toString() ?? '',
+            avatar: data['photo_url']?.toString() ?? data['avatar']?.toString(),
+            id: uid,
+            customId: data['custom_id']?.toString(),
+            activeMicWave: data['active_mic_wave']?.toString(),
+            gender: data['gender']?.toString() ?? 'male',
+            country: data['country']?.toString() ??
+                data['country_code']?.toString() ??
+                'EG',
+          ),
+        );
+      }
+    }
     return seats;
   }
 
@@ -2544,6 +2754,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _seenEntranceIds.clear();
     _storeItemsIndex.clear();
     if (!_isMinimized) {
+      NetworkWatchdogService().stop();
       RoomMusicPlayerService().stop();
       _leaveRoomSession();
       _roomAudio.dispose();
@@ -2555,6 +2766,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _membersSub?.cancel();
     _seatsRefreshTimer?.cancel();
     _presencePingTimer?.cancel();
+    _zombieCleanupTimer?.cancel();
     _taskStayTimer?.cancel();
     _giftAnimWatchdog?.cancel();
     final gap = _giftAudioPlayer;
@@ -3015,6 +3227,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     });
 
     _firebaseService.leaveSeat(widget.roomId, idx);
+    if (isSelf && kickedUid != null) {
+      RoomScreen.removeUserFromCachedSeatMap(widget.roomId, kickedUid);
+    }
 
     if (kickedUid != null && !isSelf) {
       _roomAudio.muteRemoteAudio(kickedUid, widget.roomId, true);
@@ -3224,7 +3439,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     }
 
-    bool addToBlacklist = false;
+    // الطرد الافتراضي = حظر من إعادة الدخول للغرفة (قابل للإلغاء من قائمة الحظر)
+    bool addToBlacklist = true;
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -3353,7 +3569,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     );
   }
 
-  void _executeKick(UserModel user, int? seatIdx, bool addToBlacklist) {
+  Future<void> _executeKick(
+      UserModel user, int? seatIdx, bool addToBlacklist) async {
     if (seatIdx != null && seatIdx < _seats.length) {
       setState(() {
         _seats[seatIdx].state = SeatState.empty;
@@ -3364,15 +3581,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     final uid = user.id;
     if (uid != null && _currentUserId != null) {
-      _firebaseService.kickUserFromRoom(
-        widget.roomId,
-        _currentUserId!,
-        uid,
-        kickerName: _currentUserName ?? '',
-        targetName: user.name,
-        addToBlacklist: addToBlacklist,
-      );
+      try {
+        await _firebaseService.kickUserFromRoom(
+          widget.roomId,
+          _currentUserId!,
+          uid,
+          kickerName: _currentUserName ?? '',
+          targetName: user.name,
+          addToBlacklist: addToBlacklist,
+        );
+        RoomScreen.removeUserFromCachedSeatMap(widget.roomId, uid);
+      } catch (_) {}
     }
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: DText(addToBlacklist ? 'تم طرد وحظر ${user.name} بنجاح' : 'تم طرد ${user.name} من الغرفة')),
     );
@@ -4090,6 +4311,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                     'id': s.user!.id ?? '',
                                     'name': s.user!.name,
                                     'photoUrl': s.user!.avatar,
+                                    'customId': s.user!.customId,
                                   })
                               .toList();
                           if (list.isEmpty && _currentRoom != null && _currentRoom!.hostUid.isNotEmpty) {
@@ -4100,6 +4322,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   ? _currentRoom!.hostName
                                   : (isAr ? 'صاحب الغرفة' : 'Room Owner'),
                               'photoUrl': _currentRoom!.hostPhotoUrl,
+                              'customId': _hostCustomId ?? '',
                             });
                           }
                           return list;
@@ -4112,6 +4335,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   'id': e.value.user!.id ?? '',
                                   'name': e.value.user!.name,
                                   'photoUrl': e.value.user!.avatar,
+                                  'customId': e.value.user!.customId,
                                   'seatIndex': e.key + 1,
                                 })
                             .toList(),
@@ -4120,6 +4344,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                   'id': u.id,
                                   'name': u.name,
                                   'photoUrl': u.avatar,
+                                  'customId': u.customId,
                                 })
                             .toList(),
                         receiverId: _selectedSeatIdx != null &&
@@ -4969,6 +5194,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
 
+  /// يجلب custom_id لمستخدم من الكاش المحلي (المقاعد/البروفايل) لتمريره
+  /// إلى SpecialNameText بدون طلب شبكة إضافي.
+  String? _customIdOf(String? uid) {
+    if (uid == null || uid.isEmpty) return null;
+    return _cachedUsers[uid]?.customId ?? UserProfile.customIdCache[uid];
+  }
+
   Widget _buildUserLevelMedal(String uid) {
     final cached = _cachedUsers[uid];
     final lvl = cached?.wealthLevel ?? 1;
@@ -5041,8 +5273,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      DText(
-                        m.senderName.length > 15 ? m.senderName.substring(0, 15) : m.senderName,
+                      SpecialNameText(
+                        text: m.senderName.length > 15 ? m.senderName.substring(0, 15) : m.senderName,
+                        customId: _customIdOf(m.senderUid),
                         style: const TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                       _buildUserLevelMedal(m.senderUid),
@@ -5153,8 +5386,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      DText(
-                        senderDisplayName,
+                      SpecialNameText(
+                        text: senderDisplayName,
+                        customId: _customIdOf(m.senderUid),
                         style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                       _buildUserLevelMedal(m.senderUid),
@@ -5421,10 +5655,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    DText(
-                      m.senderName.length > 15
+                    SpecialNameText(
+                      text: m.senderName.length > 15
                           ? m.senderName.substring(0, 15)
                           : m.senderName,
+                      customId: _customIdOf(m.senderUid),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -6681,8 +6916,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                       Row(
                                         children: [
                                           Flexible(
-                                            child: DText(
-                                              u.name,
+                                            child: SpecialNameText(
+                                              text: u.name,
+                                              customId: u.customId,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
@@ -6905,8 +7141,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            DText(
-                                              senderName,
+                                            SpecialNameText(
+                                              text: senderName,
                                               style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -7037,6 +7273,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     final leaveUid = resolvedUid;
     if (leaveUid != null && leaveUid.isNotEmpty) {
+      if (logExit) {
+        RoomScreen.removeUserFromCachedSeatMap(roomId, leaveUid);
+      }
       cleanupTasks.add(safeCall(() => _firebaseService.leaveSeatForUser(roomId, leaveUid)));
       cleanupTasks.add(safeCall(() => SupabaseService().leaveSeatForUser(roomId, leaveUid)));
       cleanupTasks.add(safeCall(() => SupabaseDataService().leaveSeatForUser(roomId, leaveUid)));
@@ -7090,10 +7329,29 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     SupabaseDataService().sendPresencePing(roomId, uid).catchError((_) => false);
   }
 
+  /// طرد إجباري عند العودة من خلفية تجاوزت 10 دقائق:
+  /// يترك الغرفة + المقعد + عضو الغرفة ثم يغلق شاشة الغرفة.
+  Future<void> _forceExitAfterLongBackground() async {
+    if (!mounted) return;
+    String? uid = _currentUserId;
+    if (uid == null) {
+      try {
+        uid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+      } catch (_) {}
+    }
+    try {
+      await _leaveRoomSession(uid: uid, logExit: false)
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
+    if (!mounted) return;
+    // خروج من شاشة الغرفة للعودة للشاشة السابقة
+    Navigator.of(context).maybePop();
+  }
+
   /// تنظيف المستخدمين غير النشطين
   Future<void> _cleanupZombieUsers() async {
     try {
-      final cutoff = DateTime.now().toUtc().subtract(const Duration(seconds: 90)).toIso8601String();
+      final cutoff = DateTime.now().toUtc().subtract(const Duration(minutes: 5)).toIso8601String();
       await Supabase.instance.client
           .from('room_members')
           .delete()
@@ -7121,6 +7379,41 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         }
       }
     } catch (_) {}
+  }
+
+  Future<void> _handleOfflineTimeout() async {
+    if (_offlineExitTriggered) return;
+    _offlineExitTriggered = true;
+    String? uid = _currentUserId;
+    if (uid == null && mounted) {
+      try {
+        uid = Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
+      } catch (_) {}
+    }
+    try {
+      await _leaveRoomSession(uid: uid, logExit: false)
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {}
+    try {
+      if (uid != null) {
+        await MinimizedRoomService()
+            .exitRoom(uid)
+            .timeout(const Duration(seconds: 4));
+      }
+    } catch (_) {}
+    try {
+      _roomAudio.toggleMic(false);
+      _roomAudio.stopPublishingIfActive();
+      _roomAudio.leaveChannel();
+    } catch (_) {}
+    NetworkWatchdogService().stop();
+    try {
+      await SystemNavigator.pop();
+    } catch (_) {}
+    if (Platform.isAndroid) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      exit(0);
+    }
   }
 
   Future<void> _exitRoom() async {
@@ -7665,11 +7958,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   // ── Gift count popup (adapter_gift_count_item.xml / room_gift_count_bg.xml) ──
   void _showGiftCountMenu() {
-    const counts = [1314, 520, 188, 88, 66, 10, 1];
+    const counts = [1, 20, 50, 100, 200, 300, 500, 1000];
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: false,
       builder: (ctx) => Center(
         child: Container(
           width: 140,

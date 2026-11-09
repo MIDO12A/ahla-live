@@ -125,7 +125,10 @@ class RoomHeader extends StatelessWidget {
     final isSpecial = UserIdWidget.isSpecialId(roomId);
 
     return Expanded(
-      child: Column(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: AlignmentDirectional.centerStart,
+        child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -202,7 +205,7 @@ class RoomHeader extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.emoji_events_rounded,
-                  size: 11,
+                  size: 10,
                   color: Color(0xFFFFC525),
                 ),
                 const SizedBox(width: 2),
@@ -220,6 +223,7 @@ class RoomHeader extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }

@@ -95,6 +95,7 @@ class SvgaPlayer extends StatefulWidget {
   final double? height;
   final bool loops;
   final VoidCallback? onFinished;
+  final VoidCallback? onLoaded;
   final BoxFit fit;
   final Map<String, String>? textReplacement; // SVGA layer key -> user text
   final Map<String, String>? imageReplacement; // SVGA layer key -> image URL
@@ -107,6 +108,7 @@ class SvgaPlayer extends StatefulWidget {
     this.height,
     this.loops = true,
     this.onFinished,
+    this.onLoaded,
     this.fit = BoxFit.contain,
     this.textReplacement,
     this.imageReplacement,
@@ -181,6 +183,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
   bool hasError = false;
   Timer? _loadTimeout;
   bool _finishedOnce = false;
+  bool _loadedOnce = false;
   String? _activeUrl;
   Uint8List? _fallbackImageBytes;
 
@@ -241,6 +244,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
         isLoading = true;
         hasError = false;
         _finishedOnce = false;
+        _loadedOnce = false;
       });
       _loadTimeout?.cancel();
       _loadTimeout = Timer(const Duration(seconds: 15), () {
@@ -250,6 +254,12 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
       });
       _loadAnimation();
     }
+  }
+
+  void _markLoaded() {
+    if (_loadedOnce) return;
+    _loadedOnce = true;
+    widget.onLoaded?.call();
   }
 
   void _finishOnce() {
@@ -301,6 +311,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
             isLoading = false;
             hasError = false;
           });
+          _markLoaded();
           if (!widget.loops) {
             Future.delayed(const Duration(milliseconds: 1500), () {
               if (mounted) _finishOnce();
@@ -328,6 +339,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
           }
         });
       }
+      if (mounted) _markLoaded();
       unawaited(_injectDynamicContent(videoItem));
     } catch (e) {
       perf.err(token, e);
@@ -340,6 +352,7 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
             isLoading = false;
             hasError = false;
           });
+          _markLoaded();
           if (!widget.loops) {
             Future.delayed(const Duration(milliseconds: 1500), () {
               if (mounted) _finishOnce();

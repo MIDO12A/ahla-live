@@ -11,6 +11,7 @@ import '../notifications/notifications_screen.dart';
 import 'event_info_screen.dart';
 import '../user_profile/user_profile_screen.dart';
 import 'package:zero/core/dtext.dart';
+import '../../widgets/special_name_text.dart';
 
 /// Replicates [fragment_message_copy.xml] and [chat_message_info_fragment.xml]
 /// from the original decompiled app (F:\Medal\New folder\nu).
@@ -275,11 +276,13 @@ class _MessageScreenState extends State<MessageScreen>
                     } else if (rawTime != null) {
                       lastTime = DateTime.tryParse(rawTime.toString())?.millisecondsSinceEpoch ?? 0;
                     }
+                    final oCustomId = conv['other_custom_id']?.toString() ?? conv['otherCustomId']?.toString() ?? '';
                     return _buildConversationItem(
                       conversationId: convId,
                       otherUid: oUid,
                       otherName: oName,
                       otherPhotoUrl: oPhoto,
+                      otherCustomId: oCustomId,
                       lastMessage: lastMsg,
                       lastMessageTime: lastTime,
                       unread: unread,
@@ -428,6 +431,7 @@ class _MessageScreenState extends State<MessageScreen>
     required String otherUid,
     required String otherName,
     required String otherPhotoUrl,
+    String otherCustomId = '',
     required String lastMessage,
     required int lastMessageTime,
     required int unread,
@@ -507,8 +511,9 @@ class _MessageScreenState extends State<MessageScreen>
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
-                            child: DText(
-                              otherName,
+                            child: SpecialNameText(
+                              text: otherName,
+                              customId: otherCustomId,
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
@@ -711,8 +716,9 @@ class _MessageScreenState extends State<MessageScreen>
           title: Row(
             children: [
               Flexible(
-                child: DText(
-                  name,
+                child: SpecialNameText(
+                  text: name,
+                  customId: friend['custom_id']?.toString() ?? friend['customId']?.toString(),
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,

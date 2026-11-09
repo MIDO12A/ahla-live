@@ -1,4 +1,5 @@
 // lib/screens/room/widgets/sugarrush_game_dialog.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -6,9 +7,11 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../../../config/r.dart';
 import '../../../config/supabase_config.dart';
 import '../../../providers/user_provider.dart';
 import '../../../services/supabase_data_service.dart';
+import '../../wallet/wallet_main_screen.dart';
 import 'package:zero/core/dtext.dart';
 
 class SugarRushGameDialog extends StatefulWidget {
@@ -20,11 +23,19 @@ class SugarRushGameDialog extends StatefulWidget {
   });
 
   static Future<void> show(BuildContext context, {required String roomId}) {
-    return showDialog(
+    final sheetHeight = MediaQuery.of(context).size.height * 0.58;
+    return showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      useSafeArea: false,
-      builder: (_) => SugarRushGameDialog(roomId: roomId),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SizedBox(
+        height: sheetHeight,
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: SugarRushGameDialog(roomId: roomId),
+        ),
+      ),
     );
   }
 
@@ -38,6 +49,11 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
   int? _localPort;
   bool _isLoading = true;
   double _poolWinRate = 75.0;
+
+  // Room seats overlay (like the Ludo room view)
+  Timer? _seatsTimer;
+  List<Map<String, dynamic>> _seatPlayers = [];
+  bool _showSeats = false;
 
   static const String _baseUrl = SupabaseConfig.projectUrl;
   static const String _anonKey = SupabaseConfig.anonKey;
@@ -54,12 +70,57 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
     _loadPoolConfig();
     _initWebViewController();
     _startLocalServer();
+    _startSeatsPolling();
   }
 
   @override
   void dispose() {
+    _seatsTimer?.cancel();
     _localServer?.close(force: true);
     super.dispose();
+  }
+
+  void _startSeatsPolling() {
+    _seatsTimer?.cancel();
+    _refreshSeats();
+    _seatsTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshSeats());
+  }
+
+  Future<void> _refreshSeats() async {
+    try {
+      final seatMap = await SupabaseDataService().getSeats(widget.roomId);
+      if (seatMap == null || !mounted) return;
+      final players = <Map<String, dynamic>>[];
+      final entries = seatMap.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key));
+      for (final e in entries) {
+        final d = e.value;
+        final uid = d['uid']?.toString() ?? '';
+        if (uid.isEmpty || uid == 'null') continue;
+        if (d['is_locked'] == true) continue;
+        players.add({
+          'seatIndex': e.key,
+          'uid': uid,
+          'name': d['name']?.toString() ?? '',
+          'photoUrl': d['photo_url']?.toString() ?? '',
+          'isMuted': d['is_muted'] == true,
+        });
+      }
+      if (mounted) {
+        setState(() => _seatPlayers = players);
+      }
+    } catch (_) {}
+  }
+
+  void _syncCoinsToGame() {
+    if (!mounted) return;
+    final coins = Provider.of<UserProvider>(context, listen: false)
+            .currentUser
+            ?.coins ??
+        0;
+    _controller.runJavaScript(
+      'if (window.__sugarGame && window.__sugarGame.updateCoins) { window.__sugarGame.updateCoins($coins); }',
+    );
   }
 
   Future<void> _loadPoolConfig() async {
@@ -160,6 +221,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
         final queryParams = {
           'uid': playerIdStr,
           'playerId': playerIdStr,
+          'uuid': user?.uid ?? '',
           'name': userName,
           'avatar': userAvatar,
           'coins': coins.toString(),
@@ -232,7 +294,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
 
     final safeName = userName.replaceAll('"', '\\"');
     final js =
-        'if (window.__sugarGame) { window.__sugarGame.initUser("$playerIdStr", "$safeName", "$userAvatar", $coins, "${widget.roomId}", $_poolWinRate); }';
+        'if (window.__sugarGame) { window.__sugarGame.initUser("$playerIdStr", "$safeName", "$userAvatar", $coins, "${widget.roomId}", $_poolWinRate, "${user?.uid ?? ''}"); }';
 
     _controller.runJavaScript(js);
   }
@@ -244,6 +306,15 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
 
       if (action == 'close') {
         if (mounted) Navigator.of(context).pop();
+        return;
+      }
+
+      if (action == 'charge' || action == 'recharge' || action == 'openChargePage') {
+        if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const WalletMainScreen()),
+          );
+        }
         return;
       }
 
@@ -266,6 +337,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.currentUser;
     if (user == null) return;
+    if (user.coins < betAmount) return; // blocked client-side; JS already rejected the spin
 
     try {
       userProvider.deductCoinsLocally(betAmount);
@@ -291,6 +363,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
           body: jsonEncode({'updated_at': DateTime.now().toIso8601String()}),
         );
       }
+      _syncCoinsToGame();
     } catch (e) {
       debugPrint('[SugarRush] Process bet deduction error: $e');
     }
@@ -335,6 +408,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
           'created_at': DateTime.now().toIso8601String(),
         }),
       );
+      _syncCoinsToGame();
     } catch (e) {
       debugPrint('[SugarRush] Process spin outcome error: $e');
     }
@@ -342,22 +416,13 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black.withValues(alpha: 0.85),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Center(
-                child: AspectRatio(
-                  aspectRatio: 9 / 16,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: WebViewWidget(controller: _controller),
-                  ),
-                ),
-              ),
-            ),
+    return Container(
+      color: Colors.black,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: WebViewWidget(controller: _controller),
+          ),
             if (_isLoading)
               Container(
                 color: Colors.black,
@@ -391,9 +456,122 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
                 ),
               ),
             ),
+            // Room seats toggle (players on mic, like the room view)
+            Positioned(
+              top: 12,
+              left: 16,
+              child: GestureDetector(
+                onTap: () => setState(() => _showSeats = !_showSeats),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _seatPlayers.isNotEmpty
+                          ? const Color(0xFFFFD700)
+                          : Colors.white24,
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.groups, color: Colors.white, size: 16),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${_seatPlayers.length}',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (_showSeats)
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 24,
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 160),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: _seatPlayers.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: DText(
+                            'لا يوجد لاعبين على المقاعد',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: _seatPlayers.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white12),
+                          itemBuilder: (context, i) {
+                            final p = _seatPlayers[i];
+                            final photo = p['photoUrl']?.toString() ?? '';
+                            return ListTile(
+                              dense: true,
+                              leading: Stack(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: const Color(0xFF2A2040),
+                                    backgroundImage: photo.isNotEmpty ? R.cachedImage(photo) : null,
+                                    child: photo.isEmpty
+                                        ? const Icon(Icons.person, size: 16, color: Colors.white54)
+                                        : null,
+                                  ),
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: p['isMuted'] == true ? Colors.red : const Color(0xFF00E676),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.black, width: 1),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              title: DText(
+                                p['name']?.toString() ?? '',
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: DText(
+                                'مقعد ${((p['seatIndex'] as num?)?.toInt() ?? 0) + 1}',
+                                style: const TextStyle(color: Colors.white38, fontSize: 10),
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.4)),
+                                ),
+                                child: const DText(
+                                  'يلعب',
+                                  style: TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ),
           ],
         ),
-      ),
     );
   }
 }

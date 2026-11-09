@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/supabase_config.dart';
 import '../../services/supabase_data_service.dart';
 import '../../services/level_service.dart';
 
@@ -76,8 +78,65 @@ class SigninService {
     },
   ];
 
+  static List<Map<String, dynamic>>? _cachedRewards;
+  static DateTime? _rewardsFetchedAt;
+
+  /// يجلب مكافآت تسجيل الدخول من لوحة التحكم (جدول signin_rewards).
+  /// عند فشل الشبكة أو عدم وجود بيانات يعود للقيم الافتراضية.
   static Future<List<Map<String, dynamic>>> getRewards() async {
+    final cached = _cachedRewards;
+    final fetchedAt = _rewardsFetchedAt;
+    if (cached != null &&
+        fetchedAt != null &&
+        DateTime.now().difference(fetchedAt) < const Duration(seconds: 30)) {
+      return cached;
+    }
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+                '${SupabaseConfig.projectUrl}/rest/v1/signin_rewards?select=*&order=day_number.asc'),
+            headers: {
+              'apikey': SupabaseConfig.anonKey,
+              'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+            },
+          )
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body) as List;
+        final rewards = list
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .where((r) => r['is_active'] != false)
+            .map(_normalizeReward)
+            .toList();
+        if (rewards.isNotEmpty) {
+          _cachedRewards = rewards;
+          _rewardsFetchedAt = DateTime.now();
+          return rewards;
+        }
+      }
+    } catch (e) {
+      debugPrint('SigninService.getRewards fetch error: $e');
+    }
     return _defaultRewards;
+  }
+
+  static Map<String, dynamic> _normalizeReward(Map<String, dynamic> r) {
+    final dayNum = (r['day_number'] as num?)?.toInt() ??
+        (r['dayNumber'] as num?)?.toInt() ??
+        0;
+    return {
+      'day_number': dayNum,
+      'label_ar': r['label_ar']?.toString() ?? r['labelAr']?.toString() ?? 'اليوم $dayNum',
+      'label_en': r['label_en']?.toString() ?? r['labelEn']?.toString() ?? 'Day $dayNum',
+      'icon_url': r['icon_url']?.toString() ?? r['iconUrl']?.toString() ?? '',
+      'svga_url': r['svga_url']?.toString() ?? r['svgaUrl']?.toString() ?? '',
+      'value': (r['value'] as num?)?.toInt() ?? 0,
+      'value_type': r['value_type']?.toString() ?? r['valueType']?.toString() ?? 'coins',
+      'gift_id': r['gift_id']?.toString() ?? r['giftId']?.toString() ?? '',
+      'is_double': r['is_double'] == true || r['isDouble'] == true,
+      'is_active': r['is_active'] != false,
+    };
   }
 
   // ═══════════════════════════════════════════════════════
@@ -110,7 +169,7 @@ class SigninService {
 
       return <String, dynamic>{
         'week_start': weekStartStr,
-        'rewards': _defaultRewards,
+        'rewards': await getRewards(),
         'records': records,
         'weekly': weekly,
       };
@@ -176,8 +235,9 @@ class SigninService {
       }
 
       final dayNumber = (records.length + 1).clamp(1, _daysPerWeek);
+      final rewards = await getRewards();
       Map<String, dynamic>? reward;
-      for (final r in _defaultRewards) {
+      for (final r in rewards) {
         if ((r['day_number'] as num).toInt() == dayNumber) {
           reward = r;
           break;

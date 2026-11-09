@@ -8,6 +8,7 @@ import 'svga_frame.dart';
 import 'svga_player.dart';
 import '../../../services/room_audio_service.dart';
 import 'package:zero/core/dtext.dart';
+import '../../../widgets/special_name_text.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // SeatArea — fragment_mic_seat.xml
@@ -340,7 +341,7 @@ class _NormalSeat extends StatelessWidget {
           children: [
             SizedBox(
               width: 76,
-              height: 70,
+              height: 69,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -409,10 +410,11 @@ class _NormalSeat extends StatelessWidget {
                 ),
               SizedBox(
                 width: isModerator ? 48 : 56,
-                child: DText(
-                  hasUser
+                child: SpecialNameText(
+                  text: hasUser
                       ? ((name == 'الكابتن' || name == 'الكابت' || name == 'كابتن' || name.trim().isEmpty) ? '${seat.index + 1}' : name)
                       : '${seat.index + 1}',
+                  customId: user?.customId,
                   style: const TextStyle(fontSize: 11, color: Colors.white),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

@@ -8,6 +8,7 @@ window.__useBridgeSocket = true;
 window.__sugarGame = {
   userCoins: 100000,
   userId: '10001',
+  userUuid: '',
   userName: 'Player',
   userAvatar: '',
   roomId: '1',
@@ -15,8 +16,8 @@ window.__sugarGame = {
   poolBalance: 5000000,
   maxMultiplier: 10,
   chips: [100, 500, 1000, 5000],
-  
-  initUser: function(id, name, avatar, coins, roomId, winRate) {
+
+  initUser: function(id, name, avatar, coins, roomId, winRate, uuid) {
     if (id) {
       var n = parseInt(id, 10);
       this.userId = (!isNaN(n) && n > 0) ? String(n) : '10001';
@@ -26,6 +27,7 @@ window.__sugarGame = {
     if (coins !== undefined && coins !== null) this.userCoins = Number(coins);
     if (roomId) this.roomId = String(roomId);
     if (winRate !== undefined && winRate !== null) this.winRate = Number(winRate);
+    if (uuid) this.userUuid = String(uuid);
     console.log('[SugarGame] Initialized user:', this.userId, this.userName, 'Coins:', this.userCoins);
   },
 
@@ -53,6 +55,8 @@ try {
   if (qName) window.__sugarGame.userName = qName;
   var qAvatar = urlParams.get('avatar');
   if (qAvatar) window.__sugarGame.userAvatar = qAvatar;
+  var qUuid = urlParams.get('uuid');
+  if (qUuid) window.__sugarGame.userUuid = qUuid;
 } catch(e) {}
 
 // ============================================================
@@ -112,6 +116,63 @@ function syncUserData(uid) {
     })
     .catch(function(err) {
       console.warn('[SugarGame] Could not sync user data:', err);
+    });
+}
+
+// ── Game records & ranking backed by Supabase game_bet_records ──
+function fetchMyBetRecords(limit, cb) {
+  var uid = window.__sugarGame.userUuid || '';
+  if (!uid) { cb([]); return; }
+  var path = '/rest/v1/game_bet_records?game_id=eq.sugarrush&user_id=eq.' +
+    encodeURIComponent(uid) +
+    '&order=created_at.desc&limit=' + (limit || 20) +
+    '&select=bet_amount,win_amount,created_at';
+  supabaseRequest(path)
+    .then(function(rows) { cb(Array.isArray(rows) ? rows : []); })
+    .catch(function(err) {
+      console.warn('[SugarGame] fetchMyBetRecords error:', err);
+      cb([]);
+    });
+}
+
+function fetchTopPlayers(cb) {
+  // Recent bets across all users → aggregate total win per user → top 10
+  supabaseRequest('/rest/v1/game_bet_records?game_id=eq.sugarrush&select=user_id,user_name,win_amount&order=created_at.desc&limit=2000')
+    .then(function(rows) {
+      if (!Array.isArray(rows) || rows.length === 0) { cb([]); return; }
+      var agg = {};
+      var order = [];
+      rows.forEach(function(r) {
+        var uid = r.user_id || '';
+        if (!uid) return;
+        if (!agg[uid]) {
+          agg[uid] = { uid: uid, name: r.user_name || 'Player', win: 0 };
+          order.push(uid);
+        }
+        agg[uid].win += Number(r.win_amount) || 0;
+      });
+      var sorted = order.map(function(u) { return agg[u]; })
+        .sort(function(a, b) { return b.win - a.win; })
+        .slice(0, 10);
+
+      // Resolve avatars from users table
+      var uids = sorted.map(function(p) { return p.uid; });
+      if (uids.length === 0) { cb(sorted); return; }
+      var inFilter = uids.map(encodeURIComponent).join(',');
+      supabaseRequest('/rest/v1/users?uid=in.(' + inFilter + ')&select=uid,photo_url')
+        .then(function(users) {
+          var photoMap = {};
+          if (Array.isArray(users)) {
+            users.forEach(function(u) { photoMap[u.uid] = u.photo_url || ''; });
+          }
+          sorted.forEach(function(p) { p.photo = photoMap[p.uid] || ''; });
+          cb(sorted);
+        })
+        .catch(function() { cb(sorted); });
+    })
+    .catch(function(err) {
+      console.warn('[SugarGame] fetchTopPlayers error:', err);
+      cb([]);
     });
 }
 
@@ -364,32 +425,62 @@ window.__BridgeWebSocket.prototype._handlePacket = function(header, protoBytes) 
     return;
   }
 
-  // 5. GETRECORD
+  // 5. GETRECORD — real per-user bet history from game_bet_records
   if (header.includes('RECORD') || header.includes('getRecord')) {
-    setTimeout(function() {
-      var res = new root.game.s_c_getRecord({
-        code: 0,
-        desc: 'success',
-        recordData: []
-      });
-      var body = root.game.s_c_getRecord.encode(res).finish();
-      self._sendPacket('.game.s_c_getRecord', body);
-    }, 50);
+    fetchMyBetRecords(20, function(rows) {
+      try {
+        var records = rows.map(function(r) {
+          var win = Number(r.win_amount) || 0;
+          var ts = 0;
+          if (r.created_at) {
+            var d = new Date(r.created_at);
+            if (!isNaN(d.getTime())) ts = Math.floor(d.getTime() / 1000);
+          }
+          return new root.game.recordStruct({
+            time: ts,
+            betMoney: Number(r.bet_amount) || 0,
+            symbolWinList: win > 0
+              ? [new root.game.betStruct({ icon: 1, money: win })]
+              : []
+          });
+        });
+        var res = new root.game.s_c_getRecord({
+          code: 0,
+          desc: 'success',
+          recordData: records
+        });
+        var body = root.game.s_c_getRecord.encode(res).finish();
+        self._sendPacket('.game.s_c_getRecord', body);
+      } catch(e) {
+        console.error('[BridgeWebSocket] getRecord encode error:', e);
+      }
+    });
     return;
   }
 
-  // 6. GETRANKDATA
+  // 6. GETRANKDATA — real top winners leaderboard
   if (header.includes('RANK') || header.includes('getRankData')) {
-    setTimeout(function() {
-      var res = new root.game.s_c_getRankData({
-        code: 0,
-        desc: 'success',
-        rankData: [],
-        tipType: 0
-      });
-      var body = root.game.s_c_getRankData.encode(res).finish();
-      self._sendPacket('.game.s_c_getRankData', body);
-    }, 50);
+    fetchTopPlayers(function(players) {
+      try {
+        var rankData = players.map(function(p) {
+          return new root.game.rankStruct({
+            name: p.name || 'Player',
+            head: p.photo || '',
+            winMoney: Number(p.win) || 0
+          });
+        });
+        var res = new root.game.s_c_getRankData({
+          code: 0,
+          desc: 'success',
+          rankData: rankData,
+          tipType: 0
+        });
+        var body = root.game.s_c_getRankData.encode(res).finish();
+        self._sendPacket('.game.s_c_getRankData', body);
+      } catch(e) {
+        console.error('[BridgeWebSocket] getRankData encode error:', e);
+      }
+    });
     return;
   }
 
@@ -398,6 +489,29 @@ window.__BridgeWebSocket.prototype._handlePacket = function(header, protoBytes) 
     var req = root.game.c_s_bet.decode(protoBytes);
     var betAmount = req.betMoney || 100;
     console.log('[BridgeWebSocket] User Bet Amount:', betAmount);
+
+    // Insufficient balance → block the spin and open the recharge page
+    if ((window.__sugarGame.userCoins || 0) < betAmount) {
+      console.log('[BridgeWebSocket] Insufficient coins:', window.__sugarGame.userCoins, '<', betAmount);
+      if (window.androidJsObj && window.androidJsObj.openChargePage) {
+        try { window.androidJsObj.openChargePage(); } catch(e) {}
+      }
+      if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+        window.FlutterBridge.postMessage(JSON.stringify({ action: 'charge' }));
+      }
+      setTimeout(function() {
+        var res = new root.game.s_c_bet({
+          code: 1,
+          desc: 'insufficient coins',
+          tipType: 0,
+          money: Number(window.__sugarGame.userCoins) || 0,
+          symbols: []
+        });
+        var body = root.game.s_c_bet.encode(res).finish();
+        self._sendPacket('.game.s_c_bet', body);
+      }, 50);
+      return;
+    }
 
     if (window.FlutterBridge && window.FlutterBridge.postMessage) {
       window.FlutterBridge.postMessage(JSON.stringify({

@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/supabase_service.dart';
 import '../services/supabase_data_service.dart';
 import '../services/room_audio_service.dart';
+import '../services/network_watchdog_service.dart';
 
 /// Global service to track minimized room state and keep audio/seat presence active
 class MinimizedRoomService extends ChangeNotifier {
@@ -23,6 +26,8 @@ class MinimizedRoomService extends ChangeNotifier {
   bool _isOnSeat = false;
   bool _isMicMuted = false;
   Timer? _presencePingTimer;
+  StreamSubscription? _kickSub;
+  DateTime? _activatedAt;
 
   bool get isActive => _isActive;
   String? get roomId => _roomId;
@@ -68,7 +73,51 @@ class MinimizedRoomService extends ChangeNotifier {
 
     // Start background presence ping so zombie cleaner never removes minimized user
     _startPresencePing();
+    _activatedAt = DateTime.now();
+    _startKickWatcher();
+    NetworkWatchdogService().start(onOffline: _handleOfflineTimeout);
     notifyListeners();
+  }
+
+  void _startKickWatcher() {
+    _kickSub?.cancel();
+    final uid = _userId;
+    if (uid == null || uid.isEmpty) return;
+    final since = _activatedAt ?? DateTime.now();
+    _kickSub = SupabaseService()
+        .notificationsStream(uid: uid)
+        .listen((notifications) {
+      if (!_isActive) return;
+      for (final n in notifications) {
+        if (n.type != 'room_kick') continue;
+        final rid = n.data?['room_id']?.toString();
+        if (rid != _roomId) continue;
+        if (n.createdAt.isBefore(since.subtract(const Duration(seconds: 20)))) {
+          continue;
+        }
+        final targetUid = _userId;
+        if (targetUid != null) {
+          unawaited(exitRoom(targetUid));
+        }
+        return;
+      }
+    });
+  }
+
+  Future<void> _handleOfflineTimeout() async {
+    final uid = _userId;
+    if (uid != null && uid.isNotEmpty) {
+      await exitRoom(uid);
+    } else {
+      deactivate();
+    }
+    try {
+      await SystemNavigator.pop();
+    } catch (_) {}
+    if (Platform.isAndroid) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      exit(0);
+    }
   }
 
   void _startPresencePing() {
@@ -106,6 +155,9 @@ class MinimizedRoomService extends ChangeNotifier {
   void deactivate() {
     _presencePingTimer?.cancel();
     _presencePingTimer = null;
+    _kickSub?.cancel();
+    _kickSub = null;
+    NetworkWatchdogService().stop();
     _isActive = false;
     _roomId = null;
     _roomName = null;

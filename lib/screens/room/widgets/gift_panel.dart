@@ -14,6 +14,7 @@ import '../../wallet/wallet_main_screen.dart';
 import 'svga_player.dart';
 import 'vap_player.dart';
 import 'package:zero/core/dtext.dart';
+import '../../../widgets/special_name_text.dart';
 
 class GiftPanel extends StatefulWidget {
   final int selectedCount;
@@ -175,12 +176,12 @@ class _GiftPanelState extends State<GiftPanel> {
     final fb = SupabaseService();
     // Instant initial load from Supabase directly
     SupabaseDataService().getGiftCategories().then((cats) {
-      if (mounted && cats.isNotEmpty) {
+      if (mounted) {
         final filteredCats = cats.where((c) => c.id.toLowerCase() != 'all').toList();
         setState(() {
           _categories = filteredCats;
           if (_selectedCategoryId == null || _selectedCategoryId == 'all') {
-            _selectedCategoryId = filteredCats.isNotEmpty ? filteredCats.first.id : 'normal';
+            _selectedCategoryId = filteredCats.isNotEmpty ? filteredCats.first.id : null;
           }
         });
       }
@@ -203,7 +204,7 @@ class _GiftPanelState extends State<GiftPanel> {
         setState(() {
           _categories = filteredCats;
           if (_selectedCategoryId == null || _selectedCategoryId == 'all') {
-            _selectedCategoryId = filteredCats.isNotEmpty ? filteredCats.first.id : 'normal';
+            _selectedCategoryId = filteredCats.isNotEmpty ? filteredCats.first.id : null;
           }
         });
       }
@@ -224,26 +225,15 @@ class _GiftPanelState extends State<GiftPanel> {
   }
 
   List<gm.GiftModel> _getGiftsForCategory(String? categoryId) {
-    if (categoryId == null || categoryId == 'all') {
+    if (categoryId == null ||
+        categoryId.isEmpty ||
+        categoryId.toLowerCase() == 'all') {
       return _gifts;
     }
     final sel = categoryId.toLowerCase();
-    if (sel == 'backpack' || sel.contains('حقيبة')) {
-      return _gifts.where((g) => g.packageCount > 0 || g.giftType == 4 || g.categoryId == 'backpack' || (g.categoryId?.toLowerCase().contains('حقيبة') ?? false)).toList();
-    }
-    if (sel == 'lucky') {
-      return _gifts.where((g) => g.isLucky || g.giftType == 3 || g.categoryId == 'lucky' || (g.categoryId?.toLowerCase().contains('حظ') ?? false)).toList();
-    }
-    if (sel == 'luxury' || sel == 'vip') {
-      return _gifts.where((g) => g.isVap || g.bigEffect || g.giftType == 2 || g.categoryId == 'vip' || g.categoryId == 'luxury' || (g.categoryId?.toLowerCase().contains('فاخر') ?? false)).toList();
-    }
-    if (sel == 'cp') {
-      return _gifts.where((g) => g.isCpGift || g.giftType == 5 || g.categoryId == 'cp' || (g.categoryId?.toLowerCase().contains('ارتباط') ?? false)).toList();
-    }
-    if (sel == 'normal' || sel == 'popular') {
-      return _gifts.where((g) => (g.giftType == 1 && !g.isLucky && !g.isCpGift) || g.categoryId == null || g.categoryId!.isEmpty || g.categoryId == 'normal' || g.categoryId == 'popular' || (g.categoryId?.toLowerCase().contains('شائع') ?? false) || (g.categoryId?.toLowerCase().contains('عادي') ?? false)).toList();
-    }
-    return _gifts.where((g) => g.categoryId == categoryId || (g.categoryId != null && (g.categoryId!.toLowerCase() == sel || g.categoryId!.contains(categoryId)))).toList();
+    return _gifts
+        .where((g) => (g.categoryId ?? '').toLowerCase() == sel)
+        .toList();
   }
 
   List<gm.GiftModel> get _filteredGifts => _getGiftsForCategory(_selectedCategoryId);
@@ -266,25 +256,10 @@ class _GiftPanelState extends State<GiftPanel> {
   }
 
   List<GiftCategory> _getAllTabs(bool isAr) {
-    final List<GiftCategory> tabs = [];
-    if (_categories.isNotEmpty) {
-      final sorted = List<GiftCategory>.from(_categories)..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      for (final c in sorted) {
-        if (c.id.toLowerCase() == 'all') continue;
-        tabs.add(c);
-      }
-      if (!tabs.any((t) => t.id.toLowerCase() == 'backpack' || t.name.toLowerCase().contains('حقيبة'))) {
-        tabs.add(GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 999));
-      }
-    } else {
-      tabs.addAll([
-        GiftCategory(id: 'normal', name: isAr ? 'شائع' : 'Popular', sortOrder: 1),
-        GiftCategory(id: 'luxury', name: isAr ? '👑 فاخر' : '👑 Luxury', sortOrder: 2),
-        GiftCategory(id: 'lucky', name: isAr ? '🍀 الحظ' : '🍀 Lucky', sortOrder: 3),
-        GiftCategory(id: 'cp', name: isAr ? '💍 الارتباط' : '💍 CP', sortOrder: 4),
-        GiftCategory(id: 'backpack', name: isAr ? '🎒 الحقيبة' : '🎒 Backpack', sortOrder: 5),
-      ]);
-    }
+    final tabs = _categories
+        .where((c) => c.id.toLowerCase() != 'all')
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     return tabs;
   }
 
@@ -293,10 +268,11 @@ class _GiftPanelState extends State<GiftPanel> {
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     final dc = DynamicConfigService();
     final allTabs = _getAllTabs(isAr);
-    if (allTabs.isNotEmpty &&
-        (_selectedCategoryId == null ||
-            _selectedCategoryId == 'all' ||
-            !allTabs.any((c) => c.id == _selectedCategoryId))) {
+    if (allTabs.isEmpty) {
+      _selectedCategoryId = null;
+    } else if (_selectedCategoryId == null ||
+        _selectedCategoryId == 'all' ||
+        !allTabs.any((c) => c.id == _selectedCategoryId)) {
       _selectedCategoryId = allTabs.first.id;
     }
     // Auto-select first gift if none selected
@@ -609,8 +585,9 @@ class _GiftPanelState extends State<GiftPanel> {
             const SizedBox(height: 2),
             SizedBox(
               width: 38,
-              child: DText(
-                u['name']?.toString() ?? '',
+              child: SpecialNameText(
+                text: u['name']?.toString() ?? '',
+                customId: u['customId']?.toString() ?? u['custom_id']?.toString(),
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: selected ? FontWeight.bold : FontWeight.normal,
@@ -960,6 +937,7 @@ class _GiftPanelState extends State<GiftPanel> {
     }
 
     setState(() => _sending = true);
+    widget.onSend?.call();
 
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final currentUser = userProvider.currentUser;
@@ -970,9 +948,6 @@ class _GiftPanelState extends State<GiftPanel> {
     final fb = SupabaseService();
     final stepCount = widget.selectedCount > 0 ? widget.selectedCount : 1;
 
-    if (!isLuckyGift && _comboSeconds <= 0 && widget.onSend != null) {
-      widget.onSend!();
-    }
     final anim = gift.animationAsset;
     final defImg = gift.defaultImage;
     final effectiveAsset = (anim != null && anim.isNotEmpty) ? anim : gift.iconAsset;
@@ -1288,7 +1263,6 @@ class _GiftPanelState extends State<GiftPanel> {
     final currUser = Provider.of<UserProvider>(context).currentUser;
     final liveCoins = currUser != null ? currUser.coins : widget.coins;
     final canAfford = liveCoins >= totalCost && totalCost > 0;
-    final double comboProgress = _comboRemainingMs > 0 ? (_comboRemainingMs / 10000.0).clamp(0.0, 1.0) : 0.0;
 
     return Container(
       height: 52,
@@ -1335,10 +1309,10 @@ class _GiftPanelState extends State<GiftPanel> {
                       const SizedBox(width: 4),
                       DText(
                         R.formatCoinsFraction(liveCoins),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
-                          color: canAfford ? dc.giftPanelCoinsTextColor : Colors.redAccent,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(width: 2),
@@ -1350,123 +1324,7 @@ class _GiftPanelState extends State<GiftPanel> {
 
               const Spacer(),
 
-              // Right: Combo Button or Count + Send Buttons
-              if (_comboSeconds > 0)
-                // Authentic Combo Button matching room_gift_combo_button.xml
-                GestureDetector(
-                  onTap: () {
-                    if (!canAfford) {
-                      _comboTimer?.cancel();
-                      setState(() {
-                        _comboSeconds = 0;
-                        _comboMultiplier = 0;
-                        _comboRemainingMs = 0;
-                      });
-                      _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: liveCoins);
-                      return;
-                    }
-                    _sendGift();
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: SizedBox(
-                    width: 106,
-                    height: 50,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        // Top timer row: clock icon (iv_time) + RoundedProgressBar
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: Row(
-                            children: [
-                              Image.asset(
-                                'assets/images/room_gift_combo_time_ic.webp',
-                                width: 18,
-                                height: 18,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.access_time, size: 14, color: Color(0xFFFFFED3)),
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Container(
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFAE62),
-                                    borderRadius: BorderRadius.circular(30),
-                                    border: Border.all(color: const Color(0xFFFFFED3), width: 1.5),
-                                  ),
-                                  child: FractionallySizedBox(
-                                    alignment: Alignment.centerLeft,
-                                    widthFactor: comboProgress,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF3FD902),
-                                        borderRadius: BorderRadius.circular(30),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Bottom combo button (btn_combo 106x34dp)
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: Container(
-                            height: 32,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              image: DecorationImage(
-                                image: AssetImage(
-                                  _sending
-                                      ? 'assets/images/room_gift_combo_lucky_pre.webp'
-                                      : 'assets/images/room_gift_combo_lucky_nor.webp',
-                                ),
-                                fit: BoxFit.fill,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (gift != null) ...[
-                                  R.loadImage(
-                                    gift.iconAsset.isNotEmpty ? gift.iconAsset : (gift.defaultImage ?? ''),
-                                    width: 20,
-                                    height: 20,
-                                    fit: BoxFit.contain,
-                                  ),
-                                  const SizedBox(width: 4),
-                                ],
-                                DText(
-                                  'x$_comboMultiplier',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    shadows: [
-                                      Shadow(
-                                        color: Color(0xFFBC0C1A),
-                                        offset: Offset(1, 1),
-                                        blurRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                // Normal Count + Send (tv_gift_num + tv_gift_send from layout_gift_panel_bottom_operate.xml)
+              // Right: Count + Send (single combo button lives on the room screen)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1478,39 +1336,68 @@ class _GiftPanelState extends State<GiftPanel> {
                         height: 30,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: dc.giftPanelCountBtnImage.isEmpty ? dc.giftPanelCountBtnBgColor : null,
-                          image: dc.giftPanelCountBtnImage.isNotEmpty
-                              ? DecorationImage(
-                                  image: R.cachedImage(dc.giftPanelCountBtnImage),
-                                  fit: BoxFit.contain,
-                                )
+                          color: dc.giftPanelCountBtnImage.isEmpty
+                              ? dc.giftPanelCountBtnBgColor
                               : null,
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(8),
                             bottomLeft: Radius.circular(8),
                           ),
                         ),
-                        child: dc.giftPanelCountBtnImage.isNotEmpty
-                            ? const SizedBox.shrink()
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  DText(
-                                    '${widget.selectedCount}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: dc.giftPanelCountBtnTextColor,
-                                      fontWeight: FontWeight.bold,
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(8),
+                            bottomLeft: Radius.circular(8),
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              if (dc.giftPanelCountBtnImage.isNotEmpty)
+                                Image(
+                                  image: R.cachedImage(dc.giftPanelCountBtnImage),
+                                  fit: BoxFit.fill,
+                                )
+                              else
+                                Image.asset(
+                                  R.checkinDialogConfirmBigBtn,
+                                  fit: BoxFit.fill,
+                                  errorBuilder: (_, __, ___) =>
+                                      const SizedBox.shrink(),
+                                ),
+                              Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    DText(
+                                      '${widget.selectedCount}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: dc.giftPanelCountBtnImage
+                                                .isNotEmpty
+                                            ? dc.giftPanelCountBtnTextColor
+                                            : Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        shadows: const [
+                                          Shadow(
+                                            color: Colors.black54,
+                                            offset: Offset(1, 1),
+                                            blurRadius: 2,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  R.image(
-                                    R.roomGiftNumOpenIc,
-                                    width: 10,
-                                    height: 10,
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    R.image(
+                                      R.roomGiftNumOpenIc,
+                                      width: 10,
+                                      height: 10,
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                     // Send button (tv_gift_send 72x30dp)
@@ -1536,36 +1423,53 @@ class _GiftPanelState extends State<GiftPanel> {
                                       colors: [Color(0xFF666666), Color(0xFF444444)],
                                     ))
                               : null,
-                          image: dc.giftPanelSendBtnImage.isNotEmpty
-                              ? DecorationImage(
-                                  image: R.cachedImage(dc.giftPanelSendBtnImage),
-                                  fit: BoxFit.contain,
-                                )
-                              : null,
                           borderRadius: const BorderRadius.only(
                             topRight: Radius.circular(8),
                             bottomRight: Radius.circular(8),
                           ),
                         ),
-                        child: _sending
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : (dc.giftPanelSendBtnImage.isNotEmpty
-                                ? const SizedBox.shrink()
-                                : DText(
-                                    'إرسال',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: dc.giftPanelSendBtnTextColor,
-                                      fontWeight: FontWeight.bold,
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.only(
+                            topRight: Radius.circular(8),
+                            bottomRight: Radius.circular(8),
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              if (dc.giftPanelSendBtnImage.isNotEmpty)
+                                Image(
+                                  image: R.cachedImage(dc.giftPanelSendBtnImage),
+                                  fit: BoxFit.fill,
+                                )
+                              else
+                                Image.asset(
+                                  R.checkinDialogConfirmBigBtn,
+                                  fit: BoxFit.fill,
+                                  errorBuilder: (_, __, ___) => Center(
+                                    child: DText(
+                                      'إرسال',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: dc.giftPanelSendBtnTextColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  )),
+                                  ),
+                                ),
+                              if (_sending)
+                                const Center(
+                                  child: SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],

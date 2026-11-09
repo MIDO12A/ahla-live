@@ -5,6 +5,7 @@ import '../../../../services/room_cup_service.dart';
 import '../../../../config/r.dart';
 import '../../user_profile/user_profile_screen.dart';
 import 'package:zero/core/dtext.dart';
+import '../../../../widgets/special_name_text.dart';
 
 class RoomRankBottomSheet extends StatefulWidget {
   final String roomId;
@@ -351,8 +352,9 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Name
-                    DText(
-                      name,
+                    SpecialNameText(
+                      text: name,
+                      customId: customId,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: isCenter ? 13 : 11,
@@ -498,8 +500,9 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                 Row(
                   children: [
                     Flexible(
-                      child: DText(
-                        name,
+                      child: SpecialNameText(
+                        text: name,
+                        customId: customId,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 14,

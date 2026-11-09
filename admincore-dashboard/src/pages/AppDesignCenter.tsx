@@ -1398,6 +1398,24 @@ export default function AppDesignCenter() {
                 })}
 
                 {renderDualField({
+                  id: 'profileInviteCard',
+                  category: 'profile',
+                  screen: 'profile',
+                  labelAr: 'كارت كود الدعوة في شاشة أنا',
+                  labelEn: 'Profile Invite Code Card',
+                  hasText: true,
+                  textKey: 'inviteTitle',
+                  defaultText: 'كود الدعوة',
+                  hasColor: true,
+                  colorKey: 'profileInviteCardBg',
+                  defaultColor: '#ECFDF5',
+                  hasImage: true,
+                  imageKey: 'profileInviteCardBgImage',
+                  hasIcon: true,
+                  iconKey: 'inviteIcon',
+                })}
+
+                {renderDualField({
                   id: 'profileStoreBackpackCard',
                   category: 'profile',
                   screen: 'profile',
@@ -1718,6 +1736,68 @@ export default function AppDesignCenter() {
                   defaultTextColor: '#FFFFFF',
                   hasImage: true,
                   imageKey: 'gameIconImage',
+                })}
+
+                {/* ── Game Center (صندوق الألعاب) ── */}
+                {renderDualField({
+                  id: 'gameCenterBg',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'خلفية صندوق الألعاب',
+                  labelEn: 'Game Center Background',
+                  hasImage: true,
+                  imageKey: 'gameCenterBgImage',
+                  imageHint: 'room_game_bg.webp',
+                })}
+                {renderDualField({
+                  id: 'gameCenterTopBg',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'شريط صندوق الألعاب العلوي',
+                  labelEn: 'Game Center Top Bar',
+                  hasImage: true,
+                  imageKey: 'gameCenterTopBgImage',
+                  imageHint: 'room_game_top_bg.webp',
+                })}
+                {renderDualField({
+                  id: 'gameCenterTitle',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'عنوان صندوق الألعاب',
+                  labelEn: 'Game Center Title',
+                  hasImage: true,
+                  imageKey: 'gameCenterTitleImage',
+                  imageHint: 'room_game_title_ic.webp',
+                })}
+                {renderDualField({
+                  id: 'gameCenterClose',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'زر إغلاق صندوق الألعاب',
+                  labelEn: 'Game Center Close Button',
+                  hasImage: true,
+                  imageKey: 'gameCenterCloseImage',
+                  imageHint: 'room_game_close_ic.webp',
+                })}
+                {renderDualField({
+                  id: 'gameCenterBroadcastBg',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'خلفية شريط الإذاعة بصندوق الألعاب',
+                  labelEn: 'Game Center Broadcast Bar',
+                  hasImage: true,
+                  imageKey: 'gameCenterBroadcastBgImage',
+                  imageHint: 'room_game_broadcast_bg.webp',
+                })}
+                {renderDualField({
+                  id: 'gameCenterBroadcastIcon',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'أيقونة شريط الإذاعة',
+                  labelEn: 'Game Center Broadcast Icon',
+                  hasImage: true,
+                  imageKey: 'gameCenterBroadcastIconImage',
+                  imageHint: 'room_game_broadcast_ic.webp',
                 })}
               </div>
             </div>

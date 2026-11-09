@@ -143,6 +143,20 @@ class DynamicConfigService extends ChangeNotifier {
   // Icon overrides: { "Icons.close": "https://cloudinary.url/close.svga", ... }
   Map<String, String> _iconOverrides = {};
 
+  /// ألوان/تدرجات أسماء الآيديهات المميزة (تُدار من لوحة التحكم).
+  List<Map<String, dynamic>> get idColors {
+    dynamic raw = _rawConfig['idColors'] ?? _rawConfig['id_colors'];
+    if (raw is String) {
+      final parsed = _tryParseJson(raw);
+      if (parsed != null) raw = parsed;
+    }
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
   // Ranking screen config
   String get globalRankBg => _screenStr('rank', 'bgImage', '');
   String get globalRank1Frame => _screenStr('rank', 'rank1Frame', '');
@@ -887,6 +901,55 @@ class DynamicConfigService extends ChangeNotifier {
   String get profileNecklacesTitle =>
       _screenStr('profile', 'necklacesTitle', 'القلادات');
 
+  String get profileInviteIcon => _screenStr(
+      'profile',
+      'inviteIcon',
+      _assetsOverride['assets/mipmap-xxhdpi/union_sub_agent_invite_ic.webp'] ??
+          _assetsOverride['union_sub_agent_invite_ic'] ??
+          'assets/mipmap-xxhdpi/union_sub_agent_invite_ic.webp');
+  String get profileInviteTitle =>
+      _screenStr('profile', 'inviteTitle', 'كود الدعوة');
+  String get inviteWebUrl =>
+      _screenStr('invite', 'webUrl', 'https://zero-invite.vercel.app/#/invite-register');
+
+  // ── Invite screen theme (app_config.invite_settings.screen) ──
+  Map<String, dynamic> get _inviteSettings {
+    final raw = _rawConfig['invite_settings'];
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    if (raw is String) {
+      final p = _tryParseJson(raw);
+      if (p is Map) return Map<String, dynamic>.from(p);
+    }
+    return const {};
+  }
+
+  Map<String, dynamic> get _inviteScreenCfg {
+    final s = _inviteSettings['screen'];
+    if (s is Map) return Map<String, dynamic>.from(s);
+    return const {};
+  }
+
+  /// خلفية شاشة كود الدعوة (رابط خارجي أو فاضي = الصورة المحلية)
+  String get inviteScreenBgImage =>
+      _inviteScreenCfg['bg_image']?.toString().trim() ?? '';
+  Color get inviteScreenPrimaryColor => _parseColor(
+      _inviteScreenCfg['primary_color']?.toString() ?? '',
+      const Color(0xFF0B3D2E));
+  String get inviteScreenTitle =>
+      _inviteScreenCfg['title']?.toString().trim().isNotEmpty == true
+          ? _inviteScreenCfg['title'].toString().trim()
+          : 'كود الدعوة';
+
+  /// مكافآت الدعوة المعروضة في شاشة كود الدعوة
+  Map<String, dynamic> get inviteInviterReward =>
+      _inviteSettings['inviter_reward'] is Map
+          ? Map<String, dynamic>.from(_inviteSettings['inviter_reward'] as Map)
+          : const {};
+  Map<String, dynamic> get inviteInviteeReward =>
+      _inviteSettings['invitee_reward'] is Map
+          ? Map<String, dynamic>.from(_inviteSettings['invitee_reward'] as Map)
+          : const {};
+
   // Getters
   String get appName => _appName;
   String get logoUrl => _logoUrl;
@@ -1106,6 +1169,47 @@ class DynamicConfigService extends ChangeNotifier {
   // Global images getter
   String? getGlobalImage(String key) => _globalImages[key];
 
+  /// Collects every remote media URL referenced by the dashboard config and
+  /// app_assets, so the media prefetch layer can warm them up at startup and
+  /// invalidate the cached copy when the URL changes.
+  Set<String> collectRemoteMediaUrls() {
+    final urls = <String>{};
+    void add(dynamic value) {
+      if (value is String) {
+        final v = value.trim();
+        if (v.startsWith('http://') || v.startsWith('https://')) urls.add(v);
+      }
+    }
+
+    for (final asset in _appAssets.values) {
+      add(asset.remoteUrl);
+    }
+    for (final value in _globalImages.values) {
+      add(value);
+    }
+    for (final value in _assetsOverride.values) {
+      add(value);
+    }
+
+    void walk(dynamic node) {
+      if (node is String) {
+        add(node);
+      } else if (node is Map) {
+        for (final value in node.values) {
+          walk(value);
+        }
+      } else if (node is Iterable) {
+        for (final value in node) {
+          walk(value);
+        }
+      }
+    }
+
+    walk(_rawConfig);
+    walk(_screenVisuals);
+    return urls;
+  }
+
   // Chat bubble color getters
   Color get chatBubbleSelf => _chatBubbleSelf;
   Color get chatBubbleOther => _chatBubbleOther;
@@ -1224,6 +1328,18 @@ class DynamicConfigService extends ChangeNotifier {
   Color get roomGameBarDescColor =>
       _screenColor('room', 'gameBarDescColor', const Color(0x80FFFFFF));
   String get roomGameIcon => _screenStr('room', 'gameIconImage', '');
+  // صندوق الألعاب (Game Center bottom sheet) — صور قابلة للتخصيص من اللوحة
+  String get gameCenterBgImage => _screenStr('room', 'gameCenterBgImage', '');
+  String get gameCenterTopBgImage =>
+      _screenStr('room', 'gameCenterTopBgImage', '');
+  String get gameCenterTitleImage =>
+      _screenStr('room', 'gameCenterTitleImage', '');
+  String get gameCenterCloseImage =>
+      _screenStr('room', 'gameCenterCloseImage', '');
+  String get gameCenterBroadcastBgImage =>
+      _screenStr('room', 'gameCenterBroadcastBgImage', '');
+  String get gameCenterBroadcastIconImage =>
+      _screenStr('room', 'gameCenterBroadcastIconImage', '');
   String get roomExitIcon => _screenStr('room', 'exitIconImage', '');
   String get roomOnlineCapsuleBg =>
       _screenStr('room', 'onlineCapsuleBgImage', '');
@@ -1320,6 +1436,8 @@ class DynamicConfigService extends ChangeNotifier {
       _screenColor('discover', 'cardBgColor', const Color(0xFFF7F7F8));
   Color get discoverFollowCardBgColor =>
       _screenColor('discover', 'followCardBgColor', const Color(0x59000000));
+  String get discoverFollowCardBgImage =>
+      _screenStr('discover', 'followCardBgImage', '');
   Color get discoverFollowCardBorderColor => _screenColor(
       'discover', 'followCardBorderColor', const Color(0x33FFFFFF));
   Color get discoverFollowCardBtnColor =>
@@ -2548,6 +2666,27 @@ class DynamicConfigService extends ChangeNotifier {
   /// هل يتم الإصدار تلقائياً عند حلول الموعد؟
   bool get agencyCommissionAutoRelease =>
       (agencyCommissionCycle['auto_release'] as bool?) ?? false;
+
+  /// نصوص بطاقة صرف عمولة الوكيل داخل التطبيق (قابلة للتعديل من اللوحة).
+  /// app_config['agency_commission_labels'] = {"title": "...", "subtitle": "..."}
+  Map<String, String> get agencyCommissionLabels {
+    Map<String, dynamic> map = {};
+    final raw = _rawConfig['agency_commission_labels'];
+    if (raw is Map) {
+      map = Map<String, dynamic>.from(raw);
+    } else if (raw is String && raw.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) map = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
+    return {
+      'title': (map['title']?.toString().trim().isNotEmpty ?? false)
+          ? map['title'].toString().trim()
+          : 'صرف عمولة الوكيل',
+      'subtitle': map['subtitle']?.toString().trim() ?? '',
+    };
+  }
 
   /// نسبة راتب المضيف من الكوينز المستلمة (%)
   /// القيمة الافتراضية 100.0 (أي 100% كاملة)

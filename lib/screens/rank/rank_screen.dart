@@ -9,6 +9,7 @@ import '../../config/r.dart';
 import '../user_profile/user_profile_screen.dart';
 import '../room/room_screen.dart';
 import 'package:zero/core/dtext.dart';
+import '../../widgets/special_name_text.dart';
 
 enum _RankPeriod { daily, weekly, monthly }
 
@@ -538,8 +539,9 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                 width: width - 10,
                 child: Column(
                   children: [
-                    DText(
-                      item['name']?.toString() ?? '',
+                    SpecialNameText(
+                      text: item['name']?.toString() ?? '',
+                      customId: item['custom_id']?.toString() ?? item['display_id']?.toString(),
                       style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -727,8 +729,9 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DText(
-                        item['name']?.toString() ?? '',
+                      SpecialNameText(
+                        text: item['name']?.toString() ?? '',
+                        customId: item['custom_id']?.toString() ?? item['display_id']?.toString(),
                         style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

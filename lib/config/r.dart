@@ -168,6 +168,10 @@ class R {
   static const String roomGiftNumOpenIc = '$_m/room_gift_num_open_ic.webp';
   static const String commonGoldIc1 = '$_m/common_gold_ic_1.webp';
   static const String commonGoldIc4 = '$_m/common_gold_ic_4.webp';
+  static const String checkinDialogConfirmBigBtn =
+      '$_m/checkin_dialog_confirm_big_btn.png';
+  static const String discoverFollowCardBg =
+      '$_m/discover_follow_card_bg.webp';
 
   // Gift notice / combo
   static const String comboFire = '$_m/combo_fire.webp';

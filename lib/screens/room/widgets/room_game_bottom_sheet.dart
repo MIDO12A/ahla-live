@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../config/r.dart';
+import '../../../services/dynamic_config_service.dart';
 import 'sugarrush_game_dialog.dart';
 import '../../game/game_teaming_screen.dart';
 import '../../game/ludo_game_screen.dart';
@@ -162,16 +164,20 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
   @override
   Widget build(BuildContext context) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final cfg = DynamicConfigService();
+    final bgPath = cfg.gameCenterBgImage.isNotEmpty
+        ? cfg.gameCenterBgImage
+        : 'assets/mipmap-xxhdpi/room_game_bg.webp';
 
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.65,
       ),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E1428),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1428),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         image: DecorationImage(
-          image: AssetImage('assets/mipmap-xxhdpi/room_game_bg.webp'),
+          image: R.cachedImage(bgPath),
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
         ),
@@ -186,27 +192,20 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
               children: [
                 // Top header background
                 Positioned.fill(
-                  child: Image.asset(
+                  child: R.loadAssetOr(
+                    cfg.gameCenterTopBgImage,
                     'assets/mipmap-xxhdpi/room_game_top_bg.webp',
                     fit: BoxFit.fill,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                   ),
                 ),
 
                 // Center Title Icon: room_game_title_ic
                 Center(
-                  child: Image.asset(
+                  child: R.loadAssetOr(
+                    cfg.gameCenterTitleImage,
                     'assets/mipmap-xxhdpi/room_game_title_ic.webp',
                     height: 28,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => DText(
-                      isAr ? 'الألعاب' : 'Games',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
                   ),
                 ),
 
@@ -218,11 +217,12 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
                   child: GestureDetector(
                     onTap: () => Navigator.pop(context),
                     behavior: HitTestBehavior.opaque,
-                    child: Image.asset(
+                    child: R.loadAssetOr(
+                      cfg.gameCenterCloseImage,
                       'assets/mipmap-xxhdpi/room_game_close_ic.webp',
                       width: 28,
                       height: 28,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.close, color: Colors.white70),
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),
@@ -238,21 +238,23 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
             child: Container(
               height: 32,
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.all(Radius.circular(16)),
                 image: DecorationImage(
-                  image: AssetImage('assets/mipmap-xxhdpi/room_game_broadcast_bg.webp'),
+                  image: R.cachedImage(cfg.gameCenterBroadcastBgImage.isNotEmpty
+                      ? cfg.gameCenterBroadcastBgImage
+                      : 'assets/mipmap-xxhdpi/room_game_broadcast_bg.webp'),
                   fit: BoxFit.fill,
                 ),
-                borderRadius: BorderRadius.all(Radius.circular(16)),
               ),
               child: Row(
                 children: [
-                  Image.asset(
+                  R.loadAssetOr(
+                    cfg.gameCenterBroadcastIconImage,
                     'assets/mipmap-xxhdpi/room_game_broadcast_ic.webp',
                     width: 20,
                     height: 20,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.volume_up, color: Color(0xFFFFD700), size: 16),
                   ),
                   const SizedBox(width: 8),
                   Expanded(

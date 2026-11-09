@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zero/core/dtext.dart';
 import '../config/r.dart';
+import '../screens/room/widgets/svga_player.dart';
+import '../services/special_id_service.dart';
 
 /// ويدجت عرض معرف المستخدم (User ID) المطابق تماماً للأصل مع دعم التأثير اللوني والمتحرك
 /// يدعم:
@@ -24,6 +26,11 @@ class UserIdWidget extends StatefulWidget {
   final VoidCallback? onCopied;
   final String? colorEffect; // e.g. 'golden', 'rainbow', 'neon', 'fire'
   final String? gifUrl;      // Optional GIF badge/effect url
+  final String? svgaAsset;   // SVGA يُعرض مكان كبسولة الآيدي
+  final String? svgaKey;     // مفتاح الطبقة النصية داخل SVGA
+  final bool autoStyle;      // يقرأ اللون/SVGA من سجل الآيديهات المميزة
+  final double svgaWidth;
+  final double svgaHeight;
 
   const UserIdWidget({
     super.key,
@@ -35,6 +42,11 @@ class UserIdWidget extends StatefulWidget {
     this.onCopied,
     this.colorEffect,
     this.gifUrl,
+    this.svgaAsset,
+    this.svgaKey,
+    this.autoStyle = true,
+    this.svgaWidth = 96,
+    this.svgaHeight = 28,
   });
 
   static String resolveCountryCode(String? raw) {
@@ -123,7 +135,7 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
     super.dispose();
   }
 
-  Widget _buildAnimatedText(bool effectiveBeauty) {
+  Widget _buildAnimatedText(bool effectiveBeauty, String? effect) {
     if (!effectiveBeauty || _animCtrl == null) {
       return DText(
         widget.idText,
@@ -141,38 +153,7 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
       animation: _animCtrl!,
       builder: (context, child) {
         final value = _animCtrl!.value;
-        List<Color> colors;
-        if (widget.colorEffect == 'rainbow') {
-          colors = const [
-            Color(0xFFFF0055),
-            Color(0xFFFFAA00),
-            Color(0xFF00FFCC),
-            Color(0xFF0088FF),
-            Color(0xFFFF00CC),
-            Color(0xFFFF0055),
-          ];
-        } else if (widget.colorEffect == 'neon' || widget.colorEffect == 'cyan') {
-          colors = const [
-            Color(0xFF00E5FF),
-            Color(0xFF76FF03),
-            Color(0xFF00E5FF),
-          ];
-        } else if (widget.colorEffect == 'fire') {
-          colors = const [
-            Color(0xFFFF1744),
-            Color(0xFFFF9100),
-            Color(0xFFFFEA00),
-            Color(0xFFFF1744),
-          ];
-        } else {
-          // Default Golden Shimmer
-          colors = const [
-            Color(0xFFFFD700),
-            Color(0xFFFFF8DC),
-            Color(0xFFFFA500),
-            Color(0xFFFFD700),
-          ];
-        }
+        final colors = SpecialIdService.instance.presetFor(effect).colors;
 
         return ShaderMask(
           blendMode: BlendMode.srcIn,
@@ -197,52 +178,135 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
     );
   }
 
+  Widget _buildFlag(String cleanCountry, String flagEmoji) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(2),
+      child: Image(
+        image: R.cachedImage('https://flagcdn.com/w40/$cleanCountry.png'),
+        width: 18,
+        height: 12,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            DText(flagEmoji, style: const TextStyle(fontSize: 12)),
+      ),
+    );
+  }
+
+  void _copyId(BuildContext context) {
+    Clipboard.setData(ClipboardData(text: widget.idText));
+    if (widget.onCopied != null) {
+      widget.onCopied!();
+    } else {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          content: DText('تم نسخ المعرف بنجاح'),
+          duration: Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.idText.isEmpty) return const SizedBox.shrink();
 
+    return ListenableBuilder(
+      listenable: SpecialIdService.instance,
+      builder: (context, _) => _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
+    final autoItem = widget.autoStyle
+        ? SpecialIdService.instance.styleFor(widget.idText)
+        : null;
+    final String? effectiveEffect =
+        (widget.colorEffect != null && widget.colorEffect!.trim().isNotEmpty)
+            ? widget.colorEffect
+            : autoItem?.effectiveColorEffect;
+    final String? effectiveSvga =
+        (widget.svgaAsset != null && widget.svgaAsset!.trim().isNotEmpty)
+            ? widget.svgaAsset
+            : autoItem?.svgaAsset;
+    final String? effectiveSvgaKey =
+        (widget.svgaKey != null && widget.svgaKey!.trim().isNotEmpty)
+            ? widget.svgaKey
+            : (autoItem?.svgaTextKey ?? 'id');
+
     // التحقق التلقائي إذا كان المعرف مميزاً (مثلاً: 6 خانات أو أقل، أو محدد كـ isBeauty)
     final bool effectiveBeauty = widget.isBeauty ||
         (widget.idText.length <= 6 && int.tryParse(widget.idText) != null) ||
-        (widget.colorEffect != null && widget.colorEffect!.isNotEmpty) ||
+        (effectiveEffect != null && effectiveEffect.isNotEmpty) ||
         (widget.gifUrl != null && widget.gifUrl!.isNotEmpty);
+    if (effectiveBeauty && _animCtrl == null) {
+      _animCtrl = AnimationController(
+        vsync: this,
+        duration: const Duration(seconds: 3),
+      )..repeat();
+    }
 
     final String cleanCountry = UserIdWidget.resolveCountryCode(widget.countryCode);
     final String flagEmoji = UserIdWidget.countryCodeToEmoji(cleanCountry);
+
+    if (effectiveSvga != null && effectiveSvga.trim().isNotEmpty) {
+      final estimated =
+          widget.idText.length * widget.fontSize * 0.62 + 36;
+      final svgaWidth =
+          estimated > widget.svgaWidth ? estimated : widget.svgaWidth;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _buildFlag(cleanCountry, flagEmoji),
+          const SizedBox(width: 5),
+          GestureDetector(
+            onTap: () => _copyId(context),
+            behavior: HitTestBehavior.opaque,
+            child: SizedBox(
+              width: svgaWidth,
+              height: widget.svgaHeight,
+              child: SvgaPlayer(
+                assetPath: effectiveSvga.trim(),
+                width: svgaWidth,
+                height: widget.svgaHeight,
+                fit: BoxFit.contain,
+                textReplacement: {
+                  if (effectiveSvgaKey != null && effectiveSvgaKey.isNotEmpty)
+                    effectiveSvgaKey: widget.idText,
+                },
+              ),
+            ),
+          ),
+          if (widget.showCopy) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => _copyId(context),
+              behavior: HitTestBehavior.opaque,
+              child: Image.asset(
+                'assets/mipmap-xxhdpi/common_id_copy_2_ic.webp',
+                width: 13,
+                height: 13,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ],
+        ],
+      );
+    }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // رمز علم الدولة مع بديل إيموجي فوري
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: Image(
-            image: R.cachedImage('https://flagcdn.com/w40/$cleanCountry.png'),
-            width: 18,
-            height: 12,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => DText(flagEmoji, style: const TextStyle(fontSize: 12)),
-          ),
-        ),
+        _buildFlag(cleanCountry, flagEmoji),
         const SizedBox(width: 5),
 
         // كبسولة المعرف
-        GestureDetector(
-          onTap: () {
-            Clipboard.setData(ClipboardData(text: widget.idText));
-            if (widget.onCopied != null) {
-              widget.onCopied!();
-            } else {
-              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                const SnackBar(
-                  content: DText('تم نسخ المعرف بنجاح'),
-                  duration: Duration(seconds: 1),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            }
-          },
+        Flexible(
+          child: GestureDetector(
+          onTap: () => _copyId(context),
           behavior: HitTestBehavior.opaque,
           child: Container(
             height: 22,
@@ -291,7 +355,7 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
                 ],
 
                 // رقم المعرف الملون والمتحرك
-                _buildAnimatedText(effectiveBeauty),
+                Flexible(child: _buildAnimatedText(effectiveBeauty, effectiveEffect)),
 
                 // أيقونة النسخ
                 if (widget.showCopy) ...[
@@ -307,6 +371,7 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
                 ],
               ],
             ),
+          ),
           ),
         ),
       ],

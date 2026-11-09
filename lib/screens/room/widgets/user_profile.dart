@@ -19,6 +19,7 @@ import 'svga_player.dart';
 import 'vap_player.dart';
 import 'vip_cover_animator.dart';
 import '../../../widgets/user_id_widget.dart';
+import '../../../widgets/special_name_text.dart';
 import 'package:zero/core/dtext.dart';
 
 class UserProfile extends StatefulWidget {
@@ -475,8 +476,12 @@ class _UserProfileState extends State<UserProfile> {
                   ),
                   const SizedBox(width: 6),
                   Flexible(
-                    child: DText(
-                      name,
+                    child: SpecialNameText(
+                      text: name,
+                      customId: _extraUserData['custom_id']?.toString() ??
+                          widget.user['custom_id']?.toString() ??
+                          widget.user['customId']?.toString() ??
+                          customIdCache[fbUid],
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,

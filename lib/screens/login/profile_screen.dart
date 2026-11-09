@@ -18,11 +18,13 @@ import '../mall/mall_screen.dart';
 import '../user_profile/user_profile_screen.dart';
 import '../level/level_screen.dart';
 import '../backpack/backpack_screen.dart';
+import '../../widgets/special_name_text.dart';
 import 'edit_profile_screen.dart';
 import '../setting/feedback_screen.dart';
 import '../vip/vip_center_screen.dart';
 import '../../features/cp/cp_space_screen.dart';
 import '../../features/host_agency/host_agency_screen.dart';
+import '../../features/invite/invite_screen.dart';
 import '../../features/host_agency/screens/bd_center_screen.dart';
 import '../../features/super_admin/screens/super_admin_center_screen.dart';
 import '../../features/super_admin/screens/admin_center_screen.dart';
@@ -294,8 +296,9 @@ class ProfileScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
-                      child: DText(
-                        (user?.name != null && user!.name.isNotEmpty) ? user.name : 'مستخدم جديد',
+                      child: SpecialNameText(
+                        text: (user?.name != null && user!.name.isNotEmpty) ? user.name : 'مستخدم جديد',
+                        customId: user?.customId,
                         style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
@@ -1174,6 +1177,18 @@ class ProfileScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const HostAgencyScreen()),
+                );
+              },
+            ),
+
+            // 2. كود الدعوة (Invite Code)
+            _buildFunctionItem(
+              icon: DynamicConfigService().profileInviteIcon,
+              title: DynamicConfigService().profileInviteTitle,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const InviteScreen()),
                 );
               },
             ),

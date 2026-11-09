@@ -77,7 +77,7 @@ class _AudioWaveIndicatorState extends State<_AudioWaveIndicator>
 class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     with SingleTickerProviderStateMixin {
   final SupabaseService _firebaseService = SupabaseService();
-  late final Stream<List<RoomModel>> _roomsStream;
+  late Stream<List<RoomModel>> _roomsStream;
   List<RoomModel>? _cachedRooms;
   RoomModel? _myRoom;
   late TabController _tabController;
@@ -475,12 +475,13 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     final Color bgColor = cfg.discoverFollowCardBgColor;
     final Color borderColor = cfg.discoverFollowCardBorderColor;
     final Color btnColor = cfg.discoverFollowCardBtnColor;
+    final String bgImage = cfg.discoverFollowCardBgImage;
 
     final room = _myRoom;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      padding: const EdgeInsets.all(12),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(16),
@@ -493,7 +494,24 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
           ),
         ],
       ),
-      child: room != null
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: bgImage.isNotEmpty
+                ? CachedNetImage(
+                    bgImage,
+                    fit: BoxFit.cover,
+                    error: (_, __, ___) => const SizedBox.shrink(),
+                  )
+                : Image.asset(
+                    R.discoverFollowCardBg,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: room != null
           ? Row(
               children: [
                 // 1. Room Photo with Sound Wave Animation
@@ -683,6 +701,9 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                 ),
               ],
             ),
+          ),
+        ],
+      ),
     );
   }
 

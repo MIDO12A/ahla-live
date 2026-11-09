@@ -32,6 +32,8 @@ import '../room/widgets/vap_player.dart';
 import '../../features/cp/cp_service.dart';
 import '../../features/cp/cp_space_screen.dart';
 import '../../widgets/user_id_widget.dart';
+import '../../widgets/special_name_text.dart';
+import '../room/widgets/user_profile.dart' show UserProfile;
 import '../../features/host_agency/screens/agency_profile_screen.dart';
 import '../../features/host_agency/host_agency_screen.dart';
 import 'package:zero/core/dtext.dart';
@@ -1125,8 +1127,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
-                                    child: DText(
-                                      sender.senderName,
+                                    child: SpecialNameText(
+                                      text: sender.senderName,
+                                      customId: UserProfile.customIdCache[sender.senderId],
                                       style: const TextStyle(
                                         fontSize: 13,
                                         color: Colors.white,
@@ -1480,8 +1483,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 children: [
                                   // Nickname (14sp bold, color by VIP)
                                   Flexible(
-                                    child: DText(
-                                      user.name,
+                                    child: SpecialNameText(
+                                      text: user.name,
+                                      customId: user.customId,
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
@@ -2745,8 +2749,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            DText(
-                              s.senderName,
+                            SpecialNameText(
+                              text: s.senderName,
+                              customId: UserProfile.customIdCache[s.senderId],
                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -2861,8 +2866,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      DText(
-                        name,
+                      SpecialNameText(
+                        text: name,
+                        customId: item?.senderId != null ? UserProfile.customIdCache[item!.senderId] : null,
                         style: TextStyle(
                           fontSize: isCenter ? 12 : 11,
                           fontWeight: FontWeight.bold,
@@ -3202,8 +3208,9 @@ class _ChatScreenState extends State<ChatScreen> {
             if (!isMe)
               Padding(
                 padding: const EdgeInsets.only(left: 4, bottom: 2),
-                child: DText(
-                  msg.senderName,
+                child: SpecialNameText(
+                  text: msg.senderName,
+                  customId: UserProfile.customIdCache[msg.senderUid],
                   style: const TextStyle(fontSize: 11, color: Color(0xFF9BA1B6)),
                 ),
               ),

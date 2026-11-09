@@ -57,6 +57,44 @@ class StoreItemModel {
 
   String? get animationUrl => videoAsset ?? svgaAsset;
 
+  /// الآيدي المميز المرتبط بالعنصر (يدعم الأعمدة الجديدة والقديمة و name_key).
+  String? get effectiveCustomId {
+    var value = customId?.trim();
+    if (value == null || value.isEmpty) {
+      final key = nameKey?.trim();
+      if (key != null && key.startsWith('custom_id:')) {
+        value = key.substring('custom_id:'.length).trim();
+      }
+    }
+    if ((value == null || value.isEmpty) && category == 'special_id') {
+      final digits = name.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.isNotEmpty) value = digits;
+    }
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
+  /// تأثير/تدرج اللون (يدعم color_effect والعمود القديم photo_key).
+  String? get effectiveColorEffect {
+    var value = colorEffect?.trim();
+    if (value == null || value.isEmpty) {
+      final key = photoKey?.trim();
+      if (key != null && key.startsWith('color_effect:')) {
+        value = key.substring('color_effect:'.length).trim();
+      }
+    }
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
+  /// مفتاح الطبقة النصية داخل ملف SVGA الذي سيُحقن فيه رقم الآيدي.
+  String? get svgaTextKey {
+    final key = nameKey?.trim();
+    if (key == null || key.isEmpty) return null;
+    if (key.startsWith('custom_id:') || key.startsWith('color_effect:')) {
+      return null;
+    }
+    return key;
+  }
+
   Map<String, dynamic> toMap() => {
         'item_id': itemId,
         'itemId': itemId,

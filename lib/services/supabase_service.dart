@@ -17,6 +17,7 @@ import '../models/gifted_item_model.dart';
 import '../models/banner_config.dart';
 import '../models/notification_model.dart';
 import '../core/supabase_compat.dart';
+import '../core/utils/id_generator.dart';
 import 'supabase_data_service.dart';
 import 'dynamic_config_service.dart';
 import 'agency_target_evaluator.dart';
@@ -160,16 +161,54 @@ class SupabaseService {
       if (u == null || u.coins < item.price) return false;
       final owned = List<String>.from(u.ownedItems);
       if (!owned.contains(item.itemId)) owned.add(item.itemId);
-      return await _ds.updateUser(uid, {
+      final updates = <String, dynamic>{
         'coins': u.coins - item.price,
         'owned_items': owned,
-      });
+      };
+      if (item.category == 'special_id') {
+        final special = item.effectiveCustomId;
+        if (special == null || special.isEmpty) return false;
+        // منع شراء آيدي مميز مستخدم فعلياً من حساب آخر
+        final holders = await _ds.getUsersByCustomId(special);
+        if (holders.any((h) => h.uid != uid)) return false;
+        updates['custom_id'] = special;
+        updates['active_special_id'] = item.itemId;
+        final orig = u.originalCustomId?.trim() ?? '';
+        if ((orig.isEmpty || orig == special) &&
+            u.customId.isNotEmpty &&
+            u.customId != special) {
+          updates['original_custom_id'] = u.customId;
+        }
+      }
+      final ok = await _ds.updateUser(uid, updates);
+      if (ok && item.category == 'special_id') {
+        unawaited(_ds.markStoreItemSold(item.itemId));
+      }
+      return ok;
     } catch (_) {
       return false;
     }
   }
 
   Future<bool> equipItem(String uid, String itemId, String category) async {
+    if (category == 'special_id') {
+      final storeItem = await _ds.getStoreItemById(itemId);
+      final special = storeItem?.effectiveCustomId;
+      if (special == null || special.isEmpty) return false;
+      final u = await _ds.getUser(uid);
+      final owned = u?.ownedItems ?? const <String>[];
+      if (!owned.contains(itemId)) return false;
+      final holders = await _ds.getUsersByCustomId(special);
+      if (holders.any((h) => h.uid != uid)) return false;
+      final orig = u?.originalCustomId?.trim() ?? '';
+      final current = u?.customId ?? '';
+      return await _ds.updateUser(uid, {
+        'custom_id': special,
+        'active_special_id': itemId,
+        if (orig.isEmpty && current.isNotEmpty && current != special)
+          'original_custom_id': current,
+      });
+    }
     final updateMap = <String, dynamic>{};
     switch (category) {
       case 'frame':
@@ -194,6 +233,17 @@ class SupabaseService {
   }
 
   Future<bool> unequipItem(String uid, String category) async {
+    if (category == 'special_id') {
+      final u = await _ds.getUser(uid);
+      var restore = u?.originalCustomId?.trim() ?? '';
+      if (restore.isEmpty) {
+        restore = await UserIdGenerator().generateUniqueId();
+      }
+      return await _ds.updateUser(uid, {
+        'custom_id': restore,
+        'active_special_id': '',
+      });
+    }
     final updateMap = <String, dynamic>{
       'active_$category': '',
     };
@@ -626,18 +676,11 @@ class SupabaseService {
             .catchError((_) => false));
       }
 
-      // 5. بث نص الفوز لكافة الغرف فوراً عبر جدول broadcasts (لكل هدية محظوظة)
-      //    نُظهر نص الفوز حتى لو كان المضاعف 1X لكن هناك عملات مكتسبة.
-      final String broadcastContent;
-      if (maxMultiplier > 1) {
-        broadcastContent =
-            '🎉 فاز بمضاعف ${maxMultiplier}X في هدية الحظ $giftNameAr (كسب $totalWonCoins 🪙)!';
-      } else if (totalWonCoins > 0) {
-        broadcastContent =
-            '🎉 فاز بـ $totalWonCoins 🪙 في هدية الحظ $giftNameAr!';
-      } else {
-        broadcastContent = '🍀 أرسل هدية الحظ $giftNameAr x$count';
-      }
+      // 5. بث نص الفوز لكافة الغرف فوراً عبر جدول broadcasts
+      //    نفس النص الذي يراه المستخدم في شات الغرفة.
+      final String broadcastContent = totalWonCoins > 0 || maxMultiplier > 1
+          ? '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)'
+          : '$senderName 🍀 $giftNameAr x$count';
 
       unawaited(_ds
           .recordBroadcast(
@@ -822,21 +865,19 @@ class SupabaseService {
           ))
           .catchError((_) => false));
 
-      // 4. البث العام للهدايا الكبيرة (500+ عملة)
-      if (totalCost >= 500) {
-        unawaited(_ds
-            .recordBroadcast(
-              senderUid: senderId,
-              senderName: senderName,
-              senderPhotoUrl: senderPhotoUrl,
-              roomId: roomId,
-              content:
-                  'أرسل $giftName x$count بقيمة $totalCost 💎 إلى $receiverName',
-              giftIcon: effectiveIcon,
-              type: 'big_gift',
-            )
-            .catchError((_) => false));
-      }
+      // 4. بث كل هدية لكل الغرف — نفس النص الظاهر في شات الغرفة
+      unawaited(_ds
+          .recordBroadcast(
+            senderUid: senderId,
+            senderName: senderName,
+            senderPhotoUrl: senderPhotoUrl,
+            roomId: roomId,
+            content:
+                '$senderName أرسل $giftName x$count إلى $receiverName',
+            giftIcon: effectiveIcon,
+            type: totalCost >= 500 ? 'big_gift' : 'gift',
+          )
+          .catchError((_) => false));
 
       // 5. تقييم التارجت للوكيل وإشعار المستلم
       unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId)
@@ -1254,7 +1295,7 @@ class SupabaseService {
     while (true) {
       try {
         final seats = await _ds.getSeats(roomId);
-        yield seats;
+        if (seats != null) yield seats;
       } catch (_) {}
       await Future.delayed(const Duration(seconds: 1));
     }
@@ -1262,6 +1303,17 @@ class SupabaseService {
 
   Future<bool> takeSeat(String roomId, int seatIndex, UserModel user) =>
       _ds.takeSeat(roomId: roomId, seatIndex: seatIndex, user: user);
+
+  Future<bool> restoreSeatIfFree({
+    required String roomId,
+    required int seatIndex,
+    required UserModel user,
+  }) =>
+      _ds.restoreSeatIfFree(
+        roomId: roomId,
+        seatIndex: seatIndex,
+        user: user,
+      );
 
   Future<bool> leaveSeat(String roomId, int seatIndex) =>
       _ds.leaveSeat(roomId, seatIndex);
@@ -1326,43 +1378,95 @@ class SupabaseService {
 
   Stream<List<MessageModel>> messagesStream(String roomId,
       {String? since}) async* {
-    final sinceMs = int.tryParse(since ?? '');
+    var sinceMs = int.tryParse(since ?? '');
     while (true) {
       try {
         final msgs = await _ds.getRoomMessages(roomId, sinceMs: sinceMs);
+        if (msgs.isNotEmpty) {
+          var newest = sinceMs ?? 0;
+          for (final m in msgs) {
+            if (m.timestamp > newest) newest = m.timestamp;
+          }
+          if (newest > (sinceMs ?? 0)) sinceMs = newest - 1;
+        } else if (sinceMs == null) {
+          sinceMs = DateTime.now().millisecondsSinceEpoch - 5000;
+        }
         yield msgs;
       } catch (_) {}
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 150));
     }
   }
 
   Stream<List<gm.SentGiftModel>> sentGiftsStream(String roomId) async* {
+    final byId = <String, gm.SentGiftModel>{};
+    DateTime? newest;
+    bool firstLoad = true;
+    int failures = 0;
     while (true) {
+      var ok = false;
       try {
-        final gifts = await _ds.getSentGifts(roomId);
-        yield gifts;
+        final batch = await _ds.getSentGifts(
+          roomId,
+          limit: firstLoad ? 500 : 100,
+          after: firstLoad || newest == null
+              ? null
+              : newest.subtract(const Duration(seconds: 2)),
+        );
+        if (firstLoad) byId.clear();
+        for (final g in batch) {
+          byId[g.id] = g;
+          if (newest == null || g.timestamp.isAfter(newest)) {
+            newest = g.timestamp;
+          }
+        }
+        if (byId.length > 500) {
+          final sorted = byId.values.toList()
+            ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          byId
+            ..clear()
+            ..addEntries(sorted.take(500).map((g) => MapEntry(g.id, g)));
+        }
+        firstLoad = false;
+        final merged = byId.values.toList()
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        yield merged;
+        ok = true;
       } catch (_) {}
-      await Future.delayed(const Duration(seconds: 2));
+      failures = ok ? 0 : (failures + 1 > 3 ? 3 : failures + 1);
+      final delayMs = ok ? 700 : const [700, 1500, 3000, 5000][failures];
+      await Future.delayed(Duration(milliseconds: delayMs));
     }
   }
 
   Stream<List<gm.GiftModel>> giftsStream() async* {
+    int failures = 0;
     while (true) {
+      var ok = false;
       try {
-        final gifts = await _ds.getGifts();
+        final gifts = await _ds.getGifts(allowCache: false);
         yield gifts;
+        ok = true;
       } catch (_) {}
-      await Future.delayed(const Duration(seconds: 30));
+      failures = ok ? 0 : (failures + 1 > 3 ? 3 : failures + 1);
+      final delayMs =
+          ok ? 10000 : const [10000, 20000, 30000, 60000][failures];
+      await Future.delayed(Duration(milliseconds: delayMs));
     }
   }
 
   Stream<List<GiftCategory>> giftCategoriesStream() async* {
+    int failures = 0;
     while (true) {
+      var ok = false;
       try {
-        final cats = await _ds.getGiftCategories();
+        final cats = await _ds.getGiftCategories(allowCache: false);
         yield cats;
+        ok = true;
       } catch (_) {}
-      await Future.delayed(const Duration(seconds: 30));
+      failures = ok ? 0 : (failures + 1 > 3 ? 3 : failures + 1);
+      final delayMs =
+          ok ? 20000 : const [20000, 30000, 45000, 60000][failures];
+      await Future.delayed(Duration(milliseconds: delayMs));
     }
   }
 
@@ -1678,11 +1782,32 @@ class SupabaseService {
   }
 
   Stream<bool> userRoomBanStream(String roomId, String uid) async* {
-    yield false;
+    while (true) {
+      bool banned = false;
+      try {
+        banned = await isUserBlockedFromRoom(roomId, uid);
+      } catch (_) {}
+      yield banned;
+      if (banned) return;
+      await Future.delayed(const Duration(seconds: 3));
+    }
   }
 
   Stream<List<Map<String, dynamic>>> roomBlocksStream(String roomId) async* {
-    yield [];
+    while (true) {
+      try {
+        final url = Uri.parse(
+            '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&select=*&order=created_at.desc');
+        final res = await http.get(url, headers: _headers);
+        if (res.statusCode == 200) {
+          final List list = jsonDecode(res.body);
+          yield list
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+        }
+      } catch (_) {}
+      await Future.delayed(const Duration(seconds: 4));
+    }
   }
 
   Future<void> kickUserFromRoom(
@@ -1694,7 +1819,51 @@ class SupabaseService {
     bool addToBlacklist = false,
     String? reason,
   }) async {
+    // Remove the seat + membership first so every client sees them gone.
     await _ds.leaveSeatForUser(roomId, targetUid);
+    await _ds.leaveRoom(roomId, targetUid);
+
+    final kicker = kickerName.isNotEmpty ? kickerName : 'المشرف';
+    final target = targetName.isNotEmpty ? targetName : 'مستخدم';
+    final text = 'تم طرد $target من الغرفة بواسطة $kicker';
+    unawaited(_ds
+        .sendMessage(MessageModel(
+          msgId: const Uuid().v4(),
+          roomId: roomId,
+          senderUid: 'system',
+          senderName: 'نظام',
+          senderPhotoUrl: '',
+          type: 'room_kick',
+          text: text,
+          giftPayload: {
+            'kickedUid': targetUid,
+            'kicked_uid': targetUid,
+            'kicked_name': target,
+            'kickerUid': kickerUid,
+            'kicker_uid': kickerUid,
+            'kicker_name': kicker,
+            'reason': reason ?? '',
+          },
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        ))
+        .catchError((_) => false));
+
+    unawaited(sendNotification(
+      uid: targetUid,
+      type: 'room_kick',
+      actorUid: kickerUid,
+      title: 'تم طردك من الغرفة',
+      body: reason != null && reason.isNotEmpty
+          ? '$text — السبب: $reason'
+          : text,
+      data: {
+        'room_id': roomId,
+        'kicked_uid': targetUid,
+        'kicker_name': kicker,
+        'reason': reason ?? '',
+      },
+    ));
+
     if (addToBlacklist) {
       await blockUserFromRoom(roomId, kickerUid, targetUid, reason: reason);
     }
@@ -1703,12 +1872,52 @@ class SupabaseService {
   Future<void> blockUserFromRoom(
       String roomId, String blockerUid, String blockedUid,
       {String? reason, int durationMinutes = 60}) async {
+    try {
+      final deleteUrl = Uri.parse(
+          '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&blocked_uid=eq.$blockedUid');
+      await http.delete(deleteUrl, headers: _headers);
+      await http.post(
+        Uri.parse('$_baseUrl/rest/v1/room_blocks'),
+        headers: _headers,
+        body: jsonEncode({
+          'room_id': roomId,
+          'blocker_uid': blockerUid,
+          'blocked_uid': blockedUid,
+          'reason': reason ?? '',
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+    } catch (e) {
+      debugPrint('[SupabaseService] blockUserFromRoom error: $e');
+    }
     await _ds.leaveSeatForUser(roomId, blockedUid);
+    await _ds.leaveRoom(roomId, blockedUid);
   }
 
-  Future<void> unblockUserFromRoom(String roomId, String blockedUid) async {}
+  Future<void> unblockUserFromRoom(String roomId, String blockedUid) async {
+    try {
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&blocked_uid=eq.$blockedUid');
+      await http.delete(url, headers: _headers);
+    } catch (e) {
+      debugPrint('[SupabaseService] unblockUserFromRoom error: $e');
+    }
+  }
 
-  Future<bool> isUserBlockedFromRoom(String roomId, String uid) async => false;
+  Future<bool> isUserBlockedFromRoom(String roomId, String uid) async {
+    try {
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&blocked_uid=eq.$uid&select=id');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.isNotEmpty;
+      }
+    } catch (e) {
+      debugPrint('[SupabaseService] isUserBlockedFromRoom error: $e');
+    }
+    return false;
+  }
 
   Future<void> followUser(String uid, String targetUid) =>
       _ds.followUser(uid, targetUid);
@@ -1786,11 +1995,55 @@ class SupabaseService {
     } catch (_) {}
   }
 
-  Future<void> blockUser(String blockerUid, String blockedUid) async {}
+  Future<void> blockUser(String blockerUid, String blockedUid) async {
+    if (blockerUid.isEmpty || blockedUid.isEmpty) return;
+    try {
+      await http.post(
+        Uri.parse('$_baseUrl/rest/v1/blocks?on_conflict=blocker_uid,blocked_uid'),
+        headers: {
+          ..._headers,
+          'Prefer': 'resolution=ignore-duplicates',
+        },
+        body: jsonEncode({
+          'blocker_uid': blockerUid,
+          'blocked_uid': blockedUid,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+    } catch (e) {
+      debugPrint('[SupabaseService] blockUser error: $e');
+    }
+  }
 
-  Future<void> unblockUser(String blockerUid, String blockedUid) async {}
+  Future<void> unblockUser(String blockerUid, String blockedUid) async {
+    if (blockerUid.isEmpty || blockedUid.isEmpty) return;
+    try {
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/blocks?blocker_uid=eq.$blockerUid&blocked_uid=eq.$blockedUid');
+      await http.delete(url, headers: _headers);
+    } catch (e) {
+      debugPrint('[SupabaseService] unblockUser error: $e');
+    }
+  }
 
-  Future<List<String>> getBlockedUids(String uid) async => [];
+  Future<List<String>> getBlockedUids(String uid) async {
+    if (uid.isEmpty) return [];
+    try {
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/blocks?blocker_uid=eq.$uid&select=blocked_uid');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => (e as Map)['blocked_uid']?.toString() ?? '')
+            .where((v) => v.isNotEmpty)
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseService] getBlockedUids error: $e');
+    }
+    return [];
+  }
 
   Future<void> reportUser(
       {required String reporterUid,
@@ -1878,6 +2131,7 @@ class SupabaseService {
               profileCache[otherUid] = {
                 'name': u.name,
                 'photo': u.photoUrl,
+                'custom_id': u.customId,
               };
             }
           } catch (_) {}
@@ -1890,6 +2144,9 @@ class SupabaseService {
           }
           if ((row['other_photo_url'] ?? '').toString().isEmpty) {
             row['other_photo_url'] = cached['photo'] ?? '';
+          }
+          if ((row['other_custom_id'] ?? '').toString().isEmpty) {
+            row['other_custom_id'] = cached['custom_id'] ?? '';
           }
         }
 

@@ -34,6 +34,13 @@ class SupabaseDataService {
         'Content-Type': 'application/json',
       };
 
+  static List<gm.GiftModel>? _giftsCache;
+  static int _giftsCacheAtMs = 0;
+  static List<GiftCategory>? _giftCategoriesCache;
+  static int _giftCategoriesCacheAtMs = 0;
+  static const int _catalogCacheTtlMs = 120000;
+  static const Duration _catalogTimeout = Duration(seconds: 8);
+
   // ═══════════════════════════════════════════════════════
   // ROOMS
   // ═══════════════════════════════════════════════════════
@@ -328,6 +335,7 @@ class SupabaseDataService {
         'seat_index': seatIndex,
         'uid': user.uid,
         'name': user.name,
+        'custom_id': user.customId,
         'photo_url': user.photoUrl,
         'active_frame': user.activeFrame,
         'active_car': user.activeCar,
@@ -365,6 +373,34 @@ class SupabaseDataService {
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] takeSeat error: $e');
+      return false;
+    }
+  }
+
+  /// Restores a persisted seat only if no other user currently occupies it.
+  Future<bool> restoreSeatIfFree({
+    required String roomId,
+    required int seatIndex,
+    required UserModel user,
+  }) async {
+    try {
+      final checkUrl = Uri.parse(
+          '$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&seat_index=eq.$seatIndex&select=uid');
+      final res = await http.get(checkUrl, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        if (list.isNotEmpty) {
+          final currentUid = (list.first as Map)['uid']?.toString();
+          if (currentUid != null &&
+              currentUid.trim().isNotEmpty &&
+              currentUid != user.uid) {
+            return false;
+          }
+        }
+      }
+      return takeSeat(roomId: roomId, seatIndex: seatIndex, user: user);
+    } catch (e) {
+      debugPrint('[SupabaseDataService] restoreSeatIfFree error: $e');
       return false;
     }
   }
@@ -505,7 +541,7 @@ class SupabaseDataService {
     }
   }
 
-  Future<Map<int, Map<String, dynamic>>> getSeats(String roomId) async {
+  Future<Map<int, Map<String, dynamic>>?> getSeats(String roomId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&select=*');
       final res = await http.get(url, headers: _headers);
@@ -522,7 +558,7 @@ class SupabaseDataService {
     } catch (e) {
       debugPrint('[SupabaseDataService] getSeats error: $e');
     }
-    return {};
+    return null;
   }
 
   // ═══════════════════════════════════════════════════════
@@ -531,6 +567,20 @@ class SupabaseDataService {
 
   Future<bool> joinRoom(String roomId, UserModel user) async {
     try {
+      // Banned users can never re-enter a room.
+      try {
+        final blockUrl = Uri.parse(
+            '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&blocked_uid=eq.${user.uid}&select=id');
+        final blockRes = await http.get(blockUrl, headers: _headers);
+        if (blockRes.statusCode == 200) {
+          final List blocks = jsonDecode(blockRes.body);
+          if (blocks.isNotEmpty) {
+            debugPrint('[SupabaseDataService] joinRoom blocked: ${user.uid}');
+            return false;
+          }
+        }
+      } catch (_) {}
+
       final url = Uri.parse('$_baseUrl/rest/v1/room_members');
       final body = jsonEncode({
         'room_id': roomId,
@@ -690,10 +740,12 @@ class SupabaseDataService {
   Future<bool> updateUser(String uid, Map<String, dynamic> updates) async {
     try {
       const allowedColumns = {
-        'uid', 'custom_id', 'name', 'email', 'photo_url', 'coins', 'diamonds',
+        'uid', 'custom_id', 'original_custom_id', 'name', 'email', 'photo_url',
+        'coins', 'diamonds',
         'gender', 'signature', 'country', 'country_code', 'age', 'charm',
         'active_frame', 'active_headwear', 'active_bubble', 'active_entrance',
         'active_car', 'active_cover', 'active_necklace', 'active_mic_wave',
+        'active_special_id',
         'profile_bg_url', 'owned_items', 'owned_badges', 'owned_necklaces',
         'owned_level_frames', 'owned_level_badges', 'owned_vip_items', 'album',
         'hosted_room_id', 'followed_rooms', 'total_gifts_sent', 'total_gifts_received',
@@ -713,6 +765,8 @@ class SupabaseDataService {
 
       const keyMap = {
         'customId': 'custom_id',
+        'originalCustomId': 'original_custom_id',
+        'activeSpecialId': 'active_special_id',
         'photoUrl': 'photo_url',
         'avatar': 'photo_url',
         'avatar_url': 'photo_url',
@@ -1072,13 +1126,21 @@ class SupabaseDataService {
     return [];
   }
 
-  Future<List<gm.GiftModel>> getGifts() async {
+  Future<List<gm.GiftModel>> getGifts({bool allowCache = true}) async {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (allowCache &&
+        _giftsCache != null &&
+        nowMs - _giftsCacheAtMs < _catalogCacheTtlMs) {
+      return _giftsCache!;
+    }
+
     final Map<String, gm.GiftModel> giftMap = {};
 
     // 1. Fetch from Supabase
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/gifts?select=*&order=sort_order.asc');
-      final res = await http.get(url, headers: _headers);
+      final url =
+          Uri.parse('$_baseUrl/rest/v1/gifts?select=*&order=sort_order.asc');
+      final res = await http.get(url, headers: _headers).timeout(_catalogTimeout);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         for (final item in list) {
@@ -1094,18 +1156,34 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] getGifts Supabase error: $e');
     }
 
+    if (giftMap.isEmpty && _giftsCache != null) {
+      return _giftsCache!;
+    }
+
     final list = giftMap.values.toList();
     list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    if (list.isNotEmpty) {
+      _giftsCache = list;
+      _giftsCacheAtMs = nowMs;
+    }
     return list;
   }
 
-  Future<List<GiftCategory>> getGiftCategories() async {
+  Future<List<GiftCategory>> getGiftCategories({bool allowCache = true}) async {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (allowCache &&
+        _giftCategoriesCache != null &&
+        nowMs - _giftCategoriesCacheAtMs < _catalogCacheTtlMs) {
+      return _giftCategoriesCache!;
+    }
+
     final Map<String, GiftCategory> catMap = {};
 
     // 1. Fetch from Supabase
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/gift_categories?select=*&order=sort_order.asc');
-      final res = await http.get(url, headers: _headers);
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/gift_categories?select=*&order=sort_order.asc');
+      final res = await http.get(url, headers: _headers).timeout(_catalogTimeout);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         for (final item in list) {
@@ -1119,8 +1197,16 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] getGiftCategories Supabase error: $e');
     }
 
+    if (catMap.isEmpty && _giftCategoriesCache != null) {
+      return _giftCategoriesCache!;
+    }
+
     final list = catMap.values.toList();
     list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    if (list.isNotEmpty) {
+      _giftCategoriesCache = list;
+      _giftCategoriesCacheAtMs = nowMs;
+    }
     return list;
   }
 
@@ -1711,6 +1797,25 @@ class SupabaseDataService {
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getStoreItems error: $e');
+    }
+    return [];
+  }
+
+  /// يجلب كل الآيديهات المميزة (بما فيها المباعة/المخفية) لمعرفة لون الاسم
+  /// وملف SVGA المرتبط بكل آيدي. لا يُستخدم هذا للعرض في المتجر.
+  Future<List<StoreItemModel>> getSpecialIdItems() async {
+    try {
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/store_items?category=eq.special_id&select=*');
+      final res = await http.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => StoreItemModel.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getSpecialIdItems error: $e');
     }
     return [];
   }
@@ -2316,6 +2421,27 @@ class SupabaseDataService {
       debugPrint('[SupabaseDataService] updateUserCustomId error: $e');
       return false;
     }
+  }
+
+  /// يجلب عنصر متجر واحد بمعرفه (item_id أو id).
+  Future<StoreItemModel?> getStoreItemById(String itemId) async {
+    try {
+      for (final key in ['item_id', 'id']) {
+        final url = Uri.parse(
+            '$_baseUrl/rest/v1/store_items?$key=eq.$itemId&select=*&limit=1');
+        final res = await http.get(url, headers: _headers);
+        if (res.statusCode == 200) {
+          final List list = jsonDecode(res.body);
+          if (list.isNotEmpty) {
+            return StoreItemModel.fromMap(
+                Map<String, dynamic>.from(list.first as Map));
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getStoreItemById error: $e');
+    }
+    return null;
   }
 
   Future<bool> markStoreItemSold(String itemId) async {

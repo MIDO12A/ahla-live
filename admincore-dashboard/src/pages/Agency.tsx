@@ -25,8 +25,8 @@ import {
   getAgencyLevels, saveAgencyLevels, distributeAgencyLevelReward,
   getAgencyExpTasks, saveAgencyExpTasks,
   getAgencyCommissionCycle, saveAgencyCommissionCycle, getAgencyCommissionOverview,
-  releaseAgencyCommission,
-  type AgencyCommissionCycle, type AgencyCommissionOverviewRow,
+  releaseAgencyCommission, getAgencyCommissionLabels, saveAgencyCommissionLabels,
+  type AgencyCommissionCycle, type AgencyCommissionOverviewRow, type AgencyCommissionLabels,
 } from '../lib/db';
 import { uploadStoreItem } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -2760,6 +2760,8 @@ function CommissionTab() {
   const [overview, setOverview] = useState<AgencyCommissionOverviewRow[]>([]);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [releasingId, setReleasingId] = useState<string | null>(null);
+  const [labels, setLabels] = useState<AgencyCommissionLabels>({ title: '', subtitle: '' });
+  const [savingLabels, setSavingLabels] = useState(false);
 
   const loadOverview = () => {
     setLoadingOverview(true);
@@ -2785,7 +2787,24 @@ function CommissionTab() {
     getAgencyCommissionCycle()
       .then(c => setCycle(c))
       .catch(err => console.warn('Failed to load commission cycle:', err));
+    getAgencyCommissionLabels()
+      .then(l => setLabels(l))
+      .catch(err => console.warn('Failed to load commission labels:', err));
     loadOverview();
+  };
+
+  const handleSaveLabels = async () => {
+    setSavingLabels(true);
+    try {
+      const saved = await saveAgencyCommissionLabels(labels);
+      setLabels(saved);
+      alert('✅ تم حفظ عناوين بطاقة العمولة في التطبيق');
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء حفظ العناوين');
+    } finally {
+      setSavingLabels(false);
+    }
   };
 
   const handleSaveCycle = async (next?: Partial<AgencyCommissionCycle>) => {
@@ -3067,6 +3086,33 @@ function CommissionTab() {
                   {p === 'daily' ? 'يومي' : p === 'weekly' ? 'أسبوعي' : 'شهري'}
                 </button>
               ))}
+            </div>
+
+            {/* عناوين البطاقة في التطبيق */}
+            <div className="space-y-2 pt-1 border-t border-blue-500/20">
+              <p className="text-[10px] font-bold text-blue-300/80">📝 نصوص بطاقة العمولة داخل التطبيق</p>
+              <input
+                type="text"
+                value={labels.title}
+                onChange={e => setLabels(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="عنوان البطاقة (مثال: صرف عمولة الوكيل)"
+                className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-400"
+              />
+              <input
+                type="text"
+                value={labels.subtitle}
+                onChange={e => setLabels(prev => ({ ...prev, subtitle: e.target.value }))}
+                placeholder="نص فرعي (اختياري — مثال: العمولة المستحقة)"
+                className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-400"
+              />
+              <button
+                type="button"
+                onClick={handleSaveLabels}
+                disabled={savingLabels}
+                className="px-3 py-1.5 bg-blue-500/80 hover:bg-blue-500 disabled:opacity-40 text-white font-bold rounded-lg text-[11px] transition-colors"
+              >
+                {savingLabels ? 'جارٍ الحفظ...' : 'حفظ النصوص'}
+              </button>
             </div>
           </div>
         </div>

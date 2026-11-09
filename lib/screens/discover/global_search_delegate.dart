@@ -4,6 +4,7 @@ import 'package:zero/screens/room/room_screen.dart';
 import '../../services/supabase_data_service.dart';
 import '../../config/r.dart';
 import 'package:zero/core/dtext.dart';
+import '../../widgets/special_name_text.dart';
 
 class GlobalSearchDelegate extends SearchDelegate<String?> {
   @override
@@ -224,7 +225,7 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
                           )
                         : const Icon(Icons.person, color: Colors.white54, size: 30),
                   ),
-                  title: DText(u['name'] ?? u['username'] ?? 'مستخدم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  title: SpecialNameText(text: u['name'] ?? u['username'] ?? 'مستخدم', customId: u['custom_id']?.toString() ?? u['customId']?.toString(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   subtitle: DText('ID: ${u['custom_id'] ?? u['customId'] ?? ''}', style: const TextStyle(color: Colors.white54)),
                   onTap: () {
                     if (uid.isNotEmpty) {

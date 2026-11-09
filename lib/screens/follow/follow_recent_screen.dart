@@ -5,6 +5,7 @@ import '../../services/supabase_service.dart';
 import '../../providers/user_provider.dart';
 import '../user_profile/user_profile_screen.dart';
 import 'package:zero/core/dtext.dart';
+import '../../widgets/special_name_text.dart';
 
 class FollowRecentScreen extends StatefulWidget {
   final int initialTab;
@@ -221,8 +222,9 @@ class _FollowRecentScreenState extends State<FollowRecentScreen>
                       ),
                       const SizedBox(width: 4),
                       Flexible(
-                        child: DText(
-                          name,
+                        child: SpecialNameText(
+                          text: name,
+                          customId: customId,
                           style: const TextStyle(fontSize: 14, color: Color(0xFF16151A)),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                         ),

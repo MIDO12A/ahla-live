@@ -7,8 +7,11 @@ import 'dart:async';
 import 'l10n/app_localizations.dart';
 import 'services/dynamic_config_service.dart';
 import 'services/error_reporting_service.dart';
+import 'services/lang_service.dart';
 import 'services/level_service.dart';
 import 'services/media_cache_service.dart'; // ✅ للـ warmup المبكر
+import 'services/media_prefetch_service.dart';
+import 'services/special_id_service.dart';
 import 'services/room_state_service.dart';
 import 'services/supabase_auth_service.dart';
 import 'services/supabase_service.dart';
@@ -18,7 +21,7 @@ import 'screens/splash/splash_screen.dart';
 import 'screens/login/login_screen.dart';
 import 'screens/login/setup_profile_screen.dart';
 import 'screens/main_screen/main_screen.dart';
-import 'screens/room/room_screen.dart' hide Positioned;
+import 'screens/room/room_screen.dart';
 import 'config/r.dart';
 
 import 'core/ui/in_app_toast.dart';
@@ -32,7 +35,7 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-await SupabaseAuthService().init();
+  await SupabaseAuthService().init();
   SupabaseService().init();
   LevelService().init();
   await DynamicConfigService().init();
@@ -42,6 +45,9 @@ await SupabaseAuthService().init();
   // هذا يضمن أن الملفات المُحمَّلة سابقاً تُستخدَم فوراً بدون إعادة تحميل من الإنترنت
   await MediaCacheService().init();
   await RoomScreen.initPrefs();
+  unawaited(MediaPrefetchService().warmup());
+  unawaited(SpecialIdService.instance.ensureLoaded());
+  unawaited(LangService.instance.ensureLoaded());
 
   final localeProvider = LocaleProvider();
   await localeProvider.init();
@@ -79,8 +85,8 @@ class _ZeroAppState extends State<ZeroApp> {
               final config = DynamicConfigService();
               return AgencyNotificationHandler(
                 child: MaterialApp(
-                navigatorKey: rootNavigatorKey,
-                scaffoldMessengerKey: KayanInAppToast.messengerKey,
+                  navigatorKey: rootNavigatorKey,
+                  scaffoldMessengerKey: KayanInAppToast.messengerKey,
                 title: config.appName,
                 debugShowCheckedModeBanner: false,
                 locale: localeProvider.locale,
@@ -160,6 +166,7 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   String? _uid;
+  StreamSubscription<String?>? _authSub;
 
   @override
   void initState() {
@@ -167,7 +174,7 @@ class _AuthGateState extends State<_AuthGate> {
     _uid = SupabaseAuthService().currentUid;
     if (_uid != null) _loadExistingUser();
 
-    SupabaseAuthService().authStateChanges.listen((uid) {
+    _authSub = SupabaseAuthService().authStateChanges.listen((uid) {
       if (!mounted) return;
       if (uid != null) {
         _handleNewSignIn(uid);
@@ -175,8 +182,13 @@ class _AuthGateState extends State<_AuthGate> {
         setState(() => _uid = null);
       }
     });
+  }
 
-}
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
 
   Future<void> _loadExistingUser() async {
     final uid = _uid;
@@ -219,10 +231,6 @@ class _AuthGateState extends State<_AuthGate> {
         (route) => false,
       );
     } else if (mounted) {
-
-
-
-
       await Provider.of<UserProvider>(context, listen: false).loadUser(uid);
     }
   }

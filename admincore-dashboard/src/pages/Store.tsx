@@ -29,7 +29,7 @@ const DEFAULT_CATEGORIES: StoreCategory[] = [
   { id: 'special_id', key: 'special_id', name: 'الآيديهات المميزة (Special IDs)', iconAsset: 'assets/mipmap-xxhdpi/ic_id_card_prop.png', selectedIconAsset: 'assets/mipmap-xxhdpi/ic_id_card_prop.png', sortOrder: 10, isActive: true },
 ];
 
-const svgaCategories = new Set(['entrance', 'car', 'cover', 'mic_wave']);
+const svgaCategories = new Set(['entrance', 'car', 'cover', 'mic_wave', 'special_id']);
 
 export default function StorePage() {
   const [activeTab, setActiveTab] = useState<'items' | 'categories'>('items');

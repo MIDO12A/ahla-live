@@ -406,6 +406,23 @@ class MediaCacheService {
 
   // ── صيانة / تنظيف ─────────────────────────────────────────────
 
+  /// يحذف نسخة [url] من RAM والقرص (وفهرس القرص) حتى يُعاد تحميلها لاحقاً.
+  Future<void> evict(String url) async {
+    if (!_isNetwork(url)) return;
+    final key = _keyFor(url);
+    final fromMemory = _memory.remove(key);
+    if (fromMemory != null) _memoryBytes -= fromMemory.length;
+    _pending.remove(url);
+    final entry = _diskIndex.remove(key);
+    if (entry != null) {
+      try {
+        final file = File(entry.path);
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+      _markIndexDirty();
+    }
+  }
+
   /// (اختياري) يحذف ملفات قديمة داخل دليلنا غير مسجلة في الفهرس
   /// (من إصدارات سابقة / ملقّات قرص أخرى). لا يمسّ الملفات الحديثة
   /// حتى لا يقطع تشغيلاً قائماً.

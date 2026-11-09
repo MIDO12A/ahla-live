@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { RoomModel } from '../types';
-import { getRooms, deleteRoom, updateRoom } from '../lib/db';
+import { getRooms, deleteRoom, updateRoom, getRoomBlocks, deleteRoomBlock, getUsersByUids, type RoomBlockRow } from '../lib/db';
 import { uploadRoomPhoto, uploadRoomCover, detectAssetType } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
@@ -11,12 +11,34 @@ export default function RoomsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<RoomModel | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [roomBlocks, setRoomBlocks] = useState<RoomBlockRow[]>([]);
+  const [blockUsers, setBlockUsers] = useState<Map<string, { name: string; custom_id: string }>>(new Map());
+  const [loadingBlocks, setLoadingBlocks] = useState(false);
+
+  const loadBlocks = async (roomId: string) => {
+    setLoadingBlocks(true);
+    const blocks = await getRoomBlocks(roomId);
+    setRoomBlocks(blocks);
+    const uids = [...new Set(blocks.map(b => b.blocked_uid).filter(Boolean))];
+    const users = await getUsersByUids(uids);
+    setBlockUsers(users);
+    setLoadingBlocks(false);
+  };
+
+  const handleEdit = (room: RoomModel) => {
+    setEditing(room);
+    loadBlocks(room.roomId);
+  };
+
+  const handleUnblock = async (blockId: string) => {
+    await deleteRoomBlock(blockId);
+    setRoomBlocks(prev => prev.filter(b => b.id !== blockId));
+  };
 
   useEffect(() => {
     getRooms().then(data => { setRooms(data); setLoading(false); });
   }, []);
 
-  const handleEdit = (room: RoomModel) => setEditing(room);
   const handleDelete = async (room: RoomModel) => {
     if (confirm(`Delete room "${room.name}"?`)) {
       await deleteRoom(room.roomId);
@@ -193,6 +215,41 @@ export default function RoomsPage() {
               <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">الوصف والإعلان</label>
               <textarea value={editing.description} onChange={e => handleUpdate('description', e.target.value)} rows={2} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white resize-none" />
             </div>
+          </div>
+          {/* قائمة الحظر الخاصة بالغرفة */}
+          <div className="border-t border-white/10 pt-3">
+            <h4 className="text-xs font-bold text-rose-300 mb-2">🚫 المحظورون من هذه الغرفة ({roomBlocks.length})</h4>
+            {loadingBlocks ? (
+              <p className="text-[11px] text-slate-500">جارٍ التحميل...</p>
+            ) : roomBlocks.length === 0 ? (
+              <p className="text-[11px] text-slate-500">لا يوجد محظورون — من يُطرد مع تفعيل "القائمة السوداء" يُمنع من إعادة الدخول حتى تفك الحظر من هنا</p>
+            ) : (
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {roomBlocks.map(b => {
+                  const u = blockUsers.get(b.blocked_uid);
+                  return (
+                    <div key={b.id} className="flex items-center justify-between gap-2 bg-black/40 border border-white/10 rounded-lg px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-xs text-white font-bold truncate">
+                          {u?.name || b.blocked_uid}
+                          {u?.custom_id ? <span className="text-slate-400 font-mono mr-1">#{u.custom_id}</span> : null}
+                        </p>
+                        <p className="text-[10px] text-slate-500 truncate">
+                          {b.reason ? `السبب: ${b.reason} • ` : ''}
+                          {b.created_at ? new Date(b.created_at).toLocaleString('ar-EG') : ''}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleUnblock(b.id)}
+                        className="shrink-0 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-colors"
+                      >
+                        فك الحظر
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <button onClick={handleSaveAll} className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs text-white font-semibold rounded-lg flex items-center gap-1"><Save className="w-3 h-3" /> حفظ التعديلات</button>
