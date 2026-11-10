@@ -38,13 +38,14 @@ void main() async {
   await SupabaseAuthService().init();
   SupabaseService().init();
   LevelService().init();
-  await DynamicConfigService().init();
+  // ✅ غير متزامن: الواجهة تظهر فوراً بالإعدادات الافتراضية
+  // والتكوين الديناميكي يوصل في الخلفية ويحدّث الواجهة عند وصوله
+  unawaited(DynamicConfigService().init());
   ErrorReportingService().init();
 
-  // ✅ تهيئة كاش الوسائط ← يحمّل فهرس القرص قبل أي طلب هدايا أو SVGA
-  // هذا يضمن أن الملفات المُحمَّلة سابقاً تُستخدَم فوراً بدون إعادة تحميل من الإنترنت
-  await MediaCacheService().init();
-  await RoomScreen.initPrefs();
+  // ✅ تهيئة كاش الوسائط في الخلفية — لا تحجب بدء التطبيق
+  unawaited(MediaCacheService().init());
+  unawaited(RoomScreen.initPrefs());
   unawaited(MediaPrefetchService().warmup());
   unawaited(SpecialIdService.instance.ensureLoaded());
   unawaited(LangService.instance.ensureLoaded());

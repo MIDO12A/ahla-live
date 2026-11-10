@@ -171,9 +171,13 @@ class SupabaseDataService {
         final rooms =
             list.map((e) => RoomModel.fromMap(e as Map<String, dynamic>)).toList();
 
-        // العدّاد الحقيقي: عدد الأعضاء المتواجدين حالياً في room_members
-        final liveCounts = await _fetchLiveRoomMemberCounts();
-        final monthlyCoins = await _fetchMonthlyRoomCoins();
+        // العدّاد الحقيقي + كوينز الشهر — بالتوازي لسرعة التحميل
+        final extras = await Future.wait([
+          _fetchLiveRoomMemberCounts(),
+          _fetchMonthlyRoomCoins(),
+        ]);
+        final liveCounts = extras[0] as Map<String, int>?;
+        final monthlyCoins = extras[1] as Map<String, int>;
         return rooms
             .map((r) => r.copyWith(
                   memberCount: liveCounts == null
@@ -189,36 +193,21 @@ class SupabaseDataService {
     return [];
   }
 
-  /// إجمالي الكوينز المُرسَلة داخل الغرفة خلال الشهر الحالي (من sent_gifts)
+  /// إجمالي الكوينز المُرسَلة داخل الغرفة خلال الشهر الحالي —
+  /// عبر RPC مُجمَّع على السيرفر (طلب واحد بدل سحب آلاف الصفوف)
   Future<Map<String, int>> _fetchMonthlyRoomCoins({String? roomId}) async {
     final result = <String, int>{};
     try {
-      final now = DateTime.now().toUtc();
-      final monthStart = DateTime.utc(now.year, now.month, 1).toIso8601String();
-      final base =
-          '$_baseUrl/rest/v1/sent_gifts?select=room_id,count,value&created_at=gte.$monthStart';
-      final filter = (roomId != null && roomId.isNotEmpty)
-          ? '&room_id=eq.$roomId'
-          : '';
-
-      // PostgREST يحدّ عدد الصفوف افتراضياً — نقرأ على صفحات
-      const pageSize = 1000;
-      var offset = 0;
-      for (var page = 0; page < 50; page++) {
-        final url = Uri.parse(
-            '$base$filter&order=created_at.asc&limit=$pageSize&offset=$offset');
-        final res = await http.get(url, headers: _headers);
-        if (res.statusCode != 200) break;
-        final rows = jsonDecode(res.body) as List;
-        for (final row in rows) {
-          final rid = (row['room_id'] ?? '').toString();
-          if (rid.isEmpty) continue;
-          final count = (row['count'] as num?)?.toInt() ?? 1;
-          final value = (row['value'] as num?)?.toDouble() ?? 0;
-          result[rid] = (result[rid] ?? 0) + (count * value).round();
-        }
-        if (rows.length < pageSize) break;
-        offset += pageSize;
+      final url = Uri.parse('$_baseUrl/rest/v1/rpc/room_monthly_coins');
+      final res = await http
+          .post(url, headers: _headers, body: '{}')
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return result;
+      for (final row in jsonDecode(res.body) as List) {
+        final rid = (row['room_id'] ?? '').toString();
+        if (rid.isEmpty) continue;
+        if (roomId != null && roomId.isNotEmpty && rid != roomId) continue;
+        result[rid] = (row['coins'] as num?)?.toInt() ?? 0;
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] _fetchMonthlyRoomCoins error: $e');

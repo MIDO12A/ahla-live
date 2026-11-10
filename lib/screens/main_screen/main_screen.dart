@@ -34,6 +34,12 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   StreamSubscription? _broadcastSub;
   final ValueNotifier<Map<String, dynamic>?> _broadcastNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final Set<String> _seenBroadcastIds = <String>{};
+  // الصفحات تُنشأ مرة واحدة — لا تُعاد بناؤها مع كل تحديث إعدادات
+  late final List<Widget> _pages = [
+    RoomDiscoverScreen(),
+    MessageScreen(),
+    ProfileScreen(),
+  ];
 
   @override
   void initState() {
@@ -125,25 +131,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return ListenableBuilder(
-      listenable: DynamicConfigService(),
-      builder: (context, _) {
-        final pages = <Widget>[
-          RoomDiscoverScreen(),
-          MessageScreen(),
-          ProfileScreen(),
-        ];
-        return Scaffold(
-          backgroundColor: const Color(0xFFFFFFFF),
-          body: Stack(
-            children: [
-              PageView(
-                controller: _pageController,
-                onPageChanged: (index) {
-                  setState(() => _currentIndex = index);
-                },
-                children: pages,
-              ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFFFFF),
+      body: Stack(
+        children: [
+          PageView(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() => _currentIndex = index);
+            },
+            children: _pages,
+          ),
 
               // ── Global Marquee Broadcast for all screens ──
               ValueListenableBuilder<Map<String, dynamic>?>(
@@ -166,7 +164,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          bottomNavigationBar: Column(
+          bottomNavigationBar: ListenableBuilder(
+            listenable: DynamicConfigService(),
+            builder: (context, _) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
@@ -218,9 +218,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               ),
             ],
           ),
+          ),
         );
-      },
-    );
   }
 
   Widget _navIconWidget(String iconPath) {
@@ -245,11 +244,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     return GestureDetector(
       onTap: () {
         setState(() => _currentIndex = index);
-        _pageController.animateToPage(
-          index,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+        // تبديل فوري بدون أنيميشن —zero perceptible delay
+        _pageController.jumpToPage(index);
       },
       child: SizedBox(
         width: 72,

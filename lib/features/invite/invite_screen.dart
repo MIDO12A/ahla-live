@@ -51,7 +51,7 @@ class _InviteScreenState extends State<InviteScreen> {
 
     final base = cfg.inviteWebUrl.isNotEmpty
         ? cfg.inviteWebUrl
-        : 'https://zero-invite.vercel.app/#/invite-register';
+        : 'https://zero-invite-two.vercel.app/#/invite-register';
 
     final uri = Uri.parse(base);
     final queryParams = Map<String, String>.from(uri.queryParameters);

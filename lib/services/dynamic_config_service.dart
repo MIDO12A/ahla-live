@@ -910,7 +910,7 @@ class DynamicConfigService extends ChangeNotifier {
   String get profileInviteTitle =>
       _screenStr('profile', 'inviteTitle', 'كود الدعوة');
   String get inviteWebUrl =>
-      _screenStr('invite', 'webUrl', 'https://zero-invite.vercel.app/#/invite-register');
+      _screenStr('invite', 'webUrl', 'https://zero-invite-two.vercel.app/#/invite-register');
 
   // ── Invite screen theme (app_config.invite_settings.screen) ──
   Map<String, dynamic> get _inviteSettings {
