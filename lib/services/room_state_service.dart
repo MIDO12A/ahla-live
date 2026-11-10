@@ -42,6 +42,10 @@ class MinimizedRoomService extends ChangeNotifier {
   bool get isOnSeat => _isOnSeat;
   bool get isMicMuted => _isMicMuted;
 
+  /// يُسجَّل من RoomScreen لتنظيف كاش المقاعد المحلي عند الخروج من غرفة
+  /// مُصغَّرة حتى لا يعود المستخدم ليرى نفسه على مقعد قديم (ghost seat).
+  static void Function(String roomId, String uid)? seatCacheEvictor;
+
   bool isActiveFor(String id) => _isActive && _roomId == id;
 
   void activate({
@@ -176,6 +180,11 @@ class MinimizedRoomService extends ChangeNotifier {
   /// Clean up room completely from Firestore, Supabase, and Zego audio
   Future<void> exitRoom(String userId) async {
     final oldRoomId = _roomId;
+    if (oldRoomId != null && userId.isNotEmpty) {
+      try {
+        seatCacheEvictor?.call(oldRoomId, userId);
+      } catch (_) {}
+    }
     deactivate();
     if (oldRoomId != null) {
       Future<void> safeCall(Future Function() fn) async {

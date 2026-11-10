@@ -635,6 +635,28 @@ class SupabaseDataService {
   // ROOM MESSAGES
   // ═══════════════════════════════════════════════════════
 
+  /// خصم كوينز atomic على السيرفر — طلب واحد بدل قراءة+كتابة
+  /// آمن مع الإرسال المتتابع (كومبو/ضغط مطوّل) بدون فقدان تحديثات
+  Future<Map<String, dynamic>?> spendUserCoins(String uid, int amount) async {
+    try {
+      final url = Uri.parse('$_baseUrl/rest/v1/rpc/spend_user_coins');
+      final res = await http
+          .post(
+            url,
+            headers: _headers,
+            body: jsonEncode({'p_uid': uid, 'p_amount': amount}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] spendUserCoins error: $e');
+    }
+    return null;
+  }
+
   Future<bool> sendMessage(MessageModel message) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_messages');

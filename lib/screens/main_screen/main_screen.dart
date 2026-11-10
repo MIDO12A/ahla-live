@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/r.dart';
 import '../../providers/user_provider.dart';
@@ -128,10 +130,53 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  Future<bool> _confirmExit() async {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF211211),
+        title: DText(isAr ? 'الخروج من التطبيق' : 'Exit App',
+            style: const TextStyle(color: Colors.white)),
+        content: DText(
+            isAr ? 'هل تريد الخروج من التطبيق؟' : 'Do you want to exit the app?',
+            style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: DText(isAr ? 'إلغاء' : 'Cancel',
+                style: const TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: DText(isAr ? 'خروج' : 'Exit',
+                style: const TextStyle(color: Color(0xFFD3A350))),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    try {
+      await SystemNavigator.pop();
+    } catch (_) {}
+    if (Platform.isAndroid) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      exit(0);
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
+    return PopScope(
+      // الاعتراض فقط في شاشة الاستكشاف (أول تبويب) — باقي التبويبات
+      // تحتفظ بسلوك الرجوع الافتراضي.
+      canPop: _currentIndex != 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_confirmExit());
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFFFFFFF),
       body: Stack(
         children: [
@@ -219,7 +264,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             ],
           ),
           ),
-        );
+        ),
+    );
   }
 
   Widget _navIconWidget(String iconPath) {

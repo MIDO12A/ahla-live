@@ -780,19 +780,77 @@ class SupabaseService {
       final hostRatePct = DynamicConfigService().hostRatePercentage;
       final hostDiamonds = (totalCost * (hostRatePct / 100.0)).round();
 
-      final deducted = await _serializeCoinTx(() async {
-        final sUser = await _ds.getUser(senderId);
-        final currentCoins = sUser?.coins ?? 0;
-        if (currentCoins < totalCost) return false;
-        return _ds.updateUser(senderId, {
-          'coins': currentCoins - totalCost,
-          'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
-          if (isSelfSend)
-            'total_gifts_received':
-                (sUser?.totalGiftsReceived ?? 0) + hostDiamonds,
+      // ⚡ خصم atomic بطلب واحد (RPC) — بدون قراءة مسبقة وبدون قائمة انتظار
+      // فيصبح إرسال الهدية أسرع بكثير عند الكومبو/الضغط المطوّل
+      final spendRes = await _ds.spendUserCoins(senderId, totalCost);
+      final bool deducted;
+      if (spendRes != null) {
+        deducted = spendRes['ok'] == true;
+      } else {
+        // احتياطي: إذا لم يكن RPC مُطبَّقاً على السيرفر بعد
+        deducted = await _serializeCoinTx(() async {
+          final sUser = await _ds.getUser(senderId);
+          final currentCoins = sUser?.coins ?? 0;
+          if (currentCoins < totalCost) return false;
+          return _ds.updateUser(senderId, {
+            'coins': currentCoins - totalCost,
+            'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
+          });
         });
-      });
+      }
       if (!deducted) return false;
+
+      // عدّاد الهدايا المستلمة للمرسل في حالة الإرسال لنفسه
+      if (isSelfSend) {
+        unawaited(() async {
+          try {
+            final sUser = await _ds.getUser(senderId);
+            if (sUser == null) return;
+            await _ds.updateUser(senderId, {
+              'total_gifts_received':
+                  sUser.totalGiftsReceived + hostDiamonds,
+            });
+          } catch (_) {}
+        }());
+      }
+
+      // 1.5 ⚡ بث رسالة الهدية في الشات فوراً — قبل أي عمليات رصيد إضافية
+      // حتى تظهر لدى جميع المستخدمين في أقل من ثانية
+      final animAsset = animationAsset ?? '';
+      final staticCover = (defaultImage != null && defaultImage.isNotEmpty)
+          ? defaultImage
+          : ((animAsset.isNotEmpty &&
+                  !animAsset.endsWith('.svga') &&
+                  !animAsset.endsWith('.vap') &&
+                  !animAsset.endsWith('.mp4'))
+              ? animAsset
+              : '');
+      final effectiveIcon = animAsset.isNotEmpty ? animAsset : staticCover;
+
+      unawaited(_ds
+          .sendMessage(MessageModel(
+            msgId: const Uuid().v4(),
+            roomId: roomId,
+            senderUid: senderId,
+            senderName: senderName,
+            senderPhotoUrl: senderPhotoUrl ?? '',
+            type: 'gift',
+            text: '$senderName أرسل $giftName x$count إلى $receiverName',
+            imageUrl: staticCover.isNotEmpty ? staticCover : effectiveIcon,
+            giftPayload: {
+              'gift_id': giftId,
+              'gift_name': giftName,
+              'gift_icon': staticCover.isNotEmpty ? staticCover : effectiveIcon,
+              'image_url': staticCover.isNotEmpty ? staticCover : effectiveIcon,
+              'default_image': staticCover,
+              'count': count,
+              'value': value,
+              'receiver_name': receiverName,
+              'animation_asset': animAsset,
+            },
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+          ))
+          .catchError((_) => false));
 
       // 2. توزيع الماس وفق سياسة النظام المعتمدة (100% للمضيف كاملة، وعمولة وكيل المضيف تُضاف لرصيده دون أي خصم من المضيف)
       if (isSelfSend) {
@@ -809,18 +867,7 @@ class SupabaseService {
         await _ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds);
       }
 
-      // 3. تسجيل الهدية وبثها في الغرفة
-      final animAsset = animationAsset ?? '';
-      final staticCover = (defaultImage != null && defaultImage.isNotEmpty)
-          ? defaultImage!
-          : ((animAsset.isNotEmpty &&
-                  !animAsset.endsWith('.svga') &&
-                  !animAsset.endsWith('.vap') &&
-                  !animAsset.endsWith('.mp4'))
-              ? animAsset
-              : '');
-      final effectiveIcon = animAsset.isNotEmpty ? animAsset : staticCover;
-
+      // 3. تسجيل الهدية في السجل ورفع عدّادات الغرفة (الخلفية)
       unawaited(_ds
           .recordSentGift(
             roomId: roomId,
@@ -837,33 +884,6 @@ class SupabaseService {
           )
           .catchError((_) => false));
       unawaited(_ds.incrementRoomGifts(roomId, totalCost));
-
-      final giftPayload = {
-        'gift_id': giftId,
-        'gift_name': giftName,
-        'gift_icon': staticCover.isNotEmpty ? staticCover : effectiveIcon,
-        'image_url': staticCover.isNotEmpty ? staticCover : effectiveIcon,
-        'default_image': staticCover,
-        'count': count,
-        'value': value,
-        'receiver_name': receiverName,
-        'animation_asset': animAsset,
-      };
-
-      unawaited(_ds
-          .sendMessage(MessageModel(
-            msgId: const Uuid().v4(),
-            roomId: roomId,
-            senderUid: senderId,
-            senderName: senderName,
-            senderPhotoUrl: senderPhotoUrl ?? '',
-            type: 'gift',
-            text: '$senderName أرسل $giftName x$count إلى $receiverName',
-            imageUrl: staticCover.isNotEmpty ? staticCover : effectiveIcon,
-            giftPayload: giftPayload,
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-          ))
-          .catchError((_) => false));
 
       // 4. بث كل هدية لكل الغرف — نفس النص الظاهر في شات الغرفة
       unawaited(_ds

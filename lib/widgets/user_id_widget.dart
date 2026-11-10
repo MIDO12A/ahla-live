@@ -116,10 +116,14 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
   }
 
   void _initAnimationIfNeeded() {
+    // الآيدي المميز = موجود في سجل special_id أو له تأثير/ملف SVGA صريح
+    // (لا نعتبر كل رقم قصير مميزاً — معظم المستخدمين لديهم custom_id رقمي)
     final bool isSpecial = widget.isBeauty ||
-        (widget.idText.isNotEmpty && widget.idText.length <= 6 && int.tryParse(widget.idText) != null) ||
-        (widget.colorEffect != null && widget.colorEffect!.isNotEmpty) ||
-        (widget.gifUrl != null && widget.gifUrl!.isNotEmpty);
+        (widget.autoStyle &&
+            SpecialIdService.instance.styleFor(widget.idText) != null) ||
+        (widget.colorEffect != null && widget.colorEffect!.trim().isNotEmpty) ||
+        (widget.gifUrl != null && widget.gifUrl!.isNotEmpty) ||
+        (widget.svgaAsset != null && widget.svgaAsset!.trim().isNotEmpty);
 
     if (isSpecial && _animCtrl == null) {
       _animCtrl = AnimationController(
@@ -234,10 +238,12 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
             ? widget.svgaKey
             : (autoItem?.svgaTextKey ?? 'id');
 
-    // التحقق التلقائي إذا كان المعرف مميزاً (مثلاً: 6 خانات أو أقل، أو محدد كـ isBeauty)
+    // الآيدي المميز فقط: عنصر موجود في سجل special_id أو مؤثر صريح
+    // (الأرقام القصيرة وحدها لا تعني أنه مميز — كل المستخدمين لديهم أرقام)
     final bool effectiveBeauty = widget.isBeauty ||
-        (widget.idText.length <= 6 && int.tryParse(widget.idText) != null) ||
+        autoItem != null ||
         (effectiveEffect != null && effectiveEffect.isNotEmpty) ||
+        (effectiveSvga != null && effectiveSvga.trim().isNotEmpty) ||
         (widget.gifUrl != null && widget.gifUrl!.isNotEmpty);
     if (effectiveBeauty && _animCtrl == null) {
       _animCtrl = AnimationController(

@@ -222,6 +222,9 @@ class RoomScreen extends StatefulWidget {
   static SharedPreferences? sharedPrefs;
 
   static Future<void> initPrefs() async {
+    // ربط مُخلِّي كاش المقاعد حتى ينظّف MinimizedRoomService كاش الغرف
+    // المُصغَّرة عند الخروج (يمنع ظهور المستخدم كـ ghost على مقعد قديم).
+    MinimizedRoomService.seatCacheEvictor = removeUserFromCachedSeatMap;
     try {
       sharedPrefs = await SharedPreferences.getInstance();
       final keys = sharedPrefs?.getKeys() ?? {};
@@ -1445,8 +1448,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       });
       // Restore the user's own seat from the last local snapshot (or the
       // minimized-room hand-off) so re-entering never drops them off the mic.
-      final snapshotSeatIndex =
-          RoomScreen.cachedSeatIndexFor(widget.roomId, currentUser.uid);
+      // ⚠️ لا نستعيد المقعد إلا عند العودة من غرفة مُصغَّرة/إعادة دخول —
+      // الدخول الجديد بعد خروج/قتل التطبيق يجب أن يبدأ بدون مقعد حتى لا
+      // يظهر المستخدم كـ ghost على مقعد قديم ما زال في الكاش.
+      final snapshotSeatIndex = isReturningFromMinimized
+          ? RoomScreen.cachedSeatIndexFor(widget.roomId, currentUser.uid)
+          : null;
       final seatToRestore = restoredSeatIndex ?? snapshotSeatIndex;
       if (seatToRestore != null &&
           seatToRestore >= 0 &&
@@ -3226,9 +3233,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _seats[idx].isMuted = false;
     });
 
-    _firebaseService.leaveSeat(widget.roomId, idx);
     if (isSelf && kickedUid != null) {
+      // عند نزول النفس: احذف بمعرّف المستخدم وليس برقم المقعد حتى لا نمسح
+      // مقعد شخص آخر لو تغيّر شاغل المقعد بين القراءات.
+      _firebaseService.leaveSeatForUser(widget.roomId, kickedUid);
       RoomScreen.removeUserFromCachedSeatMap(widget.roomId, kickedUid);
+    } else {
+      _firebaseService.leaveSeat(widget.roomId, idx);
     }
 
     if (kickedUid != null && !isSelf) {
@@ -7273,9 +7284,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     final leaveUid = resolvedUid;
     if (leaveUid != null && leaveUid.isNotEmpty) {
-      if (logExit) {
-        RoomScreen.removeUserFromCachedSeatMap(roomId, leaveUid);
-      }
+      // دائماً نظّف كاش المقعد — سواء كان الخروج عادياً أو طرداً إجبارياً
+      // (انقطاع نت/خلفية طويلة/kill) حتى لا نرى أنفسنا ghost على المقعد.
+      RoomScreen.removeUserFromCachedSeatMap(roomId, leaveUid);
       cleanupTasks.add(safeCall(() => _firebaseService.leaveSeatForUser(roomId, leaveUid)));
       cleanupTasks.add(safeCall(() => SupabaseService().leaveSeatForUser(roomId, leaveUid)));
       cleanupTasks.add(safeCall(() => SupabaseDataService().leaveSeatForUser(roomId, leaveUid)));
