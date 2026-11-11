@@ -28,6 +28,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Pin to the SDK version used for local builds: latest stable
+          # now requires Gradle 9.3.1 while the project still builds on
+          # Gradle 8.14 (supported boundary of this SDK).
+          flutter-version: '3.47.1'
           cache: true
 
       - name: Install dependencies
