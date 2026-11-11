@@ -29,7 +29,6 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
-  late PageController _pageController;
   int _currentIndex = 0;
   Timer? _updatePoll;
   bool _checkingUpdate = false;
@@ -46,7 +45,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: 0);
     WidgetsBinding.instance.addObserver(this);
     // Check for updates and daily checkin immediately after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -126,7 +124,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     _updatePoll?.cancel();
     _broadcastSub?.cancel();
     _broadcastNotifier.dispose();
-    _pageController.dispose();
     super.dispose();
   }
 
@@ -180,11 +177,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       backgroundColor: const Color(0xFFFFFFFF),
       body: Stack(
         children: [
-          PageView(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() => _currentIndex = index);
-            },
+          // IndexedStack يُبقي كل التبويبات حيّة — الانتقال بين
+          // الاستكشاف والحساب لا يُعيد بناء الصفحة ولا يُظهر loading
+          IndexedStack(
+            index: _currentIndex,
             children: _pages,
           ),
 
@@ -289,9 +285,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final isSelected = _currentIndex == index;
     return GestureDetector(
       onTap: () {
+        // تبديل فوري بدون أنيميشن أو إعادة بناء —zero perceptible delay
         setState(() => _currentIndex = index);
-        // تبديل فوري بدون أنيميشن —zero perceptible delay
-        _pageController.jumpToPage(index);
       },
       child: SizedBox(
         width: 72,

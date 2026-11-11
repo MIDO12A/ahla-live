@@ -845,6 +845,7 @@ class SupabaseService {
               'default_image': staticCover,
               'count': count,
               'value': value,
+              'receiver_id': receiverId,
               'receiver_name': receiverName,
               'animation_asset': animAsset,
             },

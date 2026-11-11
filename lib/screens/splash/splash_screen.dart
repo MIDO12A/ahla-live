@@ -50,57 +50,69 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Check if user is logged in and check ban status
     final uid = SupabaseAuthService().currentUid;
+
+    // ✅ كل الفحوصات تعمل بالتوازي مع مرحلة اللوجو (1800ms) بدل التسلسل:
+    // فحص الحظر + تحميل المستخدم + فحص التحديث — كان ينتظرون واحداً تلو الآخر
+    // فيأخر ظهور بنر السبلاش several seconds على الشبكات البطيئة.
+    AppUpdateInfo? pendingUpdate;
+    final checks = <Future<void>>[
+      Future<void>.delayed(const Duration(milliseconds: 1800)),
+      () async {
+        try {
+          final update = await UpdateService.instance.checkForUpdate();
+          if (update != null) pendingUpdate = update;
+        } catch (e) {
+          debugPrint('Update flow error: $e');
+        }
+      }(),
+    ];
+
     if (uid != null) {
-      try {
-        final userData = await SupabaseService().getUser(uid);
-        if (userData != null && userData.banned) {
-          // Check if ban duration has passed
-          if (userData.bannedUntil != null && DateTime.now().isAfter(userData.bannedUntil!)) {
-            // Automatically unban
-            try {
-              await SupabaseService().updateUser(uid, {
-                'banned': false,
-                'ban_reason': '',
+      checks.add(() async {
+        try {
+          final userData = await SupabaseService().getUser(uid);
+          if (!mounted) return;
+          if (userData != null && userData.banned) {
+            // Check if ban duration has passed
+            if (userData.bannedUntil != null && DateTime.now().isAfter(userData.bannedUntil!)) {
+              // Automatically unban
+              try {
+                await SupabaseService().updateUser(uid, {
+                  'banned': false,
+                  'ban_reason': '',
+                });
+              } catch (_) {}
+            } else {
+              setState(() {
+                _isBanned = true;
+                _banReason = userData.banReason.isNotEmpty ? userData.banReason : _banReason;
+                _bannedUntil = userData.bannedUntil;
               });
-            } catch (_) {}
-          } else {
-            setState(() {
-              _isBanned = true;
-              _banReason = userData.banReason.isNotEmpty ? userData.banReason : _banReason;
-              _bannedUntil = userData.bannedUntil;
-            });
-            return; // Stop here, don't navigate to app
+              return; // Stop here, don't navigate to app
+            }
+          }
+        } catch (e) {
+          debugPrint('Error checking user ban status: $e');
+        }
+        // Load user data into provider
+        if (mounted && !_isBanned) {
+          try {
+            await Provider.of<UserProvider>(context, listen: false).loadUser(uid);
+          } catch (e) {
+            debugPrint('Error loading user data: $e');
           }
         }
-      } catch (e) {
-        debugPrint('Error checking user ban status: $e');
-      }
-      // Load user data into provider
-      if (mounted) {
-        try {
-          await Provider.of<UserProvider>(context, listen: false).loadUser(uid);
-        } catch (e) {
-          debugPrint('Error loading user data: $e');
-        }
-      }
+      }());
     }
 
-    // Check for a published app update before entering the app
-    try {
-      final update = await UpdateService.instance.checkForUpdate();
-      if (update != null && mounted) {
-        if (update.forceUpdate) {
-          await AppUpdateDialog.show(context, update);
-          return;
-        }
-        // Non-forced updates are displayed smoothly in MainScreen to prevent dialog destruction
-      }
-    } catch (e) {
-      debugPrint('Update flow error: $e');
-    }
+    await Future.wait(checks);
+    if (!mounted || _isBanned) return;
 
-    // Phase 1: عرض لوجو التطبيق واسمه باللون الغامق أولاً لمدة 1800ms
-    await Future.delayed(const Duration(milliseconds: 1800));
+    // Force update must gate entry; non-forced updates show in MainScreen
+    if (pendingUpdate != null && pendingUpdate!.forceUpdate) {
+      await AppUpdateDialog.show(context, pendingUpdate!);
+      return;
+    }
 
     final config = DynamicConfigService();
     final hasCustomSplash = config.splashEnabled &&

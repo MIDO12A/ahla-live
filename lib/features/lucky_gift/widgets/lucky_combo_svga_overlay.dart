@@ -1,8 +1,11 @@
 ﻿import 'package:flutter/material.dart';
-import '../../../../screens/room/widgets/svga_player.dart';
 
-/// عارض أرقام الكومبو الحصرية بصيغة SVGA في منتصف شاشة الغرفة
-/// يقوم بتشغيل أنيميشن الرقم (10، 20، 30، 50، 66، 88، 100، ... حتى 10000)
+import '../../../../services/dynamic_config_service.dart';
+import 'dashboard_anim_player.dart';
+
+/// عارض أرقام الكومبو في منتصف شاشة الغرفة.
+/// ✅ المصدر الوحيد: لوحة التحكم (app_assets) — لا ملفات محلية.
+/// يدعم أي امتداد (svga / vap / mp4 / صورة) عبر DashboardAnimPlayer.
 class LuckyComboSvgaOverlay extends StatefulWidget {
   final int count;
   final VoidCallback onFinished;
@@ -13,22 +16,21 @@ class LuckyComboSvgaOverlay extends StatefulWidget {
     required this.onFinished,
   }) : super(key: key);
 
-  /// فحص ما إذا كان الرقم المحدد له ملف SVGA مخصص
+  /// المسار الافتراضي الذي يُستخدم كمفتاح بحث في app_assets
+  static String _assetKeyForCount(int count) =>
+      'assets/svga/chates_gift_number_$count.svga';
+
+  /// فحص ما إذا كان للرقم ملف مخصص مرفوع من لوحة التحكم
   static bool hasSvgaForCount(int count) {
-    const availableNumbers = [
-      10, 20, 30, 50, 66, 88, 100, 200, 300, 400, 500,
-      666, 777, 888, 1000, 2000, 3000, 4000, 5000, 6000,
-      7000, 8000, 9000, 10000
-    ];
-    return availableNumbers.contains(count);
+    if (count <= 0) return false;
+    final url = DynamicConfigService().getAssetOverride(_assetKeyForCount(count));
+    return url != null && url.isNotEmpty;
   }
 
-  /// إرجاع مسار ملف الـ SVGA المطابق للرقم
+  /// إرجاع رابط الأنيميشن من لوحة التحكم (svga/vap/mp4/صورة) أو null
   static String? getSvgaPathForCount(int count) {
-    if (hasSvgaForCount(count)) {
-      return 'assets/svga/chates_gift_number_$count.svga';
-    }
-    return null;
+    if (!hasSvgaForCount(count)) return null;
+    return DynamicConfigService().getAssetOverride(_assetKeyForCount(count));
   }
 
   @override
@@ -70,9 +72,9 @@ class _LuckyComboSvgaOverlayState extends State<LuckyComboSvgaOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final svgaPath = LuckyComboSvgaOverlay.getSvgaPathForCount(widget.count);
+    final assetUrl = LuckyComboSvgaOverlay.getSvgaPathForCount(widget.count);
 
-    if (svgaPath == null) {
+    if (assetUrl == null) {
       return const SizedBox.shrink();
     }
 
@@ -83,10 +85,11 @@ class _LuckyComboSvgaOverlayState extends State<LuckyComboSvgaOverlay>
           child: SizedBox(
             width: 320,
             height: 320,
-            child: SvgaPlayer(
-              assetPath: svgaPath,
+            child: DashboardAnimPlayer(
+              url: assetUrl,
+              width: 320,
+              height: 320,
               loops: false,
-              fit: BoxFit.contain,
               onFinished: widget.onFinished,
             ),
           ),

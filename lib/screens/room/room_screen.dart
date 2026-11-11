@@ -1630,17 +1630,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _seenMsgIds.add(bId);
         _broadcastNotifier.value = latest;
 
+        // بثوث الغرف الأخرى لا تُحقن في شات هذه الغرفة — رسائل الفوز/الهدية
+        // تظهر فقط في الغرفة التي حدثت فيها. يبقى _broadcastNotifier يعمل
+        // للبانر المتحرك العلوي فقط.
         final bRoomId = latest['room_id']?.toString() ?? '';
+        if (bRoomId != widget.roomId) continue;
         final bType = latest['type']?.toString() ?? '';
         final content = latest['content']?.toString() ?? '';
-        // غرف أخرى: نضيف نص البث إلى شات الغرفة ليظهر لجميع المستخدمين.
         // داخل نفس الغرفة لا نكرر lucky_gift لأن رسالة النظام الحقيقية موجودة أصلاً.
         if (content.isEmpty) continue;
-        if (bRoomId == widget.roomId &&
-            (bType == 'lucky_gift' ||
-                bType == 'gift' ||
-                bType == 'big_gift' ||
-                bType == 'lucky_bag_win')) {
+        if (bType == 'lucky_gift' ||
+            bType == 'gift' ||
+            bType == 'big_gift' ||
+            bType == 'lucky_bag_win') {
           continue;
         }
 
@@ -1691,6 +1693,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         }
 
         // الحفاظ على كامل الرسائل السابقة أثناء الجلسة مع استبدال الرسائل المؤقتة بالرسائل المؤكدة
+        var newMsgAdded = false;
+        var newGiftMsgAdded = false;
         for (final m in currentSessionMsgs) {
           final tempIdx = _chatMessages.indexWhere((e) {
             if (!e.msgId.startsWith('temp_') || e.senderUid != m.senderUid) {
@@ -1705,6 +1709,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           });
           if (tempIdx != -1) {
             _chatMessages[tempIdx] = m;
+            if (m.type == 'gift' ||
+                m.type == 'lucky_gift' ||
+                m.type == 'lucky_win' ||
+                m.type == 'gift_multiplier' ||
+                m.type == 'lucky_bag') {
+              newGiftMsgAdded = true;
+            }
             continue;
           }
 
@@ -1716,6 +1727,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                (e.timestamp - m.timestamp).abs() < 1000));
           if (!exists) {
             _chatMessages.add(m);
+            newMsgAdded = true;
+            if (m.type == 'gift' ||
+                m.type == 'lucky_gift' ||
+                m.type == 'lucky_win' ||
+                m.type == 'gift_multiplier' ||
+                m.type == 'lucky_bag') {
+              newGiftMsgAdded = true;
+            }
           }
         }
         _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -1937,14 +1956,27 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             }
           }
         }
-        if (_chatScroll.hasClients) {
-          final isNearBottom = (_chatScroll.position.maxScrollExtent - _chatScroll.offset) < 120;
-          if (isNearBottom) {
-            _chatScroll.animateTo(
-              _chatScroll.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 100),
-              curve: Curves.easeOut,
-            );
+        // التمرير لآخر الرسائل:
+        // - رسائل عادية: فقط إذا كان المستخدم قريباً من الأسفل (لا نسحبه وهو يقرأ)
+        // - رسائل الهدايا/الحظ: دائماً نحو الأسفل حتى تظهر آخر هدية فوراً
+        // ✅ التمرير بعد الـ frame التالي حتى يlayouts الـ ListView
+        //    الرسالة الجديدة أولاً — وإلا كان maxScrollExtent قديماً
+        //    فيقف التمرير قبل آخر رسالة ويضطر المستخدم للسحب يدوياً.
+        if (newMsgAdded || newGiftMsgAdded) {
+          final shouldScroll = newGiftMsgAdded ||
+              (_chatScroll.hasClients &&
+                  (_chatScroll.position.maxScrollExtent -
+                          _chatScroll.offset) <
+                      120);
+          if (shouldScroll) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || !_chatScroll.hasClients) return;
+              _chatScroll.animateTo(
+                _chatScroll.position.maxScrollExtent,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+              );
+            });
           }
         }
       }

@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../config/r.dart';
-import '../../../../screens/room/widgets/svga_player.dart';
-import 'package:zero/core/dtext.dart';
 
 /// ويدجت طيران الهدية إلى مقعد المستخدم المستلم في الغرفة (Gift Seat Flight Animation)
 /// يدعم إرسال هدية لمقعد محدد أو الطيران المتوازي لكافة مقاعد المستخدمين (Send to All Mic Users)
@@ -67,8 +65,8 @@ class _GiftSeatFlightOverlayState extends State<GiftSeatFlightOverlay>
       duration: const Duration(milliseconds: 250),
     );
 
-    _burstScale = Tween<double>(begin: 0.6, end: 1.5).animate(
-      CurvedAnimation(parent: _burstController, curve: Curves.easeOutBack),
+    _burstScale = Tween<double>(begin: 1.0, end: 1.15).animate(
+      CurvedAnimation(parent: _burstController, curve: Curves.easeOut),
     );
     _burstOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(parent: _burstController, curve: Curves.easeIn),
@@ -115,29 +113,22 @@ class _GiftSeatFlightOverlayState extends State<GiftSeatFlightOverlay>
         builder: (context, child) {
           final t = _flightProgress.value;
 
-          // Scale: 0.7 at start -> 1.2 mid flight -> shrinks down to 0.1 at arrival
-          double flightScale;
-          double flightOpacity;
-          if (t < 0.6) {
-            flightScale = 0.7 + (t / 0.6) * 0.5; // 0.7 -> 1.2
-            flightOpacity = 1.0;
-          } else {
-            final subT = (t - 0.6) / 0.4;
-            flightScale = 1.2 * (1.0 - subT); // 1.2 -> 0.0
-            flightOpacity = (1.0 - subT).clamp(0.0, 1.0);
-          }
+          // Scale: تكبير تدريجي أثناء الطيران — الصورة تصل للمقعد بحجم كبير
+          // بدون أي نجمة أو خلفية ذهبية، ثم تتلاشى بهدوء عند الوصول.
+          final flightScale = 0.9 + (sin(t * pi) * 0.7);
+          final flightOpacity = t > 0.82 ? ((1.0 - t) / 0.18).clamp(0.0, 1.0) : 1.0;
 
           return Stack(
             children: widget.targetOffsets.map((target) {
               final currentPos = _calculateBezierPoint(widget.startOffset, target, t);
 
               return Positioned(
-                left: currentPos.dx - 28,
-                top: currentPos.dy - 28,
+                left: currentPos.dx - 36,
+                top: currentPos.dy - 36,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Flying Gift (scales down and disappears on arrival)
+                    // Flying Gift — صورة الهدية بحجم كبير أثناء الطيران
                     if (!_hasArrived && flightOpacity > 0.01)
                       Opacity(
                         opacity: flightOpacity,
@@ -146,47 +137,42 @@ class _GiftSeatFlightOverlayState extends State<GiftSeatFlightOverlay>
                           child: widget.giftIconUrl.startsWith('http')
                               ? Image(
                                   image: R.cachedImage(widget.giftIconUrl),
-                                  width: 48,
-                                  height: 48,
+                                  width: 72,
+                                  height: 72,
                                   fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.amber, size: 36),
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.white, size: 56),
                                 )
                               : Image.asset(
                                   widget.giftIconUrl,
-                                  width: 48,
-                                  height: 48,
+                                  width: 72,
+                                  height: 72,
                                   fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.amber, size: 36),
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.white, size: 56),
                                 ),
                         ),
                       ),
 
-                    // Arrival Sparkle / Star Burst (at the target seat)
+                    // عند الوصول: نفس صورة الهدية تثبت لحظة على المقعد ثم تتلاشى — بدون نجمة أو توهج ذهبي
                     if (_hasArrived)
                       Opacity(
                         opacity: _burstOpacity.value,
                         child: Transform.scale(
                           scale: _burstScale.value,
-                          child: Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  const Color(0xFFFFE082).withOpacity(0.9),
-                                  const Color(0xFFFFB300).withOpacity(0.5),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                            child: const Center(
-                              child: DText(
-                                '✨',
-                                style: TextStyle(fontSize: 28),
-                              ),
-                            ),
-                          ),
+                          child: widget.giftIconUrl.startsWith('http')
+                              ? Image(
+                                  image: R.cachedImage(widget.giftIconUrl),
+                                  width: 72,
+                                  height: 72,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.white, size: 56),
+                                )
+                              : Image.asset(
+                                  widget.giftIconUrl,
+                                  width: 72,
+                                  height: 72,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.white, size: 56),
+                                ),
                         ),
                       ),
                   ],

@@ -454,6 +454,7 @@ class _GiftPanelState extends State<GiftPanel> {
             height: 58,
             child: ListView(
               scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
               children: [
                 _buildAllSelectButton(dc, isAr),
                 for (int idx = 0; idx < users.length; idx++)
@@ -476,7 +477,9 @@ class _GiftPanelState extends State<GiftPanel> {
                       final isSelected = _selectedCategoryId == cat.id;
                       return GestureDetector(
                         onTap: () => _selectCategory(allTabs, i),
-                        child: Container(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeOutCubic,
                           margin: const EdgeInsets.only(right: 6),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           decoration: BoxDecoration(
@@ -484,10 +487,19 @@ class _GiftPanelState extends State<GiftPanel> {
                                 ? dc.giftPanelTabColor
                                 : Colors.white.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(14),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: dc.giftPanelTabColor.withValues(alpha: 0.45),
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
                           ),
                           alignment: Alignment.center,
-                          child: DText(
-                            cat.name,
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
                             style: TextStyle(
                               fontSize: 11,
                               color: isSelected
@@ -497,6 +509,7 @@ class _GiftPanelState extends State<GiftPanel> {
                                   ? FontWeight.bold
                                   : FontWeight.normal,
                             ),
+                            child: DText(cat.name),
                           ),
                         ),
                       );
@@ -666,6 +679,7 @@ class _GiftPanelState extends State<GiftPanel> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: GridView.builder(
         padding: const EdgeInsets.only(top: 6, bottom: 50),
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
           crossAxisSpacing: 8,
@@ -730,7 +744,9 @@ class _GiftPanelState extends State<GiftPanel> {
 
   Widget _buildGiftItemContent(gm.GiftModel g, bool sel, DynamicConfigService dc) {
     final hasCardBgImage = dc.giftPanelCardBgImage.isNotEmpty;
-    return Container(
+    return AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
         margin: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
           color: hasCardBgImage ? null : dc.giftPanelCardBgColor,
@@ -758,18 +774,23 @@ class _GiftPanelState extends State<GiftPanel> {
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: g.iconAsset.isNotEmpty
-                          ? R.loadImage(
-                              g.iconAsset,
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.contain,
-                            )
-                          : const Icon(
-                              Icons.card_giftcard,
-                              color: Color(0xFFFFD700),
-                              size: 34,
-                            ),
+                      child: AnimatedScale(
+                        scale: sel ? 1.14 : 1.0,
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.elasticOut,
+                        child: g.iconAsset.isNotEmpty
+                            ? R.loadImage(
+                                g.iconAsset,
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.contain,
+                              )
+                            : const Icon(
+                                Icons.card_giftcard,
+                                color: Color(0xFFFFD700),
+                                size: 34,
+                              ),
+                      ),
                     ),
                   ),
                   if (g.isLucky)

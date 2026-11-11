@@ -1,5 +1,7 @@
 ﻿import 'package:flutter/material.dart';
-import '../../../../screens/room/widgets/svga_player.dart';
+
+import '../../../../services/dynamic_config_service.dart';
+import 'dashboard_anim_player.dart';
 
 /// عارض أنيميشن مكسب الحظ الداخلي في الغرفة بصيغة SVGA (In-Room Win Animation)
 /// يتم تشغيله لجميع المتواجدين في نفس الغرفة عند فوز المستخدم بمضاعف (5X, 10X, 20X, 50X, 100X, 250X, 500X, 1000X)
@@ -26,32 +28,29 @@ class LuckyRoomWinSvgaOverlay extends StatefulWidget {
     required this.onFinished,
   }) : super(key: key);
 
-  /// فحص ما إذا كان المضاعف يستحق تشغيل أنيميشن الـ SVGA في الروم
+  /// المستويات المتاحة (من الأكبر للأصغر) — تُحلّ من لوحة التحكم فقط
+  static const List<int> _tiers = [1000, 500, 250, 100, 50, 20, 10, 5];
+
+  static String _assetKeyForTier(int tier) => 'assets/svga/gift_$tier.svga';
+
+  /// فحص ما إذا كان المضاعف يستحق تشغيل أنيميشن في الروم
   static bool hasWinSvga(int multiplier, {String? customUrl}) {
-    return (customUrl != null && customUrl.isNotEmpty) || multiplier >= 5;
+    return (customUrl != null && customUrl.isNotEmpty) ||
+        getWinSvgaPath(multiplier, customUrl: customUrl) != null;
   }
 
-  /// إرجاع مسار الـ SVGA الأنسب لقيمة المضاعف
+  /// إرجاع رابط الأنيميشن من لوحة التحكم (svga/vap/mp4/صورة) أو null.
+  /// ✅ لا ملفات محلية — يختار أول مستوى متاح أصغر من أو يساوي المضاعف.
   static String? getWinSvgaPath(int multiplier, {bool isArabic = true, String? customUrl}) {
     if (customUrl != null && customUrl.isNotEmpty) {
       return customUrl;
     }
-    if (multiplier >= 1000) {
-      return 'assets/svga/gift_1000.svga';
-    } else if (multiplier >= 500) {
-      return 'assets/svga/gift_500.svga';
-    } else if (multiplier >= 250) {
-      return 'assets/svga/gift_250.svga';
-    } else if (multiplier >= 100) {
-      return 'assets/svga/gift_100.svga';
-    } else if (multiplier >= 50) {
-      return 'assets/svga/gift_50.svga';
-    } else if (multiplier >= 20) {
-      return 'assets/svga/gift_20.svga';
-    } else if (multiplier >= 10) {
-      return 'assets/svga/gift_10.svga';
-    } else if (multiplier >= 5) {
-      return 'assets/svga/gift_5.svga';
+    if (multiplier < 5) return null;
+    final config = DynamicConfigService();
+    for (final tier in _tiers) {
+      if (multiplier < tier) continue;
+      final url = config.getAssetOverride(_assetKeyForTier(tier));
+      if (url != null && url.isNotEmpty) return url;
     }
     return null;
   }
@@ -113,8 +112,10 @@ class _LuckyRoomWinSvgaOverlayState extends State<LuckyRoomWinSvgaOverlay>
           child: SizedBox(
             width: 360,
             height: 360,
-            child: SvgaPlayer(
-              assetPath: svgaPath,
+            child: DashboardAnimPlayer(
+              url: svgaPath,
+              width: 360,
+              height: 360,
               loops: false,
               fit: BoxFit.contain,
               textReplacement: {
