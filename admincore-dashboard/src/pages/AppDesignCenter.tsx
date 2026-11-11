@@ -1799,6 +1799,70 @@ export default function AppDesignCenter() {
                   imageKey: 'gameCenterBroadcastIconImage',
                   imageHint: 'room_game_broadcast_ic.webp',
                 })}
+
+                {/* ── Game Center Colors & Layout ── */}
+                {renderDualField({
+                  id: 'gameCenterBgColor',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'لون خلفية صندوق الألعاب',
+                  labelEn: 'Game Center Background Color',
+                  hasColor: true,
+                  colorKey: 'gameCenterBgColor',
+                  defaultColor: '#1E1428',
+                })}
+                {renderDualField({
+                  id: 'gameCenterBroadcastTextColor',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'لون نص شريط الإذاعة',
+                  labelEn: 'Game Center Broadcast Text Color',
+                  hasColor: true,
+                  colorKey: 'gameCenterBroadcastTextColor',
+                  defaultColor: '#FFFFFF',
+                })}
+                {renderDualField({
+                  id: 'gameCenterGameNameColor',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'لون أسماء الألعاب',
+                  labelEn: 'Game Center Game Name Color',
+                  hasColor: true,
+                  colorKey: 'gameCenterGameNameColor',
+                  defaultColor: '#FFFFFF',
+                })}
+                {renderDualField({
+                  id: 'gameCenterHotColor',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'لون بادج HOT',
+                  labelEn: 'Game Center HOT Badge Color',
+                  hasColor: true,
+                  colorKey: 'gameCenterHotColor',
+                  defaultColor: '#FF416C',
+                })}
+                {renderDualField({
+                  id: 'gameCenterSheetHeight',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'ارتفاع صندوق الألعاب (0.65 = 65% من الشاشة)',
+                  labelEn: 'Game Center Sheet Height (0-1)',
+                  hasText: true,
+                  textKey: 'gameCenterSheetHeight',
+                  defaultText: '0.65',
+                  textPlaceholder: '0.65',
+                })}
+                {renderDualField({
+                  id: 'gameCenterColumns',
+                  category: 'room',
+                  screen: 'room',
+                  labelAr: 'عدد أعمدة الألعاب (2-5)',
+                  labelEn: 'Game Center Grid Columns (2-5)',
+                  hasText: true,
+                  textKey: 'gameCenterColumns',
+                  defaultText: '3',
+                  textPlaceholder: '3',
+                })}
               </div>
             </div>
           )}
