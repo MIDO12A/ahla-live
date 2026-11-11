@@ -89,10 +89,8 @@ class UserIdWidget extends StatefulWidget {
     if (isBeauty) return true;
     if (colorEffect != null && colorEffect.isNotEmpty) return true;
     if (gifUrl != null && gifUrl.isNotEmpty) return true;
-    if (idText == null || idText.trim().isEmpty) return false;
-    final clean = idText.trim();
-    final numVal = int.tryParse(clean);
-    if (numVal != null && clean.length <= 6) return true;
+    // لا نعتبر كل رقم قصيراً مميزاً — الأرقام وحدها لا تعني أنه مميز.
+    // التلوين يتطلب عنصراً مميزاً فعلياً من المتجر/اللوحة.
     return false;
   }
 

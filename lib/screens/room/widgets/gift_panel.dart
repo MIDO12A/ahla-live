@@ -65,6 +65,7 @@ class _GiftPanelState extends State<GiftPanel> {
   int _comboMultiplier = 0;
   int _comboRemainingMs = 0;
   late final ScrollController _tabScrollController = ScrollController();
+  late final PageController _pageController = PageController();
   final List<Timer> _pendingDelays = [];
 
   @override
@@ -156,6 +157,7 @@ class _GiftPanelState extends State<GiftPanel> {
       t.cancel();
     }
     _tabScrollController.dispose();
+    _pageController.dispose();
     _comboTimer?.cancel();
     _giftSub?.cancel();
     _catSub?.cancel();
@@ -175,7 +177,9 @@ class _GiftPanelState extends State<GiftPanel> {
   void _loadGifts() {
     final fb = SupabaseService();
     // Instant initial load from Supabase directly
-    SupabaseDataService().getGiftCategories().then((cats) {
+    // allowCache: false — كل فتحة للصندوق يجب أن تجلب أحدث هدايا
+    // لوحة التحكم فوراً بدل عرض كاش قديم حتى لو كانت المدة لم تنتهِ.
+    SupabaseDataService().getGiftCategories(allowCache: false).then((cats) {
       if (mounted) {
         final filteredCats = cats.where((c) => c.id.toLowerCase() != 'all').toList();
         setState(() {
@@ -186,7 +190,7 @@ class _GiftPanelState extends State<GiftPanel> {
         });
       }
     }).catchError((_) {});
-    SupabaseDataService().getGifts().then((gifts) {
+    SupabaseDataService().getGifts(allowCache: false).then((gifts) {
       if (mounted && gifts.isNotEmpty) {
         MediaPrefetchService().prefetchGifts(gifts);
         setState(() {
@@ -617,9 +621,10 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
-  /// مصدر واحد للحقيقة: الشريط والجريد يقرآن نفس `_selectedCategoryId`
-  /// (بدون PageView حتى لا تعود التبويبة للشائع بسبب تعارض حالة الصفحة).
-  void _selectCategory(List<GiftCategory> allTabs, int index) {
+  /// مصدر واحد للحقيقة: الشريط والـ PageView يقرآن نفس `_selectedCategoryId`.
+  /// السحب بين التصنيفات يتم عبر PageView بسلاسة (مثل بانرات الاستكشاف)،
+  /// والانتقال من التبويب يحرّك الصفحة بحركة سلسة.
+  void _selectCategory(List<GiftCategory> allTabs, int index, {bool fromPage = false}) {
     if (index < 0 || index >= allTabs.length) return;
     final cat = allTabs[index];
     _scrollToTab(index);
@@ -631,6 +636,13 @@ class _GiftPanelState extends State<GiftPanel> {
         if (idx >= 0) _sel = idx;
       }
     });
+    if (!fromPage && _pageController.hasClients) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   Widget _buildGrid(DynamicConfigService dc, List<GiftCategory> allTabs) {
@@ -644,16 +656,23 @@ class _GiftPanelState extends State<GiftPanel> {
     }
     final idx = allTabs.indexWhere((c) => c.id == _selectedCategoryId);
     final currentIdx = idx >= 0 ? idx : 0;
-    final cat = allTabs[currentIdx];
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onHorizontalDragEnd: (details) {
-        final v = details.primaryVelocity ?? 0;
-        if (v.abs() < 250) return;
-        _selectCategory(allTabs, v < 0 ? currentIdx + 1 : currentIdx - 1);
-      },
-      child: _buildCategoryGrid(cat, dc),
+    // PageView أفقي بسلاسة — السحب يمين/يسار ينقّل بين التصنيفات
+    // بحركة متحركة بدل القفز المفاجئ، مع مزامنة التبويب العلوي.
+    if (_pageController.hasClients &&
+        (_pageController.page?.round() ?? -1) != currentIdx) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(currentIdx);
+        }
+      });
+    }
+
+    return PageView.builder(
+      controller: _pageController,
+      itemCount: allTabs.length,
+      onPageChanged: (i) => _selectCategory(allTabs, i, fromPage: true),
+      itemBuilder: (_, i) => _buildCategoryGrid(allTabs[i], dc),
     );
   }
 
@@ -764,6 +783,15 @@ class _GiftPanelState extends State<GiftPanel> {
           borderRadius: BorderRadius.circular(4),
           border: sel
               ? Border.all(color: dc.giftPanelCardSelectedBorderColor, width: 1.5)
+              : null,
+          boxShadow: sel
+              ? [
+                  BoxShadow(
+                    color: dc.giftPanelTabColor.withValues(alpha: 0.55),
+                    blurRadius: 14,
+                    spreadRadius: 1.5,
+                  ),
+                ]
               : null,
         ),
         child: Column(

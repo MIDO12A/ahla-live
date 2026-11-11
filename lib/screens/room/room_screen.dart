@@ -119,8 +119,16 @@ Future<void> navigateToRoom(
       wasOnSeat = svc.isOnSeat;
       wasMicMuted = svc.isMicMuted;
     } else {
-      // Different room – cleanly exit the old minimized room and release seat/audio
-      if (uid != null) await svc.exitRoom(uid);
+      // Different room – cleanly exit the old minimized room and release seat/audio.
+      // uid قد يكون null إذا لم يجهز الـ provider بعد — نستخدم كل المصادر
+      // المتاحة ثم نعطّل الحالة على أي حال حتى لا يبقى بلون الغرفة القديمة
+      // فوق الغرفة الجديدة (وهم "موجود في الغرفة السابقة").
+      final exitUid = uid ?? svc.userId;
+      if (exitUid != null && exitUid.isNotEmpty) {
+        await svc.exitRoom(exitUid);
+      } else {
+        svc.deactivate();
+      }
     }
   }
 

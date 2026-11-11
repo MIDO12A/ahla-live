@@ -157,8 +157,9 @@ class SpecialIdService extends ChangeNotifier {
   StoreItemModel? styleFor(String? customId) {
     final normalized = _normalize(customId);
     if (normalized == null) return null;
-    return _byCustomId[normalized] ??
-        _byCustomId[_stripLeadingZeros(normalized)];
+    // مطابقةexact فقط — إزالة الأصفار كانت تلوّن أسماء مستخدمين
+    // عاديين صدفةً (مثلاً آيدي مميز '050' كان يلوّن كل مستخدم '50').
+    return _byCustomId[normalized];
   }
 
   Future<void> ensureLoaded() async {
@@ -183,8 +184,6 @@ class SpecialIdService extends ChangeNotifier {
         final cid = _normalize(item.effectiveCustomId);
         if (cid == null) continue;
         map[cid] = item;
-        final stripped = _stripLeadingZeros(cid);
-        if (stripped != cid) map[stripped] = item;
         signature
           ..write(cid)
           ..write('|')
@@ -226,11 +225,6 @@ class SpecialIdService extends ChangeNotifier {
       return null;
     }
     return trimmed;
-  }
-
-  static String _stripLeadingZeros(String value) {
-    final stripped = value.replaceFirst(RegExp(r'^0+'), '');
-    return stripped.isEmpty ? value : stripped;
   }
 
   static List<Color> _parseColors(dynamic raw) {
