@@ -67,6 +67,7 @@ dependencies:
   google_sign_in: ^7.2.0
   video_player: ^2.4.0
   share_plus: ^12.0.2
+  pusher_channels_flutter: ^2.4.0
 
 dependency_overrides:
   archive: ^4.0.9

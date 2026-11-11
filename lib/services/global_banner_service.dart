@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/gift_banner_config_model.dart';
+import 'pusher_service.dart';
 import 'supabase_service.dart';
 import 'supabase_data_service.dart';
 import 'dynamic_config_service.dart';
@@ -79,6 +80,7 @@ class GlobalBannerService extends ChangeNotifier {
   StreamSubscription? _broadcastSub;
   StreamSubscription? _bannerConfigSub;
   StreamSubscription? _bigWinSub;
+  StreamSubscription? _pusherSub;
   bool _initialized = false;
 
   void init() {
@@ -111,6 +113,30 @@ class GlobalBannerService extends ChangeNotifier {
     _bigWinSub?.cancel();
     _bigWinSub = FirebaseService().globalBigWinStream().listen((winData) {
       _handleIncomingBigWin(winData);
+    }, onError: (_) {});
+
+    // 4. اشتراك Pusher الفوري — يصل قبل الـ polling بجزء من الثانية.
+    //    يمر بنفس مسارات المعالجة فيتجاهل التكرار عبر _seenBroadcastIds.
+    PusherRealtimeService.instance.start();
+    _pusherSub?.cancel();
+    _pusherSub = PusherRealtimeService.instance.events.listen((evt) {
+      final data = evt['data'];
+      if (data is! Map) return;
+      final row = Map<String, dynamic>.from(data);
+      switch (evt['event']) {
+        case 'broadcast':
+          _handleIncomingBroadcasts([row]);
+          break;
+        case 'big_win':
+          _handleIncomingBigWin(row);
+          break;
+        case 'banner_config':
+          SupabaseDataService().getGiftBannerConfigs().then((configs) {
+            _bannerConfigs = configs.where((c) => c.isActive).toList();
+            notifyListeners();
+          }).catchError((_) {});
+          break;
+      }
     }, onError: (_) {});
   }
 
@@ -458,6 +484,7 @@ class GlobalBannerService extends ChangeNotifier {
     _broadcastSub?.cancel();
     _bannerConfigSub?.cancel();
     _bigWinSub?.cancel();
+    _pusherSub?.cancel();
     super.dispose();
   }
 }
