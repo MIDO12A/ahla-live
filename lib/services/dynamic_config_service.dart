@@ -1340,6 +1340,30 @@ class DynamicConfigService extends ChangeNotifier {
       _screenStr('room', 'gameCenterBroadcastBgImage', '');
   String get gameCenterBroadcastIconImage =>
       _screenStr('room', 'gameCenterBroadcastIconImage', '');
+  // ألوان وأبعاد صندوق الألعاب — قابلة للتخصيص الكامل من لوحة التحكم
+  // (screenVisuals.room أو app_config): gameCenterBgColor,
+  // gameCenterBroadcastTextColor, gameCenterGameNameColor,
+  // gameCenterHotColor, gameCenterSheetHeight, gameCenterColumns
+  Color get gameCenterBgColor =>
+      _screenColor('room', 'gameCenterBgColor', const Color(0xFF1E1428));
+  Color get gameCenterBroadcastTextColor =>
+      _screenColor('room', 'gameCenterBroadcastTextColor', Colors.white);
+  Color get gameCenterGameNameColor =>
+      _screenColor('room', 'gameCenterGameNameColor', Colors.white);
+  Color get gameCenterHotColor =>
+      _screenColor('room', 'gameCenterHotColor', const Color(0xFFFF416C));
+  double get gameCenterSheetHeight {
+    final v = double.tryParse(
+        _screenStr('room', 'gameCenterSheetHeight', '0.65'));
+    if (v == null || v <= 0 || v > 1) return 0.65;
+    return v;
+  }
+
+  int get gameCenterColumns {
+    final v = int.tryParse(_screenStr('room', 'gameCenterColumns', '3'));
+    if (v == null || v < 2 || v > 5) return 3;
+    return v;
+  }
   String get roomExitIcon => _screenStr('room', 'exitIconImage', '');
   String get roomOnlineCapsuleBg =>
       _screenStr('room', 'onlineCapsuleBgImage', '');

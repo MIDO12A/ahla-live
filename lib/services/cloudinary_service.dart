@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'safe_http.dart';
 
 enum CloudinaryResourceType { image, video, auto, raw }
 
@@ -34,7 +35,7 @@ class CloudinaryService {
       'https://google.com',
     ]) {
       try {
-        final response = await http.head(Uri.parse(url));
+        final response = await SafeHttp.head(Uri.parse(url));
         final serverDate = response.headers['date'];
         if (serverDate != null) {
           final serverTime = HttpDate.parse(serverDate).millisecondsSinceEpoch;

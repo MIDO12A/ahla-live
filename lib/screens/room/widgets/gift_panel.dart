@@ -176,31 +176,35 @@ class _GiftPanelState extends State<GiftPanel> {
 
   void _loadGifts() {
     final fb = SupabaseService();
-    // Instant initial load from Supabase directly
-    // allowCache: false — كل فتحة للصندوق يجب أن تجلب أحدث هدايا
-    // لوحة التحكم فوراً بدل عرض كاش قديم حتى لو كانت المدة لم تنتهِ.
-    SupabaseDataService().getGiftCategories(allowCache: false).then((cats) {
-      if (mounted) {
-        final filteredCats = cats.where((c) => c.id.toLowerCase() != 'all').toList();
-        setState(() {
-          _categories = filteredCats;
-          if (_selectedCategoryId == null || _selectedCategoryId == 'all') {
-            _selectedCategoryId = filteredCats.isNotEmpty ? filteredCats.first.id : null;
-          }
-        });
-      }
-    }).catchError((_) {});
-    SupabaseDataService().getGifts(allowCache: false).then((gifts) {
-      if (mounted && gifts.isNotEmpty) {
-        MediaPrefetchService().prefetchGifts(gifts);
-        setState(() {
-          _gifts = gifts;
-          if (_sel < 0 && _gifts.isNotEmpty) {
-            _sel = 0;
-          }
-        });
-      }
-    }).catchError((_) {});
+
+    void applyCategories(List<GiftCategory> cats) {
+      if (!mounted) return;
+      final filteredCats = cats.where((c) => c.id.toLowerCase() != 'all').toList();
+      setState(() {
+        _categories = filteredCats;
+        if (_selectedCategoryId == null || _selectedCategoryId == 'all') {
+          _selectedCategoryId = filteredCats.isNotEmpty ? filteredCats.first.id : null;
+        }
+      });
+    }
+
+    void applyGifts(List<gm.GiftModel> gifts) {
+      if (!mounted || gifts.isEmpty) return;
+      MediaPrefetchService().prefetchGifts(gifts);
+      setState(() {
+        _gifts = gifts;
+        if (_sel < 0 && _gifts.isNotEmpty) {
+          _sel = 0;
+        }
+      });
+    }
+
+    // ✅ عرض فوري من الكاش — الصندوق يفتح بالهدايا فوراً بدون انتظار الشبكة
+    SupabaseDataService().getGiftCategories().then(applyCategories).catchError((_) {});
+    SupabaseDataService().getGifts().then(applyGifts).catchError((_) {});
+    // ✅ تحديث صامت من السيرفر — أحدث قائمة بدون إفراغ ما هو معروض
+    SupabaseDataService().getGiftCategories(allowCache: false).then(applyCategories).catchError((_) {});
+    SupabaseDataService().getGifts(allowCache: false).then(applyGifts).catchError((_) {});
 
     _catSub = fb.giftCategoriesStream().listen((cats) {
       if (mounted) {
@@ -635,6 +639,8 @@ class _GiftPanelState extends State<GiftPanel> {
         final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
         if (idx >= 0) _sel = idx;
       }
+      // ✅ تسخين مسبق لصور تصنيف الهدية المختار قبل التمرير إليه
+      MediaPrefetchService().prefetchGifts(_getGiftsForCategory(cat.id));
     });
     if (!fromPage && _pageController.hasClients) {
       _pageController.animateToPage(
@@ -720,6 +726,9 @@ class _GiftPanelState extends State<GiftPanel> {
       onTap: () {
         final idx = _gifts.indexWhere((x) => x.id == g.id);
         setState(() => _sel = idx);
+        // ✅ تسخين كاش الهدية المحددة فوراً — صورتها وأنيميشنها لا
+        //    يُعاد تحميلهما عند الإرسال أو إعادة تحديدها.
+        MediaPrefetchService().prefetchGifts([g]);
       },
       child: _buildGiftItemContent(g, sel, dc),
     );
@@ -756,6 +765,9 @@ class _GiftPanelState extends State<GiftPanel> {
       onTap: () {
         final idx = _gifts.indexWhere((x) => x.id == g.id);
         setState(() => _sel = idx);
+        // ✅ تسخين كاش الهدية المحددة فوراً — صورتها وأنيميشنها لا
+        //    يُعاد تحميلهما عند الإرسال أو إعادة تحديدها.
+        MediaPrefetchService().prefetchGifts([g]);
       },
       child: _buildGiftItemContent(g, sel, dc),
     );

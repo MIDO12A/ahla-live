@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import '../../../services/safe_http.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../../config/r.dart';
@@ -126,7 +126,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
   Future<void> _loadPoolConfig() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/game_jackpot_pool?id=eq.sugarrush&select=win_rate,is_active');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
 
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body) as List<dynamic>;
@@ -346,7 +346,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
       await SupabaseDataService().updateUser(user.uid, {'coins': newCoins});
 
       final rpcUrl = Uri.parse('$_baseUrl/rest/v1/rpc/increment_game_pool_balance');
-      final rpcRes = await http.post(
+      final rpcRes = await SafeHttp.post(
         rpcUrl,
         headers: _headers,
         body: jsonEncode({
@@ -357,7 +357,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
 
       if (rpcRes.statusCode != 200 && rpcRes.statusCode != 204) {
         final patchUrl = Uri.parse('$_baseUrl/rest/v1/game_jackpot_pool?id=eq.sugarrush');
-        await http.patch(
+        await SafeHttp.patch(
           patchUrl,
           headers: _headers,
           body: jsonEncode({'updated_at': DateTime.now().toIso8601String()}),
@@ -382,7 +382,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
         await SupabaseDataService().updateUser(user.uid, {'coins': newCoins});
 
         final rpcUrl = Uri.parse('$_baseUrl/rest/v1/rpc/increment_game_pool_balance');
-        await http.post(
+        await SafeHttp.post(
           rpcUrl,
           headers: _headers,
           body: jsonEncode({
@@ -393,7 +393,7 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
       }
 
       final betRecordUrl = Uri.parse('$_baseUrl/rest/v1/game_bet_records');
-      await http.post(
+      await SafeHttp.post(
         betRecordUrl,
         headers: _headers,
         body: jsonEncode({

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import '../../services/safe_http.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/supabase_config.dart';
 import '../../services/supabase_data_service.dart';
@@ -92,8 +92,7 @@ class SigninService {
       return cached;
     }
     try {
-      final res = await http
-          .get(
+      final res = await SafeHttp.get(
             Uri.parse(
                 '${SupabaseConfig.projectUrl}/rest/v1/signin_rewards?select=*&order=day_number.asc'),
             headers: {

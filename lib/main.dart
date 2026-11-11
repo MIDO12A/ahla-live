@@ -5,6 +5,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'dart:async';
 
 import 'l10n/app_localizations.dart';
+import 'models/user_model.dart';
 import 'services/dynamic_config_service.dart';
 import 'services/error_reporting_service.dart';
 import 'services/lang_service.dart';
@@ -194,7 +195,16 @@ class _AuthGateState extends State<_AuthGate> {
   Future<void> _loadExistingUser() async {
     final uid = _uid;
     if (uid == null) return;
-    final userData = await SupabaseService().getUser(uid);
+    // ✅ timeout قصير: لا نجمّد الواجهة إذا تعذر الوصول للسيرفر
+    UserModel? userData;
+    try {
+      userData = await SupabaseService()
+          .getUser(uid)
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('[AuthGate] _loadExistingUser getUser failed: $e');
+      return;
+    }
     if (userData == null && mounted) {
       final supaAuthUser = SupabaseAuthService().currentUser;
       Navigator.pushAndRemoveUntil(
@@ -216,7 +226,16 @@ class _AuthGateState extends State<_AuthGate> {
 
   Future<void> _handleNewSignIn(String uid) async {
     setState(() => _uid = uid);
-    final userData = await SupabaseService().getUser(uid);
+    // ✅ timeout قصير: لا نجمّد الواجهة إذا تعذر الوصول للسيرفر
+    UserModel? userData;
+    try {
+      userData = await SupabaseService()
+          .getUser(uid)
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('[AuthGate] _handleNewSignIn getUser failed: $e');
+      return;
+    }
     if (userData == null && mounted) {
       final supaAuthUser = SupabaseAuthService().currentUser;
       Navigator.pushAndRemoveUntil(

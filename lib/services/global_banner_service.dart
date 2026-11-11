@@ -412,6 +412,43 @@ class GlobalBannerService extends ChangeNotifier {
     }
   }
 
+  /// حقن محلي فوري لحدث بث — يُستدعى لحظة ضغط زر الإرسال ليظهر
+  /// نص الهدية/الفوز مباشرة بدل انتظار رحلة السيرفر.
+  ///
+  /// يستخدم نفس معرف `id` الذي سيُرسل للسيرفر، فيصل البث الحقيقي
+  /// لاحقاً بنفس المعرف فيتجاهله _seenBroadcastIds — لا تكرار.
+  ///
+  /// للهدية العادية: لافتة SVGA تظهر فوراً عبر triggerGiftBannerLocally،
+  /// لذا هنا نعرض نص الماركي فقط عندما لا توجد لافتة هدية مطابقة
+  /// (نفس قرار مسار السيرفر) — يمنع ظهور لافتين لنفس الهدية.
+  void echoBroadcastLocally(Map<String, dynamic> broadcast) {
+    final type = broadcast['type']?.toString() ?? '';
+    final isLucky = broadcast['is_lucky'] == true ||
+        type == 'lucky_gift' ||
+        type == 'lucky_bag' ||
+        broadcast['is_lucky_bag'] == true;
+    if (!isLucky) {
+      final totalCost = (broadcast['total_cost'] as num?)?.toInt() ??
+          (((broadcast['value'] as num?)?.toInt() ?? 0) *
+              ((broadcast['count'] as num?)?.toInt() ?? 1));
+      final hasBanner = _findMatchingConfig(
+            totalCost: totalCost,
+            categoryId: broadcast['category_id']?.toString(),
+          ) !=
+          null;
+      if (hasBanner) return; // اللافتة ستظهر عبر triggerGiftBannerLocally
+    }
+    _handleIncomingBroadcasts([broadcast]);
+  }
+
+  /// حذف فوري لكل أشرطة الماركي الظاهرة — يُستدعى عند مسح الشات
+  /// حتى يختفي النص في الوقت الفعلي بدل انتظار انتهاء مدة عرضه.
+  void clearMarqueeBanners() {
+    final before = activeBanners.length;
+    activeBanners.removeWhere((b) => b.type == GlobalBannerType.marquee);
+    if (activeBanners.length != before) notifyListeners();
+  }
+
   /// تسجيل حقيبة الحظ في جدول البث العام ليصل إشعارها لكل الأجهزة فوراً.
   Future<void> recordLuckyBagBroadcast({
     required String roomId,

@@ -29,6 +29,7 @@ import '../../services/media_prefetch_service.dart';
 import '../../services/media_cache_service.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/global_banner_service.dart';
+import '../../services/pusher_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/room_audio_service.dart';
 import '../../services/room_state_service.dart';
@@ -1192,6 +1193,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   StreamSubscription? _kickNotifSub;
   bool _kickExitHandled = false;
   StreamSubscription? _broadcastSub;
+  StreamSubscription? _broadcastPusherSub;
   final ValueNotifier<Map<String, dynamic>?> _broadcastNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final ValueNotifier<Map<String, dynamic>?> _giftBannerNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final ValueNotifier<int> _chatUpdateNotifier = ValueNotifier<int>(0);
@@ -1364,7 +1366,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     // الدخول، مع تفادي فارق ساعة الجهاز الذي كان يخفي رسائل الآخرين.
     int? serverJoinedMs;
     try {
-      serverJoinedMs = await _firebaseService.fetchServerTimeMs();
+      // ✅ سقف 2 ثانية: وقت السيرفر يُستخدم فقط لفلترة الشات — لا يجب
+      //    أن يحجب باقي تهيئة الغرفة عند ضعف الشبكة.
+      serverJoinedMs = await _firebaseService
+          .fetchServerTimeMs()
+          .timeout(const Duration(seconds: 2));
     } catch (_) {}
     if (!mounted) return;
     final joinedMs =
@@ -1425,8 +1431,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       } else if (currentUser.hostedRoomId == widget.roomId) {
         _resolveHostCustomId(currentUser.uid);
       }
-      final isBannedNow = await _firebaseService
-          .isUserBlockedFromRoom(widget.roomId, currentUser.uid);
+      // ✅ سقف 3 ثوانٍ: فحص الحظر لا يجب أن يؤخر دخول الغرفة —
+      //    عند انتهاء المهلة نكمل الدخول طبيعياً (الـ stream يراقب لاحقاً).
+      bool isBannedNow = false;
+      try {
+        isBannedNow = await _firebaseService
+            .isUserBlockedFromRoom(widget.roomId, currentUser.uid)
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {}
       if (isBannedNow) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1497,7 +1509,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             user: currentUser,
           );
         }
-        Future.delayed(const Duration(seconds: 3), () {
+        // ✅ 1.2s بدل 3s: المقعد تُستعاد تفاؤلياً فوراً — لا داعي
+        //    لحجب تحديثات المقاعد كل هذه المدة بعد الدخول.
+        Future.delayed(const Duration(milliseconds: 1200), () {
           if (mounted) setState(() => _takingSeat = false);
         });
         _roomAudio.startPublishing();
@@ -1617,65 +1631,86 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     bool _msgStreamInitial = true;
 
-    _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
-      if (!mounted || broadcasts.isEmpty) return;
+    void _flushBroadcastChatIfChanged(bool changed) {
+      if (!changed) return;
+      _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      if (_chatMessages.length > 1000) {
+        _chatMessages.removeRange(0, _chatMessages.length - 1000);
+      }
+      _msgCount = _chatMessages.length;
+      _chatUpdateNotifier.value++;
+    }
+
+    /// معالجة صف بث واحد: فلترة الحداثة/المسح + منع التكرار + حقن رسالة
+    /// الشات إن كان البث يخص هذه الغرفة. تُستخدم من الـ polling و Pusher معاً.
+    /// تُرجع true إذا أُضيفت رسالة شات جديدة.
+    bool _processBroadcastRow(Map<String, dynamic> latest) {
       final nowMs = DateTime.now().millisecondsSinceEpoch;
       final roomCleared = _currentRoom?.chatClearedAt ?? 0;
       final minTimestamp = _localChatClearedAt > roomCleared ? _localChatClearedAt : roomCleared;
+      final rawTs = (latest['timestamp'] as num?)?.toInt() ??
+          (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
+      // بدون وقت سيرفر صالح لا يمكن اعتبار البث حديثاً؛ وإلا تُعاد بثوث قديمة
+      // (بدون created_at) في كل غرفة عند الدخول.
+      if (rawTs <= 0) return false;
+      final bTs = rawTs;
+      final isRecent = (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
+      if (!isRecent) return false;
+      if (minTimestamp > 0 && bTs < minTimestamp) return false;
+      final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
+      if (_seenMsgIds.contains(bId)) return false;
+      _seenMsgIds.add(bId);
+      _broadcastNotifier.value = latest;
+
+      // بثوث الغرف الأخرى لا تُحقن في شات هذه الغرفة — رسائل الفوز/الهدية
+      // تظهر فقط في الغرفة التي حدثت فيها. يبقى _broadcastNotifier يعمل
+      // للبانر المتحرك العلوي فقط.
+      final bRoomId = latest['room_id']?.toString() ?? '';
+      if (bRoomId != widget.roomId) return false;
+      final bType = latest['type']?.toString() ?? '';
+      final content = latest['content']?.toString() ?? '';
+      // داخل نفس الغرفة لا نكرر lucky_gift لأن رسالة النظام الحقيقية موجودة أصلاً.
+      if (content.isEmpty) return false;
+      if (bType == 'lucky_gift' ||
+          bType == 'gift' ||
+          bType == 'big_gift' ||
+          bType == 'lucky_bag_win') {
+        return false;
+      }
+
+      _chatMessages.add(MessageModel(
+        msgId: 'broadcast_$bId',
+        roomId: widget.roomId,
+        senderUid: latest['sender_uid']?.toString() ?? 'system',
+        senderName: latest['sender_name']?.toString() ?? 'نظام',
+        senderPhotoUrl: latest['sender_photo_url']?.toString() ?? '',
+        type: 'system',
+        text: content,
+        imageUrl: latest['gift_icon']?.toString(),
+        timestamp: bTs,
+      ));
+      return true;
+    }
+
+    _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
+      if (!mounted || broadcasts.isEmpty) return;
       var changed = false;
       for (final latest in broadcasts) {
-        final rawTs = (latest['timestamp'] as num?)?.toInt() ??
-            (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-        // بدون وقت سيرفر صالح لا يمكن اعتبار البث حديثاً؛ وإلا تُعاد بثوث قديمة
-        // (بدون created_at) في كل غرفة عند الدخول.
-        if (rawTs <= 0) continue;
-        final bTs = rawTs;
-        final isRecent = (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
-        if (!isRecent) continue;
-        if (minTimestamp > 0 && bTs < minTimestamp) continue;
-        final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
-        if (_seenMsgIds.contains(bId)) continue;
-        _seenMsgIds.add(bId);
-        _broadcastNotifier.value = latest;
-
-        // بثوث الغرف الأخرى لا تُحقن في شات هذه الغرفة — رسائل الفوز/الهدية
-        // تظهر فقط في الغرفة التي حدثت فيها. يبقى _broadcastNotifier يعمل
-        // للبانر المتحرك العلوي فقط.
-        final bRoomId = latest['room_id']?.toString() ?? '';
-        if (bRoomId != widget.roomId) continue;
-        final bType = latest['type']?.toString() ?? '';
-        final content = latest['content']?.toString() ?? '';
-        // داخل نفس الغرفة لا نكرر lucky_gift لأن رسالة النظام الحقيقية موجودة أصلاً.
-        if (content.isEmpty) continue;
-        if (bType == 'lucky_gift' ||
-            bType == 'gift' ||
-            bType == 'big_gift' ||
-            bType == 'lucky_bag_win') {
-          continue;
-        }
-
-        _chatMessages.add(MessageModel(
-          msgId: 'broadcast_$bId',
-          roomId: widget.roomId,
-          senderUid: latest['sender_uid']?.toString() ?? 'system',
-          senderName: latest['sender_name']?.toString() ?? 'نظام',
-          senderPhotoUrl: latest['sender_photo_url']?.toString() ?? '',
-          type: 'system',
-          text: content,
-          imageUrl: latest['gift_icon']?.toString(),
-          timestamp: bTs,
-        ));
-        changed = true;
+        changed = _processBroadcastRow(latest) || changed;
       }
-      if (changed) {
-        _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-        if (_chatMessages.length > 1000) {
-          _chatMessages.removeRange(0, _chatMessages.length - 1000);
-        }
-        _msgCount = _chatMessages.length;
-        _chatUpdateNotifier.value++;
-      }
+      _flushBroadcastChatIfChanged(changed);
     });
+
+    // ✅ اشتراك Pusher الفوري — رسالة الفوز/الهدية تصل لكل أعضاء الغرفة
+    //    في نفس اللحظة التي يُرسل فيها الباك إند البث، بدون انتظار الـ polling.
+    PusherRealtimeService.instance.start();
+    _broadcastPusherSub = PusherRealtimeService.instance.events.listen((evt) {
+      if (!mounted || evt['event'] != 'broadcast') return;
+      final data = evt['data'];
+      if (data is! Map) return;
+      final changed = _processBroadcastRow(Map<String, dynamic>.from(data));
+      _flushBroadcastChatIfChanged(changed);
+    }, onError: (_) {});
 
     // لو فشل جلب وقت السيرفر نرجع لعدم الفلترة بدل الاعتماد على ساعة جهاز
     // قد تكون متقدمة فتحجب رسائل الأعضاء الآخرين.
@@ -2340,6 +2375,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _msgCount = 0;
     });
     _chatUpdateNotifier.value++;
+    // ✅ حذف فوري لكل أشرطة الماركي أيضاً — لا يبقى أي نص معروض
+    //    بعد مسح الشات، ويختفي في نفس اللحظة وليس بعد انتهاء مدته.
+    GlobalBannerService.instance.clearMarqueeBanners();
+    _broadcastNotifier.value = null;
   }
 
   void _resetSeatsCharisma() {
@@ -2840,6 +2879,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _entranceSub?.cancel();
     _userBanSub?.cancel();
     _broadcastSub?.cancel();
+    _broadcastPusherSub?.cancel();
     _broadcastNotifier.dispose();
     _giftBannerNotifier.dispose();
     _giftAnimNotifier.dispose();

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import '../../services/safe_http.dart';
 import '../supabase_compat.dart';
 
 import '../auth/supabase_ready.dart';
@@ -224,8 +224,7 @@ abstract final class FinancialService {
       final session = Supabase.instance.client.auth.currentSession;
       if (session == null) return 'لا توجد جلسة مستخدم';
 
-      final response = await http
-          .post(
+      final response = await SafeHttp.post(
             Uri.parse('$ApiConfig.kayanApiBase/gifts/send-fast'),
             headers: {
               'Content-Type': 'application/json',
@@ -376,8 +375,7 @@ abstract final class FinancialService {
       final session = Supabase.instance.client.auth.currentSession;
       if (session == null) return 'لا توجد جلسة مستخدم';
 
-      final response = await http
-          .post(
+      final response = await SafeHttp.post(
             Uri.parse('$ApiConfig.kayanApiBase/coins/recharge'),
             headers: {
               'Content-Type': 'application/json',

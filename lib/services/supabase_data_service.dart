@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'safe_http.dart';
 import '../config/supabase_config.dart';
 import '../models/room_model.dart';
 import '../models/message_model.dart';
@@ -75,7 +76,7 @@ class SupabaseDataService {
         'created_at': DateTime.now().toUtc().toIso8601String(),
       });
 
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {
           ..._headers,
@@ -112,7 +113,7 @@ class SupabaseDataService {
         'host_name': hostName ?? '',
         'created_at': DateTime.now().toUtc().toIso8601String(),
       });
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {
           ..._headers,
@@ -129,7 +130,7 @@ class SupabaseDataService {
   Future<RoomModel?> getRoom(String roomId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId&select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
@@ -148,7 +149,7 @@ class SupabaseDataService {
   Future<RoomModel?> getRoomByHostUid(String hostUid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?host_uid=eq.$hostUid&select=*&limit=1');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
@@ -165,7 +166,7 @@ class SupabaseDataService {
   Future<List<RoomModel>> getAllRooms() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?select=*&order=total_gifts.desc');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final rooms =
@@ -199,8 +200,7 @@ class SupabaseDataService {
     final result = <String, int>{};
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rpc/room_monthly_coins');
-      final res = await http
-          .post(url, headers: _headers, body: '{}')
+      final res = await SafeHttp.post(url, headers: _headers, body: '{}')
           .timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) return result;
       for (final row in jsonDecode(res.body) as List) {
@@ -224,7 +224,7 @@ class SupabaseDataService {
           .toIso8601String();
       final url = Uri.parse(
           '$_baseUrl/rest/v1/room_members?select=room_id&joined_at=gte.$cutoff');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode != 200) return null;
       final counts = <String, int>{};
       for (final row in jsonDecode(res.body) as List) {
@@ -246,7 +246,7 @@ class SupabaseDataService {
           .toIso8601String();
       final url = Uri.parse(
           '$_baseUrl/rest/v1/room_members?room_id=eq.$roomId&joined_at=gte.$cutoff&select=uid');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode != 200) return;
       final count = (jsonDecode(res.body) as List).length;
       await updateRoom(roomId, {'member_count': count});
@@ -266,7 +266,7 @@ class SupabaseDataService {
       if (clean.isEmpty) return true;
 
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId');
-      final res = await http.patch(
+      final res = await SafeHttp.patch(
         url,
         headers: _headers,
         body: jsonEncode(clean),
@@ -296,7 +296,7 @@ class SupabaseDataService {
   Future<bool> deleteRoom(String roomId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId');
-      final res = await http.delete(url, headers: _headers);
+      final res = await SafeHttp.delete(url, headers: _headers);
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] deleteRoom error: $e');
@@ -316,7 +316,7 @@ class SupabaseDataService {
     try {
       // حذف أي مقعد سابق لنفس المستخدم في هذه الغرفة لمنع أي تكرار
       final clearOldUrl = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&uid=eq.${user.uid}&seat_index=neq.$seatIndex');
-      unawaited(http.delete(clearOldUrl, headers: _headers).catchError((_) => http.Response('', 500)));
+      unawaited(SafeHttp.delete(clearOldUrl, headers: _headers).catchError((_) => http.Response('', 500)));
 
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?on_conflict=room_id,seat_index');
       final body = jsonEncode({
@@ -333,7 +333,7 @@ class SupabaseDataService {
         'taken_at': DateTime.now().toUtc().toIso8601String(),
       });
 
-      var res = await http.post(
+      var res = await SafeHttp.post(
         url,
         headers: {
           ..._headers,
@@ -348,7 +348,7 @@ class SupabaseDataService {
           hostUid: '',
           hostName: '',
         );
-        res = await http.post(
+        res = await SafeHttp.post(
           url,
           headers: {
             ..._headers,
@@ -375,7 +375,7 @@ class SupabaseDataService {
     try {
       final checkUrl = Uri.parse(
           '$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&seat_index=eq.$seatIndex&select=uid');
-      final res = await http.get(checkUrl, headers: _headers);
+      final res = await SafeHttp.get(checkUrl, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
@@ -397,7 +397,7 @@ class SupabaseDataService {
   Future<bool> leaveSeat(String roomId, int seatIndex) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&seat_index=eq.$seatIndex');
-      final res = await http.delete(url, headers: _headers);
+      final res = await SafeHttp.delete(url, headers: _headers);
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] leaveSeat error: $e');
@@ -408,7 +408,7 @@ class SupabaseDataService {
   Future<bool> leaveSeatForUser(String roomId, String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&uid=eq.$uid');
-      final res = await http.delete(url, headers: _headers);
+      final res = await SafeHttp.delete(url, headers: _headers);
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] leaveSeatForUser error: $e');
@@ -419,7 +419,7 @@ class SupabaseDataService {
   Future<bool> toggleMute(String roomId, int seatIndex, bool isMuted) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?on_conflict=room_id,seat_index');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {
           ..._headers,
@@ -435,7 +435,7 @@ class SupabaseDataService {
         return true;
       }
       final patchUrl = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&seat_index=eq.$seatIndex');
-      final patchRes = await http.patch(
+      final patchRes = await SafeHttp.patch(
         patchUrl,
         headers: _headers,
         body: jsonEncode({'is_muted': isMuted}),
@@ -450,7 +450,7 @@ class SupabaseDataService {
   Future<bool> toggleSeatLock(String roomId, int seatIndex, bool isLocked) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?on_conflict=room_id,seat_index');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {
           ..._headers,
@@ -499,17 +499,17 @@ class SupabaseDataService {
         await createRoom(updatedRoom);
 
         try {
-          await http.patch(
+          await SafeHttp.patch(
             Uri.parse('$_baseUrl/rest/v1/sent_gifts?room_id=eq.$oldRoomId'),
             headers: _headers,
             body: jsonEncode({'room_id': newRoomId}),
           );
-          await http.patch(
+          await SafeHttp.patch(
             Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$oldRoomId'),
             headers: _headers,
             body: jsonEncode({'room_id': newRoomId}),
           );
-          await http.patch(
+          await SafeHttp.patch(
             Uri.parse('$_baseUrl/rest/v1/room_members?room_id=eq.$oldRoomId'),
             headers: _headers,
             body: jsonEncode({'room_id': newRoomId}),
@@ -533,7 +533,7 @@ class SupabaseDataService {
   Future<Map<int, Map<String, dynamic>>?> getSeats(String roomId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$roomId&select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final map = <int, Map<String, dynamic>>{};
@@ -560,7 +560,7 @@ class SupabaseDataService {
       try {
         final blockUrl = Uri.parse(
             '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&blocked_uid=eq.${user.uid}&select=id');
-        final blockRes = await http.get(blockUrl, headers: _headers);
+        final blockRes = await SafeHttp.get(blockUrl, headers: _headers);
         if (blockRes.statusCode == 200) {
           final List blocks = jsonDecode(blockRes.body);
           if (blocks.isNotEmpty) {
@@ -580,7 +580,7 @@ class SupabaseDataService {
         'joined_at': DateTime.now().toUtc().toIso8601String(),
       });
 
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {
           ..._headers,
@@ -602,7 +602,7 @@ class SupabaseDataService {
   Future<bool> leaveRoom(String roomId, String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_members?room_id=eq.$roomId&uid=eq.$uid');
-      final res = await http.delete(url, headers: _headers);
+      final res = await SafeHttp.delete(url, headers: _headers);
       final ok = res.statusCode >= 200 && res.statusCode < 300;
       if (ok) {
         await _syncRoomMemberCount(roomId);
@@ -617,7 +617,7 @@ class SupabaseDataService {
   Future<List<UserModel>> getRoomMembers(String roomId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_members?room_id=eq.$roomId&select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) {
@@ -640,8 +640,7 @@ class SupabaseDataService {
   Future<Map<String, dynamic>?> spendUserCoins(String uid, int amount) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rpc/spend_user_coins');
-      final res = await http
-          .post(
+      final res = await SafeHttp.post(
             url,
             headers: _headers,
             body: jsonEncode({'p_uid': uid, 'p_amount': amount}),
@@ -675,7 +674,7 @@ class SupabaseDataService {
         // بدل الاعتماد على ساعة جهاز المُرسل.
       });
 
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: _headers,
         body: body,
@@ -691,7 +690,7 @@ class SupabaseDataService {
   /// بدل ساعة الجهاز التي قد تكون غير متزامنة.
   Future<int?> fetchServerTimeMs() async {
     try {
-      final res = await http.head(
+      final res = await SafeHttp.head(
         Uri.parse('$_baseUrl/rest/v1/room_messages?select=created_at&limit=1'),
         headers: _headers,
       );
@@ -713,7 +712,7 @@ class SupabaseDataService {
         query += '&created_at=gte.$iso';
       }
       final url = Uri.parse('$_baseUrl/rest/v1/room_messages?$query');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final messages = list.map((e) {
@@ -830,14 +829,14 @@ class SupabaseDataService {
       clean['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
       final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid');
-      var res = await http.patch(
+      var res = await SafeHttp.patch(
         url,
         headers: _headers,
         body: jsonEncode(clean),
       );
       if (res.statusCode >= 300) {
         final altUrl = Uri.parse('$_baseUrl/rest/v1/users?id=eq.$uid');
-        res = await http.patch(
+        res = await SafeHttp.patch(
           altUrl,
           headers: _headers,
           body: jsonEncode(clean),
@@ -867,7 +866,7 @@ class SupabaseDataService {
     try {
       // 1. Try uid=eq
       var url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$cleanUid&select=*');
-      var res = await http.get(url, headers: _headers);
+      var res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
@@ -878,7 +877,7 @@ class SupabaseDataService {
 
       // 2. Try id=eq
       url = Uri.parse('$_baseUrl/rest/v1/users?id=eq.$cleanUid&select=*');
-      res = await http.get(url, headers: _headers);
+      res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
@@ -889,7 +888,7 @@ class SupabaseDataService {
 
       // 3. Try custom_id=eq
       url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$cleanUid&select=*');
-      res = await http.get(url, headers: _headers);
+      res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
@@ -913,7 +912,7 @@ class SupabaseDataService {
         'bd_meta_${user.uid}',
       ];
       final url = Uri.parse('$_baseUrl/rest/v1/app_config?key=in.(${keys.join(",")})&select=key,value');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         bool isSuper = user.isSuperAdmin;
@@ -980,7 +979,7 @@ class SupabaseDataService {
     if (cleanId.isEmpty) return [];
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$cleanId&select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => UserModel.fromMap(e as Map<String, dynamic>)).toList();
@@ -1015,7 +1014,7 @@ class SupabaseDataService {
             ? 'or=(custom_id.eq.$encoded,id.eq.$encoded,uid.eq.$encoded,name.ilike.*$encoded*)'
             : 'or=(custom_id.ilike.*$encoded*,name.ilike.*$encoded*,email.ilike.*$encoded*)';
         final url = Uri.parse('$_baseUrl/rest/v1/users?$filter&select=*&limit=20');
-        final res = await http.get(url, headers: _headers);
+        final res = await SafeHttp.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
           for (final e in list) {
@@ -1030,7 +1029,7 @@ class SupabaseDataService {
         try {
           final intVal = int.parse(q);
           final url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$intVal&select=*&limit=5');
-          final res = await http.get(url, headers: _headers);
+          final res = await SafeHttp.get(url, headers: _headers);
           if (res.statusCode == 200) {
             final List list = jsonDecode(res.body);
             for (final e in list) {
@@ -1053,7 +1052,7 @@ class SupabaseDataService {
       if (q.isEmpty) return [];
       final encoded = Uri.encodeComponent(q);
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?or=(room_id.ilike.*$encoded*,name.ilike.*$encoded*,host_name.ilike.*$encoded*)&select=*&limit=20');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -1074,7 +1073,7 @@ class SupabaseDataService {
       // 1. Supabase search (custom_id, uid, id)
       try {
         final url = Uri.parse('$_baseUrl/rest/v1/users?or=(custom_id.eq.$encoded,uid.eq.$encoded,id.eq.$encoded)&select=*&limit=1');
-        final res = await http.get(url, headers: _headers);
+        final res = await SafeHttp.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
           if (list.isNotEmpty) {
@@ -1087,7 +1086,7 @@ class SupabaseDataService {
       if (intId != null) {
         try {
           final url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$intId&select=*&limit=1');
-          final res = await http.get(url, headers: _headers);
+          final res = await SafeHttp.get(url, headers: _headers);
           if (res.statusCode == 200) {
             final List list = jsonDecode(res.body);
             if (list.isNotEmpty) {
@@ -1105,7 +1104,7 @@ class SupabaseDataService {
   Future<List<UserModel>> getAllUsers({int limit = 50}) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/users?select=*&limit=$limit');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => UserModel.fromMap(Map<String, dynamic>.from(e as Map))).toList();
@@ -1123,7 +1122,7 @@ class SupabaseDataService {
   Future<List<BannerConfig>> getBanners() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/banners?select=*&order=sort_order.asc');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list
@@ -1151,7 +1150,7 @@ class SupabaseDataService {
     try {
       final url =
           Uri.parse('$_baseUrl/rest/v1/gifts?select=*&order=sort_order.asc');
-      final res = await http.get(url, headers: _headers).timeout(_catalogTimeout);
+      final res = await SafeHttp.get(url, headers: _headers).timeout(_catalogTimeout);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         for (final item in list) {
@@ -1194,7 +1193,7 @@ class SupabaseDataService {
     try {
       final url = Uri.parse(
           '$_baseUrl/rest/v1/gift_categories?select=*&order=sort_order.asc');
-      final res = await http.get(url, headers: _headers).timeout(_catalogTimeout);
+      final res = await SafeHttp.get(url, headers: _headers).timeout(_catalogTimeout);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         for (final item in list) {
@@ -1224,7 +1223,7 @@ class SupabaseDataService {
   Future<void> saveGiftCategory(GiftCategory cat) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gift_categories');
-      await http.post(
+      await SafeHttp.post(
         url,
         headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
         body: jsonEncode(cat.toMap()),
@@ -1237,7 +1236,7 @@ class SupabaseDataService {
   Future<void> deleteGiftCategory(String id) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gift_categories?id=eq.$id');
-      await http.delete(url, headers: _headers);
+      await SafeHttp.delete(url, headers: _headers);
     } catch (e) {
       debugPrint('[SupabaseDataService] deleteGiftCategory error: $e');
     }
@@ -1246,7 +1245,7 @@ class SupabaseDataService {
   Future<void> saveGift(gm.GiftModel gift) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gifts');
-      await http.post(
+      await SafeHttp.post(
         url,
         headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
         body: jsonEncode(gift.toMap()),
@@ -1259,7 +1258,7 @@ class SupabaseDataService {
   Future<void> deleteGift(String id) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gifts?id=eq.$id');
-      await http.delete(url, headers: _headers);
+      await SafeHttp.delete(url, headers: _headers);
     } catch (e) {
       debugPrint('[SupabaseDataService] deleteGift error: $e');
     }
@@ -1268,7 +1267,7 @@ class SupabaseDataService {
   Future<List<GiftBannerConfig>> getGiftBannerConfigs() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gift_banner_configs?select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list
@@ -1284,7 +1283,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getHostAgencyMembers(String agencyId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final members = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -1298,7 +1297,7 @@ class SupabaseDataService {
         if (uids.isNotEmpty) {
           try {
             final filter = uids.map((id) => '"$id"').join(',');
-            final uRes = await http.get(
+            final uRes = await SafeHttp.get(
               Uri.parse('$_baseUrl/rest/v1/users?uid=in.($filter)&select=uid,name,photo_url,avatar,custom_id,level,country,diamonds'),
               headers: _headers,
             );
@@ -1349,7 +1348,7 @@ class SupabaseDataService {
     try {
       // 1. First check app_config 'host_milestones_list' (from dashboard)
       final cfgUrl = Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.host_milestones_list&select=*');
-      final cfgRes = await http.get(cfgUrl, headers: _headers);
+      final cfgRes = await SafeHttp.get(cfgUrl, headers: _headers);
       if (cfgRes.statusCode == 200) {
         final List rows = jsonDecode(cfgRes.body);
         if (rows.isNotEmpty) {
@@ -1399,7 +1398,7 @@ class SupabaseDataService {
     try {
       // 2. Fallback to host_milestones table
       final url = Uri.parse('$_baseUrl/rest/v1/host_milestones?select=*&order=target_diamonds.asc');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
       final List list = jsonDecode(res.body);
       if (list.isNotEmpty) {
@@ -1429,74 +1428,74 @@ class SupabaseDataService {
       // 0. Find and delete user's hosted room(s) and their seats/members/messages
       try {
         final roomQueryUrl = Uri.parse('$_baseUrl/rest/v1/rooms?or=(host_uid.eq.$uid,owner_id.eq.$uid)&select=room_id');
-        final roomRes = await http.get(roomQueryUrl, headers: _headers);
+        final roomRes = await SafeHttp.get(roomQueryUrl, headers: _headers);
         if (roomRes.statusCode == 200) {
           final List roomList = jsonDecode(roomRes.body);
           for (final item in roomList) {
             final rid = item['room_id']?.toString() ?? '';
             if (rid.isNotEmpty) {
-              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$rid'), headers: _headers); } catch (_) {}
-              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/room_members?room_id=eq.$rid'), headers: _headers); } catch (_) {}
-              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/room_messages?room_id=eq.$rid'), headers: _headers); } catch (_) {}
-              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/sent_gifts?room_id=eq.$rid'), headers: _headers); } catch (_) {}
-              try { await http.delete(Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+              try { await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/room_seats?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+              try { await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/room_members?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+              try { await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/room_messages?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+              try { await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/sent_gifts?room_id=eq.$rid'), headers: _headers); } catch (_) {}
+              try { await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$rid'), headers: _headers); } catch (_) {}
             }
           }
         }
       } catch (_) {}
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/rooms?or=(host_uid.eq.$uid,owner_id.eq.$uid)'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/rooms?or=(host_uid.eq.$uid,owner_id.eq.$uid)'), headers: _headers);
       } catch (_) {}
 
       // 1. Remove from rooms and seats where user was a guest/seat occupant
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/room_members?uid=eq.$uid'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/room_members?uid=eq.$uid'), headers: _headers);
       } catch (_) {}
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/room_seats?uid=eq.$uid'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/room_seats?uid=eq.$uid'), headers: _headers);
       } catch (_) {}
       // 2. Remove backpack items
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/user_backpack?user_id=eq.$uid'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/user_backpack?user_id=eq.$uid'), headers: _headers);
       } catch (_) {}
       // 3. Remove recharge event progress
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/recharge_event_progress?user_id=eq.$uid'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/recharge_event_progress?user_id=eq.$uid'), headers: _headers);
       } catch (_) {}
       // 4. Remove agency membership & join requests & agency wallet
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(user_id.eq.$uid,host_uid.eq.$uid)'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(user_id.eq.$uid,host_uid.eq.$uid)'), headers: _headers);
       } catch (_) {}
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/host_agency_join_requests?user_id=eq.$uid'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/host_agency_join_requests?user_id=eq.$uid'), headers: _headers);
       } catch (_) {}
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/agency_wallets?or=(user_id.eq.$uid,owner_uid.eq.$uid)'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/agency_wallets?or=(user_id.eq.$uid,owner_uid.eq.$uid)'), headers: _headers);
       } catch (_) {}
       // 5. Remove CP relationships & requests
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/cp_couples?or=(user1_id.eq.$uid,user2_id.eq.$uid)'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/cp_couples?or=(user1_id.eq.$uid,user2_id.eq.$uid)'), headers: _headers);
       } catch (_) {}
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/cp_requests?or=(sender_id.eq.$uid,receiver_id.eq.$uid)'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/cp_requests?or=(sender_id.eq.$uid,receiver_id.eq.$uid)'), headers: _headers);
       } catch (_) {}
       // 6. Remove messages & conversations
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/private_messages?sender_uid=eq.$uid'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/private_messages?sender_uid=eq.$uid'), headers: _headers);
       } catch (_) {}
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/conversations?uid=eq.$uid'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/conversations?uid=eq.$uid'), headers: _headers);
       } catch (_) {}
       // 7. Remove device registrations & notifications
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/device_registrations?uid=eq.$uid'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/device_registrations?uid=eq.$uid'), headers: _headers);
       } catch (_) {}
       try {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/notifications?target=eq.$uid'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/notifications?target=eq.$uid'), headers: _headers);
       } catch (_) {}
       // 8. Delete user row
       final url = Uri.parse('$_baseUrl/rest/v1/users?or=(id.eq.$uid,uid.eq.$uid)');
-      final res = await http.delete(url, headers: _headers);
+      final res = await SafeHttp.delete(url, headers: _headers);
       return res.statusCode == 200 || res.statusCode == 204;
     } catch (e) {
       debugPrint('[SupabaseDataService] purgeUserAccount error: $e');
@@ -1509,8 +1508,7 @@ class SupabaseDataService {
 
     // 1) المسار الذري: RPC يحدّث محفظة الوكالة (التارجت) + عمولة المالك فقط
     try {
-      final rpcRes = await http
-          .post(
+      final rpcRes = await SafeHttp.post(
             Uri.parse(
                 '$_baseUrl/rest/v1/rpc/agency_credit_host_target_diamonds'),
             headers: _headers,
@@ -1547,7 +1545,7 @@ class SupabaseDataService {
     // 2) مسار احتياطي — عضو وكالة: محفظة الوكالة فقط. غير عضو: users.diamonds.
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(host_uid.eq.$hostUid,user_id.eq.$hostUid)&select=*&limit=1');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty) {
@@ -1561,7 +1559,7 @@ class SupabaseDataService {
           final currentCumul = (member['diamonds_earned_cumulative'] as num?)?.toInt() ?? 0;
 
           final updateUrl = Uri.parse('$_baseUrl/rest/v1/host_agency_members?id=eq.$memId');
-          await http.patch(
+          await SafeHttp.patch(
             updateUrl,
             headers: _headers,
             body: jsonEncode({
@@ -1575,7 +1573,7 @@ class SupabaseDataService {
 
           if (agencyId.isNotEmpty) {
             final agUrl = Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId&select=*&limit=1');
-            final agRes = await http.get(agUrl, headers: _headers);
+            final agRes = await SafeHttp.get(agUrl, headers: _headers);
             if (agRes.statusCode == 200) {
               final List agList = jsonDecode(agRes.body);
               if (agList.isNotEmpty) {
@@ -1590,7 +1588,7 @@ class SupabaseDataService {
                 final membersUrl = Uri.parse(
                   '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&select=diamonds_earned_monthly,diamonds_earned_cumulative',
                 );
-                final membersRes = await http.get(membersUrl, headers: _headers);
+                final membersRes = await SafeHttp.get(membersUrl, headers: _headers);
                 int trueTotalMonthly = 0;
                 int trueTotalCumulative = 0;
                 if (membersRes.statusCode == 200) {
@@ -1609,7 +1607,7 @@ class SupabaseDataService {
                   trueTotalCumulative = agCumul + diamondsToAdd;
                 }
 
-                await http.patch(
+                await SafeHttp.patch(
                   Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
                   headers: _headers,
                   body: jsonEncode({
@@ -1627,7 +1625,7 @@ class SupabaseDataService {
                     final pendingUrl = Uri.parse(
                       '$_baseUrl/rest/v1/rpc/agency_accrue_commission',
                     );
-                    final rpcRes = await http.post(
+                    final rpcRes = await SafeHttp.post(
                       pendingUrl,
                       headers: _headers,
                       body: jsonEncode({
@@ -1639,7 +1637,7 @@ class SupabaseDataService {
                     if (rpcRes.statusCode < 200 || rpcRes.statusCode >= 300) {
                       final curPending =
                           (ag['pending_commission_diamonds'] as num?)?.toInt() ?? 0;
-                      await http.patch(
+                      await SafeHttp.patch(
                         Uri.parse(
                             '$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
                         headers: _headers,
@@ -1663,12 +1661,12 @@ class SupabaseDataService {
             final uUrl = Uri.parse(
               '$_baseUrl/rest/v1/users?or=(uid.eq.$hostUid,id.eq.$hostUid)&select=diamonds&limit=1',
             );
-            final uRes = await http.get(uUrl, headers: _headers);
+            final uRes = await SafeHttp.get(uUrl, headers: _headers);
             if (uRes.statusCode == 200) {
               final List uList = jsonDecode(uRes.body);
               if (uList.isNotEmpty) {
                 final cur = (uList.first['diamonds'] as num?)?.toInt() ?? 0;
-                await http.patch(
+                await SafeHttp.patch(
                   Uri.parse(
                       '$_baseUrl/rest/v1/users?or=(uid.eq.$hostUid,id.eq.$hostUid)'),
                   headers: _headers,
@@ -1703,7 +1701,7 @@ class SupabaseDataService {
       try {
         final mUrl = Uri.parse(
             '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&or=(user_id.eq.$hostUid,host_uid.eq.$hostUid)&select=id,diamonds,diamonds_balance,diamonds_available&limit=1');
-        final mRes = await http.get(mUrl, headers: _headers);
+        final mRes = await SafeHttp.get(mUrl, headers: _headers);
         if (mRes.statusCode == 200) {
           final List mList = jsonDecode(mRes.body);
           if (mList.isNotEmpty) {
@@ -1718,7 +1716,7 @@ class SupabaseDataService {
                   '[SupabaseDataService] disburseSalary: insufficient member balance $curAvail < $amount');
               return false;
             }
-            final patchRes = await http.patch(
+            final patchRes = await SafeHttp.patch(
               Uri.parse(
                   '$_baseUrl/rest/v1/host_agency_members?id=eq.${m['id']}'),
               headers: _headers,
@@ -1751,12 +1749,12 @@ class SupabaseDataService {
       if (hostUid.isNotEmpty) {
         try {
           final uUrl = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$hostUid&select=diamonds&limit=1');
-          final uRes = await http.get(uUrl, headers: _headers);
+          final uRes = await SafeHttp.get(uUrl, headers: _headers);
           if (uRes.statusCode == 200) {
             final List uList = jsonDecode(uRes.body);
             if (uList.isNotEmpty) {
               final curDia = (uList.first['diamonds'] as num?)?.toInt() ?? 0;
-              await http.patch(
+              await SafeHttp.patch(
                 Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$hostUid'),
                 headers: _headers,
                 body: jsonEncode({'diamonds': curDia + amount}),
@@ -1770,7 +1768,7 @@ class SupabaseDataService {
 
       // 3. تسجيل في agency_diamond_ledger بـ direction = -1
       try {
-        await http.post(
+        await SafeHttp.post(
           Uri.parse('$_baseUrl/rest/v1/agency_diamond_ledger'),
           headers: _headers,
           body: jsonEncode({
@@ -1798,7 +1796,7 @@ class SupabaseDataService {
   Future<List<StoreItemModel>> getStoreItems() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/store_items?select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list
@@ -1818,7 +1816,7 @@ class SupabaseDataService {
     try {
       final url = Uri.parse(
           '$_baseUrl/rest/v1/store_items?category=eq.special_id&select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list
@@ -1834,7 +1832,7 @@ class SupabaseDataService {
   Future<List<RankingFrameConfig>> getRankingFrames() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/ranking_frames?select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list
@@ -1850,7 +1848,7 @@ class SupabaseDataService {
   Future<Map<String, AppAssetModel>> getAppAssets() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/app_assets?select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final map = <String, AppAssetModel>{};
@@ -1874,7 +1872,7 @@ class SupabaseDataService {
   Future<Map<String, dynamic>> getAppConfig() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/app_config?select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final map = <String, dynamic>{};
@@ -1896,7 +1894,7 @@ class SupabaseDataService {
   Future<bool> setAppConfig(String key, dynamic value) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/app_config?on_conflict=key');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {
           ..._headers,
@@ -1929,7 +1927,7 @@ class SupabaseDataService {
   }) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -1976,7 +1974,7 @@ class SupabaseDataService {
       if (roomId.isNotEmpty) query += 'room_id=eq.$roomId&';
       if (after != null) query += 'created_at=gte.${after.toUtc().toIso8601String()}&';
       final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?${query}select=*&order=created_at.desc&limit=$limit');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) {
@@ -2003,7 +2001,7 @@ class SupabaseDataService {
   Future<List<gm.SentGiftModel>> getReceivedGifts(String receiverId, {int limit = 100}) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?receiver_id=eq.$receiverId&select=*&order=created_at.desc&limit=$limit');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) {
@@ -2035,7 +2033,7 @@ class SupabaseDataService {
         query += '&created_at=gte.${after.toIso8601String()}';
       }
       final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?$query');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) {
@@ -2064,7 +2062,7 @@ class SupabaseDataService {
   Future<List<NotificationModel>> getNotifications({String? uid}) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/notifications?select=*&order=sent_at.desc&limit=50');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) {
@@ -2094,7 +2092,7 @@ class SupabaseDataService {
   }) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/notifications');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -2118,7 +2116,7 @@ class SupabaseDataService {
   Future<bool> markAllNotificationsRead(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/notifications?or=(uid.eq.$uid,target.eq.$uid)');
-      final res = await http.patch(
+      final res = await SafeHttp.patch(
         url,
         headers: _headers,
         body: jsonEncode({'is_read': true}),
@@ -2133,7 +2131,7 @@ class SupabaseDataService {
   Future<bool> deleteNotification(String notifId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/notifications?id=eq.$notifId');
-      final res = await http.delete(url, headers: _headers);
+      final res = await SafeHttp.delete(url, headers: _headers);
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] deleteNotification error: $e');
@@ -2144,7 +2142,7 @@ class SupabaseDataService {
   Future<bool> updateUserData(String uid, Map<String, dynamic> data) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid');
-      final res = await http.patch(url, headers: _headers, body: jsonEncode(data));
+      final res = await SafeHttp.patch(url, headers: _headers, body: jsonEncode(data));
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] updateUserData error: $e');
@@ -2155,7 +2153,7 @@ class SupabaseDataService {
   Future<bool> upsertHostAgency(Map<String, dynamic> agencyData) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/host_agencies');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
         body: jsonEncode(agencyData),
@@ -2170,7 +2168,7 @@ class SupabaseDataService {
   Future<bool> upsertHostAgencyMember(Map<String, dynamic> memberData) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/host_agency_members');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {..._headers, 'Prefer': 'resolution=merge-duplicates'},
         body: jsonEncode(memberData),
@@ -2185,7 +2183,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getBadges() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/badges?select=*');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -2199,7 +2197,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getNecklaces() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/necklaces?select=*&order=sort_order.asc');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -2214,7 +2212,7 @@ class SupabaseDataService {
     try {
       final filter = type != null ? '?type=eq.$type&order=level.asc' : '?order=level.asc';
       final url = Uri.parse('$_baseUrl/rest/v1/level_config$filter');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -2228,7 +2226,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getVipConfigs() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/vip_config?select=*&order=tier.asc');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -2242,7 +2240,7 @@ class SupabaseDataService {
   Future<bool> submitReport(Map<String, dynamic> data) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/reports');
-      final res = await http.post(url, headers: _headers, body: jsonEncode(data));
+      final res = await SafeHttp.post(url, headers: _headers, body: jsonEncode(data));
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] submitReport error: $e');
@@ -2253,7 +2251,7 @@ class SupabaseDataService {
   Future<bool> submitBugReport(Map<String, dynamic> data) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/bug_reports');
-      final res = await http.post(url, headers: _headers, body: jsonEncode(data));
+      final res = await SafeHttp.post(url, headers: _headers, body: jsonEncode(data));
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] submitBugReport error: $e');
@@ -2268,7 +2266,7 @@ class SupabaseDataService {
     try {
       final col = orderByField == 'total_gifts_received' ? 'total_gifts_received' : 'total_gifts_sent';
       final url = Uri.parse('$_baseUrl/rest/v1/users?select=uid,id,custom_id,name,photo_url,avatar,level,total_gifts_sent,total_gifts_received&order=$col.desc&limit=$limit');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) {
@@ -2325,7 +2323,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getStoreCategories() async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/store_categories?select=*&order=sort_order.asc');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -2339,7 +2337,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getRoomRanking({int limit = 50}) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?select=*&order=total_gifts.desc&limit=$limit');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) {
@@ -2363,7 +2361,7 @@ class SupabaseDataService {
   Future<int?> getGiftCpDurationHours(String giftId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gifts?id=eq.$giftId&select=cp_gift_duration_hours');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         if (list.isNotEmpty && list[0]['cp_gift_duration_hours'] != null) {
@@ -2379,7 +2377,7 @@ class SupabaseDataService {
     try {
       if (agencyId != null && agencyId.isNotEmpty) {
         final url = Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId&select=*&limit=1');
-        final res = await http.get(url, headers: _headers);
+        final res = await SafeHttp.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
           if (list.isNotEmpty) return Map<String, dynamic>.from(list[0] as Map);
@@ -2387,20 +2385,20 @@ class SupabaseDataService {
       }
 
       final urlOwner = Uri.parse('$_baseUrl/rest/v1/host_agencies?or=(owner_uid.eq.$uid,owner_id.eq.$uid)&select=*&limit=1');
-      final resOwner = await http.get(urlOwner, headers: _headers);
+      final resOwner = await SafeHttp.get(urlOwner, headers: _headers);
       if (resOwner.statusCode == 200) {
         final List list = jsonDecode(resOwner.body);
         if (list.isNotEmpty) return Map<String, dynamic>.from(list[0] as Map);
       }
 
       final urlMem = Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(host_uid.eq.$uid,user_id.eq.$uid)&status=eq.active&select=agency_id&limit=1');
-      final resMem = await http.get(urlMem, headers: _headers);
+      final resMem = await SafeHttp.get(urlMem, headers: _headers);
       if (resMem.statusCode == 200) {
         final List list = jsonDecode(resMem.body);
         if (list.isNotEmpty && list[0]['agency_id'] != null) {
           final aid = list[0]['agency_id'].toString();
           final urlAg = Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$aid&select=*&limit=1');
-          final resAg = await http.get(urlAg, headers: _headers);
+          final resAg = await SafeHttp.get(urlAg, headers: _headers);
           if (resAg.statusCode == 200) {
             final List agList = jsonDecode(resAg.body);
             if (agList.isNotEmpty) return Map<String, dynamic>.from(agList[0] as Map);
@@ -2416,7 +2414,7 @@ class SupabaseDataService {
   Future<bool> updateUserCustomId(String uid, String newCustomId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid');
-      final res = await http.patch(
+      final res = await SafeHttp.patch(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -2440,7 +2438,7 @@ class SupabaseDataService {
       for (final key in ['item_id', 'id']) {
         final url = Uri.parse(
             '$_baseUrl/rest/v1/store_items?$key=eq.$itemId&select=*&limit=1');
-        final res = await http.get(url, headers: _headers);
+        final res = await SafeHttp.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
           if (list.isNotEmpty) {
@@ -2458,7 +2456,7 @@ class SupabaseDataService {
   Future<bool> markStoreItemSold(String itemId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/store_items?item_id=eq.$itemId');
-      final res = await http.patch(
+      final res = await SafeHttp.patch(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -2469,7 +2467,7 @@ class SupabaseDataService {
       if (res.statusCode >= 200 && res.statusCode < 300) return true;
 
       final url2 = Uri.parse('$_baseUrl/rest/v1/store_items?id=eq.$itemId');
-      final res2 = await http.patch(
+      final res2 = await SafeHttp.patch(
         url2,
         headers: _headers,
         body: jsonEncode({
@@ -2491,7 +2489,7 @@ class SupabaseDataService {
   Future<Map<String, dynamic>> getUserTasksProgress(String uid, String dateKey) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/user_tasks_progress?uid=eq.$uid&date_key=eq.$dateKey');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final map = <String, dynamic>{};
@@ -2513,7 +2511,7 @@ class SupabaseDataService {
   Future<Map<String, dynamic>> getGrowthTasksProgress(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/growth_tasks_progress?uid=eq.$uid');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final map = <String, dynamic>{};
@@ -2536,19 +2534,19 @@ class SupabaseDataService {
     try {
       if (isGrowth) {
         final checkUrl = Uri.parse('$_baseUrl/rest/v1/growth_tasks_progress?uid=eq.$uid&task_id=eq.$taskId');
-        final res = await http.get(checkUrl, headers: _headers);
+        final res = await SafeHttp.get(checkUrl, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
           if (list.isNotEmpty) {
             final cur = (list.first['progress'] as num?)?.toInt() ?? 0;
-            await http.patch(checkUrl, headers: _headers, body: jsonEncode({
+            await SafeHttp.patch(checkUrl, headers: _headers, body: jsonEncode({
               'progress': cur + amount,
               'updated_at': DateTime.now().toIso8601String(),
             }));
             return;
           }
         }
-        await http.post(
+        await SafeHttp.post(
           Uri.parse('$_baseUrl/rest/v1/growth_tasks_progress'),
           headers: _headers,
           body: jsonEncode({
@@ -2560,19 +2558,19 @@ class SupabaseDataService {
         );
       } else {
         final checkUrl = Uri.parse('$_baseUrl/rest/v1/user_tasks_progress?uid=eq.$uid&task_id=eq.$taskId&date_key=eq.$dateKey');
-        final res = await http.get(checkUrl, headers: _headers);
+        final res = await SafeHttp.get(checkUrl, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
           if (list.isNotEmpty) {
             final cur = (list.first['progress'] as num?)?.toInt() ?? 0;
-            await http.patch(checkUrl, headers: _headers, body: jsonEncode({
+            await SafeHttp.patch(checkUrl, headers: _headers, body: jsonEncode({
               'progress': cur + amount,
               'updated_at': DateTime.now().toIso8601String(),
             }));
             return;
           }
         }
-        await http.post(
+        await SafeHttp.post(
           Uri.parse('$_baseUrl/rest/v1/user_tasks_progress'),
           headers: _headers,
           body: jsonEncode({
@@ -2593,13 +2591,13 @@ class SupabaseDataService {
     try {
       if (isGrowth) {
         final url = Uri.parse('$_baseUrl/rest/v1/growth_tasks_progress?uid=eq.$uid&task_id=eq.$taskId');
-        await http.patch(url, headers: _headers, body: jsonEncode({
+        await SafeHttp.patch(url, headers: _headers, body: jsonEncode({
           'is_claimed': true,
           'updated_at': DateTime.now().toIso8601String(),
         }));
       } else {
         final url = Uri.parse('$_baseUrl/rest/v1/user_tasks_progress?uid=eq.$uid&task_id=eq.$taskId&date_key=eq.$dateKey');
-        await http.patch(url, headers: _headers, body: jsonEncode({
+        await SafeHttp.patch(url, headers: _headers, body: jsonEncode({
           'is_claimed': true,
           'updated_at': DateTime.now().toIso8601String(),
         }));
@@ -2613,7 +2611,7 @@ class SupabaseDataService {
     if (followerUid.isEmpty || followingUid.isEmpty || followerUid == followingUid) return;
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/follows');
-      await http.post(
+      await SafeHttp.post(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -2635,7 +2633,7 @@ class SupabaseDataService {
     if (followerUid.isEmpty || followingUid.isEmpty || followerUid == followingUid) return;
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/follows?follower_uid=eq.$followerUid&following_uid=eq.$followingUid');
-      await http.delete(url, headers: _headers);
+      await SafeHttp.delete(url, headers: _headers);
       final followingCount = await getFollowingCount(followerUid);
       final followersCount = await getFollowersCount(followingUid);
       await updateUser(followerUid, {'following': followingCount});
@@ -2649,7 +2647,7 @@ class SupabaseDataService {
     if (followerUid.isEmpty || followingUid.isEmpty) return false;
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/follows?follower_uid=eq.$followerUid&following_uid=eq.$followingUid&select=id&limit=1');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.isNotEmpty;
@@ -2663,7 +2661,7 @@ class SupabaseDataService {
   Future<int> getFollowingCount(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/follows?follower_uid=eq.$uid&limit=0');
-      final res = await http.get(url, headers: {..._headers, 'Prefer': 'count=exact'});
+      final res = await SafeHttp.get(url, headers: {..._headers, 'Prefer': 'count=exact'});
       final cr = res.headers['content-range'];
       if (cr != null && cr.contains('/')) {
         return int.tryParse(cr.split('/').last) ?? 0;
@@ -2675,7 +2673,7 @@ class SupabaseDataService {
   Future<int> getFollowersCount(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/follows?following_uid=eq.$uid&limit=0');
-      final res = await http.get(url, headers: {..._headers, 'Prefer': 'count=exact'});
+      final res = await SafeHttp.get(url, headers: {..._headers, 'Prefer': 'count=exact'});
       final cr = res.headers['content-range'];
       if (cr != null && cr.contains('/')) {
         return int.tryParse(cr.split('/').last) ?? 0;
@@ -2687,7 +2685,7 @@ class SupabaseDataService {
   Future<int> getVisitorsCount(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/profile_visits?visited_uid=eq.$uid&limit=0');
-      final res = await http.get(url, headers: {..._headers, 'Prefer': 'count=exact'});
+      final res = await SafeHttp.get(url, headers: {..._headers, 'Prefer': 'count=exact'});
       final cr = res.headers['content-range'];
       if (cr != null && cr.contains('/')) {
         return int.tryParse(cr.split('/').last) ?? 0;
@@ -2700,7 +2698,7 @@ class SupabaseDataService {
     if (visitedUid.isEmpty || visitorUid.isEmpty || visitedUid == visitorUid) return;
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/profile_visits');
-      await http.post(
+      await SafeHttp.post(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -2719,7 +2717,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getFollowingUsers(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/follows?follower_uid=eq.$uid&select=following_uid&order=created_at.desc&limit=100');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final uids = list.map((e) => e['following_uid']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
@@ -2735,7 +2733,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getFollowerUsers(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/follows?following_uid=eq.$uid&select=follower_uid&order=created_at.desc&limit=100');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final uids = list.map((e) => e['follower_uid']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
@@ -2751,7 +2749,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getVisitorUsers(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/profile_visits?visited_uid=eq.$uid&select=visitor_uid,visited_at&order=visited_at.desc&limit=50');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final uids = list.map((e) => e['visitor_uid']?.toString() ?? '').where((id) => id.isNotEmpty && id != uid).toSet().toList();
@@ -2770,8 +2768,8 @@ class SupabaseDataService {
       final fFollowersUrl = Uri.parse('$_baseUrl/rest/v1/follows?following_uid=eq.$uid&select=follower_uid&limit=200');
 
       final resList = await Future.wait([
-        http.get(fFollowingUrl, headers: _headers),
-        http.get(fFollowersUrl, headers: _headers),
+        SafeHttp.get(fFollowingUrl, headers: _headers),
+        SafeHttp.get(fFollowersUrl, headers: _headers),
       ]);
 
       if (resList[0].statusCode == 200 && resList[1].statusCode == 200) {
@@ -2806,10 +2804,10 @@ class SupabaseDataService {
       // 1. PostgREST REST API batch query
       final filter = cleanUids.join(',');
       var url = Uri.parse('$_baseUrl/rest/v1/users?or=(uid.in.($filter),id.in.($filter))&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id,updated_at,is_online');
-      var res = await http.get(url, headers: _headers);
+      var res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode != 200) {
         url = Uri.parse('$_baseUrl/rest/v1/users?id=in.($filter)&select=uid,id,name,photo_url,avatar,gender,level,country_idx,custom_id,updated_at,is_online');
-        res = await http.get(url, headers: _headers);
+        res = await SafeHttp.get(url, headers: _headers);
       }
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
@@ -2878,7 +2876,7 @@ class SupabaseDataService {
         }
       }
       final url = Uri.parse('$_baseUrl/rest/v1/user_inventory');
-      await http.post(
+      await SafeHttp.post(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -2900,7 +2898,7 @@ class SupabaseDataService {
   Future<List<GiftedItemModel>> getGiftedItems(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gifted_items?uid=eq.$uid&order=sent_at.desc');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => GiftedItemModel.fromMap(Map<String, dynamic>.from(e as Map), e['id'].toString())).toList();
@@ -2914,7 +2912,7 @@ class SupabaseDataService {
   Future<List<GiftedItemModel>> getGiftedItemsByCategory(String uid, String category) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gifted_items?uid=eq.$uid&item_category=eq.$category&order=sent_at.desc');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => GiftedItemModel.fromMap(Map<String, dynamic>.from(e as Map), e['id'].toString())).toList();
@@ -2928,7 +2926,7 @@ class SupabaseDataService {
   Future<bool> removeGiftedItem(String id) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/gifted_items?id=eq.$id');
-      final res = await http.delete(url, headers: _headers);
+      final res = await SafeHttp.delete(url, headers: _headers);
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] removeGiftedItem error: $e');
@@ -2947,7 +2945,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getUserBackpack(String uid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/user_backpack?user_id=eq.$uid');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -2959,7 +2957,7 @@ class SupabaseDataService {
   Future<bool> deleteUserBackpackItem(String id) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/user_backpack?id=eq.$id');
-      final res = await http.delete(url, headers: _headers);
+      final res = await SafeHttp.delete(url, headers: _headers);
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (_) {
       return false;
@@ -2979,7 +2977,7 @@ class SupabaseDataService {
   }) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/agent_recharge_transactions');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -3003,7 +3001,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getAgentTransactions(String agentId, {int limit = 100}) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/agent_recharge_transactions?agent_id=eq.$agentId&order=created_at.desc&limit=$limit');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -3028,14 +3026,15 @@ class SupabaseDataService {
     String? giftIcon,
     int? multiplier,
     String type = 'lucky_gift',
+    String? broadcastId,
   }) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/broadcasts');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: _headers,
         body: jsonEncode({
-          'id': const Uuid().v4(),
+          'id': broadcastId ?? const Uuid().v4(),
           'sender_uid': senderUid,
           'sender_name': senderName,
           'sender_photo_url': senderPhotoUrl ?? '',
@@ -3059,7 +3058,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getRecentBroadcasts({int limit = 10}) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/broadcasts?select=*&order=created_at.desc&limit=$limit');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -3081,7 +3080,7 @@ class SupabaseDataService {
         '$_baseUrl/rest/v1/broadcasts?select=*&created_at=gt.$encoded'
         '&order=created_at.asc&limit=$limit',
       );
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -3102,7 +3101,7 @@ class SupabaseDataService {
   }) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/global_announcements');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -3126,7 +3125,7 @@ class SupabaseDataService {
   Future<List<Map<String, dynamic>>> getRecentGlobalAnnouncements({int limit = 10}) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/global_announcements?select=*&order=created_at.desc&limit=$limit');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -3140,7 +3139,7 @@ class SupabaseDataService {
   Future<bool> sendPresencePing(dynamic roomId, String userId) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/room_members');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {
           ..._headers,
@@ -3161,7 +3160,7 @@ class SupabaseDataService {
   /// جلب بيانات محفظة الحظ بالسيرفر
   Future<Map<String, dynamic>?> getLuckyPool() async {
     try {
-      final res = await http.get(
+      final res = await SafeHttp.get(
         Uri.parse('$_baseUrl/rest/v1/lucky_pools?id=eq.main&select=*'),
         headers: _headers,
       );
@@ -3185,7 +3184,7 @@ class SupabaseDataService {
         final newBal = math.max(0, currentBal - amount);
         final newPaid = currentPaid + amount;
 
-        await http.patch(
+        await SafeHttp.patch(
           Uri.parse('$_baseUrl/rest/v1/lucky_pools?id=eq.main'),
           headers: _headers,
           body: jsonEncode({
@@ -3195,7 +3194,7 @@ class SupabaseDataService {
           }),
         );
 
-        await http.post(
+        await SafeHttp.post(
           Uri.parse('$_baseUrl/rest/v1/lucky_pool_logs'),
           headers: _headers,
           body: jsonEncode({

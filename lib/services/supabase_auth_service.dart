@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'safe_http.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../config/supabase_config.dart';
@@ -166,7 +166,7 @@ class SupabaseAuthService {
 
     // Save OTP to app_config with 5-minute expiry
     final saveUrl = Uri.parse('$_baseUrl/rest/v1/app_config');
-    final res = await http.post(
+    final res = await SafeHttp.post(
       saveUrl,
       headers: {
         ..._headers,
@@ -190,7 +190,7 @@ class SupabaseAuthService {
     bool smsDispatched = false;
     try {
       final authOtpUrl = Uri.parse('$_baseUrl/auth/v1/otp');
-      final authOtpRes = await http.post(
+      final authOtpRes = await SafeHttp.post(
         authOtpUrl,
         headers: _headers,
         body: jsonEncode({
@@ -226,7 +226,7 @@ class SupabaseAuthService {
 
     // 1. Fetch OTP from app_config
     final fetchUrl = Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone&select=*');
-    final fetchRes = await http.get(fetchUrl, headers: _headers);
+    final fetchRes = await SafeHttp.get(fetchUrl, headers: _headers);
 
     if (fetchRes.statusCode != 200) {
       throw Exception('تعذر التحقق من الرمز حالياً، يرجى إعادة المحاولة');
@@ -254,7 +254,7 @@ class SupabaseAuthService {
     // Check expiry
     if (nowMs > expiresAt) {
       // Cleanup expired OTP
-      await http.delete(Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'), headers: _headers);
+      await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'), headers: _headers);
       throw Exception('انتهت صلاحية رمز التحقق (OTP). يرجى طلب رمز جديد');
     }
 
@@ -262,10 +262,10 @@ class SupabaseAuthService {
     if (expectedCode.isEmpty || expectedCode != cleanOtp) {
       final attempts = ((otpData['attempts'] as num?)?.toInt() ?? 0) + 1;
       if (attempts >= 5) {
-        await http.delete(Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'), headers: _headers);
         throw Exception('تم تجاوز الحد الأقصى للمحاولات الخاطئة. يرجى طلب رمز جديد');
       } else {
-        await http.patch(
+        await SafeHttp.patch(
           Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'),
           headers: _headers,
           body: jsonEncode({
@@ -281,12 +281,12 @@ class SupabaseAuthService {
 
     // 2. OTP is verified! Invalidate immediately to prevent replay attacks
     try {
-      await http.delete(Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'), headers: _headers);
+      await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/app_config?key=eq.otp_$cleanPhone'), headers: _headers);
     } catch (_) {}
 
     // 3. Look up user by phone or create new user
     final queryUrl = Uri.parse('$_baseUrl/rest/v1/users?phone=eq.$cleanPhone&select=*');
-    final queryRes = await http.get(queryUrl, headers: _headers);
+    final queryRes = await SafeHttp.get(queryUrl, headers: _headers);
 
     if (queryRes.statusCode == 200) {
       final usersList = jsonDecode(queryRes.body) as List;
@@ -344,7 +344,7 @@ class SupabaseAuthService {
 
     // 1. Check if user already exists with this phone number
     final queryUrl = Uri.parse('$_baseUrl/rest/v1/users?phone=eq.$cleanPhone&select=*');
-    final queryRes = await http.get(queryUrl, headers: _headers);
+    final queryRes = await SafeHttp.get(queryUrl, headers: _headers);
 
     if (queryRes.statusCode == 200) {
       final list = jsonDecode(queryRes.body) as List;
@@ -360,7 +360,7 @@ class SupabaseAuthService {
 
         // Save PIN if not previously set
         if (!storedPinHash.startsWith('pin:')) {
-          await http.patch(
+          await SafeHttp.patch(
             Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid'),
             headers: _headers,
             body: jsonEncode({'last_ip': 'pin:$pinHash'}),
@@ -420,7 +420,7 @@ class SupabaseAuthService {
         if (accessToken != null) 'access_token': accessToken,
       });
 
-      final response = await http.post(url, headers: _headers, body: body);
+      final response = await SafeHttp.post(url, headers: _headers, body: body);
       debugPrint('[SupabaseAuth] Google login status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
@@ -475,7 +475,7 @@ class SupabaseAuthService {
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       };
 
-      final response = await http.post(
+      final response = await SafeHttp.post(
         url,
         headers: headers,
         body: jsonEncode(data),
@@ -497,7 +497,7 @@ class SupabaseAuthService {
     // 1. Try querying by uid
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$cleanId&select=*');
-      final response = await http.get(url, headers: _headers);
+      final response = await SafeHttp.get(url, headers: _headers);
       debugPrint('[SupabaseAuth] getUser uid status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final list = jsonDecode(response.body) as List;
@@ -513,7 +513,7 @@ class SupabaseAuthService {
     // 2. Try querying by id (in case primary key is id)
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/users?id=eq.$cleanId&select=*');
-      final response = await http.get(url, headers: _headers);
+      final response = await SafeHttp.get(url, headers: _headers);
       if (response.statusCode == 200) {
         final list = jsonDecode(response.body) as List;
         if (list.isNotEmpty) {
@@ -526,7 +526,7 @@ class SupabaseAuthService {
     // 3. Try querying by custom_id (in case numeric display ID was passed)
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/users?custom_id=eq.$cleanId&select=*');
-      final response = await http.get(url, headers: _headers);
+      final response = await SafeHttp.get(url, headers: _headers);
       if (response.statusCode == 200) {
         final list = jsonDecode(response.body) as List;
         if (list.isNotEmpty) {
@@ -550,7 +550,7 @@ class SupabaseAuthService {
       final cleanEmail = email.trim().toLowerCase();
       if (cleanEmail.isEmpty) return null;
       final url = Uri.parse('$_baseUrl/rest/v1/users?email=eq.$cleanEmail&select=*');
-      final response = await http.get(url, headers: _headers);
+      final response = await SafeHttp.get(url, headers: _headers);
       if (response.statusCode == 200) {
         final list = jsonDecode(response.body) as List;
         if (list.isNotEmpty) {
@@ -571,7 +571,7 @@ class SupabaseAuthService {
       final cleanPhone = phone.replaceAll(RegExp(r'\s+'), '');
       if (cleanPhone.isEmpty) return null;
       final url = Uri.parse('$_baseUrl/rest/v1/users?phone=eq.$cleanPhone&select=*');
-      final response = await http.get(url, headers: _headers);
+      final response = await SafeHttp.get(url, headers: _headers);
       if (response.statusCode == 200) {
         final list = jsonDecode(response.body) as List;
         if (list.isNotEmpty) {
@@ -598,7 +598,7 @@ class SupabaseAuthService {
       data['uid'] = user.uid;
       data['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
-      final response = await http.post(
+      final response = await SafeHttp.post(
         url,
         headers: headers,
         body: jsonEncode(data),

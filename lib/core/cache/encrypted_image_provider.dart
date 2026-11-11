@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -6,7 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
-import 'package:http/http.dart' as http;
+import '../../services/safe_http.dart';
 import 'package:path_provider/path_provider.dart';
 
 class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
@@ -143,7 +143,7 @@ class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
     _pendingCompleters[_key] = completer;
 
     try {
-      final response = await http.get(
+      final response = await SafeHttp.get(
         Uri.parse(url),
         headers: {
           'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',

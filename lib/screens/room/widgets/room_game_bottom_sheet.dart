@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
 import 'sugarrush_game_dialog.dart';
+import '../../game/alfa_game_screen.dart';
 import '../../game/game_teaming_screen.dart';
 import '../../game/ludo_game_screen.dart';
+import '../../../services/network_ping_service.dart';
 import 'package:zero/core/dtext.dart';
 
 class RoomGameBottomSheet extends StatefulWidget {
@@ -114,12 +116,15 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
         });
       }
     });
+    // ✅ قياس حقيقي لزمن الاستجابة (Ping) لعرض جودة الشبكة داخل المركز
+    NetworkPingService.instance.start();
   }
 
   @override
   void dispose() {
     _marqueeTimer?.cancel();
     _broadcastScrollController.dispose();
+    NetworkPingService.instance.stop();
     super.dispose();
   }
 
@@ -133,6 +138,11 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
 
     if (game['key'] == 'sugarrush') {
       SugarRushGameDialog.show(appContext, roomId: widget.roomId);
+      return;
+    }
+
+    if (game['key'] == 'lucky_777') {
+      AlfaGameScreen.show(appContext);
       return;
     }
 
@@ -171,10 +181,10 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.65,
+        maxHeight: MediaQuery.of(context).size.height * cfg.gameCenterSheetHeight,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1428),
+        color: cfg.gameCenterBgColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         image: DecorationImage(
           image: R.cachedImage(bgPath),
@@ -206,6 +216,47 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
                     'assets/mipmap-xxhdpi/room_game_title_ic.webp',
                     height: 28,
                     fit: BoxFit.contain,
+                  ),
+                ),
+
+                // ✅ شارة جودة الشبكة (Ping حقيقي بالمللي ثانية)
+                Positioned(
+                  top: 14,
+                  right: isAr ? 14 : null,
+                  left: isAr ? null : 14,
+                  child: ValueListenableBuilder<int?>(
+                    valueListenable: NetworkPingService.instance.pingMs,
+                    builder: (context, ms, _) {
+                      final color = NetworkPingService.qualityColor(ms);
+                      final label = ms == null ? '---' : '$ms';
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: color.withValues(alpha: 0.6), width: 1),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 4),
+                            DText(
+                              '$label ms',
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
 
@@ -273,9 +324,9 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
                       child: DText(
                         _broadcastMessages[_broadcastIdx],
                         key: ValueKey<int>(_broadcastIdx),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Colors.white,
+                          color: cfg.gameCenterBroadcastTextColor,
                           fontWeight: FontWeight.w500,
                         ),
                         maxLines: 1,
@@ -297,8 +348,8 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
               child: GridView.builder(
                 shrinkWrap: true,
                 physics: const BouncingScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cfg.gameCenterColumns,
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
                   childAspectRatio: 0.85,
@@ -355,8 +406,11 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [Color(0xFFFF416C), Color(0xFFFF4B2B)],
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          cfg.gameCenterHotColor,
+                                          Color.lerp(cfg.gameCenterHotColor, Colors.black, 0.25)!,
+                                        ],
                                       ),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
@@ -379,9 +433,9 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
                         // Game Name (tv_game_name)
                         DText(
                           name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white,
+                            color: cfg.gameCenterGameNameColor,
                             fontWeight: FontWeight.w600,
                           ),
                           maxLines: 1,

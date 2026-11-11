@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'safe_http.dart';
 import 'supabase_auth_service.dart';
 
 class ApiService {
@@ -30,7 +30,7 @@ class ApiService {
   Future<Map<String, dynamic>> _get(String path) async {
     final headers = await _headers();
     final url = Uri.parse('$_baseUrl$path');
-    final response = await http.get(url, headers: headers);
+    final response = await SafeHttp.get(url, headers: headers);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -41,7 +41,7 @@ class ApiService {
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
     final headers = await _headers();
     final url = Uri.parse('$_baseUrl$path');
-    final response = await http.post(url, headers: headers, body: jsonEncode(body));
+    final response = await SafeHttp.post(url, headers: headers, body: jsonEncode(body));
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -52,7 +52,7 @@ class ApiService {
   Future<Map<String, dynamic>> _put(String path, Map<String, dynamic> body) async {
     final headers = await _headers();
     final url = Uri.parse('$_baseUrl$path');
-    final response = await http.put(url, headers: headers, body: jsonEncode(body));
+    final response = await SafeHttp.put(url, headers: headers, body: jsonEncode(body));
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -207,7 +207,7 @@ class ApiService {
   Future<void> deleteAccount() async {
     final headers = await _headers();
     final url = Uri.parse('$_baseUrl/auth/account');
-    final response = await http.delete(url, headers: headers);
+    final response = await SafeHttp.delete(url, headers: headers);
     if (response.statusCode >= 200 && response.statusCode < 300) return;
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     throw ApiException(response.statusCode, body['error']?.toString() ?? 'Unknown error');

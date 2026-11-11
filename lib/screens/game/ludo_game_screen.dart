@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import '../../services/safe_http.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../providers/user_provider.dart';
@@ -104,8 +104,7 @@ class _LudoGameScreenState extends State<LudoGameScreen> {
     final url = _buildUrl();
     String? html;
     try {
-      final res = await http
-          .get(Uri.parse(_gameBase))
+      final res = await SafeHttp.get(Uri.parse(_gameBase))
           .timeout(const Duration(seconds: 12));
       if (res.statusCode >= 200 && res.statusCode < 300) {
         html = res.body;

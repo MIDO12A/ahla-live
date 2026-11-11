@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import '../services/safe_http.dart';
 import '../config/supabase_config.dart';
 import '../services/supabase_auth_service.dart';
 import '../services/supabase_data_service.dart';
@@ -39,7 +39,7 @@ class SupabaseClient {
 
     try {
       final url = Uri.parse('${SupabaseConfig.projectUrl}/rest/v1/rpc/$fn');
-      final res = await http.post(
+      final res = await SafeHttp.post(
         url,
         headers: {
           'apikey': SupabaseConfig.anonKey,
@@ -472,7 +472,7 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
         }
 
         final uri = Uri.parse('$baseUrl/rest/v1/$_table?${queryParams.join('&')}');
-        final res = await http.get(uri, headers: headers);
+        final res = await SafeHttp.get(uri, headers: headers);
         if (res.statusCode >= 200 && res.statusCode < 300) {
           final decoded = jsonDecode(res.body);
           if (decoded is List) {
@@ -484,7 +484,7 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
       case _QOp.insert:
         headers['Prefer'] = 'return=representation';
         final uri = Uri.parse('$baseUrl/rest/v1/$_table');
-        final res = await http.post(uri, headers: headers, body: jsonEncode(_payload));
+        final res = await SafeHttp.post(uri, headers: headers, body: jsonEncode(_payload));
         if (res.statusCode >= 200 && res.statusCode < 300) {
           final decoded = jsonDecode(res.body);
           if (decoded is List) {
@@ -496,7 +496,7 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
       case _QOp.upsert:
         headers['Prefer'] = 'resolution=merge-duplicates,return=representation';
         final uri = Uri.parse('$baseUrl/rest/v1/$_table');
-        final res = await http.post(uri, headers: headers, body: jsonEncode(_payload));
+        final res = await SafeHttp.post(uri, headers: headers, body: jsonEncode(_payload));
         if (res.statusCode >= 200 && res.statusCode < 300) {
           final decoded = jsonDecode(res.body);
           if (decoded is List) {
@@ -519,7 +519,7 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
           return [];
         }
         final uri = Uri.parse('$baseUrl/rest/v1/$_table?${queryParams.join('&')}');
-        final res = await http.patch(uri, headers: headers, body: jsonEncode(_payload));
+        final res = await SafeHttp.patch(uri, headers: headers, body: jsonEncode(_payload));
         if (res.statusCode >= 200 && res.statusCode < 300) {
           final decoded = jsonDecode(res.body);
           if (decoded is List) {
@@ -543,7 +543,7 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
           return [];
         }
         final uri = Uri.parse('$baseUrl/rest/v1/$_table?${queryParams.join('&')}');
-        await http.delete(uri, headers: headers);
+        await SafeHttp.delete(uri, headers: headers);
         return [];
     }
   }

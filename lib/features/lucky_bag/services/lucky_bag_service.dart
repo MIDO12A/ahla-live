@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import '../../../services/safe_http.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../config/supabase_config.dart';
@@ -56,7 +56,7 @@ class LuckyBagService {
       final url = Uri.parse(
         '$_baseUrl/rest/v1/app_config?key=eq.lucky_bag_config&select=value&limit=1',
       );
-      final res = await http.get(url, headers: _headers).timeout(
+      final res = await SafeHttp.get(url, headers: _headers).timeout(
             const Duration(seconds: 8),
           );
       if (res.statusCode == 200) {
@@ -394,7 +394,7 @@ class LuckyBagService {
           '$_baseUrl/rest/v1/lucky_bags?room_id=eq.$roomId&status=eq.active'
           '&expires_at=gt.$now&select=*&order=created_at.asc&limit=20',
         );
-        final res = await http.get(url, headers: _headers).timeout(
+        final res = await SafeHttp.get(url, headers: _headers).timeout(
               const Duration(seconds: 6),
             );
         if (res.statusCode == 200) {
@@ -448,7 +448,7 @@ class LuckyBagService {
       final url = Uri.parse(
         '$_baseUrl/rest/v1/lucky_bags?status=eq.active&expires_at=lt.$now&select=*&limit=25',
       );
-      final res = await http.get(url, headers: _headers).timeout(
+      final res = await SafeHttp.get(url, headers: _headers).timeout(
             const Duration(seconds: 8),
           );
       if (res.statusCode != 200) return;
@@ -550,7 +550,7 @@ class LuckyBagService {
         '$_baseUrl/rest/v1/lucky_bags?room_id=eq.$roomId&status=eq.active'
         '&expires_at=gt.$now&select=id',
       );
-      final res = await http.get(url, headers: _headers).timeout(
+      final res = await SafeHttp.get(url, headers: _headers).timeout(
             const Duration(seconds: 6),
           );
       if (res.statusCode == 200) {
@@ -568,7 +568,7 @@ class LuckyBagService {
         '$_baseUrl/rest/v1/lucky_bags?room_id=eq.$roomId&status=eq.active'
         '&expires_at=gt.$now&select=id&order=created_at.asc&limit=1',
       );
-      final res = await http.get(url, headers: _headers).timeout(
+      final res = await SafeHttp.get(url, headers: _headers).timeout(
             const Duration(seconds: 6),
           );
       if (res.statusCode == 200) {
@@ -585,7 +585,7 @@ class LuckyBagService {
     final url = Uri.parse(
       '$_baseUrl/rest/v1/lucky_bags?id=eq.$bagId&select=*&limit=1',
     );
-    final res = await http.get(url, headers: _headers).timeout(
+    final res = await SafeHttp.get(url, headers: _headers).timeout(
           const Duration(seconds: 8),
         );
     if (res.statusCode != 200) return null;
@@ -598,8 +598,7 @@ class LuckyBagService {
 
   Future<bool> _insertRow(Map<String, dynamic> row) async {
     try {
-      final res = await http
-          .post(
+      final res = await SafeHttp.post(
             Uri.parse('$_baseUrl/rest/v1/lucky_bags'),
             headers: {..._headers, 'Prefer': 'return=representation'},
             body: jsonEncode(row),
@@ -621,8 +620,7 @@ class LuckyBagService {
     try {
       final query = StringBuffer('id=eq.$bagId');
       filters.forEach((k, v) => query.write('&$k=$v'));
-      final res = await http
-          .patch(
+      final res = await SafeHttp.patch(
             Uri.parse('$_baseUrl/rest/v1/lucky_bags?$query'),
             headers: {..._headers, 'Prefer': 'return=representation'},
             body: jsonEncode(body),
@@ -649,7 +647,7 @@ class LuckyBagService {
         '$_baseUrl/rest/v1/lucky_bags?room_id=eq.$roomId&status=eq.active'
         '&expires_at=gt.$now&select=id',
       );
-      final res = await http.get(url, headers: _headers).timeout(
+      final res = await SafeHttp.get(url, headers: _headers).timeout(
             const Duration(seconds: 6),
           );
       final has = res.statusCode == 200 &&

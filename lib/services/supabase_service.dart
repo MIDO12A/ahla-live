@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'safe_http.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config/supabase_config.dart';
@@ -21,6 +22,7 @@ import '../core/utils/id_generator.dart';
 import 'supabase_data_service.dart';
 import 'dynamic_config_service.dart';
 import 'agency_target_evaluator.dart';
+import 'global_banner_service.dart';
 
 /// خدمة إدارة وتنسيق عمليات Supabase المباشرة (SupabaseService)
 /// تضمن الاتصال فائق السرعة مع https://supabase.com وتحديث رصيد العملات فوريًا بـ 0ms
@@ -461,8 +463,7 @@ class SupabaseService {
     try {
       // 1. استدعاء المعاملة الذرية من Supabase عبر RPC (process_lucky_gift)
       final rpcUrl = Uri.parse('$_baseUrl/rest/v1/rpc/process_lucky_gift');
-      final rpcRes = await http
-          .post(
+      final rpcRes = await SafeHttp.post(
             rpcUrl,
             headers: _headers,
             body: jsonEncode({
@@ -682,6 +683,7 @@ class SupabaseService {
           ? '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)'
           : '$senderName 🍀 $giftNameAr x$count';
 
+      final String bCastId = const Uuid().v4();
       unawaited(_ds
           .recordBroadcast(
             senderUid: senderId,
@@ -692,8 +694,28 @@ class SupabaseService {
             giftIcon: giftIconUrl,
             multiplier: maxMultiplier,
             type: 'lucky_gift',
+            broadcastId: bCastId,
           )
           .catchError((_) => false));
+
+      // ✅ حقن محلي فوري: نص هدية الحظ يظهر لحظياً عند ضغط زر الإرسال
+      //    بدل انتظار رحلة الطلب للسيرفر وعودة البث. نفس المعرف يُرسل
+      //    للسيرفر فيتجاهل النظام النسخة المكررة تلقائياً.
+      GlobalBannerService.instance.echoBroadcastLocally({
+        'id': bCastId,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'sender_uid': senderId,
+        'sender_name': senderName,
+        'sender_photo_url': senderPhotoUrl,
+        'room_id': roomId,
+        'content': broadcastContent,
+        'gift_icon': giftIconUrl,
+        'gift_name': giftNameAr,
+        'type': 'lucky_gift',
+        'multiplier': maxMultiplier,
+        'won_coins': totalWonCoins,
+        'count': count,
+      });
 
       // نص الفوز يصل لكل الأجهزة (بما فيها المرسل) عبر Supabase Realtime
       // مع polling احتياطي كل 500ms في GlobalBannerService.
@@ -887,18 +909,38 @@ class SupabaseService {
       unawaited(_ds.incrementRoomGifts(roomId, totalCost));
 
       // 4. بث كل هدية لكل الغرف — نفس النص الظاهر في شات الغرفة
+      final String giftBroadcastContent =
+          '$senderName أرسل $giftName x$count إلى $receiverName';
+      final String giftBCastId = const Uuid().v4();
       unawaited(_ds
           .recordBroadcast(
             senderUid: senderId,
             senderName: senderName,
             senderPhotoUrl: senderPhotoUrl,
             roomId: roomId,
-            content:
-                '$senderName أرسل $giftName x$count إلى $receiverName',
+            content: giftBroadcastContent,
             giftIcon: effectiveIcon,
             type: totalCost >= 500 ? 'big_gift' : 'gift',
+            broadcastId: giftBCastId,
           )
           .catchError((_) => false));
+
+      // ✅ حقن محلي فوري: لافتة/نص الهدية يظهر لحظياً عند الإرسال
+      GlobalBannerService.instance.echoBroadcastLocally({
+        'id': giftBCastId,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'sender_uid': senderId,
+        'sender_name': senderName,
+        'sender_photo_url': senderPhotoUrl,
+        'room_id': roomId,
+        'content': giftBroadcastContent,
+        'gift_icon': effectiveIcon,
+        'gift_name': giftName,
+        'type': totalCost >= 500 ? 'big_gift' : 'gift',
+        'value': value,
+        'count': count,
+        'total_cost': totalCost,
+      });
 
       // 5. تقييم التارجت للوكيل وإشعار المستلم
       unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId)
@@ -944,7 +986,7 @@ class SupabaseService {
   }) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/notifications');
-      await http.post(
+      await SafeHttp.post(
         url,
         headers: _headers,
         body: jsonEncode({
@@ -995,11 +1037,11 @@ class SupabaseService {
           }).eq('agency_id', agencyId);
         } catch (_) {}
         try {
-          await http.delete(
+          await SafeHttp.delete(
             Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
             headers: _headers,
           );
-          await http.delete(
+          await SafeHttp.delete(
             Uri.parse(
                 '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId'),
             headers: _headers,
@@ -1048,22 +1090,22 @@ class SupabaseService {
       }
       try {
         if (agencyId.isNotEmpty) {
-          await http.delete(
+          await SafeHttp.delete(
             Uri.parse(
                 '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&user_id=eq.$userId'),
             headers: _headers,
           );
-          await http.delete(
+          await SafeHttp.delete(
             Uri.parse(
                 '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&host_uid=eq.$userId'),
             headers: _headers,
           );
         }
-        await http.delete(
+        await SafeHttp.delete(
           Uri.parse('$_baseUrl/rest/v1/host_agency_members?user_id=eq.$userId'),
           headers: _headers,
         );
-        await http.delete(
+        await SafeHttp.delete(
           Uri.parse(
               '$_baseUrl/rest/v1/host_agency_members?host_uid=eq.$userId'),
           headers: _headers,
@@ -1087,7 +1129,7 @@ class SupabaseService {
             .or('user_id.eq.$userId,applicant_uid.eq.$userId');
       } catch (_) {}
       try {
-        await http.delete(
+        await SafeHttp.delete(
           Uri.parse('$_baseUrl/rest/v1/agency_applications?user_id=eq.$userId'),
           headers: _headers,
         );
@@ -1108,7 +1150,7 @@ class SupabaseService {
           'agency_id': null,
           'is_host_agent': false,
         });
-        await http.patch(
+        await SafeHttp.patch(
           Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$userId'),
           headers: _headers,
           body: jsonEncode({'agency_id': null, 'is_host_agent': false}),
@@ -1130,7 +1172,7 @@ class SupabaseService {
     required String newRole,
   }) async {
     try {
-      final res = await http.patch(
+      final res = await SafeHttp.patch(
         Uri.parse(
             '$_baseUrl/rest/v1/host_agency_members?agency_id=eq.$agencyId&user_id=eq.$memberUid'),
         headers: _headers,
@@ -1819,7 +1861,7 @@ class SupabaseService {
       try {
         final url = Uri.parse(
             '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&select=*&order=created_at.desc');
-        final res = await http.get(url, headers: _headers);
+        final res = await SafeHttp.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
           yield list
@@ -1896,8 +1938,8 @@ class SupabaseService {
     try {
       final deleteUrl = Uri.parse(
           '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&blocked_uid=eq.$blockedUid');
-      await http.delete(deleteUrl, headers: _headers);
-      await http.post(
+      await SafeHttp.delete(deleteUrl, headers: _headers);
+      await SafeHttp.post(
         Uri.parse('$_baseUrl/rest/v1/room_blocks'),
         headers: _headers,
         body: jsonEncode({
@@ -1919,7 +1961,7 @@ class SupabaseService {
     try {
       final url = Uri.parse(
           '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&blocked_uid=eq.$blockedUid');
-      await http.delete(url, headers: _headers);
+      await SafeHttp.delete(url, headers: _headers);
     } catch (e) {
       debugPrint('[SupabaseService] unblockUserFromRoom error: $e');
     }
@@ -1929,7 +1971,7 @@ class SupabaseService {
     try {
       final url = Uri.parse(
           '$_baseUrl/rest/v1/room_blocks?room_id=eq.$roomId&blocked_uid=eq.$uid&select=id');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.isNotEmpty;
@@ -1994,7 +2036,7 @@ class SupabaseService {
     try {
       final url =
           Uri.parse('$_baseUrl/rest/v1/reports?select=*&order=created_at.desc');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -2005,7 +2047,7 @@ class SupabaseService {
 
   Future<void> resolveReport(String reportId) async {
     try {
-      await http.patch(
+      await SafeHttp.patch(
         Uri.parse('$_baseUrl/rest/v1/reports?id=eq.$reportId'),
         headers: _headers,
         body: jsonEncode({
@@ -2019,7 +2061,7 @@ class SupabaseService {
   Future<void> blockUser(String blockerUid, String blockedUid) async {
     if (blockerUid.isEmpty || blockedUid.isEmpty) return;
     try {
-      await http.post(
+      await SafeHttp.post(
         Uri.parse('$_baseUrl/rest/v1/blocks?on_conflict=blocker_uid,blocked_uid'),
         headers: {
           ..._headers,
@@ -2041,7 +2083,7 @@ class SupabaseService {
     try {
       final url = Uri.parse(
           '$_baseUrl/rest/v1/blocks?blocker_uid=eq.$blockerUid&blocked_uid=eq.$blockedUid');
-      await http.delete(url, headers: _headers);
+      await SafeHttp.delete(url, headers: _headers);
     } catch (e) {
       debugPrint('[SupabaseService] unblockUser error: $e');
     }
@@ -2052,7 +2094,7 @@ class SupabaseService {
     try {
       final url = Uri.parse(
           '$_baseUrl/rest/v1/blocks?blocker_uid=eq.$uid&select=blocked_uid');
-      final res = await http.get(url, headers: _headers);
+      final res = await SafeHttp.get(url, headers: _headers);
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list
@@ -2072,7 +2114,7 @@ class SupabaseService {
       required String reason,
       String? description}) async {
     try {
-      await http.post(
+      await SafeHttp.post(
         Uri.parse('$_baseUrl/rest/v1/reports'),
         headers: _headers,
         body: jsonEncode({
@@ -2197,7 +2239,7 @@ class SupabaseService {
         List<MessageModel> messages = [];
         final primaryUrl = Uri.parse(
             '$_baseUrl/rest/v1/private_messages?conv_id=eq.$conversationId&order=created_at.asc');
-        final primary = await http.get(primaryUrl, headers: _headers);
+        final primary = await SafeHttp.get(primaryUrl, headers: _headers);
         if (primary.statusCode == 200) {
           messages = parse(primary);
         }
@@ -2216,7 +2258,7 @@ class SupabaseService {
           }
           filter += ')&order=created_at.asc';
 
-          final legacy = await http.get(
+          final legacy = await SafeHttp.get(
               Uri.parse('$_baseUrl/rest/v1/private_messages?$filter'),
               headers: _headers);
           if (legacy.statusCode == 200) {
@@ -2306,7 +2348,7 @@ class SupabaseService {
 
       bool convReady = false;
       try {
-        final dualRes = await http.post(
+        final dualRes = await SafeHttp.post(
           Uri.parse('$_baseUrl/rest/v1/conversations'),
           headers: {
             ..._headers,
@@ -2324,7 +2366,7 @@ class SupabaseService {
       }
       if (!convReady) {
         try {
-          final singleRes = await http.post(
+          final singleRes = await SafeHttp.post(
             Uri.parse('$_baseUrl/rest/v1/conversations'),
             headers: {
               ..._headers,
@@ -2370,7 +2412,7 @@ class SupabaseService {
       }
 
       try {
-        final msgRes = await http.post(
+        final msgRes = await SafeHttp.post(
           Uri.parse('$_baseUrl/rest/v1/private_messages'),
           headers: _headers,
           body: jsonEncode(msgBody),
@@ -2433,7 +2475,7 @@ class SupabaseService {
             ? '?or=(uid.eq.$uid,target.eq.$uid,target.eq.all)&order=created_at.desc&limit=50'
             : '?order=created_at.desc&limit=50';
         final url = Uri.parse('$_baseUrl/rest/v1/notifications$filter');
-        final res = await http.get(url, headers: _headers);
+        final res = await SafeHttp.get(url, headers: _headers);
         if (res.statusCode == 200) {
           final List list = jsonDecode(res.body);
           yield list
@@ -2717,7 +2759,7 @@ class SupabaseService {
       DateTime? clearedAt;
       if (roomId.isNotEmpty) {
         try {
-          final roomRes = await http.get(
+          final roomRes = await SafeHttp.get(
             Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId&select=charisma_cleared_at&limit=1'),
             headers: _headers,
           );
@@ -2776,7 +2818,7 @@ class SupabaseService {
           final inFilter = topKeys.map((k) => '"$k"').join(',');
           final uUrl = Uri.parse(
               '$_baseUrl/rest/v1/users?or=(uid.in.($inFilter),id.in.($inFilter))&select=uid,id,name,custom_id,photo_url,avatar,level');
-          final uRes = await http.get(uUrl, headers: _headers);
+          final uRes = await SafeHttp.get(uUrl, headers: _headers);
           if (uRes.statusCode == 200) {
             final List uList = jsonDecode(uRes.body);
             for (final u in uList) {
@@ -2862,7 +2904,7 @@ class SupabaseService {
 
   Future<bool> updateAgencyNotice({String? agencyId, String? notice}) async {
     try {
-      final res = await http.patch(
+      final res = await SafeHttp.patch(
         Uri.parse('$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
         headers: _headers,
         body: jsonEncode(
@@ -2884,7 +2926,7 @@ class SupabaseService {
       required String targetUid,
       required int diamondsAmount}) async {
     try {
-      final res = await http.post(
+      final res = await SafeHttp.post(
         Uri.parse('$_baseUrl/rest/v1/agent_withdrawal_requests'),
         headers: _headers,
         body: jsonEncode({
@@ -2910,7 +2952,7 @@ class SupabaseService {
       int? diamondsAmount,
       String? targetName}) async {
     try {
-      final res = await http.patch(
+      final res = await SafeHttp.patch(
         Uri.parse(
             '$_baseUrl/rest/v1/agent_withdrawal_requests?id=eq.$requestId'),
         headers: _headers,
@@ -2937,7 +2979,7 @@ class SupabaseService {
     try {
       final body = Map<String, dynamic>.from(data);
       if (!body.containsKey('id')) body['id'] = docId;
-      await http.post(
+      await SafeHttp.post(
         Uri.parse('$_baseUrl/rest/v1/$collection?on_conflict=id'),
         headers: {
           ..._headers,

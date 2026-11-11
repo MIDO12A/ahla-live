@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
+import '../../services/safe_http.dart';
 
 import '../../config/supabase_config.dart';
 
@@ -23,8 +23,7 @@ class InviteService {
   /// ملخص المدعوين: { totalInviteQuantity, totalCommission }
   Future<Map<String, dynamic>> getInviteSummary(String uid) async {
     try {
-      final resp = await http
-          .get(
+      final resp = await SafeHttp.get(
             Uri.parse('$_baseUrl/rest/v1/rpc/get_invite_summary')
                 .replace(queryParameters: {'p_uid': uid}),
             headers: _headers,
@@ -41,8 +40,7 @@ class InviteService {
   /// ربط كود الداعي: invitee يبدّل مرة واحدة فقط
   Future<Map<String, dynamic>> bindInviter(String inviteeUid, String inviterCustomId) async {
     try {
-      final resp = await http
-          .post(
+      final resp = await SafeHttp.post(
             Uri.parse('$_baseUrl/rest/v1/rpc/bind_inviter'),
             headers: _headers,
             body: jsonEncode({
@@ -64,8 +62,7 @@ class InviteService {
   /// من دعاني؟ (user_invites حيث أنا المدعو)
   Future<Map<String, dynamic>?> getInviterOf(String uid) async {
     try {
-      final resp = await http
-          .get(
+      final resp = await SafeHttp.get(
             Uri.parse('$_baseUrl/rest/v1/user_invites')
                 .replace(queryParameters: {'invitee_uid': 'eq.$uid', 'select': '*'}),
             headers: _headers,
@@ -84,8 +81,7 @@ class InviteService {
   /// قائمة الذين دعوتهم (مع بياناتهم من users)
   Future<List<Map<String, dynamic>>> getInvitedUsers(String uid) async {
     try {
-      final resp = await http
-          .get(
+      final resp = await SafeHttp.get(
             Uri.parse('$_baseUrl/rest/v1/user_invites')
                 .replace(queryParameters: {'inviter_uid': 'eq.$uid', 'select': '*', 'order': 'created_at.desc'}),
             headers: _headers,
@@ -98,8 +94,7 @@ class InviteService {
       final inviteeIds = rows.map((r) => r['invitee_uid']?.toString() ?? '').where((e) => e.isNotEmpty).toList();
       if (inviteeIds.isEmpty) return rows;
       // جلب بيانات المدعوين من users
-      final usersResp = await http
-          .get(
+      final usersResp = await SafeHttp.get(
             Uri.parse('$_baseUrl/rest/v1/users').replace(queryParameters: {
               'uid': 'in.(${inviteeIds.join(',')})',
               'select': 'uid,name,photo_url,custom_id',
@@ -135,8 +130,7 @@ class InviteService {
   /// { invite_bonus_coins, inviter_reward, invitee_reward, screen }
   Future<Map<String, dynamic>> getInviteSettings() async {
     try {
-      final resp = await http
-          .get(
+      final resp = await SafeHttp.get(
             Uri.parse('$_baseUrl/rest/v1/app_config')
                 .replace(queryParameters: {'key': 'eq.invite_settings', 'select': 'value'}),
             headers: _headers,
@@ -160,8 +154,7 @@ class InviteService {
   /// حالة المكافأة اليومية: { enabled, claimed, reward, title, description }
   Future<Map<String, dynamic>> getDailyRewardStatus(String uid) async {
     try {
-      final resp = await http
-          .post(
+      final resp = await SafeHttp.post(
             Uri.parse('$_baseUrl/rest/v1/rpc/get_daily_reward_status'),
             headers: _headers,
             body: jsonEncode({'p_uid': uid}),
@@ -178,8 +171,7 @@ class InviteService {
   /// استلام المكافأة اليومية (مرة واحدة يومياً لكل مستخدم)
   Future<Map<String, dynamic>> claimDailyReward(String uid) async {
     try {
-      final resp = await http
-          .post(
+      final resp = await SafeHttp.post(
             Uri.parse('$_baseUrl/rest/v1/rpc/claim_daily_reward'),
             headers: _headers,
             body: jsonEncode({'p_uid': uid}),
@@ -202,8 +194,7 @@ class InviteService {
     if (uids.isEmpty) return result;
     try {
       final inFilter = uids.map((u) => '"$u"').join(',');
-      final resp = await http
-          .get(
+      final resp = await SafeHttp.get(
             Uri.parse('$_baseUrl/rest/v1/game_bet_records')
                 .replace(queryParameters: {
                   'user_id': 'in.($inFilter)',
@@ -243,8 +234,7 @@ class InviteService {
   Future<String> getStoreItemName(String itemId) async {
     if (itemId.isEmpty) return '';
     try {
-      final resp = await http
-          .get(
+      final resp = await SafeHttp.get(
             Uri.parse('$_baseUrl/rest/v1/store_items')
                 .replace(queryParameters: {
                   'or': '(item_id.eq.$itemId,id.eq.$itemId)',
@@ -268,8 +258,7 @@ class InviteService {
   /// صرف مكافآت المدعوين (invite_bonus_coins لاحقاً من app_config.invite_settings)
   Future<Map<String, dynamic>> claimInviteRewards(String uid) async {
     try {
-      final resp = await http
-          .post(
+      final resp = await SafeHttp.post(
             Uri.parse('$_baseUrl/rest/v1/rpc/claim_invite_rewards'),
             headers: _headers,
             body: jsonEncode({'p_uid': uid}),

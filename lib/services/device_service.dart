@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'safe_http.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../config/supabase_config.dart';
@@ -129,7 +129,7 @@ class DeviceService {
       };
 
       final userDevUrl = Uri.parse('${SupabaseConfig.projectUrl}/rest/v1/app_config');
-      await http.post(
+      await SafeHttp.post(
         userDevUrl,
         headers: {
           'apikey': SupabaseConfig.anonKey,
@@ -145,7 +145,7 @@ class DeviceService {
 
       // 2. Maintain device accounts list in Supabase app_config: key 'dev_accounts_${dev.deviceId}'
       final devAccUrl = Uri.parse('${SupabaseConfig.projectUrl}/rest/v1/app_config?key=eq.dev_accounts_${dev.deviceId}&select=*');
-      final devAccRes = await http.get(devAccUrl, headers: {
+      final devAccRes = await SafeHttp.get(devAccUrl, headers: {
         'apikey': SupabaseConfig.anonKey,
         'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
       });
@@ -166,7 +166,7 @@ class DeviceService {
       if (!uidsList.contains(cleanUid)) uidsList.add(cleanUid);
       if (cleanEmail.isNotEmpty && !emailsList.contains(cleanEmail)) emailsList.add(cleanEmail);
 
-      await http.post(
+      await SafeHttp.post(
         userDevUrl,
         headers: {
           'apikey': SupabaseConfig.anonKey,
@@ -209,7 +209,7 @@ class DeviceService {
     // 1. Check Supabase app_config for 'dev_accounts_$cleanDevice'
     try {
       final devAccUrl = Uri.parse('${SupabaseConfig.projectUrl}/rest/v1/app_config?key=eq.dev_accounts_$cleanDevice&select=*');
-      final res = await http.get(devAccUrl, headers: {
+      final res = await SafeHttp.get(devAccUrl, headers: {
         'apikey': SupabaseConfig.anonKey,
         'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
       });
@@ -244,7 +244,7 @@ class DeviceService {
     try {
       final encDev = Uri.encodeComponent(cleanDevice);
       final url = Uri.parse('${SupabaseConfig.projectUrl}/rest/v1/users?device_id=eq.$encDev&select=id,uid,email');
-      final res = await http.get(url, headers: {
+      final res = await SafeHttp.get(url, headers: {
         'apikey': SupabaseConfig.anonKey,
         'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
       });

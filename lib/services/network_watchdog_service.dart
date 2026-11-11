@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'safe_http.dart';
 
 import '../config/supabase_config.dart';
 
@@ -94,7 +94,7 @@ class NetworkWatchdogService {
 
   Future<bool> _httpProbe(String url) async {
     try {
-      final res = await http.head(Uri.parse(url), headers: {
+      final res = await SafeHttp.head(Uri.parse(url), headers: {
         'apikey': SupabaseConfig.anonKey,
       }).timeout(probeTimeout);
       return res.statusCode > 0;
