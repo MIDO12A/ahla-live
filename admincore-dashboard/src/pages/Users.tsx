@@ -5,7 +5,7 @@ import { uploadUserPhoto } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
 import { Coins, Gem, X, Save, Search, Ban, Shield, Phone, Globe, Key, Ruler, ChevronDown, RefreshCw, AlertTriangle, CheckCircle, ArrowRightCircle, PlusCircle, MinusCircle, History } from 'lucide-react';
-import { supabase, isAdminConnected } from '../lib/supabase';
+import { supabase, isAdminConnected, getAdminSupabase } from '../lib/supabase';
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserModel[]>([]);
@@ -164,6 +164,18 @@ export default function UsersPage() {
     setEditing(updated);
     try {
       await updateUser(editing.uid, { [field]: value });
+      
+      // If country is updated, also update rooms where this user is host
+      if (field === 'country') {
+        const adminClient = getAdminSupabase();
+        if (adminClient) {
+          await adminClient
+            .from('rooms')
+            .update({ country: String(value).toUpperCase() })
+            .eq('host_uid', editing.uid);
+        }
+      }
+      
       setUsers(prev => prev.map(u => u.uid === editing.uid ? updated : u));
       showMsg('تم الحفظ بنجاح!');
     } catch (e: unknown) {
@@ -408,6 +420,51 @@ export default function UsersPage() {
                   <select value={editing.gender || 'male'} onChange={e => handleUpdate('gender', e.target.value)} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white">
                     <option value="male">Male</option>
                     <option value="female">Female</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Country / Flag</label>
+                  <select value={editing.country || 'EG'} onChange={e => handleUpdate('country', e.target.value.toUpperCase())} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white">
+                    <option value="EG">🇪🇬 Egypt (EG)</option>
+                    <option value="SA">🇸🇦 Saudi Arabia (SA)</option>
+                    <option value="AE">🇦🇪 UAE (AE)</option>
+                    <option value="KW">🇰🇼 Kuwait (KW)</option>
+                    <option value="QA">🇶🇦 Qatar (QA)</option>
+                    <option value="BH">🇧🇭 Bahrain (BH)</option>
+                    <option value="OM">🇴🇲 Oman (OM)</option>
+                    <option value="IQ">🇮🇶 Iraq (IQ)</option>
+                    <option value="JO">🇯🇴 Jordan (JO)</option>
+                    <option value="SY">🇸🇾 Syria (SY)</option>
+                    <option value="LB">🇱🇧 Lebanon (LB)</option>
+                    <option value="PS">🇵🇸 Palestine (PS)</option>
+                    <option value="YE">🇾🇪 Yemen (YE)</option>
+                    <option value="SD">🇸🇩 Sudan (SD)</option>
+                    <option value="LY">🇱🇾 Libya (LY)</option>
+                    <option value="TN">🇹🇳 Tunisia (TN)</option>
+                    <option value="DZ">🇩🇿 Algeria (DZ)</option>
+                    <option value="MA">🇲🇦 Morocco (MA)</option>
+                    <option value="MR">🇲🇷 Mauritania (MR)</option>
+                    <option value="SO">🇸🇴 Somalia (SO)</option>
+                    <option value="DJ">🇩🇯 Djibouti (DJ)</option>
+                    <option value="KM">🇰🇲 Comoros (KM)</option>
+                    <option value="TR">🇹🇷 Turkey (TR)</option>
+                    <option value="US">🇺🇸 USA (US)</option>
+                    <option value="GB">🇬🇧 UK (GB)</option>
+                    <option value="DE">🇩🇪 Germany (DE)</option>
+                    <option value="FR">🇫🇷 France (FR)</option>
+                    <option value="IT">🇮🇹 Italy (IT)</option>
+                    <option value="ES">🇪🇸 Spain (ES)</option>
+                    <option value="CA">🇨🇦 Canada (CA)</option>
+                    <option value="RU">🇷🇺 Russia (RU)</option>
+                    <option value="CN">🇨🇳 China (CN)</option>
+                    <option value="IN">🇮🇳 India (IN)</option>
+                    <option value="PK">🇵🇰 Pakistan (PK)</option>
+                    <option value="ID">🇮🇩 Indonesia (ID)</option>
+                    <option value="MY">🇲🇾 Malaysia (MY)</option>
+                    <option value="BR">🇧🇷 Brazil (BR)</option>
+                    <option value="SE">🇸🇪 Sweden (SE)</option>
+                    <option value="NL">🇳🇱 Netherlands (NL)</option>
+                    <option value="AU">🇦🇺 Australia (AU)</option>
                   </select>
                 </div>
                 <div className="flex items-end pb-1">

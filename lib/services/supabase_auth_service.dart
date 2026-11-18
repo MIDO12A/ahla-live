@@ -9,6 +9,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../config/supabase_config.dart';
 import '../models/user_model.dart';
 import 'account_switch_service.dart';
+import 'session_token_store.dart';
 
 class AppAuthUser {
   final String uid;
@@ -58,6 +59,8 @@ class SupabaseAuthService {
         'apikey': _anonKey,
         'Authorization': 'Bearer $_anonKey',
         'Content-Type': 'application/json',
+        if (SessionTokenStore.token != null)
+          'x-session-token': SessionTokenStore.token!,
       };
 
   AppAuthUser? _currentUser;
@@ -71,6 +74,7 @@ class SupabaseAuthService {
   /// Initialize local session from SharedPreferences
   Future<void> init() async {
     try {
+      unawaited(SessionTokenStore.init());
       final prefs = await SharedPreferences.getInstance();
       final uid = prefs.getString('supabase_auth_uid');
       if (uid != null && uid.isNotEmpty) {
@@ -114,7 +118,10 @@ class SupabaseAuthService {
       if (name != null) await prefs.setString('supabase_auth_name', name);
       if (photoUrl != null) await prefs.setString('supabase_auth_photo', photoUrl);
       if (phone != null) await prefs.setString('supabase_auth_phone', phone);
-      if (token != null) await prefs.setString('supabase_auth_token', token);
+      if (token != null && token.isNotEmpty) {
+        await prefs.setString('supabase_auth_token', token);
+        SessionTokenStore.set(token);
+      }
       try {
         await AccountSwitchService.saveAccount(
           uid: uid,
@@ -141,6 +148,7 @@ class SupabaseAuthService {
       await prefs.remove('supabase_auth_photo');
       await prefs.remove('supabase_auth_phone');
       await prefs.remove('supabase_auth_token');
+      SessionTokenStore.clear();
     } catch (_) {}
     try {
       await GoogleSignIn.instance.signOut();
@@ -164,26 +172,46 @@ class SupabaseAuthService {
     final otpCode = (100000 + rng.nextInt(900000)).toString();
     final expiresAt = DateTime.now().toUtc().add(const Duration(minutes: 5)).millisecondsSinceEpoch;
 
-    // Save OTP to app_config with 5-minute expiry
-    final saveUrl = Uri.parse('$_baseUrl/rest/v1/app_config');
-    final res = await SafeHttp.post(
-      saveUrl,
-      headers: {
-        ..._headers,
-        'Prefer': 'resolution=merge-duplicates',
-      },
-      body: jsonEncode({
-        'key': 'otp_$cleanPhone',
-        'value': jsonEncode({
-          'code': otpCode,
-          'expires_at': expiresAt,
-          'attempts': 0,
+    // ✅ المسار الآمن: جدول login_otps المقيد + RPC — لا يمكن لـ anon
+    //    قراءة الرموز. عند غياب الترحيل نرجع للمسار القديم مؤقتاً.
+    bool storedSecurely = false;
+    try {
+      final rpcRes = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/request_login_otp'),
+        headers: _headers,
+        body: jsonEncode({
+          'p_phone': cleanPhone,
+          'p_code': otpCode,
+          'p_ttl_seconds': 300,
         }),
-      }),
-    );
+      );
+      if (rpcRes.statusCode >= 200 && rpcRes.statusCode < 300) {
+        storedSecurely = true;
+      }
+    } catch (_) {}
 
-    if (res.statusCode >= 300) {
-      debugPrint('[SupabaseAuth] Warning: Could not save OTP in app_config: ${res.body}');
+    if (!storedSecurely) {
+      // Legacy fallback: app_config (يُقرأ بمفتاح anon — يُستبدل بعد الترحيل)
+      final saveUrl = Uri.parse('$_baseUrl/rest/v1/app_config');
+      final res = await SafeHttp.post(
+        saveUrl,
+        headers: {
+          ..._headers,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: jsonEncode({
+          'key': 'otp_$cleanPhone',
+          'value': jsonEncode({
+            'code': otpCode,
+            'expires_at': expiresAt,
+            'attempts': 0,
+          }),
+        }),
+      );
+
+      if (res.statusCode >= 300) {
+        debugPrint('[SupabaseAuth] Warning: Could not save OTP in app_config: ${res.body}');
+      }
     }
 
     // Try Supabase Auth OTP API (if Twilio / SMS provider is active on Supabase)
@@ -222,6 +250,78 @@ class SupabaseAuthService {
 
     if (cleanOtp.length != 6) {
       throw Exception('رمز التحقق (OTP) يجب أن يتكون من 6 أرقام');
+    }
+
+    // ✅ المسار الآمن: تحقق عبر RPC على جدول login_otps المقيد —
+    //    لا يمكن قراءة الرموز من العميل. نرجع للمسار القديم فقط إذا
+    //    لم يكن الترحيل مطبقاً بعد.
+    try {
+      final rpcRes = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/verify_login_otp'),
+        headers: _headers,
+        body: jsonEncode({'p_phone': cleanPhone, 'p_code': cleanOtp}),
+      );
+      if (rpcRes.statusCode >= 200 && rpcRes.statusCode < 300) {
+        final body = jsonDecode(rpcRes.body);
+        if (body is Map) {
+          final status = body['status']?.toString() ?? '';
+          switch (status) {
+            case 'ok':
+              final isNew = body['is_new'] == true;
+              if (!isNew) {
+                final uid = body['uid']?.toString() ?? '';
+                final authUser = AppAuthUser(
+                  uid: uid,
+                  phoneNumber: cleanPhone,
+                  displayName: body['name']?.toString(),
+                  photoUrl: body['photo_url']?.toString(),
+                  email: body['email']?.toString(),
+                  isNewUser: false,
+                );
+                await saveSession(
+                  uid: uid,
+                  phone: cleanPhone,
+                  name: body['name']?.toString(),
+                  photoUrl: body['photo_url']?.toString(),
+                  email: body['email']?.toString(),
+                  token: body['session_token']?.toString(),
+                );
+                return authUser;
+              }
+              // مستخدم جديد — نفس منطق الأسفل
+              final rng = Random();
+              final newUid =
+                  'p_${DateTime.now().millisecondsSinceEpoch}_${(1000 + rng.nextInt(9000))}';
+              final authUser = AppAuthUser(
+                uid: newUid,
+                phoneNumber: cleanPhone,
+                displayName: '',
+                isNewUser: true,
+              );
+              await saveSession(
+                uid: newUid,
+                phone: cleanPhone,
+                token: body['session_token']?.toString(),
+              );
+              return authUser;
+            case 'wrong_code':
+              throw Exception('رمز التحقق (OTP) غير صحيح. يرجى التأكد وإعادة المحاولة');
+            case 'expired':
+              throw Exception('انتهت صلاحية رمز التحقق (OTP). يرجى طلب رمز جديد');
+            case 'too_many':
+              throw Exception('تم تجاوز الحد الأقصى للمحاولات الخاطئة. يرجى طلب رمز جديد');
+            case 'no_otp':
+              throw Exception('لم يتم إرسال رمز تحقق لهذا الرقم أو انتهت صلاحيته. يرجى طلب رمز جديد');
+          }
+        }
+      }
+      // أي استجابة أخرى (404 دالة غير موجودة) → المسار القديم
+    } catch (e) {
+      if (e is Exception &&
+          (e.toString().contains('OTP') || e.toString().contains('تحقق'))) {
+        rethrow;
+      }
+      // خطأ شبكة/ترحيل → المسار القديم
     }
 
     // 1. Fetch OTP from app_config
@@ -341,6 +441,8 @@ class SupabaseAuthService {
   }) async {
     final cleanPhone = phone.replaceAll(RegExp(r'\s+'), '');
     final pinHash = _hashPin(pin);
+    // ✅ توكن الجلسة الصادر من verify_login_pin — يُحفظ مع الجلسة
+    String? pinSessionToken;
 
     // 1. Check if user already exists with this phone number
     final queryUrl = Uri.parse('$_baseUrl/rest/v1/users?phone=eq.$cleanPhone&select=*');
@@ -351,20 +453,61 @@ class SupabaseAuthService {
       if (list.isNotEmpty) {
         final userData = Map<String, dynamic>.from(list.first);
         final uid = userData['uid'] as String;
-        final storedPinHash = (userData['last_ip'] ?? '').toString();
 
-        // Check PIN if previously configured
-        if (storedPinHash.startsWith('pin:') && storedPinHash != 'pin:$pinHash') {
-          throw Exception('رمز الدخول (PIN) غير صحيح لهذا الرقم');
+        // ✅ المسار الآمن: PIN في جدول login_pins المقيد + RPC —
+        //    لا يمكن قراءته أو كتابته من العميل مباشرة.
+        var pinHandledSecurely = false;
+        try {
+          final vRes = await SafeHttp.post(
+            Uri.parse('$_baseUrl/rest/v1/rpc/verify_login_pin'),
+            headers: _headers,
+            body: jsonEncode({'p_phone': cleanPhone, 'p_pin_hash': pinHash}),
+          );
+          if (vRes.statusCode >= 200 && vRes.statusCode < 300) {
+            final body = jsonDecode(vRes.body);
+            if (body is Map) {
+              final st = body['status']?.toString() ?? '';
+              if (st == 'wrong') {
+                throw Exception('رمز الدخول (PIN) غير صحيح لهذا الرقم');
+              }
+              if (st == 'ok' || st == 'no_pin') {
+                pinHandledSecurely = true;
+                pinSessionToken = body['session_token']?.toString();
+                if (st == 'no_pin') {
+                  // أول تعيين PIN — نخزنه في الجدول المقيد
+                  await SafeHttp.post(
+                    Uri.parse('$_baseUrl/rest/v1/rpc/set_login_pin'),
+                    headers: _headers,
+                    body: jsonEncode({
+                      'p_phone': cleanPhone,
+                      'p_pin_hash': pinHash,
+                    }),
+                  );
+                }
+              }
+            }
+          }
+        } catch (e) {
+          if (e is Exception && e.toString().contains('PIN')) rethrow;
         }
 
-        // Save PIN if not previously set
-        if (!storedPinHash.startsWith('pin:')) {
-          await SafeHttp.patch(
-            Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid'),
-            headers: _headers,
-            body: jsonEncode({'last_ip': 'pin:$pinHash'}),
-          );
+        if (!pinHandledSecurely) {
+          // Legacy fallback: users.last_ip (مكشوف لـ anon — يُستبدل بعد الترحيل)
+          final storedPinHash = (userData['last_ip'] ?? '').toString();
+
+          // Check PIN if previously configured
+          if (storedPinHash.startsWith('pin:') && storedPinHash != 'pin:$pinHash') {
+            throw Exception('رمز الدخول (PIN) غير صحيح لهذا الرقم');
+          }
+
+          // Save PIN if not previously set
+          if (!storedPinHash.startsWith('pin:')) {
+            await SafeHttp.patch(
+              Uri.parse('$_baseUrl/rest/v1/users?uid=eq.$uid'),
+              headers: _headers,
+              body: jsonEncode({'last_ip': 'pin:$pinHash'}),
+            );
+          }
         }
 
         final authUser = AppAuthUser(
@@ -382,6 +525,7 @@ class SupabaseAuthService {
           name: userData['name'],
           photoUrl: userData['photo_url'],
           email: userData['email'],
+          token: pinSessionToken,
         );
 
         return authUser;
@@ -399,12 +543,67 @@ class SupabaseAuthService {
       isNewUser: true,
     );
 
+    // ✅ للمستخدم الجديد: اطلب جلسة هاتفية من verify_login_pin
+    //    (يرجع no_pin + session_token) قبل تعيين PIN — أفضل جهد.
+    {
+      try {
+        final vRes = await SafeHttp.post(
+          Uri.parse('$_baseUrl/rest/v1/rpc/verify_login_pin'),
+          headers: _headers,
+          body: jsonEncode({'p_phone': cleanPhone, 'p_pin_hash': pinHash}),
+        );
+        if (vRes.statusCode >= 200 && vRes.statusCode < 300) {
+          final body = jsonDecode(vRes.body);
+          if (body is Map) {
+            pinSessionToken = body['session_token']?.toString();
+          }
+        }
+      } catch (_) {}
+    }
+
     await saveSession(
       uid: newUid,
       phone: cleanPhone,
+      token: pinSessionToken,
     );
 
+    // ✅ خزّن PIN للمستخدم الجديد في الجدول المقيد (best-effort)
+    try {
+      await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/set_login_pin'),
+        headers: _headers,
+        body: jsonEncode({'p_phone': cleanPhone, 'p_pin_hash': pinHash}),
+      );
+    } catch (_) {}
+
     return authUser;
+  }
+
+  /// تغيير رمز الدخول (PIN) — يتحقق السيرفر من الرمز القديم قبل التحديث.
+  /// يعيد 'ok' / 'wrong_old' / 'no_pin' / 'invalid' / 'unavailable'.
+  Future<String> changeLoginPin({
+    required String phone,
+    required String oldPin,
+    required String newPin,
+  }) async {
+    try {
+      final res = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/change_login_pin'),
+        headers: _headers,
+        body: jsonEncode({
+          'p_phone': phone.replaceAll(RegExp(r'[\s\-]+'), ''),
+          'p_old_pin_hash': _hashPin(oldPin),
+          'p_new_pin_hash': _hashPin(newPin),
+        }),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body);
+        if (body is Map) return body['status']?.toString() ?? 'invalid';
+      }
+      return 'unavailable';
+    } catch (_) {
+      return 'unavailable';
+    }
   }
 
   /// Sign in to Supabase Auth directly using Google ID Token
@@ -434,6 +633,43 @@ class SupabaseAuthService {
     } catch (e) {
       debugPrint('[SupabaseAuth] Google login error: $e');
       return null;
+    }
+  }
+
+  /// يصدر session token لمستخدمي Google: يستدعي create_session بـ
+  /// Supabase access_token الحقيقي كـ Bearer — الدالة على السيرفر
+  /// تتحقق من auth.uid() فلا يمكن إصدار جلسة لحساب آخر.
+  Future<void> issueGoogleSession({required String idToken}) async {
+    try {
+      final authData = await signInWithGoogleIdToken(idToken: idToken);
+      final accessToken = authData?['access_token']?.toString();
+      final uid = _currentUser?.uid;
+      if (accessToken == null ||
+          accessToken.isEmpty ||
+          uid == null ||
+          uid.isEmpty) {
+        return;
+      }
+      final res = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/create_session'),
+        headers: {
+          'apikey': _anonKey,
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'p_uid': uid}),
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body);
+        if (body is Map && body['status'] == 'ok') {
+          final token = body['session_token']?.toString();
+          if (token != null && token.isNotEmpty) {
+            await SessionTokenStore.set(token);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[SupabaseAuth] issueGoogleSession error: $e');
     }
   }
 

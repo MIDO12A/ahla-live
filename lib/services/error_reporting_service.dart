@@ -12,6 +12,13 @@ class ErrorReportingService {
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
       debugPrint('*** ORIGINAL ERROR: ${details.exceptionAsString()}');
+      if (details.context != null) {
+        debugPrint('*** CONTEXT: ${details.context}');
+      }
+      final info = details.informationCollector?.call();
+      if (info != null && info.isNotEmpty) {
+        debugPrint('*** INFO: ${info.map((d) => d.toString()).join('\n')}');
+      }
       debugPrint('*** STACKTRACE: ${details.stack}');
       _reportError(
         error: details.exceptionAsString(),

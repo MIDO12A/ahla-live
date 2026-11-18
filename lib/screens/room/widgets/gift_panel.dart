@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:provider/provider.dart';
 import '../../../config/r.dart';
 import '../../../features/cp/cp_service.dart';
@@ -8,7 +9,7 @@ import '../../../models/gift_category_model.dart';
 import '../../../providers/user_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/supabase_data_service.dart';
-import '../../../services/media_prefetch_service.dart';
+import '../../../services/media_cache_service.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../../wallet/wallet_main_screen.dart';
 import 'svga_player.dart';
@@ -23,9 +24,11 @@ class GiftPanel extends StatefulWidget {
   final List<Map<String, dynamic>> seatUsers;
   final List<Map<String, dynamic>> allRoomUsers;
   final String roomId;
+  final String roomName;
   final VoidCallback? onSend;
   final ValueChanged<String?>? onSendGift;
   final ValueChanged<Map<String, dynamic>?>? onSendGiftExtended;
+  final void Function(bool allOk)? onGiftSettled;
   final VoidCallback? onCountTap;
   final String? receiverId;
   final String? receiverName;
@@ -38,9 +41,11 @@ class GiftPanel extends StatefulWidget {
     this.seatUsers = const [],
     this.allRoomUsers = const [],
     this.roomId = '',
+    this.roomName = '',
     this.onSend,
     this.onSendGift,
     this.onSendGiftExtended,
+    this.onGiftSettled,
     this.onCountTap,
     this.receiverId,
     this.receiverName,
@@ -53,6 +58,8 @@ class GiftPanel extends StatefulWidget {
 class _GiftPanelState extends State<GiftPanel> {
   int _sel = -1;
   bool _sending = false;
+  bool _giftsLoaded = false;
+  bool _giftsLoading = false;
   String? _errorMsg;
   final Set<String> _selectedUserIds = {};
   List<gm.GiftModel> _gifts = [];
@@ -65,8 +72,47 @@ class _GiftPanelState extends State<GiftPanel> {
   int _comboMultiplier = 0;
   int _comboRemainingMs = 0;
   late final ScrollController _tabScrollController = ScrollController();
-  late final PageController _pageController = PageController();
+  // ✅ انتقال احترافي بين التصنيفات بالسحب أفقيًا: الصندوق نفسه ثابت،
+  //    ومحتوى الشبكة فقط هو الذي ينزلق (PageView) مع حفظ اختيار كل تصنيف.
+  late final PageController _categoryPageController =
+  PageController(viewportFraction: 1.0);
+  // كل تصنيف له ScrollController مستقل للتمرير الرأسي حتى لا تتعارض
+  // الصفحات المجاورة في PageView.
+  final Map<String, ScrollController> _gridControllers = {};
+  ScrollController _gridControllerFor(String catId) =>
+      _gridControllers.putIfAbsent(catId, () => ScrollController());
+  String? _pageSyncedCatId;
+  // ✅ منع الرجوع للتصنيف السابق أثناء السحب/الأنيميشن:
+  //   - _userDragging: المستخدم يسحب الـ PageView حالياً.
+  //   - _programmaticPage: انتقلنا برمجياً (ضغطة تبويب) — نتجاهل
+  //     onPageChanged للصفحات الوسيطة حتى لا يرجع الاختيار لما قبلها.
+  bool _userDragging = false;
+  bool _programmaticPage = false;
+  // ✅ الصفحة التي انتقلنا إليها بضغطة تبويب — نتجاهل أي إشعار قديم
+  //    من الـ PageView حتى تصل إليها فعلياً (أو تنتهي المهلة).
+  int? _programmaticPageIndex;
+  Timer? _programmaticPageTimer;
+  // مفاتيح التبويبات حتى نمرّز إلى التبويب المضغوط فعلياً بدل إزاحة
+  // ثابتة (index * 75 - 100) التي كانت تخطئ عند اختلاف عرض الأسماء.
+  final List<GlobalKey> _tabKeys = [];
+  GlobalKey _tabKey(int index) {
+    while (_tabKeys.length <= index) {
+      _tabKeys.add(GlobalKey());
+    }
+    return _tabKeys[index];
+  }
+
+  final Map<String, String> _selectedGiftByCat = {};
   final List<Timer> _pendingDelays = [];
+
+  // ── التحميل عند الطلب: لكل هدية حالة تحميل مستقلة لملف الأنيميشن الثقيل ──
+  //    لا تُحمَّل كل الهدايا معاً — فقط عند اختيار الهدية، وتُحفظ في الكاش
+  //    فلا تُحمَّل مرة أخرى.
+  final Map<String, double> _giftAssetProgress = {}; // url -> 0.0 .. 1.0
+  final Set<String> _giftAssetReady = {}; // urls جاهزة في الكاش/تم تحميلها
+  final Set<String> _giftAssetFailed = {}; // urls فشل تحميلها
+  final Map<String, Future<void>> _giftAssetDownloads = {};
+  String? _lastReadyCheckGiftId;
 
   @override
   void initState() {
@@ -76,16 +122,15 @@ class _GiftPanelState extends State<GiftPanel> {
   }
 
   List<Map<String, dynamic>> get _allAvailableUsers {
+    // ✅ المستلمون = الجالسون على المقاعد فقط. لا يظهر في «إرسال إلى»
+    //    من لم يدخل الغرفة أو لم يصعد على مقعد — allRoomUsers (أعضاء
+    //    الغرفة غير الجالسين) مستبعد عمداً من التحديد.
     final map = <String, Map<String, dynamic>>{};
     for (final u in widget.seatUsers) {
       final id = u['id']?.toString() ?? '';
       if (id.isNotEmpty) map[id] = u;
     }
     for (final u in widget.targetUsers) {
-      final id = u['id']?.toString() ?? '';
-      if (id.isNotEmpty && !map.containsKey(id)) map[id] = u;
-    }
-    for (final u in widget.allRoomUsers) {
       final id = u['id']?.toString() ?? '';
       if (id.isNotEmpty && !map.containsKey(id)) map[id] = u;
     }
@@ -97,10 +142,7 @@ class _GiftPanelState extends State<GiftPanel> {
     return widget.targetUsers;
   }
 
-  List<Map<String, dynamic>> get _effectiveRoomUsers {
-    if (widget.allRoomUsers.isNotEmpty) return widget.allRoomUsers;
-    return _allAvailableUsers;
-  }
+  List<Map<String, dynamic>> get _effectiveRoomUsers => _allAvailableUsers;
 
   bool _manuallySelectedAll = false;
 
@@ -141,7 +183,7 @@ class _GiftPanelState extends State<GiftPanel> {
     } else {
       final list = widget.seatUsers.isNotEmpty
           ? widget.seatUsers
-          : (widget.targetUsers.isNotEmpty ? widget.targetUsers : widget.allRoomUsers);
+          : (widget.targetUsers.isNotEmpty ? widget.targetUsers : _allAvailableUsers);
       if (list.isNotEmpty) {
         final firstId = list.first['id']?.toString() ?? '';
         if (firstId.isNotEmpty) {
@@ -157,8 +199,13 @@ class _GiftPanelState extends State<GiftPanel> {
       t.cancel();
     }
     _tabScrollController.dispose();
-    _pageController.dispose();
+    _categoryPageController.dispose();
+    for (final c in _gridControllers.values) {
+      c.dispose();
+    }
+    _gridControllers.clear();
     _comboTimer?.cancel();
+    _programmaticPageTimer?.cancel();
     _giftSub?.cancel();
     _catSub?.cancel();
     super.dispose();
@@ -174,8 +221,14 @@ class _GiftPanelState extends State<GiftPanel> {
     }
   }
 
+  /// ✅ تحميل الهدايا والتصنيفات — مُحسَّن لتقليل التزاحم على الشبكة:
+  /// 1) عرض فوري من الكاش (بدون انتظار).
+  /// 2) تحديث شبكي مؤجّل 600ms حتى لا يزاحم الكاش.
+  /// 3) streams للتحديثات الحية.
+  /// 4) prefetch محدود بأول 20 هدية فقط بدل القائمة الكاملة.
   void _loadGifts() {
     final fb = SupabaseService();
+    final dataSvc = SupabaseDataService();
 
     void applyCategories(List<GiftCategory> cats) {
       if (!mounted) return;
@@ -188,48 +241,77 @@ class _GiftPanelState extends State<GiftPanel> {
       });
     }
 
+    String giftsSignature = '';
+
     void applyGifts(List<gm.GiftModel> gifts) {
       if (!mounted || gifts.isEmpty) return;
-      MediaPrefetchService().prefetchGifts(gifts);
+      // ✅ لا نعيد بناء الشبكة إذا لم تتغير قائمة الهدايا — الـ stream
+      //    يبعث كل 10 ثوانٍ وكان يسبب وميض/«إعادة تحميل» مرئي كل مرة.
+      final sig = gifts
+          .map((g) => '${g.id}:${g.value}:${g.sortOrder}')
+          .join(',');
+      if (sig == giftsSignature && _gifts.isNotEmpty) return;
+      giftsSignature = sig;
+      final wasEmpty = _gifts.isEmpty;
       setState(() {
         _gifts = gifts;
+        if (wasEmpty) {
+          _giftsLoaded = true;
+          _giftsLoading = false;
+        }
         if (_sel < 0 && _gifts.isNotEmpty) {
           _sel = 0;
+        } else if (_sel >= _gifts.length) {
+          _sel = _gifts.isNotEmpty ? 0 : -1;
         }
       });
+      // ✅ لا نُحمّل ملفات الهدايا مسبقاً — التحميل يحدث عند الضغط على الهدية فقط
+      //    (شريط تقدّم) وتُحفظ في الكاش فلا تُحمَّل مرة أخرى.
+      if (_sel >= 0 && _sel < _gifts.length) {
+        _syncGiftReadyFromCache(_gifts[_sel]);
+      }
     }
 
-    // ✅ عرض فوري من الكاش — الصندوق يفتح بالهدايا فوراً بدون انتظار الشبكة
-    SupabaseDataService().getGiftCategories().then(applyCategories).catchError((_) {});
-    SupabaseDataService().getGifts().then(applyGifts).catchError((_) {});
-    // ✅ تحديث صامت من السيرفر — أحدث قائمة بدون إفراغ ما هو معروض
-    SupabaseDataService().getGiftCategories(allowCache: false).then(applyCategories).catchError((_) {});
-    SupabaseDataService().getGifts(allowCache: false).then(applyGifts).catchError((_) {});
+    // 1) عرض فوري من الكاش
+    setState(() => _giftsLoading = true);
+    dataSvc.getGiftCategories().then(applyCategories).catchError((_) {});
+    dataSvc.getGifts().then((gifts) {
+      if (gifts.isNotEmpty) {
+        applyGifts(gifts);
+      } else {
+        // الكاش فاضي - ننتظر التحميل من الشبكة
+        setState(() => _giftsLoading = true);
+      }
+    }).catchError((_) {});
 
+    // ✅ لا تحديث شبكي إجباري عند الفتح — الكتالوج له TTL (10 دقائق)
+    //    + كاش قرص دائم + streams للتحديثات الحية. الفتح أصبح فورياً
+    //    بدون إعادة تحميل كاملة كل مرة.
+
+    // 3) streams للتحديثات الحية
     _catSub = fb.giftCategoriesStream().listen((cats) {
-      if (mounted) {
-        final filteredCats = cats.where((c) => c.id.toLowerCase() != 'all').toList();
-        setState(() {
-          _categories = filteredCats;
-          if (_selectedCategoryId == null || _selectedCategoryId == 'all') {
-            _selectedCategoryId = filteredCats.isNotEmpty ? filteredCats.first.id : null;
-          }
-        });
-      }
+      if (mounted) applyCategories(cats);
     });
-    _giftSub = fb.giftsStream().listen((gifts) {
-      MediaPrefetchService().prefetchGifts(gifts);
-      if (mounted) {
-        setState(() {
-          _gifts = gifts;
-          if (_sel < 0 && _gifts.isNotEmpty) {
-            _sel = 0;
-          } else if (_sel >= _gifts.length) {
-            _sel = _gifts.isNotEmpty ? 0 : -1;
-          }
-        });
-      }
-    });
+    _giftSub = fb.giftsStream().listen(applyGifts);
+  }
+
+  /// ✅ كل قسم يعرض كل ما بداخله — حتى لو الـ category_id مش مكتوب
+  ///    بالطريقة المتوقعة، نعتمد على نوع الهدية كمان. ده بيمنع ظهور
+  ///    قسم فاضي وهو في الحقيقة فيه هدايا (زي القسم السادس).
+  bool _giftMatchesCategory(gm.GiftModel g, String categoryId) {
+    final sel = categoryId.toLowerCase().trim();
+    if (sel.isEmpty || sel == 'all') return true;
+    final gid = (g.categoryId ?? '').toLowerCase().trim();
+    if (gid == sel) return true;
+    final type = g.giftType;
+    if (sel == 'lucky' && type == 3) return true;
+    if ((sel == 'cp' || sel == 'relationship') && type == 5) return true;
+    if (sel == 'backpack' && type == 4) return true;
+    if ((sel == 'luxury' || sel == 'celebrity' || sel == 'vip') && type == 2) {
+      return true;
+    }
+    if (sel == 'general' && gid.isEmpty && type == 1) return true;
+    return false;
   }
 
   List<gm.GiftModel> _getGiftsForCategory(String? categoryId) {
@@ -238,14 +320,103 @@ class _GiftPanelState extends State<GiftPanel> {
         categoryId.toLowerCase() == 'all') {
       return _gifts;
     }
-    final sel = categoryId.toLowerCase();
     return _gifts
-        .where((g) => (g.categoryId ?? '').toLowerCase() == sel)
+        .where((g) => _giftMatchesCategory(g, categoryId))
         .toList();
   }
 
   List<gm.GiftModel> get _filteredGifts => _getGiftsForCategory(_selectedCategoryId);
 
+  // ═══════════════════════════════════════════════════════════════════
+  //  التحميل عند الطلب (Lazy download) لملفات الهدايا الثقيلة
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// رابط ملف الأنيميشن الثقيل للهدية إن كان عن بُعد (SVGA/فيديو).
+  /// الملفات المحلية (assets) لا تحتاج تحميلاً.
+  String? _giftHeavyAsset(gm.GiftModel g) {
+    final anim = (g.animationAsset ?? '').trim();
+    if (anim.isEmpty) return null;
+    if (!anim.startsWith('http://') && !anim.startsWith('https://')) return null;
+    return anim;
+  }
+
+  bool _isGiftAssetReady(gm.GiftModel g) {
+    final url = _giftHeavyAsset(g);
+    if (url == null) return true;
+    return _giftAssetReady.contains(url);
+  }
+
+  double? _giftAssetProgressFor(gm.GiftModel g) {
+    final url = _giftHeavyAsset(g);
+    if (url == null) return null;
+    if (_giftAssetReady.contains(url)) return 1.0;
+    return _giftAssetProgress[url];
+  }
+
+  /// فحص الكاش فقط (بدون تحميل) — يُستدعى عند اختيار هدية مخزّنة مسبقاً
+  /// حتى لا نحتاج إلى تحميلها مرة أخرى.
+  void _syncGiftReadyFromCache(gm.GiftModel g) {
+    final url = _giftHeavyAsset(g);
+    if (url == null) return;
+    if (_giftAssetReady.contains(url) || _giftAssetDownloads.containsKey(url)) {
+      return;
+    }
+    MediaCacheService().isCached(url).then((cached) {
+      if (!mounted || !cached) return;
+      setState(() => _giftAssetReady.add(url));
+    }).catchError((_) {});
+  }
+
+  /// يبدأ تحميل ملف الأنيميشن الثقيل للهدية [g] عند الطلب فقط، مع عرض شريط
+  /// تقدّم على البطاقة. لا يُعاد التحميل إذا كان مُخزَّناً في الكاش.
+  void _ensureGiftAssetLoaded(gm.GiftModel g) {
+    final url = _giftHeavyAsset(g);
+    if (url == null) return;
+    if (_giftAssetReady.contains(url)) return;
+    if (_giftAssetDownloads.containsKey(url)) return;
+
+    setState(() {
+      _giftAssetFailed.remove(url);
+      _giftAssetProgress[url] = 0.0;
+    });
+
+    final future = () async {
+      try {
+        final already = await MediaCacheService().isCached(url);
+        if (already) {
+          if (mounted) {
+            setState(() {
+              _giftAssetProgress.remove(url);
+              _giftAssetReady.add(url);
+            });
+          }
+          return;
+        }
+        await MediaCacheService().downloadToBytesWithProgress(
+          url,
+          onProgress: (p) {
+            if (!mounted) return;
+            setState(() => _giftAssetProgress[url] = p);
+          },
+        );
+        if (!mounted) return;
+        setState(() {
+          _giftAssetProgress.remove(url);
+          _giftAssetReady.add(url);
+          _giftAssetFailed.remove(url);
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _giftAssetProgress.remove(url);
+          _giftAssetFailed.add(url);
+        });
+      } finally {
+        _giftAssetDownloads.remove(url);
+      }
+    }();
+    _giftAssetDownloads[url] = future;
+  }
 
   void _toggleUser(String uid) {
     if (uid.isEmpty) return;
@@ -267,7 +438,14 @@ class _GiftPanelState extends State<GiftPanel> {
     final tabs = _categories
         .where((c) => c.id.toLowerCase() != 'all')
         .toList()
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      // ✅ ترتيب حتمي: sort_order ثم id — cp و luxury كلاهما sort_order=2
+      //    كان الترتيب يتقلب بين البناءات فيظهر القسم "اللي قبله".
+      ..sort((a, b) {
+        final c = a.sortOrder.compareTo(b.sortOrder);
+        return c != 0 ? c : a.id.compareTo(b.id);
+      });
+    // ✅ لا نخفي أي قسم — المستخدم لازم يقدر يوصل لكل الأقسام بالسحب،
+    //    حتى لو القسم السادس فاضي أو هداياه متصنّفة بطريقة مختلفة.
     return tabs;
   }
 
@@ -282,6 +460,8 @@ class _GiftPanelState extends State<GiftPanel> {
         _selectedCategoryId == 'all' ||
         !allTabs.any((c) => c.id == _selectedCategoryId)) {
       _selectedCategoryId = allTabs.first.id;
+      // ✅ لا نترك _pageSyncedCatId قديماً فيُطلق قفزة قديمة بعد التحديث.
+      _pageSyncedCatId = _selectedCategoryId;
     }
     // Auto-select first gift if none selected
     final filtered = _filteredGifts;
@@ -290,64 +470,90 @@ class _GiftPanelState extends State<GiftPanel> {
       if (idx >= 0) _sel = idx;
     }
     final selectedGift = (_sel >= 0 && _sel < _gifts.length) ? _gifts[_sel] : null;
+    // عند تغيّر الهدية المختارة تلقائياً، نفحص الكاش فقط (بدون تحميل) حتى
+    // تُرسَل الهدايا المخزّنة مسبقاً فوراً.
+    if (selectedGift != null && selectedGift.id != _lastReadyCheckGiftId) {
+      _lastReadyCheckGiftId = selectedGift.id;
+      final sg = selectedGift;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncGiftReadyFromCache(sg);
+      });
+    }
     final isLuckyActive = _selectedCategoryId == 'lucky' || (selectedGift != null && (selectedGift.isLucky || selectedGift.categoryId == 'lucky' || selectedGift.type == 3));
 
-    return ListenableBuilder(
-      listenable: dc,
-      builder: (context, _) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isLuckyActive)
+    // ✅ رفع الصندوق فوق شريط التنقل السفلي الخاص بالجهاز (أزرار/إيماءات)
+    //    حتى لا يختفي شريط الإرسال خلفه
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      // ✅ امتصاص أي سحب أفقي داخل لوحة الهدايا بالكامل (الهيدر، شريط
+      //    التصنيفات، المسافات الفارغة) حتى لا يسرّب لإيماءة تنقّل في الأب
+      //    فتفتح شاشة الترتيب بالغلط. PageView الداخلي أعمق في الشجرة،
+      //    therefore يفوز بالـ gesture arena ويحتفظ بسحب التصنيفات كما هو.
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: (_) {},
+        onHorizontalDragUpdate: (_) {},
+        onHorizontalDragEnd: (_) {},
+        onHorizontalDragCancel: () {},
+        child: ListenableBuilder(
+        listenable: dc,
+        builder: (context, _) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isLuckyActive)
+                Container(
+                  height: 52,
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    image: DecorationImage(
+                      image: AssetImage('assets/images/room_gift_lucky_introduce_bg.webp'),
+                      fit: BoxFit.fill,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: const DText(
+                    'أرسل هدية الحظ واكسب مكافآت مضاعفة تصل إلى 500X!',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      shadows: [
+                        Shadow(color: Colors.black54, offset: Offset(1, 1), blurRadius: 2),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               Container(
-                height: 52,
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage('assets/images/room_gift_lucky_introduce_bg.webp'),
-                    fit: BoxFit.fill,
-                  ),
+                height: 450,
+                decoration: BoxDecoration(
+                  color: dc.giftPanelBgColor.withValues(alpha: dc.giftPanelOpacity),
+                  image: dc.giftPanelBgImage.isNotEmpty
+                      ? DecorationImage(
+                    image: R.cachedImage(dc.giftPanelBgImage),
+                    fit: BoxFit.cover,
+                  )
+                      : null,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 ),
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: const DText(
-                  'أرسل هدية الحظ واكسب مكافآت مضاعفة تصل إلى 500X!',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(color: Colors.black54, offset: Offset(1, 1), blurRadius: 2),
-                    ],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  children: [
+                    _buildHeader(dc, allTabs, isAr),
+                    Container(height: 0.5, color: const Color(0x1AFFFFFF)),
+                    Expanded(child: _buildGrid(dc, allTabs)),
+                    _buildBottomOperate(dc),
+                  ],
                 ),
               ),
-            Container(
-              height: 450,
-              decoration: BoxDecoration(
-                color: dc.giftPanelBgColor.withOpacity(dc.giftPanelOpacity),
-                image: dc.giftPanelBgImage.isNotEmpty
-                    ? DecorationImage(
-                        image: R.cachedImage(dc.giftPanelBgImage),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              ),
-              child: Column(
-                children: [
-                  _buildHeader(dc, allTabs, isAr),
-                  Container(height: 0.5, color: const Color(0x1AFFFFFF)),
-                  Expanded(child: _buildGrid(dc, allTabs)),
-                  _buildBottomOperate(dc),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
+      ),
     );
   }
 
@@ -380,27 +586,27 @@ class _GiftPanelState extends State<GiftPanel> {
                 ),
                 boxShadow: isSelected
                     ? [
-                        BoxShadow(
-                          color: const Color(0xFFFFD700).withValues(alpha: 0.5),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        )
-                      ]
+                  BoxShadow(
+                    color: const Color(0xFFFFD700).withValues(alpha: 0.5),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  )
+                ]
                     : null,
               ),
               alignment: Alignment.center,
               child: isSelected
                   ? Container(
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0x55000000),
-                      ),
-                      child: const Icon(
-                        Icons.check_circle_rounded,
-                        size: 20,
-                        color: Color(0xFFFFD700),
-                      ),
-                    )
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0x55000000),
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  size: 20,
+                  color: Color(0xFFFFD700),
+                ),
+              )
                   : null,
             ),
             const SizedBox(height: 2),
@@ -425,11 +631,15 @@ class _GiftPanelState extends State<GiftPanel> {
   }
 
   void _scrollToTab(int index) {
-    if (!_tabScrollController.hasClients) return;
-    final targetOffset = (index * 75.0) - 100.0;
-    _tabScrollController.animateTo(
-      targetOffset.clamp(0.0, _tabScrollController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 250),
+    if (index < 0 || index >= _tabKeys.length) return;
+    final ctx = _tabKeys[index].currentContext;
+    if (ctx == null || !ctx.mounted) return;
+    // ✅ نمرّز إلى التبويب الحقيقي الذي انتقلنا إليه بدل الإزاحة الثابتة
+    //    القديمة (index * 75 - 100) التي كانت تُظهر التصنيف الخطأ.
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 220),
       curve: Curves.easeOut,
     );
   }
@@ -473,10 +683,20 @@ class _GiftPanelState extends State<GiftPanel> {
           const SizedBox(height: 6),
           SizedBox(
             height: 28,
-            child: ListView(
+            child: Directionality(
+              // ✅ ثبّتنا اتجاه الشريط والـ PageView على RTL عشان السحب
+              //    لليسار يروح للقسم اللي على اليسار والعكس — بغض النظر
+              //    عن لغة الجهاز.
+              textDirection: TextDirection.rtl,
+              child: ListView(
               controller: _tabScrollController,
               scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
+              // ✅ AlwaysScrollable حتى لو التصنيفات كلها جوه الشاشة —
+              //    لازم شريط التصنيفات يطالب بالسحب الأفقي بنفسه بدل ما
+              //    يسرّب للحاويات اللي فوقه (سببانتقال لشاشة الترتيب).
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
               children: [
                 for (int i = 0; i < allTabs.length; i++)
                   Builder(
@@ -484,6 +704,7 @@ class _GiftPanelState extends State<GiftPanel> {
                       final cat = allTabs[i];
                       final isSelected = _selectedCategoryId == cat.id;
                       return GestureDetector(
+                        key: _tabKey(i),
                         onTap: () => _selectCategory(allTabs, i),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 280),
@@ -497,12 +718,12 @@ class _GiftPanelState extends State<GiftPanel> {
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: isSelected
                                 ? [
-                                    BoxShadow(
-                                      color: dc.giftPanelTabColor.withValues(alpha: 0.45),
-                                      blurRadius: 10,
-                                      spreadRadius: 1,
-                                    ),
-                                  ]
+                              BoxShadow(
+                                color: dc.giftPanelTabColor.withValues(alpha: 0.45),
+                                blurRadius: 10,
+                                spreadRadius: 1,
+                              ),
+                            ]
                                 : null,
                           ),
                           alignment: Alignment.center,
@@ -526,6 +747,7 @@ class _GiftPanelState extends State<GiftPanel> {
               ],
             ),
           ),
+          ),
         ],
       ),
     );
@@ -548,7 +770,6 @@ class _GiftPanelState extends State<GiftPanel> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Golden border glow when selected
                   Container(
                     width: 38,
                     height: 38,
@@ -560,23 +781,23 @@ class _GiftPanelState extends State<GiftPanel> {
                       ),
                       boxShadow: selected
                           ? [
-                              BoxShadow(
-                                color: const Color(0xFFFFD700).withValues(alpha: 0.4),
-                                blurRadius: 6,
-                                spreadRadius: 1,
-                              )
-                            ]
+                        BoxShadow(
+                          color: const Color(0xFFFFD700).withValues(alpha: 0.4),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        )
+                      ]
                           : null,
                     ),
                   ),
                   CircleAvatar(
                     radius: 16,
                     backgroundImage: (u['photoUrl'] != null &&
-                            u['photoUrl'].toString().isNotEmpty)
+                        u['photoUrl'].toString().isNotEmpty)
                         ? R.cachedImage(u['photoUrl'].toString())
                         : null,
                     child: (u['photoUrl'] == null ||
-                            u['photoUrl'].toString().isEmpty)
+                        u['photoUrl'].toString().isEmpty)
                         ? const Icon(Icons.person, size: 14, color: Colors.white70)
                         : null,
                   ),
@@ -625,32 +846,113 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
-  /// مصدر واحد للحقيقة: الشريط والـ PageView يقرآن نفس `_selectedCategoryId`.
-  /// السحب بين التصنيفات يتم عبر PageView بسلاسة (مثل بانرات الاستكشاف)،
-  /// والانتقال من التبويب يحرّك الصفحة بحركة سلسة.
-  void _selectCategory(List<GiftCategory> allTabs, int index, {bool fromPage = false}) {
+  /// مصدر واحد للحقيقة: الشريط والشبكة يقرآن نفس `_selectedCategoryId`.
+  /// ✅ التبديل بالضغط على التبويب أو بالسحب أفقيًا على شبكة الهدايا،
+  ///    مع أنيميشن انزلاق ناعم لمحتوى الشبكة فقط (الصندوق ثابت)،
+  ///    وتبقى الهدية المحددة محفوظة لكل تصنيف عند الرجوع إليه.
+  void _selectCategory(List<GiftCategory> allTabs, int index) {
     if (index < 0 || index >= allTabs.length) return;
     final cat = allTabs[index];
     _scrollToTab(index);
+    if (cat.id == _selectedCategoryId &&
+        (_categoryPageController.page?.round() ?? index) == index) {
+      return;
+    }
+    // ✅ الضغطة على التبويب تنتقل مباشرة — قفزة بلا أنيميشن حتى لا يمر
+    //    الـ PageView على صفحات وسيطة تُحدّث التصنيف ثم ترجعه.
+    _programmaticPage = true;
+    _programmaticPageIndex = index;
+    _applyCategory(cat);
+    _pageSyncedCatId = cat.id;
+    final ctrl = _categoryPageController;
+    void doJump() {
+      if (!mounted || !ctrl.hasClients) return;
+      if (ctrl.page?.round() != index) ctrl.jumpToPage(index);
+    }
+
+    if (ctrl.hasClients) {
+      doJump();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => doJump());
+    }
+    // ✅ الحماية لا تُزال بعد إطار واحد (كانت سبب الرجوع للتصنيف السابق):
+    //    تُزال فقط عند وصول إشعار ScrollEnd للصفحة المطلوبة، أو بمهلة
+    //    احتياطية في حال عدم وصول إشعار أصلاً.
+    _programmaticPageTimer?.cancel();
+    _programmaticPageTimer = Timer(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      _programmaticPage = false;
+      _programmaticPageIndex = null;
+    });
+  }
+
+  /// يطبّق التصنيف المختار فورًا (تحديد الهدية + تسخين الصور + إرجاع التمرير).
+  /// idempotent: استدعاؤه أكثر من مرة لنفس التصنيف لا يغيّر شيئًا.
+  void _applyCategory(GiftCategory cat) {
+    if (cat.id == _selectedCategoryId) return;
+    _pageSyncedCatId = cat.id; // ✅ يُحدّث فوراً لمنع أي مزامنة خاطئة
+    final filtered = _getGiftsForCategory(cat.id);
     setState(() {
       _selectedCategoryId = cat.id;
-      final filtered = _getGiftsForCategory(cat.id);
-      if (filtered.isNotEmpty) {
-        final idx = _gifts.indexWhere((g) => g.id == filtered.first.id);
+      final remembered = _selectedGiftByCat[cat.id];
+      final targetId = (remembered != null && filtered.any((g) => g.id == remembered))
+          ? remembered
+          : (filtered.isNotEmpty ? filtered.first.id : null);
+      if (targetId != null) {
+        final idx = _gifts.indexWhere((g) => g.id == targetId);
         if (idx >= 0) _sel = idx;
       }
-      // ✅ تسخين مسبق لصور تصنيف الهدية المختار قبل التمرير إليه
-      MediaPrefetchService().prefetchGifts(_getGiftsForCategory(cat.id));
     });
-    if (!fromPage && _pageController.hasClients) {
-      _pageController.animateToPage(
-        index,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-      );
+    // ✅ لا نُحمّل ملفات الهدايا مسبقاً — التحميل عند الضغط على الهدية فقط.
+    // ✅ إرجاع التمرير الرأسي لأعلى الشبكة عند تغيير التصنيف
+    _resetGridScroll(cat.id);
+  }
+
+  /// ✅ onPageChanged هو المصدر الموثوق لاختيار القسم عند السحب — بيتطلق
+  ///    بعد ما الصف يتثبت، عكس ScrollEnd اللي ممكن يقرأ رقم قديم وقت الـ snap.
+  ///    كده السحب لليسار يروح للقسم اليسار واليمين للقسم اليمين مباشرة.
+  void _onCategoryPageChanged(List<GiftCategory> allTabs, int index) {
+    if (index < 0 || index >= allTabs.length) return;
+    if (_programmaticPage) {
+      // قفزة من ضغطة تبويب — ننتظر لحد ما تصل للصف المطلوب.
+      if (index == _programmaticPageIndex) {
+        _programmaticPage = false;
+        _programmaticPageIndex = null;
+        _programmaticPageTimer?.cancel();
+        _pageSyncedCatId = allTabs[index].id;
+      }
+      return;
+    }
+    final cat = allTabs[index];
+    print('[GiftPanel] category page changed -> index=$index id=${cat.id} name=${cat.name}');
+    if (cat.id == _selectedCategoryId) {
+      _pageSyncedCatId = cat.id;
+      return;
+    }
+    _applyCategory(cat);
+    _scrollToTab(index);
+  }
+
+  void _resetGridScroll(String catId) {
+    final controller = _gridControllers[catId];
+    if (controller == null) return;
+    void doJump() {
+      if (controller.hasClients) {
+        controller.jumpTo(0);
+      }
+    }
+    if (controller.hasClients) {
+      doJump();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) doJump();
+      });
     }
   }
 
+  /// ✅ السحب لليسار/اليمين بيحدّد القسم من onPageChanged بعد ثبات الصف،
+  ///    وضغطة التبويب بتنتقل مباشرة بـ jumpToPage دون صفحات وسيطة.
+  ///    ScrollEnd بيتجاهل مصدر قديم كان بيرجّع الاختيار للخلف.
   Widget _buildGrid(DynamicConfigService dc, List<GiftCategory> allTabs) {
     if (allTabs.isEmpty) {
       return const Center(
@@ -660,25 +962,72 @@ class _GiftPanelState extends State<GiftPanel> {
         ),
       );
     }
-    final idx = allTabs.indexWhere((c) => c.id == _selectedCategoryId);
-    final currentIdx = idx >= 0 ? idx : 0;
 
-    // PageView أفقي بسلاسة — السحب يمين/يسار ينقّل بين التصنيفات
-    // بحركة متحركة بدل القفز المفاجئ، مع مزامنة التبويب العلوي.
-    if (_pageController.hasClients &&
-        (_pageController.page?.round() ?? -1) != currentIdx) {
+    // ✅ المزامنة عند تغيّر التصنيف من خارج الـ PageView فقط، وبشرط ألا
+    //    يكون المستخدم بصدد السحب — حتى لا نقاتل السحب ونرجعه للخلف.
+    final selectedIdx = allTabs.indexWhere((c) => c.id == _selectedCategoryId);
+    if (selectedIdx >= 0 &&
+        _selectedCategoryId != _pageSyncedCatId &&
+        !_userDragging &&
+        !_programmaticPage) {
+      _pageSyncedCatId = _selectedCategoryId;
+      final ctrl = _categoryPageController;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_pageController.hasClients) {
-          _pageController.jumpToPage(currentIdx);
+        if (!mounted || !ctrl.hasClients || _userDragging || _programmaticPage) {
+          return;
         }
+        // ✅ نُعيد حساب الفهرس هنا بدل الاعتماد على قيمة قديمة التقطناها
+        //    أثناء البناء — القيمة القديمة كانت تسبب قفزة للخلف بعد التحديث.
+        final idx = allTabs.indexWhere((c) => c.id == _selectedCategoryId);
+        if (idx >= 0 && ctrl.page?.round() != idx) ctrl.jumpToPage(idx);
       });
     }
 
-    return PageView.builder(
-      controller: _pageController,
-      itemCount: allTabs.length,
-      onPageChanged: (i) => _selectCategory(allTabs, i, fromPage: true),
-      itemBuilder: (_, i) => _buildCategoryGrid(allTabs[i], dc),
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        // تجاهل إشعارات الشبكات الرأسية داخل كل صفحة.
+        if (n.depth != 0) return false;
+        if (n is ScrollStartNotification) {
+          _userDragging = true;
+          return false;
+        }
+        if (n is ScrollEndNotification) {
+          _userDragging = false;
+          final ctrl = _categoryPageController;
+          if (!ctrl.hasClients) return false;
+          final settled = ctrl.page?.round();
+          // ✅ قفزة برمجية (ضغطة تبويب): نتجاهل كل إشعارات PageView لحين
+          //    الوصول للصفحة المطلوبة — إشعار قديم بالصفحة القديمة هو سبب الرجوع.
+          if (_programmaticPage) {
+            final target = _programmaticPageIndex;
+            if (target == null || settled == target) {
+              _programmaticPage = false;
+              _programmaticPageIndex = null;
+              _programmaticPageTimer?.cancel();
+            }
+            return false;
+          }
+          // ✅ لا نعيد تطبيق التصنيف هنا — onPageChanged هو اللي بيطبّقه
+          //    بعد ثبات الصف. قراءة ctrl.page هنا كانت بترجع رقم قديم
+          //    وقت الأنيميشن فترجّع الاختيار للخلف.
+          final idx = allTabs.indexWhere((c) => c.id == _selectedCategoryId);
+          if (idx >= 0) _scrollToTab(idx);
+        }
+        return false;
+      },
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: PageView.builder(
+        controller: _categoryPageController,
+        // ✅ Clamping بدل Bouncing: السحبة الواحدة بتقف على تصنيف واحد
+        //    بالظبط وما بتعملش fling يتخطى تصنيفين أو يرجّع للخلف.
+        physics: const ClampingScrollPhysics(),
+        pageSnapping: true,
+        itemCount: allTabs.length,
+        onPageChanged: (i) => _onCategoryPageChanged(allTabs, i),
+        itemBuilder: (context, i) => _buildCategoryGrid(allTabs[i], dc),
+        ),
+      ),
     );
   }
 
@@ -690,30 +1039,67 @@ class _GiftPanelState extends State<GiftPanel> {
       );
     }
     final items = _getGiftsForCategory(cat.id);
-    if (items.isEmpty) {
-      return Center(
-        key: ValueKey('empty_${cat.id}'),
-        child: const DText(
-          'لا توجد هدايا متاحة',
-          style: TextStyle(color: Colors.white54, fontSize: 13),
-        ),
-      );
-    }
-    return Padding(
-      key: ValueKey('cat_grid_${cat.id}'),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: GridView.builder(
-        padding: const EdgeInsets.only(top: 6, bottom: 50),
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-          childAspectRatio: 82 / 96,
-        ),
-        itemCount: items.length,
-        itemBuilder: (_, i) => _buildGiftItemFromList(items, i, dc),
-      ),
+    
+    // ✅ عرض مؤشر تحميل شفاف أثناء جلب الهدايا من الشبكة
+    final showLoading = _giftsLoading && !_giftsLoaded && items.isEmpty;
+
+    return Stack(
+      children: [
+        if (items.isEmpty && !showLoading)
+          Center(
+            key: ValueKey('empty_${cat.id}'),
+            child: const DText(
+              'لا توجد هدايا متاحة',
+              style: TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+          )
+        else if (items.isNotEmpty)
+          Padding(
+            key: ValueKey('cat_grid_${cat.id}'),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: GridView.builder(
+              controller: _gridControllerFor(cat.id),
+              padding: const EdgeInsets.only(top: 6, bottom: 50),
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              scrollCacheExtent: const ScrollCacheExtent.pixels(1400),
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: true,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 82 / 96,
+              ),
+              itemCount: items.length,
+              itemBuilder: (_, i) => _buildGiftItemFromList(items, i, dc),
+            ),
+          ),
+        // ✅ طبقة التحميل الشفافة فوق الشبكة
+        if (showLoading)
+          Container(
+            color: Colors.black.withValues(alpha: 0.3),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                  const SizedBox(height: 12),
+                  DText(
+                    'جاري تحميل الهدايا...',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -722,15 +1108,23 @@ class _GiftPanelState extends State<GiftPanel> {
     final g = items[i];
     final sel = _sel >= 0 && _sel < _gifts.length && _gifts[_sel].id == g.id;
 
-    return GestureDetector(
-      onTap: () {
-        final idx = _gifts.indexWhere((x) => x.id == g.id);
-        setState(() => _sel = idx);
-        // ✅ تسخين كاش الهدية المحددة فوراً — صورتها وأنيميشنها لا
-        //    يُعاد تحميلهما عند الإرسال أو إعادة تحديدها.
-        MediaPrefetchService().prefetchGifts([g]);
-      },
-      child: _buildGiftItemContent(g, sel, dc),
+    // ✅ RepaintBoundary لعزل إعادة الرسم لكل بطاقة على حدة —
+    //    عندما يتغير _sel، فقط البطاقتان المتأثرتان تُعاد رسمهما.
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: () {
+          final idx = _gifts.indexWhere((x) => x.id == g.id);
+          setState(() {
+            _sel = idx;
+            // ✅ نحفظ الاختيار لهذا التصنيف حتى لا يتغيّر عند العودة إليه
+            _selectedGiftByCat[_selectedCategoryId ?? ''] = g.id;
+          });
+          // ✅ التحميل عند الطلب: عند الضغط على الهدية يُحمَّل ملف الأنيميشن
+          //    مع شريط تقدّم، ويُحفظ في الكاش فلا يُحمَّل مرة أخرى.
+          _ensureGiftAssetLoaded(g);
+        },
+        child: _buildGiftItemContent(g, sel, dc),
+      ),
     );
   }
 
@@ -755,216 +1149,316 @@ class _GiftPanelState extends State<GiftPanel> {
     );
   }
 
-  Widget _buildGiftItem(int i, DynamicConfigService dc) {
-    final items = _filteredGifts;
-    if (i >= items.length) return const SizedBox();
-    final g = items[i];
-    final sel = _sel >= 0 && _sel < _gifts.length && _gifts[_sel].id == g.id;
-
-    return GestureDetector(
-      onTap: () {
-        final idx = _gifts.indexWhere((x) => x.id == g.id);
-        setState(() => _sel = idx);
-        // ✅ تسخين كاش الهدية المحددة فوراً — صورتها وأنيميشنها لا
-        //    يُعاد تحميلهما عند الإرسال أو إعادة تحديدها.
-        MediaPrefetchService().prefetchGifts([g]);
-      },
-      child: _buildGiftItemContent(g, sel, dc),
-    );
-  }
-
   Widget _buildGiftItemContent(gm.GiftModel g, bool sel, DynamicConfigService dc) {
     final hasCardBgImage = dc.giftPanelCardBgImage.isNotEmpty;
+    // ── حالة تحميل ملف الأنيميشن (التحميل عند الطلب) ──
+    final heavyAsset = _giftHeavyAsset(g);
+    final assetProgress = _giftAssetProgressFor(g);
+    final isDownloading = assetProgress != null && assetProgress < 1.0;
+    final isFailed = heavyAsset != null && _giftAssetFailed.contains(heavyAsset);
+    final needsDownload =
+        heavyAsset != null && !_isGiftAssetReady(g) && !isDownloading && !isFailed;
     return AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: hasCardBgImage ? null : dc.giftPanelCardBgColor,
-          image: sel
-              ? (hasCardBgImage
-                  ? DecorationImage(
-                      image: R.cachedImage(dc.giftPanelCardBgImage),
-                      fit: BoxFit.fill,
-                    )
-                  : const DecorationImage(
-                      image: AssetImage(R.roomGiftImgPre),
-                      fit: BoxFit.fill,
-                    ))
-              : null,
-          borderRadius: BorderRadius.circular(4),
-          border: sel
-              ? Border.all(color: dc.giftPanelCardSelectedBorderColor, width: 1.5)
-              : null,
-          boxShadow: sel
-              ? [
-                  BoxShadow(
-                    color: dc.giftPanelTabColor.withValues(alpha: 0.55),
-                    blurRadius: 14,
-                    spreadRadius: 1.5,
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: AnimatedScale(
-                        scale: sel ? 1.14 : 1.0,
-                        duration: const Duration(milliseconds: 280),
-                        curve: Curves.elasticOut,
-                        child: g.iconAsset.isNotEmpty
-                            ? R.loadImage(
-                                g.iconAsset,
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.contain,
-                              )
-                            : const Icon(
-                                Icons.card_giftcard,
-                                color: Color(0xFFFFD700),
-                                size: 34,
-                              ),
+      // ✅ تقليل مدة الأنيميشن — أخف على GPU عند التمرير السريع
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: hasCardBgImage ? null : dc.giftPanelCardBgColor,
+        // ✅ إزالة الخلفية الرمادية الافتراضية (room_gift_img_pre) —
+        //    الاختيار الآن يُظهر الإطار الذهبي فقط بدون مربع خلف الصورة.
+        //    صورة الخلفية المخصصة من لوحة التحكم تبقى إن وُجدت.
+        image: (sel && hasCardBgImage)
+            ? DecorationImage(
+                image: R.cachedImage(dc.giftPanelCardBgImage),
+                fit: BoxFit.fill,
+              )
+            : null,
+        borderRadius: BorderRadius.circular(4),
+        border: sel
+            ? Border.all(color: dc.giftPanelCardSelectedBorderColor, width: 1.5)
+            : null,
+        boxShadow: sel
+            ? [
+          BoxShadow(
+            color: dc.giftPanelTabColor.withValues(alpha: 0.55),
+            blurRadius: 14,
+            spreadRadius: 1.5,
+          ),
+        ]
+            : null,
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: AnimatedScale(
+                      scale: sel ? 1.14 : 1.0,
+                      // ✅ easeOutBack أخف من elasticOut بنفس الإحساس البصري
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutBack,
+                      child: g.iconAsset.isNotEmpty
+                          ? R.loadImage(
+                        g.iconAsset,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.contain,
+                        // ✅ TODO: بعد تعديل R.loadImage لدعم cacheWidth/cacheHeight
+                        //    أضف هنا: cacheWidth: 120, cacheHeight: 120
+                        //    لفك الترميز بالحجم الفعلي فقط (أسرع 3-5x)
+                      )
+                          : const Icon(
+                        Icons.card_giftcard,
+                        color: Color(0xFFFFD700),
+                        size: 34,
                       ),
                     ),
                   ),
-                  if (g.isLucky)
-                    Positioned(
-                      top: 4,
-                      right: 0,
-                      child: dc.giftPanelLuckyBadgeImage.isNotEmpty
-                          ? R.loadImage(dc.giftPanelLuckyBadgeImage, width: 30, height: 14)
-                          : R.image(
-                              R.roomGiftLuckyLabelIc,
-                              width: 30,
-                              height: 14,
-                            ),
+                ),
+                if (g.isLucky)
+                  Positioned(
+                    top: 4,
+                    right: 0,
+                    child: dc.giftPanelLuckyBadgeImage.isNotEmpty
+                        ? R.loadImage(dc.giftPanelLuckyBadgeImage, width: 30, height: 14)
+                        : R.image(
+                      R.roomGiftLuckyLabelIc,
+                      width: 30,
+                      height: 14,
                     ),
-                  if (g.isStar)
-                    Positioned(
-                      top: 4,
-                      left: 0,
-                      child: dc.giftPanelStarBadgeImage.isNotEmpty
-                          ? R.loadImage(dc.giftPanelStarBadgeImage, width: 22, height: 14)
-                          : R.image(
-                              R.roomGiftStarLabelIc,
-                              width: 22,
-                              height: 14,
-                            ),
+                  ),
+                if (g.isStar)
+                  Positioned(
+                    top: 4,
+                    left: 0,
+                    child: dc.giftPanelStarBadgeImage.isNotEmpty
+                        ? R.loadImage(dc.giftPanelStarBadgeImage, width: 22, height: 14)
+                        : R.image(
+                      R.roomGiftStarLabelIc,
+                      width: 22,
+                      height: 14,
                     ),
-                  if (g.durationBadge.isNotEmpty)
-                    Positioned(
-                      top: 4,
-                      left: 2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: dc.giftPanelDurationBadgeBg,
-                          borderRadius: BorderRadius.circular(6),
-                          boxShadow: [
-                            BoxShadow(
-                              color: dc.giftPanelDurationBadgeBg.withValues(alpha: 0.5),
-                              blurRadius: 4,
+                  ),
+                if (g.durationBadge.isNotEmpty)
+                  Positioned(
+                    top: 4,
+                    left: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: dc.giftPanelDurationBadgeBg,
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: dc.giftPanelDurationBadgeBg.withValues(alpha: 0.5),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.favorite, size: 8, color: Colors.white),
+                          const SizedBox(width: 2),
+                          DText(
+                            g.durationBadge,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (g.isMusic)
+                  Positioned(
+                    bottom: 4,
+                    right: 4,
+                    child: R.image(
+                      R.roomGiftMusicLabelIc,
+                      width: 14,
+                      height: 14,
+                    ),
+                  ),
+                if (g.packageCount > 0)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      constraints: const BoxConstraints(minWidth: 24),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE82323),
+                        borderRadius: BorderRadius.circular(44),
+                      ),
+                      child: DText(
+                        '${g.packageCount}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white,
                         ),
-                        child: Row(
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                // ── شريط تحميل الهدية عند الطلب ──
+                if (isDownloading)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: const Color(0xFFFFD700),
+                              value: (assetProgress <= 0) ? null : assetProgress,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          DText(
+                            '${(assetProgress * 100).clamp(0, 100).toStringAsFixed(0)}%',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (isFailed)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _ensureGiftAssetLoaded(g),
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        alignment: Alignment.center,
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.favorite, size: 8, color: Colors.white),
-                            const SizedBox(width: 2),
+                            const Icon(Icons.refresh_rounded,
+                                size: 20, color: Colors.redAccent),
+                            const SizedBox(height: 2),
                             DText(
-                              g.durationBadge,
+                              'إعادة المحاولة',
                               style: const TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                                  fontSize: 8, color: Colors.white),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  if (g.isMusic)
-                    Positioned(
-                      bottom: 4,
-                      right: 4,
-                      child: R.image(
-                        R.roomGiftMusicLabelIc,
-                        width: 14,
-                        height: 14,
+                  )
+                else if (needsDownload)
+                  Positioned(
+                    top: 4,
+                    left: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Color(0x99000000),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.download_rounded,
+                        size: 12,
+                        color: Color(0xFFFFD700),
                       ),
                     ),
-                  if (g.packageCount > 0)
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        constraints: const BoxConstraints(minWidth: 24),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE82323),
-                          borderRadius: BorderRadius.circular(44),
-                        ),
-                        child: DText(
-                          '${g.packageCount}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.white,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            DText(
-              g.name,
-              style: TextStyle(
-                fontSize: 10,
-                color: dc.giftPanelTextColor,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 2, bottom: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  R.image(
-                    R.commonGoldIc2,
-                    width: 12,
-                    height: 12,
                   ),
-                  const SizedBox(width: 2),
-                  DText(
-                    R.formatCoins(g.value),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFFD3A350),
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-          ],
-        ),
-      );
+          ),
+          DText(
+            g.name,
+            style: TextStyle(
+              fontSize: 10,
+              color: dc.giftPanelTextColor,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2, bottom: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                R.image(
+                  R.commonGoldIc2,
+                  width: 12,
+                  height: 12,
+                ),
+                const SizedBox(width: 2),
+                DText(
+                  R.formatCoins(g.value),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFFD3A350),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _sendGift() async {
     if (_sending) return;
+
+    // ✅ انتظار تحميل الهدايا من الكاش/الشبكة قبل الإرسال
+    // إذا كانت الهدايا في الكاش (_giftsLoaded == true) → نرسل فوراً
+    // إذا لم تكن محملة → ننتظر التحميل (مع timeout 10 ثواني)
+    if (!_giftsLoaded) {
+      setState(() => _giftsLoading = true);
+      int waitCount = 0;
+      while (!_giftsLoaded && waitCount < 100 && mounted) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        waitCount++;
+      }
+      if (!mounted) return;
+      if (!_giftsLoaded) {
+        setState(() {
+          _errorMsg = 'فشل تحميل الهدايا، يرجى المحاولة مرة أخرى';
+        });
+        final d = Timer(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _errorMsg = null);
+        });
+        _pendingDelays.add(d);
+        return;
+      }
+    }
+
     if (_sel < 0 || _sel >= _gifts.length) return;
 
     final gift = _gifts[_sel];
+    // ✅ لا يُسمح بالإرسال قبل اكتمال تحميل ملف الأنيميشن للهدية
+    if (!_isGiftAssetReady(gift)) {
+      _ensureGiftAssetLoaded(gift);
+      if (mounted) {
+        setState(() => _errorMsg = 'جاري تحميل الهدية، الرجاء الانتظار...');
+        final d = Timer(const Duration(seconds: 2), () {
+          if (mounted) setState(() => _errorMsg = null);
+        });
+        _pendingDelays.add(d);
+      }
+      return;
+    }
     final allUsers = _allAvailableUsers.isNotEmpty ? _allAvailableUsers : widget.targetUsers;
     final selectedTargets = allUsers
         .where((u) => _selectedUserIds.contains(u['id']?.toString()))
@@ -1003,8 +1497,6 @@ class _GiftPanelState extends State<GiftPanel> {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final currentUser = userProvider.currentUser;
 
-    // TODO: Critical fix - Use strict boolean and type check for lucky gifts
-    // Only use sendLuckyGift if gift.isLucky == true OR gift.type == 3
     final isLuckyGift = gift.isLucky || gift.type == 3;
     final fb = SupabaseService();
     final stepCount = widget.selectedCount > 0 ? widget.selectedCount : 1;
@@ -1033,7 +1525,7 @@ class _GiftPanelState extends State<GiftPanel> {
     _startComboTimer();
     setState(() => _sending = false);
 
-    // إرسال عبر الشبكة في الخلفية دون حظر الواجهة إطلاقاً (Background Future)
+    // إرسال عبر الشبكة في الخلفية دون حظر الواجهة إطلاقاً
     if (widget.roomId.isNotEmpty && currentUser != null) {
       unawaited(Future(() async {
         final results = await Future.wait(selectedTargets.map((r) async {
@@ -1061,6 +1553,7 @@ class _GiftPanelState extends State<GiftPanel> {
               comboId: 'combo_${DateTime.now().millisecondsSinceEpoch}',
               comboCount: stepCount,
             );
+            
             ok = res != null;
             if (res != null && mounted) {
               final newBal = (res['newBalance'] as num?)?.toDouble();
@@ -1070,10 +1563,10 @@ class _GiftPanelState extends State<GiftPanel> {
             }
           } else {
             final cover = gift.defaultImage ?? gift.iconAsset;
-            // خصم فوري من الرصيد المحلي حتى تنقص الكوينز لحظياً (مطابق لهدايا الحظ)
             userProvider.deductCoinsLocally(gift.value * widget.selectedCount);
             ok = await fb.sendGift(
               roomId: widget.roomId,
+              roomName: widget.roomName,
               giftId: gift.id,
               giftName: gift.name,
               animationAsset: gift.animationAsset,
@@ -1087,7 +1580,6 @@ class _GiftPanelState extends State<GiftPanel> {
               count: widget.selectedCount,
             );
             if (!ok) {
-              // فشل الإرسال: أعِد مزامنة الرصيد من الخادم بدل إبقاء الخصم الوهمي
               unawaited(userProvider.reloadUser());
             }
           }
@@ -1106,6 +1598,10 @@ class _GiftPanelState extends State<GiftPanel> {
         }));
 
         final allOk = results.every((ok) => ok);
+        // ✅ إعادة قراءة الرصيد من السيرفر بعد كل إرسال حتى تتطابق
+        //    الأرقام الظاهرة في التطبيق مع لوحة التحكم تماماً.
+        unawaited(userProvider.reloadUser());
+        widget.onGiftSettled?.call(allOk);
         if (!allOk && mounted) {
           setState(() {
             _errorMsg = 'فشل إرسال الهدية — تأكد من رصيد العملات وحاول مجدداً';
@@ -1172,7 +1668,6 @@ class _GiftPanelState extends State<GiftPanel> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // FrameLayout matching dialog_coin_recharge_tip.xml: shadow_coins + dialog_coins
               SizedBox(
                 height: 125,
                 child: Stack(
@@ -1202,8 +1697,6 @@ class _GiftPanelState extends State<GiftPanel> {
                 ),
               ),
               const SizedBox(height: 14),
-
-              // tvContent (18sp #333333 matching dialog_coin_recharge_tip.xml)
               DText(
                 isAr
                     ? 'رصيد العملات غير كافٍ،\nهل ترغب في الشحن للحصول على المزيد؟'
@@ -1216,7 +1709,6 @@ class _GiftPanelState extends State<GiftPanel> {
                   height: 1.35,
                 ),
               ),
-
               if (totalCost > 0) ...[
                 const SizedBox(height: 8),
                 DText(
@@ -1230,13 +1722,9 @@ class _GiftPanelState extends State<GiftPanel> {
                   ),
                 ),
               ],
-
               const SizedBox(height: 24),
-
-              // Action buttons: btnCancel + btnConfirm
               Row(
                 children: [
-                  // btnCancel: #f5f5f5, radius 20, text #555555 "إلغاء"
                   Expanded(
                     child: SizedBox(
                       height: 42,
@@ -1261,8 +1749,6 @@ class _GiftPanelState extends State<GiftPanel> {
                     ),
                   ),
                   const SizedBox(width: 14),
-
-                  // btnConfirm: gradient #00deff -> #14fab1, radius 20, text white "شحن الآن"
                   Expanded(
                     child: Container(
                       height: 42,
@@ -1275,7 +1761,7 @@ class _GiftPanelState extends State<GiftPanel> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF14FAB1).withOpacity(0.35),
+                            color: const Color(0xFF14FAB1).withValues(alpha: 0.35),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
                           ),
@@ -1324,6 +1810,11 @@ class _GiftPanelState extends State<GiftPanel> {
     final currUser = Provider.of<UserProvider>(context).currentUser;
     final liveCoins = currUser != null ? currUser.coins : widget.coins;
     final canAfford = liveCoins >= totalCost && totalCost > 0;
+    // ✅ الهدية جاهزة للإرسال فقط بعد تحميل ملف الأنيميشن (التحميل عند الطلب)
+    final giftReady = gift == null || _isGiftAssetReady(gift);
+    final assetProgress = gift != null ? _giftAssetProgressFor(gift) : null;
+    final giftDownloading = assetProgress != null && assetProgress < 1.0;
+    final canSend = canAfford && giftReady;
 
     return Container(
       height: 52,
@@ -1342,7 +1833,6 @@ class _GiftPanelState extends State<GiftPanel> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Left: Coins Display (tv_coins from layout_gift_panel_bottom_operate.xml)
               GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -1356,7 +1846,7 @@ class _GiftPanelState extends State<GiftPanel> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.25),
+                    color: Colors.black.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
@@ -1382,159 +1872,211 @@ class _GiftPanelState extends State<GiftPanel> {
                   ),
                 ),
               ),
-
               const Spacer(),
-
-              // Right: Count + Send (single combo button lives on the room screen)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Count dropdown (tv_gift_num 72x30dp)
-                    GestureDetector(
-                      onTap: widget.onCountTap,
-                      child: Container(
-                        width: 72,
-                        height: 30,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: dc.giftPanelCountBtnImage.isEmpty
-                              ? dc.giftPanelCountBtnBgColor
-                              : null,
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(8),
-                            bottomLeft: Radius.circular(8),
-                          ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: widget.onCountTap,
+                    child: Container(
+                      width: 72,
+                      height: 30,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: dc.giftPanelCountBtnImage.isEmpty
+                            ? dc.giftPanelCountBtnBgColor
+                            : null,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(8),
+                          bottomLeft: Radius.circular(8),
                         ),
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(8),
-                            bottomLeft: Radius.circular(8),
-                          ),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              if (dc.giftPanelCountBtnImage.isNotEmpty)
-                                Image(
-                                  image: R.cachedImage(dc.giftPanelCountBtnImage),
-                                  fit: BoxFit.fill,
-                                )
-                              else
-                                Image.asset(
-                                  R.checkinDialogConfirmBigBtn,
-                                  fit: BoxFit.fill,
-                                  errorBuilder: (_, __, ___) =>
-                                      const SizedBox.shrink(),
-                                ),
-                              Center(
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    DText(
-                                      '${widget.selectedCount}',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: dc.giftPanelCountBtnImage
-                                                .isNotEmpty
-                                            ? dc.giftPanelCountBtnTextColor
-                                            : Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        shadows: const [
-                                          Shadow(
-                                            color: Colors.black54,
-                                            offset: Offset(1, 1),
-                                            blurRadius: 2,
-                                          ),
-                                        ],
-                                      ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(8),
+                          bottomLeft: Radius.circular(8),
+                        ),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (dc.giftPanelCountBtnImage.isNotEmpty)
+                              Image(
+                                image: R.cachedImage(dc.giftPanelCountBtnImage),
+                                fit: BoxFit.fill,
+                              )
+                            else
+                              Image.asset(
+                                R.checkinDialogConfirmBigBtn,
+                                fit: BoxFit.fill,
+                                errorBuilder: (_, __, ___) =>
+                                const SizedBox.shrink(),
+                              ),
+                            Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  DText(
+                                    '${widget.selectedCount}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: dc.giftPanelCountBtnImage
+                                          .isNotEmpty
+                                          ? dc.giftPanelCountBtnTextColor
+                                          : Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: const [
+                                        Shadow(
+                                          color: Colors.black54,
+                                          offset: Offset(1, 1),
+                                          blurRadius: 2,
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 4),
-                                    R.image(
-                                      R.roomGiftNumOpenIc,
-                                      width: 10,
-                                      height: 10,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  R.image(
+                                    R.roomGiftNumOpenIc,
+                                    width: 10,
+                                    height: 10,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      // ✅ منع الإرسال أثناء تحميل الهدايا
+                      if (_giftsLoading && !_giftsLoaded) {
+                        setState(() {
+                          _errorMsg = 'جاري تحميل الهدايا، الرجاء الانتظار...';
+                        });
+                        final d = Timer(const Duration(seconds: 2), () {
+                          if (mounted) setState(() => _errorMsg = null);
+                        });
+                        _pendingDelays.add(d);
+                        return;
+                      }
+                      // ✅ الهدية غير محمّلة بعد: ابدأ التحميل وامنع الإرسال
+                      if (gift != null && !_isGiftAssetReady(gift)) {
+                        _ensureGiftAssetLoaded(gift);
+                        setState(() {
+                          _errorMsg = _giftAssetFailed
+                                  .contains(_giftHeavyAsset(gift))
+                              ? 'تعذّر تحميل الهدية، اضغط الهدية لإعادة المحاولة'
+                              : 'جاري تحميل الهدية، الرجاء الانتظار...';
+                        });
+                        final d = Timer(const Duration(seconds: 2), () {
+                          if (mounted) setState(() => _errorMsg = null);
+                        });
+                        _pendingDelays.add(d);
+                        return;
+                      }
+                      if (!canAfford) {
+                        _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: liveCoins);
+                        return;
+                      }
+                      _sendGift();
+                    },
+                    child: Container(
+                      width: 72,
+                      height: 30,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        gradient: dc.giftPanelSendBtnImage.isEmpty
+                            ? (canSend
+                            ? LinearGradient(
+                          colors: [dc.giftPanelSendBtnGradientStart, dc.giftPanelSendBtnGradientEnd],
+                        )
+                            : const LinearGradient(
+                          colors: [Color(0xFF666666), Color(0xFF444444)],
+                        ))
+                            : null,
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(8),
+                          bottomRight: Radius.circular(8),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(8),
+                          bottomRight: Radius.circular(8),
+                        ),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (dc.giftPanelSendBtnImage.isNotEmpty)
+                              Image(
+                                image: R.cachedImage(dc.giftPanelSendBtnImage),
+                                fit: BoxFit.fill,
+                              )
+                            else
+                              Image.asset(
+                                R.checkinDialogConfirmBigBtn,
+                                fit: BoxFit.fill,
+                                errorBuilder: (_, __, ___) => Center(
+                                  child: DText(
+                                    'إرسال',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: dc.giftPanelSendBtnTextColor,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Send button (tv_gift_send 72x30dp)
-                    GestureDetector(
-                      onTap: () {
-                        if (!canAfford) {
-                          _showInsufficientCoinsDialog(context, totalCost: totalCost, currentCoins: liveCoins);
-                          return;
-                        }
-                        _sendGift();
-                      },
-                      child: Container(
-                        width: 72,
-                        height: 30,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          gradient: dc.giftPanelSendBtnImage.isEmpty
-                              ? (canAfford
-                                  ? LinearGradient(
-                                      colors: [dc.giftPanelSendBtnGradientStart, dc.giftPanelSendBtnGradientEnd],
-                                    )
-                                  : const LinearGradient(
-                                      colors: [Color(0xFF666666), Color(0xFF444444)],
-                                    ))
-                              : null,
-                          borderRadius: const BorderRadius.only(
-                            topRight: Radius.circular(8),
-                            bottomRight: Radius.circular(8),
-                          ),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.only(
-                            topRight: Radius.circular(8),
-                            bottomRight: Radius.circular(8),
-                          ),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              if (dc.giftPanelSendBtnImage.isNotEmpty)
-                                Image(
-                                  image: R.cachedImage(dc.giftPanelSendBtnImage),
-                                  fit: BoxFit.fill,
-                                )
-                              else
-                                Image.asset(
-                                  R.checkinDialogConfirmBigBtn,
-                                  fit: BoxFit.fill,
-                                  errorBuilder: (_, __, ___) => Center(
-                                    child: DText(
-                                      'إرسال',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: dc.giftPanelSendBtnTextColor,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                            if (_sending)
+                              const Center(
+                                child: SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
                                   ),
                                 ),
-                              if (_sending)
-                                const Center(
+                              ),
+                            // ✅ مؤشر تحميل ملف الهدية المختارة على زر الإرسال
+                            if (giftDownloading)
+                              Container(
+                                color: Colors.black.withValues(alpha: 0.55),
+                                child: Center(
                                   child: SizedBox(
-                                    width: 14,
-                                    height: 14,
+                                    width: 16,
+                                    height: 16,
                                     child: CircularProgressIndicator(
+                                      color: const Color(0xFFFFD700),
                                       strokeWidth: 2,
-                                      color: Colors.white,
+                                      value: assetProgress <= 0 ? null : assetProgress,
                                     ),
                                   ),
                                 ),
-                            ],
-                          ),
+                              ),
+                            // ✅ مؤشر تحميل الهدايا على زر الإرسال
+                            if (_giftsLoading && !_giftsLoaded)
+                              Container(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
             ],
           ),
         ],
@@ -1575,34 +2117,34 @@ class GiftSvgaOverlay extends StatelessWidget {
           child: Center(
             child: aa != null && aa.isNotEmpty && !isImg
                 ? isVideoType(aa)
-                    ? VapPlayer(
-                        url: aa,
-                        width: screenSize.width,
-                        height: screenSize.height,
-                        loops: false,
-                        onFinished: onFinished,
-                        fit: BoxFit.cover,
-                        textReplacement: textReplacement,
-                        imageReplacement: imageReplacement,
-                        defaultImageUrl: defaultImageUrl,
-                      )
-                    : SvgaPlayer(
-                        assetPath: aa,
-                        width: screenSize.width,
-                        height: screenSize.height,
-                        loops: false,
-                        fit: BoxFit.contain,
-                        onFinished: onFinished,
-                        textReplacement: textReplacement,
-                        imageReplacement: imageReplacement,
-                        defaultImageUrl: defaultImageUrl,
-                      )
+                ? VapPlayer(
+              url: aa,
+              width: screenSize.width,
+              height: screenSize.height,
+              loops: false,
+              onFinished: onFinished,
+              fit: BoxFit.cover,
+              textReplacement: textReplacement,
+              imageReplacement: imageReplacement,
+              defaultImageUrl: defaultImageUrl,
+            )
+                : SvgaPlayer(
+              assetPath: aa,
+              width: screenSize.width,
+              height: screenSize.height,
+              loops: false,
+              fit: BoxFit.contain,
+              onFinished: onFinished,
+              textReplacement: textReplacement,
+              imageReplacement: imageReplacement,
+              defaultImageUrl: defaultImageUrl,
+            )
                 : displayImg != null
-                    ? _ImageGiftOverlay(
-                        imageUrl: displayImg,
-                        onFinished: onFinished,
-                      )
-                    : const SizedBox.shrink(),
+                ? _ImageGiftOverlay(
+              imageUrl: displayImg,
+              onFinished: onFinished,
+            )
+                : const SizedBox.shrink(),
           ),
         ),
       ),
@@ -1634,7 +2176,7 @@ class _ImageGiftOverlayState extends State<_ImageGiftOverlay>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2500),
+      duration: const Duration(milliseconds: 4000),
     );
 
     _scale = TweenSequence<double>([
@@ -1691,7 +2233,7 @@ class _ImageGiftOverlayState extends State<_ImageGiftOverlay>
                 fit: BoxFit.contain,
                 gaplessPlayback: true,
                 errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.card_giftcard, size: 96, color: Colors.amber),
+                const Icon(Icons.card_giftcard, size: 96, color: Colors.amber),
               ),
             ),
           ),
@@ -1703,6 +2245,7 @@ class _ImageGiftOverlayState extends State<_ImageGiftOverlay>
 
 class GiftBannerOverlay extends StatefulWidget {
   final VoidCallback? onFinished;
+  final VoidCallback? onBannerTap;
   final String? animationAsset;
   final String? senderPhotoUrl;
   final String? receiverPhotoUrl;
@@ -1716,6 +2259,7 @@ class GiftBannerOverlay extends StatefulWidget {
   const GiftBannerOverlay({
     super.key,
     this.onFinished,
+    this.onBannerTap,
     this.animationAsset,
     this.senderPhotoUrl,
     this.receiverPhotoUrl,
@@ -1739,6 +2283,7 @@ class _GiftBannerOverlayState extends State<GiftBannerOverlay>
   late Animation<Offset> _exitAnim;
   bool _isDismissing = false;
   Timer? _autoDismissTimer;
+  Offset _dragOffset = Offset.zero;
 
   @override
   void initState() {
@@ -1752,13 +2297,11 @@ class _GiftBannerOverlayState extends State<GiftBannerOverlay>
       duration: const Duration(milliseconds: 380),
     );
 
-    // الدخول بسلاسة من أقصى اليمين
     _enterAnim = Tween<Offset>(
       begin: const Offset(1.5, 0.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _enterController, curve: Curves.easeOutCubic));
 
-    // الخروج بالمرور الكامل نحو أقصى اليسار دون أي انقطاع
     _exitAnim = Tween<Offset>(
       begin: Offset.zero,
       end: const Offset(-1.5, 0.0),
@@ -1766,8 +2309,9 @@ class _GiftBannerOverlayState extends State<GiftBannerOverlay>
 
     _enterController.forward();
 
-    // إغلاق البانر تلقائياً بعد 4.5 ثوانٍ مع خروج سلس لأقصى اليسار
-    _autoDismissTimer = Timer(const Duration(milliseconds: 4500), () {
+    // مهلة احتياطية فقط: اللافتة تُغلق فعلياً عند انتهاء الأنيميشن عبر
+    // `onFinished`. نُبقي هذه المهلة طويلة حتى لا يُقطع الأنيميشن قبل اكتماله.
+    _autoDismissTimer = Timer(const Duration(milliseconds: 12000), () {
       _dismiss();
     });
   }
@@ -1820,36 +2364,78 @@ class _GiftBannerOverlayState extends State<GiftBannerOverlay>
         child: SlideTransition(
           position: _enterAnim,
           child: GestureDetector(
-            onTap: _dismiss,
-            child: SizedBox(
-              height: topPadding + bannerHeight,
-              child: Stack(
-                children: [
-                  if (isVideoType(aa))
-                    VapPlayer(
-                      url: aa,
-                      width: screenSize.width,
-                      height: topPadding + bannerHeight,
-                      loops: false,
-                      onFinished: _dismiss,
-                      fit: BoxFit.contain,
-                    )
-                  else
-                    SvgaPlayer(
-                      assetPath: aa,
-                      width: screenSize.width,
-                      height: topPadding + bannerHeight,
-                      loops: false,
-                      fit: BoxFit.contain,
-                      onFinished: _dismiss,
-                      imageReplacement: imageReplacement.isNotEmpty
-                          ? imageReplacement
-                          : null,
-                      textReplacement: textReplacement.isNotEmpty
-                          ? textReplacement
-                          : null,
-                    ),
-                ],
+            onTap: () {
+              _autoDismissTimer?.cancel();
+              final onBannerTap = widget.onBannerTap;
+              if (onBannerTap != null) onBannerTap();
+              _dismiss();
+            },
+            onPanStart: (_) {
+              _autoDismissTimer?.cancel();
+            },
+            onPanUpdate: (details) {
+              setState(() {
+                _dragOffset += details.delta;
+                if (_dragOffset.dy > 20) {
+                  _dragOffset = Offset(_dragOffset.dx, 20);
+                }
+              });
+            },
+            onPanEnd: (details) {
+              final dx = _dragOffset.dx;
+              final dy = _dragOffset.dy;
+              final vx = details.velocity.pixelsPerSecond.dx;
+              final vy = details.velocity.pixelsPerSecond.dy;
+              final shouldDismiss = dx.abs() > 55 ||
+                  dy < -45 ||
+                  vx.abs() > 600 ||
+                  vy < -400;
+              if (shouldDismiss) {
+                _dragOffset = Offset.zero;
+                _dismiss();
+              } else {
+                setState(() => _dragOffset = Offset.zero);
+                _autoDismissTimer?.cancel();
+                _autoDismissTimer =
+                    Timer(const Duration(milliseconds: 2500), _dismiss);
+              }
+            },
+            child: Transform.translate(
+              offset: _dragOffset,
+              child: Opacity(
+                opacity:
+                (1 - (_dragOffset.distance / 260)).clamp(0.35, 1.0),
+                child: SizedBox(
+                  height: topPadding + bannerHeight,
+                  child: Stack(
+                    children: [
+                      if (isVideoType(aa))
+                        VapPlayer(
+                          url: aa,
+                          width: screenSize.width,
+                          height: topPadding + bannerHeight,
+                          loops: false,
+                          onFinished: _dismiss,
+                          fit: BoxFit.contain,
+                        )
+                      else
+                        SvgaPlayer(
+                          assetPath: aa,
+                          width: screenSize.width,
+                          height: topPadding + bannerHeight,
+                          loops: false,
+                          fit: BoxFit.contain,
+                          onFinished: _dismiss,
+                          imageReplacement: imageReplacement.isNotEmpty
+                              ? imageReplacement
+                              : null,
+                          textReplacement: textReplacement.isNotEmpty
+                              ? textReplacement
+                              : null,
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

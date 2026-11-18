@@ -468,7 +468,7 @@ class _CommissionPeriodDialogState extends State<CommissionPeriodDialog> {
                         SwitchListTile(
                           value: _autoRelease,
                           onChanged: (v) => setState(() => _autoRelease = v),
-                          activeColor: const Color(0xFFFFB800),
+                          activeThumbColor: const Color(0xFFFFB800),
                           contentPadding: EdgeInsets.zero,
                           title: const DText(
                             'إصدار تلقائي عند حلول الموعد',

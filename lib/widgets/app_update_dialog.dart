@@ -119,7 +119,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               blurRadius: 16,
               offset: const Offset(0, 8),
             ),
@@ -178,7 +178,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                 child: LinearProgressIndicator(
                   value: _phase == _UpdatePhase.downloading ? _progress : null,
                   minHeight: 8,
-                  backgroundColor: Colors.black.withOpacity(0.06),
+                  backgroundColor: Colors.black.withValues(alpha: 0.06),
                   valueColor: const AlwaysStoppedAnimation(Color(0xFFFFD54F)), // Gold color bar
                 ),
               ),
@@ -236,7 +236,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFFB300), // Gold button
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFFFB300).withOpacity(0.5),
+                      disabledBackgroundColor: const Color(0xFFFFB300).withValues(alpha: 0.5),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 1,

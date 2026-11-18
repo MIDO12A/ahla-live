@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:provider/provider.dart';
 import '../../../../core/supabase_compat.dart';
 import '../../../../providers/user_provider.dart';
-import '../../../../services/supabase_data_service.dart';
 import '../../../../core/ui/in_app_toast.dart';
 import '../host_agency_screen.dart';
 import '../../../../services/dynamic_config_service.dart';
@@ -260,7 +259,7 @@ class _AgencyPendingApprovalScreenState extends State<AgencyPendingApprovalScree
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: (isRejected ? const Color(0xFFFF5252) : const Color(0xFFFFD700)).withOpacity(0.35),
+                              color: (isRejected ? const Color(0xFFFF5252) : const Color(0xFFFFD700)).withValues(alpha: 0.35),
                               blurRadius: 20,
                               spreadRadius: 2,
                             ),

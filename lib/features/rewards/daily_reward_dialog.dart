@@ -21,6 +21,8 @@ class DailyRewardDialog extends StatefulWidget {
       final status = await InviteService().getDailyRewardStatus(uid);
       if (!context.mounted) return;
       if (status['enabled'] != true || status['claimed'] == true) return;
+      // لا نفتح نافذة بمكافأة فارغة/بصفر عملات — منع أي صرف تلقائي
+      if (!InviteService.hasClaimableReward(status['reward'])) return;
       await showDialog(
         context: context,
         barrierDismissible: false,

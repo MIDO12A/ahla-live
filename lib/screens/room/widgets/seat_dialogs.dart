@@ -336,16 +336,7 @@ class _OccupiedSeatSheet extends StatelessWidget {
                         },
                       ),
                       _Divider(),
-                      // idSeatActionMicStatus
-                      _SheetItem(
-                        label: isMuted
-                            ? (isAr ? 'إلغاء كتم المايك' : 'Unmute Mic')
-                            : (isAr ? 'كتم المايك' : 'Mute Mic'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          onToggleMicLock?.call(!isMuted);
-                        },
-                      ),
+                      
                     ] else ...[
                       // ── When viewing another user on the seat: ──
                       // idSeatActionUserDetail

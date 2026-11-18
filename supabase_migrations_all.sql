@@ -405,6 +405,31 @@ $func$;
 -- 3. إنشاء الـ 9 VIEWS المخصصة لترتيب المتصدرين (Leaderboards)
 -- ============================================================================
 
+-- حذف أي نسخة سابقة حتى لا يفشل CREATE OR REPLACE عند تغيّر نوع العمود points.
+-- الـ 3 غرف كانت أُنشئت كجداول في migration لاحقة، لذلك نتعامل مع النوعين.
+DO $$
+DECLARE
+  v_name text;
+  v_kind "char";
+BEGIN
+  FOREACH v_name IN ARRAY ARRAY[
+    'daily_wealth_ranking', 'weekly_wealth_ranking', 'monthly_wealth_ranking',
+    'daily_charm_ranking', 'weekly_charm_ranking', 'monthly_charm_ranking',
+    'daily_rooms_ranking', 'weekly_rooms_ranking', 'monthly_rooms_ranking'
+  ] LOOP
+    SELECT c.relkind INTO v_kind
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = v_name;
+
+    IF v_kind IN ('v', 'm') THEN
+      EXECUTE format('DROP VIEW IF EXISTS public.%I CASCADE', v_name);
+    ELSIF v_kind IN ('r', 'p') THEN
+      EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', v_name);
+    END IF;
+  END LOOP;
+END $$;
+
 CREATE OR REPLACE VIEW public.daily_wealth_ranking AS
 SELECT 
     u.id AS uid,
@@ -415,9 +440,9 @@ SELECT
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS photo_url,
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS "photoUrl",
     COALESCE(u.level, 1) AS level,
-    SUM(g.cost) AS points
-FROM public.gift_transactions g
-JOIN public.users u ON (u.id = g.user_id OR u.uid = g.user_id)
+    SUM(g.value * COALESCE(g.count, 1)) AS points
+FROM public.sent_gifts g
+JOIN public.users u ON (u.id = g.sender_id OR u.uid = g.sender_id)
 WHERE g.created_at >= NOW() - INTERVAL '1 day'
 GROUP BY u.id, u.custom_id, u.name, u.photo_url, u.avatar, u.level
 ORDER BY points DESC
@@ -433,9 +458,9 @@ SELECT
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS photo_url,
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS "photoUrl",
     COALESCE(u.level, 1) AS level,
-    SUM(g.cost) AS points
-FROM public.gift_transactions g
-JOIN public.users u ON (u.id = g.user_id OR u.uid = g.user_id)
+    SUM(g.value * COALESCE(g.count, 1)) AS points
+FROM public.sent_gifts g
+JOIN public.users u ON (u.id = g.sender_id OR u.uid = g.sender_id)
 WHERE g.created_at >= NOW() - INTERVAL '7 days'
 GROUP BY u.id, u.custom_id, u.name, u.photo_url, u.avatar, u.level
 ORDER BY points DESC
@@ -451,9 +476,9 @@ SELECT
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS photo_url,
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS "photoUrl",
     COALESCE(u.level, 1) AS level,
-    SUM(g.cost) AS points
-FROM public.gift_transactions g
-JOIN public.users u ON (u.id = g.user_id OR u.uid = g.user_id)
+    SUM(g.value * COALESCE(g.count, 1)) AS points
+FROM public.sent_gifts g
+JOIN public.users u ON (u.id = g.sender_id OR u.uid = g.sender_id)
 WHERE g.created_at >= NOW() - INTERVAL '30 days'
 GROUP BY u.id, u.custom_id, u.name, u.photo_url, u.avatar, u.level
 ORDER BY points DESC
@@ -469,8 +494,8 @@ SELECT
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS photo_url,
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS "photoUrl",
     COALESCE(u.level, 1) AS level,
-    SUM(g.cost) AS points
-FROM public.gift_transactions g
+    SUM(g.value * COALESCE(g.count, 1)) AS points
+FROM public.sent_gifts g
 JOIN public.users u ON (u.id = g.receiver_id OR u.uid = g.receiver_id)
 WHERE g.created_at >= NOW() - INTERVAL '1 day'
 GROUP BY u.id, u.custom_id, u.name, u.photo_url, u.avatar, u.level
@@ -487,8 +512,8 @@ SELECT
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS photo_url,
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS "photoUrl",
     COALESCE(u.level, 1) AS level,
-    SUM(g.cost) AS points
-FROM public.gift_transactions g
+    SUM(g.value * COALESCE(g.count, 1)) AS points
+FROM public.sent_gifts g
 JOIN public.users u ON (u.id = g.receiver_id OR u.uid = g.receiver_id)
 WHERE g.created_at >= NOW() - INTERVAL '7 days'
 GROUP BY u.id, u.custom_id, u.name, u.photo_url, u.avatar, u.level
@@ -505,8 +530,8 @@ SELECT
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS photo_url,
     COALESCE(u.photo_url, COALESCE(u.avatar, '')) AS "photoUrl",
     COALESCE(u.level, 1) AS level,
-    SUM(g.cost) AS points
-FROM public.gift_transactions g
+    SUM(g.value * COALESCE(g.count, 1)) AS points
+FROM public.sent_gifts g
 JOIN public.users u ON (u.id = g.receiver_id OR u.uid = g.receiver_id)
 WHERE g.created_at >= NOW() - INTERVAL '30 days'
 GROUP BY u.id, u.custom_id, u.name, u.photo_url, u.avatar, u.level
@@ -522,8 +547,8 @@ SELECT
     COALESCE(r.room_photo_url, '') AS "photoUrl",
     COALESCE(r.host_name, '') AS host_name,
     COALESCE(r.password, '') AS password,
-    SUM(g.cost) AS points
-FROM public.gift_transactions g
+    SUM(g.value * COALESCE(g.count, 1)) AS points
+FROM public.sent_gifts g
 LEFT JOIN public.rooms r ON (r.room_id = g.room_id)
 WHERE g.created_at >= NOW() - INTERVAL '1 day'
 GROUP BY r.room_id, g.room_id, r.name, r.room_photo_url, r.host_name, r.password
@@ -539,8 +564,8 @@ SELECT
     COALESCE(r.room_photo_url, '') AS "photoUrl",
     COALESCE(r.host_name, '') AS host_name,
     COALESCE(r.password, '') AS password,
-    SUM(g.cost) AS points
-FROM public.gift_transactions g
+    SUM(g.value * COALESCE(g.count, 1)) AS points
+FROM public.sent_gifts g
 LEFT JOIN public.rooms r ON (r.room_id = g.room_id)
 WHERE g.created_at >= NOW() - INTERVAL '7 days'
 GROUP BY r.room_id, g.room_id, r.name, r.room_photo_url, r.host_name, r.password
@@ -556,8 +581,8 @@ SELECT
     COALESCE(r.room_photo_url, '') AS "photoUrl",
     COALESCE(r.host_name, '') AS host_name,
     COALESCE(r.password, '') AS password,
-    SUM(g.cost) AS points
-FROM public.gift_transactions g
+    SUM(g.value * COALESCE(g.count, 1)) AS points
+FROM public.sent_gifts g
 LEFT JOIN public.rooms r ON (r.room_id = g.room_id)
 WHERE g.created_at >= NOW() - INTERVAL '30 days'
 GROUP BY r.room_id, g.room_id, r.name, r.room_photo_url, r.host_name, r.password

@@ -150,7 +150,8 @@ class UserProvider extends ChangeNotifier {
 
     if (changed) {
       needsUpdate['owned_items'] = newOwned;
-      await _supabaseService.updateUser(uid, needsUpdate);
+      await _supabaseService.updateUser(uid, needsUpdate,
+          allowIdentityChange: needsUpdate.containsKey('custom_id'));
     }
 
     for (final giftId in expiredGiftIds) {
@@ -191,19 +192,12 @@ class UserProvider extends ChangeNotifier {
           );
         }
       }
+      // ✅ معرف المستخدم ثابت — لا يتم توليده أو تغييره تلقائياً أبداً.
+      //    تغيير الـ ID يتم فقط من لوحة التحكم أو عند تجهيز/إلغاء معرف مميز.
+      //    إذا كان الـ ID فارغاً في قاعدة البيانات نتركه فارغاً ولا نكتب أي شيء،
+      //    حتى لا يتغير الرقم مع كل hot restart / إعادة فتح للتطبيق.
       if (_currentUser != null && _currentUser!.customId.isEmpty) {
-        String customId;
-        try {
-          final idResult = await ApiService().generateCustomId();
-          customId = idResult['customId'] as String;
-        } catch (_) {
-          customId = await UserIdGenerator().generateUniqueId(
-            minDigits: 6,
-            maxDigits: 7,
-          );
-        }
-        await _supabaseService.updateUser(uid, {'custom_id': customId});
-        _currentUser = await _supabaseService.getUser(uid);
+        debugPrint('[UserProvider] custom_id is empty for $uid — keeping it unchanged (no auto-generation)');
       }
       if (_currentUser != null && _currentUser!.photoUrl.isEmpty) {
         final supaUser = SupabaseAuthService().currentUser;

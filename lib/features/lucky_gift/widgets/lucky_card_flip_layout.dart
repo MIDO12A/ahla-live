@@ -12,10 +12,10 @@ class LuckyCardFlipLayout extends StatefulWidget {
   final VoidCallback onFinished;
 
   const LuckyCardFlipLayout({
-    Key? key,
+    super.key,
     required this.data,
     required this.onFinished,
-  }) : super(key: key);
+  });
 
   @override
   State<LuckyCardFlipLayout> createState() => _LuckyCardFlipLayoutState();
@@ -88,10 +88,10 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
   @override
   void dispose() {
     _safetyTimer?.cancel();
-    _controllers.forEach((ctrl) {
+    for (var ctrl in _controllers) {
       if (ctrl.isAnimating) ctrl.stop();
       ctrl.dispose();
-    });
+    }
     super.dispose();
   }
 
@@ -112,18 +112,18 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.black.withOpacity(0.85),
-                const Color(0xFF1F0D3D).withOpacity(0.95),
+                Colors.black.withValues(alpha: 0.85),
+                const Color(0xFF1F0D3D).withValues(alpha: 0.95),
               ],
             ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: const Color(0xFFFFD700).withOpacity(0.6),
+              color: const Color(0xFFFFD700).withValues(alpha: 0.6),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFFD700).withOpacity(0.25),
+                color: const Color(0xFFFFD700).withValues(alpha: 0.25),
                 blurRadius: 20,
                 spreadRadius: 2,
               ),
@@ -173,7 +173,7 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: const Color(0xFFFF9800).withOpacity(0.2),
+            color: const Color(0xFFFF9800).withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: const Color(0xFFFFB300)),
           ),
@@ -253,7 +253,7 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.purple.withOpacity(0.4),
+            color: Colors.purple.withValues(alpha: 0.4),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),
@@ -292,7 +292,7 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
             ? [
                 BoxShadow(
                   color: (card.multiplier >= 10 ? Colors.amber : Colors.green)
-                      .withOpacity(0.5),
+                      .withValues(alpha: 0.5),
                   blurRadius: 8,
                 )
               ]
@@ -301,7 +301,7 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (isWin) ...[
+          if (isWin && card.multiplier >= 5) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               decoration: BoxDecoration(
@@ -350,9 +350,9 @@ class _LuckyCardFlipLayoutState extends State<LuckyCardFlipLayout>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5),
+        color: Colors.black.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.4)),
+        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

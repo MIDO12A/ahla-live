@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../config/r.dart';
-import '../../config/app_colors.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/dynamic_config_service.dart';
@@ -387,9 +386,13 @@ class _RoomSettingsScreenState extends State<RoomSettingsScreen> {
     );
   }
 
-  Widget _avatarPlaceholder() => Container(
-    color: const Color(0xFF1A0F0F),
-    child: const Icon(Icons.image_outlined, color: Colors.white54, size: 40),
+  Widget _avatarPlaceholder() => Image.asset(
+    R.defaultRoomPhoto,
+    fit: BoxFit.cover,
+    errorBuilder: (_, __, ___) => Container(
+      color: const Color(0xFF1A0F0F),
+      child: const Icon(Icons.image_outlined, color: Colors.white54, size: 40),
+    ),
   );
 
   Future<void> _pickRoomImage() async {

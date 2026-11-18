@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../services/safe_http.dart';
 import '../config/supabase_config.dart';
 import '../services/supabase_auth_service.dart';
 import '../services/supabase_data_service.dart';
 import '../services/cloudinary_service.dart';
+import '../services/session_token_store.dart';
 
 /// Singleton mirroring `Supabase.instance`.
 class Supabase {
@@ -45,6 +45,8 @@ class SupabaseClient {
           'apikey': SupabaseConfig.anonKey,
           'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
           'Content-Type': 'application/json',
+          if (SessionTokenStore.token != null)
+            'x-session-token': SessionTokenStore.token!,
         },
         body: jsonEncode(params ?? {}),
       );
@@ -404,8 +406,10 @@ class SupabaseQueryBuilder implements Future<List<Map<String, dynamic>>> {
     final baseUrl = SupabaseConfig.projectUrl;
     final headers = {
       'apikey': SupabaseConfig.anonKey,
-      'Authorization': 'Bearer ' + SupabaseConfig.anonKey,
+      'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
       'Content-Type': 'application/json',
+      if (SessionTokenStore.token != null)
+        'x-session-token': SessionTokenStore.token!,
     };
 
     switch (_op) {

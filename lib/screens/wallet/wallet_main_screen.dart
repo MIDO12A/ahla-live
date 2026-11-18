@@ -68,12 +68,8 @@ class _WalletMainScreenState extends State<WalletMainScreen>
         dynamic plansRaw = config['recharge_plans'];
         dynamic gwRaw = config['recharge_gateways'];
 
-        if (plansRaw == null) {
-          plansRaw = await FirebaseService().getAppConfig('recharge_plans');
-        }
-        if (gwRaw == null) {
-          gwRaw = await FirebaseService().getAppConfig('recharge_gateways');
-        }
+        plansRaw ??= await FirebaseService().getAppConfig('recharge_plans');
+        gwRaw ??= await FirebaseService().getAppConfig('recharge_gateways');
 
         if (plansRaw != null) {
           final List list =
@@ -1106,29 +1102,6 @@ class _WalletMainScreenState extends State<WalletMainScreen>
               style: TextStyle(fontSize: 12, color: dc.walletSubTextColor),
             ),
           ],
-          if (isHost)
-            Container(
-              margin: const EdgeInsets.only(top: 8, bottom: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.amber, size: 16),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: DText(
-                      'تنبيه للمضيفين: تبديل الألماس لكوينز يتم بمعدل 1:1 كامل، ويُخصم الألماس المفكوك من التارجت الشهري، وفي حال فك أي ألماس من التارجت يتم احتساب راتب التارجت بنسبة 60% فقط (يُخصم 40% من الراتب، مثلاً ينزل من 9\$ إلى 5.4\$).',
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.amber, height: 1.3),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           const SizedBox(height: 12),
           Row(
             children: [

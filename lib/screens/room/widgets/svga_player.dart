@@ -512,12 +512,8 @@ class _SvgaPlayerState extends State<SvgaPlayer> with SingleTickerProviderStateM
   ///   4) شبكة عبر Dio مشترك ثم فك في نفس الوقت.
   Future<MovieEntity?> _loadFromUrl(String url) async {
     var bytes = SvgaPlayer._readBytes(url);
-    if (bytes == null) {
-      bytes = await MediaCacheService().getCachedBytes(url);
-    }
-    if (bytes == null) {
-      bytes = await MediaCacheService().downloadToBytesBackground(url);
-    }
+    bytes ??= await MediaCacheService().getCachedBytes(url);
+    bytes ??= await MediaCacheService().downloadToBytesBackground(url);
     SvgaPlayer._writeBytes(url, bytes);
 
     if (_isImageMagicBytes(bytes) ||

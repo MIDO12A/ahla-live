@@ -261,6 +261,9 @@ class R {
   static const String discoverItemRoom2 = '$_m/discover_item_room_2.webp';
   static const String discoverItemRoom3 = '$_m/discover_item_room_3.webp';
   static const String discoverGameTeamingIc = '$_m/discover_game_teaming_ic.webp';
+  static const String discoverRankRooms = '$_m/discover_rank_rooms.png';
+  static const String discoverRankCharm = '$_m/discover_rank_charm.png';
+  static const String discoverRankWealth = '$_m/discover_rank_wealth.png';
 
   // Room category backgrounds
   static const String discoverItemChatBg = '$_m/discover_item_chat_bg.webp';
@@ -352,6 +355,10 @@ class R {
   // Avatar
   static const String avaBoy = '$_m/ava_boy.webp';
   static const String avaGirl = '$_m/ava_girl.webp';
+
+  // Default room photo — used whenever a room has no uploaded image
+  // (room cards, minimized room bubble, ranking entries, settings preview).
+  static const String defaultRoomPhoto = 'assets/icon/app_icon.png';
 
   // Sign-in assets
   static const String signGiftBg = '$_m/sign_gift_bg.png';

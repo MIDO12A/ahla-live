@@ -41,6 +41,10 @@ class DeviceService {
 
   DeviceInfoData? _cachedInfo;
 
+  /// يمنع تكرار تسجيل نفس الجهاز+المستخدم ضمن نفس الجلسة —
+  /// loadUser قد يُنادى عدة مرات عند الإقلاع فيُسجَّل الجهاز مراراً
+  static final Set<String> _registeredThisSession = {};
+
   Future<DeviceInfoData> getDeviceInfo() async {
     if (_cachedInfo != null) return _cachedInfo!;
 
@@ -77,7 +81,7 @@ class DeviceService {
 
     if (networkId == null || networkId.isEmpty) {
       final sub = persistentId.length > 8 ? persistentId.substring(0, 8) : persistentId;
-      networkId = 'NET_' + sub.toUpperCase();
+      networkId = 'NET_${sub.toUpperCase()}';
       await prefs.setString(_prefKeyNetworkId, networkId);
     }
 
@@ -90,7 +94,7 @@ class DeviceService {
     } catch (_) {}
 
     final cleanHex = persistentId.replaceAll(RegExp(r'[^a-fA-F0-9]'), '').padRight(8, '0').substring(0, 8).toUpperCase();
-    final macAddress = '02:00:' + cleanHex.replaceAllMapped(RegExp(r'.{2}'), (m) => '${m.group(0)}:').substring(0, 11);
+    final macAddress = '02:00:${cleanHex.replaceAllMapped(RegExp(r'.{2}'), (m) => '${m.group(0)}:').substring(0, 11)}';
 
     _cachedInfo = DeviceInfoData(
       deviceId: persistentId,
@@ -115,6 +119,10 @@ class DeviceService {
       final dev = info ?? await getDeviceInfo();
       final cleanEmail = (email ?? '').trim().toLowerCase();
       final nowIso = DateTime.now().toUtc().toIso8601String();
+
+      final regKey = '${dev.deviceId}:$cleanUid';
+      if (_registeredThisSession.contains(regKey)) return;
+      _registeredThisSession.add(regKey);
 
       // 1. Save user device info to Supabase app_config: key 'user_device_$cleanUid'
       final userDevicePayload = {

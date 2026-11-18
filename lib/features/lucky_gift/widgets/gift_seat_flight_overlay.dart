@@ -14,14 +14,14 @@ class GiftSeatFlightOverlay extends StatefulWidget {
   final VoidCallback onFinished;
 
   const GiftSeatFlightOverlay({
-    Key? key,
+    super.key,
     required this.giftIconUrl,
     this.giftAnimAsset,
     this.type = 'image',
     required this.startOffset,
     required this.targetOffsets,
     required this.onFinished,
-  }) : super(key: key);
+  });
 
   @override
   State<GiftSeatFlightOverlay> createState() => _GiftSeatFlightOverlayState();
@@ -113,9 +113,8 @@ class _GiftSeatFlightOverlayState extends State<GiftSeatFlightOverlay>
         builder: (context, child) {
           final t = _flightProgress.value;
 
-          // Scale: تكبير تدريجي أثناء الطيران — الصورة تصل للمقعد بحجم كبير
-          // بدون أي نجمة أو خلفية ذهبية، ثم تتلاشى بهدوء عند الوصول.
-          final flightScale = 0.9 + (sin(t * pi) * 0.7);
+          // حجم ثابت أثناء الطيران — الهدية صغيرة وتتجه مباشرة إلى المقعد
+          const flightScale = 1.0;
           final flightOpacity = t > 0.82 ? ((1.0 - t) / 0.18).clamp(0.0, 1.0) : 1.0;
 
           return Stack(
@@ -123,12 +122,12 @@ class _GiftSeatFlightOverlayState extends State<GiftSeatFlightOverlay>
               final currentPos = _calculateBezierPoint(widget.startOffset, target, t);
 
               return Positioned(
-                left: currentPos.dx - 36,
-                top: currentPos.dy - 36,
+                left: currentPos.dx - 28,
+                top: currentPos.dy - 28,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Flying Gift — صورة الهدية بحجم كبير أثناء الطيران
+                    // Flying Gift — صورة الهدية بحجم صغير أثناء الطيران
                     if (!_hasArrived && flightOpacity > 0.01)
                       Opacity(
                         opacity: flightOpacity,
@@ -137,15 +136,15 @@ class _GiftSeatFlightOverlayState extends State<GiftSeatFlightOverlay>
                           child: widget.giftIconUrl.startsWith('http')
                               ? Image(
                                   image: R.cachedImage(widget.giftIconUrl),
-                                  width: 72,
-                                  height: 72,
+                                  width: 56,
+                                  height: 56,
                                   fit: BoxFit.contain,
                                   errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.white, size: 56),
                                 )
                               : Image.asset(
                                   widget.giftIconUrl,
-                                  width: 72,
-                                  height: 72,
+                                  width: 56,
+                                  height: 56,
                                   fit: BoxFit.contain,
                                   errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.white, size: 56),
                                 ),
@@ -161,15 +160,15 @@ class _GiftSeatFlightOverlayState extends State<GiftSeatFlightOverlay>
                           child: widget.giftIconUrl.startsWith('http')
                               ? Image(
                                   image: R.cachedImage(widget.giftIconUrl),
-                                  width: 72,
-                                  height: 72,
+                                  width: 56,
+                                  height: 56,
                                   fit: BoxFit.contain,
                                   errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.white, size: 56),
                                 )
                               : Image.asset(
                                   widget.giftIconUrl,
-                                  width: 72,
-                                  height: 72,
+                                  width: 56,
+                                  height: 56,
                                   fit: BoxFit.contain,
                                   errorBuilder: (_, __, ___) => const Icon(Icons.card_giftcard, color: Colors.white, size: 56),
                                 ),

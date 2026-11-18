@@ -47,8 +47,6 @@ class _InviteScreenState extends State<InviteScreen> {
     final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
     final lang = localeProvider.locale?.languageCode ?? 'ar';
 
-    final token = await _getSessionToken();
-
     final base = cfg.inviteWebUrl.isNotEmpty
         ? cfg.inviteWebUrl
         : 'https://zero-invite-two.vercel.app/#/invite-register';
@@ -59,13 +57,15 @@ class _InviteScreenState extends State<InviteScreen> {
     queryParams['account'] = customId.isNotEmpty ? customId : uid;
     queryParams['nickname'] = nickname;
     queryParams['avatar'] = avatar;
-    queryParams['token'] = token;
     queryParams['lang'] = lang;
     queryParams['client'] = 'Android';
     queryParams['origin'] = 'ZERO_APP';
 
-    final fullUri = uri.replace(queryParameters: queryParams);
-    _targetUrl = fullUri.toString();
+    // ⚠️ يجب إنشاء الـ WebViewController **قبل** أول await.
+    //    كان `_controller` حقل `late final` يُهيأ بعد `await _getSessionToken()`،
+    //    فيصل أول build قبل التهيئة ويرمي:
+    //    LateInitializationError: Field '_controller' has not been initialized.
+    var token = SupabaseConfig.anonKey;
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -80,15 +80,21 @@ class _InviteScreenState extends State<InviteScreen> {
             if (mounted) setState(() => _loading = false);
           },
           onWebResourceError: (error) {
-            debugPrint('[InviteWebView] Resource error: ' + error.description);
+            debugPrint('[InviteWebView] Resource error: ${error.description}');
           },
         ),
       )
       ..addJavaScriptChannel(
         'FlutterBridge',
         onMessageReceived: _handleJsMessage,
-      )
-      ..loadRequest(Uri.parse(_targetUrl));
+      );
+
+    token = await _getSessionToken();
+    queryParams['token'] = token;
+
+    final fullUri = uri.replace(queryParameters: queryParams);
+    _targetUrl = fullUri.toString();
+    await _controller.loadRequest(Uri.parse(_targetUrl));
   }
 
   Future<String> _getSessionToken() async {
@@ -114,7 +120,7 @@ class _InviteScreenState extends State<InviteScreen> {
       'account': account,
       'nickname': nickname,
       'avatar': avatar,
-      'Authorization': 'Bearer ' + token,
+      'Authorization': 'Bearer $token',
       'Req-Lang': lang,
       'Req-Client': 'Android',
       'Origin-Platform': 'ZERO_APP',
@@ -195,7 +201,7 @@ class _InviteScreenState extends State<InviteScreen> {
           break;
       }
     } catch (e) {
-      debugPrint('[InviteWebView] Message handling error: ' + e.toString());
+      debugPrint('[InviteWebView] Message handling error: $e');
     }
   }
 

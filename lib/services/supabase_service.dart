@@ -20,9 +20,11 @@ import '../models/notification_model.dart';
 import '../core/supabase_compat.dart';
 import '../core/utils/id_generator.dart';
 import 'supabase_data_service.dart';
+import 'supabase_realtime_service.dart';
 import 'dynamic_config_service.dart';
 import 'agency_target_evaluator.dart';
 import 'global_banner_service.dart';
+import 'level_service.dart';
 
 /// خدمة إدارة وتنسيق عمليات Supabase المباشرة (SupabaseService)
 /// تضمن الاتصال فائق السرعة مع https://supabase.com وتحديث رصيد العملات فوريًا بـ 0ms
@@ -35,6 +37,10 @@ class SupabaseService {
   final SupabaseDataService _ds = SupabaseDataService();
   static const String _baseUrl = SupabaseConfig.projectUrl;
   static const String _anonKey = SupabaseConfig.anonKey;
+
+  // ✅ كاش بسيط لترتيب الغرف لتسريع الفتح المتكرر
+  static final Map<String, CachedRanking> _roomRankingCache = {};
+  static const Duration _cacheTtl = Duration(minutes: 2);
 
   static Map<String, String> get _headers => {
         'apikey': _anonKey,
@@ -119,38 +125,96 @@ class SupabaseService {
   // USER OPERATIONS (SUPABASE)
   // ═══════════════════════════════════════════════════════
 
-  Future<UserModel?> getUser(String uid) => _ds.getUser(uid);
+  Future<UserModel?> getUser(String uid, {bool throwOnError = false}) =>
+      _ds.getUser(uid, throwOnError: throwOnError);
 
-  Stream<UserModel?> userStream(String uid) {
-    final controller = StreamController<UserModel?>.broadcast();
-    Timer? pollTimer;
-
-    void fetchSupabase() async {
-      try {
-        final u = await _ds.getUser(uid);
-        if (u != null && !controller.isClosed) {
-          controller.add(u);
-        }
-      } catch (_) {}
+  /// بيانات المستخدم الحالي — تصل لحظياً عبر Realtime عند أي تغيير في صفّه
+  /// (رصيد، مستوى، صورة…)، والـ polling (كل ثانيتين) يبقى شبكة أمان فقط
+  /// عندما لا تكون قناة users حيّة.
+  Stream<UserModel?> userStream(String uid) async* {
+    final rt = SupabaseRealtimeService.instance;
+    final topic = 'users:$uid';
+    rt.subscribeTable(
+      table: 'users',
+      topic: topic,
+      filter: 'uid=eq.$uid',
+      events: const ['INSERT', 'UPDATE'],
+    );
+    try {
+      while (true) {
+        try {
+          final u = await _ds.getUser(uid);
+          if (u != null) yield u;
+        } catch (_) {}
+        await rt.waitForTableChange(
+          topic: topic,
+          tables: const {'users'},
+          fallback: const Duration(seconds: 2),
+          safety: const Duration(seconds: 8),
+        );
+      }
+    } finally {
+      rt.unsubscribeTopic(topic);
     }
-
-    fetchSupabase();
-    pollTimer =
-        Timer.periodic(const Duration(seconds: 2), (_) => fetchSupabase());
-
-    controller.onCancel = () {
-      pollTimer?.cancel();
-    };
-
-    return controller.stream;
   }
 
   Future<void> saveUser(UserModel user) async {
     await _ds.updateUser(user.uid, user.toMap());
   }
 
-  Future<bool> updateUser(String uid, Map<String, dynamic> data) =>
-      _ds.updateUser(uid, data);
+  Future<bool> updateUser(
+    String uid,
+    Map<String, dynamic> data, {
+    bool allowIdentityChange = false,
+  }) =>
+      _ds.updateUser(uid, data, allowIdentityChange: allowIdentityChange);
+
+  /// مigrated المستخدمين الذين لديهم IDs أبجدية رقمية إلى IDs رقمية (6-7 أرقام)
+  /// يستخدم UserIdGenerator.migrateToNumericId لتوليد رقم ثابت لكل مستخدم
+  Future<void> migrateAlphanumericCustomIds() async {
+    try {
+      // جلب جميع المستخدمين
+      final users = await _ds.getAllUsers();
+      int migratedCount = 0;
+      
+      for (final user in users) {
+        final currentId = user.customId;
+        
+        // تخطي إذا كان فارغاً أو صالح بالفعل
+        if (currentId.isEmpty) continue;
+        if (UserIdGenerator.isValidCustomId(currentId)) continue;
+        
+        // تحويل الـ ID الأبجدي الرقمي إلى رقمي
+        final newNumericId = UserIdGenerator.migrateToNumericId(currentId);
+        
+        // التحقق من أن الرقم الجديد غير مستخدم
+        final isUnique = await UserIdGenerator().checkIdUniqueness(newNumericId);
+        if (!isUnique) {
+          // إذا كان مستخدماً، استخدم رقم عشوائي جديد
+          final fallbackId = generateQuickCustomId(digits: 7);
+          final fallbackUnique = await UserIdGenerator().checkIdUniqueness(fallbackId);
+          if (!fallbackUnique) continue;
+          
+          await _ds.updateUser(user.uid, {
+            'custom_id': fallbackId,
+            'original_custom_id': currentId, // حفظ الـ ID القديم للرجوع إليه
+          }, allowIdentityChange: true);
+        } else {
+          await _ds.updateUser(user.uid, {
+            'custom_id': newNumericId,
+            'original_custom_id': currentId, // حفظ الـ ID القديم للرجوع إليه
+          }, allowIdentityChange: true);
+        }
+        
+        migratedCount++;
+        debugPrint('[SupabaseService] Migrated user ${user.uid}: $currentId -> $newNumericId');
+      }
+      
+      debugPrint('[SupabaseService] Migration complete. Migrated $migratedCount users.');
+    } catch (e) {
+      debugPrint('[SupabaseService] Migration error: $e');
+    }
+  }
 
   Stream<List<GiftedItemModel>> userGiftedItemsStream(String uid) =>
       _ds.userGiftedItemsStream(uid);
@@ -182,7 +246,11 @@ class SupabaseService {
           updates['original_custom_id'] = u.customId;
         }
       }
-      final ok = await _ds.updateUser(uid, updates);
+      final ok = await _ds.updateUser(
+        uid,
+        updates,
+        allowIdentityChange: item.category == 'special_id',
+      );
       if (ok && item.category == 'special_id') {
         unawaited(_ds.markStoreItemSold(item.itemId));
       }
@@ -209,7 +277,7 @@ class SupabaseService {
         'active_special_id': itemId,
         if (orig.isEmpty && current.isNotEmpty && current != special)
           'original_custom_id': current,
-      });
+      }, allowIdentityChange: true);
     }
     final updateMap = <String, dynamic>{};
     switch (category) {
@@ -244,7 +312,7 @@ class SupabaseService {
       return await _ds.updateUser(uid, {
         'custom_id': restore,
         'active_special_id': '',
-      });
+      }, allowIdentityChange: true);
     }
     final updateMap = <String, dynamic>{
       'active_$category': '',
@@ -283,33 +351,49 @@ class SupabaseService {
 
   Stream<List<Map<String, dynamic>>> globalBroadcastStream() async* {
     String? watermark;
-    while (true) {
+    var firstPass = true;
+    // ✅ Realtime-first: اشتراك INSERT على جدول broadcasts عبر Phoenix
+    //    WebSocket — نص فوز الحظ يصل لحظياً بدل انتظار دورة polling.
+    //    الـ polling يبقى شبكة أمان فقط (3s عند موت القناة، 10s أمان
+    //    عند حياتها) بدل الاستعلام كل 250ms من كل عميل — هذا يخفّض
+    //    حمل السيرفر ~16 ضعفاً ويزيل latency الـ polling.
+    final rt = SupabaseRealtimeService.instance;
+    const topic = 'broadcasts:global';
+    rt.subscribeTable(
+      table: 'broadcasts',
+      topic: topic,
+      events: const ['INSERT'],
+    );
+    try {
+      while (true) {
       try {
-        if (watermark == null) {
+        if (firstPass) {
+          firstPass = false;
+          // ⚠️ لا نعرض البثوث القديمة عند فتح التطبيق إطلاقاً.
+          // كانت تُرسل أول 10 بثوث محفوظة على السيرفر فتظهر «لافتات
+          // مخزّنة» تتحرك بلا أي مستخدم يلعب. نستخدمها فقط لتحديد
+          // نقطة البداية (watermark) ثم نعرض الجديد فقط.
           final broadcasts = await _ds.getRecentBroadcasts(limit: 10);
-          if (broadcasts.isNotEmpty) {
-            yield broadcasts;
-            for (final b in broadcasts) {
-              final ts = b['created_at']?.toString();
-              if (ts != null && ts.isNotEmpty) {
-                if (watermark == null || ts.compareTo(watermark) > 0) {
-                  watermark = ts;
-                }
-              }
+          DateTime floor =
+              DateTime.now().toUtc().subtract(const Duration(seconds: 20));
+          for (final b in broadcasts) {
+            final ts = DateTime.tryParse(b['created_at']?.toString() ?? '');
+            if (ts != null && ts.toUtc().isAfter(floor)) {
+              floor = ts.toUtc();
             }
           }
-          // نبدأ من نقطة متأخرة 60 ثانية لتغطية أي فارق بين ساعة الجهاز والسيرفر
-          watermark ??= DateTime.now()
-              .toUtc()
-              .subtract(const Duration(seconds: 60))
-              .toIso8601String();
+          watermark = floor.toIso8601String();
         } else {
           // تداخل بسيط لضمان عدم فقدان أي بث عند تزامن الطلبات
-          final since = DateTime.tryParse(watermark)
+          final String since = DateTime.tryParse(watermark ?? '')
                   ?.toUtc()
                   .subtract(const Duration(seconds: 2))
                   .toIso8601String() ??
-              watermark;
+              (watermark ??
+                  DateTime.now()
+                      .toUtc()
+                      .subtract(const Duration(seconds: 20))
+                      .toIso8601String());
           final broadcasts =
               await _ds.getBroadcastsSince(since, limit: 20);
           if (broadcasts.isNotEmpty) {
@@ -323,23 +407,39 @@ class SupabaseService {
           }
         }
       } catch (_) {}
-      // أقل من ثانية: نص فوز هدية الحظ يظهر في كل الغرف فوراً (250ms)
-      await Future.delayed(const Duration(milliseconds: 250));
+        // ✅ انتظار ذكي: إشعار Realtime فوري عند أي INSERT على broadcasts،
+        //    أو fallback كل 3s إن ماتت القناة، أو safety كل 10s كحد أقصى.
+        await rt.waitForTableChange(
+          topic: topic,
+          tables: const {'broadcasts'},
+          fallback: const Duration(seconds: 3),
+          safety: const Duration(seconds: 10),
+        );
+      }
+    } finally {
+      rt.unsubscribeTopic(topic);
     }
   }
 
   Stream<Map<String, dynamic>> globalBigWinStream() async* {
     final Set<String> seenWins = {};
+    // لا نُعيد عرض إعلانات فوز قديمة عند فتح التطبيق (كانت تظهر
+    // بانرات 100X/250X «مخزّنة» بلا أي لاعب) — نبدأ من لحظة الاشتراك.
+    final startedAt = DateTime.now().millisecondsSinceEpoch;
     while (true) {
       try {
         final announcements = await _ds.getRecentGlobalAnnouncements(limit: 5);
         for (final a in announcements) {
           final id = a['id']?.toString() ?? '';
-          if (id.isNotEmpty && !seenWins.contains(id)) {
-            seenWins.add(id);
-            if (seenWins.length > 50) seenWins.remove(seenWins.first);
-            yield a;
-          }
+          if (id.isEmpty || seenWins.contains(id)) continue;
+          seenWins.add(id);
+          if (seenWins.length > 50) seenWins.remove(seenWins.first);
+          final ts = (a['timestamp'] as num?)?.toInt() ??
+              (DateTime.tryParse(a['created_at']?.toString() ?? '')
+                      ?.millisecondsSinceEpoch ??
+                  0);
+          if (ts != 0 && ts < startedAt - 20000) continue;
+          yield a;
         }
       } catch (_) {}
       await Future.delayed(const Duration(seconds: 1));
@@ -552,45 +652,16 @@ class SupabaseService {
         }
       }
 
-      // 2. توزيع الماس والتارجت للمستلم لهدايا الحظ حسب نسبة التارجت (تعمل في كل الحالات)
+      // 2. حساب حصص الماس/الكاريزما — التنفيذ الفعلي مؤجّل للخلفية بعد بث النص
+      //    (كان انتظار هذه الطلبات هنا يؤخر كتابة رسالة الشات ثوانٍ طويلة).
       final luckyTargetPct = DynamicConfigService().luckyGiftTargetPercentage;
       final int recipientDiamonds = luckyTargetPct > 0
           ? math.max(1, ((totalCost * luckyTargetPct) / 100.0).round())
           : 0;
-      if (recipientDiamonds > 0) {
-        final rUser = await _ds.getUser(receiverId);
-        if (rUser != null) {
-          await _ds.updateUser(receiverId, {
-            'total_gifts_received':
-                rUser.totalGiftsReceived + recipientDiamonds,
-          });
-        }
-        // الرصيد يُحدَّث داخل RPC/المسار الاحتياطي (عضو وكالة أو محفظة شخصية)
-        await _ds.creditHostAgencyMemberDiamonds(
-            receiverId, recipientDiamonds);
-      }
-
-      // 3. تسجيل الهدية في جدول sent_gifts بـ Supabase بنسبة كاريزما المستلم المحددة
       final effectiveSeatCharmValue =
           luckyTargetPct > 0 ? ((value * luckyTargetPct) / 100.0).round() : 0;
-      unawaited(_ds
-          .recordSentGift(
-            roomId: roomId,
-            giftId: giftId,
-            giftName: giftNameAr.isNotEmpty ? giftNameAr : giftName,
-            animationAsset: svgaAnimUrl ?? giftIconUrl,
-            senderId: senderId,
-            senderName: senderName,
-            senderPhotoUrl: senderPhotoUrl,
-            receiverId: receiverId,
-            receiverName: receiverName,
-            value: effectiveSeatCharmValue,
-            count: count,
-          )
-          .catchError((_) => false));
-      unawaited(_ds.incrementRoomGifts(roomId, totalCost));
 
-      // 4. بث رسالة الغرفة عبر room_messages في Supabase
+      // 3. بث رسالة الغرفة عبر room_messages في Supabase
       final luckyMsgId = const Uuid().v4();
       final luckyGiftPayload = {
         'gift_icon': giftIconUrl,
@@ -665,7 +736,9 @@ class SupabaseService {
             : '🍀 $receiverName فاز بهدية الحظ "$giftNameAr" وربح $totalWonCoins 🪙!';
         unawaited(_ds
             .sendMessage(MessageModel(
-              msgId: '${luckyMsgId}_win',
+              // ✅ UUID صالح — '${uuid}_win' كان مرفوضاً من PostgREST
+              //    (msg_id نوعه UUID) فلا تصل رسالة فوز الحظ للنظام.
+              msgId: const Uuid().v4(),
               roomId: roomId,
               senderUid: 'system',
               senderName: 'نظام',
@@ -679,43 +752,35 @@ class SupabaseService {
 
       // 5. بث نص الفوز لكافة الغرف فوراً عبر جدول broadcasts
       //    نفس النص الذي يراه المستخدم في شات الغرفة.
-      final String broadcastContent = totalWonCoins > 0 || maxMultiplier > 1
-          ? '$senderName 🍀 $giftNameAr x$count (فاز بـ $totalWonCoins 🪙)'
-          : '$senderName 🍀 $giftNameAr x$count';
+      //    ⛔ اللافتات تبدأ من الحد الأدنى للمضاعف (افتراضياً 5X):
+      //    لا نبث ولا نحقن محلياً أي مضاعف 1X/2X/3X/4X إطلاقاً.
+      final int minLuckyBannerMult =
+          DynamicConfigService().luckyBannerMinMultiplier;
+      final bool shouldShowLuckyBanner =
+          maxMultiplier >= minLuckyBannerMult || isBigWin;
 
-      final String bCastId = const Uuid().v4();
-      unawaited(_ds
-          .recordBroadcast(
-            senderUid: senderId,
-            senderName: senderName,
-            senderPhotoUrl: senderPhotoUrl,
-            roomId: roomId,
-            content: broadcastContent,
-            giftIcon: giftIconUrl,
-            multiplier: maxMultiplier,
-            type: 'lucky_gift',
-            broadcastId: bCastId,
-          )
-          .catchError((_) => false));
+      if (shouldShowLuckyBanner) {
+        final String broadcastContent =
+            '$senderName 🍀 $giftNameAr x$count (فاز بمضاعف ${maxMultiplier}X — $totalWonCoins 🪙)';
 
-      // ✅ حقن محلي فوري: نص هدية الحظ يظهر لحظياً عند ضغط زر الإرسال
-      //    بدل انتظار رحلة الطلب للسيرفر وعودة البث. نفس المعرف يُرسل
-      //    للسيرفر فيتجاهل النظام النسخة المكررة تلقائياً.
-      GlobalBannerService.instance.echoBroadcastLocally({
-        'id': bCastId,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'sender_uid': senderId,
-        'sender_name': senderName,
-        'sender_photo_url': senderPhotoUrl,
-        'room_id': roomId,
-        'content': broadcastContent,
-        'gift_icon': giftIconUrl,
-        'gift_name': giftNameAr,
-        'type': 'lucky_gift',
-        'multiplier': maxMultiplier,
-        'won_coins': totalWonCoins,
-        'count': count,
-      });
+        final String bCastId = const Uuid().v4();
+        unawaited(_ds
+            .recordBroadcast(
+              senderUid: senderId,
+              senderName: senderName,
+              senderPhotoUrl: senderPhotoUrl,
+              roomId: roomId,
+              content: broadcastContent,
+              giftIcon: giftIconUrl,
+              multiplier: maxMultiplier,
+              type: 'lucky_gift',
+              broadcastId: bCastId,
+            )
+            .catchError((_) => false));
+
+        // ⛔ لا حقن محلي لنص الفوز — يُعرض فقط عبر البث القادم من السيرفر
+        //    (Realtime/Pusher) حتى لا تظهر رسالة محلية غير موثّقة.
+      }
 
       // نص الفوز يصل لكل الأجهزة (بما فيها المرسل) عبر Supabase Realtime
       // مع polling احتياطي كل 500ms في GlobalBannerService.
@@ -733,32 +798,60 @@ class SupabaseService {
             .catchError((_) => false));
       }
 
-      // 6. تقييم التارجت للوكيل في الخلفية
-      unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId)
-          .catchError((_) {}));
+      // 6. العمليات الخلفية غير المعطِّلة: ماس المستلم + سجلات الهدايا + أهداف
+      //    الوكالة + إشعار الاستلام. هذه الخطوات كانت تُنتظر قبل كتابة رسالة
+      //    الشات، فكان نص الفوز (آخر رسالة) يتأخر ثوانٍ طويلة. الآن تُنفَّذ
+      //    بعد إطلاق البث مباشرةً فيعود الرد للواجهة فوراً.
+      unawaited(() async {
+        try {
+          if (recipientDiamonds > 0) {
+            // ✅ عدّاد المستلم عبر RPC ذرّي — لا PATCH مباشر على
+            //    حساب مستخدم آخر (حارس الكتابة).
+            await _ds.bumpUserStat(
+                receiverId, 'total_gifts_received', recipientDiamonds);
+            // الرصيد يُحدَّث داخل RPC/المسار الاحتياطي (عضو وكالة أو محفظة شخصية)
+            await _ds.creditHostAgencyMemberDiamonds(
+                receiverId, recipientDiamonds);
+          }
 
-      // 7. إشعار الاستلام للمستلم
-      if (!isSelfSend) {
-        unawaited(sendNotification(
-          uid: receiverId,
-          type: 'gift',
-          actorUid: senderId,
-          title: '🍀 هدية حظ من $senderName',
-          body:
-              '$senderName أرسل لك "$giftNameAr" x$count (بقيمة $totalCost عملة)',
-          data: <String, dynamic>{
-            'sender_name': senderName,
-            'sender_photo': senderPhotoUrl,
-            'gift_id': giftId,
-            'gift_name': giftNameAr,
-            'gift_image': giftIconUrl,
-            'value': value,
-            'count': count,
-            'room_id': roomId,
-            'is_lucky': true,
-          },
-        ).catchError((_) {}));
-      }
+          // ✅ المستويات: إرسال الحظ → ثروة المرسل، استلام الماس → جواهر المستلم
+          unawaited(LevelService()
+              .addExp(uid: senderId, type: 'wealth', amount: totalCost)
+              .catchError((_) => null));
+          if (receiverId != senderId) {
+            final gemsAmount =
+                recipientDiamonds > 0 ? recipientDiamonds : totalCost;
+            unawaited(LevelService()
+                .addExp(uid: receiverId, type: 'gems', amount: gemsAmount)
+                .catchError((_) => null));
+          }
+
+          await _ds
+              .recordSentGift(
+                roomId: roomId,
+                giftId: giftId,
+                giftName: giftNameAr.isNotEmpty ? giftNameAr : giftName,
+                animationAsset: svgaAnimUrl ?? giftIconUrl,
+                senderId: senderId,
+                senderName: senderName,
+                senderPhotoUrl: senderPhotoUrl,
+                receiverId: receiverId,
+                receiverName: receiverName,
+                value: effectiveSeatCharmValue,
+                count: count,
+              )
+              .catchError((_) => false);
+          await _ds.incrementRoomGifts(roomId, totalCost);
+
+          // تقييم التارجت للوكيل
+          await AgencyTargetEvaluator.evaluateHostTargets(receiverId)
+              .catchError((_) {});
+
+          // ✅ لا إشعارات هدايا في رسائل النظام — تقليل حمل على النظام
+        } catch (e) {
+          debugPrint('[SupabaseService] lucky gift side-effects error: $e');
+        }
+      }());
 
       return {
         'success': true,
@@ -782,6 +875,7 @@ class SupabaseService {
 
   Future<bool> sendGift({
     required String roomId,
+    String? roomName,
     required String giftId,
     required String giftName,
     String? animationAsset,
@@ -793,6 +887,7 @@ class SupabaseService {
     required String receiverName,
     required int value,
     int count = 1,
+    ValueChanged<double>? onProgress,
   }) async {
     final totalCost = value * count;
     final isSelfSend = senderId == receiverId;
@@ -802,42 +897,9 @@ class SupabaseService {
       final hostRatePct = DynamicConfigService().hostRatePercentage;
       final hostDiamonds = (totalCost * (hostRatePct / 100.0)).round();
 
-      // ⚡ خصم atomic بطلب واحد (RPC) — بدون قراءة مسبقة وبدون قائمة انتظار
-      // فيصبح إرسال الهدية أسرع بكثير عند الكومبو/الضغط المطوّل
-      final spendRes = await _ds.spendUserCoins(senderId, totalCost);
-      final bool deducted;
-      if (spendRes != null) {
-        deducted = spendRes['ok'] == true;
-      } else {
-        // احتياطي: إذا لم يكن RPC مُطبَّقاً على السيرفر بعد
-        deducted = await _serializeCoinTx(() async {
-          final sUser = await _ds.getUser(senderId);
-          final currentCoins = sUser?.coins ?? 0;
-          if (currentCoins < totalCost) return false;
-          return _ds.updateUser(senderId, {
-            'coins': currentCoins - totalCost,
-            'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
-          });
-        });
-      }
-      if (!deducted) return false;
-
-      // عدّاد الهدايا المستلمة للمرسل في حالة الإرسال لنفسه
-      if (isSelfSend) {
-        unawaited(() async {
-          try {
-            final sUser = await _ds.getUser(senderId);
-            if (sUser == null) return;
-            await _ds.updateUser(senderId, {
-              'total_gifts_received':
-                  sUser.totalGiftsReceived + hostDiamonds,
-            });
-          } catch (_) {}
-        }());
-      }
-
-      // 1.5 ⚡ بث رسالة الهدية في الشات فوراً — قبل أي عمليات رصيد إضافية
-      // حتى تظهر لدى جميع المستخدمين في أقل من ثانية
+      // ⚡ بث رسالة الهدية في الشات فوراً — بالتوازي مع خصم الكوينز
+      //    وليس بعده، حتى لا تنتظر الرسالة رحلة RPC كاملة وتظهر
+      //    لدى الجميع (بما فيهم المرسل) في أقل زمن ممكن حتى مع الإرسال المتتابع.
       final animAsset = animationAsset ?? '';
       final staticCover = (defaultImage != null && defaultImage.isNotEmpty)
           ? defaultImage
@@ -848,10 +910,10 @@ class SupabaseService {
               ? animAsset
               : '');
       final effectiveIcon = animAsset.isNotEmpty ? animAsset : staticCover;
-
-      unawaited(_ds
+      final giftMsgId = const Uuid().v4();
+      final giftMsgFuture = _ds
           .sendMessage(MessageModel(
-            msgId: const Uuid().v4(),
+            msgId: giftMsgId,
             roomId: roomId,
             senderUid: senderId,
             senderName: senderName,
@@ -873,23 +935,67 @@ class SupabaseService {
             },
             timestamp: DateTime.now().millisecondsSinceEpoch,
           ))
-          .catchError((_) => false));
+          .catchError((_) => false);
+
+      onProgress?.call(0.1);
+      onProgress?.call(0.3);
+      // ⚡ خصم atomic بطلب واحد (RPC) — بدون قراءة مسبقة وبدون قائمة انتظار
+      // فيصبح إرسال الهدية أسرع بكثير عند الكومبو/الضغط المطوّل
+      final spendRes = await _ds.spendUserCoins(senderId, totalCost);
+      final bool deducted;
+      if (spendRes != null) {
+        deducted = spendRes['ok'] == true;
+      } else {
+        // احتياطي: إذا لم يكن RPC مُطبَّقاً على السيرفر بعد
+        deducted = await _serializeCoinTx(() async {
+          final sUser = await _ds.getUser(senderId);
+          final currentCoins = sUser?.coins ?? 0;
+          if (currentCoins < totalCost) return false;
+          return _ds.updateUser(senderId, {
+            'coins': currentCoins - totalCost,
+            'total_gifts_sent': (sUser?.totalGiftsSent ?? 0) + totalCost,
+          });
+        });
+      }
+      if (!deducted) {
+        // فشل الخصم: احذف رسالة الهدية التي بُثت استباقياً حتى لا
+        // يبقى أثر لهدية لم تُرسل فعلياً.
+        unawaited(giftMsgFuture.then((ok) {
+          if (ok == true) _ds.deleteRoomMessage(giftMsgId);
+        }).catchError((_) {}));
+        onProgress?.call(0.0);
+        return false;
+      }
+
+      onProgress?.call(0.5);
+      // عدّاد الهدايا المستلمة للمرسل في حالة الإرسال لنفسه
+      if (isSelfSend) {
+        unawaited(() async {
+          try {
+            final sUser = await _ds.getUser(senderId);
+            if (sUser == null) return;
+            await _ds.updateUser(senderId, {
+              'total_gifts_received':
+                  sUser.totalGiftsReceived + hostDiamonds,
+            });
+          } catch (_) {}
+        }());
+      }
 
       // 2. توزيع الماس وفق سياسة النظام المعتمدة (100% للمضيف كاملة، وعمولة وكيل المضيف تُضاف لرصيده دون أي خصم من المضيف)
       if (isSelfSend) {
         // الرصيد يُحدَّث داخل RPC/المسار الاحتياطي (عضو وكالة أو محفظة شخصية)
         await _ds.creditHostAgencyMemberDiamonds(senderId, hostDiamonds);
       } else {
-        final rUser = await _ds.getUser(receiverId);
-        if (rUser != null) {
-          await _ds.updateUser(receiverId, {
-            'total_gifts_received': rUser.totalGiftsReceived + hostDiamonds,
-          });
-        }
+        // ✅ عدّاد المستلم عبر RPC ذرّي — لا PATCH مباشر على
+        //    حساب مستخدم آخر (حارس الكتابة).
+        await _ds.bumpUserStat(
+            receiverId, 'total_gifts_received', hostDiamonds);
         // الرصيد يُحدَّث داخل RPC/المسار الاحتياطي (عضو وكالة أو محفظة شخصية)
         await _ds.creditHostAgencyMemberDiamonds(receiverId, hostDiamonds);
       }
 
+      onProgress?.call(0.7);
       // 3. تسجيل الهدية في السجل ورفع عدّادات الغرفة (الخلفية)
       unawaited(_ds
           .recordSentGift(
@@ -908,6 +1014,8 @@ class SupabaseService {
           .catchError((_) => false));
       unawaited(_ds.incrementRoomGifts(roomId, totalCost));
 
+      onProgress?.call(0.9);
+
       // 4. بث كل هدية لكل الغرف — نفس النص الظاهر في شات الغرفة
       final String giftBroadcastContent =
           '$senderName أرسل $giftName x$count إلى $receiverName';
@@ -918,6 +1026,7 @@ class SupabaseService {
             senderName: senderName,
             senderPhotoUrl: senderPhotoUrl,
             roomId: roomId,
+            roomName: roomName,
             content: giftBroadcastContent,
             giftIcon: effectiveIcon,
             type: totalCost >= 500 ? 'big_gift' : 'gift',
@@ -933,6 +1042,7 @@ class SupabaseService {
         'sender_name': senderName,
         'sender_photo_url': senderPhotoUrl,
         'room_id': roomId,
+        'room_name': roomName ?? '',
         'content': giftBroadcastContent,
         'gift_icon': effectiveIcon,
         'gift_name': giftName,
@@ -942,27 +1052,20 @@ class SupabaseService {
         'total_cost': totalCost,
       });
 
-      // 5. تقييم التارجت للوكيل وإشعار المستلم
+      // 5. تقييم التارجت للوكيل — بدون إشعار هدية في رسائل النظام
       unawaited(AgencyTargetEvaluator.evaluateHostTargets(receiverId)
           .catchError((_) {}));
-      if (!isSelfSend) {
-        unawaited(sendNotification(
-          uid: receiverId,
-          type: 'gift',
-          actorUid: senderId,
-          title: '🎁 هدية من $senderName',
-          body: '$senderName أرسل لك "$giftName" x$count ($totalCost)',
-          data: <String, dynamic>{
-            'sender_name': senderName,
-            'sender_photo': senderPhotoUrl,
-            'gift_id': giftId,
-            'gift_name': giftName,
-            'gift_image': effectiveIcon,
-            'value': value,
-            'count': count,
-            'room_id': roomId,
-          },
-        ).catchError((_) {}));
+
+      // ✅ المستويات: الإرسال يرفع «الثروة» للمرسل والاستلام يرفع
+      //    «الجواهر» للمستلم — عبر add_user_exp RPC ذرّي (يعمل لأي uid).
+      unawaited(LevelService()
+          .addExp(uid: senderId, type: 'wealth', amount: totalCost)
+          .catchError((_) => null));
+      if (receiverId != senderId) {
+        final gemsAmount = hostDiamonds > 0 ? hostDiamonds : totalCost;
+        unawaited(LevelService()
+            .addExp(uid: receiverId, type: 'gems', amount: gemsAmount)
+            .catchError((_) => null));
       }
 
       return true;
@@ -1284,22 +1387,51 @@ class SupabaseService {
       _ds.getRoomByHostUid(hostUid);
 
   Stream<List<RoomModel>> allRoomsStream() async* {
-    while (true) {
-      try {
-        final rooms = await _ds.getAllRooms();
-        yield rooms;
-      } catch (_) {}
-      await Future.delayed(const Duration(seconds: 4));
+    final rt = SupabaseRealtimeService.instance;
+    rt.subscribeTable(table: 'rooms', topic: 'rooms');
+    try {
+      while (true) {
+        try {
+          final rooms = await _ds.getAllRooms();
+          yield rooms;
+        } catch (_) {}
+        // مع Realtime: يصل التحديث لحظياً عند أي تغيير في rooms،
+        // والـ polling يصبح مجرد شبكة أمان بطيئة (12 ثانية).
+        await rt.waitForTableChange(
+          topic: 'rooms',
+          tables: const {'rooms'},
+          fallback: const Duration(seconds: 4),
+          safety: const Duration(seconds: 12),
+        );
+      }
+    } finally {
+      rt.unsubscribeTopic('rooms');
     }
   }
 
   Stream<RoomModel?> roomStream(String roomId) async* {
-    while (true) {
-      try {
-        final room = await _ds.getRoom(roomId);
-        yield room;
-      } catch (_) {}
-      await Future.delayed(const Duration(seconds: 2));
+    final rt = SupabaseRealtimeService.instance;
+    final topic = 'rooms:$roomId';
+    rt.subscribeTable(
+      table: 'rooms',
+      topic: topic,
+      filter: 'room_id=eq.$roomId',
+    );
+    try {
+      while (true) {
+        try {
+          final room = await _ds.getRoom(roomId);
+          yield room;
+        } catch (_) {}
+        await rt.waitForTableChange(
+          topic: topic,
+          tables: const {'rooms'},
+          fallback: const Duration(seconds: 2),
+          safety: const Duration(seconds: 10),
+        );
+      }
+    } finally {
+      rt.unsubscribeTopic(topic);
     }
   }
 
@@ -1345,22 +1477,122 @@ class SupabaseService {
       _ds.getRoomMembers(roomId);
 
   Stream<List<UserModel>> roomMembersStream(String roomId) async* {
-    while (true) {
+    final rt = SupabaseRealtimeService.instance;
+    final topic = 'room_members:$roomId';
+    rt.subscribeTable(
+      table: 'room_members',
+      topic: topic,
+      filter: 'room_id=eq.$roomId',
+    );
+    // ✅ تحديث تزايدي من أحداث Realtime: كل heartbeat حضور (30s) لكل
+    //    مستخدم كان يوقظ كل العملاء فيعيد كل واحد جلب القائمة كاملة —
+    //    N طلبات REST لكل موجة ping. الآن نطبّق سجل الحدث على الكاش
+    //    المحلي مباشرة، والجلب الكامل احتياط كل 30s فقط.
+    final pending = <RealtimeChange>[];
+    final changesSub = rt.changes.listen((c) {
+      if (c.table == 'room_members') pending.add(c);
+    });
+    final byUid = <String, UserModel>{};
+    try {
+      // جلب أولي كامل
       try {
         final members = await _ds.getRoomMembers(roomId);
+        byUid
+          ..clear()
+          ..addEntries(members.map((m) => MapEntry(m.uid, m)));
         yield members;
       } catch (_) {}
-      await Future.delayed(const Duration(seconds: 3));
+
+      var lastFullFetch = DateTime.now();
+      while (true) {
+        // طبّق كل تغييرات Realtime المتراكمة على الكاش
+        if (pending.isNotEmpty) {
+          var needsFull = false;
+          for (final c in pending) {
+            final rec = c.record;
+            final uid = rec['uid']?.toString() ?? '';
+            if (c.type == 'DELETE' || uid.isEmpty) {
+              needsFull = true;
+              continue;
+            }
+            try {
+              final m = UserModel.fromMap(Map<String, dynamic>.from(rec));
+              if (m.uid.isNotEmpty) byUid[m.uid] = m;
+            } catch (_) {
+              needsFull = true;
+            }
+          }
+          pending.clear();
+          if (needsFull) {
+            // سجل DELETE/تالف — نجلب القائمة كاملة للاتساق
+            try {
+              final members = await _ds.getRoomMembers(roomId);
+              byUid
+                ..clear()
+                ..addEntries(members.map((m) => MapEntry(m.uid, m)));
+              lastFullFetch = DateTime.now();
+              yield members;
+              continue;
+            } catch (_) {}
+          }
+          yield byUid.values.toList();
+          continue;
+        }
+
+        // انتظر حدثاً واحداً أو انتهاء المهلة ثم أعد الفحص.
+        // قناة ميتة → دورة قصيرة 5s (سلوك الـ polling القديم).
+        // قناة حية → أحداث فورية + مزامنة كاملة كل 30s كأمان.
+        final channelLive = rt.isTopicLive(topic);
+        try {
+          await rt.changes
+              .firstWhere((c) => c.table == 'room_members')
+              .timeout(channelLive
+                  ? const Duration(seconds: 30)
+                  : const Duration(seconds: 5));
+        } catch (_) {}
+
+        if (!channelLive ||
+            DateTime.now().difference(lastFullFetch) >
+                const Duration(seconds: 30)) {
+          try {
+            final members = await _ds.getRoomMembers(roomId);
+            byUid
+              ..clear()
+              ..addEntries(members.map((m) => MapEntry(m.uid, m)));
+            lastFullFetch = DateTime.now();
+            yield members;
+          } catch (_) {}
+        }
+      }
+    } finally {
+      changesSub.cancel();
+      rt.unsubscribeTopic(topic);
     }
   }
 
   Stream<Map<int, Map<String, dynamic>>> seatsStream(String roomId) async* {
-    while (true) {
-      try {
-        final seats = await _ds.getSeats(roomId);
-        if (seats != null) yield seats;
-      } catch (_) {}
-      await Future.delayed(const Duration(seconds: 1));
+    final rt = SupabaseRealtimeService.instance;
+    final topic = 'room_seats:$roomId';
+    rt.subscribeTable(
+      table: 'room_seats',
+      topic: topic,
+      filter: 'room_id=eq.$roomId',
+    );
+    try {
+      while (true) {
+        try {
+          final seats = await _ds.getSeats(roomId);
+          if (seats != null) yield seats;
+        } catch (_) {}
+        await rt.waitForTableChange(
+          topic: topic,
+          tables: const {'room_seats'},
+          fallback: const Duration(seconds: 1),
+          safety: const Duration(seconds: 4),
+        );
+      }
+    } finally {
+      rt.unsubscribeTopic(topic);
     }
   }
 
@@ -1442,21 +1674,42 @@ class SupabaseService {
   Stream<List<MessageModel>> messagesStream(String roomId,
       {String? since}) async* {
     var sinceMs = int.tryParse(since ?? '');
-    while (true) {
-      try {
-        final msgs = await _ds.getRoomMessages(roomId, sinceMs: sinceMs);
-        if (msgs.isNotEmpty) {
-          var newest = sinceMs ?? 0;
-          for (final m in msgs) {
-            if (m.timestamp > newest) newest = m.timestamp;
+    // ✅ Fallback: إذا لم يُمرّر since (مثلاً فشل وقت السيرفر)، افتراضياً آخر ساعة
+    // هذا يمنع تحميل رسائل قديمة جداً عند إعادة الدخول
+    sinceMs ??= DateTime.now().millisecondsSinceEpoch - 3600000; // 1 ساعة
+    
+    final rt = SupabaseRealtimeService.instance;
+    final topic = 'room_messages:$roomId';
+    // Realtime يدفع الرسائل الجديدة فوراً لشاشة الغرفة (insertRealtimeRoomMessage)
+    // فيكفي هنا شبكة أمان بطيئة بدل طلب REST كل 150ms.
+    rt.subscribeRoom(roomId);
+    try {
+      while (true) {
+        try {
+          final msgs = await _ds.getRoomMessages(roomId, sinceMs: sinceMs);
+          if (msgs.isNotEmpty) {
+            var newest = sinceMs ?? 0;
+            for (final m in msgs) {
+              if (m.timestamp > newest) newest = m.timestamp;
+            }
+            // تداخل 2 ثانية: رسائل قد تُلتزَم بترتيب مختلف عن ترتيب
+            // created_at (طوابع معاملات Postgres) خاصة في دفعات الإرسال
+            // الكبيرة — بدون تداخل كافٍ قد تُفوَّت رسائل نهائياً.
+            if (newest > (sinceMs ?? 0)) sinceMs = newest - 2000;
+          } else {
+            // sinceMs already has a default, no need for fallback
           }
-          if (newest > (sinceMs ?? 0)) sinceMs = newest - 1;
-        } else if (sinceMs == null) {
-          sinceMs = DateTime.now().millisecondsSinceEpoch - 5000;
-        }
-        yield msgs;
-      } catch (_) {}
-      await Future.delayed(const Duration(milliseconds: 150));
+          yield msgs;
+        } catch (_) {}
+        await rt.waitForTableChange(
+          topic: topic,
+          tables: const {'room_messages'},
+          fallback: const Duration(milliseconds: 500),
+          safety: const Duration(milliseconds: 2500),
+        );
+      }
+    } finally {
+      rt.unsubscribeTopic(topic);
     }
   }
 
@@ -1465,48 +1718,75 @@ class SupabaseService {
     DateTime? newest;
     bool firstLoad = true;
     int failures = 0;
-    while (true) {
-      var ok = false;
-      try {
-        final batch = await _ds.getSentGifts(
-          roomId,
-          limit: firstLoad ? 500 : 100,
-          after: firstLoad || newest == null
-              ? null
-              : newest.subtract(const Duration(seconds: 2)),
-        );
-        if (firstLoad) byId.clear();
-        for (final g in batch) {
-          byId[g.id] = g;
-          if (newest == null || g.timestamp.isAfter(newest)) {
-            newest = g.timestamp;
+    final rt = SupabaseRealtimeService.instance;
+    final topic = 'sent_gifts:$roomId';
+    rt.subscribeTable(
+      table: 'sent_gifts',
+      topic: topic,
+      filter: 'room_id=eq.$roomId',
+    );
+    try {
+      while (true) {
+        var ok = false;
+        try {
+          final batch = await _ds.getSentGifts(
+            roomId,
+            limit: firstLoad ? 500 : 100,
+            after: firstLoad || newest == null
+                ? null
+                : newest.subtract(const Duration(seconds: 2)),
+          );
+          if (firstLoad) byId.clear();
+          for (final g in batch) {
+            byId[g.id] = g;
+            if (newest == null || g.timestamp.isAfter(newest)) {
+              newest = g.timestamp;
+            }
           }
+          if (byId.length > 500) {
+            final sorted = byId.values.toList()
+              ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+            byId
+              ..clear()
+              ..addEntries(sorted.take(500).map((g) => MapEntry(g.id, g)));
+          }
+          firstLoad = false;
+          final merged = byId.values.toList()
+            ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          yield merged;
+          ok = true;
+        } catch (_) {}
+        failures = ok ? 0 : (failures + 1 > 3 ? 3 : failures + 1);
+        if (ok) {
+          // مع Realtime يصبح الجلب البطيء شبكة أمان فقط (2.5 ثانية)
+          await rt.waitForTableChange(
+            topic: topic,
+            tables: const {'sent_gifts'},
+            fallback: const Duration(milliseconds: 700),
+            safety: const Duration(milliseconds: 2500),
+          );
+        } else {
+          await Future.delayed(
+            Duration(milliseconds: const [700, 1500, 3000, 5000][failures]),
+          );
         }
-        if (byId.length > 500) {
-          final sorted = byId.values.toList()
-            ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-          byId
-            ..clear()
-            ..addEntries(sorted.take(500).map((g) => MapEntry(g.id, g)));
-        }
-        firstLoad = false;
-        final merged = byId.values.toList()
-          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-        yield merged;
-        ok = true;
-      } catch (_) {}
-      failures = ok ? 0 : (failures + 1 > 3 ? 3 : failures + 1);
-      final delayMs = ok ? 700 : const [700, 1500, 3000, 5000][failures];
-      await Future.delayed(Duration(milliseconds: delayMs));
+      }
+    } finally {
+      rt.unsubscribeTopic(topic);
     }
   }
 
   Stream<List<gm.GiftModel>> giftsStream() async* {
     int failures = 0;
+    bool firstEmission = true;
     while (true) {
       var ok = false;
       try {
-        final gifts = await _ds.getGifts(allowCache: false);
+        // ✅ أول قراءة من الشبكة (بدون كاش) حتى يظهر سعر الهدية في
+        //    الصندوق مطابقاً لقيمة لوحة التحكم فور فتح الغرفة، ثم نكتفي
+        //    بالكاش في الدورات التالية لتقليل الضغط على الشبكة.
+        final gifts = await _ds.getGifts(allowCache: !firstEmission);
+        firstEmission = false;
         yield gifts;
         ok = true;
       } catch (_) {}
@@ -1522,7 +1802,7 @@ class SupabaseService {
     while (true) {
       var ok = false;
       try {
-        final cats = await _ds.getGiftCategories(allowCache: false);
+        final cats = await _ds.getGiftCategories();
         yield cats;
         ok = true;
       } catch (_) {}
@@ -1777,7 +2057,55 @@ class SupabaseService {
   }
 
   Stream<List<Map<String, dynamic>>> entrancesStream(String roomId) async* {
-    yield [];
+    if (roomId.isEmpty) return;
+    final rt = SupabaseRealtimeService.instance;
+    final topic = 'entrances:$roomId';
+    rt.subscribeTable(
+      table: 'room_messages',
+      topic: topic,
+      filter: "room_id=eq.$roomId,type=eq.entrance",
+      events: const ['INSERT'],
+    );
+    try {
+      // Initial fetch for any entrance messages since joining
+      final msgs = await _ds.getRoomMessages(roomId, limit: 50);
+      final entranceMsgs = msgs.where((m) => m.type == 'entrance').toList();
+      if (entranceMsgs.isNotEmpty) {
+        yield entranceMsgs.map((m) => {
+          'uid': m.senderUid,
+          'name': m.senderName,
+          'photoUrl': m.senderPhotoUrl,
+          'entranceItem': m.imageUrl,
+          'carItem': m.giftPayload?['carItem'],
+          'timestamp': m.timestamp,
+          'msgId': m.msgId,
+        }).toList();
+      }
+      while (true) {
+        await rt.waitForTableChange(
+          topic: topic,
+          tables: const {'room_messages'},
+          fallback: const Duration(milliseconds: 500),
+          safety: const Duration(seconds: 8),
+        );
+        // Fetch new entrance messages
+        final newMsgs = await _ds.getRoomMessages(roomId, limit: 20);
+        final newEntrances = newMsgs.where((m) => m.type == 'entrance').toList();
+        if (newEntrances.isNotEmpty) {
+          yield newEntrances.map((m) => {
+            'uid': m.senderUid,
+            'name': m.senderName,
+            'photoUrl': m.senderPhotoUrl,
+            'entranceItem': m.imageUrl,
+            'carItem': m.giftPayload?['carItem'],
+            'timestamp': m.timestamp,
+            'msgId': m.msgId,
+          }).toList();
+        }
+      }
+    } finally {
+      rt.unsubscribeTopic(topic);
+    }
   }
 
   Future<void> logEntrance(
@@ -1792,7 +2120,10 @@ class SupabaseService {
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
       await _ds.sendMessage(MessageModel(
-        msgId: 'entrance_${uid}_$ts',
+        // ✅ msg_id عمود UUID في room_messages — أي قيمة غير UUID
+        //    (مثل 'entrance_...') كان يرفضها PostgREST 400 فلا تُسجَّل
+        //    رسالة الدخول أبداً ولا تظهر مؤثرات الدخول للآخرين.
+        msgId: const Uuid().v4(),
         roomId: roomId,
         senderUid: uid,
         senderName: name,
@@ -1800,6 +2131,8 @@ class SupabaseService {
         text: 'joined',
         type: 'entrance',
         timestamp: ts,
+        imageUrl: entranceItem?.isNotEmpty == true ? entranceItem : null,
+        giftPayload: carItem?.isNotEmpty == true ? {'carItem': carItem} : null,
       ));
     } catch (_) {}
   }
@@ -1814,7 +2147,7 @@ class SupabaseService {
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
       await _ds.sendMessage(MessageModel(
-        msgId: 'exit_${uid ?? name}_$ts',
+        msgId: const Uuid().v4(),
         roomId: roomId,
         senderUid: uid ?? 'system',
         senderName: name,
@@ -2481,6 +2814,12 @@ class SupabaseService {
           yield list
               .map((e) => NotificationModel.fromMap(
                   Map<String, dynamic>.from(e as Map)))
+              // ✅ لا تظهر إشعارات الهدايا في رسائل النظام —
+              //    المستخدم لا يريد رسالة «X أرسل لك هدية» هناك.
+              .where((n) =>
+                  n.type != 'gift' &&
+                  n.type != 'cp_gift' &&
+                  n.type != 'gift_from_admin')
               .toList();
         }
       } catch (_) {}
@@ -2488,8 +2827,96 @@ class SupabaseService {
     }
   }
 
+  /// لقطات الهدايا للفترات الثلاث (يومي/أسبوعي/شهري) — تُجلب مرة واحدة
+  /// فقط وتُشتق منها كل تصنيفات الترتيب (ثروة/سحر/غرف)، بدل إطلاق
+  /// 9 طلبات متطابقة تقريباً لكل تصنيف على حدة.
+  Future<Map<String, List<gm.SentGiftModel>>> getRankingGiftSnapshots(
+      {List<String>? timeframes}) async {
+    final now = DateTime.now().toUtc();
+    final allCutoffs = <String, DateTime>{
+      'daily': now.subtract(const Duration(hours: 24)),
+      'weekly': now.subtract(const Duration(days: 7)),
+      'monthly': now.subtract(const Duration(days: 30)),
+    };
+    final cutoffs = timeframes == null
+        ? allCutoffs
+        : Map.fromEntries(
+            allCutoffs.entries.where((e) => timeframes.contains(e.key)));
+
+    if (cutoffs.isEmpty) return <String, List<gm.SentGiftModel>>{};
+
+    // ✅ جلب مُرقّم (paged) — نتجاوز سقف PostgREST (1000 صف/طلب) الذي كان
+    //    يُسقط معظم المرسلين من تصنيفات الثروة/السحر، ونقيّد بالحد الأدنى
+    //    للفترة (شهري = 30 يوماً) لتقليل حجم البيانات.
+    final earliest = cutoffs.values.reduce((a, b) => a.isBefore(b) ? a : b);
+    // Initialise all keys BEFORE fetching so a failure can never produce an
+    // empty map (the old log showed snapshots=0 and hid the real cause).
+    final result = <String, List<gm.SentGiftModel>>{
+      for (final k in cutoffs.keys) k: <gm.SentGiftModel>[],
+    };
+    try {
+      final all = await _ds.getSentGiftsPaged(after: earliest);
+      for (final entry in cutoffs.entries) {
+        result[entry.key] = all
+            .where((g) => !g.timestamp.toUtc().isBefore(entry.value))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[getRankingGiftSnapshots] fetch error: $e');
+    }
+    debugPrint('[getRankingGiftSnapshots] counts: '
+        '${result.entries.map((e) => "${e.key}=${e.value.length}").join(", ")}');
+    return result;
+  }
+
+
+  /// Same data as [getRankingGiftSnapshots], but emits each period as soon
+  /// as its own fetch finishes. The daily query (24h) is tiny, so the UI can
+  /// render it immediately instead of waiting for the heavy 30-day query.
+  /// All three fetches start in parallel.
+  Stream<MapEntry<String, List<gm.SentGiftModel>>>
+      rankingGiftSnapshotsStream({List<String>? timeframes}) {
+    final controller = StreamController<
+        MapEntry<String, List<gm.SentGiftModel>>>();
+    final now = DateTime.now().toUtc();
+    final allCutoffs = <String, DateTime>{
+      'daily': now.subtract(const Duration(hours: 24)),
+      'weekly': now.subtract(const Duration(days: 7)),
+      'monthly': now.subtract(const Duration(days: 30)),
+    };
+    final cutoffs = timeframes == null
+        ? allCutoffs
+        : Map.fromEntries(
+            allCutoffs.entries.where((e) => timeframes.contains(e.key)));
+
+    final pending = <Future<void>>[];
+    for (final entry in cutoffs.entries) {
+      final period = entry.key;
+      final cutoff = entry.value;
+      pending.add(_ds.getSentGiftsPaged(after: cutoff).then((gifts) {
+        final filtered = gifts
+            .where((g) => !g.timestamp.toUtc().isBefore(cutoff))
+            .toList();
+        debugPrint('[rankingSnapshots] $period=${filtered.length}');
+        if (!controller.isClosed) {
+          controller.add(MapEntry(period, filtered));
+        }
+      }).catchError((Object e) {
+        debugPrint('[rankingSnapshots] $period error: $e');
+        if (!controller.isClosed) {
+          controller.add(MapEntry(period, <gm.SentGiftModel>[]));
+        }
+      }));
+    }
+    Future.wait(pending).whenComplete(() {
+      if (!controller.isClosed) controller.close();
+    });
+    return controller.stream;
+  }
   Future<List<Map<String, dynamic>>> getGlobalRankings(
-      {required bool isWealth, required String timeframe}) async {
+      {required bool isWealth,
+      required String timeframe,
+      List<gm.SentGiftModel>? gifts}) async {
     try {
       final now = DateTime.now().toUtc();
       DateTime? cutoff;
@@ -2502,7 +2929,9 @@ class SupabaseService {
       }
 
       // Fetch gifts filtered by timeframe directly from Supabase
-      final filtered = await _ds.getSentGifts('', limit: 3000, after: cutoff);
+      // (gifts: لقطة جاهزة من getRankingGiftSnapshots عند توفرها)
+      final filtered = gifts ??
+          await _ds.getSentGiftsPaged(after: cutoff);
 
       final Map<String, int> totals = {};
       final Map<String, Map<String, dynamic>> userDetails = {};
@@ -2532,29 +2961,33 @@ class SupabaseService {
         try {
           final usersRes = await _sb
               .from('users')
-              .select('id, custom_id, name, avatar, photo_url')
+              .select('id, custom_id, name, avatar, photo_url, level, wealth_level, gems_level')
               .inFilter('id', topUids);
-          if (usersRes is List) {
-            for (final u in usersRes) {
-              final uMap = Map<String, dynamic>.from(u as Map);
-              final uId = uMap['id']?.toString() ?? '';
-              if (uId.isNotEmpty) {
-                final cId = (uMap['custom_id'] ?? '').toString();
-                final uName = (uMap['name'] ?? '').toString();
-                final uPhoto =
-                    (uMap['photo_url'] ?? uMap['avatar'] ?? '').toString();
-                if (userDetails.containsKey(uId)) {
-                  userDetails[uId]!['custom_id'] = cId;
-                  if (uName.isNotEmpty) userDetails[uId]!['name'] = uName;
-                  if (uPhoto.isNotEmpty) userDetails[uId]!['photoUrl'] = uPhoto;
-                } else {
-                  userDetails[uId] = {
-                    'id': uId,
-                    'custom_id': cId,
-                    'name': uName,
-                    'photoUrl': uPhoto,
-                  };
-                }
+          for (final u in usersRes) {
+            final uMap = Map<String, dynamic>.from(u as Map);
+            final uId = uMap['id']?.toString() ?? '';
+            if (uId.isNotEmpty) {
+              final cId = (uMap['custom_id'] ?? '').toString();
+              final uName = (uMap['name'] ?? '').toString();
+              final uPhoto =
+                  (uMap['photo_url'] ?? uMap['avatar'] ?? '').toString();
+              if (userDetails.containsKey(uId)) {
+                userDetails[uId]!['custom_id'] = cId;
+                if (uName.isNotEmpty) userDetails[uId]!['name'] = uName;
+                if (uPhoto.isNotEmpty) userDetails[uId]!['photoUrl'] = uPhoto;
+                userDetails[uId]!['level'] = uMap['level'];
+                userDetails[uId]!['wealth_level'] = uMap['wealth_level'];
+                userDetails[uId]!['gems_level'] = uMap['gems_level'];
+              } else {
+                userDetails[uId] = {
+                  'id': uId,
+                  'custom_id': cId,
+                  'name': uName,
+                  'photoUrl': uPhoto,
+                  'level': uMap['level'],
+                  'wealth_level': uMap['wealth_level'],
+                  'gems_level': uMap['gems_level'],
+                };
               }
             }
           }
@@ -2565,6 +2998,14 @@ class SupabaseService {
 
       final result = sortedKeys.map((uid) {
         final cId = userDetails[uid]?['custom_id']?.toString() ?? '';
+        // ✅ المستوى حسب نوع الترتيب (ثروة/سحر) مع الرجوع للحقل العام.
+        final lvl = isWealth
+            ? ((userDetails[uid]?['wealth_level'] as num?)?.toInt() ??
+                (userDetails[uid]?['level'] as num?)?.toInt() ??
+                1)
+            : ((userDetails[uid]?['gems_level'] as num?)?.toInt() ??
+                (userDetails[uid]?['level'] as num?)?.toInt() ??
+                1);
         return {
           'id': uid,
           'uid': uid,
@@ -2574,6 +3015,9 @@ class SupabaseService {
           'name': userDetails[uid]?['name'] ?? 'مستخدم',
           'photoUrl': userDetails[uid]?['photoUrl'] ?? '',
           'photo_url': userDetails[uid]?['photoUrl'] ?? '',
+          'level': lvl,
+          'wealth_level': (userDetails[uid]?['wealth_level'] as num?)?.toInt() ?? lvl,
+          'gems_level': (userDetails[uid]?['gems_level'] as num?)?.toInt() ?? lvl,
           'amount': totals[uid] ?? 0,
           'points': totals[uid] ?? 0,
           'score': totals[uid] ?? 0,
@@ -2582,65 +3026,98 @@ class SupabaseService {
         };
       }).toList();
 
-      // إذا كانت النتائج أقل من 3، نجلب من جدول users مع الحفاظ على custom_id
-      if (result.length < 3) {
-        try {
-          final usersQuery = isWealth
-              ? await _sb
-                  .from('users')
-                  .select(
-                      'id, custom_id, name, avatar, photo_url, total_gifts_sent, wealth_exp')
-                  .order('total_gifts_sent', ascending: false)
-                  .limit(10)
-              : await _sb
-                  .from('users')
-                  .select(
-                      'id, custom_id, name, avatar, photo_url, total_gifts_received, charm')
-                  .order('total_gifts_received', ascending: false)
-                  .limit(10);
-          final existingIds = result.map((r) => r['id'].toString()).toSet();
-          for (final u in (usersQuery as List)) {
-            final uId = (u['id'] ?? '').toString();
-            if (uId.isEmpty || existingIds.contains(uId)) continue;
-            final pts = isWealth
-                ? ((u['total_gifts_sent'] as num?)?.toInt() ??
-                    (u['wealth_exp'] as num?)?.toInt() ??
-                    0)
-                : ((u['total_gifts_received'] as num?)?.toInt() ??
-                    (u['charm'] as num?)?.toInt() ??
-                    0);
-            if (pts > 0) {
-              final photo = (u['photo_url'] ?? u['avatar'] ?? '').toString();
-              final cId = (u['custom_id'] ?? '').toString();
-              result.add({
-                'id': uId,
-                'uid': uId,
-                'user_id': uId,
-                'custom_id': cId,
-                'display_id': cId,
-                'name': (u['name'] ?? 'مستخدم').toString(),
-                'photoUrl': photo,
-                'photo_url': photo,
-                'amount': pts,
-                'points': pts,
-                'score': pts,
-                'total_gifts_sent': isWealth ? pts : 0,
-                'total_gifts_received': !isWealth ? pts : 0,
-              });
-              existingIds.add(uId);
-            }
-          }
-        } catch (_) {}
-      }
-
+      // ✅ لا نضيف مستخدمين من جدول users هنا: تلك إجماليات عمر الحساب
+      //    فتظهر نفس الأسماء في اليومي/الأسبوعي/الشهري. الترتيب يجب أن يحتوي
+      //    فقط على من أرسل/استقبل هدايا داخل نافذة الفترة المطلوبة.
       return result;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[getGlobalRankings] error: $e');
       return [];
     }
   }
 
+  /// أعلى المراكز في الترتيب اليومي (الثروة/السحر/الغرف) مباشرةً من **نفس
+  /// الـ Views التي تقرأ منها شاشة الترتيب** (`daily_wealth_ranking`,
+  /// `daily_charm_ranking`, `daily_rooms_ranking`) — فتتطابق بطاقات
+  /// الاستكشاف مع شاشة الترتيب في البيانات والصور تماماً، بدل إعادة
+  /// الحساب من جدول الهدايا (وهو ما كان يُرجع صوراً/نتائج مختلفة).
+  Future<Map<String, List<Map<String, dynamic>>>>
+      getDailyTopRankingsFromViews() async {
+    final out = <String, List<Map<String, dynamic>>>{
+      'wealth': <Map<String, dynamic>>[],
+      'charm': <Map<String, dynamic>>[],
+      'rooms': <Map<String, dynamic>>[],
+    };
+    try {
+      final results = await Future.wait<dynamic>([
+        _sb
+            .from('daily_wealth_ranking')
+            .select('*')
+            .limit(3)
+            .catchError((_) => []),
+        _sb
+            .from('daily_charm_ranking')
+            .select('*')
+            .limit(3)
+            .catchError((_) => []),
+        _sb
+            .from('daily_rooms_ranking')
+            .select('*')
+            .limit(3)
+            .catchError((_) => []),
+      ]);
+
+      List<Map<String, dynamic>> norm(dynamic rows) {
+        return (rows as List? ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .where((e) {
+          final p = (e['points'] as num?)?.toInt() ??
+              (e['amount'] as num?)?.toInt() ??
+              (e['total_gifts'] as num?)?.toInt() ??
+              0;
+          return p > 0;
+        }).map((e) {
+          // قد يعود اسم العمود مختلفاً بين الـ Views (`photo_url`,
+          // `photoUrl`, `avatar`, `room_photo_url` …) — نوحّدها كلها
+          // إلى `photoUrl` حتى تجدها البطاقات في الاستكشاف/الترتيب.
+          String pick(List<String> keys) {
+            for (final k in keys) {
+              final v = (e[k] ?? '').toString().trim();
+              if (v.isNotEmpty && v != 'null') return v;
+            }
+            return '';
+          }
+
+          final photo = pick(const [
+            'photoUrl',
+            'photo_url',
+            'avatar',
+            'avatar_url',
+            'room_photo_url',
+            'room_photo',
+            'cover_image',
+            'image',
+            'bg_image',
+          ]);
+          return <String, dynamic>{
+            ...e,
+            'photoUrl': photo,
+            'photo_url': photo,
+          };
+        }).toList();
+      }
+
+      out['wealth'] = norm(results[0]);
+      out['charm'] = norm(results[1]);
+      out['rooms'] = norm(results[2]);
+    } catch (e) {
+      debugPrint('[getDailyTopRankingsFromViews] error: $e');
+    }
+    return out;
+  }
+
   Future<List<Map<String, dynamic>>> getRoomGlobalRanking(
-      {required String timeframe}) async {
+      {required String timeframe, List<gm.SentGiftModel>? gifts}) async {
     try {
       final now = DateTime.now().toUtc();
       DateTime? cutoff;
@@ -2652,7 +3129,8 @@ class SupabaseService {
         cutoff = now.subtract(const Duration(days: 30));
       }
 
-      final filtered = await _ds.getSentGifts('', limit: 3000, after: cutoff);
+      final filtered = gifts ??
+          await _ds.getSentGiftsPaged(after: cutoff);
 
       final Map<String, int> roomTotals = {};
       for (final g in filtered) {
@@ -2663,9 +3141,19 @@ class SupabaseService {
       }
       final sortedKeys = roomTotals.keys.toList()
         ..sort((a, b) => roomTotals[b]!.compareTo(roomTotals[a]!));
+      final topRoomIds = sortedKeys.take(50).toList();
+
+      // ✅ طلب واحد لكل الغرف — getRoom المتكرر كان يطلق
+      //    RPC كوينز شهرية ثقيل لكل غرفة (50 استعلاماً متزامناً
+      //    يخنق السيرفر ويعلّق الترتيب لدقائق)
+      final roomRows = await _ds.getRoomsByIds(topRoomIds);
+      final roomById = {
+        for (final r in roomRows) r.roomId: r,
+      };
+
       final List<Map<String, dynamic>> result = [];
-      for (final rid in sortedKeys.take(50)) {
-        final room = await _ds.getRoom(rid);
+      for (final rid in topRoomIds) {
+        final room = roomById[rid];
         final amt = roomTotals[rid] ?? 0;
         final photo = (room?.roomPhotoUrl.isNotEmpty == true)
             ? room!.roomPhotoUrl
@@ -2689,48 +3177,11 @@ class SupabaseService {
         });
       }
 
-      // إذا كانت قائمة الغرف أقل من 3، نجلب كـ fallback من جدول rooms
-      if (result.length < 3) {
-        try {
-          final topRooms = await _sb
-              .from('rooms')
-              .select('*')
-              .order('total_gifts', ascending: false)
-              .limit(10);
-          final existingRids =
-              result.map((r) => r['room_id'].toString()).toSet();
-          for (final r in (topRooms as List)) {
-            final rid = (r['room_id'] ?? r['id'] ?? '').toString();
-            if (rid.isEmpty || existingRids.contains(rid)) continue;
-            final amt = (r['total_gifts'] as num?)?.toInt() ??
-                (r['hot_value'] as num?)?.toInt() ??
-                0;
-            final photo =
-                (r['room_photo_url'] ?? r['bg_image'] ?? '').toString();
-            result.add({
-              'id': rid,
-              'uid': rid,
-              'roomId': rid,
-              'room_id': rid,
-              'name': (r['name'] ?? 'غرفة #$rid').toString(),
-              'photoUrl': photo,
-              'photo_url': photo,
-              'room_photo_url': photo,
-              'host_name': (r['host_name'] ?? '').toString(),
-              'password': (r['password'] ?? '').toString(),
-              'amount': amt,
-              'points': amt,
-              'total_value': amt,
-              'total_gifts': amt,
-              'hot_value': amt,
-            });
-            existingRids.add(rid);
-          }
-        } catch (_) {}
-      }
-
+      // ✅ لا نضيف غرفاً من جدول rooms: إجماليات عمر الغرفة ستظهر
+      //    متطابقة في كل الفترات. الغرف هنا فقط من أرسلوا هدايا في الفترة.
       return result;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[getRoomGlobalRanking] error: $e');
       return [];
     }
   }
@@ -2740,6 +3191,14 @@ class SupabaseService {
     required bool isWealth,
     required String timeframe,
   }) async {
+    // ✅ التحقق من الكاش أولاً
+    final cacheKey = '${roomId}_${isWealth ? 'wealth' : 'magic'}_$timeframe';
+    final cached = _roomRankingCache[cacheKey];
+    if (cached != null && cached.isValid) {
+      debugPrint('[getRoomRankings] returning cached data for $cacheKey');
+      return cached.data;
+    }
+
     try {
       final now = DateTime.now().toUtc();
       DateTime? cutoff;
@@ -2750,8 +3209,9 @@ class SupabaseService {
         // على مدار 7 أيام
         cutoff = now.subtract(const Duration(days: 7));
       } else if (timeframe == 'monthly') {
-        // على مدار الشهر الحالي
-        cutoff = DateTime.utc(now.year, now.month, 1);
+        // ✅ نافذة متدحرجة 30 يوماً (وليست الشهر الميلادي) — تُصفَّر تلقائياً
+        //    كل 30 يوماً وتتوافق مع الترتيب العام.
+        cutoff = now.subtract(const Duration(days: 30));
       }
 
       // احترام وقت تصفير كاريزما الغرفة: نستبعد الهدايا الأقدم من التصفير
@@ -2759,8 +3219,11 @@ class SupabaseService {
       DateTime? clearedAt;
       if (roomId.isNotEmpty) {
         try {
+          // ✅ نقرأ `select=*` بدل عمود `charisma_cleared_at` المفرد —
+          //    لأن العمود غير موجود بعد في بعض المشاريع فيُرجع الطلب 400
+          //    ويُسقط حساب الحد الأدنى. نقرأه إن وُجد فقط.
           final roomRes = await SafeHttp.get(
-            Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId&select=charisma_cleared_at&limit=1'),
+            Uri.parse('$_baseUrl/rest/v1/rooms?room_id=eq.$roomId&select=*&limit=1'),
             headers: _headers,
           );
           if (roomRes.statusCode == 200) {
@@ -2780,15 +3243,20 @@ class SupabaseService {
           : cutoff;
 
       final allGifts =
-          await _ds.getSentGifts(roomId, limit: 1000, after: effectiveCutoff);
+          await _ds.getSentGiftsPaged(after: effectiveCutoff, roomId: roomId);
       if (allGifts.isEmpty) return [];
+
+      // ✅ تأكيد إضافي: ترتيب الغرفة يضم فقط مستخدمين أرسلوا هدايا
+      //    داخل هذه الغرفة بالضبط — لا هدايا من غرف أخرى ولا ترتيب عام.
+      final roomGifts = allGifts.where((g) => g.roomId == roomId).toList();
+      if (roomGifts.isEmpty) return [];
 
       // تصفير القائمة عند انتهاء الفترة أو تصفير كاريزما الغرفة
       final filtered = effectiveCutoff != null
-          ? allGifts
+          ? roomGifts
               .where((g) => g.timestamp.isAfter(effectiveCutoff))
               .toList()
-          : allGifts;
+          : roomGifts;
 
       if (filtered.isEmpty) return [];
 
@@ -2809,7 +3277,8 @@ class SupabaseService {
 
       final sortedKeys = totals.keys.toList()
         ..sort((a, b) => totals[b]!.compareTo(totals[a]!));
-      final topKeys = sortedKeys.take(20).toList();
+      // ✅ أعلى 10 مرسلين/مستلمين داخل هذه الغرفة فقط.
+      final topKeys = sortedKeys.take(10).toList();
 
       // Fetch user profile info (photo_url, avatar, custom_id, level) for the ranked users
       final Map<String, Map<String, dynamic>> enrichedUsers = {};
@@ -2817,7 +3286,7 @@ class SupabaseService {
         try {
           final inFilter = topKeys.map((k) => '"$k"').join(',');
           final uUrl = Uri.parse(
-              '$_baseUrl/rest/v1/users?or=(uid.in.($inFilter),id.in.($inFilter))&select=uid,id,name,custom_id,photo_url,avatar,level');
+              '$_baseUrl/rest/v1/users?or=(uid.in.($inFilter),id.in.($inFilter))&select=uid,id,name,custom_id,photo_url,avatar,level,wealth_level,gems_level');
           final uRes = await SafeHttp.get(uUrl, headers: _headers);
           if (uRes.statusCode == 200) {
             final List uList = jsonDecode(uRes.body);
@@ -2825,15 +3294,17 @@ class SupabaseService {
               final m = Map<String, dynamic>.from(u as Map);
               final uidVal = m['uid']?.toString();
               final idVal = m['id']?.toString();
-              if (uidVal != null && uidVal.isNotEmpty)
+              if (uidVal != null && uidVal.isNotEmpty) {
                 enrichedUsers[uidVal] = m;
+              }
               if (idVal != null && idVal.isNotEmpty) enrichedUsers[idVal] = m;
             }
           }
         } catch (_) {}
       }
 
-      return topKeys.map((uid) {
+      // ✅ تخزين في الكاش
+      final result = topKeys.map((uid) {
         final local = userDetails[uid] ?? {};
         final enriched = enrichedUsers[uid] ?? {};
         final name = (enriched['name']?.toString().isNotEmpty == true)
@@ -2847,7 +3318,15 @@ class SupabaseService {
                 ? enriched['avatar'].toString()
                 : (local['photoUrl']?.toString() ?? ''));
         final customId = enriched['custom_id']?.toString() ?? '';
-        final level = (enriched['level'] as num?)?.toInt() ?? 1;
+        // ✅ المستوى الصحيح حسب نوع الترتيب: الثروة → wealth_level،
+        //    السحر/الجاذبية → gems_level، مع الرجوع للحقل العام `level`.
+        final level = isWealth
+            ? ((enriched['wealth_level'] as num?)?.toInt() ??
+                (enriched['level'] as num?)?.toInt() ??
+                1)
+            : ((enriched['gems_level'] as num?)?.toInt() ??
+                (enriched['level'] as num?)?.toInt() ??
+                1);
         final total = totals[uid] ?? 0;
 
         return {
@@ -2866,12 +3345,22 @@ class SupabaseService {
           'points': total,
           'score': total,
           'level': level,
+          'wealth_level': (enriched['wealth_level'] as num?)?.toInt() ?? level,
+          'gems_level': (enriched['gems_level'] as num?)?.toInt() ?? level,
         };
       }).toList();
+      _roomRankingCache[cacheKey] = CachedRanking(result, DateTime.now());
+      return result;
     } catch (e) {
       debugPrint('[SupabaseService] getRoomRankings error: $e');
       return [];
     }
+  }
+
+  /// إبطال كاش ترتيب غرفة — تُستدعى عند وصول هدية جديدة عبر Realtime
+  /// حتى تنعكس على الترتيب فوراً بدل انتظار انتهاء TTL (دقيقتان).
+  void invalidateRoomRankingCache(String roomId) {
+    _roomRankingCache.removeWhere((k, _) => k.startsWith('${roomId}_'));
   }
 
   Future<List<Map<String, dynamic>>> getBadgesCatalog() => _ds.getBadges();
@@ -2989,6 +3478,14 @@ class SupabaseService {
       );
     } catch (_) {}
   }
+}
+
+/// كاش لترتيب الغرف
+class CachedRanking {
+  final List<Map<String, dynamic>> data;
+  final DateTime timestamp;
+  CachedRanking(this.data, this.timestamp);
+  bool get isValid => DateTime.now().difference(timestamp) < SupabaseService._cacheTtl;
 }
 
 /// لضمان التوافق مع أي استدعاء لـ FirebaseService

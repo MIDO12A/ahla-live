@@ -151,7 +151,8 @@ class GlobalBannerService extends ChangeNotifier {
       if (bTs == 0 || bTs < _sessionStartTime - 120000) continue;
       // نسمح بفارق ساعة يصل إلى 5 دقائق بين الأجهزة حتى لا يختفي نص الفوز
       // عند وجود فرق توقيت بسيط بين ساعة الهاتف والسيرفر.
-      final isFresh = (nowMs - bTs).abs() < 300000;
+      // لافتة الهدية تُعرض فقط لأحداث حيّة حديثة (لا لافتات مخزّنة).
+      final isFresh = (nowMs - bTs).abs() < 60000;
       if (!isFresh) continue;
 
       final bId = b['id']?.toString() ?? '${bTs}_${b['sender_uid']}_${b['gift_name']}';
@@ -172,12 +173,10 @@ class GlobalBannerService extends ChangeNotifier {
       final wonCoins = (b['won_coins'] as num?)?.toInt() ??
           (b['coins'] as num?)?.toInt() ??
           0;
-      final isWinText = wonCoins > 0 ||
-          (b['content']?.toString().contains('فاز') ?? false) ||
-          (b['content']?.toString().contains('ربح') ?? false);
 
-      // الحد الأدنى يحكم لافتة الهدية فقط؛ نص الفوز يُعرض دائماً للجميع.
-      if (isLucky && multiplier < minLuckyMult && b['is_big_win'] != true && !isWinText) {
+      // لافتات مضاعفات الحظ تبدأ من الحد الأدنى فقط (افتراضياً 5X).
+      // لا تُعرض أي لافتة لـ 1X أو 2X أو 3X أو 4X مهما كان نص الفوز.
+      if (isLucky && multiplier < minLuckyMult && b['is_big_win'] != true) {
         continue;
       }
 
@@ -203,6 +202,8 @@ class GlobalBannerService extends ChangeNotifier {
             'giftName': b['gift_name']?.toString() ?? '',
             'multiplier': multiplier > 0 ? multiplier : 10,
             'totalWon': wonCoins,
+            'roomId': b['room_id']?.toString() ?? b['roomId']?.toString() ?? '',
+            'roomName': b['room_name']?.toString() ?? b['roomName']?.toString() ?? '',
           });
         }
       } else {
@@ -229,6 +230,9 @@ class GlobalBannerService extends ChangeNotifier {
             'userLKey': matchingConfig.userLKey,
             'numberKey': matchingConfig.numberKey,
             'giftKey': matchingConfig.giftKey,
+            // الغرفة التي أُرسلت فيها الهدية — لزر «الانتقال إلى الغرفة»
+            'roomId': b['room_id']?.toString() ?? b['roomId']?.toString() ?? '',
+            'roomName': b['room_name']?.toString() ?? b['roomName']?.toString() ?? '',
           });
         } else {
           // 3. شريط إعلان ماركي عام للغرف
@@ -241,7 +245,10 @@ class GlobalBannerService extends ChangeNotifier {
   void _handleIncomingBigWin(Map<String, dynamic> winData) {
     final winTs = (winData['timestamp'] as num?)?.toInt() ??
         (DateTime.tryParse(winData['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-    if (winTs != 0 && winTs < _sessionStartTime - 10000) return;
+    // لا نعرض بانر فوز بلا وقت صالح، ولا فوزاً حدث قبل فتح التطبيق
+    // (كانت إعلانات الحظ القديمة تُعرض عند الإقلاع كأنها لافتات مخزّنة).
+    if (winTs == 0) return;
+    if (winTs < _sessionStartTime - 15000) return;
     final mult = (winData['multiplier'] as num?)?.toInt() ?? 0;
     if (mult < 10) return;
 
@@ -256,6 +263,8 @@ class GlobalBannerService extends ChangeNotifier {
       'giftName': winData['gift_name']?.toString() ?? '',
       'multiplier': mult,
       'totalWon': (winData['total_won'] as num?)?.toInt() ?? 0,
+      'roomId': winData['room_id']?.toString() ?? '',
+      'roomName': winData['room_name']?.toString() ?? '',
     });
   }
 
@@ -396,6 +405,8 @@ class GlobalBannerService extends ChangeNotifier {
         'userLKey': config.userLKey,
         'numberKey': config.numberKey,
         'giftKey': config.giftKey,
+        'roomId': data['roomId']?.toString() ?? '',
+        'roomName': data['roomName']?.toString() ?? '',
       });
     } else if (totalCost >= 500) {
       showGiftBanner({
@@ -408,6 +419,8 @@ class GlobalBannerService extends ChangeNotifier {
         'userLKey': 'user_l',
         'numberKey': 'number',
         'giftKey': 'gift',
+        'roomId': data['roomId']?.toString() ?? '',
+        'roomName': data['roomName']?.toString() ?? '',
       });
     }
   }

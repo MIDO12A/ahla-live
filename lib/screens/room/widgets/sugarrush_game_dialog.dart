@@ -341,9 +341,15 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
 
     try {
       userProvider.deductCoinsLocally(betAmount);
-      final newCoins = (user.coins - betAmount).clamp(0, 999999999);
 
-      await SupabaseDataService().updateUser(user.uid, {'coins': newCoins});
+      // ✅ RPC ذرّي: لا نقرأ user.coins ثم نكتب القيمة المحسوبة —
+      //    ده كان بيسبب lost update لما يجي spin_result قبل ما الكتابة تخلص.
+      final betRes = await SupabaseDataService()
+          .adjustUserWallet(user.uid, -betAmount, 0);
+      if (betRes?['status'] == 'insufficient_coins') {
+        userProvider.updateCoinsImmediately(user.coins);
+        return;
+      }
 
       final rpcUrl = Uri.parse('$_baseUrl/rest/v1/rpc/increment_game_pool_balance');
       final rpcRes = await SafeHttp.post(
@@ -377,9 +383,11 @@ class _SugarRushGameDialogState extends State<SugarRushGameDialog> {
     try {
       if (winAmount > 0) {
         userProvider.addCoinsLocally(winAmount);
-        final newCoins = user.coins + winAmount;
 
-        await SupabaseDataService().updateUser(user.uid, {'coins': newCoins});
+        // ✅ RPC ذرّي: نضيف الفوز مباشرة على أحدث رصيد في Supabase —
+        //    winMoney مضروب بالفعل في المضاعف جوّه اللعبة (ما نضاعفش هنا).
+        await SupabaseDataService()
+            .adjustUserWallet(user.uid, winAmount, 0);
 
         final rpcUrl = Uri.parse('$_baseUrl/rest/v1/rpc/increment_game_pool_balance');
         await SafeHttp.post(

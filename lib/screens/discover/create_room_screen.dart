@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../models/room_model.dart';
 import '../../models/user_model.dart';
+import '../../config/r.dart';
 import '../../services/supabase_data_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/supabase_service.dart';
@@ -506,12 +507,31 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                                           fit: BoxFit.cover,
                                         )
                                       else
-                                        Center(
-                                          child: Image.asset(
-                                            'assets/mipmap-xxhdpi/common_camera_ic.webp',
-                                            width: 40,
-                                            height: 40,
-                                          ),
+                                        Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            // الصورة الافتراضية للغرفة عند عدم اختيار صورة
+                                            Image.asset(
+                                              R.defaultRoomPhoto,
+                                              fit: BoxFit.cover,
+                                            ),
+                                            Align(
+                                              alignment: Alignment.bottomRight,
+                                              child: Container(
+                                                margin: const EdgeInsets.all(6),
+                                                padding: const EdgeInsets.all(4),
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.black54,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Image.asset(
+                                                  'assets/mipmap-xxhdpi/common_camera_ic.webp',
+                                                  width: 20,
+                                                  height: 20,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       if (_isUploadingPhoto)
                                         Container(
@@ -712,7 +732,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                                       _isLocked = value;
                                     });
                                   },
-                                  activeColor: const Color(0xFFFF9800),
+                                  activeThumbColor: const Color(0xFFFF9800),
                                 ),
                               ],
                             ),

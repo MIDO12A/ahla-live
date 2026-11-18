@@ -362,9 +362,9 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.4), width: 1.5),
+              border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.4), width: 1.5),
               boxShadow: [
-                BoxShadow(color: const Color(0xFFFF5252).withOpacity(0.15), blurRadius: 16, offset: const Offset(0, 4)),
+                BoxShadow(color: const Color(0xFFFF5252).withValues(alpha: 0.15), blurRadius: 16, offset: const Offset(0, 4)),
               ],
             ),
             child: Column(
@@ -372,7 +372,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF5252).withOpacity(0.15),
+                    color: const Color(0xFFFF5252).withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.shield_outlined, color: Color(0xFFFF5252), size: 40),
@@ -391,7 +391,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
                   const SizedBox(height: 4),
                   DText(
                     'معرف الوكالة: ${_agencyId!}',
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
                   ),
                 ],
               ],
@@ -404,9 +404,9 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.04),
+              color: Colors.white.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -425,9 +425,9 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF5252).withOpacity(0.08),
+              color: const Color(0xFFFF5252).withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.3)),
+              border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -495,9 +495,9 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF5252).withOpacity(0.08),
+              color: const Color(0xFFFF5252).withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.25)),
+              border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.25)),
             ),
             child: Column(
               children: [
@@ -510,7 +510,7 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
                 const SizedBox(height: 8),
                 DText(
                   'عند مغادرة الوكالة سيتم فك ارتباطك بالوكالة فوراً وتصفير مراحل التارجت المحققة بالوكالة.',
-                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13, height: 1.5),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, height: 1.5),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -554,14 +554,14 @@ class _AgencyExitScreenState extends State<AgencyExitScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.03),
+              color: Colors.white.withValues(alpha: 0.03),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.06)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                DText('📋 قواعد المغادرة', style: TextStyle(color: Colors.white.withOpacity(0.8), fontWeight: FontWeight.bold, fontSize: 13)),
+                DText('📋 قواعد المغادرة', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 8),
                 _Rule('عند الخروج: يتم إلغاء تبعية حسابك للوكالة فوراً.'),
                 _Rule('يتم تصفير مراحل وتارجت الألماس التابعة للوكالة السابقة.'),
@@ -597,7 +597,7 @@ class _StatMini extends StatelessWidget {
         const SizedBox(height: 4),
         DText(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
         const SizedBox(height: 2),
-        DText(label, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+        DText(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
       ],
     );
   }
@@ -618,7 +618,7 @@ class _WarningPoint extends StatelessWidget {
           Expanded(
             child: DText(
               text,
-              style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12.5, height: 1.4),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5, height: 1.4),
             ),
           ),
         ],
@@ -639,14 +639,14 @@ class _InfoRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       child: Row(children: [
         DText(icon, style: const TextStyle(fontSize: 20)),
         const SizedBox(width: 12),
-        Expanded(child: DText(label, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13))),
+        Expanded(child: DText(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13))),
         DText(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
       ]),
     );
@@ -662,8 +662,8 @@ class _Rule extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        DText('• ', style: TextStyle(color: Colors.white.withOpacity(0.4))),
-        Expanded(child: DText(text, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12, height: 1.5))),
+        DText('• ', style: TextStyle(color: Colors.white.withValues(alpha: 0.4))),
+        Expanded(child: DText(text, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12, height: 1.5))),
       ]),
     );
   }

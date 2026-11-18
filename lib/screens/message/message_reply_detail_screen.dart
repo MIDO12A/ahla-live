@@ -91,11 +91,11 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
       final user = await _firebaseService.getUser(widget.otherUid);
       if (user != null && mounted) {
         setState(() {
-          if (user.name != null && user.name!.isNotEmpty) {
-            _otherName = user.name!;
+          if (user.name.isNotEmpty) {
+            _otherName = user.name;
           }
-          if (user.photoUrl != null && user.photoUrl!.isNotEmpty) {
-            _otherPhotoUrl = user.photoUrl!;
+          if (user.photoUrl.isNotEmpty) {
+            _otherPhotoUrl = user.photoUrl;
           }
         });
       }
@@ -344,9 +344,9 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
       radius: 16,
       backgroundColor: Colors.grey.shade300,
       backgroundImage: (isMe
-          ? (user?.photoUrl != null && user!.photoUrl!.isNotEmpty ? R.cachedImage(user.photoUrl!) : null)
+          ? (user?.photoUrl != null && user!.photoUrl.isNotEmpty ? R.cachedImage(user.photoUrl) : null)
           : (otherAvatarUrl.isNotEmpty ? R.cachedImage(otherAvatarUrl) : null)),
-      child: (isMe ? (user?.photoUrl == null || user!.photoUrl!.isEmpty) : otherAvatarUrl.isEmpty)
+      child: (isMe ? (user?.photoUrl == null || user!.photoUrl.isEmpty) : otherAvatarUrl.isEmpty)
           ? Icon(Icons.person, size: 16, color: Colors.grey.shade600)
           : null,
     );
@@ -414,7 +414,7 @@ class _MessageReplyDetailScreenState extends State<MessageReplyDetailScreen> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/r.dart';
 import '../../services/supabase_service.dart';
 import '../../providers/user_provider.dart';
@@ -12,6 +13,7 @@ import 'event_info_screen.dart';
 import '../user_profile/user_profile_screen.dart';
 import 'package:zero/core/dtext.dart';
 import '../../widgets/special_name_text.dart';
+import '../../main.dart' show appRouteObserver;
 
 /// Replicates [fragment_message_copy.xml] and [chat_message_info_fragment.xml]
 /// from the original decompiled app (F:\Medal\New folder\nu).
@@ -23,7 +25,7 @@ class MessageScreen extends StatefulWidget {
 }
 
 class _MessageScreenState extends State<MessageScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, RouteAware {
   final SupabaseService _supabaseService = SupabaseService();
   final FirebaseService _firebaseService = FirebaseService();
 
@@ -36,14 +38,62 @@ class _MessageScreenState extends State<MessageScreen>
   List<Map<String, dynamic>> _friends = [];
   bool _loadingFriends = false;
 
+  // ✅ Streams ثابتة (broadcast) تُنشأ مرة واحدة فقط لكل uid.
+  //    بدون ذلك، يرمي PageView (SelectionKeepAlive) الخطأ:
+  //    "Bad state: Stream has already been listened to"
+  String? _chatStreamsUid;
+  Stream<List<NotificationModel>>? _notificationsStream;
+  Stream<List<BannerConfig>>? _bannersStream;
+
+  /// ✅ آخر وقت "شوهدت" فيه معلومات الحدث — الـ badge يعرض فقط
+  ///    الـ banners الأحدث من هذا الوقت
+  int _eventLastSeenMs = 0;
+
+  void _ensureChatStreams(String? uid) {
+    if (_notificationsStream != null && _bannersStream != null && _chatStreamsUid == uid) {
+      return;
+    }
+    _chatStreamsUid = uid;
+    _notificationsStream =
+        _supabaseService.notificationsStream(uid: uid).asBroadcastStream();
+    _bannersStream = _firebaseService.bannersStream().asBroadcastStream();
+  }
+
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
+    // تحميل آخر وقت مشاهدة لمعلومات الحدث
+    _reloadEventLastSeen();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadConversations();
       _loadFriends();
     });
+  }
+
+  void _reloadEventLastSeen() {
+    SharedPreferences.getInstance().then((prefs) {
+      final v = prefs.getInt('event_info_last_seen_ms') ?? 0;
+      if (mounted && v != _eventLastSeenMs) {
+        setState(() => _eventLastSeenMs = v);
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  /// ✅ عند الرجوع من أي شاشة (مثل معلومات الحدث أو رسائل النظام)
+  ///    نعيد تحميل آخرseen عشان الـ badge يتحدّث فوراً
+  @override
+  void didPopNext() {
+    _reloadEventLastSeen();
   }
 
   void _loadConversations() {
@@ -53,10 +103,10 @@ class _MessageScreenState extends State<MessageScreen>
 
     _conversationsSub =
         _supabaseService.conversationsStream(user.uid).listen((convos) {
-      if (mounted) {
-        setState(() => _conversations = convos);
-      }
-    });
+          if (mounted) {
+            setState(() => _conversations = convos);
+          }
+        });
   }
 
   Future<void> _loadFriends() async {
@@ -93,6 +143,7 @@ class _MessageScreenState extends State<MessageScreen>
 
   @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
     _conversationsSub?.cancel();
     _pageController.dispose();
     super.dispose();
@@ -218,11 +269,11 @@ class _MessageScreenState extends State<MessageScreen>
               height: 10,
               child: isSelected
                   ? Image.asset(
-                      'assets/mipmap-xxhdpi/tab_pre.webp',
-                      width: 20,
-                      height: 10,
-                      fit: BoxFit.contain,
-                    )
+                'assets/mipmap-xxhdpi/tab_pre.webp',
+                width: 20,
+                height: 10,
+                fit: BoxFit.contain,
+              )
                   : const SizedBox.shrink(),
             ),
           ],
@@ -233,18 +284,24 @@ class _MessageScreenState extends State<MessageScreen>
 
   /// Tab 0: MessageInfoFragment matching chat_message_info_fragment.xml
   Widget _buildMessageInfoTab(String? myUid, bool isAr) {
+    _ensureChatStreams(myUid);
     return StreamBuilder<List<NotificationModel>>(
-      stream: _supabaseService.notificationsStream(uid: myUid),
+      stream: _notificationsStream,
       builder: (context, notifSnap) {
         final notifications = notifSnap.data ?? [];
         final unreadSystemCount =
             notifications.where((n) => !n.isRead && n.type != 'event').length;
 
         return StreamBuilder<List<BannerConfig>>(
-          stream: _firebaseService.bannersStream(),
+          stream: _bannersStream,
           builder: (context, bannerSnap) {
             final banners = bannerSnap.data ?? [];
-            final unreadEventCount = banners.length;
+            // ✅ badge معلومات الحدث = banners أحدث من آخر مشاهدة فقط
+            final unreadEventCount = banners
+                .where((b) => b.createdAt > _eventLastSeenMs)
+                .length;
+            final maxBannerMs = banners.fold<int>(
+                0, (m, b) => b.createdAt > m ? b.createdAt : m);
 
             return ListView(
               padding: EdgeInsets.zero,
@@ -253,6 +310,7 @@ class _MessageScreenState extends State<MessageScreen>
                 _buildMessageBanners(
                   unreadSystemCount: unreadSystemCount,
                   unreadEventCount: unreadEventCount,
+                  maxBannerMs: maxBannerMs,
                   isAr: isAr,
                 ),
 
@@ -303,6 +361,7 @@ class _MessageScreenState extends State<MessageScreen>
   Widget _buildMessageBanners({
     required int unreadSystemCount,
     required int unreadEventCount,
+    required int maxBannerMs,
     required bool isAr,
   }) {
     return Padding(
@@ -335,6 +394,14 @@ class _MessageScreenState extends State<MessageScreen>
               title: isAr ? 'معلومات\nالحدث' : 'Event\nInformation',
               unreadCount: unreadEventCount,
               onTap: () {
+                // ✅ فتح معلومات الحدث = مشاهدتها — نحدّث آخرseen
+                //    محلياً وفي SharedPreferences حتى يختفي الـ badge فوراً
+                if (maxBannerMs > _eventLastSeenMs) {
+                  _eventLastSeenMs = maxBannerMs;
+                  SharedPreferences.getInstance().then((prefs) =>
+                      prefs.setInt('event_info_last_seen_ms', maxBannerMs));
+                  setState(() {});
+                }
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -465,23 +532,23 @@ class _MessageScreenState extends State<MessageScreen>
                     ClipOval(
                       child: otherPhotoUrl.isNotEmpty
                           ? Image(
-                              image: R.cachedImage(otherPhotoUrl),
-                              width: 48,
-                              height: 48,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Image.asset(
-                                R.avaBoy,
-                                width: 48,
-                                height: 48,
-                                fit: BoxFit.cover,
-                              ),
-                            )
+                        image: R.cachedImage(otherPhotoUrl),
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Image.asset(
+                          R.avaBoy,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                        ),
+                      )
                           : Image.asset(
-                              R.avaBoy,
-                              width: 48,
-                              height: 48,
-                              fit: BoxFit.cover,
-                            ),
+                        R.avaBoy,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     if (isOnline)
                       Positioned(
@@ -680,23 +747,23 @@ class _MessageScreenState extends State<MessageScreen>
               ClipOval(
                 child: photo.isNotEmpty
                     ? Image(
-                        image: R.cachedImage(photo),
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Image.asset(
-                          R.avaBoy,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                        ),
-                      )
+                  image: R.cachedImage(photo),
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Image.asset(
+                    R.avaBoy,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                  ),
+                )
                     : Image.asset(
-                        R.avaBoy,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                      ),
+                  R.avaBoy,
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
+                ),
               ),
               Positioned(
                 bottom: 1,

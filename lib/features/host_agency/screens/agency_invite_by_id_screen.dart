@@ -211,15 +211,15 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
             const SizedBox(height: 4),
             DText(
               'Kayan ID: ${_foundKayanId ?? ''}',
-              style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
             ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFB800).withOpacity(0.1),
+                color: const Color(0xFFFFB800).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFFB800).withOpacity(0.3)),
+                border: Border.all(color: const Color(0xFFFFB800).withValues(alpha: 0.3)),
               ),
               child: DText(
                 'هل تريد دعوة هذا المستخدم للانضمام إلى وكالة "${widget.agencyName}"؟',
@@ -299,10 +299,10 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFFFB800).withOpacity(0.3)),
+        border: Border.all(color: const Color(0xFFFFB800).withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFFB800).withOpacity(0.08),
+            color: const Color(0xFFFFB800).withValues(alpha: 0.08),
             blurRadius: 20,
             spreadRadius: 2,
           ),
@@ -357,7 +357,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.15),
+                color: Colors.orange.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: DText(
@@ -427,7 +427,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A1A2E),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFFFB800).withOpacity(0.3)),
+                    border: Border.all(color: const Color(0xFFFFB800).withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
@@ -483,9 +483,9 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      color: Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
@@ -515,7 +515,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFB800).withOpacity(0.1),
+                            color: const Color(0xFFFFB800).withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -539,7 +539,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
                           child: DText(
                             'أدخل الـ Kayan ID الخاص بالمستخدم الذي تريد دعوته للانضمام إلى وكالتك',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 14,
                             ),
                             textAlign: TextAlign.center,
@@ -575,7 +575,7 @@ class _AgencyInviteByIdScreenState extends State<AgencyInviteByIdScreen> {
           Expanded(
             child: DText(
               h.$2,
-              style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 13),
             ),
           ),
         ],
@@ -600,9 +600,9 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

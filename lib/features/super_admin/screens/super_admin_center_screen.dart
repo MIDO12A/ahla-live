@@ -13,9 +13,9 @@ class SuperAdminCenterScreen extends StatefulWidget {
   final UserModel currentUser;
 
   const SuperAdminCenterScreen({
-    Key? key,
+    super.key,
     required this.currentUser,
-  }) : super(key: key);
+  });
 
   @override
   State<SuperAdminCenterScreen> createState() => _SuperAdminCenterScreenState();
@@ -57,7 +57,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
       final userRes = await _supabase
           .from('users')
           .select('super_admin_salary, super_admin_commission_rate')
-          .or('uid.eq.' + myUid + ',id.eq.' + myUid)
+          .or('uid.eq.$myUid,id.eq.$myUid')
           .maybeSingle();
 
       _mySalary = (userRes?['super_admin_salary'] as num?)?.toDouble() ?? widget.currentUser.superAdminSalary;
@@ -195,7 +195,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
       final user = await _supabase
           .from('users')
           .select('uid, id, custom_id, name')
-          .or('custom_id.eq.' + targetQuery + ',uid.eq.' + targetQuery + ',id.eq.' + targetQuery)
+          .or('custom_id.eq.$targetQuery,uid.eq.$targetQuery,id.eq.$targetQuery')
           .maybeSingle();
 
       if (user == null) {
@@ -209,7 +209,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
         type: 'agency_invitation',
         actorUid: widget.currentUser.uid,
         title: 'دعوة لإنشاء وكالة جديدة',
-        body: 'تمت دعوتك من قِبل السوبر أدمن (' + widget.currentUser.name + ') لفتح وكالة جديدة تحت إشرافه',
+        body: 'تمت دعوتك من قِبل السوبر أدمن (${widget.currentUser.name}) لفتح وكالة جديدة تحت إشرافه',
         data: {
           'super_admin_id': widget.currentUser.uid,
           'super_admin_name': widget.currentUser.name,
@@ -411,7 +411,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
       final user = await _supabase
           .from('users')
           .select('uid, id, custom_id, name')
-          .or('custom_id.eq.' + targetQuery + ',uid.eq.' + targetQuery + ',id.eq.' + targetQuery)
+          .or('custom_id.eq.$targetQuery,uid.eq.$targetQuery,id.eq.$targetQuery')
           .maybeSingle();
 
       if (user == null) {
@@ -436,14 +436,14 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               'bd_commission_rate': commission,
             };
 
-      await _supabase.from('users').update(updateData).or('uid.eq.' + targetUid + ',id.eq.' + targetUid);
+      await _supabase.from('users').update(updateData).or('uid.eq.$targetUid,id.eq.$targetUid');
 
       await SupabaseDataService().sendNotification(
         uid: targetUid,
         type: isStaffAdmin ? 'admin_assigned' : 'bd_assigned',
         actorUid: myUid,
         title: isStaffAdmin ? 'تم تعيينك مسؤول Admin' : 'تم تعيينك مسؤول BD',
-        body: 'تهانينا! قام السوبر أدمن (' + widget.currentUser.name + ') بتعيينك رسمياً في هذا المنصب',
+        body: 'تهانينا! قام السوبر أدمن (${widget.currentUser.name}) بتعيينك رسمياً في هذا المنصب',
         data: {
           'supervisor_id': myUid,
         },
@@ -553,7 +553,7 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
                 ),
                 const SizedBox(height: 4),
                 DText(
-                  'ID: ' + widget.currentUser.customId + ' | نسبة العمولة: ' + _myCommissionRate.toStringAsFixed(1) + '%',
+                  'ID: ${widget.currentUser.customId} | نسبة العمولة: ${_myCommissionRate.toStringAsFixed(1)}%',
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
@@ -573,9 +573,9 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
       mainAxisSpacing: 10,
       childAspectRatio: 1.6,
       children: [
-        _buildStatCard('راتبي المتاح', '\$' + _mySalary.toStringAsFixed(0), Icons.account_balance_wallet, Colors.greenAccent),
-        _buildStatCard('عمولتي المكتسبة', '\$' + _myCommissionEarned.toStringAsFixed(0), Icons.monetization_on, const Color(0xFFFFD700)),
-        _buildStatCard('إجمالي أرباح الوكالات', '\$' + _totalAgenciesEarnings.toStringAsFixed(0), Icons.trending_up, Colors.cyanAccent),
+        _buildStatCard('راتبي المتاح', '\$${_mySalary.toStringAsFixed(0)}', Icons.account_balance_wallet, Colors.greenAccent),
+        _buildStatCard('عمولتي المكتسبة', '\$${_myCommissionEarned.toStringAsFixed(0)}', Icons.monetization_on, const Color(0xFFFFD700)),
+        _buildStatCard('إجمالي أرباح الوكالات', '\$${_totalAgenciesEarnings.toStringAsFixed(0)}', Icons.trending_up, Colors.cyanAccent),
         _buildStatCard('إجمالي الوكالات', _myAgencies.length.toString(), Icons.apartment, Colors.purpleAccent),
       ],
     );
@@ -659,9 +659,9 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
         labelColor: const Color(0xFFFFD700),
         unselectedLabelColor: Colors.white54,
         tabs: [
-          Tab(text: 'الوكالات (' + _myAgencies.length.toString() + ')'),
-          Tab(text: 'مسؤولو Admin (' + _myAdmins.length.toString() + ')'),
-          Tab(text: 'مسؤولو BD (' + _myBds.length.toString() + ')'),
+          Tab(text: 'الوكالات (${_myAgencies.length})'),
+          Tab(text: 'مسؤولو Admin (${_myAdmins.length})'),
+          Tab(text: 'مسؤولو BD (${_myBds.length})'),
         ],
       ),
     );
@@ -690,13 +690,13 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               child: Icon(Icons.business, color: Colors.black, size: 20),
             ),
             title: DText(agency['name'] ?? agency['agency_name'] ?? 'وكالة بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: DText('كود: ' + (agency['agency_code']?.toString() ?? '-') + ' | أرباح: \$' + earnings.toStringAsFixed(0), style: const TextStyle(color: Colors.white60, fontSize: 12)),
+            subtitle: DText('كود: ${agency['agency_code']?.toString() ?? '-'} | أرباح: \$${earnings.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white60, fontSize: 12)),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 const DText('عمولتك', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                DText('+\$' + commission.toStringAsFixed(1), style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
+                DText('+\$${commission.toStringAsFixed(1)}', style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13)),
               ],
             ),
           ),
@@ -726,8 +726,8 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               child: (photo == null || photo.isEmpty) ? const Icon(Icons.person, color: Colors.blueAccent) : null,
             ),
             title: DText(admin['name'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: DText('ID: ' + (admin['custom_id']?.toString() ?? admin['uid']?.toString() ?? '') + ' | عمولة: ' + commRate.toStringAsFixed(1) + '%', style: const TextStyle(color: Colors.white60, fontSize: 12)),
-            trailing: DText('راتب: \$' + salary.toStringAsFixed(0), style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+            subtitle: DText('ID: ${admin['custom_id']?.toString() ?? admin['uid']?.toString() ?? ''} | عمولة: ${commRate.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+            trailing: DText('راتب: \$${salary.toStringAsFixed(0)}', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
           ),
         );
       },
@@ -755,8 +755,8 @@ class _SuperAdminCenterScreenState extends State<SuperAdminCenterScreen> with Si
               child: (photo == null || photo.isEmpty) ? const Icon(Icons.person, color: Color(0xFFFFD700)) : null,
             ),
             title: DText(bd['name'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: DText('ID: ' + (bd['custom_id']?.toString() ?? bd['uid']?.toString() ?? '') + ' | عمولة: ' + commRate.toStringAsFixed(1) + '%', style: const TextStyle(color: Colors.white60, fontSize: 12)),
-            trailing: DText('راتب: \$' + salary.toStringAsFixed(0), style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+            subtitle: DText('ID: ${bd['custom_id']?.toString() ?? bd['uid']?.toString() ?? ''} | عمولة: ${commRate.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+            trailing: DText('راتب: \$${salary.toStringAsFixed(0)}', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
           ),
         );
       },

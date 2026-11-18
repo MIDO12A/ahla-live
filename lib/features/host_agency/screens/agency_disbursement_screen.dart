@@ -86,6 +86,12 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
       AgencyEngineSettings engine = AgencyEngineSettings.defaults;
       AgencyOwnerDashboard? ownerDash;
 
+      // ✅ إصدار كسول: أي عمولات بلغت موعد دورة الإصدار تُصرف تلقائياً
+      //    عند فتح شاشة الصرف — ضمان إضافي بجانب مجدول pg_cron في SQL.
+      try {
+        await AgencyRepository.releaseDueCommissions();
+      } catch (_) {}
+
       try {
         hostStats = await AgencyRepository.getHostStats();
       } catch (e) {
@@ -235,7 +241,7 @@ class _AgencyDisbursementScreenState extends State<AgencyDisbursementScreen>
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _gold.withOpacity(0.3)),
+        border: Border.all(color: _gold.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -500,7 +506,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
+            color: Colors.white.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: Colors.white12),
           ),
@@ -543,7 +549,7 @@ class _DisburseToAdminTabState extends State<_DisburseToAdminTab> {
             style: TextStyle(color: Colors.white70, fontFamily: 'Tajawal', fontSize: 13)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _selectedMethod,
+          initialValue: _selectedMethod,
           dropdownColor: _card,
           style: const TextStyle(color: Colors.white, fontFamily: 'Tajawal'),
           decoration: InputDecoration(
@@ -847,15 +853,15 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _gold.withOpacity(0.1),
+              color: _gold.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _gold.withOpacity(0.4)),
+              border: Border.all(color: _gold.withValues(alpha: 0.4)),
             ),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: _gold.withOpacity(0.2),
+                  backgroundColor: _gold.withValues(alpha: 0.2),
                   backgroundImage: (_selectedAgent!['recharge_agency_logo'] != null &&
                           _selectedAgent!['recharge_agency_logo'].toString().isNotEmpty)
                       ? EncryptedImageProvider(_selectedAgent!['recharge_agency_logo'] as String)
@@ -951,7 +957,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
-                color: isSelected ? _gold.withOpacity(0.12) : _card,
+                color: isSelected ? _gold.withValues(alpha: 0.12) : _card,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: isSelected ? _gold : Colors.white12),
               ),
@@ -959,7 +965,7 @@ class _DisburseToRechargeAgentTabState extends State<_DisburseToRechargeAgentTab
                 onTap: () => setState(() => _selectedAgent = agent),
                 leading: CircleAvatar(
                   radius: 20,
-                  backgroundColor: _gold.withOpacity(0.2),
+                  backgroundColor: _gold.withValues(alpha: 0.2),
                   backgroundImage: (agent['recharge_agency_logo'] != null && agent['recharge_agency_logo'].toString().isNotEmpty)
                       ? EncryptedImageProvider(agent['recharge_agency_logo'] as String)
                       : (agent['avatar_url'] != null && agent['avatar_url'].toString().isNotEmpty)

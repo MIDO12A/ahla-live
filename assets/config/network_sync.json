@@ -1,0 +1,12 @@
+{
+  "_comment": "إعدادات استقرار الشبكة والمزامنة اللحظية — عدّل القيم هنا بدون إعادة بناء الكود. probe_interval_ms: الفترة بين فحوصات البينج. probe_timeout_ms: مهلة كل فحص. offline_threshold_failures: عدد الفشلات المتتالية قبل اعتبار الاتصال منقطعاً. quality_thresholds_ms: حدود جودة الاتصال (ممتاز/جيد/متوسط/ضعيف). server_time_sync_interval_ms: فترة مزامنة وقت السيرفر لتصحيح فرق ساعة الجهاز.",
+  "probe_interval_ms": 5000,
+  "probe_timeout_ms": 4000,
+  "offline_threshold_failures": 2,
+  "quality_thresholds_ms": {
+    "excellent": 150,
+    "good": 350,
+    "fair": 700
+  },
+  "server_time_sync_interval_ms": 60000
+}

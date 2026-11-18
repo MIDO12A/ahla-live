@@ -92,13 +92,13 @@ class UserIdDisplayWidget extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: hasValidId 
-            ? AppColors.goldLight.withOpacity(0.1)
-            : Colors.grey.withOpacity(0.1),
+            ? AppColors.goldLight.withValues(alpha: 0.1)
+            : Colors.grey.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasValidId 
-              ? AppColors.goldLight.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.3),
+              ? AppColors.goldLight.withValues(alpha: 0.3)
+              : Colors.grey.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -123,7 +123,7 @@ class UserIdDisplayWidget extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: AppColors.goldLight.withOpacity(0.1),
+          color: AppColors.goldLight.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Icon(
@@ -258,13 +258,13 @@ class UserIdBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: backgroundColor ?? (hasValidId 
-            ? AppColors.goldLight.withOpacity(0.15)
-            : Colors.grey.withOpacity(0.15)),
+            ? AppColors.goldLight.withValues(alpha: 0.15)
+            : Colors.grey.withValues(alpha: 0.15)),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: hasValidId 
-              ? AppColors.goldLight.withOpacity(0.4)
-              : Colors.grey.withOpacity(0.4),
+              ? AppColors.goldLight.withValues(alpha: 0.4)
+              : Colors.grey.withValues(alpha: 0.4),
           width: 1.5,
         ),
       ),

@@ -1,11 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/user_provider.dart';
 import '../../../config/r.dart';
-import '../../../config/app_colors.dart';
-import '../../../services/level_service.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/supabase_data_service.dart';
 import '../../../services/dynamic_config_service.dart';
@@ -17,7 +14,6 @@ import '../../message/message_reply_detail_screen.dart';
 import 'svga_frame.dart';
 import 'svga_player.dart';
 import 'vap_player.dart';
-import 'vip_cover_animator.dart';
 import '../../../widgets/user_id_widget.dart';
 import '../../../widgets/special_name_text.dart';
 import 'package:zero/core/dtext.dart';
@@ -240,19 +236,17 @@ class _UserProfileState extends State<UserProfile> {
         final storeItems = await Supabase.instance.client
             .from('store_items')
             .select('item_id, id, svga_asset, video_asset, icon_asset');
-        if (storeItems != null) {
-          for (final item in (storeItems as List)) {
-            final id = item['item_id']?.toString() ?? item['id']?.toString();
-            final docId = item['id']?.toString();
-            final asset = (item['video_asset']?.toString().isNotEmpty == true)
-                ? item['video_asset'].toString()
-                : (item['svga_asset']?.toString().isNotEmpty == true)
-                    ? item['svga_asset'].toString()
-                    : item['icon_asset']?.toString();
-            if (asset != null && asset.isNotEmpty) {
-              if (id != null) _storeSvgaMap[id] = asset;
-              if (docId != null) _storeSvgaMap[docId] = asset;
-            }
+        for (final item in (storeItems as List)) {
+          final id = item['item_id']?.toString() ?? item['id']?.toString();
+          final docId = item['id']?.toString();
+          final asset = (item['video_asset']?.toString().isNotEmpty == true)
+              ? item['video_asset'].toString()
+              : (item['svga_asset']?.toString().isNotEmpty == true)
+                  ? item['svga_asset'].toString()
+                  : item['icon_asset']?.toString();
+          if (asset != null && asset.isNotEmpty) {
+            if (id != null) _storeSvgaMap[id] = asset;
+            if (docId != null) _storeSvgaMap[docId] = asset;
           }
         }
       } catch (_) {}
@@ -433,7 +427,7 @@ class _UserProfileState extends State<UserProfile> {
                 ? null
                 : [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.6),
+                      color: Colors.black.withValues(alpha: 0.6),
                       blurRadius: 20,
                       offset: const Offset(0, -4),
                     ),
@@ -496,7 +490,7 @@ class _UserProfileState extends State<UserProfile> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.25),
+                        color: Colors.black.withValues(alpha: 0.25),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: ClipRRect(
@@ -612,7 +606,7 @@ class _UserProfileState extends State<UserProfile> {
                                               width: 38,
                                               height: 38,
                                               decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(0.05),
+                                                color: Colors.white.withValues(alpha: 0.05),
                                                 borderRadius: BorderRadius.circular(8),
                                               ),
                                               child: icon.isNotEmpty
@@ -629,7 +623,7 @@ class _UserProfileState extends State<UserProfile> {
                                                 decoration: BoxDecoration(
                                                   color: const Color(0xFF4A3419),
                                                   borderRadius: BorderRadius.circular(4),
-                                                  border: Border.all(color: Colors.amber.withOpacity(0.5), width: 0.5),
+                                                  border: Border.all(color: Colors.amber.withValues(alpha: 0.5), width: 0.5),
                                                 ),
                                                 child: DText(
                                                   'x$count',
@@ -703,7 +697,7 @@ class _UserProfileState extends State<UserProfile> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
+                            color: Colors.white.withValues(alpha: 0.08),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -725,7 +719,7 @@ class _UserProfileState extends State<UserProfile> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
+                            color: Colors.white.withValues(alpha: 0.08),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -861,7 +855,7 @@ class _UserProfileState extends State<UserProfile> {
                     border: Border.all(color: cardBorderColor, width: 3),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         blurRadius: 10,
                       ),
                     ],
@@ -889,7 +883,7 @@ class _UserProfileState extends State<UserProfile> {
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
                 shape: BoxShape.circle,
               ),
               child: config.miniprofileMoreIcon.isNotEmpty
@@ -1334,7 +1328,7 @@ class _UserProfileState extends State<UserProfile> {
               const DText('سبب الإبلاغ', style: TextStyle(fontSize: 12, color: Colors.white54)),
               const SizedBox(height: 4),
               DropdownButtonFormField<String>(
-                value: selectedReason,
+                initialValue: selectedReason,
                 dropdownColor: const Color(0xFF2A2634),
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 hint: const DText('اختر السبب', style: TextStyle(fontSize: 13, color: Colors.white38)),

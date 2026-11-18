@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
-import '../../../config/app_colors.dart';
 import '../../../services/dynamic_config_service.dart';
 import '../models/seat_model.dart';
 import 'svga_frame.dart';

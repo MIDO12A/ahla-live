@@ -35,6 +35,13 @@ class SpecialIdService extends ChangeNotifier {
   static final SpecialIdService instance = SpecialIdService._();
 
   final Map<String, StoreItemModel> _byCustomId = {};
+
+  /// ✅ custom_id للمالكين الفعليين لآيدي مميز مفعّل
+  ///    (active_special_id != ''). بدون هذا، كان أي مستخدم
+  ///    custom_id يطابق رقم آيدي معرّف في المتجر يُلوَّن اسمه
+  ///    حتى لو لم يشترِ أو يُهدَ إليه شيء.
+  Set<String> _activeCustomIds = {};
+
   Timer? _pollTimer;
   bool _loading = false;
   bool _loadedOnce = false;
@@ -157,6 +164,8 @@ class SpecialIdService extends ChangeNotifier {
   StoreItemModel? styleFor(String? customId) {
     final normalized = _normalize(customId);
     if (normalized == null) return null;
+    // ✅ اللون فقط لمن لديه آيدي مميز مفعّل فعلاً (شراء/إهداء + تفعيل)
+    if (!_activeCustomIds.contains(normalized)) return null;
     // مطابقةexact فقط — إزالة الأصفار كانت تلوّن أسماء مستخدمين
     // عاديين صدفةً (مثلاً آيدي مميز '050' كان يلوّن كل مستخدم '50').
     return _byCustomId[normalized];
@@ -193,6 +202,20 @@ class SpecialIdService extends ChangeNotifier {
           ..write('|')
           ..write(item.svgaTextKey)
           ..write(';');
+      }
+      // ✅ جلب من يملك آيدي مميز مفعّلاً — null عند فشل الشبكة
+      //    حتى نحتفظ بالبيانات السابقة بدل إفراغها
+      final activeIds =
+          await SupabaseDataService().getActiveSpecialCustomIds();
+      if (activeIds != null) {
+        _activeCustomIds = activeIds;
+        signature.write('ACTIVE|');
+        final sorted = activeIds.toList()..sort();
+        for (final id in sorted) {
+          signature.write(id);
+          signature.write(',');
+        }
+        signature.write(';');
       }
       _byCustomId
         ..clear()

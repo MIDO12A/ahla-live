@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 
 /// كائن بيانات هدية الحظ
 class LuckyGiftModel {

@@ -765,7 +765,7 @@ class _RechargeEventScreenState extends State<RechargeEventScreen> {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
                   }
-                  final docs = (snapshot.data ?? []) as List<dynamic>;
+                  final docs = (snapshot.data ?? []);
                   if (docs.isEmpty) {
                     return Center(
                       child: Column(

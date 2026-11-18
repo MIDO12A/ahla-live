@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../core/supabase_compat.dart';
 import 'dynamic_config_service.dart';
+import 'supabase_data_service.dart';
 
 class AgencyTargetEvaluator {
   static SupabaseClient get _sb => Supabase.instance.client;
@@ -252,11 +253,9 @@ class AgencyTargetEvaluator {
 
     try {
       if (rewardType == 'gold' && rewardValue > 0) {
-        final u = await _sb.from('users').select('coins').or('uid.eq.$hostUserId,id.eq.$hostUserId').maybeSingle();
-        final cur = (u?['coins'] as num?)?.toInt() ?? 0;
-        await _sb.from('users').update({
-          'coins': cur + rewardValue.toInt(),
-        }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
+        // ✅ RPC ذرّي — لا PATCH مباشر على حساب آخر
+        await SupabaseDataService()
+            .adjustUserWallet(hostUserId, rewardValue.toInt(), 0);
       } else if (rewardType == 'diamonds' && rewardValue > 0) {
         final rewardDiamonds = rewardValue.toInt();
         final idem = 'target_reward_${hostUserId}_${targetId}_$currentMonth';
@@ -310,11 +309,9 @@ class AgencyTargetEvaluator {
               });
             } catch (_) {}
           } else {
-            final u = await _sb.from('users').select('diamonds').or('uid.eq.$hostUserId,id.eq.$hostUserId').maybeSingle();
-            final cur = (u?['diamonds'] as num?)?.toInt() ?? 0;
-            await _sb.from('users').update({
-              'diamonds': cur + rewardDiamonds,
-            }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
+            // ✅ المحفظة الشخصية عبر RPC ذرّي — لا PATCH مباشر
+            await SupabaseDataService()
+                .creditUserDiamonds(hostUserId, rewardDiamonds);
           }
         }
       } else if (rewardType == 'salary_usd' && rewardValue > 0) {
@@ -372,9 +369,9 @@ class AgencyTargetEvaluator {
           'expires_at': expiresAt,
           'created_at': DateTime.now().toIso8601String(),
         });
-        await _sb.from('users').update({
-          'active_frame': rewardFrameId,
-        }).or('uid.eq.$hostUserId,id.eq.$hostUserId');
+        // ✅ حقل تجميلي عبر RPC بقائمة بيضاء — لا PATCH مباشر
+        await SupabaseDataService()
+            .setUserField(hostUserId, 'active_frame', rewardFrameId);
       }
 
       if (rewardBadgeId != null && rewardBadgeId.isNotEmpty) {

@@ -7,6 +7,7 @@ export interface UserModel {
   coins: number;
   diamonds: number;
   gender: string;
+  country?: string;
   activeFrame: string | null;
   activeBubble: string | null;
   activeEntrance: string | null;
@@ -867,6 +868,7 @@ export interface SigninRewardModel {
   value: number;
   value_type: 'coins' | 'diamonds' | 'xp' | 'gift' | 'custom';
   gift_id?: string;
+  gift_data?: Record<string, any>; // للـ custom type: { type: 'vip_tier', tier: 2, days: 30 }
   is_double: boolean;
   is_active: boolean;
   created_at?: string;

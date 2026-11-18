@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import '../../../core/supabase_compat.dart';
 
 import '../../../core/utils/server_time_service.dart';
@@ -50,9 +49,9 @@ class AgencyBadgeWidget extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withOpacity(0.4)),
+              border: Border.all(color: color.withValues(alpha: 0.4)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               // Agency logo
@@ -124,9 +123,9 @@ class FreeAgentBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFF00E5A0).withOpacity(0.12),
+        color: const Color(0xFF00E5A0).withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF00E5A0).withOpacity(0.4)),
+        border: Border.all(color: const Color(0xFF00E5A0).withValues(alpha: 0.4)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         OtaEmojiIcon(iconKey: OtaIconKeys.badgeFreeAgent, emoji: '🦅', size: 18),

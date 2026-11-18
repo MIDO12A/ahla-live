@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -30,10 +30,12 @@ import '../../services/media_cache_service.dart';
 import '../../services/dynamic_config_service.dart';
 import '../../services/global_banner_service.dart';
 import '../../services/pusher_service.dart';
+import '../../services/supabase_realtime_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/room_audio_service.dart';
 import '../../services/room_state_service.dart';
 import '../../services/network_watchdog_service.dart';
+import '../../services/network_status_service.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/supabase_compat.dart';
 import '../../providers/user_provider.dart';
@@ -54,7 +56,6 @@ import 'widgets/gift_panel.dart';
 import 'widgets/user_profile.dart';
 import '../../widgets/special_name_text.dart';
 import 'widgets/function_panel.dart';
-import 'widgets/room_marquee_broadcast.dart';
 import 'widgets/room_rocket_widget.dart';
 import 'widgets/room_banner_widget.dart';
 import 'widgets/room_member_enter_banner.dart';
@@ -177,6 +178,7 @@ Future<void> navigateToRoom(
 
   if (!context.mounted) return;
   final route = MaterialPageRoute(
+    settings: const RouteSettings(name: RoomScreen.routeName),
     builder: (_) => RoomScreen(
       roomName: roomName,
       hostName: hostName,
@@ -196,9 +198,105 @@ Future<void> navigateToRoom(
     if (replace) {
       Navigator.pushReplacement(context, route);
     } else {
-      Navigator.push(context, route);
+      // إزالة أي شاشة غرفة سابقة من المكدس قبل فتح الغرفة الجديدة حتى
+      // لا يعيد زر الرجوع المستخدم إلى الغرفة السابقة.
+      Navigator.pushAndRemoveUntil(
+        context,
+        route,
+        (r) => r.settings.name != RoomScreen.routeName,
+      );
     }
   } catch (_) {}
+}
+
+/// يسأل المستخدم قبل الانتقال إلى غرفة أُرسلت فيها هدية (لافتة الهدية/الماركي).
+/// «نعم» ينتقل إلى الغرفة، «لا» يبقي المستخدم في مكانه.
+Future<void> confirmRoomNavigation(
+  BuildContext context, {
+  required String roomId,
+  String roomName = '',
+  String hostName = '',
+}) async {
+  if (roomId.isEmpty) return;
+  // المستخدم بالفعل داخل هذه الغرفة — نرجعه إلى شاشة الغرفة نفسها بدل
+  // فتح نسخة جديدة (فتح نسخة ثانية يهيّئ محرك الصوت مرتين فينهار).
+  if (RoomScreen.activeRoomId == roomId) {
+    try {
+      Navigator.of(context).popUntil(
+        (r) => r.settings.name == RoomScreen.routeName || r.isFirst,
+      );
+    } catch (_) {}
+    return;
+  }
+  final isAr = Localizations.localeOf(context).languageCode == 'ar';
+  final confirmed = await showDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF211211),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Color(0xFFD3A350), width: 1),
+        ),
+        title: DText(
+          isAr ? 'الانتقال إلى الغرفة' : 'Go to room',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DText(
+              isAr ? 'هل تريد الانتقال إلى الغرفة؟' : 'Do you want to go to the room?',
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+            if (roomName.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              DText(
+                roomName,
+                style: const TextStyle(
+                  color: Color(0xFFD3A350),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: DText(
+              isAr ? 'لا' : 'No',
+              style: const TextStyle(color: Colors.white54),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: DText(
+              isAr ? 'نعم' : 'Yes',
+              style: const TextStyle(
+                color: Color(0xFFD3A350),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+  if (confirmed != true || !context.mounted) return;
+  await navigateToRoom(
+    context,
+    roomName: roomName.isNotEmpty ? roomName : (isAr ? 'غرفة صوتية' : 'Voice room'),
+    hostName: hostName,
+    roomId: roomId,
+  );
 }
 
 class _RoomGiftNotice {
@@ -225,6 +323,10 @@ class _RoomGiftNotice {
 class RoomScreen extends StatefulWidget {
   static DateTime _lastPushAt = DateTime.fromMillisecondsSinceEpoch(0);
   static String? _lastPushRoomId;
+
+  /// الغرفة المفتوحة حالياً (آخر RoomScreen في الشجرة) — يُستخدم لمنع
+  /// إعادة تحميل الغرفة نفسها عند النقر على لافتة هدية أُرسلت فيها.
+  static String? activeRoomId;
   static final Map<String, int> cachedRoomSeatCount = {};
   static final Map<String, seat_model.SeatStyle> cachedRoomSeatStyle = {};
   static final Map<String, Map<int, Map<String, dynamic>>> cachedRoomSeatMaps = {};
@@ -311,6 +413,10 @@ class RoomScreen extends StatefulWidget {
     persistRoomSeatMap(roomId, cleaned);
   }
 
+  /// اسم مسار شاشة الغرفة — يُستخدم لوسم الـ Route وإزالة أي غرفة سابقة
+  /// من المكدس عند الانتقال إلى غرفة أخرى.
+  static const String routeName = 'room_screen';
+
   /// Returns true if this push is allowed (debounces double-taps on the same
   /// room within 800ms, which would stack two RoomScreens and double-init Zego).
   static bool pushGuard(String roomId) {
@@ -360,6 +466,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _showGift = false;
   final ValueNotifier<Map<String, dynamic>?> _giftAnimNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   String? _giftAnimAsset;
+
+  // ✅ طابور أنيميشن الهدايا: كل هدية تُرسل تُعرض كاملة بدورها —
+  //    لا يقطع إرسال جديد العرض الجاري، بل يُضاف للطابور ويُعرض بعده.
+  final List<Map<String, dynamic>> _giftAnimQueue = [];
+  static const int _giftAnimQueueMax = 6;
   Timer? _giftAnimWatchdog;
 
   void _clearGiftAnim() {
@@ -368,13 +479,58 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (_giftAnimNotifier.value != null) {
       _giftAnimNotifier.value = null;
       _giftAnimAsset = null; // ✅ نُصفِّر تماماً لضمان إعادة بناء SvgaPlayer عند الكومبو
-      _giftTextReplacement = null;
-      _giftImageReplacement = null;
-      _giftDefaultImage = null;
     }
+    // ✅ بعد انتهاء العرض الحالي ننتقل للهدية التالية في الطابور
+    _pumpGiftAnimQueue();
+  }
+
+  /// يعرض الهدية التالية في الطابور إن وُجدت ولم يكن عرض آخر يعمل.
+  void _pumpGiftAnimQueue() {
+    if (_giftAnimNotifier.value != null) return;
+    if (_giftAnimQueue.isEmpty) return;
+    final next = _giftAnimQueue.removeAt(0);
+    _giftAnimAsset = next['asset']?.toString();
+    // صمام أمان: لا يعلق العرض أبداً إذا تعطّل ملف الأنيميشن.
+    _giftAnimWatchdog = Timer(const Duration(seconds: 30), () {
+      _clearGiftAnim();
+    });
+    _giftAnimNotifier.value = next;
   }
 
   final Map<String, int> _recentGiftTimestamps = {};
+
+  /// ✅ تحديث تفاؤلي لكاريزما المستلم فوراً عند الإرسال (قبل تأكيد السيرفر)
+  /// حتى يظهر رقم الكاريزما على مقعده لحظياً دون انتظار رحلة الشبكة.
+  void _applyOptimisticCharm(
+    Iterable<String> receiverIds,
+    int giftValue,
+    int giftCount,
+  ) {
+    if (giftValue <= 0) return;
+    final delta = giftValue * (giftCount <= 0 ? 1 : giftCount);
+    final targets = receiverIds.where((e) => e.isNotEmpty).toSet();
+    if (targets.isEmpty) return;
+    setState(() {
+      for (final rid in targets) {
+        final next = (_giftReceiverTotals[rid] ?? 0) + delta;
+        _giftReceiverTotals[rid] = next;
+        _pendingCharmCredits[rid] = (_pendingCharmCredits[rid] ?? 0) + delta;
+        _pendingCharmCreditsAt[rid] = DateTime.now().millisecondsSinceEpoch;
+        for (int i = 0; i < _seats.length; i++) {
+          final seat = _seats[i];
+          if (seat.user?.id == rid) {
+            _seats[i] = seat.copyWith(
+              user: seat.user!.copyWith(
+                giftCount: next,
+                totalGiftsReceived: next,
+                charm: next.toString(),
+              ),
+            );
+          }
+        }
+      }
+    });
+  }
 
   bool _isDuplicateGiftEvent(String senderId, String giftId) {
     if (senderId.isEmpty || giftId.isEmpty) return false;
@@ -410,30 +566,34 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _triggerGiftAnim(String asset, {Map<String, String>? textReplacement, Map<String, String>? imageReplacement, String? defaultImage}) {
     if (!_giftEffectsEnabled) return;
-    _giftAnimWatchdog?.cancel();
     // ✅ مثل التطبيق الأصلي تماماً:
     // إذا كانت نفس الهدية قيد العرض بالفعل (مثل نقرات الكومبو السريعة)،
     // نترك الأنيميشن يكمل تشغيله بسلاسة ونمدد فقط مؤقت الأمان دون وميض أو تجميد الشاشة
     if (_giftAnimAsset == asset && _giftAnimNotifier.value != null) {
-      _giftAnimWatchdog = Timer(const Duration(seconds: 12), () {
+      _giftAnimWatchdog?.cancel();
+      _giftAnimWatchdog = Timer(const Duration(seconds: 30), () {
         _clearGiftAnim();
       });
       return;
     }
-    // صمام أمان للروم: في حال تعطل ملف VAP/SVGA لا تعلق الغرفة أبداً
-    _giftAnimWatchdog = Timer(const Duration(seconds: 12), () {
-      _clearGiftAnim();
-    });
-    _giftAnimAsset = asset;
-    _giftTextReplacement = textReplacement;
-    _giftImageReplacement = imageReplacement;
-    _giftDefaultImage = defaultImage;
-    _giftAnimNotifier.value = {
+    // ✅ لا نكرر نفس الهدية إذا كانت آخر عنصر في الطابور — يمنع تراكم
+    //    نسخ متطابقة عند الإرسال السريع لنفس الهدية.
+    if (_giftAnimQueue.isNotEmpty &&
+        _giftAnimQueue.last['asset'] == asset) {
+      return;
+    }
+    // ✅ طابور العرض: لا يقطع الإرسال الجديد الأنيميشن الجاري — يُضاف
+    //    للطابور (بحد أقصى) ويُعرض بعد انتهاء الحالي.
+    if (_giftAnimQueue.length >= _giftAnimQueueMax) {
+      _giftAnimQueue.removeAt(0);
+    }
+    _giftAnimQueue.add({
       'asset': asset,
       'textReplacement': textReplacement,
       'imageReplacement': imageReplacement,
       'defaultImage': defaultImage,
-    };
+    });
+    _pumpGiftAnimQueue();
   }
 
   Map<String, String>? _buildTextReplacements({
@@ -542,28 +702,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Map<String, String>? _entranceItemImageReplacement;
   String? _entranceItemDefaultImage;
 
-  // Dynamic SVGA data for gift
-  Map<String, String>? _giftTextReplacement;
-  Map<String, String>? _giftImageReplacement;
-  String? _giftDefaultImage;
-
   // Gift banner overlay state
-  bool _showGiftBanner = false;
+  final bool _showGiftBanner = false;
   String? _giftBannerAsset;
   String? _giftBannerSenderPhoto;
   String? _giftBannerReceiverPhoto;
   String? _giftBannerGiftImage;
-  int _giftBannerCount = 1;
-  String _giftBannerUserRKey = 'user_r';
-  String _giftBannerUserLKey = 'user_l';
-  String _giftBannerNumberKey = 'number';
-  String _giftBannerGiftKey = 'gift';
+  final int _giftBannerCount = 1;
+  final String _giftBannerUserRKey = 'user_r';
+  final String _giftBannerUserLKey = 'user_l';
+  final String _giftBannerNumberKey = 'number';
+  final String _giftBannerGiftKey = 'gift';
   List<GiftBannerConfig> _bannerConfigs = [];
 
   // Flight overlay state for animated gifts arriving at seats
-  bool _showGiftFlight = false;
-  String _giftFlightIconUrl = '';
-  List<Offset> _giftFlightTargets = [];
+  // (قائمة مستقلة لكل إرسال حتى تظهر الهدية في كل مرة حتى مع الإرسال المتتابع)
+  final List<_GiftFlightInstance> _giftFlights = [];
+  int _giftFlightSeq = 0;
   Map<String, dynamic>? _pendingBannerData;
 
   // ── Floating Combo Button state ──
@@ -585,9 +740,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Future<void> _playGiftArrivalSound() async {
     try {
       HapticFeedback.lightImpact();
-      if (_giftAudioPlayer == null) {
-        _giftAudioPlayer = AudioPlayer();
-      }
+      _giftAudioPlayer ??= AudioPlayer();
 
       final remoteUrl = DynamicConfigService().getAssetUrl('gift_sound') ??
           DynamicConfigService().getAssetUrl('gift') ??
@@ -746,29 +899,49 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       );
     }
 
-    // ✅ تشغيل أو تمديد أنيميشن الهدية فوراً دون حظر واجهة المستخدم
-    final animAsset = data['animationAsset']?.toString() ?? '';
-    final defImg    = data['defaultImage']?.toString();
-    final senderPhoto = data['senderPhotoUrl']?.toString();
-    final nameKey   = data['nameKey']?.toString();
-    final photoKey  = data['photoKey']?.toString();
-    final senderName = data['senderName']?.toString() ?? '';
-    final textRepl = _buildTextReplacements(
-      nameKeys: nameKey,
-      senderName: senderName,
-      count: data['giftCount'] as int? ?? 1,
-    );
-    final imgRepl = _buildImageReplacements(
-      photoKeys: photoKey,
-      senderPhoto: senderPhoto ?? '',
-    );
+    // ✅ زيادة كاريزما المستلمين تفاؤلياً مع كل ضغطة كومبو
+    final comboReceivers = <String>[
+      ...?(data['receiverIds'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .where((e) => e.isNotEmpty),
+      ...selectedTargets
+          .map((t) => (t is Map ? t['id']?.toString() : null))
+          .whereType<String>()
+          .where((e) => e.isNotEmpty),
+    ];
+    if (comboReceivers.isNotEmpty) {
+      _applyOptimisticCharm(comboReceivers, gift?.value ?? 0, stepCount);
+    }
 
-    if (animAsset.isNotEmpty && mounted) {
+    // ✅ عرض الأنيميشن الكبير (ملء الشاشة) عند إعادة الإرسال بالكومبو أيضاً
+    //    مثل الدخوليات — للهدايا غير المحظوظة فقط.
+    final comboAnimAsset = data['animationAsset']?.toString() ?? '';
+    if (comboAnimAsset.isNotEmpty && data['isLucky'] != true) {
+      final giftObj = data['gift'] as gm.GiftModel?;
+      final comboName = data['senderName']?.toString() ?? '';
+      final comboPhoto = data['senderPhotoUrl']?.toString() ?? '';
+      final targets = (data['selectedTargets'] as List<dynamic>?) ?? const <dynamic>[];
+      Map<String, dynamic>? singleTarget;
+      if (targets.length == 1 && targets.first is Map) {
+        singleTarget = Map<String, dynamic>.from(targets.first as Map);
+      }
       _triggerGiftAnim(
-        animAsset,
-        textReplacement: textRepl,
-        imageReplacement: imgRepl,
-        defaultImage: defImg,
+        comboAnimAsset,
+        textReplacement: _buildTextReplacements(
+          nameKeys: data['nameKey']?.toString() ?? giftObj?.nameKey,
+          receiverNameKeys: giftObj?.receiverNameKey,
+          countKeys: giftObj?.countKey,
+          senderName: comboName,
+          receiverName: singleTarget?['name']?.toString() ?? '',
+          count: (data['giftCount'] as num?)?.toInt() ?? 1,
+        ),
+        imageReplacement: _buildImageReplacements(
+          photoKeys: data['photoKey']?.toString() ?? giftObj?.photoKey,
+          receiverPhotoKeys: giftObj?.receiverPhotoKey,
+          senderPhoto: comboPhoto,
+          receiverPhoto: singleTarget?['photoUrl']?.toString() ?? '',
+        ),
+        defaultImage: iconUrl,
       );
     }
 
@@ -788,14 +961,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           final receiverName = r['name']?.toString() ?? '';
           if (isLucky) {
             final cover = gift.defaultImage ?? gift.iconAsset;
-
-            final flyIcon = gift.defaultImage ?? gift.iconAsset;
-            if (flyIcon.isNotEmpty) {
-              _triggerGiftFlight(
-                iconUrl: flyIcon,
-                receiverId: receiverId,
-              );
-            }
 
             final res = await fb.sendLuckyGift(
               roomId: roomId,
@@ -931,48 +1096,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     timestamp: DateTime.now().millisecondsSinceEpoch,
                   ));
 
-                  // ✅ إشعار نصي فوري في شات الغرفة عند فوز المحظوظ
-                  if (won > 0 || mult > 1) {
-                    final winMsgId = '${localMsgId}_win';
-                    if (!_seenMsgIds.contains(winMsgId)) {
-                      _seenMsgIds.add(winMsgId);
-                      _chatMessages.add(MessageModel(
-                        msgId: winMsgId,
-                        roomId: roomId,
-                        senderUid: 'system',
-                        senderName: 'نظام',
-                        senderPhotoUrl: '',
-                        type: 'system',
-                        text: mult > 1
-                            ? '🍀 $receiverName فاز بالمحظوظ! مضاعف ${mult}X — ربح $won 🪙'
-                            : '🍀 $receiverName فاز بهدية الحظ "${gift.name}" وربح $won 🪙!',
-                        timestamp: DateTime.now().millisecondsSinceEpoch + 100,
-                      ));
-                    }
-                  }
+                  // ⛔ لا رسالة فوز محلية — رسالة «فاز بالمحظوظ» تصل من
+                  //    السيرفر عبر room_messages (msg_id UUID) كرسالة
+                  //    system موثّقة، والنسخة المحلية كانت تتكرر معها.
                   _msgCount = _chatMessages.length;
                   _chatUpdateNotifier.value++;
-                  if (_chatScroll.hasClients) {
-                    _chatScroll.animateTo(
-                      _chatScroll.position.maxScrollExtent,
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOut,
-                    );
-                  }
+                  // ✅ التمرير بعد بناء الرسالة الجديدة، وإلا كان maxScrollExtent
+                  //    قديماً فيتوقف التمرير قبل آخر رسالة (نص الفوز) ولا يظهر.
+                  //    فوز الحظ = قفزة فورية لآخر الرسالة بدون أنيميشن.
+                  _scrollChatToLatest(instant: true);
                 }
               }
             }
           } else {
             userProvider.deductCoinsLocally(gift.value * count);
             final cover = gift.defaultImage ?? gift.iconAsset;
-            if (cover.isNotEmpty) {
-              _triggerGiftFlight(
-                iconUrl: cover,
-                receiverId: receiverId,
-              );
-            }
             final sent = await fb.sendGift(
               roomId: roomId,
+              roomName: widget.roomName,
               giftId: gift.id,
               giftName: gift.name,
               animationAsset: gift.animationAsset,
@@ -994,6 +1135,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// يختار أول رابط صورة صالح لطيران الهدية — يرفض ملفات الأنيميشن
+  /// (svga/vap/mp4) التي لا يستطيع Image عرضها، ويعود لأيقونة الهدية
+  /// المدمجة حتى لا تفشل هدية كاملة في الطيران لمجرد أن كل صورها
+  /// المتاحة فيديو (حالة الهدايا الكبيرة مثل 460/411/400).
+  String _pickFlightIcon(List<String?> candidates) {
+    for (final c in candidates) {
+      if (c == null || c.isEmpty) continue;
+      final l = c.toLowerCase();
+      if (l.endsWith('.svga') || l.endsWith('.vap') || l.endsWith('.mp4')) {
+        continue;
+      }
+      return c;
+    }
+    return R.roomGiftIc;
+  }
+
   void _triggerGiftFlight({
     required String iconUrl,
     String? receiverId,
@@ -1001,7 +1158,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }) {
     final screenSize = MediaQuery.of(context).size;
     final statusH = MediaQuery.of(context).padding.top;
-    final startOffset = Offset(screenSize.width * 0.8, screenSize.height - 60);
     final targets = <Offset>[];
 
     final headerH = statusH + 50.0 + 32.0 + 4.0;
@@ -1082,9 +1238,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     if (mounted) {
       setState(() {
-        _giftFlightIconUrl = iconUrl;
-        _giftFlightTargets = targets;
-        _showGiftFlight = true;
+        _giftFlightSeq++;
+        _giftFlights.add(_GiftFlightInstance(
+          id: _giftFlightSeq,
+          iconUrl: iconUrl,
+          targets: targets,
+        ));
+        // حد أعلى بسيط لمنع تراكم الأنيميشن عند الإرسال السريع جداً
+        if (_giftFlights.length > 8) {
+          _giftFlights.removeRange(0, _giftFlights.length - 8);
+        }
       });
     }
   }
@@ -1094,7 +1257,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _hasPlayedEntryAnimations = false;
   bool _showFunction = false;
   bool _showEmoj = false;
-  bool _showChatInput = false;
+  // ✅ ValueNotifier لعرض/إخفاء شريط الكتابة دون إعادة بناء الغرفة كاملة
+  //    (فتح لوحة المفاتيح يصبح فورياً وسلساً)
+  final ValueNotifier<bool> _chatInputNotifier = ValueNotifier<bool>(false);
   bool _showProfile = false;
   bool _showRoomInfo = false;
   bool _showExit = false;
@@ -1107,6 +1272,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   int _msgCount = 0;
   final List<MessageModel> _chatMessages = [];
   int _localChatClearedAt = 0;
+  /// ✅ أقل وقت مسموح لعرض رسالة في الشات لهذه الجلسة. يُضبط عند أول دفعة
+  /// من الستريم (الرسائل التاريخية) حتى لا تظهر رسائل ما قبل دخول المستخدم.
+  int _chatVisibleAfterMs = 0;
   int _chatTabIndex = 0; // 0: الكل, 1: الدردشة, 2: الهدايا
 
   List<MessageModel> get _filteredChatMessages {
@@ -1180,6 +1348,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   // Track total gifts received per seat user ID
   final Map<int, GlobalKey> _seatKeys = { for (int i = 0; i < 25; i++) i: GlobalKey() };
   final Map<String?, int> _giftReceiverTotals = {};
+  /// ✅ اعتمادات كاريزما تفاؤلية أُضيفت عند الإرسال ولم يؤكدها السيرفر بعد،
+  ///    حتى لا يتراجع رقم الكاريزما مؤقتاً قبل وصول تأكيد الهدية.
+  final Map<String, int> _pendingCharmCredits = {};
+  /// وقت إضافة كل اعتماد تفاؤلي (لإنهائه إن لم يؤكده السيرفر).
+  final Map<String, int> _pendingCharmCreditsAt = {};
   StreamSubscription? _giftSub;
   StreamSubscription? _seatsSub;
   StreamSubscription? _membersSub;
@@ -1194,6 +1367,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _kickExitHandled = false;
   StreamSubscription? _broadcastSub;
   StreamSubscription? _broadcastPusherSub;
+  StreamSubscription? _sbRealtimeSub;
   final ValueNotifier<Map<String, dynamic>?> _broadcastNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final ValueNotifier<Map<String, dynamic>?> _giftBannerNotifier = ValueNotifier<Map<String, dynamic>?>(null);
   final ValueNotifier<int> _chatUpdateNotifier = ValueNotifier<int>(0);
@@ -1214,6 +1388,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    RoomScreen.activeRoomId = widget.roomId;
     // تتبع مدة البقاء في الغرفة والتحدث على المايك كل دقيقة للمهام اليومية
     _taskStayTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (!mounted) return;
@@ -1321,6 +1496,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       unawaited(_loadRoomData());
       _startPresencePing();
+      // ✅ مراقبة استقرار الشبكة: بينج دوري على Supabase + مزامنة وقت
+      //    السيرفر — تُغذّي نقطة الحالة أسفل أيقونة المتصلين في الهيدر.
+      unawaited(NetworkStatusService().init());
       _zombieCleanupTimer?.cancel();
       _zombieCleanupTimer = Timer.periodic(
           const Duration(minutes: 1), (_) => _cleanupZombieUsers());
@@ -1344,7 +1522,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final bgAt = _backgroundedAt;
       _backgroundedAt = null;
       if (bgAt != null &&
-          DateTime.now().difference(bgAt) > const Duration(minutes: 10)) {
+          DateTime.now().difference(bgAt) > const Duration(minutes: 1)) {
         unawaited(_forceExitAfterLongBackground());
         return;
       }
@@ -1353,6 +1531,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _updatePresencePing();
     } else if (state == AppLifecycleState.detached) {
       // ✅ التطبيق يُغلق كلياً — نظّف المستخدم فوراً من الغرفة والمقعد
+      // إيقاف الصوت ومغادرة القناة فوراً (متزامن) قبل موت العملية
+      try {
+        _isMicOn = false;
+        _roomAudio.toggleMic(false);
+        _roomAudio.stopPublishingIfActive();
+        _roomAudio.leaveChannel();
+      } catch (_) {}
       _leaveRoomSession();
       final uid = _currentUserId ?? Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
       if (uid != null) {
@@ -1362,6 +1547,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadRoomData() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final currentUser = userProvider.currentUser;
+    // ✅ فحص الحظر يبدأ بالتوازي مع جلب وقت السيرفر — كلاهما بمهلة،
+    //    فيصبح أسوأ تأخير max(2s, 3s) بدل مجموعهما (5s) على الشبكات البطيئة.
+    final bannedCheck = currentUser == null
+        ? null
+        : _firebaseService
+            .isUserBlockedFromRoom(widget.roomId, currentUser.uid)
+            .timeout(const Duration(seconds: 3))
+            .catchError((_) => false);
     // استخدم وقت السيرفر كبداية جلسة الشات حتى لا تعود الرسائل القديمة عند
     // الدخول، مع تفادي فارق ساعة الجهاز الذي كان يخفي رسائل الآخرين.
     int? serverJoinedMs;
@@ -1377,12 +1572,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         serverJoinedMs ?? DateTime.now().millisecondsSinceEpoch;
     _joinedAt = DateTime.fromMillisecondsSinceEpoch(joinedMs);
     _chatMessages.clear();
+    // ✅ يُضبط لاحقاً على أقصى وقت لرسائل الدفعة التاريخية الأولى (شات نظيف)
+    _chatVisibleAfterMs = 0;
     _msgCount = 0;
     final uProvInit = Provider.of<UserProvider>(context, listen: false).currentUser;
     if (uProvInit != null) { _cachedUsers[uProvInit.uid] = uProvInit; }
     LuckyGiftService().disposeAllOverlays();
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final currentUser = userProvider.currentUser;
 
     final minSvc = MinimizedRoomService();
     // If another room was minimized, cleanly exit the old room!
@@ -1431,14 +1626,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       } else if (currentUser.hostedRoomId == widget.roomId) {
         _resolveHostCustomId(currentUser.uid);
       }
-      // ✅ سقف 3 ثوانٍ: فحص الحظر لا يجب أن يؤخر دخول الغرفة —
-      //    عند انتهاء المهلة نكمل الدخول طبيعياً (الـ stream يراقب لاحقاً).
-      bool isBannedNow = false;
-      try {
-        isBannedNow = await _firebaseService
-            .isUserBlockedFromRoom(widget.roomId, currentUser.uid)
-            .timeout(const Duration(seconds: 3));
-      } catch (_) {}
+      // ✅ النتيجة جاهزة منذ بداية الدالة (فُحص بالتوازي مع وقت السيرفر)
+      //    — عند انتهاء المهلة نكمل الدخول طبيعياً (الـ stream يراقب لاحقاً).
+      final isBannedNow = bannedCheck == null ? false : await bannedCheck;
       if (isBannedNow) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1458,7 +1648,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         if (isBanned && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: DText('تم حظرك من هذه الغرفة بواسطة المشرف'),
+              content: DText('تم حظرك بواسطة المشرف'),
               duration: Duration(seconds: 4),
               backgroundColor: Colors.red,
             ),
@@ -1529,14 +1719,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _cleanupZombieUsers();
       if (!isReturningFromMinimized) {
         try {
+          // Refresh user data to ensure latest activeEntrance/activeCar (avoid race condition after equipping)
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          await userProvider.loadUser(currentUser.uid);
+          final refreshedUser = userProvider.currentUser ?? currentUser;
           // Log entrance effect for other users to see
           _firebaseService.logEntrance(
             widget.roomId,
-            currentUser.uid,
-            currentUser.name,
-            currentUser.photoUrl,
-            currentUser.activeEntrance,
-            carItem: currentUser.activeCar,
+            refreshedUser.uid,
+            refreshedUser.name,
+            refreshedUser.photoUrl,
+            refreshedUser.activeEntrance,
+            carItem: refreshedUser.activeCar,
           );
         } catch (e) {
           debugPrint('logEntrance error: $e');
@@ -1590,7 +1784,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       for (final g in gifts) {
         _cachedGiftItems[g.id] = g;
       }
-      MediaPrefetchService().prefetchGifts(gifts);
+      // ✅ لا نُحمّل ملفات الهدايا مسبقاً — التحميل عند الطلب من صندوق الهدايا
+      //    فقط (شريط تقدّم) وتُحفظ في الكاش فلا تُحمَّل مرة أخرى.
     });
 
     // Load gift banner configs
@@ -1629,9 +1824,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     });
 
-    bool _msgStreamInitial = true;
+    bool msgStreamInitial = true;
 
-    void _flushBroadcastChatIfChanged(bool changed) {
+    void flushBroadcastChatIfChanged(bool changed) {
       if (!changed) return;
       _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
       if (_chatMessages.length > 1000) {
@@ -1644,7 +1839,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     /// معالجة صف بث واحد: فلترة الحداثة/المسح + منع التكرار + حقن رسالة
     /// الشات إن كان البث يخص هذه الغرفة. تُستخدم من الـ polling و Pusher معاً.
     /// تُرجع true إذا أُضيفت رسالة شات جديدة.
-    bool _processBroadcastRow(Map<String, dynamic> latest) {
+    bool processBroadcastRow(Map<String, dynamic> latest) {
       final nowMs = DateTime.now().millisecondsSinceEpoch;
       final roomCleared = _currentRoom?.chatClearedAt ?? 0;
       final minTimestamp = _localChatClearedAt > roomCleared ? _localChatClearedAt : roomCleared;
@@ -1657,6 +1852,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final isRecent = (nowMs - bTs).abs() < 90000; // 90 ثانية استيعاب لأي فارق توقيت بين الأجهزة
       if (!isRecent) return false;
       if (minTimestamp > 0 && bTs < minTimestamp) return false;
+      // ✅ شات نظيف: لا نحقن بثوثاً حدثت قبل دخول المستخدم.
+      if (_chatVisibleAfterMs > 0 && bTs <= _chatVisibleAfterMs) return false;
       final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
       if (_seenMsgIds.contains(bId)) return false;
       _seenMsgIds.add(bId);
@@ -1692,24 +1889,154 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       return true;
     }
 
+    // ✅ رسائل الدردشة تصل فوراً عبر Pusher (room_messages INSERT).
+    //    لا نلمس _seenMsgIds هنا حتى يبقى مسار الـ polling هو المسؤول عن
+    //    تشغيل مؤثرات الهدايا/الفوز مرة واحدة فقط (بدون تكرار).
+    bool insertRealtimeRoomMessage(Map<String, dynamic> row) {
+      final rowRoomId = row['room_id']?.toString() ?? '';
+      if (rowRoomId.isNotEmpty && rowRoomId != widget.roomId) return false;
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final roomCleared = _currentRoom?.chatClearedAt ?? 0;
+      final minTimestamp =
+          _localChatClearedAt > roomCleared ? _localChatClearedAt : roomCleared;
+
+      // created_at يصل من Postgres بصيغة ISO؛ نقبله أيضاً كرقم للاحتياط.
+      final createdRaw = row['created_at'];
+      int ts = 0;
+      if (createdRaw is num) {
+        ts = createdRaw.toInt();
+      } else if (createdRaw != null) {
+        ts = DateTime.tryParse(createdRaw.toString())?.millisecondsSinceEpoch ?? 0;
+      }
+      if (ts <= 0) ts = nowMs;
+      // حدث قديم/ساعة غير متزامنة — نتجاهله (نفس منطق البثوث).
+      if ((nowMs - ts).abs() > 120000) return false;
+      if (minTimestamp > 0 && ts < minTimestamp) return false;
+
+      final msgId = row['msg_id']?.toString() ?? '';
+      final senderUid = row['sender_uid']?.toString() ?? '';
+      final type = row['type']?.toString() ?? 'text';
+      final text = row['text']?.toString() ?? '';
+      final imageUrl = row['image_url']?.toString() ?? '';
+
+      // ✅ شات نظيف: لا نعرض رسائل ما قبل دخول المستخدم حتى لو وصلت عبر
+      //    الـ realtime (ما لم تكن رسالتنا المؤقتة أو رسالة أحدث من لحظة الدخول).
+      if (_chatVisibleAfterMs > 0 &&
+          ts <= _chatVisibleAfterMs &&
+          senderUid != _currentUserId &&
+          !msgId.startsWith('temp_')) {
+        return false;
+      }
+
+      // منع التكرار: نفس المعرّف إن وُجد، وإلا نفس المرسل/النوع/النص قريباً.
+      final duplicate = msgId.isNotEmpty
+          ? _chatMessages.any((m) => m.msgId == msgId)
+          : _chatMessages.any((m) =>
+              m.senderUid == senderUid &&
+              m.type == type &&
+              m.text == text &&
+              (m.timestamp - ts).abs() < 2000);
+      if (duplicate) return false;
+
+      // ✅ مطابقة الرسالة المؤقتة (optimistic) مع الحقيقية عبر giftPayload
+      //    (gift_id + receiver_id + count) — أضمن من النص/الصورة اللذين قد
+      //    يختلفان اختلافات طفيفة وتبقي المؤقتة مكررة بجانب الحقيقية.
+      final incomingGiftPayload = row['gift_payload'] is Map
+          ? Map<String, dynamic>.from(row['gift_payload'] as Map)
+          : null;
+      final tempIdx = _chatMessages.indexWhere((e) {
+        if (!e.msgId.startsWith('temp_') || e.senderUid != senderUid) {
+          return false;
+        }
+        final sameText = e.text.trim().isNotEmpty && e.text == text;
+        final sameImage = e.imageUrl != null &&
+            e.imageUrl!.isNotEmpty &&
+            imageUrl.isNotEmpty &&
+            e.imageUrl == imageUrl;
+        final sameGiftPayload = e.type == 'gift' &&
+            _giftPayloadMatches(e.giftPayload, incomingGiftPayload);
+        if (!sameText && !sameImage && !sameGiftPayload) return false;
+        return (e.timestamp - ts).abs() < 120000;
+      });
+
+      final incoming = MessageModel.fromMap({
+        ...row,
+        if (row['created_at'] == null) 'created_at': ts,
+      });
+
+      if (tempIdx != -1) {
+        _chatMessages[tempIdx] = incoming;
+      } else {
+        _chatMessages.add(incoming);
+      }
+      _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      if (_chatMessages.length > 1000) {
+        _chatMessages.removeRange(0, _chatMessages.length - 1000);
+      }
+      _msgCount = _chatMessages.length;
+      _chatUpdateNotifier.value++;
+
+      // التمرير: دائماً لرسائل الهدايا/الحظ، وللنص فقط إن كان المستخدم
+      // قريباً من الأسفل (حتى لا نسحبه بعيداً وهو يقرأ).
+      final isGiftType = type == 'gift' ||
+          type == 'lucky_gift' ||
+          type == 'lucky_win' ||
+          type == 'gift_multiplier' ||
+          type == 'lucky_bag';
+      final shouldScroll = isGiftType ||
+          (_chatScroll.hasClients &&
+              (_chatScroll.position.maxScrollExtent - _chatScroll.offset) < 120);
+      if (shouldScroll) {
+        // الهدايا: قفزة فورية لآخر الرسالة — تظهر مباشرة بدون سكرول.
+        _scrollChatToLatest(instant: isGiftType);
+      }
+      return true;
+    }
+
     _broadcastSub = _firebaseService.globalBroadcastStream().listen((broadcasts) {
       if (!mounted || broadcasts.isEmpty) return;
       var changed = false;
       for (final latest in broadcasts) {
-        changed = _processBroadcastRow(latest) || changed;
+        changed = processBroadcastRow(latest) || changed;
       }
-      _flushBroadcastChatIfChanged(changed);
+      flushBroadcastChatIfChanged(changed);
     });
 
     // ✅ اشتراك Pusher الفوري — رسالة الفوز/الهدية تصل لكل أعضاء الغرفة
     //    في نفس اللحظة التي يُرسل فيها الباك إند البث، بدون انتظار الـ polling.
     PusherRealtimeService.instance.start();
+    // JOIN قناة الغرفة: رسائل الدردشة تُبث على قناة هذه الغرفة فقط
+    PusherRealtimeService.instance.subscribeRoom(widget.roomId);
     _broadcastPusherSub = PusherRealtimeService.instance.events.listen((evt) {
-      if (!mounted || evt['event'] != 'broadcast') return;
+      if (!mounted) return;
       final data = evt['data'];
       if (data is! Map) return;
-      final changed = _processBroadcastRow(Map<String, dynamic>.from(data));
-      _flushBroadcastChatIfChanged(changed);
+      final row = Map<String, dynamic>.from(data);
+
+      // رسائل الدردشة الفورية (تشمل نص فوز هدايا الحظ)
+      if (evt['event'] == 'room_message') {
+        insertRealtimeRoomMessage(row);
+        return;
+      }
+
+      if (evt['event'] != 'broadcast') return;
+      final changed = processBroadcastRow(row);
+      flushBroadcastChatIfChanged(changed);
+    }, onError: (_) {});
+
+    // ✅ قناة Realtime ثانية من Supabase مباشرة (postgres_changes)
+    //    — تغطي الحالة التي لا يُطلِق فيها الباك إند حدث Pusher. dedup
+    //    بـ msg_id يمنع أي ازدواج مع Pusher/polling.
+    SupabaseRealtimeService.instance.start();
+    SupabaseRealtimeService.instance.subscribeRoom(widget.roomId);
+    _sbRealtimeSub = SupabaseRealtimeService.instance.events.listen((evt) {
+      if (!mounted) return;
+      final data = evt['data'];
+      if (data is! Map) return;
+      if (evt['event'] == 'room_message') {
+        insertRealtimeRoomMessage(Map<String, dynamic>.from(data));
+      }
     }, onError: (_) {});
 
     // لو فشل جلب وقت السيرفر نرجع لعدم الفلترة بدل الاعتماد على ساعة جهاز
@@ -1717,17 +2044,52 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final sessionSince = serverJoinedMs != null
         ? (serverJoinedMs - 2000).toString()
         : null;
+
+    // Buffer for entrance animations that arrive before store items are loaded
+    // (used by both message stream and dedicated entrances stream)
+    final pendingEntrances = <Map<String, dynamic>>[];
+
     _msgSub = _firebaseService.messagesStream(
       widget.roomId,
       since: sessionSince,
     ).listen((msgs) {
       if (mounted) {
+        // ✅ الجلسة تبدأ نظيفة تماماً: أول دفعة من الستريم هي رسائل تاريخية
+        //    (قديمة) — لا نعرضها إطلاقاً، ونسجّل حدّاً زمنياً لا تظهر رسالة
+        //    أقدم منه خلال هذه الجلسة.
+        if (msgStreamInitial) {
+          msgStreamInitial = false;
+          var visibleAfter = _chatVisibleAfterMs;
+          if (serverJoinedMs != null) {
+            // وقت السيرفر متاح — نعتمد عليه لأنه متسق مع طوابع الرسائل.
+            if (serverJoinedMs > visibleAfter) visibleAfter = serverJoinedMs;
+          } else {
+            // لا وقت سيرفر (فشل الجلب): نعتمد على أقصى وقت في الدفعة
+            // التاريخية بدل ساعة الجهاز حتى لا نخفي رسائل جديدة بسبب فارق الوقت.
+            for (final m in msgs) {
+              if (m.timestamp > visibleAfter) visibleAfter = m.timestamp;
+            }
+          }
+          if (_localChatClearedAt > visibleAfter) visibleAfter = _localChatClearedAt;
+          final roomCleared0 = _currentRoom?.chatClearedAt ?? 0;
+          if (roomCleared0 > visibleAfter) visibleAfter = roomCleared0;
+          for (final m in msgs) {
+            final mId =
+                m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}';
+            _seenMsgIds.add(mId);
+          }
+          _chatVisibleAfterMs = visibleAfter;
+          return;
+        }
+
         // فلتر المصدر يعتمد على وقت السيرفر لبداية الجلسة؛ هنا نضيف فقط
         // وقت مسح الشات من الإدارة حتى لا تظهر رسائل ما قبل المسح.
         final roomCleared = _currentRoom?.chatClearedAt ?? 0;
-        final minTimestamp = _localChatClearedAt > roomCleared ? _localChatClearedAt : roomCleared;
+        var minTimestamp = _localChatClearedAt > roomCleared ? _localChatClearedAt : roomCleared;
+        // ✅ لا نعرض أي رسالة أقدم من لحظة الدخول/آخر دفعة تاريخية (شات نظيف).
+        if (_chatVisibleAfterMs > minTimestamp) minTimestamp = _chatVisibleAfterMs;
         final currentSessionMsgs = minTimestamp > 0
-            ? msgs.where((m) => m.timestamp >= minTimestamp).toList()
+            ? msgs.where((m) => m.timestamp > minTimestamp).toList()
             : msgs;
 
         // إزالة أي رسائل أقدم من وقت المسح فقط
@@ -1747,7 +2109,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             final sameImage = e.imageUrl != null &&
                 e.imageUrl!.isNotEmpty &&
                 e.imageUrl == m.imageUrl;
-            if (!sameText && !sameImage) return false;
+            final sameGiftPayload = e.type == 'gift' &&
+                _giftPayloadMatches(e.giftPayload, m.giftPayload);
+            if (!sameText && !sameImage && !sameGiftPayload) return false;
             return (e.timestamp - m.timestamp).abs() < 120000;
           });
           if (tempIdx != -1) {
@@ -1786,17 +2150,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         }
         _msgCount = _chatMessages.length;
         _chatUpdateNotifier.value++;
-
-        // إذا كانت هذه المرة الأولى عند دخول الغرفة، نعتبر كافة الرسائل السابقة شوهدت بالفعل
-        // لمنع تشغيل مضاعفات الحظ أو مؤثرات الهدايا القديمة إطلاقاً
-        if (_msgStreamInitial) {
-          for (final m in msgs) {
-            final mId = m.msgId.isNotEmpty ? m.msgId : '${m.timestamp}_${m.senderUid}';
-            _seenMsgIds.add(mId);
-          }
-          _msgStreamInitial = false;
-          return;
-        }
 
         // عرض هدايا الحظ (lucky_gift) والهدايا العادية (gift) والمظاريف الحمراء (lucky_bag) لكافة أعضاء الغرفة لحظياً للرسائل الجديدة فقط
         for (final m in currentSessionMsgs) {
@@ -1841,20 +2194,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               final isLucky = giftDef?.isLucky == true || giftDef?.type == 3 || giftDef?.categoryId == 'lucky';
 
               if (!isLucky && (giftId.isEmpty || !_isDuplicateGiftEvent(m.senderUid, giftId))) {
-                String flyIcon = (payload['default_image']?.toString().isNotEmpty == true &&
-                        !payload['default_image'].toString().endsWith('.svga') &&
-                        !payload['default_image'].toString().endsWith('.vap'))
-                    ? payload['default_image'].toString()
-                    : ((payload['gift_icon']?.toString().isNotEmpty == true &&
-                            !payload['gift_icon'].toString().endsWith('.svga') &&
-                            !payload['gift_icon'].toString().endsWith('.vap'))
-                        ? payload['gift_icon'].toString()
-                        : (giftDef?.iconAsset ?? giftDef?.defaultImage ?? ''));
-                if (flyIcon.endsWith('.svga') || flyIcon.endsWith('.vap') || flyIcon.endsWith('.mp4')) {
-                  flyIcon = giftDef?.iconAsset ?? '';
-                }
+                final flyIcon = _pickFlightIcon([
+                  payload['default_image']?.toString(),
+                  payload['gift_icon']?.toString(),
+                  payload['image_url']?.toString(),
+                  giftDef?.defaultImage,
+                  giftDef?.iconAsset,
+                ]);
                 final receiverId = payload['receiver_id']?.toString();
-                if (flyIcon.isNotEmpty && receiverId != null && receiverId.isNotEmpty) {
+                if (receiverId != null && receiverId.isNotEmpty) {
                   _triggerGiftFlight(
                     iconUrl: flyIcon,
                     receiverId: receiverId,
@@ -1963,8 +2311,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   };
                   if (storeItem != null) {
                     _playEntranceEffect(entryData, storeItem, m.senderUid);
-                  } else {
+                  } else if (imgUrl.startsWith('http') || imgUrl.startsWith('assets/')) {
                     _playEntranceEffectRaw(entryData, imgUrl);
+                  } else {
+                    // Buffer for when store items load (entrance item IDs that aren't in index yet)
+                    pendingEntrances.add(entryData);
                   }
                 }
               }
@@ -1978,7 +2329,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               _kickExitHandled = true;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: DText(m.text.isNotEmpty ? m.text : 'تم طردك من الغرفة من قبل المشرف'),
+                  content: DText(m.text.isNotEmpty ? m.text : 'تم طردك من قبل المشرف'),
                   duration: const Duration(seconds: 4),
                   backgroundColor: Colors.red,
                 ),
@@ -2012,21 +2363,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           _chatScroll.offset) <
                       120);
           if (shouldScroll) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted || !_chatScroll.hasClients) return;
-              _chatScroll.animateTo(
-                _chatScroll.position.maxScrollExtent,
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
-              );
-            });
+            // الهدايا/الحظ: قفزة فورية — تظهر مباشرة بدون سكرول مرئي.
+            _scrollChatToLatest(instant: newGiftMsgAdded);
           }
         }
       }
     });
     // Track gifts to update seat charm values
     final seenGiftIds = <String>{};
-    bool _giftStreamInitial = true;
+    bool giftStreamInitial = true;
     _giftSub = _firebaseService.sentGiftsStream(widget.roomId).listen((gifts) {
       final totals = <String?, int>{};
       gm.SentGiftModel? latestNewGift;
@@ -2038,30 +2383,48 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         totals[g.receiverId] = (totals[g.receiverId] ?? 0) + g.totalValue.toInt();
         if (!seenGiftIds.contains(g.id)) {
           seenGiftIds.add(g.id);
-          if (!_giftStreamInitial) latestNewGift = g;
+          if (!giftStreamInitial) latestNewGift = g;
         }
       }
-      _giftStreamInitial = false;
+      giftStreamInitial = false;
+
+      // ✅ دمج الاعتمادات التفاؤلية غير المؤكدة بعد حتى لا تتراجع الكاريزما
+      //    مؤقتاً قبل وصول تأكيد الهدية من السيرفر.
+      if (_pendingCharmCredits.isNotEmpty) {
+        final nowCreditMs = DateTime.now().millisecondsSinceEpoch;
+        for (final rid in _pendingCharmCredits.keys.toList()) {
+          final credit = _pendingCharmCredits[rid] ?? 0;
+          final server = totals[rid] ?? 0;
+          final expired =
+              nowCreditMs - (_pendingCharmCreditsAt[rid] ?? 0) > 30000;
+          if (server >= (_giftReceiverTotals[rid] ?? 0) || expired) {
+            // وصل التأكيد من السيرفر (أو انتهت المهلة دون تأكيد) — أزل الاعتماد
+            _pendingCharmCredits.remove(rid);
+            _pendingCharmCreditsAt.remove(rid);
+          } else {
+            totals[rid] = server + credit;
+          }
+        }
+      }
       // Show gift animation for the newest unseen gift
       // FIX: Only show normal gift animation for non-lucky gifts
       // Lucky gifts are handled separately by LuckyGiftService via messages stream
       if (latestNewGift != null) {
         final latest = latestNewGift;
         final giftDef = _cachedGiftItems[latest.giftId];
-        
-        // TODO: Critical fix - Check if gift is lucky before showing normal animation
-        // Lucky gifts (isLucky == true or type == 3) should NOT trigger normal gift animation
-        // They are handled by LuckyGiftService through the messages stream
+
+        // Lucky gifts (isLucky or type == 3) are handled by LuckyGiftService via messages stream.
         final isLuckyGift = giftDef != null && (giftDef.isLucky || giftDef.type == 3);
-        
+
         if (!isLuckyGift && !_isDuplicateGiftEvent(latest.senderId, latest.giftId)) {
           // ── طيران الهدية إلى مقعد المستلم لكافة المتواجدين في الغرفة ──
-          final flyIcon = (latest.defaultImage != null && latest.defaultImage!.isNotEmpty)
-              ? latest.defaultImage!
-              : ((latest.iconAsset != null && latest.iconAsset!.isNotEmpty)
-                  ? latest.iconAsset!
-                  : (giftDef?.defaultImage ?? giftDef?.iconAsset ?? ''));
-          if (flyIcon.isNotEmpty && mounted && latest.senderId != _currentUserId) {
+          final flyIcon = _pickFlightIcon([
+            latest.defaultImage,
+            latest.iconAsset,
+            giftDef?.defaultImage,
+            giftDef?.iconAsset,
+          ]);
+          if (mounted && latest.senderId != _currentUserId) {
             _triggerGiftFlight(
               iconUrl: flyIcon,
               receiverId: latest.receiverId,
@@ -2126,18 +2489,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           _giftReceiverTotals.clear();
           _giftReceiverTotals.addAll(totals);
           // Update seat charm values
-          for (final seat in _seats) {
+          for (int i = 0; i < _seats.length; i++) {
+            final seat = _seats[i];
             if (seat.user != null && _giftReceiverTotals.containsKey(seat.user!.id)) {
-              seat.user = seat.user!.copyWith(
-                giftCount: _giftReceiverTotals[seat.user!.id]!,
-                totalGiftsReceived: _giftReceiverTotals[seat.user!.id]!,
-                charm: _giftReceiverTotals[seat.user!.id].toString(),
+              _seats[i] = seat.copyWith(
+                user: seat.user!.copyWith(
+                  giftCount: _giftReceiverTotals[seat.user!.id]!,
+                  totalGiftsReceived: _giftReceiverTotals[seat.user!.id]!,
+                  charm: _giftReceiverTotals[seat.user!.id].toString(),
+                ),
               );
             } else if (seat.user != null) {
-              seat.user = seat.user!.copyWith(
-                giftCount: 0,
-                totalGiftsReceived: 0,
-                charm: '0',
+              _seats[i] = seat.copyWith(
+                user: seat.user!.copyWith(
+                  giftCount: 0,
+                  totalGiftsReceived: 0,
+                  charm: '0',
+                ),
               );
             }
           }
@@ -2159,9 +2527,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       }
     });
 
-    // Periodic refresh as fallback in case Realtime misses updates
+    // Periodic refresh as fallback in case Realtime misses updates.
+    // عند عمل قناة Realtime نُبقيها شبكة أمان كل ~32 ثانية فقط بدل كل 4 ثوانٍ
+    // (كانت تطلق طلبي REST إضافيين كل 4 ثوانٍ بلا داعٍ وتُشبع الشبكة).
+    var fallbackTick = 0;
     _seatsRefreshTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
       if (!mounted) return;
+      if (SupabaseRealtimeService.instance.isConnected) {
+        fallbackTick++;
+        if (fallbackTick % 8 != 0) return;
+      }
       try {
         final seatMap = await SupabaseDataService().getSeats(widget.roomId);
         if (seatMap != null && mounted) {
@@ -2176,9 +2551,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         }
       } catch (_) {}
     });
-
-    // Buffer for entrance animations that arrive before store items are loaded
-    final _pendingEntrances = <Map<String, dynamic>>[];
 
     // Index store items for resolving frame/bubble/entrance assets
     _storeSub = _firebaseService.storeItemsStream().listen((items) {
@@ -2285,8 +2657,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         }
       }
       // Process any entrance animations that were buffered while store items were loading
-      if (_pendingEntrances.isNotEmpty) {
-        for (final entry in _pendingEntrances) {
+      if (pendingEntrances.isNotEmpty) {
+        for (final entry in pendingEntrances) {
           final uid = entry['uid']?.toString();
           final entranceItemId = entry['entranceItem']?.toString();
           if (entranceItemId != null) {
@@ -2296,28 +2668,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             }
           }
         }
-        _pendingEntrances.clear();
+        pendingEntrances.clear();
       }
       if (mounted) setState(() {});
     });
 
     // Listen for other users' entrance/car effects
-    bool _entranceStreamInitial = true;
     _entranceSub = _firebaseService.entrancesStream(widget.roomId).listen((entrances) {
       if (!mounted || entrances.isEmpty) return;
       final joinedMs = _joinedAt?.millisecondsSinceEpoch ?? 0;
-      if (_entranceStreamInitial) {
-        for (final entry in entrances) {
-          final uid = entry['uid']?.toString();
-          final entranceItemId = entry['entranceItem']?.toString() ?? '';
-          final entryTs = entry['timestamp']?.toString() ?? '';
-          if (uid != null && entranceItemId.isNotEmpty) {
-            _seenEntranceIds.add('${uid}_${entranceItemId}_$entryTs');
-          }
-        }
-        _entranceStreamInitial = false;
-        return;
-      }
+      // ✅ لا نُعلّم الدفعة الأولى كـ «شوهدت» دون تشغيل — كانت تبتلع
+      //    مؤثرات الدخول التي تصل لحظة فتح الغرفة (نفس مفتاح إزالة
+      //    التكرار الذي يستخدمه مسار الرسائل) فلا يراها أحد. الفلترة
+      //    بالوقت (entryMs < joinedMs) تكفي لتجاهل دخوليات ما قبل الانضمام.
       for (final entry in entrances) {
         final uid = entry['uid']?.toString();
         if (uid == null || uid == _currentUserId) continue;
@@ -2332,7 +2695,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final storeItem = _storeItemsIndex[entranceItemId];
         if (storeItem == null || storeItem.animationUrl == null) {
           if (_storeItemsIndex.isEmpty) {
-            _pendingEntrances.add(entry);
+            pendingEntrances.add(entry);
             continue;
           }
           // Fallback: raw URL entrance (VIP-purchased or assets) -> play directly
@@ -2393,7 +2756,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         ),
         content: DText(
           isAr
-              ? 'هل أنت متأكد من رغبتك في تصفير وحذف كاريزما المقاعد في الغرفة؟'
+              ? 'هل أنت متأكد من رغبتك في حذف كاريزما الغرفة؟'
               : 'Are you sure you want to reset and clear all seat charisma in this room?',
           style: const TextStyle(color: Colors.white70, fontSize: 14),
         ),
@@ -2414,12 +2777,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               if (mounted) {
                 setState(() {
                   _giftReceiverTotals.clear();
-                  for (final seat in _seats) {
+                  _pendingCharmCredits.clear();
+                  _pendingCharmCreditsAt.clear();
+                  for (int i = 0; i < _seats.length; i++) {
+                    final seat = _seats[i];
                     if (seat.user != null) {
-                      seat.user = seat.user!.copyWith(
-                        giftCount: 0,
-                        totalGiftsReceived: 0,
-                        charm: '0',
+                      _seats[i] = seat.copyWith(
+                        user: seat.user!.copyWith(
+                          giftCount: 0,
+                          totalGiftsReceived: 0,
+                          charm: '0',
+                        ),
                       );
                     }
                   }
@@ -2427,7 +2795,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: DText(isAr ? 'تم تصفير وحذف كاريزما المقاعد نهائياً بنجاح' : 'Seats charisma cleared permanently'),
+                    content: DText(isAr ? 'تم حذف كاريزما الغرفه نهائياً بنجاح' : 'Seats charisma cleared permanently'),
                     backgroundColor: Colors.green,
                   ),
                 );
@@ -2533,9 +2901,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         isCurrentUserOnSeatNow = true;
         currentUserMuted = isMuted;
         _currentUserSeatIndex = idx;
-        if (isMuted && _isMicOn) {
-          _isMicOn = false;
-          _roomAudio.toggleMic(false);
+        // ✅ مزامنة في الاتجاهين: الميوت والفك منه — قبل كده كان فيه
+        //    اتجاه واحد بس فالمايك يفضل مكتوم حتى بعد فك الميوت.
+        if (currentUserMuted == _isMicOn) {
+          _isMicOn = !currentUserMuted;
+          _roomAudio.toggleMic(_isMicOn);
         }
       } else {
         _roomAudio.muteRemoteAudio(uid, widget.roomId, isMuted);
@@ -2572,7 +2942,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final country = data['country']?.toString() ?? data['country_code']?.toString() ?? cachedUser?.country ?? 'EG';
 
       final seatCustomId = cachedUser?.customId ?? data['custom_id']?.toString();
-      if (seatCustomId != null && seatCustomId.isNotEmpty && uid != null) {
+      if (seatCustomId != null && seatCustomId.isNotEmpty) {
         UserProfile.customIdCache[uid] = seatCustomId;
       }
       newSeats[idx] = SeatModel(
@@ -2626,8 +2996,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     // Only allow publishing when the current user is actually on a seat
     if (isCurrentUserOnSeatNow) {
-      _roomAudio.startPublishing();
-      _roomAudio.toggleMic(!currentUserMuted);
+      // ✅ لا نكرر toggleMic مع كل تحديث seats — كان يسبب أوامر كتم/فك
+      //    متكررة على ZEGO ويخلي زر المايك يتصرف بعكس الحالة.
+      final wasPublishing = _roomAudio.isPublishing;
+      if (!wasPublishing) {
+        _roomAudio.startPublishing();
+        _roomAudio.toggleMic(_isMicOn);
+      }
     } else if (_roomAudio.isPublishing && !_takingSeat && _currentUserSeatIndex == null) {
       _roomAudio.stopPublishingIfActive();
       _roomAudio.resetPublishingState();
@@ -2829,6 +3204,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (RoomScreen.activeRoomId == widget.roomId) {
+      RoomScreen.activeRoomId = null;
+    }
     // FIX: تنظيف كل طبقات/أنيميشن هدايا الحظ فوراً عند الخروج من الغرفة
     LuckyGiftService().disposeAllOverlays();
     LuckyBagService().dispose();
@@ -2841,6 +3219,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _storeItemsIndex.clear();
     if (!_isMinimized) {
       NetworkWatchdogService().stop();
+      NetworkStatusService().stop();
       RoomMusicPlayerService().stop();
       _leaveRoomSession();
       _roomAudio.dispose();
@@ -2880,22 +3259,31 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _userBanSub?.cancel();
     _broadcastSub?.cancel();
     _broadcastPusherSub?.cancel();
+    // LEAVE قناة الغرفة عند الخروج
+    _sbRealtimeSub?.cancel();
+    PusherRealtimeService.instance.unsubscribeRoom(widget.roomId);
+    SupabaseRealtimeService.instance.unsubscribeRoom();
     _broadcastNotifier.dispose();
     _giftBannerNotifier.dispose();
     _giftAnimNotifier.dispose();
     _chatUpdateNotifier.dispose();
+    _chatInputNotifier.dispose();
     super.dispose();
   }
 
-  void _closeAllPanels() => setState(() {
-        _showGift = false;
-        _showFunction = false;
-        _showEmoj = false;
-        _showChatInput = false;
-        _showNotifications = false;
-        _showProfile = false;
-        _showRoomInfo = false;
-      });
+  void _closeAllPanels() {
+    // ✅ إغلاق لوحة المفاتيح مع أي لوحة حتى تبقى اللوحات ثابتة في الأسفل
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _showGift = false;
+      _showFunction = false;
+      _showEmoj = false;
+      _chatInputNotifier.value = false;
+      _showNotifications = false;
+      _showProfile = false;
+      _showRoomInfo = false;
+    });
+  }
 
   void _openMessageSettings() {
     showModalBottomSheet(
@@ -2928,7 +3316,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       ),
                       Switch(
                         value: isLocked,
-                        activeColor: const Color(0xFFD3A350),
+                        activeThumbColor: const Color(0xFFD3A350),
                         onChanged: (val) {
                           setModalState(() {});
                           _firebaseService.updateRoom(widget.roomId, {
@@ -2976,9 +3364,149 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (receiverPhoto != null && receiverPhoto.isNotEmpty) {
       enriched['receiverPhotoUrl'] = receiverPhoto;
     }
+    // بيانات الغرفة التي أُرسلت فيها الهدية — يستخدمها زر «الانتقال»
+    // في اللافتة ليعرف إلى أي غرفة يذهب.
+    enriched['roomId'] = widget.roomId;
+    enriched['roomName'] = widget.roomName;
 
     // إرسال اللافتة إلى خدمة الطابور الموحد العام المنظم (يمين لليسار وبالتتابع دون تداخل)
     GlobalBannerService.instance.triggerGiftBannerLocally(enriched);
+  }
+
+  /// حقن رسائل هدايا مؤقتة (optimistic) في شات الغرفة فور الضغط على إرسال —
+  /// يظهر نص «X أرسل Y هدية» لحظياً عند المرسل دون انتظار رحلة السيرفر،
+  /// وتُستبدل تلقائياً بالرسائل الحقيقية عند وصولها عبر polling/Pusher.
+  void _addOptimisticGiftChatMessages(Map<String, dynamic> data) {
+    try {
+      final currUser = Provider.of<UserProvider>(context, listen: false).currentUser;
+      if (currUser == null || currUser.uid.isEmpty) return;
+      final gift = data['gift'] as gm.GiftModel?;
+      if (gift == null) return;
+      final isLucky = data['isLucky'] == true || gift.isLucky || gift.type == 3;
+      if (isLucky) return; // هدايا الحظ لها مسار عرضها الخاص
+      final targets = (data['selectedTargets'] as List<dynamic>?) ?? const [];
+      if (targets.isEmpty) return;
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final senderName = currUser.name ?? '';
+      final senderPhoto = currUser.photoUrl ?? '';
+      final giftName = gift.name;
+      final count = (data['giftCount'] as num?)?.toInt() ?? 1;
+      // نفس حساب staticCover/effectiveIcon في SupabaseService.sendGift
+      // حتى تتطابق الرسالة المؤقتة مع الحقيقية ويحدث الاستبدال التلقائي.
+      final rawAnim = gift.animationAsset ?? '';
+      final rawCover = data['defaultImage']?.toString() ?? '';
+      final staticCover = rawCover.isNotEmpty
+          ? rawCover
+          : ((rawAnim.isNotEmpty &&
+                  !rawAnim.endsWith('.svga') &&
+                  !rawAnim.endsWith('.vap') &&
+                  !rawAnim.endsWith('.mp4'))
+              ? rawAnim
+              : '');
+      final effectiveIcon = rawAnim.isNotEmpty ? rawAnim : staticCover;
+      final imageUrl = staticCover.isNotEmpty ? staticCover : effectiveIcon;
+      final giftIcon = staticCover.isNotEmpty ? staticCover : effectiveIcon;
+
+      var added = false;
+      var idx = 0;
+      for (final t in targets) {
+        if (t is! Map) continue;
+        final receiverId = t['id']?.toString() ?? '';
+        if (receiverId.isEmpty) continue;
+        // منع تكرار الرسالة المؤقتة نفسها إذا تكرر استدعاء الحقن
+        // (نفس الهدية + نفس المستلم + نفس المرسل خلال ثوانٍ).
+        final tempPayload = {
+          'gift_id': gift.id,
+          'receiver_id': receiverId,
+          'count': count,
+        };
+        final alreadyTemp = _chatMessages.any((e) =>
+            e.msgId.startsWith('temp_gift_') &&
+            e.senderUid == currUser.uid &&
+            _giftPayloadMatches(e.giftPayload, tempPayload) &&
+            (now - e.timestamp).abs() < 10000);
+        if (alreadyTemp) continue;
+        final receiverName = t['name']?.toString() ?? '';
+        _chatMessages.add(MessageModel(
+          msgId: 'temp_gift_${now}_${idx++}',
+          roomId: widget.roomId,
+          senderUid: currUser.uid,
+          senderName: senderName,
+          senderPhotoUrl: senderPhoto,
+          type: 'gift',
+          text: '$senderName أرسل $giftName x$count إلى $receiverName',
+          imageUrl: imageUrl,
+          timestamp: now + idx,
+          giftPayload: {
+            'gift_id': gift.id,
+            'gift_name': giftName,
+            'gift_icon': giftIcon,
+            'image_url': giftIcon,
+            'default_image': staticCover,
+            'count': count,
+            'value': gift.value,
+            'receiver_id': receiverId,
+            'receiver_name': receiverName,
+            'animation_asset': rawAnim,
+          },
+        ));
+        added = true;
+      }
+      if (!added) return;
+      _chatMessages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      if (_chatMessages.length > 1000) {
+        _chatMessages.removeRange(0, _chatMessages.length - 1000);
+      }
+      _msgCount = _chatMessages.length;
+      _chatUpdateNotifier.value++;
+      // قفزة فورية — رسالة الهدية المؤقتة تظهر مباشرة بدون سكرول.
+      _scrollChatToLatest(instant: true);
+    } catch (_) {}
+  }
+
+  /// الانتقال لآخر رسالة في الشات. instant=true يقفز فوراً بدون
+  /// أنيميشن — يُستخدم لرسائل الهدايا/الفوز حتى تظهر مباشرة.
+  void _scrollChatToLatest({bool instant = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_chatScroll.hasClients) return;
+      final ext = _chatScroll.position.maxScrollExtent;
+      if (instant) {
+        _chatScroll.jumpTo(ext);
+      } else {
+        _chatScroll.animateTo(
+          ext,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  /// مطابقة حمولتي هديتين: نفس الهدية + نفس المستلم + نفس العدد.
+  /// تُستخدم لربط الرسالة المؤقتة (optimistic) بالحقيقية الموثَّقة من
+  /// السيرفر حتى لا تبقى نسخة مؤقتة مكررة بجانب النسخة الحقيقية.
+  bool _giftPayloadMatches(Map? a, Map? b) {
+    if (a == null || b == null) return false;
+    final gidA = a['gift_id']?.toString() ?? '';
+    final gidB = b['gift_id']?.toString() ?? '';
+    if (gidA.isEmpty || gidA != gidB) return false;
+    final rA = a['receiver_id']?.toString() ?? '';
+    final rB = b['receiver_id']?.toString() ?? '';
+    if (rA.isNotEmpty && rB.isNotEmpty && rA != rB) return false;
+    final cA = (a['count'] as num?)?.toInt() ?? 1;
+    final cB = (b['count'] as num?)?.toInt() ?? 1;
+    return cA == cB;
+  }
+
+  /// إزالة رسائل الهدايا المؤقتة غير المؤكدة — تُستدعى عند فشل الإرسال
+  /// حتى لا يبقى نص هدية لم تُرسل فعلياً في الشات.
+  void _removeOptimisticGiftChatMessages() {
+    final before = _chatMessages.length;
+    _chatMessages.removeWhere((m) => m.msgId.startsWith('temp_gift_'));
+    if (_chatMessages.length == before) return;
+    _msgCount = _chatMessages.length;
+    _chatUpdateNotifier.value++;
   }
 
   Future<void> _sendMessage() async {
@@ -2988,7 +3516,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: DText('تم قفل الدردشة من قبل الإدارة')),
       );
-      setState(() => _showChatInput = false);
+      setState(() => _chatInputNotifier.value = false);
       return;
     }
     final userProvider = Provider.of<UserProvider>(context, listen: false);
@@ -3023,7 +3551,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       TaskService().recordActionByType(user.uid, 'chat');
       FocusScope.of(context).unfocus();
       _chatCtrl.clear();
-      setState(() => _showChatInput = false);
+      _chatInputNotifier.value = false;
 
       final ok = await _firebaseService.sendMessage(
         widget.roomId,
@@ -3048,7 +3576,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     FocusScope.of(context).unfocus();
     _chatCtrl.clear();
-    setState(() => _showChatInput = false);
+    _chatInputNotifier.value = false;
   }
 
   Future<void> _pickRoomImage() async {
@@ -3082,7 +3610,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: DText('فشل إرسال الصورة: $e')),
+          SnackBar(content: DText('فشل في الرفع الصورة: $e')),
         );
       }
     }
@@ -3182,7 +3710,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       onKickOutFromRoom: () => _kickOutFromRoom(idx),
       onPrivateMessage: () => setState(() {
         _closeAllPanels();
-        _showChatInput = true;
+        _chatInputNotifier.value = true;
       }),
       onGift: _openGiftPanel,
     );
@@ -3308,12 +3836,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final kickedCustomId = kickedUser?.customId;
 
     setState(() {
-      _seats[idx].state = SeatState.empty;
-      _seats[idx].user = null;
-      _seats[idx].isMuted = false;
+      _seats[idx] = _seats[idx].copyWith(
+        state: SeatState.empty,
+        user: null,
+        isMuted: false,
+        clearUser: true,
+      );
     });
 
-    if (isSelf && kickedUid != null) {
+    if (isSelf) {
       // عند نزول النفس: احذف بمعرّف المستخدم وليس برقم المقعد حتى لا نمسح
       // مقعد شخص آخر لو تغيّر شاغل المقعد بين القراءات.
       _firebaseService.leaveSeatForUser(widget.roomId, kickedUid);
@@ -3480,25 +4011,36 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   void _toggleSeatLock(int idx, bool locked) {
     setState(() {
-      _seats[idx].isLocked = locked;
-      _seats[idx].state = locked ? SeatState.locked : SeatState.empty;
+      _seats[idx] = _seats[idx].copyWith(
+        isLocked: locked,
+        state: locked ? SeatState.locked : SeatState.empty,
+      );
     });
     _firebaseService.toggleSeatLock(widget.roomId, idx, locked);
   }
 
   void _toggleSeatMute(int idx, bool muted) {
-    setState(() {
-      _seats[idx].isMuted = muted;
-      if (_seats[idx].isOccupied) {
-        _seats[idx].state = muted ? SeatState.muted : SeatState.occupied;
-      }
-    });
-    final targetUser = _seats[idx].user;
+    if (idx < 0 || idx >= _seats.length) return;
+    final seat = _seats[idx];
+    final hasUser = seat.user != null;
+    final targetUser = seat.user;
     final targetUid = targetUser?.id;
     final targetCustomId = targetUser?.customId;
+    final isSelf = targetUid == _currentUserId;
+    setState(() {
+      _seats[idx] = seat.copyWith(
+        isMuted: muted,
+        // ✅ عند فك الميوت نرجّع المقعد occupied دايماً — قبل كده كان
+        //    isOccupied = false بعد الميوت فبيفضل muted للأبد.
+        state: hasUser
+            ? (muted ? SeatState.muted : SeatState.occupied)
+            : seat.state,
+      );
+      // ✅ تحديث حالة زر المايك داخل نفس الـ setState عشان الأيقونة تتغير فوراً.
+      if (isSelf) _isMicOn = !muted;
+    });
     if (targetUid != null && targetUid.isNotEmpty) {
-      if (targetUid == _currentUserId) {
-        _isMicOn = !muted;
+      if (isSelf) {
         _roomAudio.toggleMic(!muted);
       } else {
         _roomAudio.muteRemoteAudio(targetUid, widget.roomId, muted);
@@ -3664,9 +4206,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       UserModel user, int? seatIdx, bool addToBlacklist) async {
     if (seatIdx != null && seatIdx < _seats.length) {
       setState(() {
-        _seats[seatIdx].state = SeatState.empty;
-        _seats[seatIdx].user = null;
-        _seats[seatIdx].isMuted = false;
+        _seats[seatIdx] = _seats[seatIdx].copyWith(
+          state: SeatState.empty,
+          user: null,
+          isMuted: false,
+          clearUser: true,
+        );
       });
       _firebaseService.leaveSeat(widget.roomId, seatIdx);
     }
@@ -3695,7 +4240,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (user == null || user.id == null) return;
     final targetUid = user.id!;
     setState(() {
-      _seats[idx].user = user.copyWith(isAdmin: isAdmin);
+      _seats[idx] = _seats[idx].copyWith(
+        user: user.copyWith(isAdmin: isAdmin),
+      );
       if (isAdmin) {
         _moderators.add(targetUid);
       } else {
@@ -3712,7 +4259,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: DText(isAdmin
-            ? (isAr ? 'تم تعيين ${user.name} كمشرف في الغرفة 👑' : 'Appointed ${user.name} as room admin')
+            ? (isAr ? 'تم تعيين ${user.name} كمشرف في الغرفة ' : 'Appointed ${user.name} as room admin')
             : (isAr ? 'تم إلغاء إشراف ${user.name}' : 'Removed ${user.name} from room admins')),
       ),
     );
@@ -3722,7 +4269,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final user = _seats[idx].user;
     if (user == null || user.id == null) return;
     setState(() {
-      _seats[idx].user = user.copyWith(isBlacked: blacked);
+      _seats[idx] = _seats[idx].copyWith(
+        user: user.copyWith(isBlacked: blacked),
+      );
     });
     if (blacked) {
       _kickOffMic(idx);
@@ -3801,7 +4350,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               : (_currentRoom?.description ?? ''),
           roomAvatarPath: _currentRoom?.roomPhotoUrl.isNotEmpty == true
               ? _currentRoom!.roomPhotoUrl
-              : _seats[0].user?.avatar,
+              : R.defaultRoomPhoto,
           isModerator: !_isOwner && _moderators.contains(_currentUserId),
           onConfirm: (name, pwd, photoUrl, topic) async {
             final updates = <String, dynamic>{
@@ -3926,7 +4475,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       MaterialPageRoute(
         builder: (_) => ReportRoomScreen(
           roomName: widget.roomName,
-          roomAvatar: _currentRoom?.roomPhotoUrl ?? _seats[0].user?.avatar,
+          roomAvatar: _currentRoom?.roomPhotoUrl ?? R.defaultRoomPhoto,
         ),
       ),
     );
@@ -3998,7 +4547,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       ),
                       Switch(
                         value: _giftEffectsEnabled,
-                        activeColor: const Color(0xFFDE880F),
+                        activeThumbColor: const Color(0xFFDE880F),
                         activeTrackColor: const Color(0xFFFFC525),
                         onChanged: (val) {
                           setSheetState(() => _giftEffectsEnabled = val);
@@ -4106,6 +4655,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _openMusic() {
+    FocusScope.of(context).unfocus();
+    _chatInputNotifier.value = false;
     RoomMusicBottomSheet.show(
       context,
       onOpenPlaylist: () {
@@ -4121,7 +4672,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final currentUser = Provider.of<UserProvider>(context).currentUser;
-    final navH = MediaQuery.of(context).padding.bottom;
+    // ✅ viewPadding (لا padding) حتى لا تتغيّر القيمة عند فتح لوحة المفاتيح
+    //    فيبقى شريط الأزرار السفلي ثابتاً تماماً في مكانه.
+    final navH = MediaQuery.of(context).viewPadding.bottom;
     final sizeH = MediaQuery.of(context).size.height;
 
     return PopScope(
@@ -4140,7 +4693,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         }
       },
       child: Scaffold(
-      resizeToAvoidBottomInset: true,
+      // ✅ ثبات كامل: الغرفة لا تصغر عند فتح لوحة المفاتيح (نحرّك شريط
+      //    الكتابة فقط للأعلى بمقدار viewInsets.bottom).
+      resizeToAvoidBottomInset: false,
       backgroundColor: AppColors.roomBg,
       body: Stack(
           children: [
@@ -4219,9 +4774,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 roomId: (_hostCustomId != null && _hostCustomId!.isNotEmpty) ? _hostCustomId! : widget.roomId,
                 hostAvatar: (_currentRoom?.roomPhotoUrl != null && _currentRoom!.roomPhotoUrl.isNotEmpty)
                     ? _currentRoom!.roomPhotoUrl
-                    : ((_seats.isNotEmpty && (_seats[0].user?.avatar?.isNotEmpty ?? false))
-                        ? _seats[0].user!.avatar!
-                        : (_currentRoom?.hostPhotoUrl.isNotEmpty == true ? _currentRoom!.hostPhotoUrl : R.avaBoy)),
+                    : R.defaultRoomPhoto,
                 isLocked: widget.roomPassword.isNotEmpty,
                 hotValue: widget.hotValue,
                 gameDesc: widget.gameDesc,
@@ -4233,6 +4786,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 isFollowed: _isFollowed,
                 monthlyCoins: _currentRoom?.monthlyCoins ?? 0,
                 onCupTap: () {
+                  FocusScope.of(context).unfocus();
+                  _chatInputNotifier.value = false;
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
@@ -4243,6 +4798,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 onExit: () => setState(() => _showExit = true),
                 onMinimize: _minimizeRoom,
                 onRank: () {
+                  FocusScope.of(context).unfocus();
+                  _chatInputNotifier.value = false;
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
@@ -4252,6 +4809,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 },
                 onInfoTap: () => setState(() => _showRoomInfo = true),
                 onOnlineTap: _showMembersSheet,
+                networkStatus: NetworkStatusService().state,
                 onGameTap: _showGameBottomSheet,
                 onFollow: _toggleFollow,
               ),
@@ -4287,10 +4845,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: DText(isAr ? 'تم قفل الدردشة من قبل الإدارة' : 'Chat is locked by admins')));
                     return;
                   }
-                  final willShow = !_showChatInput;
+                  final willShow = !_chatInputNotifier.value;
                   _closeAllPanels();
                   if (willShow) {
-                    setState(() => _showChatInput = true);
+                    _chatInputNotifier.value = true;
                   }
                 },
                 onEmoj: () {
@@ -4300,19 +4858,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     setState(() => _showEmoj = true);
                   }
                 },
-                onMic: () async {
-                  if (_currentUserSeat == null) return;
-                  if (_currentUserSeat!.isMuted && !_isOwnerOrModerator) {
-                    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: DText(isAr ? 'تم كتم المايك بواسطة إدارة الغرفة' : 'Microphone was muted by room admin')),
-                    );
-                    return;
-                  }
-                  final newVal = !_isMicOn;
-                  setState(() => _isMicOn = newVal);
-                  await _roomAudio.toggleMic(newVal);
-                  _toggleSeatMute(_currentUserSeat!.index, !newVal);
+                onMic: () {
+                  final seat = _currentUserSeat;
+                  if (seat == null) return;
+                  // ✅ الضغطة التانية لازم تفك الميوت: بنعكس الحالة الحالية
+                  //    مباشرة بدل شرح «كتمته الإدارة» اللي كان بيمنع الفك.
+                  //    _toggleSeatMute بيتولى الصوت + الحفظ + حالة المقعد.
+                  _toggleSeatMute(seat.index, _isMicOn);
                 },
                 onGift: () {
                   if (_showGift) {
@@ -4385,6 +4937,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             Positioned.fill(
               child: GestureDetector(
                 onTap: () => setState(() => _showGift = false),
+                // ✅ السحب الأفقي على الخلفية المعتّمة لا يجب أن يسرّب
+                //    لأي إيماءة تنقّل في الأب (كان بيفتح شاشة الترتيب).
+                onHorizontalDragStart: (_) {},
+                onHorizontalDragUpdate: (_) {},
+                onHorizontalDragEnd: (_) {},
+                onHorizontalDragCancel: () {},
                 behavior: HitTestBehavior.opaque,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -4395,33 +4953,20 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                         selectedCount: _giftCount,
                         coins: Provider.of<UserProvider>(context).currentUser?.coins ?? 0,
                         roomId: widget.roomId,
-                        targetUsers: () {
-                          final list = _seats
-                              .where((s) => s.isOccupied && s.user != null)
-                              .map((s) => {
-                                    'id': s.user!.id ?? '',
-                                    'name': s.user!.name,
-                                    'photoUrl': s.user!.avatar,
-                                    'customId': s.user!.customId,
-                                  })
-                              .toList();
-                          if (list.isEmpty && _currentRoom != null && _currentRoom!.hostUid.isNotEmpty) {
-                            final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
-                            list.add({
-                              'id': _currentRoom!.hostUid,
-                              'name': _currentRoom!.hostName.isNotEmpty
-                                  ? _currentRoom!.hostName
-                                  : (isAr ? 'صاحب الغرفة' : 'Room Owner'),
-                              'photoUrl': _currentRoom!.hostPhotoUrl,
-                              'customId': _hostCustomId ?? '',
-                            });
-                          }
-                          return list;
-                        }(),
+                        roomName: widget.roomName,
+                        targetUsers: _seats
+                            .where((s) => s.user != null)
+                            .map((s) => {
+                                  'id': s.user!.id ?? '',
+                                  'name': s.user!.name,
+                                  'photoUrl': s.user!.avatar,
+                                  'customId': s.user!.customId,
+                                })
+                            .toList(),
                         seatUsers: _seats
                             .asMap()
                             .entries
-                            .where((e) => e.value.isOccupied && e.value.user != null)
+                            .where((e) => e.value.user != null)
                             .map((e) => {
                                   'id': e.value.user!.id ?? '',
                                   'name': e.value.user!.name,
@@ -4469,35 +5014,34 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             final sName = data['senderName']?.toString() ?? currUser?.name ?? '';
                             final sPhoto = data['senderPhotoUrl']?.toString() ?? currUser?.photoUrl ?? '';
                             final defImg = data['defaultImage']?.toString();
-                            final nameKey = data['nameKey']?.toString();
-                            final photoKey = data['photoKey']?.toString();
-                            final textRepl = _buildTextReplacements(
-                              nameKeys: nameKey,
-                              receiverNameKeys: data['receiverNameKey']?.toString() ?? data['receiverName']?.toString(),
-                              countKeys: data['countKey']?.toString() ?? data['giftCount']?.toString(),
-                              senderName: sName,
-                              receiverName: data['receiverName']?.toString() ?? '',
-                              count: (data['giftCount'] as num?)?.toInt() ?? 1,
-                            );
-                            final imgRepl = _buildImageReplacements(
-                              photoKeys: photoKey,
-                              receiverPhotoKeys: data['receiverPhotoKey']?.toString(),
-                              senderPhoto: sPhoto,
-                              receiverPhoto: data['receiverPhotoUrl']?.toString() ?? '',
-                            );
 
-                            // حفظ الإعدادات للأنيميشن الكبير
-                            if (mounted) {
-                              setState(() {
-                                _giftAnimAsset = animAsset;
-                                _giftTextReplacement = textRepl;
-                                _giftImageReplacement = imgRepl;
-                                _giftDefaultImage = defImg;
-                              });
+                            _giftAnimAsset = animAsset;
+
+                            // ✅ زيادة كاريزما المستلمين فوراً (تفاؤلياً) بمجرد
+                            //    الإرسال حتى يظهر الرقم على المقعد دون انتظار السيرفر.
+                            final optValue = (data['giftValue'] as num?)?.toInt() ??
+                                (data['gift'] as gm.GiftModel?)?.value ??
+                                0;
+                            final optCount = (data['giftCount'] as num?)?.toInt() ?? 1;
+                            final optReceivers = <String>[
+                              if (data['receiverId']?.toString().isNotEmpty == true)
+                                data['receiverId'].toString(),
+                              ...?(data['receiverIds'] as List<dynamic>?)
+                                  ?.map((e) => e.toString())
+                                  .where((e) => e.isNotEmpty),
+                            ];
+                            if (optReceivers.isNotEmpty) {
+                              _applyOptimisticCharm(optReceivers, optValue, optCount);
                             }
 
                             // إطلاق تأثير طيران الهدية إلى المقاعد فور الإرسال
-                            final flyIcon = defImg ?? iconUrl;
+                            final flyIcon = _pickFlightIcon([
+                              defImg,
+                              data['defaultImage']?.toString(),
+                              iconUrl,
+                              (data['gift'] as gm.GiftModel?)?.defaultImage,
+                              (data['gift'] as gm.GiftModel?)?.iconAsset,
+                            ]);
                             if (flyIcon.isNotEmpty) {
                               _triggerGiftFlight(
                                 iconUrl: flyIcon,
@@ -4506,19 +5050,45 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                               );
                             }
 
-                            // إطلاق أنيميشن الهدية الكبيرة وزر الكومبو فوراً دون أي انتظار
-                            if (animAsset.isNotEmpty && mounted) {
+                            // ✅ عرض الأنيميشن الكبير (ملء الشاشة) عند الإرسال أيضاً
+                            //    مثل الدخوليات تماماً — الهدايا غير المحظوظة فقط
+                            //    (الهدايا المحظوظة لها عرضها المستقل عبر LuckyGiftService).
+                            if (animAsset.isNotEmpty && data['isLucky'] != true) {
+                              final giftObj = data['gift'] as gm.GiftModel?;
+                              final targets = (data['selectedTargets'] as List<dynamic>?) ?? const <dynamic>[];
+                              Map<String, dynamic>? singleTarget;
+                              if (targets.length == 1 && targets.first is Map) {
+                                singleTarget = Map<String, dynamic>.from(targets.first as Map);
+                              }
+                              final textRepl = _buildTextReplacements(
+                                nameKeys: data['nameKey']?.toString() ?? giftObj?.nameKey,
+                                receiverNameKeys: giftObj?.receiverNameKey,
+                                countKeys: giftObj?.countKey,
+                                senderName: sName,
+                                receiverName: singleTarget?['name']?.toString() ?? '',
+                                count: (data['giftCount'] as num?)?.toInt() ?? 1,
+                              );
+                              final imgRepl = _buildImageReplacements(
+                                photoKeys: data['photoKey']?.toString() ?? giftObj?.photoKey,
+                                receiverPhotoKeys: giftObj?.receiverPhotoKey,
+                                senderPhoto: sPhoto,
+                                receiverPhoto: singleTarget?['photoUrl']?.toString() ?? '',
+                              );
                               _triggerGiftAnim(
                                 animAsset,
                                 textReplacement: textRepl,
                                 imageReplacement: imgRepl,
-                                defaultImage: defImg,
+                                defaultImage: flyIcon,
                               );
                             }
+
                             _playGiftArrivalSound();
 
                             _startRoomComboTimer(data);
                             _checkGiftBanner(data);
+                            // ⚡ حقن نصوص الهدايا في الشات فوراً — تظهر لحظياً
+                            //    عند المرسل حتى قبل وصول تأكيد السيرفر.
+                            _addOptimisticGiftChatMessages(data);
 
                             // تحميل مسبق في الخلفية دون حظر واجهة المستخدم
                             if (animAsset.isNotEmpty && (animAsset.startsWith('http://') || animAsset.startsWith('https://'))) {
@@ -4583,6 +5153,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           }
                         },
                         onCountTap: _showGiftCountMenu,
+                        onGiftSettled: (allOk) {
+                          if (!allOk) _removeOptimisticGiftChatMessages();
+                        },
                       ),
                     ),
                   ],
@@ -4616,19 +5189,33 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             ),
 
           if (_showEmoj) _buildEmojPanel(),
-          if (_showChatInput) ...[
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  FocusScope.of(context).unfocus();
-                  setState(() => _showChatInput = false);
-                },
-                child: const SizedBox.expand(),
-              ),
+          // ✅ عبر ValueListenableBuilder: إظهار/إخفاء الشريط لا يعيد بناء الغرفة
+          Positioned.fill(
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _chatInputNotifier,
+              builder: (context, showChatInput, _) {
+                if (!showChatInput) return const SizedBox.shrink();
+                return Stack(
+                  children: [
+                    // ✅ حجاب ثابت يغطّي الغرفة أثناء الكتابة — لا شيء يتحرك
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          FocusScope.of(context).unfocus();
+                          _chatInputNotifier.value = false;
+                        },
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ),
+                    _buildChatInputBar(),
+                  ],
+                );
+              },
             ),
-            _buildChatInputBar(),
-          ],
+          ),
 
           // ── Full-screen overlays ──────────────────────────────
           if (_showProfile && _selectedUser != null)
@@ -4750,7 +5337,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           : 'مستخدم');
                   setState(() {
                     _showProfile = false;
-                    _showChatInput = true;
+                    _chatInputNotifier.value = true;
                     _chatCtrl.text = '@$targetName ';
                     _chatCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _chatCtrl.text.length));
                   });
@@ -4829,10 +5416,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
               final asset = animData['asset']?.toString();
               if (asset == null || asset.isEmpty) return const SizedBox.shrink();
               return Positioned.fill(
+                // ✅ مفتاح بالـ asset: عند انتقال الطابور لهدية جديدة يُبنى
+                //    مشغّل جديد من الصفر بدل محاولة تحديث المشغّل القديم.
                 child: IgnorePointer(
                   ignoring: true,
                   child: RepaintBoundary(
                     child: GiftSvgaOverlay(
+                      key: ValueKey('gift_anim_$asset'),
                       animationAsset: asset,
                       textReplacement: animData['textReplacement'] as Map<String, String>?,
                       imageReplacement: animData['imageReplacement'] as Map<String, String>?,
@@ -4845,30 +5435,27 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             },
           ),
           // ── أنيميشن طيران الهدية إلى المقعد المحدد أو جميع المقاعد ──
-          if (_showGiftFlight && _giftFlightIconUrl.isNotEmpty && _giftFlightTargets.isNotEmpty)
+          //    كل إرسال يضيف نسخة مستقلة، لذا تتوجه الهدية في كل مرة
+          if (_giftFlights.isNotEmpty)
             Positioned.fill(
-              child: GiftSeatFlightOverlay(
-                giftIconUrl: _giftFlightIconUrl,
-                startOffset: Offset(MediaQuery.of(context).size.width * 0.8, MediaQuery.of(context).size.height - 60),
-                targetOffsets: _giftFlightTargets,
-                onFinished: () {
-                  if (mounted) {
-                    setState(() {
-                      _showGiftFlight = false;
-                      _giftFlightIconUrl = '';
-                      _giftFlightTargets = [];
-                      // تشغيل الهدية الكبيرة فقط إن لم تكن تعمل بالفعل
-                      if (_giftAnimNotifier.value == null && _giftAnimAsset != null && _giftAnimAsset!.isNotEmpty) {
-                        _triggerGiftAnim(
-                          _giftAnimAsset!,
-                          textReplacement: _giftTextReplacement,
-                          imageReplacement: _giftImageReplacement,
-                          defaultImage: _giftDefaultImage,
-                        );
-                      }
-                    });
-                  }
-                },
+              child: Stack(
+                children: [
+                  for (final flight in _giftFlights)
+                    GiftSeatFlightOverlay(
+                      key: ValueKey('gift_flight_${flight.id}'),
+                      giftIconUrl: flight.iconUrl,
+                      startOffset: Offset(
+                        MediaQuery.of(context).size.width * 0.8,
+                        MediaQuery.of(context).size.height - 60,
+                      ),
+                      targetOffsets: flight.targets,
+                      onFinished: () {
+                        if (mounted) {
+                          setState(() => _giftFlights.removeWhere((f) => f.id == flight.id));
+                        }
+                      },
+                    ),
+                ],
               ),
             ),
           // ── أنيميشن دخول الغرفة (car effect) ──
@@ -4985,7 +5572,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           width: 52,
                           height: 52,
                           child: R.loadImage(
-                            _currentRoom?.roomPhotoUrl ?? R.avaBoy,
+                            (_currentRoom?.roomPhotoUrl ?? '').trim().isNotEmpty
+                                ? _currentRoom!.roomPhotoUrl
+                                : R.defaultRoomPhoto,
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -5126,6 +5715,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   void _showGameBottomSheet() {
+    FocusScope.of(context).unfocus();
+    _chatInputNotifier.value = false;
     RoomGameBottomSheet.show(
       context,
       roomId: widget.roomId,
@@ -5151,7 +5742,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       margin: const EdgeInsetsDirectional.only(start: 4, bottom: 6),
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
+        color: Colors.black.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -5176,7 +5767,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
+                          color: Colors.black.withValues(alpha: 0.2),
                           blurRadius: 4,
                           offset: const Offset(0, 1),
                         )
@@ -5211,9 +5802,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final cleanTarget = giftName.toLowerCase().trim();
         for (final g in _cachedGiftItems.values) {
           if (g.name.toLowerCase().trim() == cleanTarget ||
-              (g.nameAr != null && g.nameAr!.trim() == cleanTarget) ||
+              (g.nameAr.trim() == cleanTarget) ||
               g.name.toLowerCase().contains(cleanTarget) ||
-              (g.nameAr != null && g.nameAr!.contains(cleanTarget))) {
+              (g.nameAr.contains(cleanTarget))) {
             resolved = (g.defaultImage?.isNotEmpty == true)
                 ? g.defaultImage
                 : (g.iconAsset.isNotEmpty ? g.iconAsset : g.animationAsset);
@@ -5987,7 +6578,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   // ── Emoji panel ───────────────────────────────────────────────
   Widget _buildEmojPanel() {
-    final navH = MediaQuery.of(context).padding.bottom;
+    final navH = MediaQuery.of(context).viewPadding.bottom;
     
     final config = context.read<DynamicConfigService>();
     final dynamicEmojis = config.appAssets.values
@@ -6131,7 +6722,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             !_chatCtrl.text.substring(atIndex).contains(' '));
 
     return Positioned(
-      bottom: 0,
+      // نرفع شريط الكتابة بمقدار لوحة المفاتيح ليظل مرئياً مع بقاء الغرفة ثابتة
+      bottom: MediaQuery.of(context).viewInsets.bottom,
       left: 0,
       right: 0,
       child: Column(
@@ -6353,7 +6945,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                           children: [
                             Expanded(
                               child: TabBar(
-                                indicatorColor: const Color(0xFFFFFCCE5E),
+                                indicatorColor: const Color(0xfffffcce5e),
                                 indicatorWeight: 3,
                                 indicatorSize: TabBarIndicatorSize.label,
                                 labelColor: Colors.white,
@@ -6423,7 +7015,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                                                   child: _memberAvatar(
                                                     _currentRoom?.roomPhotoUrl.isNotEmpty == true
                                                         ? _currentRoom!.roomPhotoUrl
-                                                        : _seats[0].user?.avatar,
+                                                        : R.defaultRoomPhoto,
                                                     72,
                                                   ),
                                                 ),
@@ -7315,7 +7907,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       roomPassword: widget.roomPassword.isNotEmpty ? widget.roomPassword : null,
       hotValue: widget.hotValue,
       gameDesc: widget.gameDesc,
-      roomPhoto: _currentRoom?.roomPhotoUrl ?? (_seats.isNotEmpty ? _seats[0].user?.avatar : null),
+      roomPhoto: (_currentRoom?.roomPhotoUrl ?? '').trim().isNotEmpty
+          ? _currentRoom!.roomPhotoUrl
+          : R.defaultRoomPhoto,
       userId: myUid,
       seatIndex: seatIndex,
       isOnSeat: isOnSeat,
@@ -7353,9 +7947,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     for (int i = 0; i < _seats.length; i++) {
       if ((resolvedUid != null && _seats[i].user?.id == resolvedUid) || (mySeatIdx != null && i == mySeatIdx)) {
-        _seats[i].state = SeatState.empty;
-        _seats[i].user = null;
-        _seats[i].isMuted = false;
+        _seats[i] = _seats[i].copyWith(
+          state: SeatState.empty,
+          user: null,
+          isMuted: false,
+          clearUser: true,
+        );
         final seatIdx = i;
         cleanupTasks.add(safeCall(() => _firebaseService.leaveSeat(roomId, seatIdx)));
         cleanupTasks.add(safeCall(() => SupabaseDataService().leaveSeat(roomId, seatIdx)));
@@ -7390,7 +7987,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     if (cleanupTasks.isNotEmpty) {
       try {
-        await Future.wait(cleanupTasks).timeout(const Duration(seconds: 4));
+        // ✅ 8 ثوانٍ: على الشبكات البطيئة كانت مهلة 4 ثوانٍ
+        //    تُجهض حذف المقعد/العضوية فيبقى المستخدم داخل الغرفة
+        await Future.wait(cleanupTasks).timeout(const Duration(seconds: 8));
       } catch (_) {}
     }
   }
@@ -7433,6 +8032,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     try {
       await _leaveRoomSession(uid: uid, logExit: false)
           .timeout(const Duration(seconds: 5));
+    } catch (_) {}
+    // ✅ نظّف الغرفة المصغّرة أيضاً — وإلا بقي مفتاح الغرفة
+    //    في Service وعند العودة يُستعاد المقعد تلقائياً
+    try {
+      if (uid != null) {
+        await MinimizedRoomService()
+            .exitRoom(uid)
+            .timeout(const Duration(seconds: 5));
+      }
     } catch (_) {}
     if (!mounted) return;
     // خروج من شاشة الغرفة للعودة للشاشة السابقة
@@ -7498,6 +8106,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _roomAudio.leaveChannel();
     } catch (_) {}
     NetworkWatchdogService().stop();
+    NetworkStatusService().stop();
     try {
       await SystemNavigator.pop();
     } catch (_) {}
@@ -7533,10 +8142,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       _roomAudio.leaveChannel();
       _roomAudio.dispose();
     } catch (_) {}
-    // 3. Immediately clean up minimized room if active
+    // 3. ✅ انتظر تنظيف الغرفة المصغّرة بالكامل قبل أي خطوة تالية —
+    //    الخروج يجب أن يكون نهائياً (بدون مقعد/عضوية متبقية)
     try {
       if (uid != null) {
-        MinimizedRoomService().exitRoom(uid);
+        await MinimizedRoomService()
+            .exitRoom(uid)
+            .timeout(const Duration(seconds: 6));
       }
     } catch (_) {}
     // 4. Run seat & server session cleanups concurrently in background
@@ -8182,4 +8794,16 @@ class _ComboState {
   final int multiplier;
   final bool firing;
   const _ComboState(this.seconds, this.multiplier, this.firing);
+}
+
+/// نسخة واحدة من أنيميشن طيران الهدية (كل إرسال له نسخته الخاصة)
+class _GiftFlightInstance {
+  final int id;
+  final String iconUrl;
+  final List<Offset> targets;
+  const _GiftFlightInstance({
+    required this.id,
+    required this.iconUrl,
+    required this.targets,
+  });
 }

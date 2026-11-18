@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
@@ -128,18 +128,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (picked != null && mounted) {
       setState(() {
         _selectedBirthday = picked;
-      });
-    }
-  }
-
-  Future<void> _showCountryPicker() async {
-    final picked = await Navigator.push<Country>(
-      context,
-      MaterialPageRoute(builder: (_) => const CountryPickerScreen()),
-    );
-    if (picked != null && mounted) {
-      setState(() {
-        _selectedCountry = picked.code;
       });
     }
   }
@@ -354,10 +342,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 10),
                     _buildAlbumSection(),
                     const SizedBox(height: 20),
-                    // Country / Region
+                    // Country / Region (Read-only - set during onboarding)
                     _buildSectionTitle('البلد / المنطقة'),
                     const SizedBox(height: 10),
-                    _buildCountrySelector(countryObj),
+                    _buildCountryDisplay(countryObj),
                     const SizedBox(height: 20),
                     // Birthday
                     _buildSectionTitle('تاريخ الميلاد'),
@@ -368,6 +356,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     _buildSectionTitle('التوقيع الشخصي'),
                     const SizedBox(height: 10),
                     _buildSignatureInput(),
+                    const SizedBox(height: 20),
+                    // تغيير رمز الدخول (PIN)
+                    _buildPinChangeTile(),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -676,63 +667,61 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildCountrySelector(Map<String, String> countryObj) {
+  Widget _buildCountryDisplay(Map<String, String> countryObj) {
     final cleanCode = UserIdWidget.resolveCountryCode(_selectedCountry);
     final flagEmoji = UserIdWidget.countryCodeToEmoji(cleanCode);
     final displayName = countryObj['name'] ?? _selectedCountry;
 
-    return GestureDetector(
-      onTap: _showCountryPicker,
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF5F6FA),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: Image(
-                image: R.cachedImage('https://flagcdn.com/w40/$cleanCode.png'),
-                width: 24,
-                height: 16,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => DText(flagEmoji, style: const TextStyle(fontSize: 20)),
-              ),
-            ),
-            const SizedBox(width: 10),
-            DText(
-              displayName,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF16151A),
-              ),
-            ),
-            const SizedBox(width: 6),
-            DText(
-              '($_selectedCountry)',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.normal,
-                color: Color(0xFF9BA1B6),
-              ),
-            ),
-            const Spacer(),
-            Image.asset(
-              'assets/mipmap-xxhdpi/next_2_ic.webp',
-              width: 16,
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F6FA),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Image(
+              image: R.cachedImage('https://flagcdn.com/w40/$cleanCode.png'),
+              width: 24,
               height: 16,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.arrow_forward_ios,
-                size: 14,
-                color: Color(0xFF9BA1B6),
-              ),
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => DText(flagEmoji, style: const TextStyle(fontSize: 20)),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          DText(
+            displayName,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF16151A),
+            ),
+          ),
+          const SizedBox(width: 6),
+          DText(
+            '($_selectedCountry)',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.normal,
+              color: Color(0xFF9BA1B6),
+            ),
+          ),
+          const Spacer(),
+          // Lock icon to indicate it's read-only
+          Image.asset(
+            'assets/mipmap-xxhdpi/ic_lock.webp',
+            width: 16,
+            height: 16,
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.lock,
+              size: 16,
+              color: Color(0xFF9BA1B6),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -805,6 +794,171 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  /// بلاطة «تغيير رمز الدخول» — تفتح dialog لإدخال الرمز القديم والجديد.
+  /// التغيير يتم عبر RPC change_login_pin الذي يتحقق من القديم سيرفرياً.
+  Widget _buildPinChangeTile() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _showChangePinDialog,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.lock_outline, size: 20, color: Color(0xFF667085)),
+            SizedBox(width: 10),
+            Expanded(
+              child: DText(
+                'تغيير رمز الدخول (PIN)',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF16151A),
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_left, color: Color(0xFF9BA1B6)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showChangePinDialog() async {
+    final user = context.read<UserProvider>().currentUser;
+    final phone = user?.phone ?? user?.whatsappNumber ?? '';
+    if (phone.trim().isEmpty) {
+      KayanInAppToast.warning('لا يوجد رقم هاتف مرتبط بالحساب');
+      return;
+    }
+
+    final oldCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    var obscure = true;
+    String? error;
+    var loading = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const DText('تغيير رمز الدخول'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: oldCtrl,
+                obscureText: obscure,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: const InputDecoration(
+                  labelText: 'الرمز القديم',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: newCtrl,
+                obscureText: obscure,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: const InputDecoration(
+                  labelText: 'الرمز الجديد',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: confirmCtrl,
+                obscureText: obscure,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: const InputDecoration(
+                  labelText: 'تأكيد الرمز الجديد',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => setD(() => obscure = !obscure),
+                icon: Icon(
+                  obscure ? Icons.visibility_off : Icons.visibility,
+                  size: 18,
+                ),
+                label: const DText('إظهار/إخفاء'),
+              ),
+              if (error != null)
+                DText(
+                  error!,
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: loading ? null : () => Navigator.pop(ctx),
+              child: const DText('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: loading
+                  ? null
+                  : () async {
+                      final oldPin = oldCtrl.text.trim();
+                      final newPin = newCtrl.text.trim();
+                      final confirm = confirmCtrl.text.trim();
+                      if (oldPin.length < 4 ||
+                          newPin.length < 4 ||
+                          newPin != confirm) {
+                        setD(() => error =
+                            'تأكد من إدخال رمز جديد متطابق (4 أرقام على الأقل)');
+                        return;
+                      }
+                      setD(() {
+                        loading = true;
+                        error = null;
+                      });
+                      final status = await SupabaseAuthService()
+                          .changeLoginPin(
+                            phone: phone,
+                            oldPin: oldPin,
+                            newPin: newPin,
+                          );
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
+                      if (status == 'ok') {
+                        KayanInAppToast.success('تم تغيير رمز الدخول بنجاح');
+                      } else {
+                        final msg = switch (status) {
+                          'wrong_old' => 'الرمز القديم غير صحيح',
+                          'no_pin' => 'لا يوجد رمز دخول محفوظ — عيّنه من جديد',
+                          'unavailable' =>
+                            'الخدمة غير متاحة حالياً — شغّل تحديث قاعدة البيانات',
+                          _ => 'تعذر تغيير الرمز ($status)',
+                        };
+                        KayanInAppToast.warning(msg);
+                      }
+                    },
+              child: loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const DText('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+    oldCtrl.dispose();
+    newCtrl.dispose();
+    confirmCtrl.dispose();
+  }
+
   Widget _buildBottomSaveButton() {
     return Container(
       width: double.infinity,
@@ -822,7 +976,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFF7E40).withOpacity(0.35),
+                    color: const Color(0xFFFF7E40).withValues(alpha: 0.35),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -850,3 +1004,4 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 }
+

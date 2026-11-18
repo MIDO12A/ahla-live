@@ -224,17 +224,17 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
         ? SpecialIdService.instance.styleFor(widget.idText)
         : null;
     final String? effectiveEffect =
-        (widget.colorEffect != null && widget.colorEffect!.trim().isNotEmpty)
-            ? widget.colorEffect
-            : autoItem?.effectiveColorEffect;
+    (widget.colorEffect != null && widget.colorEffect!.trim().isNotEmpty)
+        ? widget.colorEffect
+        : autoItem?.effectiveColorEffect;
     final String? effectiveSvga =
-        (widget.svgaAsset != null && widget.svgaAsset!.trim().isNotEmpty)
-            ? widget.svgaAsset
-            : autoItem?.svgaAsset;
+    (widget.svgaAsset != null && widget.svgaAsset!.trim().isNotEmpty)
+        ? widget.svgaAsset
+        : autoItem?.svgaAsset;
     final String? effectiveSvgaKey =
-        (widget.svgaKey != null && widget.svgaKey!.trim().isNotEmpty)
-            ? widget.svgaKey
-            : (autoItem?.svgaTextKey ?? 'id');
+    (widget.svgaKey != null && widget.svgaKey!.trim().isNotEmpty)
+        ? widget.svgaKey
+        : (autoItem?.svgaTextKey ?? 'id');
 
     // الآيدي المميز فقط: عنصر موجود في سجل special_id أو مؤثر صريح
     // (الأرقام القصيرة وحدها لا تعني أنه مميز — كل المستخدمين لديهم أرقام)
@@ -250,6 +250,9 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
       )..repeat();
     }
 
+    // ✅ لو countryCode فاضي → مفيش علم خالص
+    final bool showFlag = widget.countryCode != null &&
+        widget.countryCode!.trim().isNotEmpty;
     final String cleanCountry = UserIdWidget.resolveCountryCode(widget.countryCode);
     final String flagEmoji = UserIdWidget.countryCodeToEmoji(cleanCountry);
 
@@ -257,13 +260,15 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
       final estimated =
           widget.idText.length * widget.fontSize * 0.62 + 36;
       final svgaWidth =
-          estimated > widget.svgaWidth ? estimated : widget.svgaWidth;
+      estimated > widget.svgaWidth ? estimated : widget.svgaWidth;
       return Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _buildFlag(cleanCountry, flagEmoji),
-          const SizedBox(width: 5),
+          if (showFlag) ...[
+            _buildFlag(cleanCountry, flagEmoji),
+            const SizedBox(width: 5),
+          ],
           GestureDetector(
             onTap: () => _copyId(context),
             behavior: HitTestBehavior.opaque,
@@ -303,79 +308,81 @@ class _UserIdWidgetState extends State<UserIdWidget> with SingleTickerProviderSt
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // رمز علم الدولة مع بديل إيموجي فوري
-        _buildFlag(cleanCountry, flagEmoji),
-        const SizedBox(width: 5),
+        // ✅ رمز علم الدولة — بس لو countryCode مش فاضي
+        if (showFlag) ...[
+          _buildFlag(cleanCountry, flagEmoji),
+          const SizedBox(width: 5),
+        ],
 
         // كبسولة المعرف
         Flexible(
           child: GestureDetector(
-          onTap: () => _copyId(context),
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            height: 22,
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            decoration: BoxDecoration(
-              color: effectiveBeauty ? const Color(0x26DE880F) : const Color(0x4D000000),
-              borderRadius: BorderRadius.circular(11),
-              border: effectiveBeauty ? Border.all(color: const Color(0x80FFD98B), width: 0.8) : null,
-              boxShadow: effectiveBeauty
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFFDE880F).withOpacity(0.2),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
+            onTap: () => _copyId(context),
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              height: 22,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                color: effectiveBeauty ? const Color(0x26DE880F) : const Color(0x4D000000),
+                borderRadius: BorderRadius.circular(11),
+                border: effectiveBeauty ? Border.all(color: const Color(0x80FFD98B), width: 0.8) : null,
+                boxShadow: effectiveBeauty
+                    ? [
+                  BoxShadow(
+                    color: const Color(0xFFDE880F).withValues(alpha: 0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // أيقونة شارة ID المميزة الأصلية أو GIF مخصص
+                  if (widget.gifUrl != null && widget.gifUrl!.isNotEmpty) ...[
+                    Image(
+                      image: R.cachedImage(widget.gifUrl!),
+                      width: 18,
+                      height: 18,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Image.asset(
+                        'assets/mipmap-xxhdpi/common_user_id_ic.webp',
+                        width: 18,
+                        height: 18,
+                        fit: BoxFit.contain,
                       ),
-                    ]
-                  : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // أيقونة شارة ID المميزة الأصلية أو GIF مخصص
-                if (widget.gifUrl != null && widget.gifUrl!.isNotEmpty) ...[
-                  Image(
-                    image: R.cachedImage(widget.gifUrl!),
-                    width: 18,
-                    height: 18,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Image.asset(
+                    ),
+                    const SizedBox(width: 3),
+                  ] else if (effectiveBeauty) ...[
+                    Image.asset(
                       'assets/mipmap-xxhdpi/common_user_id_ic.webp',
                       width: 18,
                       height: 18,
                       fit: BoxFit.contain,
                     ),
-                  ),
-                  const SizedBox(width: 3),
-                ] else if (effectiveBeauty) ...[
-                  Image.asset(
-                    'assets/mipmap-xxhdpi/common_user_id_ic.webp',
-                    width: 18,
-                    height: 18,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(width: 3),
-                ],
+                    const SizedBox(width: 3),
+                  ],
 
-                // رقم المعرف الملون والمتحرك
-                Flexible(child: _buildAnimatedText(effectiveBeauty, effectiveEffect)),
+                  // رقم المعرف الملون والمتحرك
+                  Flexible(child: _buildAnimatedText(effectiveBeauty, effectiveEffect)),
 
-                // أيقونة النسخ
-                if (widget.showCopy) ...[
-                  const SizedBox(width: 4),
-                  Image.asset(
-                    effectiveBeauty
-                        ? 'assets/mipmap-xxhdpi/common_id_copy_2_ic.webp'
-                        : 'assets/mipmap-xxhdpi/common_id_copy_ic.webp',
-                    width: 13,
-                    height: 13,
-                    fit: BoxFit.contain,
-                  ),
+                  // أيقونة النسخ
+                  if (widget.showCopy) ...[
+                    const SizedBox(width: 4),
+                    Image.asset(
+                      effectiveBeauty
+                          ? 'assets/mipmap-xxhdpi/common_id_copy_2_ic.webp'
+                          : 'assets/mipmap-xxhdpi/common_id_copy_ic.webp',
+                      width: 13,
+                      height: 13,
+                      fit: BoxFit.contain,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
           ),
         ),
       ],

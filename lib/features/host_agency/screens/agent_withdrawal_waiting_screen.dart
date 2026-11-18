@@ -312,10 +312,10 @@ class _AgentWithdrawalWaitingScreenState
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF00E5A0).withOpacity(0.15),
+                color: const Color(0xFF00E5A0).withValues(alpha: 0.15),
                 border: Border.all(color: const Color(0xFF00E5A0), width: 3),
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFF00E5A0).withOpacity(0.4), blurRadius: 24),
+                  BoxShadow(color: const Color(0xFF00E5A0).withValues(alpha: 0.4), blurRadius: 24),
                 ],
               ),
               child: const Icon(Icons.check_circle_rounded, color: Color(0xFF00E5A0), size: 54),
@@ -343,10 +343,10 @@ class _AgentWithdrawalWaitingScreenState
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.redAccent.withOpacity(0.15),
+                color: Colors.redAccent.withValues(alpha: 0.15),
                 border: Border.all(color: Colors.redAccent, width: 3),
                 boxShadow: [
-                  BoxShadow(color: Colors.redAccent.withOpacity(0.35), blurRadius: 20),
+                  BoxShadow(color: Colors.redAccent.withValues(alpha: 0.35), blurRadius: 20),
                 ],
               ),
               child: const Icon(Icons.cancel_rounded, color: Colors.redAccent, size: 54),
@@ -404,10 +404,10 @@ class _AgentWithdrawalWaitingScreenState
                 height: 104,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _teal.withOpacity(0.12),
+                  color: _teal.withValues(alpha: 0.12),
                   border: Border.all(color: _teal, width: 2.5),
                   boxShadow: [
-                    BoxShadow(color: _teal.withOpacity(0.3), blurRadius: 24, spreadRadius: 2),
+                    BoxShadow(color: _teal.withValues(alpha: 0.3), blurRadius: 24, spreadRadius: 2),
                   ],
                 ),
                 child: const Center(
@@ -447,9 +447,9 @@ class _AgentWithdrawalWaitingScreenState
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _status == 'approved'
-              ? const Color(0xFF00E5A0).withOpacity(0.4)
+              ? const Color(0xFF00E5A0).withValues(alpha: 0.4)
               : _status == 'rejected'
-                  ? Colors.redAccent.withOpacity(0.4)
+                  ? Colors.redAccent.withValues(alpha: 0.4)
                   : Colors.white10,
         ),
       ),
@@ -499,7 +499,7 @@ class _AgentWithdrawalWaitingScreenState
                     ),
                     const SizedBox(height: 2),
                     DText(
-                      'وكيل شحن معتمد' + (widget.agentKayanId.isNotEmpty ? ' (#${widget.agentKayanId})' : ''),
+                      'وكيل شحن معتمد${widget.agentKayanId.isNotEmpty ? ' (#${widget.agentKayanId})' : ''}',
                       style: const TextStyle(color: _teal, fontFamily: 'Tajawal', fontSize: 11),
                     ),
                   ],
@@ -524,12 +524,12 @@ class _AgentWithdrawalWaitingScreenState
 
     switch (_status) {
       case 'approved':
-        bg = const Color(0xFF00E5A0).withOpacity(0.15);
+        bg = const Color(0xFF00E5A0).withValues(alpha: 0.15);
         fg = const Color(0xFF00E5A0);
         text = 'مقبول ومكتمل ✅';
         break;
       case 'rejected':
-        bg = Colors.redAccent.withOpacity(0.15);
+        bg = Colors.redAccent.withValues(alpha: 0.15);
         fg = Colors.redAccent;
         text = 'مرفوض ❌';
         break;
@@ -540,7 +540,7 @@ class _AgentWithdrawalWaitingScreenState
         break;
       case 'pending':
       default:
-        bg = Colors.amber.withOpacity(0.15);
+        bg = Colors.amber.withValues(alpha: 0.15);
         fg = Colors.amber;
         text = 'قيد الانتظار ⏳';
         break;
@@ -551,7 +551,7 @@ class _AgentWithdrawalWaitingScreenState
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: fg.withOpacity(0.4)),
+        border: Border.all(color: fg.withValues(alpha: 0.4)),
       ),
       child: DText(
         text,

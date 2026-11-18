@@ -155,7 +155,7 @@ class CoinRechargeTipDialog extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF14FAB1).withOpacity(0.35),
+                          color: const Color(0xFF14FAB1).withValues(alpha: 0.35),
                           blurRadius: 8,
                           offset: const Offset(0, 3),
                         ),

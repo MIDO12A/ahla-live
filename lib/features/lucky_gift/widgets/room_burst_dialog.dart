@@ -2,8 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../models/lucky_gift_model.dart';
-import 'lucky_card_flip_layout.dart';
-import 'room_burst_settlement_dialog.dart';
 import 'package:zero/core/dtext.dart';
 
 /// واجهة الكومبو والانفجار لهدايا الحظ (RoomBurstDialog)
@@ -19,7 +17,7 @@ class RoomBurstDialog extends StatefulWidget {
   final Function(LuckyGiftModel gift, int count, String comboId, int comboCount) onSendBurst;
 
   const RoomBurstDialog({
-    Key? key,
+    super.key,
     required this.gift,
     required this.roomId,
     required this.senderId,
@@ -28,7 +26,7 @@ class RoomBurstDialog extends StatefulWidget {
     required this.receiverId,
     required this.receiverName,
     required this.onSendBurst,
-  }) : super(key: key);
+  });
 
   @override
   State<RoomBurstDialog> createState() => _RoomBurstDialogState();
@@ -139,7 +137,7 @@ class _RoomBurstDialogState extends State<RoomBurstDialog>
             border: Border.all(color: const Color(0xFFFFD700), width: 2),
             boxShadow: [
               BoxShadow(
-                color: Colors.amber.withOpacity(0.3),
+                color: Colors.amber.withValues(alpha: 0.3),
                 blurRadius: 25,
                 spreadRadius: 4,
               ),
@@ -195,7 +193,7 @@ class _RoomBurstDialogState extends State<RoomBurstDialog>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFF6D00).withOpacity(0.7),
+                          color: const Color(0xFFFF6D00).withValues(alpha: 0.7),
                           blurRadius: 20,
                           spreadRadius: 3,
                         ),
@@ -235,7 +233,7 @@ class _RoomBurstDialogState extends State<RoomBurstDialog>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.4),
+                  color: Colors.black.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.white24),
                 ),

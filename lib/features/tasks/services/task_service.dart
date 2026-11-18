@@ -110,8 +110,8 @@ class TaskService {
         bool matches = false;
         final route = t.actionRoute.toLowerCase().trim();
         final id = t.id.toLowerCase().trim();
-        final title = (t.titleAr + ' ' + t.titleEn).toLowerCase();
-        final desc = (t.descriptionAr + ' ' + t.descriptionEn).toLowerCase();
+        final title = ('${t.titleAr} ${t.titleEn}').toLowerCase();
+        final desc = ('${t.descriptionAr} ${t.descriptionEn}').toLowerCase();
 
         if (act == 'gift') {
           // إرسال هدية عادية (لا تشمل مهام الحظ الحصرية)

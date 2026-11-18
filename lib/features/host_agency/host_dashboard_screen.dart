@@ -190,8 +190,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
           });
           _startCountdown();
           // Subscribe to progress changes
-          if (_rtProgress == null) {
-            _rtProgress = SupabaseRealtimeBridge.subscribePostgres(
+          _rtProgress ??= SupabaseRealtimeBridge.subscribePostgres(
               topic: 'host_progress:$uid',
               event: PostgresChangeEvent.update,
               table: 'host_monthly_progress',
@@ -202,7 +201,6 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
               ),
               onPayload: (_) => _loadV3Data(uid),
             );
-          }
         }
       }
     } catch (e) {
@@ -606,7 +604,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                             ),
                             borderRadius: BorderRadius.circular(10),
                             boxShadow: [
-                              BoxShadow(color: const Color(0xFF00D4FF).withOpacity(0.3), blurRadius: 8),
+                              BoxShadow(color: const Color(0xFF00D4FF).withValues(alpha: 0.3), blurRadius: 8),
                             ],
                           ),
                           child: const Row(
@@ -710,7 +708,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
                     ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Color(0xFFFF5252), width: 1.2),
-                      backgroundColor: const Color(0xFFFF5252).withOpacity(0.06),
+                      backgroundColor: const Color(0xFFFF5252).withValues(alpha: 0.06),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
@@ -927,19 +925,19 @@ class _AgencyCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_gold.withOpacity(.08), _bgCard],
+          colors: [_gold.withValues(alpha: .08), _bgCard],
           begin: AlignmentDirectional.topStart,
           end:   AlignmentDirectional.bottomEnd,
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _gold.withOpacity(.3)),
-        boxShadow: [BoxShadow(color: _gold.withOpacity(.08), blurRadius: 20)],
+        border: Border.all(color: _gold.withValues(alpha: .3)),
+        boxShadow: [BoxShadow(color: _gold.withValues(alpha: .08), blurRadius: 20)],
       ),
       child: Row(children: [
         Container(
           width: 48, height: 48,
           decoration: BoxDecoration(
-            color: _gold.withOpacity(.15),
+            color: _gold.withValues(alpha: .15),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Center(child: DText('ðŸ¢', style: TextStyle(fontSize: 24))),
@@ -1005,12 +1003,12 @@ class _MilestoneCard extends StatelessWidget {
             ? DecorationImage(
                 image: EncryptedImageProvider(bgUrl),
                 fit: BoxFit.cover,
-                colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.4), BlendMode.darken),
+                colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.4), BlendMode.darken),
               )
             : null,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: completed ? _gold.withOpacity(.6) : _border,
+          color: completed ? _gold.withValues(alpha: .6) : _border,
           width: completed ? 1.5 : 1.0,
         ),
       ),
@@ -1022,7 +1020,7 @@ class _MilestoneCard extends StatelessWidget {
               margin: const EdgeInsets.only(left: 10),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
@@ -1055,7 +1053,7 @@ class _MilestoneCard extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
-                      BoxShadow(color: const Color(0xFF00D4FF).withOpacity(0.3), blurRadius: 6),
+                      BoxShadow(color: const Color(0xFF00D4FF).withValues(alpha: 0.3), blurRadius: 6),
                     ],
                   ),
                   child: const Row(
@@ -1080,9 +1078,9 @@ class _MilestoneCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: _gold.withOpacity(.15),
+                color: _gold.withValues(alpha: .15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _gold.withOpacity(.4)),
+                border: Border.all(color: _gold.withValues(alpha: .4)),
               ),
               child: const DText('✅ مكتمل',
                   style: TextStyle(color: _gold, fontSize: 11,
@@ -1097,7 +1095,7 @@ class _MilestoneCard extends StatelessWidget {
           Container(
             height: 8,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.06),
+              color: Colors.white.withValues(alpha: .06),
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -1114,9 +1112,9 @@ class _MilestoneCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                     gradient: LinearGradient(
                       colors: [
-                        barColor.withOpacity(.7),
+                        barColor.withValues(alpha: .7),
                         barColor,
-                        barColor.withOpacity(.7),
+                        barColor.withValues(alpha: .7),
                       ],
                       stops: [
                         (shimmer.value - .3).clamp(0.0, 1.0),
@@ -1125,7 +1123,7 @@ class _MilestoneCard extends StatelessWidget {
                       ],
                     ),
                     boxShadow: [
-                      BoxShadow(color: barColor.withOpacity(.5), blurRadius: 6),
+                      BoxShadow(color: barColor.withValues(alpha: .5), blurRadius: 6),
                     ],
                   ),
                 );
@@ -1231,9 +1229,9 @@ class _GlassButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(.15),
+          color: color.withValues(alpha: .15),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(.4)),
+          border: Border.all(color: color.withValues(alpha: .4)),
         ),
         child: DText(label,
             style: TextStyle(color: color, fontFamily: 'IBM Plex Sans Arabic',
@@ -1275,8 +1273,8 @@ class _NeonSpinnerState extends State<_NeonSpinner>
           width: 40, height: 40,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: SweepGradient(colors: [_purple, _purple.withOpacity(0)]),
-            boxShadow: [BoxShadow(color: _purple.withOpacity(.5), blurRadius: 12)],
+            gradient: SweepGradient(colors: [_purple, _purple.withValues(alpha: 0)]),
+            boxShadow: [BoxShadow(color: _purple.withValues(alpha: .5), blurRadius: 12)],
           ),
         ),
       ),
@@ -1329,8 +1327,8 @@ class _AgencyWalletCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _bgCard,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: tierColor.withOpacity(0.3)),
-        boxShadow: [BoxShadow(color: tierColor.withOpacity(0.08), blurRadius: 20)],
+        border: Border.all(color: tierColor.withValues(alpha: 0.3)),
+        boxShadow: [BoxShadow(color: tierColor.withValues(alpha: 0.08), blurRadius: 20)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1346,7 +1344,7 @@ class _AgencyWalletCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: tierColor.withOpacity(0.12),
+                    color: tierColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: DText('🏆 التصنيف', style: TextStyle(color: tierColor, fontSize: 11, fontWeight: FontWeight.w600)),
@@ -1363,7 +1361,7 @@ class _AgencyWalletCard extends StatelessWidget {
               Expanded(child: DText(a.name,
                 style: TextStyle(color: _textMain, fontWeight: FontWeight.w600, fontSize: 14))),
               if (a.rank != null)
-                DText('#${a.rank} عالمياً', style: TextStyle(color: tierColor.withOpacity(0.7), fontSize: 12)),
+                DText('#${a.rank} عالمياً', style: TextStyle(color: tierColor.withValues(alpha: 0.7), fontSize: 12)),
             ]),
           ),
 
@@ -1410,7 +1408,7 @@ class _AgencyWalletCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
                       value: progress,
-                      backgroundColor: Colors.white.withOpacity(0.06),
+                      backgroundColor: Colors.white.withValues(alpha: 0.06),
                       valueColor: AlwaysStoppedAnimation<Color>(tierColor),
                       minHeight: 8,
                     ),
@@ -1464,9 +1462,9 @@ class _WalletStat extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Column(children: [
           DText(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15)),
@@ -1492,9 +1490,9 @@ class _WalletBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 9),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         alignment: Alignment.center,
         child: DText(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -1541,8 +1539,8 @@ class _D40MonthlyDataCard extends StatelessWidget {
       final target = (m['target_value'] as num?)?.toInt() ?? 0;
       if (monthDiamonds >= target) {
         achievedMilestone = m;
-      } else if (nextMilestone == null) {
-        nextMilestone = m;
+      } else {
+        nextMilestone ??= m;
       }
     }
     nextMilestone ??= milestones.isNotEmpty ? milestones.last : null;
@@ -1557,10 +1555,10 @@ class _D40MonthlyDataCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF16192E),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -1592,9 +1590,9 @@ class _D40MonthlyDataCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5A601).withOpacity(0.12),
+                  color: const Color(0xFFF5A601).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFF5A601).withOpacity(0.3)),
+                  border: Border.all(color: const Color(0xFFF5A601).withValues(alpha: 0.3)),
                 ),
                 child: DText(
                   '${(progressPct * 100).toStringAsFixed(1)}% مكتمل',
@@ -1616,7 +1614,7 @@ class _D40MonthlyDataCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: progressPct,
-              backgroundColor: Colors.white.withOpacity(0.08),
+              backgroundColor: Colors.white.withValues(alpha: 0.08),
               valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5A601)),
               minHeight: 7,
             ),
@@ -1743,14 +1741,14 @@ class _D40MetricTile extends StatelessWidget {
           end: AlignmentDirectional.bottomEnd,
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 18),
@@ -1766,7 +1764,7 @@ class _D40MetricTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.65),
+                    color: Colors.white.withValues(alpha: 0.65),
                     fontSize: 11,
                     fontFamily: 'IBM Plex Sans Arabic',
                   ),
@@ -1789,7 +1787,7 @@ class _D40MetricTile extends StatelessWidget {
                       DText(
                         unit,
                         style: TextStyle(
-                          color: color.withOpacity(0.8),
+                          color: color.withValues(alpha: 0.8),
                           fontSize: 11,
                           fontFamily: 'IBM Plex Sans Arabic',
                         ),

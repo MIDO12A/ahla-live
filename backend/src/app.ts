@@ -1,17 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import authRoutes from './routes/auth';
-import userRoutes from './routes/users';
-import levelRoutes from './routes/levels';
 import vipRoutes from './routes/vip';
 import rechargeRoutes from './routes/recharge';
-import agencyRoutes from './routes/agencies';
-import rankingRoutes from './routes/rankings';
-import cpRewardRoutes from './routes/cpRewards';
-import luckyRoutes from './routes/lucky';
-import giftsRoutes from './routes/gifts';
-import hostTargetsRoutes from './routes/hostTargets';
-import eventsRoutes from './routes/events';
+import gamesRoutes from './routes/games';
 
 
 import openapiDoc from './openapi.json';
@@ -19,7 +10,19 @@ import openapiDoc from './openapi.json';
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+
+// ⚠️ على Vercel قد يسبق الـ runtime ويحوّل JSON إلى req.body object ويستهلك
+//    الـ stream؛ استدعاء express.json() وقتها يرمي 500 قبل أي handler.
+//    نستدعيه فقط لو الـ body لسه مش متحول.
+const jsonParser = express.json();
+app.use((req, res, next) => {
+  const alreadyParsed =
+    req.body != null && typeof req.body === 'object' && !Buffer.isBuffer(req.body);
+  if (alreadyParsed) return next();
+  jsonParser(req, res, next);
+});
+// بروتوكول StyeParty/game providers يرسل form-urlencoded غالباً
+app.use(express.urlencoded({ extended: true }));
 
 app.get('/', (_req, res) => {
   res.json({
@@ -68,18 +71,16 @@ app.get('/docs', (_req, res) => {
   `);
 });
 
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/levels', levelRoutes);
+// ✅ الباك إند صار Supabase-only — لا Firebase.
+//    كل بيانات التطبيق على Supabase؛ هذه الباك إند تخدم فقط:
+//    - /api/v1/games      → بروتوكول StyeParty (رصيد + نتائج)
+//    - /api/v1/vip        → بيانات VIP (يقرأ من Supabase)
+//    - /api/v1/recharge   → خطط الشحن static
+//    باقي المسارات القديمة (auth/users/gifts/lucky/...) كانت
+//    تعتمد على Firestore وأُزيلت — التطبيق لا يستدعيها أصلاً.
 app.use('/api/v1/vip', vipRoutes);
 app.use('/api/v1/recharge', rechargeRoutes);
-app.use('/api/v1/agencies', agencyRoutes);
-app.use('/api/v1/rankings', rankingRoutes);
-app.use('/api/v1/cp-rewards', cpRewardRoutes);
-app.use('/api/v1/lucky', luckyRoutes);
-app.use('/api/v1/gifts', giftsRoutes);
-app.use('/api/v1/host-targets', hostTargetsRoutes);
-app.use('/api/v1/events', eventsRoutes);
+app.use('/api/v1/games', gamesRoutes);
 
 
 app.use((_req, res) => {
@@ -87,6 +88,17 @@ app.use((_req, res) => {
 });
 
 app.use((err: any, _req: any, res: any, _next: any) => {
+  // أخطاء قراءة الـ body نرد عليها بصيغة StyeParty بدل 500 عشان الشركة تشوف السبب
+  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError)) {
+    res.status(200).json({
+      errorCode: 10001,
+      errorMsg: 'Invalid request body',
+      code: 10001,
+      msg: 'Invalid request body',
+      data: [],
+    });
+    return;
+  }
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });

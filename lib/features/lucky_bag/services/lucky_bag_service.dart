@@ -10,7 +10,9 @@ import '../../../config/supabase_config.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../models/message_model.dart';
 import '../../../services/global_banner_service.dart';
+import '../../../services/pusher_service.dart';
 import '../../../services/supabase_data_service.dart';
+import '../../../services/supabase_realtime_service.dart';
 import '../models/lucky_bag_config.dart';
 import '../models/lucky_bag_model.dart';
 import '../widgets/lucky_bag_grab_overlay.dart';
@@ -43,7 +45,7 @@ class LuckyBagService {
   Timer? _expiryTimer;
   bool _processingExpiry = false;
 
-  Map<String, Map<String, dynamic>> _localBags = {};
+  final Map<String, Map<String, dynamic>> _localBags = {};
 
   // ── الإعدادات ──────────────────────────────────────────
 
@@ -386,7 +388,35 @@ class LuckyBagService {
   // ── البث المباشر للأكياس النشطة ────────────────────────
 
   Stream<List<LuckyBagModel>> activeBagsStream(String roomId) async* {
-    while (true) {
+    // ✅ استيقاظ فوري عبر Pusher: أي حدث خاص بالغرفة (رسالة كيس/فوز/بث)
+    //    يُسقط دورة الانتظار ويعيد الجلب لحظياً — بدل polling أعمى كل ثانية.
+    var wakeCompleter = Completer<void>();
+    final pusherSub = PusherRealtimeService.instance.events.listen((evt) {
+      final data = evt['data'];
+      if (data is! Map) return;
+      if (evt['event'] != 'room_message' && evt['event'] != 'broadcast') {
+        return;
+      }
+      if (data['room_id']?.toString() != roomId) return;
+      if (!wakeCompleter.isCompleted) wakeCompleter.complete();
+    });
+    // ✅ استيقاظ لحظي كذلك من Postgres Changes على جدول lucky_bags
+    //    (إنشاء/سحب/إنهاء كيس) — يعمل حتى لو لم يصل حدث Pusher.
+    final rt = SupabaseRealtimeService.instance;
+    final rtTopic = 'lucky_bags:$roomId';
+    rt.subscribeTable(
+      table: 'lucky_bags',
+      topic: rtTopic,
+      filter: 'room_id=eq.$roomId',
+    );
+    final rtSub = rt.changes.listen((change) {
+      if (change.table != 'lucky_bags') return;
+      final rid = change.record['room_id']?.toString();
+      if (rid != null && rid != roomId) return;
+      if (!wakeCompleter.isCompleted) wakeCompleter.complete();
+    });
+    try {
+      while (true) {
       List<LuckyBagModel> bags = [];
       try {
         final now = Uri.encodeComponent(DateTime.now().toUtc().toIso8601String());
@@ -425,7 +455,20 @@ class LuckyBagService {
       final result = merged.values.toList()
         ..sort((a, b) => (a.createdAt ?? '').compareTo(b.createdAt ?? ''));
       yield result;
-      await Future.delayed(const Duration(milliseconds: 1000));
+
+      // انتظر ثانية كاملة كحد أقصى — أو استيقظ فوراً عند حدث Pusher/Realtime.
+      wakeCompleter = Completer<void>();
+      await Future.any([
+        Future.delayed(Duration(
+          milliseconds: rt.isTopicLive(rtTopic) ? 3000 : 1000,
+        )),
+        wakeCompleter.future,
+      ]);
+      }
+    } finally {
+      await pusherSub.cancel();
+      await rtSub.cancel();
+      rt.unsubscribeTopic(rtTopic);
     }
   }
 
@@ -434,7 +477,7 @@ class LuckyBagService {
   void startExpiryWatcher() {
     if (_expiryTimer != null) return;
     _expiryTimer = Timer.periodic(
-      const Duration(seconds: 2),
+      const Duration(seconds: 15),
       (_) => _processExpired(),
     );
     unawaited(_processExpired());

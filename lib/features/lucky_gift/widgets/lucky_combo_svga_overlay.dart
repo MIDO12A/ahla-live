@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../services/dynamic_config_service.dart';
 import 'dashboard_anim_player.dart';
@@ -11,10 +11,10 @@ class LuckyComboSvgaOverlay extends StatefulWidget {
   final VoidCallback onFinished;
 
   const LuckyComboSvgaOverlay({
-    Key? key,
+    super.key,
     required this.count,
     required this.onFinished,
-  }) : super(key: key);
+  });
 
   /// المسار الافتراضي الذي يُستخدم كمفتاح بحث في app_assets
   static String _assetKeyForCount(int count) =>

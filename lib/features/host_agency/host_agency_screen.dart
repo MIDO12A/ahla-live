@@ -289,7 +289,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
   String? _selectedCountry;
   bool _showForm      = false;
   File? _agencyImage;
-  bool _pickingImage  = false;
+  final bool _pickingImage  = false;
   String? _supervisorName;
   bool _lookingUpSupervisor = false;
 
@@ -637,7 +637,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                 const SizedBox(height: 16),
                 const Row(
                   children: [
-                    Icon(Icons.verified_user_rounded, color: Color(0xFFFFFEEC93), size: 24),
+                    Icon(Icons.verified_user_rounded, color: Color(0xfffffeec93), size: 24),
                     SizedBox(width: 8),
                     DText(
                       'مركز تطوير الأعمال (BD Center)',
@@ -954,7 +954,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
               children: [
                 DText(
                   'طلب الانضمام قيد المراجعة',
-                  style: TextStyle(color: Color(0xFFFFFEEC93), fontSize: 13, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: Color(0xfffffeec93), fontSize: 13, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 2),
                 DText(
@@ -1140,7 +1140,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
             title,
             style: const TextStyle(
               fontSize: 12,
-              color: Color(0xFFFFFFF5AD),
+              color: Color(0xfffffff5ad),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -1184,7 +1184,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFFFFFFF5AD),
+                  color: Color(0xfffffff5ad),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1218,7 +1218,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
       return const SliverToBoxAdapter(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(32),
+            padding: EdgeInsets.all(32),
             child: DText('لا توجد وكالات بعد', style: TextStyle(color: Colors.white54)),
           ),
         ),
@@ -1253,7 +1253,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
       decoration: BoxDecoration(
         color: const Color(0xFF242424),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFFEEC93).withValues(alpha: 0.3)),
+        border: Border.all(color: const Color(0xfffffeec93).withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1261,7 +1261,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
           const Center(
             child: DText(
               'إنشاء وكالة مضيفين جديدة',
-              style: TextStyle(color: Color(0xFFFFFEEC93), fontWeight: FontWeight.bold, fontSize: 17),
+              style: TextStyle(color: Color(0xfffffeec93), fontWeight: FontWeight.bold, fontSize: 17),
             ),
           ),
           const SizedBox(height: 16),
@@ -1288,7 +1288,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.add_a_photo_rounded, color: Color(0xFFFFFEEC93), size: 28),
+                                Icon(Icons.add_a_photo_rounded, color: Color(0xfffffeec93), size: 28),
                                 SizedBox(height: 4),
                                 DText(
                                   'شعار الوكالة',
@@ -1369,7 +1369,7 @@ class _BrowseCreateScreenState extends State<_BrowseCreateScreen>
           _field(_descCtrl, 'وصف الوكالة (اختياري)', Icons.description_rounded, maxLines: 2),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _selectedCountry,
+            initialValue: _selectedCountry,
             dropdownColor: const Color(0xFF242424),
             style: const TextStyle(color: Colors.white, fontSize: 13),
             decoration: InputDecoration(
@@ -1574,7 +1574,7 @@ class _AgencyRankItem extends StatelessWidget {
                     height: 52,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFFFEEC93), width: 1.5),
+                      border: Border.all(color: const Color(0xfffffeec93), width: 1.5),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: (photoUrl != null && photoUrl.isNotEmpty)
@@ -1586,14 +1586,14 @@ class _AgencyRankItem extends StatelessWidget {
                             errorBuilder: (_, __, ___) => Center(
                               child: DText(
                                 name.isNotEmpty ? name.characters.first : '?',
-                                style: const TextStyle(color: Color(0xFFFFFEEC93), fontSize: 20, fontWeight: FontWeight.bold),
+                                style: const TextStyle(color: Color(0xfffffeec93), fontSize: 20, fontWeight: FontWeight.bold),
                               ),
                             ),
                           )
                         : Center(
                             child: DText(
                               name.isNotEmpty ? name.characters.first : '?',
-                              style: const TextStyle(color: Color(0xFFFFFEEC93), fontSize: 20, fontWeight: FontWeight.bold),
+                              style: const TextStyle(color: Color(0xfffffeec93), fontSize: 20, fontWeight: FontWeight.bold),
                             ),
                           ),
                   ),
@@ -1662,12 +1662,12 @@ class _AgencyRankItem extends StatelessWidget {
                     children: [
                       const DText(
                         '♦',
-                        style: TextStyle(color: Color(0xFFFFFEEC93), fontSize: 14),
+                        style: TextStyle(color: Color(0xfffffeec93), fontSize: 14),
                       ),
                       DText(
                         _fmt(diamonds),
                         style: const TextStyle(
-                          color: Color(0xFFFFFEEC93),
+                          color: Color(0xfffffeec93),
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                         ),

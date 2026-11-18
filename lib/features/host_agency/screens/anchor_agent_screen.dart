@@ -13,8 +13,6 @@ import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 import '../data/anchor_agent_model.dart';
 import '../data/agency_chat_repository.dart';
-import 'agency_exit_screen.dart';
-import 'agency_owner_wallet_screen.dart';
 import 'agency_disbursement_screen.dart';
 import 'agency_invite_by_id_screen.dart';
 import 'agency_item_detail_screen.dart';
@@ -221,7 +219,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFF2C2C34),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.35)),
+            border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.35)),
           ),
           child: Column(
             children: [
@@ -242,7 +240,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     ? 'يمكنك اختيار أي مضيف لإزالته وإنهاء ارتباطه بالوكالة فوراً دون التأثير على حساب الوكالة.'
                     : 'Select any host to remove them and unlink them from your agency immediately.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 12),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 12),
               ),
               const SizedBox(height: 14),
               SizedBox(
@@ -309,7 +307,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 DText(
                   isAr ? 'اختر المضيف الذي ترغب في إزالته وفك ارتباطه بالوكالة فوراً:' : 'Select a host to remove from your agency:',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
                 ),
                 const SizedBox(height: 16),
                 if (hostsToRemove.isEmpty)
@@ -344,7 +342,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           ),
                           subtitle: DText(
                             'ID: ${anchor.userNo > 0 ? anchor.userNo : anchor.userId} • ${_getAnchorStage(anchor.totalDiamond, isAr)} • ${(anchor.minute / 60).toStringAsFixed(1)} ${isAr ? 'ساعة' : 'hrs'}',
-                            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
                           ),
                           trailing: ElevatedButton.icon(
                             onPressed: () {
@@ -412,7 +410,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(color: const Color(0xFF141923)),
                     ),
-              Container(color: Colors.black.withOpacity(0.55)), // blackMask (20% to 55%)
+              Container(color: Colors.black.withValues(alpha: 0.55)), // blackMask (20% to 55%)
             ],
           ),
         ),
@@ -517,7 +515,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               border: Border.all(color: Colors.white, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.35),
+                                  color: Colors.black.withValues(alpha: 0.35),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
@@ -678,7 +676,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.12),
+                                color: Colors.white.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: DText(
@@ -705,7 +703,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0x3D000000),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.15)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
                   ),
                   child: Row(
                     children: [
@@ -752,7 +750,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
+                        color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -904,7 +902,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
@@ -961,7 +959,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
@@ -1816,8 +1814,8 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         final t = (m['target_diamonds'] ?? m['targetDiamonds'] as num?)?.toInt() ?? 0;
         if (effectiveDiamonds >= t) {
           completedMilestone = m;
-        } else if (activeNext == null) {
-          activeNext = m;
+        } else {
+          activeNext ??= m;
         }
       }
 
@@ -1944,7 +1942,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: dc.hostAgencyCardColor.withOpacity(0.3),
+                          color: dc.hostAgencyCardColor.withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 3),
                         ),
@@ -2019,7 +2017,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: dc.hostAgencyCardColor.withOpacity(0.3),
+                          color: dc.hostAgencyCardColor.withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 3),
                         ),
@@ -2198,7 +2196,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: dc.hostAgencyCardColor.withOpacity(0.35),
+                    color: dc.hostAgencyCardColor.withValues(alpha: 0.35),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -2276,7 +2274,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                         borderRadius: BorderRadius.circular(20),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(0.15),
+                                            color: Colors.black.withValues(alpha: 0.15),
                                             blurRadius: 4,
                                             offset: const Offset(0, 2),
                                           ),
@@ -2300,7 +2298,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                             Container(
                               width: 1,
                               height: 90,
-                              color: Colors.white.withOpacity(0.35),
+                              color: Colors.white.withValues(alpha: 0.35),
                               margin: const EdgeInsets.symmetric(horizontal: 10),
                             ),
 
@@ -2355,7 +2353,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -2809,7 +2807,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.35)),
+                border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.35)),
               ),
               child: Row(
                 children: [
@@ -2817,7 +2815,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFD700).withOpacity(0.15),
+                      color: const Color(0xFFFFD700).withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFFFFD700), size: 26),
@@ -2836,7 +2834,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                           isAr
                               ? 'أدخل آيدي المستخدم للبحث عنه، ثم اضغط لإرسال دعوة انضمام مباشرة لإشعاراته.'
                               : 'Enter user ID to search, then send an invitation notification.',
-                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11),
                         ),
                       ],
                     ),
@@ -2866,7 +2864,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                       style: const TextStyle(color: Colors.white, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: isAr ? 'أدخل آيدي المستخدم (ID) مثلاً: 12345' : 'Enter User ID (e.g. 12345)',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 13),
+                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 13),
                         border: InputBorder.none,
                       ),
                       onSubmitted: (_) => _searchUserToInvite(isAr),
@@ -2907,9 +2905,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF5252).withOpacity(0.12),
+                  color: const Color(0xFFFF5252).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.4)),
+                  border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   children: [
@@ -2927,9 +2925,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withOpacity(0.12),
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.4)),
+                  border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   children: [
@@ -2949,9 +2947,9 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF24242A),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.5)),
+                  border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.5)),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3)),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3)),
                   ],
                 ),
                 child: Column(
@@ -2988,7 +2986,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
                                 const SizedBox(height: 2),
                                 DText(
                                   'Level ${_foundUser!['level']}',
-                                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
                                 ),
                               ],
                             ],
@@ -3353,7 +3351,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
+            color: Colors.black.withValues(alpha: 0.12),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -3492,7 +3490,7 @@ class _AnchorAgentScreenState extends State<AnchorAgentScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4111,7 +4109,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                         dense: true,
                         leading: CircleAvatar(
                           radius: 16,
-                          backgroundColor: const Color(0xFF00D4FF).withOpacity(0.2),
+                          backgroundColor: const Color(0xFF00D4FF).withValues(alpha: 0.2),
                           backgroundImage: avatar.isNotEmpty ? R.cachedImage(avatar) : null,
                           child: avatar.isEmpty ? const Icon(Icons.person, color: Color(0xFF00D4FF), size: 16) : null,
                         ),
@@ -4145,7 +4143,7 @@ class _HostTransferSalaryModalState extends State<_HostTransferSalaryModal> {
                     children: [
                       CircleAvatar(
                         radius: 20,
-                        backgroundColor: const Color(0xFF00D4FF).withOpacity(0.2),
+                        backgroundColor: const Color(0xFF00D4FF).withValues(alpha: 0.2),
                         backgroundImage: (_selectedAgent!['avatar_url']?.toString() ?? '').isNotEmpty
                             ? R.cachedImage(_selectedAgent!['avatar_url'].toString())
                             : null,

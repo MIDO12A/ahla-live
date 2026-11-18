@@ -20,6 +20,39 @@ class InviteService {
         'Content-Type': 'application/json',
       };
 
+  // ✅ كاش حالة المكافأة اليومية — يُحمَّأ مبكراً من AuthGate
+  //    فيظهر حوار المكافأة فوراً عند فتح التطبيق
+  static String? _dailyRewardCacheKey;
+  static Map<String, dynamic>? _dailyRewardCache;
+  static DateTime? _dailyRewardCacheAt;
+
+  /// تسخين مسبق لحالة المكافأة اليومية (يُستدعى عند تحميل المستخدم)
+  Future<void> warmupDailyReward(String uid) async {
+    await getDailyRewardStatus(uid);
+  }
+
+  /// مكافأة صالحة للصرف فقط إذا كان لها قيمة حقيقية:
+  /// عملات/ألماس/VIP بمبلغ > 0، أو عنصر متجر بـ item_id.
+  /// أي مكافأة فارغة أو بقيمة 0 تُعتبر "غير قابلة للاستلام" — لا نافذة ولا صرف رصيد.
+  static bool hasClaimableReward(dynamic reward) {
+    if (reward is! Map) return false;
+    final r = Map<String, dynamic>.from(reward);
+    final type = (r['type'] ?? '').toString().trim();
+    final amount = (r['amount'] as num?)?.toDouble() ?? 0;
+    final itemId = (r['item_id'] ?? '').toString().trim();
+    switch (type) {
+      case 'coins':
+      case 'diamonds':
+      case 'vip_tier':
+        return amount > 0;
+      case 'item':
+      case 'vip_item':
+        return itemId.isNotEmpty;
+      default:
+        return false;
+    }
+  }
+
   /// ملخص المدعوين: { totalInviteQuantity, totalCommission }
   Future<Map<String, dynamic>> getInviteSummary(String uid) async {
     try {
@@ -153,6 +186,16 @@ class InviteService {
 
   /// حالة المكافأة اليومية: { enabled, claimed, reward, title, description }
   Future<Map<String, dynamic>> getDailyRewardStatus(String uid) async {
+    // ✅ كاش لكل مستخدم/يوم — النداء الثاني فوري
+    final dayKey =
+        '${uid}_${DateTime.now().toUtc().toIso8601String().substring(0, 10)}';
+    if (_dailyRewardCacheKey == dayKey &&
+        _dailyRewardCache != null &&
+        _dailyRewardCacheAt != null &&
+        DateTime.now().difference(_dailyRewardCacheAt!) <
+            const Duration(minutes: 10)) {
+      return _dailyRewardCache!;
+    }
     try {
       final resp = await SafeHttp.post(
             Uri.parse('$_baseUrl/rest/v1/rpc/get_daily_reward_status'),
@@ -162,7 +205,17 @@ class InviteService {
           .timeout(const Duration(seconds: 8));
       if (resp.statusCode == 200) {
         final decoded = jsonDecode(resp.body);
-        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+        if (decoded is Map) {
+          final result = Map<String, dynamic>.from(decoded);
+          // لا تُعرض النافذة إذا لم تكن المكافأة مُعدّة بقيمة فعلية
+          if (!hasClaimableReward(result['reward'])) {
+            result['enabled'] = false;
+          }
+          _dailyRewardCacheKey = dayKey;
+          _dailyRewardCache = result;
+          _dailyRewardCacheAt = DateTime.now();
+          return result;
+        }
       }
     } catch (_) {}
     return {'enabled': false, 'claimed': false};
@@ -170,7 +223,16 @@ class InviteService {
 
   /// استلام المكافأة اليومية (مرة واحدة يومياً لكل مستخدم)
   Future<Map<String, dynamic>> claimDailyReward(String uid) async {
+    // ✅ أبطال الكاش فوراً — وإلا أعاد getDailyRewardStatus
+    //    حالة claimed:false القديمة وأظهرت النافذة مجدداً خلال 10 دقائق.
+    _dailyRewardCache = null;
+    _dailyRewardCacheKey = null;
     try {
+      // حماية إضافية: لا نستدعي RPC الصرف إطلاقاً إذا كانت المكافأة فارغة/صفر
+      final status = await getDailyRewardStatus(uid);
+      if (!hasClaimableReward(status['reward'])) {
+        return {'ok': false, 'message': 'no_reward_configured'};
+      }
       final resp = await SafeHttp.post(
             Uri.parse('$_baseUrl/rest/v1/rpc/claim_daily_reward'),
             headers: _headers,

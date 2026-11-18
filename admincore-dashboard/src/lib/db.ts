@@ -770,7 +770,36 @@ export async function getUserDiamondLogs(uid: string, limit: number = 50): Promi
   return [];
 }
 
+/**
+ * ✅ الحذف المعتمد من لوحة الأدمن: نفس الـ RPC اللي بيستخدمه التطبيق.
+ *    مصدر واحد للحقيقة — يمسح الرصيد/الغرف/الاسم/الصورة/الإيميل/السجلات/Auth.
+ */
 export async function deleteUser(uid: string) {
+  console.log('Deleting user via cascade RPC:', uid)
+  const { data, error } = await supabase.rpc('delete_user_account_cascade', {
+    p_uid: uid,
+  })
+
+  if (error) {
+    const msg = String(error.message || '')
+    // الـ RPC لسه مش منفّذ على السيرفر — نرجع للمسار القديم مؤقتاً
+    if (error.code === 'PGRST202' || /could not find the function/i.test(msg)) {
+      console.warn('Cascade RPC not deployed — using legacy purge')
+      return legacyDeleteUser(uid)
+    }
+    console.error('Cascade RPC error:', error)
+    throw new Error(`Delete error: ${msg}`)
+  }
+
+  if (data && data.status !== 'ok') {
+    throw new Error(`Delete rejected: ${data.status} ${data.message ?? ''}`)
+  }
+  console.log('✅ USER DELETED COMPLETELY!', data)
+  return data
+}
+
+/** المسار القديم (fallback فقط) — نسخة محلية ناقصة بنستخدمها لو الـ RPC مش موجود */
+async function legacyDeleteUser(uid: string) {
   console.log('Starting complete user deletion for:', uid)
 
   // Step 0: Find and completely delete user's hosted/owned room(s) and their seats/members/messages
@@ -2244,6 +2273,19 @@ export interface AgencyCommissionCycle {
   auto_release: boolean;
 }
 
+/** يطبّع أسماء المناطق الزمنية إلى أسماء IANA الصالحة في Postgres. */
+function normalizeTimezone(tz: string): string {
+  const t = tz.trim();
+  const lower = t.toLowerCase();
+  if (lower === 'asia/cairo' || lower === 'cairo' || lower === 'egypt' || lower === 'gmt+2' || lower === 'gmt+3') {
+    return 'Africa/Cairo';
+  }
+  if (lower === 'asia/riyadh' || lower === 'riyadh' || lower === 'saudi' || lower === 'gmt+3' || lower === 'arabia standard time') {
+    return 'Asia/Riyadh';
+  }
+  return t || DEFAULT_COMMISSION_CYCLE.timezone;
+}
+
 const DEFAULT_COMMISSION_CYCLE: AgencyCommissionCycle = {
   period: 'monthly',
   week_start: 1,
@@ -2269,7 +2311,10 @@ function normalizeCommissionCycle(raw: any): AgencyCommissionCycle {
     release_time: /^\d{1,2}:\d{2}$/.test(String(map.release_time || ''))
       ? String(map.release_time)
       : DEFAULT_COMMISSION_CYCLE.release_time,
-    timezone: String(map.timezone || '').trim() || DEFAULT_COMMISSION_CYCLE.timezone,
+    // ⚠️ Postgres لا يعرف 'Asia/Cairo' — الاسم الصحيح 'Africa/Cairo'.
+    //    أي اسم غير صالح كان يُفشل agency_compute_next_release فيبقى
+    //    next_commission_release_at = NULL فلا تُصدر العمولات تلقائياً.
+    timezone: normalizeTimezone(String(map.timezone || '').trim() || DEFAULT_COMMISSION_CYCLE.timezone),
     auto_release: map.auto_release === true || String(map.auto_release).toLowerCase() === 'true',
   };
 }
@@ -6203,7 +6248,7 @@ function _normalizeRewardRow(d: any): CpRankRewardModel {
     label_en: d.label_en ?? '',
     svga_url: d.svga_url ?? '',
     image_url: d.image_url ?? '',
-    isActive: d.isActive !== false,
+    isActive: (d.is_active ?? d.isActive) !== false,
   } as CpRankRewardModel;
 }
 
@@ -6242,7 +6287,8 @@ export async function upsertCpRankReward(id: string | number | null, data: Parti
       label_en: data.label_en ?? '',
       svga_url: data.svga_url ?? '',
       image_url: data.image_url ?? '',
-      isActive: data.isActive !== false,
+      // عمود القاعدة is_active (snake_case) — isActive كان يعطي 400
+      is_active: data.isActive !== false,
       updated_at: new Date().toISOString(),
     };
     await supabase.from(CP_RANK_REWARDS).upsert(values, { onConflict: 'id' });

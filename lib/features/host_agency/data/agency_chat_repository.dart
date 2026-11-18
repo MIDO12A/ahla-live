@@ -104,7 +104,7 @@ abstract final class AgencyChatRepository {
 
       final ts  = DateTime.now().millisecondsSinceEpoch;
       final ext = imageFile.path.split('.').last.toLowerCase();
-      final path = '$agencyId/$uid/${ts}.$ext';
+      final path = '$agencyId/$uid/$ts.$ext';
 
       await _sb.storage
           .from('agency-chat-images')
@@ -139,7 +139,7 @@ abstract final class AgencyChatRepository {
       if (uid == null) return 'not_authenticated';
 
       final ts   = DateTime.now().millisecondsSinceEpoch;
-      final path = '$agencyId/$uid/${ts}.m4a';
+      final path = '$agencyId/$uid/$ts.m4a';
 
       await _sb.storage
           .from('agency-chat-audio')

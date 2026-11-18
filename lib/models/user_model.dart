@@ -290,7 +290,7 @@ class UserModel {
       isRechargeAgent: isRechargeAgent ?? this.isRechargeAgent,
       rechargeAgencyName: rechargeAgencyName ?? this.rechargeAgencyName,
       rechargeAgencyLogo: rechargeAgencyLogo ?? this.rechargeAgencyLogo,
-      whatsappNumber: whatsappNumber ?? this.whatsappNumber,
+      whatsappNumber: whatsappNumber ?? whatsappNumber,
       phone: phone ?? this.phone,
       isBd: isBd ?? this.isBd,
       bdSupervisorId: bdSupervisorId ?? this.bdSupervisorId,
@@ -354,20 +354,35 @@ class UserModel {
       if (candidate != null) {
         final strValue = candidate.toString();
         if (strValue.isNotEmpty && strValue != 'null') {
-          // Ensure it's a valid numeric string (6-10 digits)
+          // Check if it's already a valid numeric ID (6-7 digits)
           if (_isValidNumericId(strValue)) {
             return strValue;
+          }
+          // If it's alphanumeric, migrate it to numeric
+          if (strValue.contains(RegExp(r'[a-zA-Z]'))) {
+            return _migrateAlphanumericId(strValue);
+          }
+          // If it's numeric but wrong length, try to extract valid part
+          final digitsOnly = strValue.replaceAll(RegExp(r'[^0-9]'), '');
+          if (_isValidNumericId(digitsOnly)) {
+            return digitsOnly;
           }
         }
       }
     }
     
-    // Fallback: try to extract from uid (take last 8 characters if numeric)
+    // Fallback: try to extract from uid (take last 6-7 characters if numeric)
     final uid = _extractUid(map);
-    if (uid.length >= 8) {
-      final last8 = uid.substring(uid.length - 8);
-      if (_isValidNumericId(last8)) {
-        return last8;
+    if (uid.length >= 7) {
+      final last7 = uid.substring(uid.length - 7);
+      if (_isValidNumericId(last7)) {
+        return last7;
+      }
+    }
+    if (uid.length >= 6) {
+      final last6 = uid.substring(uid.length - 6);
+      if (_isValidNumericId(last6)) {
+        return last6;
       }
     }
     
@@ -375,13 +390,31 @@ class UserModel {
     return '';
   }
 
-  // FIX: Validate that a string is a valid numeric ID (1-12 digits, supporting special short IDs like 1, 100, 1000)
+  /// Migrate alphanumeric ID to numeric 6-7 digit ID
+  /// Uses deterministic hash to ensure same user always gets same numeric ID
+  static String _migrateAlphanumericId(String alphanumericId) {
+    if (alphanumericId.isEmpty) return '';
+    
+    // Extract digits first
+    final digitsOnly = alphanumericId.replaceAll(RegExp(r'[^0-9]'), '');
+    if (_isValidNumericId(digitsOnly)) return digitsOnly;
+    
+    // Use stable hash to generate consistent numeric ID for same user
+    final hash = alphanumericId.hashCode.abs();
+    // Generate 7-digit ID: 1111111 to 9999999
+    final numericId = ((hash % 8888888) + 1111111).toString();
+    
+    return numericId.length > 7 ? numericId.substring(0, 7) : numericId;
+  }
+
+  // FIX: Validate that a string is a valid numeric ID (6-7 digits only)
   static bool _isValidNumericId(String value) {
     if (value.trim().isEmpty) return false;
-    // Remove any non-numeric characters
-    final numericOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
-    // Check if it's 1-12 digits
-    return numericOnly.isNotEmpty && numericOnly.length <= 12;
+    // Must be digits only, 6-7 characters
+    if (!RegExp(r'^[0-9]{6,7}$').hasMatch(value)) return false;
+    // Must be >= 111111
+    final numValue = int.tryParse(value);
+    return numValue != null && numValue >= 111111;
   }
 
   // FIX: Robust photo URL extraction supporting various schema field names

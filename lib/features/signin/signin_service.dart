@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../services/safe_http.dart';
@@ -80,9 +81,51 @@ class SigninService {
 
   static List<Map<String, dynamic>>? _cachedRewards;
   static DateTime? _rewardsFetchedAt;
+  static bool _prefsLoaded = false;
+  static const String _rewardsPrefsKey = 'signin_rewards_cache_v1';
 
-  /// يجلب مكافآت تسجيل الدخول من لوحة التحكم (جدول signin_rewards).
-  /// عند فشل الشبكة أو عدم وجود بيانات يعود للقيم الافتراضية.
+  /// ✅ تسخين المكافآت من اللوحة تحكم مسبقاً —
+  ///    يُستدعى عند إقلاع التطبيق حتى يفتح حوار الدخول لحظياً
+  static Future<void> warmup() async {
+    await getRewards();
+  }
+
+  /// استعادة المكافآت المحفوظة على القرص (آخر نسخة من اللوحة)
+  static Future<void> _loadPersistedRewards() async {
+    if (_prefsLoaded) return;
+    _prefsLoaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_rewardsPrefsKey);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is List && decoded.isNotEmpty) {
+        final rewards = decoded
+            .whereType<Map>()
+            .map((e) => _normalizeReward(Map<String, dynamic>.from(e)))
+            .where((r) => r['is_active'] != false)
+            .toList();
+        if (rewards.isNotEmpty) {
+          _cachedRewards = rewards;
+          // ✅ اعتبرها "قديمة" إجباراً لتحديثها من الشبكة بالخلفية
+          _rewardsFetchedAt =
+              DateTime.now().subtract(const Duration(minutes: 5));
+        }
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> _persistRewards(List<Map<String, dynamic>> rewards) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_rewardsPrefsKey, jsonEncode(rewards));
+    } catch (_) {}
+  }
+
+  /// يجلب مكافآت تسجيل الدخول من لوحة التحكم:
+  ///   1) جدول signin_rewards
+  ///   2) مفتاح signin_rewards داخل app_config (نفس قسم المهام اليومية)
+  /// عند الفشل أو عدم وجود بيانات يعود لآخر نسخة محفوظة ثم الافتراضية.
   static Future<List<Map<String, dynamic>>> getRewards() async {
     final cached = _cachedRewards;
     final fetchedAt = _rewardsFetchedAt;
@@ -91,6 +134,38 @@ class SigninService {
         DateTime.now().difference(fetchedAt) < const Duration(seconds: 30)) {
       return cached;
     }
+
+    // ✅ حمّل النسخة المحفوظة على القرص أولاً — إرجاع فوري
+    //    مع تحديث من الشبكة بالخلفية (stale-while-revalidate)
+    await _loadPersistedRewards();
+    final persisted = _cachedRewards;
+
+    final networkFuture = _fetchRewardsFromPanel();
+    if (persisted != null) {
+      // لدينا بيانات محفوظة — لا ننتظر الشبكة، حدّث للخلفية
+      unawaited(networkFuture.then((rewards) {
+        if (rewards != null) {
+          _cachedRewards = rewards;
+          _rewardsFetchedAt = DateTime.now();
+          unawaited(_persistRewards(rewards));
+        }
+      }));
+      return persisted;
+    }
+
+    final fetched = await networkFuture;
+    if (fetched != null && fetched.isNotEmpty) {
+      _cachedRewards = fetched;
+      _rewardsFetchedAt = DateTime.now();
+      unawaited(_persistRewards(fetched));
+      return fetched;
+    }
+    return _defaultRewards;
+  }
+
+  /// جلب المكافآت من مصادر اللوحة — null عند الفشل الكامل
+  static Future<List<Map<String, dynamic>>?> _fetchRewardsFromPanel() async {
+    // 1) جدول signin_rewards
     try {
       final res = await SafeHttp.get(
             Uri.parse(
@@ -100,7 +175,7 @@ class SigninService {
               'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
             },
           )
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body) as List;
         final rewards = list
@@ -108,16 +183,50 @@ class SigninService {
             .where((r) => r['is_active'] != false)
             .map(_normalizeReward)
             .toList();
-        if (rewards.isNotEmpty) {
-          _cachedRewards = rewards;
-          _rewardsFetchedAt = DateTime.now();
-          return rewards;
+        if (rewards.isNotEmpty) return rewards;
+      }
+    } catch (e) {
+      debugPrint('SigninService.getRewards table error: $e');
+    }
+
+    // 2) مفتاح signin_rewards داخل app_config — نفس إعدادات
+    //    لوحة التحكم (بجانب tasks_config للمهام اليومية)
+    try {
+      final res = await SafeHttp.get(
+            Uri.parse(
+                '${SupabaseConfig.projectUrl}/rest/v1/app_config?key=eq.signin_rewards&select=value'),
+            headers: {
+              'apikey': SupabaseConfig.anonKey,
+              'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+            },
+          )
+          .timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body) as List;
+        if (list.isNotEmpty) {
+          var value = list.first['value'];
+          if (value is String) {
+            try {
+              value = jsonDecode(value);
+            } catch (_) {}
+          }
+          if (value is List && value.isNotEmpty) {
+            final rewards = value
+                .whereType<Map>()
+                .map((e) => _normalizeReward(Map<String, dynamic>.from(e)))
+                .where((r) => r['is_active'] != false && (r['day_number'] as num).toInt() > 0)
+                .toList()
+              ..sort((a, b) => (a['day_number'] as num)
+                  .toInt()
+                  .compareTo((b['day_number'] as num).toInt()));
+            if (rewards.isNotEmpty) return rewards;
+          }
         }
       }
     } catch (e) {
-      debugPrint('SigninService.getRewards fetch error: $e');
+      debugPrint('SigninService.getRewards app_config error: $e');
     }
-    return _defaultRewards;
+    return null;
   }
 
   static Map<String, dynamic> _normalizeReward(Map<String, dynamic> r) {
@@ -136,6 +245,21 @@ class SigninService {
       'is_double': r['is_double'] == true || r['isDouble'] == true,
       'is_active': r['is_active'] != false,
     };
+  }
+
+  /// حذف كل بيانات تسجيل الدخول المحلية الخاصة بمستخدم عند حذف حسابه.
+  /// المفاتيح مبنية بصيغة `signin_records_<uid>_<week>` و`signin_weekly_<uid>_<week>`.
+  static Future<void> clearLocalForUser(String uid) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where(
+            (k) => k.startsWith('signin_records_${uid}_') ||
+                k.startsWith('signin_weekly_${uid}_'),
+          );
+      for (final key in keys) {
+        await prefs.remove(key);
+      }
+    } catch (_) {}
   }
 
   // ═══════════════════════════════════════════════════════
@@ -203,6 +327,27 @@ class SigninService {
     }
   }
 
+  /// هل عُرضت نافذة تسجيل الوصول اليوم؟ — تمنع إعادة فتحها
+  /// كل إقلاع حتى لو لم يستلم المستخدم المكافأة بعد.
+  static Future<bool> hasSigninShownToday(String uid) async {
+    try {
+      final todayStr = _dateStr(_todayUtc());
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('signin_shown_${uid}_$todayStr') == '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// تسجيل أن النافذة عُرضت اليوم (مرة واحدة يومياً كحد أقصى)
+  static Future<void> markSigninShown(String uid) async {
+    try {
+      final todayStr = _dateStr(_todayUtc());
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('signin_shown_${uid}_$todayStr', '1');
+    } catch (_) {}
+  }
+
   // ═══════════════════════════════════════════════════════
   // Claim today's reward
   // ═══════════════════════════════════════════════════════
@@ -249,6 +394,8 @@ class SigninService {
       final valueType = reward['value_type']?.toString() ?? 'coins';
       final value = (reward['value'] ?? 0) as int;
       final isDouble = reward['is_double'] == true;
+      final giftId = reward['gift_id']?.toString() ?? '';
+      final giftData = reward['gift_data'] is Map ? Map<String, dynamic>.from(reward['gift_data'] as Map) : <String, dynamic>{};
 
       final newRecord = <String, dynamic>{
         'uid': uid,
@@ -259,7 +406,8 @@ class SigninService {
         'reward_id': 'day_$dayNumber',
         'reward_value': value,
         'reward_type': valueType,
-        'gift_id': reward['gift_id'] ?? '',
+        'gift_id': giftId,
+        'gift_data': giftData,
         'is_double': isDouble,
         'is_makeup': false,
         'created_at': DateTime.now().toUtc().toIso8601String(),
@@ -277,24 +425,51 @@ class SigninService {
       };
       await prefs.setString(weeklyKey, jsonEncode(newWeekly));
 
-      // Award balance to Supabase
+      // Award balance to Supabase based on value_type
       try {
         final userData = await SupabaseDataService().getUser(uid);
-        if (valueType == 'coins') {
-          final currentCoins = userData?.coins ?? 0;
-          final newCoins = currentCoins + value;
-          await SupabaseDataService().updateUser(uid, {'coins': newCoins});
-        } else if (valueType == 'diamonds') {
-          final currentDiamonds = userData?.diamonds ?? 0;
-          final newDiamonds = currentDiamonds + value;
-          await SupabaseDataService().updateUser(uid, {'diamonds': newDiamonds});
+        switch (valueType) {
+          case 'coins':
+            final currentCoins = userData?.coins ?? 0;
+            final newCoins = currentCoins + value;
+            await SupabaseDataService().updateUser(uid, {'coins': newCoins});
+            break;
+          case 'diamonds':
+            final currentDiamonds = userData?.diamonds ?? 0;
+            final newDiamonds = currentDiamonds + value;
+            await SupabaseDataService().updateUser(uid, {'diamonds': newDiamonds});
+            break;
+          case 'xp':
+            // XP يضاف للمستوى عبر LevelService
+            break;
+          case 'gift':
+            // إضافة عنصر للمستخدم (gift_id هو item_id)
+            if (giftId.isNotEmpty) {
+              final owned = List<String>.from(userData?.ownedItems ?? []);
+              if (!owned.contains(giftId)) {
+                owned.add(giftId);
+                await SupabaseDataService().updateUser(uid, {'owned_items': owned});
+              }
+            }
+            break;
+          case 'custom':
+            // مكافأة مخصصة - يتم التعامل معها حسب gift_data
+            // مثال: gift_data = {'type': 'vip_tier', 'tier': 2, 'days': 30}
+            final customType = giftData['type']?.toString() ?? '';
+            if (customType == 'vip_tier') {
+              final tier = (giftData['tier'] as num?)?.toInt() ?? 1;
+              final days = (giftData['days'] as num?)?.toInt() ?? 0;
+              // TODO: استدعاء خدمة VIP لترقية المستخدم
+              debugPrint('Signin: Custom VIP tier reward - tier: $tier, days: $days');
+            }
+            break;
         }
       } catch (e) {
         debugPrint('Error updating user balance in Supabase: $e');
       }
 
-      // Add XP if applicable
-      if (value > 0) {
+      // Add XP if applicable (للـ value_type == 'xp' أو أي مكافأة لها قيمة)
+      if (value > 0 && (valueType == 'xp' || valueType == 'coins' || valueType == 'diamonds')) {
         try {
           final levelService = LevelService();
           await levelService.loadAllLevels();
@@ -307,7 +482,8 @@ class SigninService {
         'day_number': dayNumber,
         'reward_value': value,
         'reward_type': valueType,
-        'gift_id': reward['gift_id'] ?? '',
+        'gift_id': giftId,
+        'gift_data': giftData,
         'is_double': isDouble,
         'weekly': newWeekly,
       };

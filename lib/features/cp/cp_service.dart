@@ -4,7 +4,6 @@ import 'dart:convert';
 import '../../core/supabase_compat.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 
 class CpService {
@@ -83,9 +82,14 @@ class CpService {
     String period = 'week',
     int limit = 50,
   }) async {
+    // Three vocabularies existed across callers ('week'/'month',
+    // 'daily'/'week'/'month', 'daily'/'weekly'/'monthly') and everything
+    // except 'week'/'month' silently fell back to lifetime total_score.
+    // Normalise here so every caller gets the right column.
     final scoreField = switch (period) {
-      'week' => 'week_score',
-      'month' => 'month_score',
+      'week' || 'weekly' => 'week_score',
+      'month' || 'monthly' => 'month_score',
+      // cp_couples has no day_score column; daily falls back to total_score.
       _ => 'total_score',
     };
 
@@ -371,9 +375,8 @@ class CpService {
         'source': 'cp_link',
       });
       if (maleCoins > 0) {
-        final u = await _sb.from('users').select('coins').or('uid.eq.$maleUid,id.eq.$maleUid').maybeSingle();
-        final cur = (u?['coins'] as num?)?.toInt() ?? 0;
-        await _sb.from('users').update({'coins': cur + maleCoins}).or('uid.eq.$maleUid,id.eq.$maleUid');
+        // ✅ RPC ذرّي — لا PATCH مباشر على حساب آخر
+        await SupabaseDataService().adjustUserWallet(maleUid, maleCoins, 0);
       }
       await SupabaseDataService().sendNotification(
         uid: maleUid,
@@ -400,9 +403,8 @@ class CpService {
         'source': 'cp_link',
       });
       if (femaleCoins > 0) {
-        final u = await _sb.from('users').select('coins').or('uid.eq.$femaleUid,id.eq.$femaleUid').maybeSingle();
-        final cur = (u?['coins'] as num?)?.toInt() ?? 0;
-        await _sb.from('users').update({'coins': cur + femaleCoins}).or('uid.eq.$femaleUid,id.eq.$femaleUid');
+        // ✅ RPC ذرّي — لا PATCH مباشر على حساب آخر
+        await SupabaseDataService().adjustUserWallet(femaleUid, femaleCoins, 0);
       }
       await SupabaseDataService().sendNotification(
         uid: femaleUid,
@@ -515,9 +517,12 @@ class CpService {
               : ((gift['cp_gift_duration_hours'] as num?)?.toInt() ?? 0));
     }
 
-    await _sb.from('users').update({
-      'coins': balance - giftValue,
-    }).or('uid.eq.$sender,id.eq.$sender');
+    // ✅ خصم ذرّي عبر RPC — يمنع الرصيد السالب والسباق
+    final spendRes = await SupabaseDataService()
+        .adjustUserWallet(sender, -giftValue, 0);
+    if (spendRes?['status'] != 'ok') {
+      return <String, dynamic>{'error': 'Failed to deduct coins'};
+    }
 
     final curTotal = (couple['total_score'] as num?)?.toInt() ?? 0;
     final curWeek = (couple['week_score'] as num?)?.toInt() ?? 0;
@@ -829,11 +834,17 @@ class CpService {
   // ═══════════════════════════════════════════════════════
 
   static Future<List<Map<String, dynamic>>> getRankRewards({String period = 'weekly'}) async {
+    // DB constraint uses daily|weekly|monthly — accept the short aliases too.
+    final dbPeriod = switch (period) {
+      'week' => 'weekly',
+      'month' => 'monthly',
+      _ => period,
+    };
     try {
       final snap = await _sb
           .from('cp_rank_rewards')
           .select('*')
-          .eq('period', period);
+          .eq('period', dbPeriod);
       final list = (snap as List<dynamic>).map((e) {
         return Map<String, dynamic>.from(e as Map);
       }).where((d) => d['isActive'] != false && d['is_active'] != false).toList();

@@ -85,7 +85,7 @@ class _VipCoverAnimatorState extends State<VipCoverAnimator>
                 gradient: LinearGradient(
                   colors: [
                     Colors.transparent,
-                    const Color(0xFFFFC525).withOpacity(0.6 * _pulseValue(progress)),
+                    const Color(0xFFFFC525).withValues(alpha: 0.6 * _pulseValue(progress)),
                     Colors.transparent,
                   ],
                 ),
@@ -104,7 +104,7 @@ class _VipCoverAnimatorState extends State<VipCoverAnimator>
                 gradient: LinearGradient(
                   colors: [
                     Colors.transparent,
-                    const Color(0xFFFFC525).withOpacity(0.6 * _pulseValue(progress)),
+                    const Color(0xFFFFC525).withValues(alpha: 0.6 * _pulseValue(progress)),
                     Colors.transparent,
                   ],
                 ),
@@ -157,7 +157,7 @@ class _VipCoverPainter extends CustomPainter {
       final yPos = (p.y - t * p.speed) % 1.0;
       final opacity = (sin(t * pi) * p.opacity).clamp(0.0, 1.0);
       final paint = Paint()
-        ..color = goldColor.withOpacity(opacity)
+        ..color = goldColor.withValues(alpha: opacity)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
 
       canvas.drawCircle(
@@ -170,7 +170,7 @@ class _VipCoverPainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          goldColor.withOpacity(0.08 * _pulse(progress)),
+          goldColor.withValues(alpha: 0.08 * _pulse(progress)),
           Colors.transparent,
         ],
       ).createShader(Rect.fromCircle(

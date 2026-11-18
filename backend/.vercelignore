@@ -4,3 +4,9 @@ dist
 *.md
 Dockerfile
 fly.toml
+
+# 🔒 بيانات اعتماد حساسة — لا تُرفع مع النشر أبداً
+serviceAccountKey.json
+*serviceAccount*.json
+FIREBASE_SERVICE_ACCOUNT_B64.txt
+*SERVICE_ACCOUNT*

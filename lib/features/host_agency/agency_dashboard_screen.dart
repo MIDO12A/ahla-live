@@ -23,13 +23,10 @@ import '../../core/ui/in_app_toast.dart';
 import 'screens/agency_join_requests_screen.dart';
 import 'screens/agency_chat_screen.dart';
 import 'screens/agency_invite_by_id_screen.dart';
-import 'screens/agency_owner_wallet_screen.dart';
 import 'screens/agency_disbursement_screen.dart';
-import 'screens/agency_verification_screen.dart';
 import 'data/agency_models.dart';
 import 'screens/agency_level_desc_screen.dart';
 import 'data/agency_chat_models.dart';
-import 'data/agency_repository.dart';
 import 'package:zero/core/dtext.dart';
 
 // ── palette (same design system as host_dashboard_screen) ────────────────────
@@ -474,7 +471,7 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
           child: GestureDetector(
             onTap: () => setState(() => _pendingReward = null),
             child: Container(
-              color: Colors.black.withOpacity(.7 * _rewardCtrl.value),
+              color: Colors.black.withValues(alpha: .7 * _rewardCtrl.value),
               child: Center(
                 child: Transform.scale(
                   scale: t,
@@ -491,9 +488,9 @@ class _AgencyDashboardScreenState extends State<AgencyDashboardScreen>
         decoration: BoxDecoration(
           color: const Color(0xFF0D0A25),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: _gold.withOpacity(.5), width: 1.5),
+          border: Border.all(color: _gold.withValues(alpha: .5), width: 1.5),
           boxShadow: [
-            BoxShadow(color: _gold.withOpacity(.2), blurRadius: 40),
+            BoxShadow(color: _gold.withValues(alpha: .2), blurRadius: 40),
           ],
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -560,7 +557,7 @@ class _AgencyHeader extends StatelessWidget {
             begin: AlignmentDirectional.topStart,
             end: AlignmentDirectional.bottomEnd,
             colors: [
-              _purple.withOpacity(.12 + .06 * pulseCtrl.value),
+              _purple.withValues(alpha: .12 + .06 * pulseCtrl.value),
               const Color(0xFF03030A),
             ],
           ),
@@ -577,11 +574,11 @@ class _AgencyHeader extends StatelessWidget {
               Container(
                 width: 48, height: 48,
                 decoration: BoxDecoration(
-                  color: _purple.withOpacity(.2),
+                  color: _purple.withValues(alpha: .2),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _purple.withOpacity(.4)),
+                  border: Border.all(color: _purple.withValues(alpha: .4)),
                   boxShadow: [BoxShadow(
-                      color: _purple.withOpacity(.3 + .2 * pulseCtrl.value),
+                      color: _purple.withValues(alpha: .3 + .2 * pulseCtrl.value),
                       blurRadius: 16)],
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -607,9 +604,9 @@ class _AgencyHeader extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: _gold.withOpacity(0.12),
+                        color: _gold.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _gold.withOpacity(0.4)),
+                        border: Border.all(color: _gold.withValues(alpha: 0.4)),
                       ),
                       child: Directionality(
                         textDirection: TextDirection.ltr,
@@ -632,7 +629,7 @@ class _AgencyHeader extends StatelessWidget {
                 style: TextStyle(
                   color: _cyan, fontSize: 22, fontWeight: FontWeight.bold,
                   fontFamily: 'Space Grotesk',
-                  shadows: [Shadow(color: _cyan.withOpacity(.6), blurRadius: 10)],
+                  shadows: [Shadow(color: _cyan.withValues(alpha: .6), blurRadius: 10)],
                 )),
           ],
         ),
@@ -662,8 +659,8 @@ class _KpiTile extends StatelessWidget {
     decoration: BoxDecoration(
       color: _bgCard,
       borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: color.withOpacity(.25)),
-      boxShadow: [BoxShadow(color: color.withOpacity(.08), blurRadius: 12)],
+      border: Border.all(color: color.withValues(alpha: .25)),
+      boxShadow: [BoxShadow(color: color.withValues(alpha: .08), blurRadius: 12)],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -678,9 +675,9 @@ class _KpiTile extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.18),
+                    color: color.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: color.withOpacity(0.4)),
+                    border: Border.all(color: color.withValues(alpha: 0.4)),
                   ),
                   child: DText(
                     actionLabel!,
@@ -698,7 +695,7 @@ class _KpiTile extends StatelessWidget {
         const SizedBox(height: 6),
         DText(value, style: TextStyle(color: color, fontSize: 16,
             fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk',
-            shadows: [Shadow(color: color.withOpacity(.5), blurRadius: 6)])),
+            shadows: [Shadow(color: color.withValues(alpha: .5), blurRadius: 6)])),
         DText(label, style: const TextStyle(color: _textMuted, fontSize: 10,
             fontFamily: 'IBM Plex Sans Arabic')),
       ],
@@ -737,12 +734,12 @@ class _OriginalHalfMonthCard extends StatelessWidget {
         color: _bgCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCurrent ? color.withOpacity(0.5) : _border,
+          color: isCurrent ? color.withValues(alpha: 0.5) : _border,
           width: isCurrent ? 1.5 : 1.0,
         ),
         boxShadow: [
           if (isCurrent)
-            BoxShadow(color: color.withOpacity(0.15), blurRadius: 16),
+            BoxShadow(color: color.withValues(alpha: 0.15), blurRadius: 16),
         ],
       ),
       child: Column(
@@ -764,7 +761,7 @@ class _OriginalHalfMonthCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: DText(
@@ -846,15 +843,15 @@ class _LeaderboardList extends StatelessWidget {
           decoration: BoxDecoration(
             color: _bgCard,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: i == 0 ? _gold.withOpacity(.3) : _border),
+            border: Border.all(color: i == 0 ? _gold.withValues(alpha: .3) : _border),
           ),
           child: Row(children: [
             Container(
               width: 28, height: 28,
               decoration: BoxDecoration(
-                color: barC.withOpacity(.15),
+                color: barC.withValues(alpha: .15),
                 shape: BoxShape.circle,
-                border: Border.all(color: barC.withOpacity(.4)),
+                border: Border.all(color: barC.withValues(alpha: .4)),
               ),
               child: Center(child: DText('${i + 1}',
                   style: TextStyle(color: barC, fontSize: 12,
@@ -895,7 +892,7 @@ class _LeaderboardList extends StatelessWidget {
                 Stack(children: [
                   Container(height: 5,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.06),
+                        color: Colors.white.withValues(alpha: .06),
                         borderRadius: BorderRadius.circular(3),
                       )),
                   AnimatedFractionallySizedBox(
@@ -909,9 +906,9 @@ class _LeaderboardList extends StatelessWidget {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(3),
                           gradient: LinearGradient(colors: [
-                            barC.withOpacity(.6), barC, barC.withOpacity(.6),
+                            barC.withValues(alpha: .6), barC, barC.withValues(alpha: .6),
                           ]),
-                          boxShadow: [BoxShadow(color: barC.withOpacity(.5), blurRadius: 4)],
+                          boxShadow: [BoxShadow(color: barC.withValues(alpha: .5), blurRadius: 4)],
                         ),
                       ),
                     ),
@@ -961,9 +958,9 @@ class _AgencyMilestoneCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _bgCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: completed ? _gold.withOpacity(.4) : _border),
+        border: Border.all(color: completed ? _gold.withValues(alpha: .4) : _border),
         boxShadow: completed
-            ? [BoxShadow(color: _gold.withOpacity(.08), blurRadius: 16)]
+            ? [BoxShadow(color: _gold.withValues(alpha: .08), blurRadius: 16)]
             : [],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -976,9 +973,9 @@ class _AgencyMilestoneCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: _gold.withOpacity(.15),
+                color: _gold.withValues(alpha: .15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _gold.withOpacity(.4)),
+                border: Border.all(color: _gold.withValues(alpha: .4)),
               ),
               child: const DText('✅ مكتمل',
                   style: TextStyle(color: _gold, fontSize: 11,
@@ -989,7 +986,7 @@ class _AgencyMilestoneCard extends StatelessWidget {
 
         Stack(children: [
           Container(height: 8, decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.06),
+              color: Colors.white.withValues(alpha: .06),
               borderRadius: BorderRadius.circular(4))),
           AnimatedFractionallySizedBox(
             widthFactor: pct,
@@ -1002,9 +999,9 @@ class _AgencyMilestoneCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(4),
                   gradient: LinearGradient(colors: [
-                    barC.withOpacity(.7), barC, barC.withOpacity(.7),
+                    barC.withValues(alpha: .7), barC, barC.withValues(alpha: .7),
                   ]),
-                  boxShadow: [BoxShadow(color: barC.withOpacity(.5), blurRadius: 6)],
+                  boxShadow: [BoxShadow(color: barC.withValues(alpha: .5), blurRadius: 6)],
                 ),
               ),
             ),
@@ -1046,9 +1043,9 @@ class _RewardChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _gold.withOpacity(.1),
+        color: _gold.withValues(alpha: .1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _gold.withOpacity(.3)),
+        border: Border.all(color: _gold.withValues(alpha: .3)),
       ),
       child: DText('$emoji $value',
           style: const TextStyle(color: _gold, fontSize: 11,
@@ -1089,9 +1086,9 @@ class _GlassButton extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(.15),
+        color: color.withValues(alpha: .15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(.4)),
+        border: Border.all(color: color.withValues(alpha: .4)),
       ),
       child: DText(label, style: TextStyle(color: color,
           fontFamily: 'IBM Plex Sans Arabic', fontWeight: FontWeight.w600)),
@@ -1128,8 +1125,8 @@ class _NeonSpinnerState extends State<_NeonSpinner>
         width: 40, height: 40,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: SweepGradient(colors: [_purple, _purple.withOpacity(0)]),
-          boxShadow: [BoxShadow(color: _purple.withOpacity(.5), blurRadius: 12)],
+          gradient: SweepGradient(colors: [_purple, _purple.withValues(alpha: 0)]),
+          boxShadow: [BoxShadow(color: _purple.withValues(alpha: .5), blurRadius: 12)],
         ),
       ),
     ),
@@ -1247,9 +1244,9 @@ class _QuickActionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: action.color.withOpacity(0.08),
+          color: action.color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: action.color.withOpacity(0.3)),
+          border: Border.all(color: action.color.withValues(alpha: 0.3)),
         ),
         child: Stack(
           alignment: Alignment.center,
@@ -1331,8 +1328,8 @@ class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard
       decoration: BoxDecoration(
         color: _bgCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _gold.withOpacity(0.3)),
-        boxShadow: [BoxShadow(color: _gold.withOpacity(0.06), blurRadius: 16)],
+        border: Border.all(color: _gold.withValues(alpha: 0.3)),
+        boxShadow: [BoxShadow(color: _gold.withValues(alpha: 0.06), blurRadius: 16)],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -1347,9 +1344,9 @@ class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: _purple.withOpacity(0.15),
+                color: _purple.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _purple.withOpacity(0.4)),
+                border: Border.all(color: _purple.withValues(alpha: 0.4)),
               ),
               child: const Row(mainAxisSize: MainAxisSize.min, children: [
                 DText('تعديل الجدول', style: TextStyle(color: _purple, fontSize: 12, fontFamily: 'IBM Plex Sans Arabic')),
@@ -1381,9 +1378,9 @@ class _CommissionDisbursementCardState extends State<_CommissionDisbursementCard
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [_gold, _gold.withOpacity(0.7)]),
+                gradient: LinearGradient(colors: [_gold, _gold.withValues(alpha: 0.7)]),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: _gold.withOpacity(0.3), blurRadius: 10)],
+                boxShadow: [BoxShadow(color: _gold.withValues(alpha: 0.3), blurRadius: 10)],
               ),
               child: const DText('صرف الآن', style: TextStyle(color: Colors.black, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'IBM Plex Sans Arabic')),
             ),
@@ -1443,7 +1440,7 @@ Future<void> showAgencyDisbursementDialog({
           backgroundColor: const Color(0xFF0D0A25),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: _gold.withOpacity(0.3)),
+            side: BorderSide(color: _gold.withValues(alpha: 0.3)),
           ),
           title: Row(
             children: [
@@ -1472,7 +1469,7 @@ Future<void> showAgencyDisbursementDialog({
                   decoration: BoxDecoration(
                     color: _bgCard,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _gold.withOpacity(0.2)),
+                    border: Border.all(color: _gold.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

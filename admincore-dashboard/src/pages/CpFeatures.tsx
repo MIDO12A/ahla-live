@@ -223,7 +223,7 @@ export default function CpFeaturesPage() {
         label_en: r.label_en ?? '',
         svga_url: r.svga_url ?? '',
         image_url: r.image_url ?? '',
-        isActive: r.isActive !== false,
+        isActive: (r.is_active ?? r.isActive) !== false,
       })));
     });
     return unsub;

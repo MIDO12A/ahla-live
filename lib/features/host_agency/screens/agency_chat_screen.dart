@@ -72,7 +72,7 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> {
 
   // صوت
   bool _isRecording = false;
-  int  _recordSeconds = 0;
+  final int  _recordSeconds = 0;
   Timer? _recordTimer;
 
   bool get _canManage =>
@@ -137,7 +137,9 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> {
   Future<void> _fetchMetaBatch(List<String> ids) async {
     final toFetch = ids.where((id) => !_userCache.containsKey(id) && !_fetching.contains(id)).toList();
     if (toFetch.isEmpty) return;
-    for (final id in toFetch) _fetching.add(id);
+    for (final id in toFetch) {
+      _fetching.add(id);
+    }
     final meta = await AgencyChatRepository.fetchUserMeta(
       agencyId: widget.agencyId,
       userIds: toFetch,
@@ -145,7 +147,9 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> {
     if (!mounted) return;
     setState(() {
       _userCache.addAll(meta);
-      for (final id in toFetch) _userCache.putIfAbsent(id, () => AgencyChatUserMeta.empty);
+      for (final id in toFetch) {
+        _userCache.putIfAbsent(id, () => AgencyChatUserMeta.empty);
+      }
       _fetching.removeAll(toFetch);
     });
   }
@@ -362,10 +366,10 @@ class _AgencyChatScreenState extends State<AgencyChatScreen> {
                         ).createShader(b),
                         blendMode: BlendMode.dstIn,
                         child: ListView.builder(
-                          controller: _scroll,
+                          // ignore: deprecated_member_use
+                          cacheExtent: 1200, controller: _scroll,
                           padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                           itemCount: _messages.length,
-                          cacheExtent: 1200,
                           itemBuilder: (ctx, i) {
                             final msg = _enrich(_messages[i]);
                             return RepaintBoundary(
@@ -1192,7 +1196,7 @@ class _AgencyChatInputBar extends StatelessWidget {
             const Icon(Icons.mic_off_rounded, color: _red, size: 18),
             const SizedBox(width: 8),
             DText(
-              'أنت مكتوم لمدة ${hh}س ${mm}د',
+              'أنت مكتوم لمدة $hhس $mmد',
               style: GoogleFonts.tajawal(color: _red, fontSize: 13),
             ),
           ],

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../models/lucky_gift_model.dart';
 
 /// نافذة تسوية أرباح الانفجار والكومبو (RoomBurstSettlementDialog)
@@ -10,12 +10,12 @@ class RoomBurstSettlementDialog extends StatefulWidget {
   final List<int> multipliers;
 
   const RoomBurstSettlementDialog({
-    Key? key,
+    super.key,
     required this.gift,
     required this.comboCount,
     required this.totalWonGold,
     required this.multipliers,
-  }) : super(key: key);
+  });
 
   @override
   State<RoomBurstSettlementDialog> createState() => _RoomBurstSettlementDialogState();

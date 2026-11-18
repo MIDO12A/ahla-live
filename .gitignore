@@ -82,6 +82,10 @@ admincore-dashboard/scripts/serviceAccount.json
 .vercel
 .env*
 
+# Local diagnostic scripts (contain personal access tokens)
+check_comm.ps1
+check_cud.ps1
+
 # Stakpak session files
 .stakpak/session*
 .kilo/

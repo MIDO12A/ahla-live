@@ -96,7 +96,9 @@ class _AgencyNotificationHandlerState extends State<AgencyNotificationHandler> {
             KayanInAppToast.agency('🎖️ $title\n$body');
             break;
           default:
-            if (type.startsWith('agency_') || type == 'system') {
+            // ✅ إشعارات الأدمن/النظام (type 'system') لا تظهر كـ toast —
+            //    تبقى فقط في رسائل النظام داخل شاشة الرسائل
+            if (type.startsWith('agency_')) {
               KayanInAppToast.agency('🔔 $title\n$body');
             }
         }

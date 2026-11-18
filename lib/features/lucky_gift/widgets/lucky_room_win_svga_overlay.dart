@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../services/dynamic_config_service.dart';
 import 'dashboard_anim_player.dart';
@@ -18,7 +18,7 @@ class LuckyRoomWinSvgaOverlay extends StatefulWidget {
   final VoidCallback onFinished;
 
   const LuckyRoomWinSvgaOverlay({
-    Key? key,
+    super.key,
     required this.multiplier,
     required this.wonCoins,
     required this.giftName,
@@ -26,10 +26,10 @@ class LuckyRoomWinSvgaOverlay extends StatefulWidget {
     this.senderAvatar = '',
     this.customSvgaUrl,
     required this.onFinished,
-  }) : super(key: key);
+  });
 
   /// المستويات المتاحة (من الأكبر للأصغر) — تُحلّ من لوحة التحكم فقط
-  static const List<int> _tiers = [1000, 500, 250, 100, 50, 20, 10, 5];
+  static const List<int> _tiers = [1000, 500, 250, 100, 50, 40, 30, 20, 10, 5];
 
   static String _assetKeyForTier(int tier) => 'assets/svga/gift_$tier.svga';
 

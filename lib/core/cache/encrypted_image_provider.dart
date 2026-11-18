@@ -6,7 +6,9 @@ import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import 'package:http/http.dart' as http;
 import '../../services/safe_http.dart';
+import '../../config/supabase_config.dart';
 import 'package:path_provider/path_provider.dart';
 
 class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
@@ -143,13 +145,39 @@ class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
     _pendingCompleters[_key] = completer;
 
     try {
-      final response = await SafeHttp.get(
-        Uri.parse(url),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-        },
-      );
+      // صور Cloudinary قد تتأخر على شبكات بطيئة؛ مهلة 5s كانت تسبب فشلاً دائماً.
+      // نستخدم مهلة أطول + محاولة إعادة واحدة قبل الاستسلام.
+      http.Response? response;
+      
+      // ✅ إضافة headers للـ Supabase Storage URLs
+      final headers = <String, String>{
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      };
+      
+      // إذا كان الرابط من Supabase Storage، أضف apikey
+      if (url.contains('.supabase.co/storage/') || url.contains('supabase.co/storage/v1/object/')) {
+        headers['apikey'] = SupabaseConfig.anonKey;
+        headers['Authorization'] = 'Bearer ${SupabaseConfig.anonKey}';
+      }
+      
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          response = await SafeHttp.get(
+            Uri.parse(url),
+            headers: headers,
+            timeout: const Duration(seconds: 15),
+          );
+          break;
+        } on TimeoutException {
+          if (attempt == 1) rethrow;
+        } on SocketException {
+          if (attempt == 1) rethrow;
+        }
+      }
+      if (response == null) {
+        throw HttpException('Failed to load $url: no response');
+      }
       if (response.statusCode != 200) {
         throw HttpException('Failed to load $url: ${response.statusCode}');
       }
@@ -255,6 +283,11 @@ class EncryptedImageProvider extends ImageProvider<EncryptedImageProvider> {
       if (await file.exists()) await file.delete();
     } catch (_) {}
     try {
+      // الصور المعروضة عبر CachedNetImage/CachedImg تُغلَّف الآن بـ
+      // ResizeImage بمقاسات فك ترميز مختلفة، فلا يمكن استهداف مفتاحها
+      // بدقة — لذلك نمسح كاش الصور الحيّ كاملاً (إعادة الفك تتم من
+      // الكاش القرصي بسرعة، والأصل يُعاد تحميله من الشبكة).
+      PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.evict(EncryptedImageProvider(url));
     } catch (_) {}
   }

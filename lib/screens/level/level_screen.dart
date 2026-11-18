@@ -230,7 +230,7 @@ class _LevelScreenState extends State<LevelScreen>
                 child: _buildRewardBox(
                   dc: dc,
                   label: 'Frame',
-                  assetUrl: currentConfig?.frameUrl,
+                  assetUrl: currentConfig?.frameUrl ?? 'assets/mipmap-xxhdpi/rank_1_frame.png',
                   fallbackIcon: Icons.crop_square_outlined,
                 ),
               ),
@@ -240,7 +240,7 @@ class _LevelScreenState extends State<LevelScreen>
                 child: _buildRewardBox(
                   dc: dc,
                   label: 'Badge',
-                  assetUrl: currentConfig?.badgeUrl,
+                  assetUrl: currentConfig?.badgeUrl ?? 'assets/mipmap-xxhdpi/union_rank_top_ic.webp',
                   fallbackIcon: Icons.verified_outlined,
                 ),
               ),
@@ -250,7 +250,7 @@ class _LevelScreenState extends State<LevelScreen>
                 child: _buildRewardBox(
                   dc: dc,
                   label: 'Level Icon',
-                  assetUrl: currentConfig?.imageUrl,
+                  assetUrl: currentConfig?.imageUrl ?? 'assets/images/wealth_grade_1.png',
                   fallbackIcon: Icons.star_outline,
                   fallbackText: '$cl',
                 ),

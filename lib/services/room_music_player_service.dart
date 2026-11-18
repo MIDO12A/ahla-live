@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:just_audio/just_audio.dart';
@@ -145,7 +144,7 @@ class RoomMusicPlayerService {
         if (filePath != null && filePath.isNotEmpty) {
           final fileName = f.name.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '');
           final track = RoomMusicTrack(
-            id: 'local_${DateTime.now().millisecondsSinceEpoch}_${addedCount}',
+            id: 'local_${DateTime.now().millisecondsSinceEpoch}_$addedCount',
             title: fileName.isNotEmpty ? fileName : 'ملف صوتي',
             path: filePath,
             isLocal: true,

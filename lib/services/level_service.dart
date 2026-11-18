@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../services/supabase_service.dart';
 import 'supabase_data_service.dart';
+import 'supabase_realtime_service.dart';
 
 class LevelConfig {
   final int level;
@@ -56,16 +57,45 @@ class LevelService extends ChangeNotifier {
   final Map<String, List<LevelConfig>> _cachedLevels = {};
   Map<String, List<LevelConfig>> get cachedLevels => _cachedLevels;
 
+  /// آخر جلب ناجح من جدول level_config — تُستخدم لتحديث الصور تلقائياً
+  /// عند فتح أي شاشة تعرض مستويات دون الحاجة لشاشة المستويات.
+  DateTime? _lastLoadedAt;
+  DateTime? _lastAttemptAt;
+  Future<void>? _loadInFlight;
+  bool _realtimeHooked = false;
+
+  /// مدة اعتبار الكاش «طازجاً» — بعدها يعيد أي استدعاء ensureLoaded
+  /// الجلب من لوحة التحكم في الخلفية.
+  static const Duration _freshFor = Duration(seconds: 90);
+
+  /// أدنى فاصل بين محاولتين فاشلتين حتى لا تتكرر الطلبات مع كل rebuild.
+  static const Duration _retryAfter = Duration(seconds: 10);
+
   void init() {
     if (_initialized) return;
     _initialized = true;
     unawaited(loadAllLevels());
+    _hookRealtime();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
+  /// أي تعديل على level_config من لوحة التحكم يُحدّث الكاش فوراً
+  /// ويُعلِم كل الشاشات المشتركة (ListenableBuilder) لإعادة البناء.
+  void _hookRealtime() {
+    if (_realtimeHooked) return;
+    _realtimeHooked = true;
+    final rt = SupabaseRealtimeService.instance;
+    rt.subscribeTable(
+      table: 'level_config',
+      topic: 'level_config:all',
+      events: const ['INSERT', 'UPDATE', 'DELETE'],
+    );
+    rt.changes.listen((change) {
+      if (change.table == 'level_config') {
+        unawaited(loadAllLevels());
+      }
+    });
   }
+
 
   Stream<List<LevelConfig>> levelsStream(String type) async* {
     if (_cachedLevels[type] != null && _cachedLevels[type]!.isNotEmpty) {
@@ -82,23 +112,60 @@ class LevelService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> loadAllLevels() async {
+  /// يطلب واحداً فقط في كل مرة — النداءات المتزامنة من شاشات متعددة
+  /// (البروفايل، بروفايل المستخدم، ترتيب الغرفة…) تتشارك نفس الجلب.
+  Future<void> loadAllLevels() {
+    return _loadInFlight ??=
+        _fetchAllLevels().whenComplete(() => _loadInFlight = null);
+  }
+
+  Future<void> _fetchAllLevels() async {
     try {
       final configs = await SupabaseDataService().getLevelConfigs();
-      if (configs.isNotEmpty) {
-        for (final type in ['wealth', 'recharge', 'gems']) {
-          final list = configs
-              .map((e) => LevelConfig.fromMap(e))
-              .where((e) => e.type == type)
-              .toList();
-          list.sort((a, b) => a.level.compareTo(b.level));
-          if (list.isNotEmpty) {
-            _cachedLevels[type] = list;
-          }
+      // لا نُسجّل وقت «التحميل» إلا عند وجود بيانات فعلية — النتيجة
+      // الفارغة قد تعني فشل الشبكة أو أن اللوحة لم تُضِف مستويات بعد،
+      // وعندها يُسمح لإعادة المحاولة بعد [_retryAfter] بدل انتظار
+      // دورة [_freshFor] كاملة.
+      if (configs.isEmpty) return;
+      _lastLoadedAt = DateTime.now();
+      var changed = false;
+      for (final type in ['wealth', 'recharge', 'gems']) {
+        final list = configs
+            .map((e) => LevelConfig.fromMap(e))
+            .where((e) => e.type == type)
+            .toList();
+        list.sort((a, b) => a.level.compareTo(b.level));
+        if (list.isNotEmpty) {
+          _cachedLevels[type] = list;
+          changed = true;
         }
-        notifyListeners();
       }
+      if (changed) notifyListeners();
     } catch (_) {}
+  }
+
+  /// يعيد تحميل المستويات من لوحة التحكم عند الحاجة:
+  /// - [force]: تجاهل الكاش تماماً.
+  /// - تلقائياً: إن كان الكاش فارغاً/أقدم من [_freshFor] أو فشلت آخر
+  ///   محاولة منذ أقل من [_retryAfter].
+  /// تستدعيه أي شاشة تعرض صور/بيانات المستويات — لا حاجة لفتح
+  /// شاشة المستويات أولاً.
+  Future<void> ensureLoaded({bool force = false}) async {
+    if (!force) {
+      final inFlight = _loadInFlight;
+      if (inFlight != null) return inFlight;
+      final now = DateTime.now();
+      final fresh = _lastLoadedAt != null &&
+          now.difference(_lastLoadedAt!) < _freshFor;
+      if (fresh) return;
+      final lastAttempt = _lastAttemptAt;
+      if (lastAttempt != null &&
+          now.difference(lastAttempt) < _retryAfter) {
+        return;
+      }
+    }
+    _lastAttemptAt = DateTime.now();
+    return loadAllLevels();
   }
 
   LevelConfig? getLevelConfig(String type, int level) {
@@ -117,12 +184,96 @@ class LevelService extends ChangeNotifier {
     return list.last.level;
   }
 
+  /// يحمّل مستويات كل الأنواع إن لم تكن محمّلة بعد.
+  /// تستدعيه الشاشات التي تعرض المستويات حتى تظهر الصور مباشرةً
+  /// دون الحاجة لفتح شاشة المستويات أولاً.
+  /// (مُستبدَلة بـ [ensureLoaded] التي تدعم التحديث التلقائي —
+  ///   تُبقي للتوافق مع الاستدعاءات القديمة.)
+  @Deprecated('Use ensureLoaded() which refreshes stale cache')
+  Future<void> ensureLevelsLoaded() => ensureLoaded();
+
+  /// يعيد إعداد المستوى الفعلي، وإن لم يوجد للمستوى المطلوب يعود
+  /// لأقرب مستوى أدنى متاح (حتى لا تبقى الشاشة بلا بيانات).
+  LevelConfig? configFor(String type, int level) {
+    final exact = getLevelConfig(type, level);
+    if (exact != null) return exact;
+    final list = _cachedLevels[type];
+    if (list == null || list.isEmpty) return null;
+    LevelConfig? best;
+    for (final c in list) {
+      if (c.level > level) break;
+      best = c;
+    }
+    return best;
+  }
+
+  /// صورة المستوى (الأيقونة الكبيرة). إن لم يملك المستوى المطلوب صورة
+  /// يعود لأقرب مستوى أدنى يملك صورة — بدل إظهار أيقونة بديلة عامة.
+  String? imageUrlFor(String type, int level) {
+    final exact = getLevelConfig(type, level);
+    if (exact?.imageUrl?.isNotEmpty == true) return exact!.imageUrl;
+    final list = _cachedLevels[type];
+    if (list == null || list.isEmpty) return null;
+    String? best;
+    for (final c in list) {
+      if (c.level > level) break;
+      if (c.imageUrl?.isNotEmpty == true) best = c.imageUrl;
+    }
+    return best;
+  }
+
+  /// شارة المستوى (الأيقونة الصغيرة) بنفس منطق الرجوع للمستوى الأدنى.
+  String? badgeUrlFor(String type, int level) {
+    final exact = getLevelConfig(type, level);
+    if (exact?.badgeUrl?.isNotEmpty == true) return exact!.badgeUrl;
+    final list = _cachedLevels[type];
+    if (list == null || list.isEmpty) return null;
+    String? best;
+    for (final c in list) {
+      if (c.level > level) break;
+      if (c.badgeUrl?.isNotEmpty == true) best = c.badgeUrl;
+    }
+    return best;
+  }
+
+  /// أفضل تمثيل بصري للمستوى: الصورة الكبيرة أولاً ثم الشارة.
+  String? visualFor(String type, int level) =>
+      imageUrlFor(type, level) ?? badgeUrlFor(type, level);
+
   Future<LevelUpResult?> addExp({
     required String uid,
     required String type,
     required int amount,
   }) async {
     if (amount <= 0) return null;
+
+    // ✅ المسار الذرّي: add_user_exp على السيرفر — يحسب الصعود
+    //    والمكافآت في transaction واحد ويعمل لأي uid (مرسل/مستلم)
+    //    بدون race. عند غياب الدالة نكمل بالمسار القديم.
+    try {
+      final rpc = await SupabaseDataService()
+          .addUserExp(uid, type, amount)
+          .timeout(const Duration(seconds: 8));
+      if (rpc != null && rpc['status'] == 'ok') {
+        final oldLevel = (rpc['old_level'] as num?)?.toInt() ?? 1;
+        final newLevel = (rpc['new_level'] as num?)?.toInt() ?? oldLevel;
+        return LevelUpResult(
+          type: type,
+          oldLevel: oldLevel,
+          newLevel: newLevel,
+          rewardCoins: (rpc['reward_coins'] as num?)?.toInt() ?? 0,
+          rewardDiamonds: (rpc['reward_diamonds'] as num?)?.toInt() ?? 0,
+          newFrames: (rpc['new_frames'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              const [],
+          newBadges: (rpc['new_badges'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              const [],
+        );
+      }
+    } catch (_) {}
 
     final userSnap = await _supabaseService.getUser(uid);
     if (userSnap == null) return null;

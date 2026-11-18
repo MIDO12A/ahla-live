@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
+import '../../../core/app_navigator.dart';
 import '../room_screen.dart';
 import 'package:zero/core/dtext.dart';
 
@@ -35,6 +36,9 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
   late Animation<Offset> _enterAnim;
   late Animation<Offset> _exitAnim;
   Timer? _dismissTimer;
+  bool _isDismissing = false;
+  /// إزاحة السحب اليدوي — سحب اللافتة يميناً/يساراً/لأعلى يخفيها فوراً.
+  Offset _dragOffset = Offset.zero;
 
   @override
   void initState() {
@@ -69,7 +73,8 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
   }
 
   void _dismiss() {
-    if (!mounted) return;
+    if (!mounted || _isDismissing) return;
+    _isDismissing = true;
     _dismissTimer?.cancel();
     _exitController.forward().then((_) {
       if (mounted) widget.onDismissed();
@@ -101,18 +106,43 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
           position: _enterAnim,
           child: GestureDetector(
         onTap: () {
-          if (roomId.isNotEmpty && mounted) {
-            try {
-              navigateToRoom(
-                context,
-                roomName: roomName,
-                hostName: '',
-                roomId: roomId,
-              );
-            } catch (_) {}
+          if (!mounted || roomId.isEmpty) return;
+          // البانر قد يُركّب فوق الـ Navigator (MaterialApp.builder) —
+          // نستخدم سياق الـ Overlay حتى يعمل showDialog/الانتقال دائماً.
+          final ctx = rootNavigatorContext() ?? context;
+          confirmRoomNavigation(ctx, roomId: roomId, roomName: roomName);
+        },
+        // ── سحب اللافتة يميناً/يساراً/لأعلى يخفيها فوراً ──
+        onPanStart: (_) => _dismissTimer?.cancel(),
+        onPanUpdate: (details) {
+          setState(() {
+            _dragOffset += details.delta;
+            if (_dragOffset.dy > 16) {
+              _dragOffset = Offset(_dragOffset.dx, 16);
+            }
+          });
+        },
+        onPanEnd: (details) {
+          final dx = _dragOffset.dx;
+          final dy = _dragOffset.dy;
+          final vx = details.velocity.pixelsPerSecond.dx;
+          final vy = details.velocity.pixelsPerSecond.dy;
+          final shouldDismiss =
+              dx.abs() > 55 || dy < -45 || vx.abs() > 600 || vy < -400;
+          if (shouldDismiss) {
+            _dragOffset = Offset.zero;
+            _dismiss();
+          } else {
+            setState(() => _dragOffset = Offset.zero);
+            _dismissTimer?.cancel();
+            _dismissTimer = Timer(const Duration(milliseconds: 2500), _dismiss);
           }
         },
-        child: SizedBox(
+        child: Transform.translate(
+          offset: _dragOffset,
+          child: Opacity(
+            opacity: (1 - (_dragOffset.distance / 240)).clamp(0.35, 1.0),
+            child: SizedBox(
           width: double.infinity,
           height: 92,
           child: Stack(
@@ -188,15 +218,15 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              if (multiplier != null && (multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0) > 1) ...[
+                              if (multiplier != null && (multiplier is num ? (multiplier).toInt() : int.tryParse(multiplier.toString()) ?? 0) > 1) ...[
                                 TextSpan(
-                                  text: ' 🔥 فاز بمضاعف ${(multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0)}X ',
+                                  text: ' 🔥 فاز بمضاعف ${(multiplier is num ? (multiplier).toInt() : int.tryParse(multiplier.toString()) ?? 0)}X ',
                                   style: TextStyle(
-                                    color: ((multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0) >= 500)
+                                    color: ((multiplier is num ? (multiplier).toInt() : int.tryParse(multiplier.toString()) ?? 0) >= 500)
                                         ? const Color(0xFFFF1493)
-                                        : (((multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0) >= 250)
+                                        : (((multiplier is num ? (multiplier).toInt() : int.tryParse(multiplier.toString()) ?? 0) >= 250)
                                             ? const Color(0xFFFF6F00)
-                                            : (((multiplier is num ? (multiplier as num).toInt() : int.tryParse(multiplier.toString()) ?? 0) >= 100)
+                                            : (((multiplier is num ? (multiplier).toInt() : int.tryParse(multiplier.toString()) ?? 0) >= 100)
                                                 ? const Color(0xFFFF0055)
                                                 : const Color(0xFFFF416C))),
                                     fontWeight: FontWeight.w900,
@@ -233,6 +263,8 @@ class _RoomMarqueeBroadcastState extends State<RoomMarqueeBroadcast>
                 ),
               ),
             ],
+          ),
+            ),
           ),
         ),
       ),

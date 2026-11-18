@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/widgets/cached_image.dart';
 import '../../config/r.dart';
 import '../../services/dynamic_config_service.dart';
+import '../../services/media_prefetch_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/supabase_data_service.dart';
 import '../../models/banner_config.dart';
@@ -82,8 +84,14 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
   RoomModel? _myRoom;
   late TabController _tabController;
   int _selectedTabIndex = 1;
-  String _searchQuery = '';
+  final String _searchQuery = '';
   String? _selectedCountry;
+  String _lastRoomsSignature = '';
+  static const String _roomsCachePrefsKey = 'discover_rooms_cache_v1';
+
+  /// أول 3 مراكز في تصنيفات المتصدرين اليومي (ثروة/كرزمة/غرف)
+  /// تُعرض داخل بطاقات التصنيفات أسفل شريط الدول
+  Map<String, List<Map<String, dynamic>>> _topDailyRankings = {};
 
   @override
   void initState() {
@@ -95,26 +103,203 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
         setState(() => _selectedTabIndex = _tabController.index);
       }
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMyRoom());
+    unawaited(_restoreCachedRooms());
+
+    // ✅ تحميل «غرفتي» فوراً (مهم للمستخدم)، وتأجيل الترتيب الثقيل
+    //    حتى تظهر الغرف أولاً — يقلّل الضغط على الشبكة عند فتح الشاشة.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadMyRoom());
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) unawaited(_loadTopDailyRankings());
+      });
+    });
   }
 
+  /// يجلب **المتصدر الأول** في الترتيب اليومي لكل تصنيف
+  /// (الثروة، الكرزمة/الجاذبية، الغرف) لعرضه في بطاقات الاستكشاف.
+  ///
+  /// عند فشل الجلب (شبكة بطيئة عند فتح التطبيق) تُعاد المحاولة تلقائياً
+  /// في الخلفية — وإلا بقيت البطاقات بلا صور المتصدرين حتى إعادة تشغيل
+  /// التطبيق، لأن الشاشة تبقى حيّة داخل IndexedStack.
+  bool _rankingsLoading = false;
+  bool _rankingsReady = false;
+  int _rankingsAttempts = 0;
+  Timer? _rankingsRetry;
+
+  Future<void> _loadTopDailyRankings({bool force = false}) async {
+    if (_rankingsLoading) return;
+    if (!force && _rankingsReady) return;
+    _rankingsLoading = true;
+    if (force) _rankingsAttempts = 0;
+    _rankingsRetry?.cancel();
+
+    Map<String, List<Map<String, dynamic>>> result = const {};
+
+    // 1) المصدر الأول: نفس Views شاشة الترتيب — مهلة أقصر (8s بدل 15s)
+    //    حتى لا ينتظر المستخدم طويلاً قبل الانتقال للاحتياطي.
+    try {
+      final views = await _firebaseService
+          .getDailyTopRankingsFromViews()
+          .timeout(const Duration(seconds: 8), onTimeout: () => const {});
+      if (views.values.any((l) => l.isNotEmpty)) result = views;
+    } catch (_) {}
+
+    // 2) احتياطي: حساب الترتيب من جدول الهدايا مباشرةً — مهل أقصر
+    //    (20s/25s بدل 30s/40s) لأن الجلب أصبح مُرقّماً ويتجاوز سقف PostgREST.
+    if (result.isEmpty) {
+      try {
+        final snapshots = await _firebaseService
+            .getRankingGiftSnapshots(timeframes: ['daily'])
+            .timeout(const Duration(seconds: 20), onTimeout: () => const {});
+        final gifts = snapshots['daily'];
+        final results = await Future.wait<List<Map<String, dynamic>>>([
+          _firebaseService.getGlobalRankings(
+              isWealth: true, timeframe: 'daily', gifts: gifts),
+          _firebaseService.getGlobalRankings(
+              isWealth: false, timeframe: 'daily', gifts: gifts),
+          _firebaseService.getRoomGlobalRanking(
+              timeframe: 'daily', gifts: gifts),
+        ]).timeout(const Duration(seconds: 25),
+            onTimeout: () => <List<Map<String, dynamic>>>[[], [], []]);
+        result = {
+          'wealth': results[0],
+          'charm': results[1],
+          'rooms': results[2],
+        };
+      } catch (_) {}
+    }
+
+    _rankingsLoading = false;
+    if (!mounted) return;
+
+    const keys = ['wealth', 'charm', 'rooms'];
+    final anyData = keys.any((k) => (result[k] ?? const []).isNotEmpty);
+    final allData = keys.every((k) => (result[k] ?? const []).isNotEmpty);
+
+    if (anyData) {
+      setState(() {
+        _topDailyRankings = {
+          'wealth': (result['wealth'] ?? const []).take(1).toList(),
+          'charm': (result['charm'] ?? const []).take(1).toList(),
+          'rooms': (result['rooms'] ?? const []).take(1).toList(),
+        };
+      });
+    }
+
+    if (allData) {
+      _rankingsReady = true;
+      return;
+    }
+
+    // بيانات ناقصة (شبكة/تصنيف فارغ) — إعادة محاولة صامتة في الخلفية
+    _rankingsAttempts++;
+    final maxAttempts = anyData ? 5 : 20;
+    if (_rankingsAttempts < maxAttempts) {
+      _rankingsRetry = Timer(const Duration(seconds: 15), () {
+        unawaited(_loadTopDailyRankings());
+      });
+    }
+  }
+
+  /// آخر قائمة غرف محفوظة محلياً — تُعرض فوراً عند فتح الاستكشاف
+  /// قبل وصول بيانات السيرفر، فلا تبقى الشاشة فارغة أثناء التحميل
+  Future<void> _restoreCachedRooms() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_roomsCachePrefsKey);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      final rooms = decoded
+          .whereType<Map>()
+          .map((e) => RoomModel.fromMap(Map<String, dynamic>.from(e)))
+          .toList();
+      if (rooms.isNotEmpty && mounted) {
+        setState(() => _cachedRooms = rooms);
+      }
+    } catch (_) {}
+  }
+
+  /// يُستدعى عند وصول قائمة الغرف: يحمّل الصور في الخلفية ويحفظ
+  /// النسخة المحلية لعرضها فوراً في المرة القادمة.
+  ///
+  /// ✅ prefetchUrls نُقلت داخل حماية البصمة — كانت تعمل في كل rebuild
+  ///    للـ StreamBuilder، ما يستهلك الشبكة بلا داعٍ.
+  void _onRoomsData(List<RoomModel> rooms) {
+    final signature = rooms
+        .map((r) =>
+    '${r.roomId}:${r.memberCount}:${r.monthlyCoins}:${r.totalGifts}')
+        .join('|');
+    if (signature == _lastRoomsSignature) return;
+    _lastRoomsSignature = signature;
+
+    // نسخ المصغّرات هي ما تعرضه البطاقات فعلاً — تحميلها مسبقاً
+    // يجعل صور الغرف جاهزة قبل بناء الشبكة.
+    MediaPrefetchService().prefetchUrls(rooms.expand((r) => <String>[
+      _cloudinaryThumb(r.roomPhotoUrl, width: 800),
+      _cloudinaryThumb(
+          r.hostPhotoUrl.isNotEmpty ? r.hostPhotoUrl : R.avaBoy,
+          width: 96),
+      // خلفية الغرفة تُعرض بملء الشاشة عند الدخول — تحميلها مسبقاً
+      // يجعل انتقال المستخدم من البطاقة إلى الغرفة فورياً.
+      if (r.bgImage.isNotEmpty) r.bgImage,
+    ]));
+
+    unawaited(() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          _roomsCachePrefsKey,
+          jsonEncode(rooms.map((r) => r.toMap()).toList()),
+        );
+      } catch (_) {}
+    }());
+  }
+
+  /// نسخة مصغّرة من صور Cloudinary للعرض داخل شبكة الاستكشاف —
+  /// تحميل أخف بكثير من الصورة الأصلية فيظهر الغرف بشكل أسرع
+  static String _cloudinaryThumb(String url, {required int width}) {
+    const marker = '/image/upload/';
+    final i = url.indexOf(marker);
+    if (i < 0) return url;
+    final rest = url.substring(i + marker.length);
+    if (rest.startsWith('w_') ||
+        rest.startsWith('c_') ||
+        rest.startsWith('q_') ||
+        rest.startsWith('f_') ||
+        rest.startsWith('e_')) {
+      return url;
+    }
+    return '${url.substring(0, i + marker.length)}w_$width,c_limit,q_auto,f_auto/$rest';
+  }
+
+  /// ✅ توازي بدل تسلسل: كانت 4 رحلات متتالية (~2-4 ثوانٍ على الشبكات
+  ///    البطيئة). الآن: 1 جرّب hostedRoomId، ثم 3 مصادر بالتوازي.
   Future<void> _loadMyRoom() async {
     final user = Provider.of<UserProvider>(context, listen: false).currentUser;
     if (user == null) return;
     try {
       RoomModel? room;
-      if (user.hostedRoomId != null && user.hostedRoomId!.isNotEmpty && user.hostedRoomId != 'null') {
-        room = await _firebaseService.getRoom(user.hostedRoomId!);
+
+      // 1) جرّب hostedRoomId أولاً — الأسرع والأكثر دقة.
+      final hostedId = user.hostedRoomId;
+      if (hostedId != null && hostedId.isNotEmpty && hostedId != 'null') {
+        room = await _firebaseService.getRoom(hostedId);
       }
+
+      // 2) إذا فشل، جرّب المصادر الثلاثة **بالتوازي** بدل التسلسل
       if (room == null) {
-        room = await _firebaseService.getRoomByHost(user.uid);
+        final futures = <Future<RoomModel?>>[
+          _firebaseService.getRoomByHost(user.uid),
+          if (user.customId.isNotEmpty)
+            _firebaseService.getRoomByHost(user.customId),
+          SupabaseDataService().getRoomByHostUid(user.uid),
+        ];
+        final results = await Future.wait<RoomModel?>(futures)
+            .catchError((_) => <RoomModel?>[null, null, null]);
+        room = results.firstWhere((r) => r != null, orElse: () => null);
       }
-      if (room == null && user.customId.isNotEmpty) {
-        room = await _firebaseService.getRoomByHost(user.customId);
-      }
-      if (room == null) {
-        room = await SupabaseDataService().getRoomByHostUid(user.uid);
-      }
+
       if (mounted && room != null) {
         setState(() => _myRoom = room);
       }
@@ -123,6 +308,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
 
   @override
   void dispose() {
+    _rankingsRetry?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -335,9 +521,9 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
         color: DynamicConfigService().discoverBackgroundColor,
         image: bgImg.isNotEmpty
             ? DecorationImage(
-                image: R.cachedImage(bgImg),
-                fit: BoxFit.cover,
-              )
+          image: R.cachedImage(bgImg),
+          fit: BoxFit.cover,
+        )
             : null,
       ),
       child: Scaffold(
@@ -488,7 +674,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
         border: Border.all(color: borderColor, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -499,20 +685,20 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
           Positioned.fill(
             child: bgImage.isNotEmpty
                 ? CachedNetImage(
-                    bgImage,
-                    fit: BoxFit.cover,
-                    error: (_, __, ___) => const SizedBox.shrink(),
-                  )
+              bgImage,
+              fit: BoxFit.cover,
+              error: (_, __, ___) => const SizedBox.shrink(),
+            )
                 : Image.asset(
-                    R.discoverFollowCardBg,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                  ),
+              R.discoverFollowCardBg,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.all(12),
             child: room != null
-          ? Row(
+                ? Row(
               children: [
                 // 1. Room Photo with Sound Wave Animation
                 Stack(
@@ -526,7 +712,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                         border: Border.all(color: btnColor, width: 2),
                         boxShadow: [
                           BoxShadow(
-                            color: btnColor.withOpacity(0.35),
+                            color: btnColor.withValues(alpha: 0.35),
                             blurRadius: 8,
                             spreadRadius: 1,
                           ),
@@ -535,13 +721,13 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                       child: ClipOval(
                         child: room.roomPhotoUrl.isNotEmpty
                             ? CachedNetImage(
-                                room.roomPhotoUrl,
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                                error: (_, __, ___) => Image.asset(R.avaBoy, width: 50, height: 50, fit: BoxFit.cover),
-                              )
-                            : Image.asset(R.avaBoy, width: 50, height: 50, fit: BoxFit.cover),
+                          _cloudinaryThumb(room.roomPhotoUrl, width: 128),
+                          width: 50,
+                          height: 50,
+                          fit: BoxFit.cover,
+                          error: (_, __, ___) => Image.asset(_roomDefaultAsset, width: 50, height: 50, fit: BoxFit.cover),
+                        )
+                            : Image.asset(_roomDefaultAsset, width: 50, height: 50, fit: BoxFit.cover),
                       ),
                     ),
                     Positioned(
@@ -549,7 +735,7 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.65),
+                          color: Colors.black.withValues(alpha: 0.65),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const _AudioWaveIndicator(),
@@ -582,9 +768,9 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
-                              color: btnColor.withOpacity(0.2),
+                              color: btnColor.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: btnColor.withOpacity(0.6), width: 0.5),
+                              border: Border.all(color: btnColor.withValues(alpha: 0.6), width: 0.5),
                             ),
                             child: DText(
                               isAr ? 'غرفتي' : 'My Room',
@@ -641,13 +827,13 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                 ),
               ],
             )
-          : Row(
+                : Row(
               children: [
                 Container(
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.add_home_work_rounded, color: Colors.white70, size: 28),
@@ -708,116 +894,154 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
   }
 
   Widget _buildDiscoverContent({required bool isFollowTab, dynamic user}) {
-    return Column(
-      children: [
-        if (isFollowTab) ...[
-          _buildMyRoomCard(user),
-          _buildCountrySection(),
-        ] else ...[
-          const _BannerCarousel(),
-          _buildCountrySection(),
-        ],
-        const SizedBox(height: 8),
-        Expanded(
-          child: RefreshIndicator(
-            color: const Color(0xFFFF9D3E),
-            onRefresh: () async {
-              setState(() {
-                _roomsStream = _firebaseService.allRoomsStream().asBroadcastStream();
-              });
-              await _loadMyRoom();
-            },
-            child: StreamBuilder<List<RoomModel>>(
-              stream: _roomsStream,
-              initialData: _cachedRooms,
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-                  _cachedRooms = snapshot.data;
-                }
-                if (snapshot.connectionState == ConnectionState.waiting && (_cachedRooms == null || _cachedRooms!.isEmpty)) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+    final bgColor = DynamicConfigService().discoverBackgroundColor;
+    return RefreshIndicator(
+      color: const Color(0xFFFF9D3E),
+      onRefresh: () async {
+        setState(() {
+          _roomsStream =
+              _firebaseService.allRoomsStream().asBroadcastStream();
+        });
+        await Future.wait<void>([
+          _loadMyRoom(),
+          _loadTopDailyRankings(force: true),
+        ]);
+      },
+      child: StreamBuilder<List<RoomModel>>(
+        stream: _roomsStream,
+        initialData: _cachedRooms,
+        builder: (context, snapshot) {
+          if (snapshot.hasData &&
+              snapshot.data != null &&
+              snapshot.data!.isNotEmpty) {
+            _cachedRooms = snapshot.data;
+            _onRoomsData(snapshot.data!);
+          }
 
-                List<RoomModel> rooms = snapshot.data ?? _cachedRooms ?? [];
+          List<RoomModel> rooms = snapshot.data ?? _cachedRooms ?? [];
 
-                if (isFollowTab) {
-                  final List<String> followedList = (user?.followedRooms as List<String>?) ?? [];
-                  rooms = rooms
-                      .where((room) => followedList.contains(room.roomId))
-                      .toList();
-                }
+          if (isFollowTab) {
+            final List<String> followedList =
+                (user?.followedRooms as List<String>?) ?? [];
+            rooms = rooms
+                .where((room) => followedList.contains(room.roomId))
+                .toList();
+          }
 
-                if (_searchQuery.isNotEmpty) {
-                  rooms = rooms.where((room) {
-                    return room.name.toLowerCase().contains(_searchQuery) ||
-                        room.hostName.toLowerCase().contains(_searchQuery);
-                  }).toList();
-                }
+          if (_searchQuery.isNotEmpty) {
+            rooms = rooms.where((room) {
+              return room.name.toLowerCase().contains(_searchQuery) ||
+                  room.hostName.toLowerCase().contains(_searchQuery);
+            }).toList();
+          }
 
-                if (_selectedCountry != null && _selectedCountry!.isNotEmpty && _selectedCountry != 'الكل') {
-                  rooms = rooms.where((room) => _roomMatchesCountry(room, _selectedCountry)).toList();
-                }
+          if (_selectedCountry != null &&
+              _selectedCountry!.isNotEmpty &&
+              _selectedCountry != 'الكل') {
+            rooms = rooms
+                .where((room) => _roomMatchesCountry(room, _selectedCountry))
+                .toList();
+          }
 
-                if (rooms.isEmpty) {
-                  final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
-                  return SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.5,
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.headset_off, size: 64, color: Colors.black26),
-                            const SizedBox(height: 16),
-                            DText(
-                              isFollowTab
-                                  ? (isAr ? 'لم تتابع أي غرفة بعد\nاستكشف الغرف وتابع غرفك المفضلة!' : 'No followed rooms yet\nDiscover and follow rooms!')
-                                  : (isAr ? 'لا توجد غرف حالياً\nابدأ بإنشاء غرفتك الآن!' : 'No rooms yet\nCreate one!'),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 16, color: Colors.black45),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }
+          final isLoading = snapshot.connectionState ==
+              ConnectionState.waiting &&
+              (_cachedRooms == null || _cachedRooms!.isEmpty);
 
-                return SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                            childAspectRatio: 1,
-                          ),
-                          itemCount: rooms.length,
-                          itemBuilder: (context, index) {
-                            final room = rooms[index];
-                            final isFollowing =
-                                user?.followedRooms.contains(room.roomId) ?? false;
-                            final rankIndex = index < 3 ? index : -1;
-                            return _buildRoomCard(room, isFollowing, user, rankIndex: rankIndex);
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+          // ✅ كل ما فوق الغرف (البانر الدوّار/غرفتي + شريط الهاشتاجات)
+          //    أصبح داخل نفس الـ ScrollView: البانر يُرفع مع التمرير،
+          //    وشريط الهاشتاجات يثبت (pinned) تحت الشريط العلوي،
+          //    والغرف تتكرّر تحت الثابت — تماماً كما في تطبيقات البث.
+          return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: isFollowTab
+                    ? _buildMyRoomCard(user)
+                    : const _BannerCarousel(),
+              ),
+              // شريط الهاشتاجات/الدول — يثبت أعلى القائمة أثناء التمرير
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _DiscoverChipsHeader(
+                  backgroundColor: bgColor,
+                  child: _buildCountryChips(),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: _buildTopRankingCards(),
+                ),
+              ),
+              if (isLoading)
+                const SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 180,
+                    child: Center(child: CircularProgressIndicator()),
                   ),
-                );
-              },
-            ),
+                )
+              else if (rooms.isEmpty)
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 280,
+                    child: _buildEmptyRooms(isFollowTab),
+                  ),
+                )
+              else
+              // ✅ شبكة الغرف كـ Sliver — تُبنى بشكل كسول (lazy) أثناء
+              //    التمرير بدل بناء كل البطاقات دفعة واحدة.
+                SliverPadding(
+                  padding: const EdgeInsets.only(left: 8, right: 8, top: 4, bottom: 16),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 1,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                        final room = rooms[index];
+                        final isFollowing =
+                            user?.followedRooms.contains(room.roomId) ?? false;
+                        final rankIndex = index < 3 ? index : -1;
+                        return _buildRoomCard(room, isFollowing, user,
+                            rankIndex: rankIndex);
+                      },
+                      childCount: rooms.length,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// حالة «لا توجد غرف» — داخل SliverFillRemaining حتى يعمل السحب للتحديث
+  Widget _buildEmptyRooms(bool isFollowTab) {
+    final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.headset_off, size: 64, color: Colors.black26),
+          const SizedBox(height: 16),
+          DText(
+            isFollowTab
+                ? (isAr
+                ? 'لم تتابع أي غرفة بعد\nاستكشف الغرف وتابع غرفك المفضلة!'
+                : 'No followed rooms yet\nDiscover and follow rooms!')
+                : (isAr
+                ? 'لا توجد غرف حالياً\nابدأ بإنشاء غرفتك الآن!'
+                : 'No rooms yet\nCreate one!'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, color: Colors.black45),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -877,7 +1101,9 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     return false;
   }
 
-  Widget _buildCountrySection() {
+  /// شريط الدول/الهاشتاجات الأفقي — يُستخدم كعنوان ثابت (pinned header)
+  /// أعلى قائمة الغرف أثناء التمرير.
+  Widget _buildCountryChips() {
     final isAr = Localizations.maybeLocaleOf(context)?.languageCode != 'en';
     final countries = [
       {'name': isAr ? 'الكل' : 'All', 'flag': '🌍'},
@@ -893,107 +1119,305 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 40,
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: _openCountryPicker,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        R.image(
-                          R.discoverCountryMoreIc,
-                          width: 24,
-                          height: 24,
-                        ),
-                        const SizedBox(width: 2),
-                        DText(
-                          isAr ? 'المزيد' : 'More',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF59370D),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      child: SizedBox(
+        height: 40,
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: _openCountryPicker,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: countries.length,
-                    itemBuilder: (context, index) {
-                      final country = countries[index];
-                      final countryName = country['name']!;
-                      final isAll = countryName == 'الكل' || countryName == 'All';
-                      final isActive = (isAll && (_selectedCountry == null || _selectedCountry == 'الكل' || _selectedCountry == 'All')) ||
-                          (!isAll && _selectedCountry == countryName);
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              if (isAll) {
-                                _selectedCountry = null;
-                              } else {
-                                _selectedCountry = countryName;
-                              }
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isActive ? const Color(0xFF59370D) : const Color(0xFFF5F5F5),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Row(
-                              children: [
-                                DText(
-                                  country['flag']!,
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                                const SizedBox(width: 2),
-                                DText(
-                                  countryName,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isActive ? Colors.white : const Color(0xFF59370D),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                child: Row(
+                  children: [
+                    R.image(
+                      R.discoverCountryMoreIc,
+                      width: 24,
+                      height: 24,
+                    ),
+                    const SizedBox(width: 2),
+                    DText(
+                      isAr ? 'المزيد' : 'More',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF59370D),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: countries.length,
+                itemBuilder: (context, index) {
+                  final country = countries[index];
+                  final countryName = country['name']!;
+                  final isAll = countryName == 'الكل' || countryName == 'All';
+                  final isActive = (isAll &&
+                      (_selectedCountry == null ||
+                          _selectedCountry == 'الكل' ||
+                          _selectedCountry == 'All')) ||
+                      (!isAll && _selectedCountry == countryName);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          if (isAll) {
+                            _selectedCountry = null;
+                          } else {
+                            _selectedCountry = countryName;
+                          }
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? const Color(0xFF59370D)
+                              : const Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            DText(
+                              country['flag']!,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            const SizedBox(width: 2),
+                            DText(
+                              countryName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isActive
+                                    ? Colors.white
+                                    : const Color(0xFF59370D),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// بطاقات المتصدرين (ثروة / كرزمة / غرف) أسفل شريط الدول.
+  /// البطاقات الثلاث تعرض **المتصدر الأول فقط** (topCount=1) — كما في
+  /// شاشة الترتيب اليومي، وتأخذ الصورة الحقيقية من نفس مصدرها.
+  Widget _buildTopRankingCards() {
+    // (مفتاح البيانات، صورة البطاقة، تبويب RankScreen المقابل، إزاحة
+    //  دوائر المتصدرين أفقياً/رأسياً لكل بطاقة، عدد المراكز المعروضة)
+    // (مفتاح البيانات، صورة البطاقة، تبويب RankScreen،
+    //  avatarDx، avatarDy = إزاحة الصورة لأسفل 4dp، عدد المراكز المعروضة)
+    final cards = [
+      ('rooms', R.discoverRankRooms, 2, 0.0, 6.0, 1),
+      ('charm', R.discoverRankCharm, 1, 0.0, 6.0, 1),
+      ('wealth', R.discoverRankWealth, 0, 0.0, 6.0, 1),
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          for (final (key, bg, tabIndex, avatarDx, avatarDy, topCount) in cards)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _rankingCard(
+                    key, bg, tabIndex, avatarDx, avatarDy, topCount),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  String? _rankBorderPath(int rankIndex) {
-    if (rankIndex == 0) return R.roomRankBorder1;
-    if (rankIndex == 1) return R.roomRankBorder2;
-    if (rankIndex == 2) return R.roomRankBorder3;
-    return null;
+  Widget _rankingCard(String key, String bgImage, int rankTabIndex,
+      double avatarDx, double avatarDy, int topCount) {
+    final top = _topDailyRankings[key] ?? const <Map<String, dynamic>>[];
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => RankScreen(initialIndex: rankTabIndex)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: AspectRatio(
+          aspectRatio: 1.35,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // ✅ الصورة أولاً (في الخلف)
+              Image.asset(bgImage, fit: BoxFit.cover),
+              // ✅ الدوائر فوق الصورة — كانت خلفها فكان إطار الصورة يقصّها
+              //    فتظهر المتصدرون ناقصين أو مخفيين تماماً.
+              Align(
+                alignment: const Alignment(0, 0.58),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Transform.translate(
+                    offset: Offset(avatarDx, avatarDy),
+                    child: topCount == 1
+                        ? _top1Avatar(top, isRoom: key == 'rooms')
+                        : _top3AvatarCluster(top),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// صورة الغرفة الافتراضية — نفس البديل الذي تستخدمه شاشة الترتيب
+  /// لتصنيف الغرف عند عدم وجود صورة للغرفة.
+  static const String _roomDefaultAsset = R.defaultRoomPhoto;
+
+  /// يستخرج رابط الصورة من صف ترتيب مهما اختلف اسم العمود القادم من
+  /// الـ View (`photo_url` / `photoUrl` / `avatar` / `room_photo_url` …).
+  static String _rowPhoto(Map<String, dynamic>? row) {
+    if (row == null) return '';
+    const keys = <String>[
+      'photoUrl',
+      'photo_url',
+      'avatar',
+      'avatar_url',
+      'user_avatar',
+      'room_photo_url',
+      'room_photo',
+      'cover_image',
+      'cover',
+      'image',
+      'bg_image',
+    ];
+    for (final key in keys) {
+      final v = (row[key] ?? '').toString().trim();
+      if (v.isNotEmpty && v != 'null') return v;
+    }
+    return '';
+  }
+
+  /// دائرة المتصدر الأول فقط (لبطاقات الثروة/السحر/الغرف).
+  /// [isRoom] يجعل البديل صورة غرفة افتراضية بدل صورة المستخدم الافتراضية.
+  Widget _top1Avatar(List<Map<String, dynamic>> top, {bool isRoom = false}) {
+    final photo = top.isEmpty ? '' : _rowPhoto(top.first);
+    return _avatarCircle(photo, 44,
+        fallbackAsset: isRoom ? _roomDefaultAsset : R.avaBoy, framed: true);
+  }
+
+  /// ثلاث دوائر لمراكز المتصدرين — الترتيب من اليسار لليمين:
+  /// المركز 3، المركز 1 (الأكبر بالنص)، المركز 2 — مع فواصل ذهبية
+  /// وشارات مربعة مرقّمة 1/2/3 أسفل كل دائرة.
+  Widget _top3AvatarCluster(List<Map<String, dynamic>> top3) {
+    return SizedBox(
+      width: 85,
+      height: 36,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(left: 10, top: 1, child: _rankAvatar(top3, 2, 50)),
+          Positioned(left: 32, top: 0, child: _rankAvatar(top3, 0, 50)),
+          Positioned(left: 60, top: 1, child: _rankAvatar(top3, 1, 50)),
+        ],
+      ),
+    );
+  }
+
+  Widget _rankAvatar(List<Map<String, dynamic>> top3, int rank, double size) {
+    final entry = rank < top3.length ? top3[rank] : null;
+    final photo = _rowPhoto(entry);
+    return _avatarCircle(photo, size,
+        fallbackAsset: R.avaBoy, framed: rank == 0);
+  }
+
+  /// إطار دائري يوضع فوق صورة المتصدر الأول في بطاقات
+  /// الثروة / السحر / الغرف داخل شاشة الاستكشاف.
+  static const String _top1FrameAsset = 'assets/icon/rank_top1_frame.png';
+
+  /// الملف 168px لكن المحتوى الظاهر منه 156px (هوامش شفافة 6px يمين/يسار).
+  /// النسبة الحالية 203/125 تكبّر الإطار المعروض (~1.62x) — أكبر بكتير من
+  /// صورة المستخدم (44dp)، فالإطار بيقترب من حدود البطاقة السفلية.
+  /// لو احتاجنا نزّل الصورة أكتر لازم نزود ارتفاع البطاقة (aspectRatio أقل)
+  /// عشان الـ ClipRRect ما يقصّش الإطار من تحت.
+  static const double _top1FrameScale = 203 / 125;
+
+  /// رفع صورة الإطار وحدها 4dp لأعلى دون تحريك صورة المستخدم.
+  /// القيمة سالبة لأن محور Y في Flutter يتجه لأسفل.
+  /// زدها (مثلاً -8) إذا أردت رفعاً أكبر.
+  static const double _top1FrameDy = -4.0;
+
+  /// دائرة متصدر واحدة — تُستخدم في بطاقة «الأول فقط» وفي مجموعة الثلاثة.
+  /// [framed] يضيف إطار الصورة الدائري (png شفاف من المنتصف) فوق الصورة.
+  Widget _avatarCircle(String photo, double size,
+      {required String fallbackAsset, bool framed = false}) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        fit: StackFit.expand,
+        // ✅ incluso السماح للإطار بالخروج حدود الدائرة 44dp حتى لا يُقصّ
+        //    عند رفعه 4dp لأعلى.
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF221A2E),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: const [
+                BoxShadow(color: Colors.black38, blurRadius: 4),
+              ],
+            ),
+            child: ClipOval(
+              child: photo.isNotEmpty
+                  ? CachedNetImage(
+                photo,
+                fit: BoxFit.cover,
+                placeholder: (_, __) =>
+                    Container(color: const Color(0xFF221A2E)),
+                error: (_, __, ___) =>
+                    Image.asset(fallbackAsset, fit: BoxFit.cover),
+              )
+                  : Image.asset(fallbackAsset, fit: BoxFit.cover),
+            ),
+          ),
+          // الإطار الدائري فوق الصورة (منتصفه شفاف).
+          // التكبير يعوّض الهوامش الشفافة في الـ PNG عشان يطابق مقاس الصورة.
+          if (framed)
+            Center(
+              child: Transform.translate(
+                offset: Offset(0, _top1FrameDy),
+                child: Transform.scale(
+                  scale: _top1FrameScale,
+                  child: Image.asset(
+                    _top1FrameAsset,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _buildRoomCard(RoomModel room, bool isFollowing, dynamic user, {int rankIndex = -1}) {
@@ -1021,8 +1445,14 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                 children: [
                   R.image(categoryBg, fit: BoxFit.cover),
                   R.image(R.discoverRoomItem1, fit: BoxFit.contain),
-                  if (room.roomPhotoUrl.isNotEmpty)
-                    R.loadImage(room.roomPhotoUrl, fit: BoxFit.cover),
+                  // صورة الغرفة — وعند عدم وجود صورة تُعرض الصورة الافتراضية
+                  R.loadImage(
+                    _cloudinaryThumb(
+                      room.roomPhotoUrl.isNotEmpty ? room.roomPhotoUrl : _roomDefaultAsset,
+                      width: 800,
+                    ),
+                    fit: BoxFit.cover,
+                  ),
                   // Top-right online badge
                   Positioned(
                     top: 6,
@@ -1061,7 +1491,10 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
                             child: SizedBox(
                               width: 12, height: 12,
                               child: R.loadImage(
-                                room.hostPhotoUrl.isNotEmpty ? room.hostPhotoUrl : R.avaBoy,
+                                _cloudinaryThumb(
+                                  room.hostPhotoUrl.isNotEmpty ? room.hostPhotoUrl : R.avaBoy,
+                                  width: 96,
+                                ),
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -1223,6 +1656,53 @@ class _RoomDiscoverScreenState extends State<RoomDiscoverScreen>
   }
 }
 
+/// عنوان ثابت (pinned) لشريط الدول/الهاشتاجات في شاشة الاستكشاف.
+/// يبقى ملتصقاً أسفل الشريط العلوي أثناء تمرير الغرف، ويعود لمكانه
+/// الأصلي عند الرجوع للأعلى.
+class _DiscoverChipsHeader extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final Color backgroundColor;
+
+  const _DiscoverChipsHeader({
+    required this.child,
+    required this.backgroundColor,
+  });
+
+  static const double _height = 48;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        boxShadow: overlapsContent
+            ? [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ]
+            : null,
+      ),
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _DiscoverChipsHeader oldDelegate) {
+    return oldDelegate.child != child ||
+        oldDelegate.backgroundColor != backgroundColor;
+  }
+}
+
 class RoomRankBorderWidget extends StatelessWidget {
   final int rankIndex;
   const RoomRankBorderWidget({super.key, required this.rankIndex});
@@ -1230,6 +1710,7 @@ class RoomRankBorderWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (rankIndex < 0 || rankIndex > 2) return const SizedBox.shrink();
+
     return ListenableBuilder(
       listenable: DynamicConfigService.instance,
       builder: (context, _) {
@@ -1417,4 +1898,3 @@ class _BannerCarouselState extends State<_BannerCarousel> {
     );
   }
 }
-

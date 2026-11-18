@@ -200,7 +200,7 @@ class MinimizedRoomService extends ChangeNotifier {
         safeCall(() => RoomAudioService().leaveChannel()),
       ];
       try {
-        await Future.wait(tasks).timeout(const Duration(seconds: 4));
+        await Future.wait(tasks).timeout(const Duration(seconds: 8));
       } catch (_) {}
     }
   }

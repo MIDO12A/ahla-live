@@ -227,9 +227,9 @@ class _AgencySupervisorDashboardScreenState
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: _cyan.withOpacity(.08),
+                    color: _cyan.withValues(alpha: .08),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _cyan.withOpacity(.3)),
+                    border: Border.all(color: _cyan.withValues(alpha: .3)),
                   ),
                   child: Row(children: [
                     const Icon(Icons.star_rounded, color: _cyan, size: 18),
@@ -335,7 +335,7 @@ class _SupervisorHeader extends StatelessWidget {
             begin: AlignmentDirectional.topStart,
             end: AlignmentDirectional.bottomEnd,
             colors: [
-              _cyan.withOpacity(.10 + .05 * pulseCtrl.value),
+              _cyan.withValues(alpha: .10 + .05 * pulseCtrl.value),
               const Color(0xFF03030A),
             ],
           ),
@@ -352,11 +352,11 @@ class _SupervisorHeader extends StatelessWidget {
               Container(
                 width: 48, height: 48,
                 decoration: BoxDecoration(
-                  color: _cyan.withOpacity(.15),
+                  color: _cyan.withValues(alpha: .15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _cyan.withOpacity(.4)),
+                  border: Border.all(color: _cyan.withValues(alpha: .4)),
                   boxShadow: [BoxShadow(
-                    color: _cyan.withOpacity(.25 + .15 * pulseCtrl.value),
+                    color: _cyan.withValues(alpha: .25 + .15 * pulseCtrl.value),
                     blurRadius: 16,
                   )],
                 ),
@@ -376,9 +376,9 @@ class _SupervisorHeader extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: _cyan.withOpacity(.15),
+                        color: _cyan.withValues(alpha: .15),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _cyan.withOpacity(.4)),
+                        border: Border.all(color: _cyan.withValues(alpha: .4)),
                       ),
                       child: const DText('مشرف',
                           style: TextStyle(color: _cyan, fontSize: 11,
@@ -393,7 +393,7 @@ class _SupervisorHeader extends StatelessWidget {
                 style: TextStyle(
                   color: _cyan, fontSize: 22, fontWeight: FontWeight.bold,
                   fontFamily: 'Space Grotesk',
-                  shadows: [Shadow(color: _cyan.withOpacity(.6), blurRadius: 10)],
+                  shadows: [Shadow(color: _cyan.withValues(alpha: .6), blurRadius: 10)],
                 )),
           ],
         ),
@@ -488,9 +488,9 @@ class _QuickActionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: action.color.withOpacity(0.08),
+          color: action.color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: action.color.withOpacity(0.3)),
+          border: Border.all(color: action.color.withValues(alpha: 0.3)),
         ),
         child: Stack(
           alignment: Alignment.center,
@@ -538,15 +538,15 @@ class _KpiTile extends StatelessWidget {
     decoration: BoxDecoration(
       color: _bgCard,
       borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: color.withOpacity(.25)),
-      boxShadow: [BoxShadow(color: color.withOpacity(.08), blurRadius: 12)],
+      border: Border.all(color: color.withValues(alpha: .25)),
+      boxShadow: [BoxShadow(color: color.withValues(alpha: .08), blurRadius: 12)],
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       DText(icon, style: const TextStyle(fontSize: 20)),
       const SizedBox(height: 6),
       DText(value, style: TextStyle(color: color, fontSize: 18,
           fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk',
-          shadows: [Shadow(color: color.withOpacity(.5), blurRadius: 6)])),
+          shadows: [Shadow(color: color.withValues(alpha: .5), blurRadius: 6)])),
       DText(label, style: const TextStyle(color: _textMuted, fontSize: 10,
           fontFamily: 'IBM Plex Sans Arabic')),
     ]),
@@ -585,15 +585,15 @@ class _LeaderboardList extends StatelessWidget {
           decoration: BoxDecoration(
             color: _bgCard,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: i == 0 ? _gold.withOpacity(.3) : _border),
+            border: Border.all(color: i == 0 ? _gold.withValues(alpha: .3) : _border),
           ),
           child: Row(children: [
             Container(
               width: 28, height: 28,
               decoration: BoxDecoration(
-                color: barC.withOpacity(.15),
+                color: barC.withValues(alpha: .15),
                 shape: BoxShape.circle,
-                border: Border.all(color: barC.withOpacity(.4)),
+                border: Border.all(color: barC.withValues(alpha: .4)),
               ),
               child: Center(child: DText('${i + 1}',
                   style: TextStyle(color: barC, fontSize: 12,
@@ -609,7 +609,7 @@ class _LeaderboardList extends StatelessWidget {
                 Stack(children: [
                   Container(height: 5,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.06),
+                        color: Colors.white.withValues(alpha: .06),
                         borderRadius: BorderRadius.circular(3),
                       )),
                   AnimatedFractionallySizedBox(
@@ -623,9 +623,9 @@ class _LeaderboardList extends StatelessWidget {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(3),
                           gradient: LinearGradient(colors: [
-                            barC.withOpacity(.6), barC, barC.withOpacity(.6),
+                            barC.withValues(alpha: .6), barC, barC.withValues(alpha: .6),
                           ]),
-                          boxShadow: [BoxShadow(color: barC.withOpacity(.5), blurRadius: 4)],
+                          boxShadow: [BoxShadow(color: barC.withValues(alpha: .5), blurRadius: 4)],
                         ),
                       ),
                     ),
@@ -670,7 +670,7 @@ class _MilestoneCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _bgCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: completed ? _gold.withOpacity(.4) : _border),
+        border: Border.all(color: completed ? _gold.withValues(alpha: .4) : _border),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -682,9 +682,9 @@ class _MilestoneCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: _gold.withOpacity(.15),
+                color: _gold.withValues(alpha: .15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _gold.withOpacity(.4)),
+                border: Border.all(color: _gold.withValues(alpha: .4)),
               ),
               child: const DText('✅ مكتمل',
                   style: TextStyle(color: _gold, fontSize: 11,
@@ -694,7 +694,7 @@ class _MilestoneCard extends StatelessWidget {
         const SizedBox(height: 10),
         Stack(children: [
           Container(height: 8, decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.06),
+              color: Colors.white.withValues(alpha: .06),
               borderRadius: BorderRadius.circular(4))),
           AnimatedFractionallySizedBox(
             widthFactor: pct,
@@ -707,9 +707,9 @@ class _MilestoneCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(4),
                   gradient: LinearGradient(colors: [
-                    barC.withOpacity(.7), barC, barC.withOpacity(.7),
+                    barC.withValues(alpha: .7), barC, barC.withValues(alpha: .7),
                   ]),
-                  boxShadow: [BoxShadow(color: barC.withOpacity(.5), blurRadius: 6)],
+                  boxShadow: [BoxShadow(color: barC.withValues(alpha: .5), blurRadius: 6)],
                 ),
               ),
             ),
@@ -758,9 +758,9 @@ class _GlassButton extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(.15),
+        color: color.withValues(alpha: .15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(.4)),
+        border: Border.all(color: color.withValues(alpha: .4)),
       ),
       child: DText(label, style: TextStyle(color: color,
           fontFamily: 'IBM Plex Sans Arabic', fontWeight: FontWeight.w600)),
@@ -797,8 +797,8 @@ class _NeonSpinnerState extends State<_NeonSpinner>
         width: 40, height: 40,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: SweepGradient(colors: [_cyan, _cyan.withOpacity(0)]),
-          boxShadow: [BoxShadow(color: _cyan.withOpacity(.5), blurRadius: 12)],
+          gradient: SweepGradient(colors: [_cyan, _cyan.withValues(alpha: 0)]),
+          boxShadow: [BoxShadow(color: _cyan.withValues(alpha: .5), blurRadius: 12)],
         ),
       ),
     ),

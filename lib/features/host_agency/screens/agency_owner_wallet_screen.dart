@@ -369,11 +369,11 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: color != null
-              ? [color, color.withOpacity(0.7)]
+              ? [color, color.withValues(alpha: 0.7)]
               : [const Color(0xFF2A2040), const Color(0xFF1A1030)],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _gold.withOpacity(0.3)),
+        border: Border.all(color: _gold.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,7 +421,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
         decoration: BoxDecoration(
           color: _card,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _gold.withOpacity(0.4)),
+          border: Border.all(color: _gold.withValues(alpha: 0.4)),
         ),
         child: Column(children: [
           Icon(icon, color: _gold, size: 22),
@@ -510,7 +510,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.orange.shade900.withOpacity(0.3),
+            color: Colors.orange.shade900.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: Colors.orange.shade700),
           ),
@@ -647,7 +647,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       leading: Container(
         width: 42, height: 42,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
+          color: color.withValues(alpha: 0.15),
           shape: BoxShape.circle,
         ),
         child: Icon(
@@ -710,7 +710,7 @@ class _AgencyOwnerWalletScreenState extends State<AgencyOwnerWalletScreen>
       decoration: BoxDecoration(
         color: _card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _gold.withOpacity(0.3)),
+        border: Border.all(color: _gold.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

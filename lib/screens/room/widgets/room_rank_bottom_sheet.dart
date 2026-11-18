@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../../../../services/supabase_service.dart';
 import '../../../../services/dynamic_config_service.dart';
+import '../../../../services/level_service.dart';
 import '../../../../services/room_cup_service.dart';
 import '../../../../config/r.dart';
 import '../../user_profile/user_profile_screen.dart';
@@ -9,7 +11,7 @@ import '../../../../widgets/special_name_text.dart';
 
 class RoomRankBottomSheet extends StatefulWidget {
   final String roomId;
-  const RoomRankBottomSheet({Key? key, required this.roomId}) : super(key: key);
+  const RoomRankBottomSheet({super.key, required this.roomId});
 
   @override
   State<RoomRankBottomSheet> createState() => _RoomRankBottomSheetState();
@@ -35,36 +37,88 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
     }
   }
 
+  StreamSubscription? _giftSub;
+  Timer? _rankDebounce;
+  String? _lastGiftSig;
+
+  int _fetchGeneration = 0;
+
   @override
   void initState() {
     super.initState();
+    // ✅ صور المستويات تُحمَّل من اللوحة — نستمع لها لإعادة البناء فور وصولها
+    //    حتى لا يظهر المستوى كنص «Lv.x» قبل تحميل الصور.
+    LevelService().addListener(_onLevelsChanged);
+    unawaited(LevelService().ensureLoaded());
     _fetchRankings();
+    _subscribeGiftUpdates();
+  }
+
+  /// ✅ ترتيب لحظي: الاشتراك في sent_gifts عبر WebSocket — أي هدية جديدة
+  ///    تُبطل الكاش وتُعيد الجلب بعد debounce قصير (بدل polling).
+  void _subscribeGiftUpdates() {
+    _giftSub =
+        SupabaseService().sentGiftsStream(widget.roomId).listen((gifts) {
+      final sig = gifts.isEmpty
+          ? 'empty'
+          : '${gifts.length}:${gifts.last.id}:${gifts.last.timestamp.millisecondsSinceEpoch}';
+      if (_lastGiftSig == null) {
+        // أول تحميل — الترتيب جُلب بالفعل في initState
+        _lastGiftSig = sig;
+        return;
+      }
+      if (sig == _lastGiftSig) return;
+      _lastGiftSig = sig;
+      _rankDebounce?.cancel();
+      _rankDebounce = Timer(const Duration(milliseconds: 800), () {
+        SupabaseService().invalidateRoomRankingCache(widget.roomId);
+        _fetchRankings();
+      });
+    });
+  }
+
+  void _onLevelsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    LevelService().removeListener(_onLevelsChanged);
+    _rankDebounce?.cancel();
+    _giftSub?.cancel();
+    super.dispose();
   }
 
   void _fetchRankings() async {
+    // Rapid tab taps (or a gift update) can start several fetches at once.
+    // Only the newest one is allowed to write its result, otherwise an old
+    // daily fetch can overwrite a freshly selected weekly/monthly list.
+    final generation = ++_fetchGeneration;
     setState(() => _isLoading = true);
     final String timeframe = _subTabIndex == 0 ? 'daily' : _subTabIndex == 1 ? 'weekly' : 'monthly';
     final bool isWealth = _mainTabIndex == 0;
-    
+
     try {
-      final data = await FirebaseService().getRoomRankings(
-        roomId: widget.roomId,
-        isWealth: isWealth,
-        timeframe: timeframe,
-      );
-      if (mounted) {
-        setState(() {
-          _rankings = data;
-          _isLoading = false;
-        });
-      }
+      // ✅ مهلة كلية: صفحة الهدايا المُرقّمة قد تطول على الغرف النشطة —
+      //    بدون مهلة يبقى الشيت على «تحميل» بلا نهاية عند ضعف الشبكة.
+      final data = await SupabaseService()
+          .getRoomRankings(
+            roomId: widget.roomId,
+            isWealth: isWealth,
+            timeframe: timeframe,
+          )
+          .timeout(const Duration(seconds: 25), onTimeout: () => const []);
+      if (!mounted || generation != _fetchGeneration) return;
+      setState(() {
+        _rankings = data;
+        _isLoading = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _rankings = [];
-          _isLoading = false;
-        });
-      }
+      if (!mounted || generation != _fetchGeneration) return;
+      setState(() {
+        _rankings = [];
+        _isLoading = false;
+      });
     }
   }
 
@@ -135,7 +189,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.4),
+                  color: Colors.black.withValues(alpha: 0.4),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.close, color: Colors.white, size: 18),
@@ -182,6 +236,27 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
         const DText(
           'لا توجد بيانات ترتيب حالياً',
           style: TextStyle(color: Colors.white54, fontSize: 14),
+        ),
+        const SizedBox(height: 14),
+        GestureDetector(
+          onTap: _fetchRankings,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFD54F), Color(0xFFF57F17)],
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const DText(
+              'إعادة المحاولة',
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ),
       ],
     );
@@ -443,9 +518,9 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF16151A).withOpacity(0.9),
+        color: const Color(0xFF16151A).withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Row(
         children: [
@@ -548,7 +623,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.4),
+              color: Colors.black.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0x33FFD54F)),
             ),
@@ -632,7 +707,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
       margin: const EdgeInsets.symmetric(horizontal: 40),
       height: 34,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
+        color: Colors.black.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(17),
         border: Border.all(color: const Color(0x33FFD54F), width: 1),
       ),
@@ -681,7 +756,7 @@ class _RoomRankBottomSheetState extends State<RoomRankBottomSheet> {
 //  _RoomCupRewardsSheet — Matching Hayuki's dialog_rank_reward & rule
 // ══════════════════════════════════════════════════════════════════════
 class _RoomCupRewardsSheet extends StatefulWidget {
-  const _RoomCupRewardsSheet({Key? key}) : super(key: key);
+  const _RoomCupRewardsSheet();
 
   @override
   State<_RoomCupRewardsSheet> createState() => _RoomCupRewardsSheetState();
@@ -778,7 +853,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
             margin: const EdgeInsets.symmetric(horizontal: 24),
             height: 38,
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.4),
+              color: Colors.black.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(19),
               border: Border.all(color: const Color(0x33FFD54F)),
             ),
@@ -815,7 +890,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00DEFF).withOpacity(0.3),
+                      color: const Color(0xFF00DEFF).withValues(alpha: 0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 3),
                     ),
@@ -919,14 +994,14 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                const Color(0xFFFFD54F).withOpacity(0.12),
-                const Color(0xFFF57F17).withOpacity(0.06),
+                const Color(0xFFFFD54F).withValues(alpha: 0.12),
+                const Color(0xFFF57F17).withValues(alpha: 0.06),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFFFD54F).withOpacity(0.35)),
+            border: Border.all(color: const Color(0xFFFFD54F).withValues(alpha: 0.35)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -939,7 +1014,7 @@ class _RoomCupRewardsSheetState extends State<_RoomCupRewardsSheet> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFD54F).withOpacity(0.2),
+                          color: const Color(0xFFFFD54F).withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.monetization_on, color: Color(0xFFFFD54F), size: 22),

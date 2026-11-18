@@ -22,15 +22,17 @@ class SafeHttp {
   static Future<http.Response> get(
     Uri url, {
     Map<String, String>? headers,
+    Duration? timeout,
   }) =>
-      _send('GET', url, _getTimeout,
+      _send('GET', url, timeout ?? _getTimeout,
           () => http.get(url, headers: headers));
 
   static Future<http.Response> head(
     Uri url, {
     Map<String, String>? headers,
+    Duration? timeout,
   }) =>
-      _send('HEAD', url, _getTimeout,
+      _send('HEAD', url, timeout ?? _getTimeout,
           () => http.head(url, headers: headers));
 
   static Future<http.Response> post(

@@ -20,11 +20,9 @@ import '../../../../providers/user_provider.dart';
 import '../../../../services/dynamic_config_service.dart';
 import '../../../../services/supabase_data_service.dart';
 import '../../../../services/supabase_service.dart';
-import '../data/agency_models.dart';
 import '../data/agency_repository.dart';
 import '../data/anchor_agent_model.dart';
 import 'agent_withdrawal_waiting_screen.dart';
-import 'agency_exit_screen.dart';
 import 'package:zero/core/dtext.dart';
 
 class AgencyHostScreen extends StatefulWidget {
@@ -480,7 +478,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -710,7 +708,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
         image: cfg.getDecorationImage(bgImage),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isDashed ? Colors.grey.withOpacity(0.3) : const Color(0xFFE5E7EB),
+          color: isDashed ? Colors.grey.withValues(alpha: 0.3) : const Color(0xFFE5E7EB),
           style: isDashed ? BorderStyle.solid : BorderStyle.solid,
         ),
       ),
@@ -799,7 +797,7 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00B5B3).withOpacity(0.3),
+            color: const Color(0xFF00B5B3).withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -933,9 +931,9 @@ class _AgencyHostScreenState extends State<AgencyHostScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../core/app_navigator.dart';
 import '../services/global_banner_service.dart';
+import '../screens/room/room_screen.dart';
 import '../screens/room/widgets/gift_panel.dart';
 import '../features/lucky_gift/widgets/big_win_banner.dart';
 import '../screens/room/widgets/room_marquee_broadcast.dart';
@@ -68,6 +70,18 @@ class GlobalBannerOverlay extends StatelessWidget {
           userLKey: gb['userLKey']?.toString() ?? 'user_l',
           numberKey: gb['numberKey']?.toString() ?? 'number',
           giftKey: gb['giftKey']?.toString() ?? 'gift',
+          onBannerTap: () {
+            final roomId = gb['roomId']?.toString() ?? '';
+            if (roomId.isEmpty) return;
+            final ctx = rootNavigatorContext();
+            if (ctx == null) return;
+            // سؤال المستخدم قبل الانتقال إلى غرفة الهدية
+            confirmRoomNavigation(
+              ctx,
+              roomId: roomId,
+              roomName: gb['roomName']?.toString() ?? '',
+            );
+          },
           onFinished: () => svc.removeBanner(banner.id),
         );
 

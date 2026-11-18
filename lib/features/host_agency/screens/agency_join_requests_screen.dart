@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/supabase_compat.dart';
 import '../../../core/utils/server_time_service.dart';
-import 'package:flutter/foundation.dart';
 import '../../../core/cache/encrypted_image_provider.dart';
 import '../../../services/supabase_service.dart';
 import 'package:zero/core/dtext.dart';
@@ -356,15 +355,15 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
           children: [
             DText(
               'هل تريد طرد هذا العضو من الوكالة؟',
-              style: TextStyle(color: Colors.white.withOpacity(0.85)),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.85)),
             ),
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF6F00).withOpacity(0.1),
+                color: const Color(0xFFFF6F00).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFF6F00).withOpacity(0.3)),
+                border: Border.all(color: const Color(0xFFFF6F00).withValues(alpha: 0.3)),
               ),
               child: DText(
                 'سيمنح العضو 7 أيام للانتقال لوكالة أخرى أو سحب ألماسه.\n'
@@ -470,7 +469,7 @@ class _AgencyJoinRequestsScreenState extends State<AgencyJoinRequestsScreen>
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         const DText('🏢', style: TextStyle(fontSize: 40)),
         const SizedBox(height: 12),
-        DText('لا توجد سجلات', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+        DText('لا توجد سجلات', style: TextStyle(color: Colors.white.withValues(alpha: 0.4))),
       ]));
     }
     return RefreshIndicator(
@@ -547,13 +546,13 @@ class _MemberCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: status == 'kicked'
-            ? Colors.red.withOpacity(0.05)
-            : Colors.white.withOpacity(0.05),
+            ? Colors.red.withValues(alpha: 0.05)
+            : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: status == 'kicked'
-              ? Colors.red.withOpacity(0.25)
-              : Colors.white.withOpacity(0.08),
+              ? Colors.red.withValues(alpha: 0.25)
+              : Colors.white.withValues(alpha: 0.08),
         ),
       ),
       child: Column(
@@ -564,7 +563,7 @@ class _MemberCard extends StatelessWidget {
               // Avatar
               CircleAvatar(
                 radius: 22,
-                backgroundColor: const Color(0xFFD4AF37).withOpacity(0.2),
+                backgroundColor: const Color(0xFFD4AF37).withValues(alpha: 0.2),
                 backgroundImage: avatar != null ? EncryptedImageProvider(avatar) : null,
                 child: avatar == null
                     ? DText(
@@ -586,9 +585,9 @@ class _MemberCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
-                          color: _statusColor(status).withOpacity(0.2),
+                          color: _statusColor(status).withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: _statusColor(status).withOpacity(0.4)),
+                          border: Border.all(color: _statusColor(status).withValues(alpha: 0.4)),
                         ),
                         child: DText(_statusBadge(status)!,
                             style: TextStyle(color: _statusColor(status), fontSize: 10)),
@@ -599,12 +598,12 @@ class _MemberCard extends StatelessWidget {
                     DText('Lv.$level', style: const TextStyle(color: Color(0xFFD4AF37), fontSize: 11)),
                     if (kayanId != null) ...[
                       DText(' · #$kayanId',
-                          style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11)),
                     ],
                   ]),
                   if (date != null)
                     DText(_formatDate(date),
-                        style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 10)),
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 10)),
                 ]),
               ),
               // Actions
@@ -625,9 +624,9 @@ class _MemberCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.08),
+                color: Colors.orange.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.withOpacity(0.25)),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.25)),
               ),
               child: Row(children: [
                 const DText('⏳', style: TextStyle(fontSize: 12)),
@@ -645,7 +644,7 @@ class _MemberCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.08),
+                color: Colors.red.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: DText(
@@ -717,9 +716,9 @@ class _SmallBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
+          color: color.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.4)),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
         ),
         child: DText(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
       ),

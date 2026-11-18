@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/supabase_service.dart';
 import '../../models/banner_config.dart';
 import '../../core/widgets/cached_image.dart';
@@ -16,6 +17,30 @@ class EventInfoScreen extends StatefulWidget {
 
 class _EventInfoScreenState extends State<EventInfoScreen> {
   final FirebaseService _firebaseService = FirebaseService();
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ فتح الشاشة = مشاهدة معلومات الحدث — نحفظ أحدث banner
+    //    كـ "مقروء" حتى يختفي الـ badge في شاشة الرسائل
+    _markEventBannersSeen();
+  }
+
+  Future<void> _markEventBannersSeen() async {
+    try {
+      final banners = await _firebaseService.bannersStream().first;
+      var maxMs = 0;
+      for (final b in banners) {
+        if (b.createdAt > maxMs) maxMs = b.createdAt;
+      }
+      if (maxMs <= 0) return;
+      final prefs = await SharedPreferences.getInstance();
+      final prev = prefs.getInt('event_info_last_seen_ms') ?? 0;
+      if (maxMs > prev) {
+        await prefs.setInt('event_info_last_seen_ms', maxMs);
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -327,6 +328,11 @@ class _LoginScreenState extends State<LoginScreen> {
         isNewUser: isNewUser,
       );
 
+      // ✅ إصدار session token لحساب Google — يثبت الهوية على السيرفر
+      //    (create_session يتحقق من Supabase JWT) ليتزامن مع حارس
+      //    الكتابة على users. أفضل جهد — لا يعطّل الدخول عند الفشل.
+      unawaited(SupabaseAuthService().issueGoogleSession(idToken: idToken));
+
       await _handleSignIn(authUser);
     } on GoogleSignInException catch (e) {
       developer.log('_signInWithGoogle: google error ${e.code} = ${e.description}');
@@ -372,13 +378,15 @@ class _LoginScreenState extends State<LoginScreen> {
           Positioned.fill(
             child: (_bgType == 'video' || _bgUrl!.toLowerCase().endsWith('.mp4'))
                 ? (_videoController != null && _videoController!.value.isInitialized
-                    ? SizedBox.expand(
-                        child: FittedBox(
-                          fit: BoxFit.cover,
-                          child: SizedBox(
-                            width: _videoController!.value.size.width,
-                            height: _videoController!.value.size.height,
-                            child: VideoPlayer(_videoController!),
+                    ? RepaintBoundary(
+                        child: SizedBox.expand(
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            child: SizedBox(
+                              width: _videoController!.value.size.width,
+                              height: _videoController!.value.size.height,
+                              child: VideoPlayer(_videoController!),
+                            ),
                           ),
                         ),
                       )
@@ -417,11 +425,11 @@ class _LoginScreenState extends State<LoginScreen> {
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w400,
-            color: Colors.white.withOpacity(0.92),
+            color: Colors.white.withValues(alpha: 0.92),
             letterSpacing: 3,
             shadows: [
               Shadow(
-                color: Colors.black.withOpacity(0.85),
+                color: Colors.black.withValues(alpha: 0.85),
                 offset: const Offset(0, 2),
                 blurRadius: 8,
               ),
@@ -438,12 +446,12 @@ class _LoginScreenState extends State<LoginScreen> {
             letterSpacing: 4,
             shadows: [
               Shadow(
-                color: Colors.black.withOpacity(0.95),
+                color: Colors.black.withValues(alpha: 0.95),
                 offset: const Offset(0, 3),
                 blurRadius: 14,
               ),
               Shadow(
-                color: const Color(0xFFFFB300).withOpacity(0.6),
+                color: const Color(0xFFFFB300).withValues(alpha: 0.6),
                 offset: const Offset(0, 0),
                 blurRadius: 20,
               ),
@@ -478,15 +486,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       margin: const EdgeInsets.only(bottom: 20),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.65),
+                        color: Colors.black.withValues(alpha: 0.65),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFFFFCC80).withOpacity(0.7),
+                          color: const Color(0xFFFFCC80).withValues(alpha: 0.7),
                           width: 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.4),
+                            color: Colors.black.withValues(alpha: 0.4),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -532,7 +540,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 DText(
                                   'ID: ${_lastAccount!['customId'] ?? _lastAccount!['uid'] ?? ''}',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.7),
+                                    color: Colors.white.withValues(alpha: 0.7),
                                     fontSize: 11,
                                   ),
                                 ),

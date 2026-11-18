@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -329,6 +328,81 @@ class MediaCacheService {
     }
   }
 
+  /// هل ملف [url] موجود في الكاش (RAM أو القرص) دون تحميله؟
+  /// الروابط المحلية (assets) تُعتبر جاهزة دائماً.
+  Future<bool> isCached(String url) async {
+    if (!_isNetwork(url)) return true;
+    final key = _keyFor(url);
+    if (_memory.containsKey(key)) return true;
+    final entry = _diskIndex[key];
+    if (entry != null && await _exists(entry.path)) {
+      await _touchDisk(key);
+      return true;
+    }
+    if (entry != null) {
+      _diskIndex.remove(key);
+      _markIndexDirty();
+    }
+    return false;
+  }
+
+  /// مثل [downloadToBytes] لكنه يبلّغ عن نسبة التقدم (0.0 → 1.0) عبر [onProgress]
+  /// لعرض شريط تحميل. إذا كان الملف مُخزَّناً مسبقاً ينتهي فوراً دون بلاغات وسيطة.
+  Future<Uint8List> downloadToBytesWithProgress(
+    String url, {
+    void Function(double progress)? onProgress,
+    bool force = false,
+  }) async {
+    if (!_isNetwork(url)) {
+      throw ArgumentError('MediaCacheService expects an http(s) url: $url');
+    }
+    if (!force) {
+      final cached = await getCachedBytes(url);
+      if (cached != null) {
+        onProgress?.call(1.0);
+        return cached;
+      }
+    }
+    final pending = _pending[url];
+    if (pending != null) {
+      final bytes = await pending.future;
+      onProgress?.call(1.0);
+      return bytes;
+    }
+
+    final completer = Completer<Uint8List>();
+    _pending[url] = completer;
+    final t = PerformanceMonitor.instance.begin(PerformanceMonitor.catDownload, url);
+    try {
+      onProgress?.call(0.0);
+      final response = await _sharedDio.get<Uint8List>(
+        url,
+        onReceiveProgress: (received, total) {
+          if (total > 0) {
+            onProgress?.call((received / total).clamp(0.0, 1.0));
+          }
+        },
+      );
+      if (response.statusCode != 200 || response.data == null) {
+        throw HttpException('HTTP ${response.statusCode ?? 'null'} for $url');
+      }
+      final bytes = response.data!;
+      if (bytes.isEmpty) throw HttpException('Empty response for $url');
+      final key = _keyFor(url);
+      await _storeBytes(url, key, bytes);
+      PerformanceMonitor.instance.ok(t, bytes: bytes.length, source: 'network');
+      onProgress?.call(1.0);
+      completer.complete(bytes);
+      return bytes;
+    } catch (e) {
+      PerformanceMonitor.instance.err(t, e);
+      completer.completeError(e);
+      rethrow;
+    } finally {
+      _pending.remove(url);
+    }
+  }
+
   /// تحميل مع إزاحة HTTP+IO بعيداً عن Isolate الرئيسي (يستخدمه الـ prefetch).
   Future<Uint8List> downloadToBytesBackground(String url) async {
     if (!_isNetwork(url)) {
@@ -432,7 +506,7 @@ class MediaCacheService {
       final cutoff = DateTime.now().subtract(olderThan);
       await for (final f in dir.list(recursive: true)) {
         if (f is! File) continue;
-        if (f.path.endsWith('$_indexFileName')) continue;
+        if (f.path.endsWith(_indexFileName)) continue;
         final key = _diskIndex.keys.cast<String?>().firstWhere(
               (k) => _diskIndex[k]!.path == f.path,
               orElse: () => null,

@@ -17,7 +17,7 @@ class BigWinBanner extends StatefulWidget {
   final VoidCallback onDismiss;
 
   const BigWinBanner({
-    Key? key,
+    super.key,
     required this.senderName,
     this.senderAvatar = '',
     required this.giftName,
@@ -26,7 +26,7 @@ class BigWinBanner extends StatefulWidget {
     this.lang = 'ar',
     this.customSvgaUrl,
     required this.onDismiss,
-  }) : super(key: key);
+  });
 
   /// تحديد ملف الـ SVGA المناسب بناءً على المضاعف واللغة أو الرابط المخصص
   static String getSvgaAssetPath(int multiplier, String lang, {String? customUrl}) {

@@ -108,7 +108,7 @@ class _AgencyLeaderboardScreenState extends State<AgencyLeaderboardScreen> {
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
                           const DText('🏢', style: TextStyle(fontSize: 48)),
                           const SizedBox(height: 12),
-                          DText('لا توجد وكالات بعد', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+                          DText('لا توجد وكالات بعد', style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
                         ]),
                       )
                     : RefreshIndicator(
@@ -160,7 +160,7 @@ class _AgencyLeaderboardScreenState extends State<AgencyLeaderboardScreen> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
               decoration: BoxDecoration(
-                color: selected ? const Color(0xFFD4AF37) : Colors.white.withOpacity(0.08),
+                color: selected ? const Color(0xFFD4AF37) : Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),
               ),
               alignment: Alignment.center,
@@ -169,7 +169,7 @@ class _AgencyLeaderboardScreenState extends State<AgencyLeaderboardScreen> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: selected ? Colors.black : Colors.white.withOpacity(0.7),
+                  color: selected ? Colors.black : Colors.white.withValues(alpha: 0.7),
                 ),
               ),
             ),
@@ -214,14 +214,14 @@ class _AgencyRankCard extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: isTop3
               ? LinearGradient(
-                  colors: [tierColor.withOpacity(0.15), Colors.transparent],
+                  colors: [tierColor.withValues(alpha: 0.15), Colors.transparent],
                   begin: Alignment.centerRight,
                 )
               : null,
-          color: isTop3 ? null : Colors.white.withOpacity(0.05),
+          color: isTop3 ? null : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isTop3 ? tierColor.withOpacity(0.4) : Colors.white.withOpacity(0.08),
+            color: isTop3 ? tierColor.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.08),
           ),
         ),
         child: Row(
@@ -235,7 +235,7 @@ class _AgencyRankCard extends StatelessWidget {
               height: 46,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: tierColor.withOpacity(0.2),
+                color: tierColor.withValues(alpha: 0.2),
                 image: entry.photoUrl != null
                     ? DecorationImage(image: EncryptedImageProvider(entry.photoUrl!), fit: BoxFit.cover)
                     : null,
@@ -281,7 +281,7 @@ class _AgencyRankCard extends StatelessWidget {
                         const SizedBox(width: 6),
                       ],
                       DText('${entry.memberCount} عضو',
-                        style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
                     ],
                   ),
                 ],
@@ -325,7 +325,7 @@ class _RankBadge extends StatelessWidget {
       width: 32,
       child: Center(
         child: DText('#$rank',
-          style: TextStyle(color: Colors.white.withOpacity(0.4), fontWeight: FontWeight.bold, fontSize: 13)),
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontWeight: FontWeight.bold, fontSize: 13)),
       ),
     );
   }
@@ -341,9 +341,9 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: DText(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
     );

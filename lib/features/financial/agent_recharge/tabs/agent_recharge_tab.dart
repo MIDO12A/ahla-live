@@ -12,6 +12,7 @@ import '../../../../services/supabase_service.dart';
 import '../../../../core/supabase_compat.dart';
 import '../../../../config/r.dart';
 import '../../../../services/dynamic_config_service.dart';
+import '../../../../services/level_service.dart';
 
 import '../../../../core/theme/brand_colors.dart';
 import '../../agent_recharge_widgets.dart';
@@ -897,6 +898,11 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
         'coins': targetUser.coins + amount,
       });
 
+      // ✅ خبرة مستوى الشحن — RPC ذرّي على السيرفر
+      unawaited(LevelService()
+          .addExp(uid: targetUid, type: 'recharge', amount: amount)
+          .catchError((_) => null));
+
       await SupabaseDataService().recordAgentTransaction(
         agentId: agentUid,
         targetUid: targetUid,
@@ -1246,7 +1252,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
         border: Border.all(color: dc.agentRechargeCardBorderColor, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -1352,7 +1358,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.08),
+                      color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(Icons.close_rounded, size: 16, color: Colors.white70),
@@ -1548,9 +1554,9 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: const Color(0xFF3ED78A).withOpacity(0.12),
+              color: const Color(0xFF3ED78A).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF3ED78A).withOpacity(0.3)),
+              border: Border.all(color: const Color(0xFF3ED78A).withValues(alpha: 0.3)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.tune_rounded, size: 12, color: Color(0xFF3ED78A)),
@@ -1646,7 +1652,7 @@ class _AgentRechargeTabState extends State<AgentRechargeTab> {
                 : [
                     BoxShadow(
                       color: (_isWithdrawMode ? Colors.red : const Color(0xFF3ED78A))
-                          .withOpacity(0.35),
+                          .withValues(alpha: 0.35),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),

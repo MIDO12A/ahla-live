@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -53,6 +54,10 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ جلب إعدادات المستويات (صورها) من لوحة التحكم مباشرةً عند فتح
+    //    الشاشة — بدون الحاجة لفتح شاشة المستويات أولاً. التحديث يحدث
+    //    في الخلفية وتعيد ListenableBuilder البناء فور وصول الصور.
+    unawaited(LevelService().ensureLoaded());
     final userProvider = Provider.of<UserProvider>(context);
     final user = userProvider.currentUser;
     final topPadding = MediaQuery.of(context).padding.top;
@@ -384,7 +389,12 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 8),
 
                 // صف الأوسمة والمستوى (level_view)
-                _buildRankLevelView(context, user),
+                // ✅ ListenableBuilder: يعيد البناء عند وصول صور المستويات
+                //    من اللوحة حتى لا تظهر أيقونة بديلة قبل تحميلها.
+                ListenableBuilder(
+                  listenable: LevelService(),
+                  builder: (context, _) => _buildRankLevelView(context, user),
+                ),
               ],
             ),
           ),
@@ -465,7 +475,12 @@ class ProfileScreen extends StatelessWidget {
     required List<Color> defaultColors,
     required IconData icon,
   }) {
-    final badgeAsset = config?.badgeUrl ?? config?.imageUrl;
+    // ✅ نُفضّل صورة المستوى الكبيرة (image_url) التي يرفعها الأدمن،
+    //    ثم شارة المستوى، ثم أقرب مستوى أدنى يملك صورة — حتى لا تظهر
+    //    الأيقونة البديلة أبداً بعد ربط المستوى باللوحة.
+    final badgeAsset = LevelService().visualFor(type, level) ??
+        config?.imageUrl ??
+        config?.badgeUrl;
     if (badgeAsset != null && badgeAsset.isNotEmpty) {
       return R.loadImage(
         badgeAsset,
@@ -1244,8 +1259,8 @@ class ProfileScreen extends StatelessWidget {
 
             // 6. القلادات (Necklaces)
             _buildFunctionItem(
-              icon: DynamicConfigService().profileNecklacesIcon,
-              title: DynamicConfigService().profileNecklacesTitle,
+              icon: 'assets/mipmap-xxhdpi/ic_medal_point.png',
+              title: 'القلادات',
               onTap: () {
                 Navigator.push(
                   context,
@@ -1268,7 +1283,7 @@ class ProfileScreen extends StatelessWidget {
 
             // 8. مكافآت تسجيل الدخول اليومي (Daily Sign-In)
             _buildFunctionItem(
-              icon: 'assets/mipmap-xxhdpi/mine_user_sign_ic.webp',
+              icon: 'assets/mipmap-xxhdpi/ic_mine_task_entrance.png',
               title: 'تسجيل الوصول والمكافآت اليومية',
               onTap: () {
                 WeeklySigninScreen.show(context);

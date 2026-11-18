@@ -3202,7 +3202,7 @@ function CommissionTab() {
               onChange={e => setCycle(prev => ({ ...prev, timezone: e.target.value }))}
               className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-blue-400"
             >
-              {[['Asia/Riyadh','الرياض (GMT+3)'],['Asia/Dubai','دبي (GMT+4)'],['Asia/Kuwait','الكويت (GMT+3)'],['Asia/Baghdad','بغداد (GMT+3)'],['Asia/Amman','عمّان (GMT+3)'],['Asia/Cairo','القاهرة (GMT+2)'],['Europe/London','لندن (GMT+0)'],['UTC','UTC']].map(([v,l]) => (
+              {[['Asia/Riyadh','الرياض (GMT+3)'],['Asia/Dubai','دبي (GMT+4)'],['Asia/Kuwait','الكويت (GMT+3)'],['Asia/Baghdad','بغداد (GMT+3)'],['Asia/Amman','عمّان (GMT+3)'],['Africa/Cairo','القاهرة (GMT+2)'],['Europe/London','لندن (GMT+0)'],['UTC','UTC']].map(([v,l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
             </select>

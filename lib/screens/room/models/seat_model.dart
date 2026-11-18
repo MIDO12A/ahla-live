@@ -1,5 +1,10 @@
 ﻿// seat_model.dart
-// Data models for room seats and users
+// Data models for room seats and users — optimized for fast seat switching
+//
+// ✅ التعديلات الرئيسية:
+// 1) كل الحقول أصبحت final (immutable) — يمنع التعديل المباشر بدون setState.
+// 2) إضافة أعلام clear* في copyWith — تسمح بمسح القيم (null) بدل تركها عالقة.
+// 3) إضافة operator == و hashCode — تمنع rebuilds غير ضرورية عند تغيير مقعد واحد.
 
 enum SeatState { empty, occupied, locked, muted }
 enum SeatStyle { classic, circle, heart, square }
@@ -65,17 +70,23 @@ class UserModel {
     int? giftCount,
     bool? isBlacked,
     int? totalGiftsReceived,
+    // ✅ أعلام صريحة للمسح — تحل مشكلة "لا يمكن جعلها null"
+    bool clearAvatar = false,
+    bool clearFrameAsset = false,
+    bool clearActiveMicWave = false,
+    bool clearCharm = false,
   }) {
     return UserModel(
       name: name ?? this.name,
-      avatar: avatar ?? this.avatar,
-      charm: charm ?? this.charm,
+      avatar: clearAvatar ? null : (avatar ?? this.avatar),
+      charm: clearCharm ? null : (charm ?? this.charm),
       isAdmin: isAdmin ?? this.isAdmin,
       isOwner: isOwner ?? this.isOwner,
-      frameAsset: frameAsset ?? this.frameAsset,
+      frameAsset: clearFrameAsset ? null : (frameAsset ?? this.frameAsset),
       id: id ?? this.id,
       customId: customId ?? this.customId,
-      activeMicWave: activeMicWave ?? this.activeMicWave,
+      activeMicWave:
+      clearActiveMicWave ? null : (activeMicWave ?? this.activeMicWave),
       gender: gender ?? this.gender,
       country: country ?? this.country,
       level: level ?? this.level,
@@ -120,7 +131,8 @@ class UserModel {
     customId: map['custom_id'] as String? ?? map['customId'] as String?,
     activeMicWave: map['active_mic_wave'] as String?,
     gender: map['gender'] as String? ?? 'male',
-    country: map['country'] as String? ?? map['country_code'] as String? ?? 'EG',
+    country:
+    map['country'] as String? ?? map['country_code'] as String? ?? 'EG',
     level: map['level'] as int? ?? 1,
     following: map['following'] as String? ?? '0',
     fans: map['fans'] as String? ?? '0',
@@ -129,21 +141,68 @@ class UserModel {
     isBlacked: map['isBlacked'] as bool? ?? false,
     totalGiftsReceived: map['totalGiftsReceived'] as int? ?? 0,
   );
+
+  // ✅ المساواة بالقيمة — تمنع rebuilds غير ضرورية
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is UserModel &&
+              runtimeType == other.runtimeType &&
+              id == other.id &&
+              name == other.name &&
+              avatar == other.avatar &&
+              charm == other.charm &&
+              isAdmin == other.isAdmin &&
+              isOwner == other.isOwner &&
+              frameAsset == other.frameAsset &&
+              customId == other.customId &&
+              activeMicWave == other.activeMicWave &&
+              gender == other.gender &&
+              country == other.country &&
+              level == other.level &&
+              following == other.following &&
+              fans == other.fans &&
+              visitors == other.visitors &&
+              giftCount == other.giftCount &&
+              isBlacked == other.isBlacked &&
+              totalGiftsReceived == other.totalGiftsReceived;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    avatar,
+    charm,
+    isAdmin,
+    isOwner,
+    frameAsset,
+    customId,
+    activeMicWave,
+    gender,
+    country,
+    level,
+    following,
+    fans,
+    visitors,
+    giftCount,
+    isBlacked,
+    totalGiftsReceived,
+  );
 }
 
 class SeatModel {
   final int index;
-  SeatState state;
-  UserModel? user;
-  bool isMuted;
-  bool isLocked;
-  bool hasFrame;
-  String? frameAsset;
-  String? carAsset;
-  SeatColor seatColor;
-  int lastGiftValue;
+  final SeatState state;
+  final UserModel? user;
+  final bool isMuted;
+  final bool isLocked;
+  final bool hasFrame;
+  final String? frameAsset;
+  final String? carAsset;
+  final SeatColor seatColor;
+  final int lastGiftValue;
 
-  SeatModel({
+  const SeatModel({
     required this.index,
     this.state = SeatState.empty,
     this.user,
@@ -157,7 +216,10 @@ class SeatModel {
   });
 
   bool get isEmpty => state == SeatState.empty;
-  bool get isOccupied => state == SeatState.occupied;
+  // ✅ المقعد المكتوم ما زال مشغولاً بصاحبه — لازم يفضل ظاهر في
+  //    صندوق الهدايا وقائمة المستلمين بدل ما يختفي بعد الميوت.
+  bool get isOccupied =>
+      state == SeatState.occupied || state == SeatState.muted;
 
   SeatModel copyWith({
     SeatState? state,
@@ -167,9 +229,12 @@ class SeatModel {
     bool? hasFrame,
     String? frameAsset,
     String? carAsset,
-    bool clearUser = false,
     SeatColor? seatColor,
     int? lastGiftValue,
+    // ✅ أعلام صريحة للمسح
+    bool clearUser = false,
+    bool clearFrameAsset = false,
+    bool clearCarAsset = false,
   }) {
     return SeatModel(
       index: index,
@@ -178,10 +243,41 @@ class SeatModel {
       isMuted: isMuted ?? this.isMuted,
       isLocked: isLocked ?? this.isLocked,
       hasFrame: hasFrame ?? this.hasFrame,
-      frameAsset: frameAsset ?? this.frameAsset,
-      carAsset: carAsset ?? this.carAsset,
+      frameAsset: clearFrameAsset ? null : (frameAsset ?? this.frameAsset),
+      carAsset: clearCarAsset ? null : (carAsset ?? this.carAsset),
       seatColor: seatColor ?? this.seatColor,
       lastGiftValue: lastGiftValue ?? this.lastGiftValue,
     );
   }
+
+  // ✅ المساواة بالقيمة — تمنع rebuild كل المقاعد عند تغيير مقعد واحد
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is SeatModel &&
+              runtimeType == other.runtimeType &&
+              index == other.index &&
+              state == other.state &&
+              user == other.user &&
+              isMuted == other.isMuted &&
+              isLocked == other.isLocked &&
+              hasFrame == other.hasFrame &&
+              frameAsset == other.frameAsset &&
+              carAsset == other.carAsset &&
+              seatColor == other.seatColor &&
+              lastGiftValue == other.lastGiftValue;
+
+  @override
+  int get hashCode => Object.hash(
+    index,
+    state,
+    user,
+    isMuted,
+    isLocked,
+    hasFrame,
+    frameAsset,
+    carAsset,
+    seatColor,
+    lastGiftValue,
+  );
 }

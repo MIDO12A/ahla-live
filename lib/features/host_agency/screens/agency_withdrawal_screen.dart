@@ -140,7 +140,7 @@ class _AgencyWithdrawalScreenState extends State<AgencyWithdrawalScreen>
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)))
           : _member == null
               ? Center(child: DText('لستَ عضواً في وكالة',
-                  style: TextStyle(color: Colors.white.withOpacity(0.5))))
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5))))
               : Column(children: [
                   _WalletHeader(member: _member!, isKycVerified: _isKycVerified),
                   Expanded(
@@ -234,9 +234,9 @@ class _WalletHeader extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF5252).withOpacity(0.1),
+              color: const Color(0xFFFF5252).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.3)),
+              border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.3)),
             ),
             child: const Row(children: [
               Icon(Icons.warning_rounded, color: Color(0xFFFF5252), size: 14),
@@ -262,9 +262,9 @@ class _BalanceTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.25)),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(children: [
           DText(icon, style: const TextStyle(fontSize: 16)),
@@ -362,7 +362,7 @@ class _ExchangeTabState extends State<_ExchangeTab> {
         ),
         const SizedBox(height: 24),
 
-        DText('كمية الألماس للتبادل', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+        DText('كمية الألماس للتبادل', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
         const SizedBox(height: 8),
         TextField(
           controller: _ctrl,
@@ -377,7 +377,7 @@ class _ExchangeTabState extends State<_ExchangeTab> {
         Wrap(spacing: 8, children: [1000, 5000, 10000, 50000].map((v) =>
           ActionChip(
             label: DText('${_fmtK(v)}♦'),
-            backgroundColor: const Color(0xFFB39DDB).withOpacity(0.12),
+            backgroundColor: const Color(0xFFB39DDB).withValues(alpha: 0.12),
             labelStyle: const TextStyle(color: Color(0xFFB39DDB), fontSize: 12),
             onPressed: v <= widget.member.diamondsExchangeable
                 ? () { _ctrl.text = v.toString(); setState(() => _diamonds = v); }
@@ -390,9 +390,9 @@ class _ExchangeTabState extends State<_ExchangeTab> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFD4AF37).withOpacity(0.08),
+              color: const Color(0xFFD4AF37).withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFD4AF37).withOpacity(0.3)),
+              border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.3)),
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -545,9 +545,9 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF5252).withOpacity(0.1),
+              color: const Color(0xFFFF5252).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.3)),
+              border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.3)),
             ),
             child: const Row(children: [
               Icon(Icons.warning_rounded, color: Color(0xFFFF5252)),
@@ -561,7 +561,7 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
         ],
 
         const SizedBox(height: 20),
-        DText('كمية الألماس للسحب', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+        DText('كمية الألماس للسحب', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
         const SizedBox(height: 8),
         TextField(
           controller: _diamondsCtrl,
@@ -581,7 +581,7 @@ class _WithdrawUsdTabState extends State<_WithdrawUsdTab> {
         const Divider(color: Colors.white12),
         const SizedBox(height: 16),
 
-        DText('معلومات الحساب البنكي', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+        DText('معلومات الحساب البنكي', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
         const SizedBox(height: 10),
         TextField(
           controller: _bankNameCtrl,
@@ -634,9 +634,9 @@ class _InvoicePreview extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(children: [
         _ILine(label: 'المبلغ الإجمالي', value: '\$${gross.toStringAsFixed(2)}', color: Colors.white70),
@@ -1235,7 +1235,7 @@ debugPrint('[agency_withdrawal_screen] error: $e');
         Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
           const DText('📋', style: TextStyle(fontSize: 40)),
           const SizedBox(height: 12),
-          DText('لا توجد معاملات', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+          DText('لا توجد معاملات', style: TextStyle(color: Colors.white.withValues(alpha: 0.4))),
         ])))
       else
         Expanded(
@@ -1254,9 +1254,9 @@ debugPrint('[agency_withdrawal_screen] error: $e');
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.05),
+                    color: color.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: color.withOpacity(0.15)),
+                    border: Border.all(color: color.withValues(alpha: 0.15)),
                   ),
                   child: Row(children: [
                     DText(isCredit ? '📈' : '📤', style: const TextStyle(fontSize: 22)),
@@ -1300,7 +1300,7 @@ class _FilterChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: active ? const Color(0xFFD4AF37) : Colors.white.withOpacity(0.06),
+            color: active ? const Color(0xFFD4AF37) : Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: active ? const Color(0xFFD4AF37) : Colors.white12),
           ),
@@ -1326,9 +1326,9 @@ class _InfoCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -1340,8 +1340,8 @@ class _InfoCard extends StatelessWidget {
         ...lines.map((l) => Padding(
           padding: const EdgeInsets.only(bottom: 3),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            DText('• ', style: TextStyle(color: Colors.white.withOpacity(0.4))),
-            Expanded(child: DText(l, style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12, height: 1.5))),
+            DText('• ', style: TextStyle(color: Colors.white.withValues(alpha: 0.4))),
+            Expanded(child: DText(l, style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12, height: 1.5))),
           ]),
         )),
       ]),
@@ -1351,7 +1351,7 @@ class _InfoCard extends StatelessWidget {
 
 InputDecoration _deco({required String hint, String? suffix, Color? color}) {
   return InputDecoration(
-    filled: true, fillColor: Colors.white.withOpacity(0.06),
+    filled: true, fillColor: Colors.white.withValues(alpha: 0.06),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
     focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: color ?? const Color(0xFFD4AF37))),

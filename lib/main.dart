@@ -25,14 +25,20 @@ import 'screens/main_screen/main_screen.dart';
 import 'screens/room/room_screen.dart';
 import 'config/r.dart';
 
+import 'core/app_navigator.dart';
 import 'core/ui/in_app_toast.dart';
 import 'features/host_agency/widgets/agency_notification_handler.dart';
 import 'features/lucky_bag/services/lucky_bag_service.dart';
+import 'features/signin/signin_service.dart';
+import 'features/invite/invite_service.dart';
 import 'services/global_banner_service.dart';
 import 'widgets/global_banner_overlay.dart';
 
 
-final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+/// RouteObserver عام — تستخدمه الشاشات لإعادة تحميل بياناتها
+/// عند الرجوع من شاشة أخرى (مثل تحديث badge معلومات الحدث)
+final RouteObserver<ModalRoute<dynamic>> appRouteObserver =
+    RouteObserver<ModalRoute<dynamic>>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +56,13 @@ void main() async {
   unawaited(MediaPrefetchService().warmup());
   unawaited(SpecialIdService.instance.ensureLoaded());
   unawaited(LangService.instance.ensureLoaded());
+  // ✅ تسخين مكافآت تسجيل الدخول من اللوحة — حوار الدخول يفتح لحظياً
+  unawaited(SigninService.warmup());
+
+  // ✅ هجرة الـ IDs الأبجدية لمرة واحدة فقط عبر لوحة التحكم/أداة صيانة —
+  //    إزالتها من هنا لأن تشغيلها عند كل إقلاع كان يعيد كتابة custom_id
+  //    لأي مستخدم لديه ID غير رقمي (آيدي مميز، قديم...) فيتغير الـ ID
+  //    على اللوحة من تلقاء نفسه، وكان أي عميل يستطيع تعديل آيدي أي حساب.
 
   final localeProvider = LocaleProvider();
   await localeProvider.init();
@@ -91,6 +104,7 @@ class _ZeroAppState extends State<ZeroApp> {
                   scaffoldMessengerKey: KayanInAppToast.messengerKey,
                 title: config.appName,
                 debugShowCheckedModeBanner: false,
+                navigatorObservers: [appRouteObserver],
                 locale: localeProvider.locale,
                 supportedLocales: const [
                   Locale('en'),
@@ -105,24 +119,40 @@ class _ZeroAppState extends State<ZeroApp> {
                 builder: (context, child) {
                   final isRtl = localeProvider.locale?.languageCode == 'ar';
                   final media = MediaQuery.of(context);
-                  const maxAppWidth = 360.0;
-                  final appWidth = media.size.width > maxAppWidth
-                      ? maxAppWidth
-                      : media.size.width;
+                  // ✅ تصميم موحّد 360dp + تحجيم متجانس على كل الشاشات:
+                  //    الهاتف 400/411/460 والتابلت يعرضون نفس النسب
+                  //    تماماً — مواقع الأيقونات متطابقة بدون حواف
+                  const designWidth = 360.0;
+                  final scale = media.size.width / designWidth;
+                  final designHeight = media.size.height / scale;
+                  // ✅ شريط التنقل السفلي محسوباً بوحدات التصميم
+                  final bottomInset = media.viewPadding.bottom / scale;
                   return Directionality(
                     textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
                     child: ColoredBox(
-                      color: Colors.black,
-                      child: Center(
+                      // ✅ خلفية بلون التطبيق بدل الأسود — لا أشرطة سوداء
+                      //    على الشاشات العريضة/الكبيرة
+                      color: config.primaryBg,
+                      child: FittedBox(
+                        fit: BoxFit.fill,
                         child: SizedBox(
-                          width: appWidth,
-                          height: media.size.height,
+                          width: designWidth,
+                          height: designHeight,
                           child: MediaQuery(
                             data: media.copyWith(
-                              size: Size(appWidth, media.size.height),
+                              size: Size(designWidth, designHeight),
+                              // ✅ نُصفّر الـ inset السفلي داخل التطبيق لأننا
+                              //    نخصمه خارجياً — يمنع التكرار المزدوج
+                              padding: media.padding.copyWith(bottom: 0),
+                              viewPadding:
+                                  media.viewPadding.copyWith(bottom: 0),
                             ),
-                            child: GlobalBannerOverlay(
-                              child: GlobalFloatingRoomOverlay(child: child!),
+                            child: Padding(
+                              padding: EdgeInsets.only(bottom: bottomInset),
+                              child: GlobalBannerOverlay(
+                                child:
+                                    GlobalFloatingRoomOverlay(child: child!),
+                              ),
                             ),
                           ),
                         ),
@@ -198,9 +228,11 @@ class _AuthGateState extends State<_AuthGate> {
     // ✅ timeout قصير: لا نجمّد الواجهة إذا تعذر الوصول للسيرفر
     UserModel? userData;
     try {
+      // ✅ throwOnError: خطأ الشبكة ≠ مستخدم جديد — لا نرسل
+      //    المستخدم الحالي لشاشة إكمال البيانات بسبب timeout
       userData = await SupabaseService()
-          .getUser(uid)
-          .timeout(const Duration(seconds: 5));
+          .getUser(uid, throwOnError: true)
+          .timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint('[AuthGate] _loadExistingUser getUser failed: $e');
       return;
@@ -221,6 +253,8 @@ class _AuthGateState extends State<_AuthGate> {
       );
     } else if (mounted) {
       await Provider.of<UserProvider>(context, listen: false).loadUser(uid);
+      // ✅ سخّن مكافأة الدعوة اليومية مبكراً — حوارها يظهر فوراً
+      unawaited(InviteService().warmupDailyReward(uid));
     }
   }
 
@@ -230,8 +264,8 @@ class _AuthGateState extends State<_AuthGate> {
     UserModel? userData;
     try {
       userData = await SupabaseService()
-          .getUser(uid)
-          .timeout(const Duration(seconds: 5));
+          .getUser(uid, throwOnError: true)
+          .timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint('[AuthGate] _handleNewSignIn getUser failed: $e');
       return;
@@ -252,6 +286,7 @@ class _AuthGateState extends State<_AuthGate> {
       );
     } else if (mounted) {
       await Provider.of<UserProvider>(context, listen: false).loadUser(uid);
+      unawaited(InviteService().warmupDailyReward(uid));
     }
   }
 
@@ -270,9 +305,10 @@ class GlobalFloatingRoomOverlay extends StatefulWidget {
 }
 
 class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   Offset? _position;
   late AnimationController _animCtrl;
+  late AnimationController _spinCtrl;
 
   @override
   void initState() {
@@ -282,6 +318,11 @@ class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+    // دوران صورة الغرفة/المستخدم داخل الفقاعة مثل الدائرة
+    _spinCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
   }
 
   @override
@@ -298,6 +339,7 @@ class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _animCtrl.dispose();
+    _spinCtrl.dispose();
     super.dispose();
   }
 
@@ -316,10 +358,13 @@ class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
 
     if (!RoomScreen.pushGuard(roomId)) return;
 
-    final navContext = rootNavigatorKey.currentContext;
-    if (navContext != null) {
-      Navigator.of(navContext).push(
+    final navState = rootNavigatorKey.currentState;
+    if (navState != null) {
+      // لا نكدّس غرفاً فوق بعضها — إزالة أي RoomScreen سابق حتى لا يرجع
+      // زر الرجوع إلى الغرفة السابقة (يظهر بانل التصغير/الخروج فقط).
+      navState.pushAndRemoveUntil(
         MaterialPageRoute(
+          settings: const RouteSettings(name: RoomScreen.routeName),
           builder: (_) => RoomScreen(
             roomName: roomName,
             hostName: hostName,
@@ -333,6 +378,7 @@ class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
             wasMicMuted: wasMicMuted,
           ),
         ),
+        (route) => route.settings.name != RoomScreen.routeName,
       );
     }
   }
@@ -445,9 +491,15 @@ class _GlobalFloatingRoomOverlayState extends State<GlobalFloatingRoomOverlay>
                             ],
                           ),
                           child: ClipOval(
-                            child: R.loadImage(
-                              svc.roomPhoto ?? R.avaBoy,
-                              fit: BoxFit.cover,
+                            child: RotationTransition(
+                              // دوران مستمر لصورة الغرفة داخل الفقاعة
+                              turns: _spinCtrl,
+                              child: R.loadImage(
+                                (svc.roomPhoto ?? '').trim().isNotEmpty
+                                    ? svc.roomPhoto!.trim()
+                                    : R.defaultRoomPhoto,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                         ),

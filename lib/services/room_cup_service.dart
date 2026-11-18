@@ -284,11 +284,12 @@ class RoomCupService {
         return {'ok': false, 'message': 'لا توجد أرباح كوينز مؤهلة للاستلام حالياً'};
       }
 
-      // 3. Deposit coins directly to Room Owner
-      final uData = await sb.from('users').select('coins').or('uid.eq.$ownerUid,id.eq.$ownerUid').maybeSingle();
-      final curCoins = (uData?['coins'] as num?)?.toInt() ?? 0;
-      final newTotalBalance = curCoins + ownerProfitCoins;
-      await sb.from('users').update({'coins': newTotalBalance}).or('uid.eq.$ownerUid,id.eq.$ownerUid');
+      // 3. Deposit coins directly to Room Owner — RPC ذرّي
+      await SupabaseDataService()
+          .adjustUserWallet(ownerUid, ownerProfitCoins, 0);
+      // جلب الرصيد الجديد للعرض في النتيجة
+      final balRow = await sb.from('users').select('coins').or('uid.eq.$ownerUid,id.eq.$ownerUid').maybeSingle();
+      final newTotalBalance = (balRow?['coins'] as num?)?.toInt() ?? 0;
 
       // 4. RESET COUNTER: Stamp last_cup_claim_at on room so counter is immediately zeroed out
       await sb.from('rooms').update({

@@ -1,11 +1,10 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
 import 'sugarrush_game_dialog.dart';
 import '../../game/alfa_game_screen.dart';
 import '../../game/game_teaming_screen.dart';
-import '../../game/ludo_game_screen.dart';
 import '../../../services/network_ping_service.dart';
 import 'package:zero/core/dtext.dart';
 
@@ -51,27 +50,49 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
       'icon': 'assets/images/icon_game_fuiter.png',
       'hot': 'true',
     },
-
-    {
-      'key': 'domino',
-      'name_ar': 'دومينو',
-      'name_en': 'Domino',
-      'icon': 'assets/images/icon_game_center_domino.png',
-      'hot': 'true',
-    },
     {
       'key': 'ludo',
       'name_ar': 'لودو',
       'name_en': 'Ludo',
       'icon': 'assets/images/icon_game_center_ludo.png',
       'hot': 'true',
+      'platform': 'alfanexso',
+      'game_id': 'fe-game-cocos-ludo',
+      'pool_id': 'cocos_ludo',
+      'view_mode': 'full',
     },
     {
-      'key': 'fruit',
-      'name_ar': 'ماكينة الفواكه',
-      'name_en': 'Fruit Master',
-      'icon': 'assets/images/icon_game_fuiter.png',
+      'key': 'crazy_fruit',
+      'name_ar': 'الفواكه المجنونة',
+      'name_en': 'Crazy Fruit',
+      'icon': 'assets/images/icon_game_crazy_fruit.png',
       'hot': 'false',
+      'platform': 'alfanexso',
+      'game_id': 'fe-game-crazy-fruit',
+      'pool_id': 'crazy_fruit',
+      'view_mode': 'full',
+    },
+    {
+      'key': 'greedy',
+      'name_ar': 'لعبة الطماع',
+      'name_en': 'Greedy Wolves',
+      'icon': 'assets/images/icon_game_greedy.png',
+      'hot': 'false',
+      'platform': 'alfanexso',
+      'game_id': 'fe-game-greedy',
+      'pool_id': 'greedy',
+      'view_mode': 'half',
+    },
+    {
+      'key': 'super_77',
+      'name_ar': 'سوبر 77',
+      'name_en': 'Super 77',
+      'icon': 'assets/images/icon_hu_game_777.png',
+      'hot': 'true',
+      'platform': 'alfanexso',
+      'game_id': 'fe-game-super77',
+      'pool_id': 'super77',
+      'view_mode': 'half',
     },
     {
       'key': 'lucky_777',
@@ -79,20 +100,32 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
       'name_en': 'Lucky 777',
       'icon': 'assets/images/icon_hu_game_777.png',
       'hot': 'true',
+      'platform': 'alfanexso',
+      'game_id': 'fe-game-lucky777',
+      'pool_id': 'lucky777',
+      'view_mode': 'half',
     },
     {
-      'key': 'wheel',
-      'name_ar': 'عجلة الحظ',
-      'name_en': 'Lucky Wheel',
-      'icon': 'assets/images/icon_game_turntable_h5.png',
+      'key': 'sudan',
+      'name_ar': 'سباق السودان',
+      'name_en': 'Sudan Race',
+      'icon': 'assets/images/icon_game_sudan.png',
       'hot': 'false',
+      'platform': 'alfanexso',
+      'game_id': 'fe-game-sudan',
+      'pool_id': 'sudan',
+      'view_mode': 'half',
     },
     {
-      'key': 'red_black',
-      'name_ar': 'أحمر وأسود',
-      'name_en': 'Red & Black',
-      'icon': 'assets/images/icon_game_red.png',
+      'key': 'gift_spin',
+      'name_ar': 'عجلة الهدايا',
+      'name_en': 'Gift Spin',
+      'icon': 'assets/images/icon_game_giftspin.png',
       'hot': 'false',
+      'platform': 'alfanexso',
+      'game_id': 'fe-game-giftspin',
+      'pool_id': 'giftspin',
+      'view_mode': 'half',
     },
   ];
 
@@ -131,7 +164,6 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
   void _handleGameTap(Map<String, String> game, bool isAr) {
     final navigator = Navigator.of(context, rootNavigator: true);
     final appContext = navigator.context;
-    final sheetHeight = MediaQuery.of(context).size.height * 0.58;
     Navigator.pop(context);
     final gameName = isAr ? game['name_ar']! : game['name_en']!;
     widget.onGameSelect?.call(game['key']!, gameName);
@@ -141,24 +173,19 @@ class _RoomGameBottomSheetState extends State<RoomGameBottomSheet>
       return;
     }
 
-    if (game['key'] == 'lucky_777') {
-      AlfaGameScreen.show(appContext);
-      return;
-    }
-
-    if (game['key'] == 'ludo') {
-      showModalBottomSheet(
-        context: appContext,
-        isScrollControlled: true,
-        useSafeArea: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => SizedBox(
-          height: sheetHeight,
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: LudoGameScreen(roomId: widget.roomId),
-          ),
-        ),
+    // ✅ ألعاب منصة StyeParty/Alfa على alfanexso.tech
+    //    APP_KEY الرسمي من مزوّد الألعاب: alfa_key_app_ahal_377
+    //    الرصيد يُسوّى server-to-server عبر /api/v1/games/* callbacks.
+    if (game['platform'] == 'alfanexso') {
+      AlfaGameScreen.show(
+        appContext,
+        gameId: game['game_id']!,
+        host: 'alfanexso.tech',
+        appKey: 'alfa_key_app_ahal_377',
+        poolId: game['pool_id'],
+        title: gameName,
+        roomId: widget.roomId,
+        viewMode: game['view_mode'],
       );
       return;
     }

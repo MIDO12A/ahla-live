@@ -669,7 +669,7 @@ class _ExchangeBottomSheetContentState
           .order('sort_order', ascending: true);
 
       List<Map<String, dynamic>> list = [];
-      if (res is List && res.isNotEmpty) {
+      if (res.isNotEmpty) {
         list = (res as List)
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();

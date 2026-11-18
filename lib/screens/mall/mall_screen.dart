@@ -11,10 +11,6 @@ import '../../widgets/user_id_widget.dart';
 import 'package:zero/core/dtext.dart';
 
 /// شاشة المتجر الرسمية المطابقة لملف mine_activity_mall.xml
-/// وملفات التخطيط الأصلية:
-/// - mine_adapter_mall_type.xml (أقسام المتجر العلوية)
-/// - mine_adapter_mall_type_item.xml (بطاقات العناصر)
-/// - mine_dialog_mall_item_buy.xml (نافذة تأكيد الشراء)
 class MallScreen extends StatefulWidget {
   const MallScreen({super.key});
 
@@ -144,7 +140,6 @@ class _MallScreenState extends State<MallScreen> {
       if (!mounted) return;
       setState(() {
         _allItems = items;
-        // Dynamically add any category present in items that isn't in _categories yet
         final existingKeys = _categories.map((c) => c['key']).toSet();
         for (final item in items) {
           if (item.category.isNotEmpty && !existingKeys.contains(item.category)) {
@@ -208,7 +203,6 @@ class _MallScreenState extends State<MallScreen> {
     return owned.contains(item.itemId);
   }
 
-  /// فتح نافذة تأكيد الشراء الأصلية mine_dialog_mall_item_buy.xml
   void _showBuyConfirmDialog(StoreItemModel item, UserProvider userProvider) {
     showDialog(
       context: context,
@@ -233,7 +227,6 @@ class _MallScreenState extends State<MallScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // زر الإغلاق العلوي iv_close
           Align(
             alignment: Alignment.topRight,
             child: GestureDetector(
@@ -248,7 +241,6 @@ class _MallScreenState extends State<MallScreen> {
               ),
             ),
           ),
-          // البطاقة الحاوية mine_mall_item_buy_bg
           Container(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
             decoration: BoxDecoration(
@@ -265,7 +257,6 @@ class _MallScreenState extends State<MallScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // العنوان tv_title ("تأكيد الشراء")
                 const DText(
                   'تأكيد الشراء',
                   style: TextStyle(
@@ -275,8 +266,6 @@ class _MallScreenState extends State<MallScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-
-                // صورة المعاينة iv_preview مع علامة الفيديو إن وجدت
                 SizedBox(
                   width: 110,
                   height: 110,
@@ -329,8 +318,6 @@ class _MallScreenState extends State<MallScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // اسم العنصر tv_desc
                 DText(
                   item.name,
                   style: const TextStyle(
@@ -352,8 +339,6 @@ class _MallScreenState extends State<MallScreen> {
                     ),
                   ),
                 const SizedBox(height: 10),
-
-                // السعر مع أيقونة common_gold_ic_3
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -374,11 +359,8 @@ class _MallScreenState extends State<MallScreen> {
                   ],
                 ),
                 const SizedBox(height: 22),
-
-                // زرا الإلغاء والشراء
                 Row(
                   children: [
-                    // زر الإلغاء tv_cancel
                     Expanded(
                       child: GestureDetector(
                         onTap: () => Navigator.of(ctx).pop(),
@@ -401,7 +383,6 @@ class _MallScreenState extends State<MallScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // زر الشراء tv_confirm
                     Expanded(
                       child: GestureDetector(
                         onTap: () async {
@@ -498,32 +479,21 @@ class _MallScreenState extends State<MallScreen> {
       backgroundColor: const Color(0xFF130E14),
       body: Stack(
         children: [
-          // الخلفية الأصلية mine_mall_top_bg.webp
           Positioned.fill(
             child: Image.asset(
               'assets/mipmap-xxhdpi/mine_mall_top_bg.webp',
               fit: BoxFit.cover,
             ),
           ),
-
           SafeArea(
             child: Column(
               children: [
-                // شريط العنوان العلوي title_bar
                 _buildTopBar(),
-
-                // شريط الأقسام الأفقي recyclerview_type (ارتفاع 85dp)
                 _buildCategoriesBar(),
-
-                // منطقة المعاينة الحية cl_preview (ارتفاع 120dp)
                 _buildLivePreviewArea(user),
-
-                // شبكة العناصر mine_fragment_mall_type
                 Expanded(
                   child: _buildItemsGrid(items, userProvider, user),
                 ),
-
-                // الشريط السفلي للشراء cl_buy
                 _buildBottomBar(userProvider, user),
               ],
             ),
@@ -533,7 +503,6 @@ class _MallScreenState extends State<MallScreen> {
     );
   }
 
-  /// شريط العنوان العلوي
   Widget _buildTopBar() {
     return Container(
       height: 48,
@@ -565,7 +534,6 @@ class _MallScreenState extends State<MallScreen> {
     );
   }
 
-  /// شريط تصنيفات المتجر المطابق لـ mine_adapter_mall_type.xml
   Widget _buildCategoriesBar() {
     return SizedBox(
       height: 85,
@@ -598,7 +566,6 @@ class _MallScreenState extends State<MallScreen> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // خلفية التحديد mine_mall_type_item_bg
                   if (isSelected)
                     Positioned.fill(
                       child: Image.asset(
@@ -638,12 +605,10 @@ class _MallScreenState extends State<MallScreen> {
     );
   }
 
-  /// منطقة المعاينة الحية cl_preview المطابقة لـ mine_activity_mall.xml
+  /// منطقة المعاينة — صورة ثابتة، والضغط يفتح معاينة ملء الشاشة
   Widget _buildLivePreviewArea(dynamic user) {
     final photoUrl = user?.photoUrl?.isNotEmpty == true ? user.photoUrl : null;
     final item = _selectedItem;
-    final animUrl = _resolveAnimationUrl(item);
-    final isVideo = _isVideo(animUrl) || (item != null && item.isVideo);
 
     return Container(
       height: 120,
@@ -651,37 +616,26 @@ class _MallScreenState extends State<MallScreen> {
       alignment: Alignment.center,
       child: item == null
           ? CircleAvatar(
-              radius: 44,
-              backgroundColor: Colors.white12,
-              backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
-              child: photoUrl == null
-                  ? const Icon(Icons.person, size: 44, color: Colors.white54)
-                  : null,
-            )
-          : Builder(
-              builder: (ctx) {
-                try {
-                  return _buildCategoryPreviewWidget(item, animUrl, isVideo, photoUrl, user);
-                } catch (e) {
-                  return R.loadImage(item.iconAsset, width: 140, height: 110, fit: BoxFit.contain);
-                }
-              },
-            ),
+        radius: 44,
+        backgroundColor: Colors.white12,
+        backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
+        child: photoUrl == null
+            ? const Icon(Icons.person, size: 44, color: Colors.white54)
+            : null,
+      )
+          : GestureDetector(
+        onTap: () => _showFullscreenPreview(item, user),
+        child: _buildStaticPreview(item, photoUrl),
+      ),
     );
   }
 
-  Widget _buildCategoryPreviewWidget(
-    StoreItemModel item,
-    String? animUrl,
-    bool isVideo,
-    String? photoUrl,
-    dynamic user,
-  ) {
-    final keyStr = '${item.itemId}_${animUrl ?? item.iconAsset}';
-
-    // 0. معاينة الآيدي المميز special_id
+  /// الصورة الثابتة للعنصر في منطقة المعاينة
+  Widget _buildStaticPreview(StoreItemModel item, String? photoUrl) {
     if (item.category == 'special_id') {
-      final idDisplay = (item.customId != null && item.customId!.isNotEmpty) ? item.customId! : item.name;
+      final idDisplay = (item.customId != null && item.customId!.isNotEmpty)
+          ? item.customId!
+          : item.name;
       return Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -696,13 +650,16 @@ class _MallScreenState extends State<MallScreen> {
           const SizedBox(height: 8),
           const DText(
             'آيدي مميز متاح للشراء الفوري',
-            style: TextStyle(color: Color(0xFFFFD98B), fontSize: 11, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: Color(0xFFFFD98B),
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       );
     }
 
-    // 1. معاينة إطار الرأس frame
     if (item.category == 'frame') {
       return SizedBox(
         width: 130,
@@ -713,204 +670,185 @@ class _MallScreenState extends State<MallScreen> {
             CircleAvatar(
               radius: 44,
               backgroundColor: Colors.white12,
-              backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
+              backgroundImage:
+              photoUrl != null ? R.cachedImage(photoUrl) : null,
               child: photoUrl == null
                   ? const Icon(Icons.person, size: 44, color: Colors.white54)
                   : null,
             ),
-            if (animUrl != null && !isVideo)
-              SvgaPlayer(
-                key: ValueKey(keyStr),
-                assetPath: animUrl,
-                width: 130,
-                height: 130,
-                fit: BoxFit.contain,
-                loops: true,
-              )
-            else if (item.iconAsset.isNotEmpty)
-              R.loadImage(item.iconAsset, width: 126, height: 126, fit: BoxFit.contain),
+            if (item.iconAsset.isNotEmpty)
+              R.loadImage(item.iconAsset,
+                  width: 126, height: 126, fit: BoxFit.contain),
           ],
         ),
       );
     }
 
-    // 2. معاينة الفقاعة bubble
-    if (item.category == 'bubble') {
-      return SizedBox(
-        height: 120,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 36,
-              backgroundColor: Colors.white12,
-              backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
-              child: photoUrl == null
-                  ? const Icon(Icons.person, size: 36, color: Colors.white54)
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 170,
-              height: 75,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (animUrl != null && !isVideo)
-                    SvgaPlayer(
-                      key: ValueKey(keyStr),
-                      assetPath: animUrl,
-                      width: 170,
-                      height: 75,
-                      fit: BoxFit.fill,
-                      loops: true,
-                    )
-                  else if (item.iconAsset.isNotEmpty)
-                    R.loadImage(item.iconAsset, width: 170, height: 75, fit: BoxFit.fill)
-                  else
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0x66000000),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0x88FFD700)),
-                      ),
-                    ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    child: DText(
-                      'مرحباً بك في التطبيق! 👋',
-                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    final isAnimated = (item.svgaAsset != null && item.svgaAsset!.isNotEmpty) ||
+        (item.videoAsset != null && item.videoAsset!.isNotEmpty) ||
+        (item.animationUrl != null && item.animationUrl!.isNotEmpty) ||
+        item.iconAsset.endsWith('.svga') ||
+        item.iconAsset.endsWith('.gif');
 
-    // 3. معاينة سيارة الدخول أو تأثير الدخول (car / entrance) المطابقة لـ iv_entrance / vap_entrance
-    if (item.category == 'car' || item.category == 'entrance') {
-      return SizedBox(
-        width: 320,
-        height: 120,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (isVideo && animUrl != null)
-              VapPlayer(
-                key: ValueKey(keyStr),
-                url: animUrl,
-                width: 320,
-                height: 120,
-                defaultImageUrl: item.iconAsset,
-              )
-            else if (animUrl != null && !animUrl.toLowerCase().endsWith('.mp4'))
-              SvgaPlayer(
-                key: ValueKey(keyStr),
-                assetPath: animUrl,
-                width: 320,
-                height: 120,
-                fit: BoxFit.contain,
-                loops: true,
-                defaultImageUrl: item.iconAsset,
-                imageReplacement: (item.photoKey != null && photoUrl != null)
-                    ? {item.photoKey!: photoUrl}
-                    : null,
-                textReplacement: (item.nameKey != null && user != null)
-                    ? {item.nameKey!: user.name}
-                    : null,
-              )
-            else
-              R.loadImage(item.iconAsset, width: 140, height: 110, fit: BoxFit.contain),
-          ],
-        ),
-      );
-    }
-
-    // 4. معاينة غلاف الملف الشخصي cover
-    if (item.category == 'cover') {
-      return Container(
-        width: 240,
-        height: 110,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0x44FAE9B5), width: 1.5),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: animUrl != null && !isVideo
-            ? SvgaPlayer(
-                key: ValueKey(keyStr),
-                assetPath: animUrl,
-                width: 240,
-                height: 110,
-                fit: BoxFit.cover,
-                loops: true,
-              )
-            : R.loadImage(item.iconAsset, fit: BoxFit.cover, width: 240, height: 110),
-      );
-    }
-
-    // 5. معاينة موجات المايك الصوتية mic_wave
-    if (item.category == 'mic_wave') {
-      return SizedBox(
-        width: 130,
-        height: 120,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (animUrl != null && !isVideo)
-              Positioned.fill(
-                child: SvgaPlayer(
-                  key: ValueKey(keyStr),
-                  assetPath: animUrl,
-                  width: 120,
-                  height: 120,
-                  fit: BoxFit.contain,
-                  loops: true,
-                ),
-              ),
-            CircleAvatar(
-              radius: 36,
-              backgroundColor: Colors.white12,
-              backgroundImage: photoUrl != null ? R.cachedImage(photoUrl) : null,
-              child: photoUrl == null
-                  ? const Icon(Icons.person, size: 36, color: Colors.white54)
-                  : null,
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 6. أي قسم آخر (خواتم، أوسمة، مؤثرات خاصة، إلخ)
     return SizedBox(
-      width: 130,
+      width: 220,
       height: 120,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          if (isVideo && animUrl != null)
-            VapPlayer(key: ValueKey(keyStr), url: animUrl, width: 120, height: 120)
-          else if (animUrl != null)
-            SvgaPlayer(
-              key: ValueKey(keyStr),
-              assetPath: animUrl,
-              width: 120,
-              height: 120,
-              fit: BoxFit.contain,
-              loops: true,
-            )
+          if (item.iconAsset.isNotEmpty)
+            R.loadImage(item.iconAsset,
+                width: 140, height: 110, fit: BoxFit.contain)
           else
-            R.loadImage(item.iconAsset, width: 95, height: 95, fit: BoxFit.contain),
+            const Icon(Icons.image, size: 60, color: Colors.white24),
+          if (isAnimated)
+            Positioned(
+              right: 12,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withValues(alpha: 0.55),
+                ),
+                child: const Icon(
+                  Icons.play_circle_fill,
+                  color: Color(0xFFFAE9B5),
+                  size: 28,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  /// شبكة بطاقات العناصر المطابقة لـ mine_adapter_mall_type_item.xml
+  /// معاينة ملء الشاشة للفيديو/SVGA — تفتح لما تضغط على الصورة
+  void _showFullscreenPreview(StoreItemModel item, dynamic user) {
+    final animUrl = _resolveAnimationUrl(item);
+    if (animUrl == null) return;
+
+    final isVideo = _isVideo(animUrl) || item.isVideo;
+    final photoUrl = user?.photoUrl?.isNotEmpty == true ? user.photoUrl : null;
+    final userName = user?.name ?? '';
+
+    final imageReplacement = <String, String>{};
+    if (photoUrl != null) {
+      imageReplacement['avatar'] = photoUrl;
+      imageReplacement['user_avatar'] = photoUrl;
+      if (item.photoKey != null && item.photoKey!.isNotEmpty) {
+        imageReplacement[item.photoKey!] = photoUrl;
+      }
+    }
+
+    final textReplacement = <String, String>{};
+    if (userName.isNotEmpty) {
+      textReplacement['name'] = 'مرحباً $userName';
+      textReplacement['nickname'] = userName;
+      if (item.nameKey != null && item.nameKey!.isNotEmpty) {
+        textReplacement[item.nameKey!] = userName;
+      }
+    }
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'preview',
+      barrierColor: Colors.black.withValues(alpha: 0.92),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (ctx, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim1, anim2, child) {
+        return FadeTransition(
+          opacity: anim1,
+          child: Material(
+            color: Colors.transparent,
+            child: Stack(
+              children: [
+                Center(
+                  child: isVideo
+                      ? VapPlayer(
+                    key: ValueKey('full_preview_vap_${item.itemId}'),
+                    url: animUrl,
+                    width: double.infinity,
+                    height: 400,
+                    fit: BoxFit.contain,
+                    loops: true,
+                    defaultImageUrl: item.iconAsset,
+                  )
+                      : SvgaPlayer(
+                    key: ValueKey('full_preview_svga_${item.itemId}'),
+                    assetPath: animUrl,
+                    width: double.infinity,
+                    height: 400,
+                    fit: BoxFit.contain,
+                    loops: true,
+                    defaultImageUrl: item.iconAsset,
+                    imageReplacement: imageReplacement.isNotEmpty
+                        ? imageReplacement
+                        : null,
+                    textReplacement: textReplacement.isNotEmpty
+                        ? textReplacement
+                        : null,
+                  ),
+                ),
+                Positioned(
+                  top: 40,
+                  right: 20,
+                  child: SafeArea(
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(ctx).pop(),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black54,
+                        ),
+                        child: Image.asset(
+                          'assets/mipmap-xxhdpi/mine_mall_close_ic.webp',
+                          width: 28,
+                          height: 28,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 40,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: DText(
+                        item.name,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFFAE9B5),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// شبكة بطاقات العناصر
   Widget _buildItemsGrid(List<StoreItemModel> items, UserProvider userProvider, dynamic user) {
     if (items.isEmpty) {
       return const Center(
@@ -947,7 +885,7 @@ class _MallScreenState extends State<MallScreen> {
           },
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0x1AFFDA83), // color_1affda83 (mine_mall_item_nor_bg)
+              color: const Color(0x1AFFDA83),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isSelected ? const Color(0xFFFFD700) : Colors.white.withValues(alpha: 0.08),
@@ -956,7 +894,6 @@ class _MallScreenState extends State<MallScreen> {
             ),
             child: Column(
               children: [
-                // صورة العنصر iv_mall_img
                 Expanded(
                   child: Stack(
                     alignment: Alignment.center,
@@ -965,17 +902,16 @@ class _MallScreenState extends State<MallScreen> {
                         padding: const EdgeInsets.all(12),
                         child: item.category == 'special_id'
                             ? Center(
-                                child: UserIdWidget(
-                                  idText: (item.customId != null && item.customId!.isNotEmpty) ? item.customId! : item.name,
-                                  isBeauty: true,
-                                  colorEffect: item.colorEffect,
-                                  gifUrl: item.iconAsset.endsWith('.gif') ? item.iconAsset : null,
-                                  fontSize: 14,
-                                ),
-                              )
+                          child: UserIdWidget(
+                            idText: (item.customId != null && item.customId!.isNotEmpty) ? item.customId! : item.name,
+                            isBeauty: true,
+                            colorEffect: item.colorEffect,
+                            gifUrl: item.iconAsset.endsWith('.gif') ? item.iconAsset : null,
+                            fontSize: 14,
+                          ),
+                        )
                             : R.loadImage(item.iconAsset, fit: BoxFit.contain),
                       ),
-                      // علامة الفيديو iv_video_label
                       if (isAnimated)
                         Positioned(
                           right: 8,
@@ -986,7 +922,6 @@ class _MallScreenState extends State<MallScreen> {
                             height: 16,
                           ),
                         ),
-                      // شارة الملكية أو الارتداء tv_dress_up_state
                       if (isOwned)
                         Positioned(
                           top: 8,
@@ -1012,8 +947,6 @@ class _MallScreenState extends State<MallScreen> {
                     ],
                   ),
                 ),
-
-                // اسم العنصر tv_item_name
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: DText(
@@ -1029,8 +962,6 @@ class _MallScreenState extends State<MallScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-
-                // السعر مع أيقونة common_gold_ic_5 (tv_gold_time)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
@@ -1061,16 +992,15 @@ class _MallScreenState extends State<MallScreen> {
     );
   }
 
-  /// شريط الشراء السفلي المطابق لـ cl_buy في mine_activity_mall.xml
+  /// شريط الشراء السفلي
   Widget _buildBottomBar(UserProvider userProvider, dynamic user) {
     final selected = _selectedItem;
 
     return Container(
-      color: const Color(0xFF302218), // color_FF302218
+      color: const Color(0xFF302218),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          // رصيد الكويزات tv_gold_coin مع أيقونة common_gold_ic_1
           Image.asset(
             'assets/mipmap-xxhdpi/common_gold_ic_1.webp',
             width: 26,
@@ -1086,8 +1016,6 @@ class _MallScreenState extends State<MallScreen> {
             ),
           ),
           const Spacer(),
-
-          // زر الشراء tv_buy (في المتجر دائماً "شراء")
           if (selected != null)
             GestureDetector(
               onTap: () {

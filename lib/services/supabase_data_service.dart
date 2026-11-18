@@ -19,7 +19,9 @@ import '../models/app_asset_model.dart';
 import '../models/notification_model.dart';
 import '../models/gifted_item_model.dart';
 import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dynamic_config_service.dart';
+import 'session_token_store.dart';
 
 class SupabaseDataService {
   static final SupabaseDataService _instance = SupabaseDataService._internal();
@@ -33,13 +35,23 @@ class SupabaseDataService {
         'apikey': _anonKey,
         'Authorization': 'Bearer $_anonKey',
         'Content-Type': 'application/json',
+        if (SessionTokenStore.token != null)
+          'x-session-token': SessionTokenStore.token!,
       };
 
   static List<gm.GiftModel>? _giftsCache;
   static int _giftsCacheAtMs = 0;
   static List<GiftCategory>? _giftCategoriesCache;
   static int _giftCategoriesCacheAtMs = 0;
-  static const int _catalogCacheTtlMs = 120000;
+  // ✅ كتالوج دائم على القرص — ينجو من إغلاق التطبيق تماماً.
+  //    أول فتح للصندوق يعرض المحفوظ فوراً ثم يتحدث من الشبكة.
+  static const String _giftsDiskKey = 'catalog_gifts_v1';
+  static const String _catsDiskKey = 'catalog_gift_categories_v1';
+  // ✅ كتالوج الهدايا/التصنيفات نادراً ما يتغير (تعديلات إدارية فقط) —
+  //    10 دقائق بدل دقيقتين حتى لا يعيد صندوق الهدايا التحميل عند كل فتح.
+  //    لوحة الهدايا نفسها تجلب نسخة طازجة (allowCache:false) بعد 600ms
+  //    من الفتح، والـ streams تبقى حية للتحديثات.
+  static const int _catalogCacheTtlMs = 600000;
   static const Duration _catalogTimeout = Duration(seconds: 8);
 
   // ═══════════════════════════════════════════════════════
@@ -146,6 +158,27 @@ class SupabaseDataService {
     return null;
   }
 
+  /// جلب بيانات غرف متعددة بمعرّفاتها في طلب REST واحد —
+  /// بديل خفيف عن getRoom المتكرر (الذي يجلب كوينز شهرية لكل غرفة)
+  Future<List<RoomModel>> getRoomsByIds(List<String> roomIds) async {
+    if (roomIds.isEmpty) return [];
+    try {
+      final inFilter = roomIds.map((e) => '"$e"').join(',');
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/rooms?room_id=in.($inFilter)&select=*');
+      final res = await SafeHttp.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) => RoomModel.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getRoomsByIds error: $e');
+    }
+    return [];
+  }
+
   Future<RoomModel?> getRoomByHostUid(String hostUid) async {
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/rooms?host_uid=eq.$hostUid&select=*&limit=1');
@@ -165,20 +198,23 @@ class SupabaseDataService {
 
   Future<List<RoomModel>> getAllRooms() async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/rooms?select=*&order=total_gifts.desc');
-      final res = await SafeHttp.get(url, headers: _headers);
+      // طلبات الغرف + العدّاد + الكوينز بالتوازي — بدل التسلسل التي كانت
+      // تضاعف زمن التحميل (الغرف تنتظر ثم الإحصائيات تنتظر)
+      final roomsFuture = SafeHttp.get(
+        Uri.parse('$_baseUrl/rest/v1/rooms?select=*&order=total_gifts.desc'),
+        headers: _headers,
+      );
+      final countsFuture = _fetchLiveRoomMemberCounts();
+      final coinsFuture = _fetchMonthlyRoomCoins();
+
+      final res = await roomsFuture;
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final rooms =
             list.map((e) => RoomModel.fromMap(e as Map<String, dynamic>)).toList();
 
-        // العدّاد الحقيقي + كوينز الشهر — بالتوازي لسرعة التحميل
-        final extras = await Future.wait([
-          _fetchLiveRoomMemberCounts(),
-          _fetchMonthlyRoomCoins(),
-        ]);
-        final liveCounts = extras[0] as Map<String, int>?;
-        final monthlyCoins = extras[1] as Map<String, int>;
+        final liveCounts = await countsFuture;
+        final monthlyCoins = await coinsFuture;
         return rooms
             .map((r) => r.copyWith(
                   memberCount: liveCounts == null
@@ -639,21 +675,154 @@ class SupabaseDataService {
   /// آمن مع الإرسال المتتابع (كومبو/ضغط مطوّل) بدون فقدان تحديثات
   Future<Map<String, dynamic>?> spendUserCoins(String uid, int amount) async {
     try {
-      final url = Uri.parse('$_baseUrl/rest/v1/rpc/spend_user_coins');
+      // Bypass spend_user_coins: several old overloads on the server make
+      // PostgREST fail with PGRST203 (ambiguous function signature).
+      // adjust_user_wallet is installed and rejects negative balances atomically.
+      final url = Uri.parse('$_baseUrl/rest/v1/rpc/adjust_user_wallet');
       final res = await SafeHttp.post(
             url,
             headers: _headers,
-            body: jsonEncode({'p_uid': uid, 'p_amount': amount}),
+            body: jsonEncode({
+              'p_uid': uid,
+              'p_coins_delta': -amount,
+              'p_diamonds_delta': 0,
+            }),
           )
-          .timeout(const Duration(seconds: 8));
-      if (res.statusCode == 200) {
+          .timeout(const Duration(seconds: 12));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
         final decoded = jsonDecode(res.body);
-        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+        if (decoded is Map) {
+          final status = decoded['status']?.toString();
+          if (status == 'ok') {
+            return {'ok': true, 'deducted': amount, 'status': 'ok'};
+          }
+          // Logical rejection (insufficient balance / unknown user): return
+          // non-null so the caller does not fall back to non-atomic PATCH.
+          return {'ok': false, 'status': status ?? 'rejected'};
+        }
       }
+      debugPrint(
+        '[SupabaseDataService] spendUserCoins status: ${res.statusCode} '
+        '${res.body.length > 240 ? res.body.substring(0, 240) : res.body}');
     } catch (e) {
       debugPrint('[SupabaseDataService] spendUserCoins error: $e');
     }
     return null;
+  }
+
+  /// زيادة عدّاد إحصائي على حساب أي مستخدم — RPC ذرّي بقائمة بيضاء
+  /// (total_gifts_received/total_gifts_sent/charm/wealth_exp/gems_exp).
+  /// بديل آمن عن PATCH المباشر على users لحسابات الآخرين.
+  Future<bool> bumpUserStat(String uid, String field, int delta) async {
+    try {
+      final res = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/bump_user_stat'),
+        headers: _headers,
+        body: jsonEncode({
+          'p_uid': uid,
+          'p_field': field,
+          'p_delta': delta,
+        }),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body);
+        return body is Map && body['status'] == 'ok';
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] bumpUserStat error: $e');
+    }
+    return false;
+  }
+
+  /// تعديل كوينز/ماس على حساب أي مستخدم — RPC ذرّي.
+  /// يعيد null عند فشل الشبكة (وليس عند رفض منطق العمل).
+  Future<Map<String, dynamic>?> adjustUserWallet(
+      String uid, int coinsDelta, int diamondsDelta) async {
+    try {
+      final res = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/adjust_user_wallet'),
+        headers: _headers,
+        body: jsonEncode({
+          'p_uid': uid,
+          'p_coins_delta': coinsDelta,
+          'p_diamonds_delta': diamondsDelta,
+        }),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body);
+        if (body is Map) return Map<String, dynamic>.from(body);
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] adjustUserWallet error: $e');
+    }
+    return null;
+  }
+
+  /// منح خبرة مستوى على السيرفر — RPC ذرّي يحسب الصعود والمكافآت
+  /// (levels: wealth/recharge/gems). يعمل لأي uid — مرسل أو مستلم.
+  /// يعيد null عند فشل الشبكة/عدم وجود الدالة.
+  Future<Map<String, dynamic>?> addUserExp(
+      String uid, String type, int amount) async {
+    try {
+      final res = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/add_user_exp'),
+        headers: _headers,
+        body: jsonEncode({
+          'p_uid': uid,
+          'p_type': type,
+          'p_amount': amount,
+        }),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body);
+        if (body is Map) return Map<String, dynamic>.from(body);
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] addUserExp error: $e');
+    }
+    return null;
+  }
+
+  /// تعيين حقل تجميلي على حساب أي مستخدم — RPC بقائمة بيضاء
+  /// (active_frame/active_bubble/active_entrance/...).
+  Future<bool> setUserField(String uid, String field, String value) async {
+    try {
+      final res = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/set_user_field'),
+        headers: _headers,
+        body: jsonEncode({
+          'p_uid': uid,
+          'p_field': field,
+          'p_value': value,
+        }),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body);
+        return body is Map && body['status'] == 'ok';
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] setUserField error: $e');
+    }
+    return false;
+  }
+
+  /// إضافة ماس لهدية/مكافأة — يوجّه تلقائياً: عضو وكالة → محفظة
+  /// الوكالة + إجمالياتها، غير عضو → users.diamonds. ذرّي على السيرفر.
+  Future<bool> creditUserDiamonds(String uid, int diamonds) async {
+    try {
+      final res = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/credit_user_diamonds'),
+        headers: _headers,
+        body: jsonEncode({'p_uid': uid, 'p_diamonds': diamonds}),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body);
+        return body is Map && body['status'] == 'ok';
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] creditUserDiamonds error: $e');
+    }
+    return false;
   }
 
   Future<bool> sendMessage(MessageModel message) async {
@@ -682,6 +851,22 @@ class SupabaseDataService {
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] sendMessage error: $e');
+      return false;
+    }
+  }
+
+  /// حذف رسالة شات واحدة بمعرّفها — يُستخدم لإلغاء رسالة هدية بُثت
+  /// استباقياً إذا فشل خصم الكوينز لاحقاً.
+  Future<bool> deleteRoomMessage(String msgId) async {
+    if (msgId.isEmpty) return false;
+    try {
+      final res = await SafeHttp.delete(
+        Uri.parse('$_baseUrl/rest/v1/room_messages?msg_id=eq.$msgId'),
+        headers: _headers,
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('[SupabaseDataService] deleteRoomMessage error: $e');
       return false;
     }
   }
@@ -747,7 +932,15 @@ class SupabaseDataService {
   // USERS
   // ═══════════════════════════════════════════════════════
 
-  Future<bool> updateUser(String uid, Map<String, dynamic> updates) async {
+  /// تحديث بيانات المستخدم.
+  /// افتراضياً لا يُسمح بتعديل `custom_id` / `original_custom_id` — معرف المستخدم
+  /// ثابت ولا يتغير إلا صراحةً من لوحة التحكم أو عند تجهيز/إلغاء معرف مميز
+  /// (يمرر `allowIdentityChange: true` في هذه الحالات فقط).
+  Future<bool> updateUser(
+    String uid,
+    Map<String, dynamic> updates, {
+    bool allowIdentityChange = false,
+  }) async {
     try {
       const allowedColumns = {
         'uid', 'custom_id', 'original_custom_id', 'name', 'email', 'photo_url',
@@ -825,6 +1018,10 @@ class SupabaseDataService {
           }
         }
       });
+      if (!allowIdentityChange) {
+        clean.remove('custom_id');
+        clean.remove('original_custom_id');
+      }
       if (clean.isEmpty) return true;
       clean['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
@@ -860,7 +1057,7 @@ class SupabaseDataService {
     }
   }
 
-  Future<UserModel?> getUser(String uid) async {
+  Future<UserModel?> getUser(String uid, {bool throwOnError = false}) async {
     final cleanUid = uid.trim();
     if (cleanUid.isEmpty) return null;
     try {
@@ -898,6 +1095,9 @@ class SupabaseDataService {
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getUser error: $e');
+      // ✅ عند طلب صريح (مثل AuthGate) نعيد رمي أخطاء الشبكة
+      //    حتى لا يُعامل المستخدم الموجود كأنهم جديد
+      if (throwOnError) rethrow;
     }
     return null;
   }
@@ -1136,12 +1336,76 @@ class SupabaseDataService {
     return [];
   }
 
+  Future<List<gm.GiftModel>?> _readDiskGifts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_giftsDiskKey);
+      if (raw == null || raw.isEmpty) return null;
+      final list = jsonDecode(raw) as List;
+      return list
+          .map((e) =>
+              gm.GiftModel.fromMap(Map<String, dynamic>.from(e as Map)))
+          .where((g) => g.id.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _writeDiskGifts(List<gm.GiftModel> gifts) {
+    try {
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString(
+            _giftsDiskKey,
+            jsonEncode(gifts.map((g) => g.toMap()).toList()));
+      }).catchError((_) {});
+    } catch (_) {}
+  }
+
+  Future<List<GiftCategory>?> _readDiskCategories() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_catsDiskKey);
+      if (raw == null || raw.isEmpty) return null;
+      final list = jsonDecode(raw) as List;
+      return list
+          .map((e) =>
+              GiftCategory.fromMap(Map<String, dynamic>.from(e as Map)))
+          .where((c) => c.id.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _writeDiskCategories(List<GiftCategory> cats) {
+    try {
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString(
+            _catsDiskKey,
+            jsonEncode(cats.map((c) => c.toMap()).toList()));
+      }).catchError((_) {});
+    } catch (_) {}
+  }
+
   Future<List<gm.GiftModel>> getGifts({bool allowCache = true}) async {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (allowCache &&
         _giftsCache != null &&
         nowMs - _giftsCacheAtMs < _catalogCacheTtlMs) {
       return _giftsCache!;
+    }
+
+    // ✅ كاش القرص: لو الذاكرة فاضية (تشغيل جديد) نعرض المحفوظ فوراً
+    //    بدون أي انتظار — والشبكة تتحدث في الخلفية خلال دقيقة.
+    if (allowCache && _giftsCache == null) {
+      final disk = await _readDiskGifts();
+      if (disk != null && disk.isNotEmpty) {
+        _giftsCache = disk;
+        // نعتبره قديماً قليلاً — أول دورة stream بعد ~60s تجلب الطازج
+        _giftsCacheAtMs = nowMs - _catalogCacheTtlMs + 60000;
+        return disk;
+      }
     }
 
     final Map<String, gm.GiftModel> giftMap = {};
@@ -1169,12 +1433,23 @@ class SupabaseDataService {
     if (giftMap.isEmpty && _giftsCache != null) {
       return _giftsCache!;
     }
+    // ✅ فشل الشبكة مع كاش قرص موجود → نستخدمه
+    if (giftMap.isEmpty) {
+      final disk = await _readDiskGifts();
+      if (disk != null && disk.isNotEmpty) return disk;
+    }
 
     final list = giftMap.values.toList();
-    list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    // ✅ ترتيب حتمي: sort_order ثم id — تعادل sort_order (cp/luxury=2)
+    //    كان يجعل ترتيب التبويبات يتقلب بين البناءات.
+    list.sort((a, b) {
+      final c = a.sortOrder.compareTo(b.sortOrder);
+      return c != 0 ? c : a.id.compareTo(b.id);
+    });
     if (list.isNotEmpty) {
       _giftsCache = list;
       _giftsCacheAtMs = nowMs;
+      _writeDiskGifts(list);
     }
     return list;
   }
@@ -1185,6 +1460,16 @@ class SupabaseDataService {
         _giftCategoriesCache != null &&
         nowMs - _giftCategoriesCacheAtMs < _catalogCacheTtlMs) {
       return _giftCategoriesCache!;
+    }
+
+    // ✅ كاش القرص — نفس منطق الهدايا
+    if (allowCache && _giftCategoriesCache == null) {
+      final disk = await _readDiskCategories();
+      if (disk != null && disk.isNotEmpty) {
+        _giftCategoriesCache = disk;
+        _giftCategoriesCacheAtMs = nowMs - _catalogCacheTtlMs + 60000;
+        return disk;
+      }
     }
 
     final Map<String, GiftCategory> catMap = {};
@@ -1210,12 +1495,21 @@ class SupabaseDataService {
     if (catMap.isEmpty && _giftCategoriesCache != null) {
       return _giftCategoriesCache!;
     }
+    if (catMap.isEmpty) {
+      final disk = await _readDiskCategories();
+      if (disk != null && disk.isNotEmpty) return disk;
+    }
 
     final list = catMap.values.toList();
-    list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    // ✅ ترتيب حتمي — نفس سبب تقلب تبويبات cp/luxury (sort_order=2)
+    list.sort((a, b) {
+      final c = a.sortOrder.compareTo(b.sortOrder);
+      return c != 0 ? c : a.id.compareTo(b.id);
+    });
     if (list.isNotEmpty) {
       _giftCategoriesCache = list;
       _giftCategoriesCacheAtMs = nowMs;
+      _writeDiskCategories(list);
     }
     return list;
   }
@@ -1418,7 +1712,32 @@ class SupabaseDataService {
     return [];
   }
 
+  /// ✅ المسار المعتمد لحذف الحساب: RPC واحد ذرّي على السيرفر يمسح كل
+  ///    بيانات المستخدم (رصيد/غرف/اسم/صورة/إيميل/سجلات/علاقات/Auth).
+  ///    التطبيق ولوحة الأدمن يستدعيان نفس الدالة — ما فيش نسختين مختلفتين.
   Future<bool> deleteUser(String uid) async {
+    try {
+      final res = await SafeHttp.post(
+        Uri.parse('$_baseUrl/rest/v1/rpc/delete_user_account_cascade'),
+        headers: _headers,
+        body: jsonEncode({'p_uid': uid}),
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        if (data['status'] == 'ok') {
+          debugPrint('[SupabaseDataService] cascade delete ok: '
+              '${data['deleted_rows']} rows');
+          return true;
+        }
+        debugPrint('[SupabaseDataService] cascade delete rejected: $data');
+        return false; // forbidden / invalid — ما نكملش مسح محلي
+      }
+      debugPrint('[SupabaseDataService] cascade delete HTTP '
+          '${res.statusCode}: ${res.body}');
+    } catch (e) {
+      debugPrint('[SupabaseDataService] cascade delete error: $e');
+    }
+    // Fallback للنسخ القديمة من السيرفر لحد ما الـ RPC يتنفّذ
     return purgeUserAccount(uid);
   }
 
@@ -1474,10 +1793,11 @@ class SupabaseDataService {
       } catch (_) {}
       // 5. Remove CP relationships & requests
       try {
-        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/cp_couples?or=(user1_id.eq.$uid,user2_id.eq.$uid)'), headers: _headers);
+        // ✅ أسماء الأعمدة الحالية في cp_system.sql هي *_uid (القديمة *_id)
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/cp_couples?or=(user1_uid.eq.$uid,user2_uid.eq.$uid,user1_id.eq.$uid,user2_id.eq.$uid)'), headers: _headers);
       } catch (_) {}
       try {
-        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/cp_requests?or=(sender_id.eq.$uid,receiver_id.eq.$uid)'), headers: _headers);
+        await SafeHttp.delete(Uri.parse('$_baseUrl/rest/v1/cp_requests?or=(sender_uid.eq.$uid,receiver_uid.eq.$uid,sender_id.eq.$uid,receiver_id.eq.$uid)'), headers: _headers);
       } catch (_) {}
       // 6. Remove messages & conversations
       try {
@@ -1542,6 +1862,15 @@ class SupabaseDataService {
           '[SupabaseDataService] agency_credit_host_target_diamonds error: $e');
     }
 
+    // 1.5) المسار الذرّي الشامل: credit_user_diamonds يوزّع على
+    //      محفظة الوكالة أو الشخصية في UPDATE واحد — بدون قراءة
+    //      مسبقة وبدون سباق بين الأجهزة.
+    try {
+      if (await creditUserDiamonds(hostUid, diamondsToAdd)) {
+        return true;
+      }
+    } catch (_) {}
+
     // 2) مسار احتياطي — عضو وكالة: محفظة الوكالة فقط. غير عضو: users.diamonds.
     try {
       final url = Uri.parse('$_baseUrl/rest/v1/host_agency_members?or=(host_uid.eq.$hostUid,user_id.eq.$hostUid)&select=*&limit=1');
@@ -1579,9 +1908,6 @@ class SupabaseDataService {
               if (agList.isNotEmpty) {
                 final ag = Map<String, dynamic>.from(agList.first as Map);
                 final agCumul = (ag['total_diamonds_cumulative'] as num?)?.toInt() ?? 0;
-                // وكيل المضيف: يحصل على نسبة عمولته المحددة من لوحة التحكم (يُضاف لرصيده دون الخصم من المضيف)
-                final agencyRatePct = DynamicConfigService().agencyRatePercentage;
-                final agentSalary = (diamondsToAdd * (agencyRatePct / 100.0)).round();
 
                 // FIX: إعادة حساب إجمالي الماس الشهري للوكالة من مجموع أعضائها الفعلي
                 // بدلاً من الإضافة التراكمية الخاطئة (agMonthly + diamondsToAdd)
@@ -1617,40 +1943,10 @@ class SupabaseDataService {
                 );
 
 
-                final ownerUid = (ag['owner_uid'] ?? ag['owner_id'])?.toString() ?? '';
-                // العمولة تُحتسب كاستحقاق معلّق (pending) ولا تُضاف للرصيد القابل للصرف.
-                // لا يتم إصدارها إلا حسب دورة العمولة المعتمدة من لوحة التحكم.
-                if (agentSalary > 0 && ownerUid.isNotEmpty && ownerUid != hostUid) {
-                  try {
-                    final pendingUrl = Uri.parse(
-                      '$_baseUrl/rest/v1/rpc/agency_accrue_commission',
-                    );
-                    final rpcRes = await SafeHttp.post(
-                      pendingUrl,
-                      headers: _headers,
-                      body: jsonEncode({
-                        'p_agency_id': agencyId,
-                        'p_diamonds': agentSalary,
-                        'p_note': 'استحقاق عمولة وكالة — بانتظار دورة الإصدار',
-                      }),
-                    );
-                    if (rpcRes.statusCode < 200 || rpcRes.statusCode >= 300) {
-                      final curPending =
-                          (ag['pending_commission_diamonds'] as num?)?.toInt() ?? 0;
-                      await SafeHttp.patch(
-                        Uri.parse(
-                            '$_baseUrl/rest/v1/host_agencies?id=eq.$agencyId'),
-                        headers: _headers,
-                        body: jsonEncode({
-                          'pending_commission_diamonds': curPending + agentSalary,
-                        }),
-                      );
-                    }
-                  } catch (e) {
-                    debugPrint(
-                        '[SupabaseDataService] accrue commission fallback error: $e');
-                  }
-                }
+                // ✅ عمولة الوكالة المعلقة تُحتسب الآن عبر Trigger في
+                //    قاعدة البيانات (trg_accrue_agency_commission) على أي
+                //    زيادة في أرباح الماس — لا نضيفها هنا يدوياً حتى لا
+                //    تتكرر مع الـ Trigger.
               }
             }
           }
@@ -1945,6 +2241,9 @@ class SupabaseDataService {
           'created_at': DateTime.now().toUtc().toIso8601String(),
         }),
       );
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        debugPrint('[SupabaseDataService] recordSentGift HTTP ${res.statusCode}: ${res.body}');
+      }
       return res.statusCode >= 200 && res.statusCode < 300;
     } catch (e) {
       debugPrint('[SupabaseDataService] recordSentGift error: $e');
@@ -1968,29 +2267,127 @@ class SupabaseDataService {
     }
   }
 
-  Future<List<gm.SentGiftModel>> getSentGifts(String roomId, {int limit = 500, DateTime? after}) async {
+  /// ✅ dedup للطلبات المتزامنة: ترتيب الثروة والسحر يطلبان
+  ///    نفس قائمة الهدايا في نفس اللحظة — نشارك طلباً واحداً
+  ///    بدل إرسال استعلامين متطابقين لـ 3000 سجل
+  static final Map<String, Future<List<gm.SentGiftModel>>> _sentGiftsInflight =
+      {};
+
+  Future<List<gm.SentGiftModel>> getSentGifts(String roomId, {int limit = 500, DateTime? after}) {
+    final key = '$roomId|${after?.toUtc().toIso8601String() ?? ''}|$limit';
+    final existing = _sentGiftsInflight[key];
+    if (existing != null) return existing;
+    final fut = _fetchSentGifts(roomId, limit: limit, after: after)
+        .whenComplete(() => _sentGiftsInflight.remove(key));
+    _sentGiftsInflight[key] = fut;
+    return fut;
+  }
+
+  /// ✅ جلب مُرقّم (paged) لسجلات sent_gifts يتجاوز سقف PostgREST (1000 صف
+  ///    لكل طلب) — كان هذا السقف يُسقط معظم المرسلين من تصنيفات الثروة/السحر.
+  ///    نكرّر الطلب بـ offset حتى نصل للسقف الأقصى أو حتى تقل النتائج عن
+  ///    حجم الصفحة، مع dedup بالـ id لتفادي التكرار.
+  static final Map<String, Future<List<gm.SentGiftModel>>> _sentGiftsPagedInflight =
+      {};
+
+  Future<List<gm.SentGiftModel>> getSentGiftsPaged({
+    DateTime? after,
+    String roomId = '',
+    int pageSize = 1000,
+    int maxRows = 20000,
+  }) {
+    final key = '$roomId|${after?.toUtc().toIso8601String() ?? ''}|$pageSize|$maxRows';
+    final existing = _sentGiftsPagedInflight[key];
+    if (existing != null) return existing;
+    final fut = _fetchSentGiftsPaged(
+            after: after, roomId: roomId, pageSize: pageSize, maxRows: maxRows)
+        .whenComplete(() => _sentGiftsPagedInflight.remove(key));
+    _sentGiftsPagedInflight[key] = fut;
+    return fut;
+  }
+
+  Future<List<gm.SentGiftModel>> _fetchSentGiftsPaged({
+    DateTime? after,
+    String roomId = '',
+    int pageSize = 1000,
+    int maxRows = 20000,
+  }) async {
+    final out = <gm.SentGiftModel>[];
+    final seen = <String>{};
+    // Bound the whole paging loop. Without this, a slow network could keep
+    // fetching up to 20 pages and blow the caller's 45s timeout, producing
+    // an empty snapshot map and an empty leaderboard.
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    var offset = 0;
+    var pages = 0;
+    while (offset < maxRows) {
+      if (DateTime.now().isAfter(deadline)) {
+        debugPrint('[getSentGiftsPaged] deadline after $pages pages, '
+            'room=$roomId rows=${out.length}');
+        break;
+      }
+      final page = await _fetchSentGifts(roomId,
+          limit: pageSize, after: after, offset: offset);
+      pages++;
+      if (page.isEmpty) break;
+      for (final g in page) {
+        final id = g.id.isNotEmpty
+            ? g.id
+            : '${g.senderId}|${g.receiverId}|${g.giftId}|${g.timestamp.toUtc().toIso8601String()}';
+        if (seen.add(id)) out.add(g);
+      }
+      if (page.length < pageSize) break;
+      offset += pageSize;
+    }
+    debugPrint('[getSentGiftsPaged] room=$roomId pages=$pages rows=${out.length}');
+    return out;
+  }
+
+  /// تحويل آمن لأي نوع رقم — يتعامل مع int/double/String/null
+  /// حتى لا يُسقط صف واحد تالف قائمة sent_gifts كاملة.
+  static int _toIntSafe(dynamic v, {int fallback = 0}) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? double.tryParse(v)?.toInt() ?? fallback;
+    return fallback;
+  }
+
+  Future<List<gm.SentGiftModel>> _fetchSentGifts(String roomId,
+      {int limit = 500, DateTime? after, int offset = 0}) async {
     try {
       var query = '';
       if (roomId.isNotEmpty) query += 'room_id=eq.$roomId&';
       if (after != null) query += 'created_at=gte.${after.toUtc().toIso8601String()}&';
-      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?${query}select=*&order=created_at.desc&limit=$limit');
-      final res = await SafeHttp.get(url, headers: _headers);
+      if (offset > 0) query += 'offset=$offset&';
+      final url = Uri.parse('$_baseUrl/rest/v1/sent_gifts?${query}select=*&order=created_at.desc,id.desc&limit=$limit');
+      // ✅ مهلة أطول — حتى 3000 صف قد تتجاوز 5 ثوانٍ على شبكة ضعيفة
+      //    وكان TimeoutException يُسقط الجلب فيرجع الترتيب فارغاً
+      final res = await SafeHttp.get(url, headers: _headers,
+          timeout: const Duration(seconds: 20));
+      if (res.statusCode != 200) {
+        debugPrint('[SupabaseDataService] getSentGifts HTTP ${res.statusCode}: ${res.body}');
+      }
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
-        return list.map((e) {
-          final m = Map<String, dynamic>.from(e as Map);
-          m['id'] = m['id']?.toString() ?? '';
-          m['gift_id'] = m['gift_id']?.toString() ?? '';
-          m['sender_id'] = m['sender_id']?.toString() ?? '';
-          m['sender_name'] = m['sender_name']?.toString() ?? '';
-          m['receiver_id'] = m['receiver_id']?.toString() ?? '';
-          m['receiver_name'] = m['receiver_name']?.toString() ?? '';
-          m['room_id'] = m['room_id']?.toString() ?? roomId;
-          m['value'] = (m['value'] as num?)?.toInt() ?? 0;
-          m['count'] = (m['count'] as num?)?.toInt() ?? 1;
-          m['created_at'] = m['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String();
-          return gm.SentGiftModel.fromMap(m);
-        }).toList();
+        // ✅ صف واحد تالف لا يُسقط القائمة كلها — نتخطاه فقط
+        final out = <gm.SentGiftModel>[];
+        for (final e in list) {
+          try {
+            final m = Map<String, dynamic>.from(e as Map);
+            m['id'] = m['id']?.toString() ?? '';
+            m['gift_id'] = m['gift_id']?.toString() ?? '';
+            m['sender_id'] = m['sender_id']?.toString() ?? '';
+            m['sender_name'] = m['sender_name']?.toString() ?? '';
+            m['receiver_id'] = m['receiver_id']?.toString() ?? '';
+            m['receiver_name'] = m['receiver_name']?.toString() ?? '';
+            m['room_id'] = m['room_id']?.toString() ?? roomId;
+            m['value'] = _toIntSafe(m['value']);
+            m['count'] = _toIntSafe(m['count'], fallback: 1);
+            m['created_at'] = m['created_at']?.toString() ?? DateTime.now().toUtc().toIso8601String();
+            out.add(gm.SentGiftModel.fromMap(m));
+          } catch (_) {}
+        }
+        return out;
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getSentGifts error: $e');
@@ -2449,6 +2846,32 @@ class SupabaseDataService {
       }
     } catch (e) {
       debugPrint('[SupabaseDataService] getStoreItemById error: $e');
+    }
+    return null;
+  }
+
+  /// ✅ يجلب custom_id لكل المستخدمين الذين لديهم آيدي مميز مفعّل
+  ///    (active_special_id غير فارغ) — يُستخدم لتقييد تلوين الاسم
+  ///    على من يملك فعلاً آيدي مميزاً مشترياً/مُهدى ومفعّلاً فقط.
+  ///    يرجع null عند فشل الشبكة حتى لا نمسح البيانات السابقة.
+  Future<Set<String>?> getActiveSpecialCustomIds() async {
+    try {
+      final url = Uri.parse(
+          '$_baseUrl/rest/v1/users?active_special_id=neq.&select=custom_id');
+      final res = await SafeHttp.get(url, headers: _headers);
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list
+            .map((e) =>
+                Map<String, dynamic>.from(e as Map)['custom_id']
+                    ?.toString()
+                    .trim() ??
+                '')
+            .where((s) => s.isNotEmpty)
+            .toSet();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseDataService] getActiveSpecialCustomIds error: $e');
     }
     return null;
   }
@@ -3212,5 +3635,3 @@ class SupabaseDataService {
     }
   }
 }
-
-

@@ -48,20 +48,18 @@ abstract final class AgencyRepository {
       // قراءة نسب العمولات المحددة في لوحة التحكم
       try {
         final commRows = await _sb.from('commission_settings').select('*');
-        if (commRows is List) {
-          for (final row in commRows) {
-            final key = row['key']?.toString();
-            final p = (row['percentage'] as num?)?.toDouble() ??
-                (row['value'] as num?)?.toDouble();
-            if (p != null) {
-              if (key == 'host_rate' || key == 'recharge_agent_host_rate') {
-                hostShare = p.toInt();
-              } else if (key == 'agency_rate' ||
-                  key == 'recharge_agent_agency_rate') {
-                agencyShare = p.toInt();
-              } else if (key == 'platform_rate') {
-                platformShare = p.toInt();
-              }
+        for (final row in commRows) {
+          final key = row['key']?.toString();
+          final p = (row['percentage'] as num?)?.toDouble() ??
+              (row['value'] as num?)?.toDouble();
+          if (p != null) {
+            if (key == 'host_rate' || key == 'recharge_agent_host_rate') {
+              hostShare = p.toInt();
+            } else if (key == 'agency_rate' ||
+                key == 'recharge_agent_agency_rate') {
+              agencyShare = p.toInt();
+            } else if (key == 'platform_rate') {
+              platformShare = p.toInt();
             }
           }
         }
@@ -75,31 +73,29 @@ abstract final class AgencyRepository {
             .from('app_config')
             .select('*')
             .inFilter('key', ['diamond_exchange_config', 'diamondToCoinRate']);
-        if (cfgRows is List) {
-          for (final row in cfgRows) {
-            final key = row['key']?.toString();
-            final val = row['value'];
-            if (key == 'diamondToCoinRate' && val is num) {
-              diamondToCoin = val.toDouble();
-            } else if (key == 'diamond_exchange_config') {
-              Map<String, dynamic>? dec;
-              if (val is Map)
-                dec = Map<String, dynamic>.from(val);
-              else if (val is String) {
-                try {
-                  dec = jsonDecode(val) as Map<String, dynamic>?;
-                } catch (_) {}
+        for (final row in cfgRows) {
+          final key = row['key']?.toString();
+          final val = row['value'];
+          if (key == 'diamondToCoinRate' && val is num) {
+            diamondToCoin = val.toDouble();
+          } else if (key == 'diamond_exchange_config') {
+            Map<String, dynamic>? dec;
+            if (val is Map) {
+              dec = Map<String, dynamic>.from(val);
+            } else if (val is String) {
+              try {
+                dec = jsonDecode(val) as Map<String, dynamic>?;
+              } catch (_) {}
+            }
+            if (dec != null) {
+              if (dec['coinsPerDiamond'] is num) {
+                diamondToCoin = (dec['coinsPerDiamond'] as num).toDouble();
               }
-              if (dec != null) {
-                if (dec['coinsPerDiamond'] is num) {
-                  diamondToCoin = (dec['coinsPerDiamond'] as num).toDouble();
-                }
-                if (dec['minDiamonds'] is num) {
-                  minDiamondsToWithdraw = (dec['minDiamonds'] as num).toInt();
-                }
-                if (dec['enabled'] is bool) {
-                  engineEnabled = dec['enabled'] as bool;
-                }
+              if (dec['minDiamonds'] is num) {
+                minDiamondsToWithdraw = (dec['minDiamonds'] as num).toInt();
+              }
+              if (dec['enabled'] is bool) {
+                engineEnabled = dec['enabled'] as bool;
               }
             }
           }
@@ -1160,7 +1156,7 @@ abstract final class AgencyRepository {
               'diamond_balance': agentNewBalance,
               'total_received': agentPrevReceived + diamonds,
               'updated_at': DateTime.now().toIso8601String(),
-            }).eq('id', walletId!);
+            }).eq('id', walletId);
           } else {
             await _sb.from('agency_wallets').insert({
               'agency_profile_id': agentId,
@@ -1201,7 +1197,7 @@ abstract final class AgencyRepository {
                   'diamond_balance': agentPrevBalance,
                   'total_received': agentPrevReceived,
                   'updated_at': DateTime.now().toIso8601String(),
-                }).eq('id', walletId!);
+                }).eq('id', walletId);
               }
             } catch (_) {}
           }

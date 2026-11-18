@@ -54,30 +54,39 @@ class CachedNetImage extends StatelessWidget {
       if (detectAssetType(safeUrl) == AssetType.svga) {
         return SvgaPlayer(assetPath: safeUrl, width: width ?? 100, height: height ?? 100, fit: fit);
       }
-      return Image(
-        image: EncryptedImageProvider(safeUrl),
-        width: width,
-        height: height,
-        fit: fit,
-        color: color,
-        frameBuilder: placeholder != null
-            ? (ctx, child, frame, wasSynchronouslyLoaded) {
-                if (frame == null && !wasSynchronouslyLoaded) {
-                  return placeholder!(ctx, safeUrl);
-                }
-                return child;
-              }
-            : null,
-        errorBuilder: (ctx, err, stack) {
-          if (error != null) return error!(ctx, err, stack);
-          final lower = safeUrl.toLowerCase();
-          if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
-            return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
-          }
-          return Container(
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final cacheSize = _decodeSize(context, constraints, width, height);
+          return Image(
+            image: ResizeImage.resizeIfNeeded(
+              cacheSize.$1,
+              cacheSize.$2,
+              EncryptedImageProvider(safeUrl),
+            ),
             width: width,
             height: height,
-            color: Colors.transparent,
+            fit: fit,
+            color: color,
+            frameBuilder: placeholder != null
+                ? (ctx, child, frame, wasSynchronouslyLoaded) {
+                    if (frame == null && !wasSynchronouslyLoaded) {
+                      return placeholder!(ctx, safeUrl);
+                    }
+                    return child;
+                  }
+                : null,
+            errorBuilder: (ctx, err, stack) {
+              if (error != null) return error!(ctx, err, stack);
+              final lower = safeUrl.toLowerCase();
+              if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
+                return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
+              }
+              return Container(
+                width: width,
+                height: height,
+                color: Colors.transparent,
+              );
+            },
           );
         },
       );
@@ -118,6 +127,31 @@ class CachedNetImage extends StatelessWidget {
   }
 }
 
+/// يحسب أبعاد فك الترميز (cacheWidth/cacheHeight) بناءً على حجم العرض
+/// الفعلي × كثافة البكسل — فيتم فك ترميز الصورة بمقاسها المعروض بدل
+/// الدقة الأصلية الكاملة، مما يخفض استهلاك الذاكرة ووقت الفك بشكل كبير.
+(int?, int?) _decodeSize(
+  BuildContext context,
+  BoxConstraints constraints,
+  double? width,
+  double? height,
+) {
+  final dpr = MediaQuery.devicePixelRatioOf(context);
+  double? w = width;
+  double? h = height;
+  if ((w == null || !w.isFinite) && constraints.hasBoundedWidth) {
+    w = constraints.maxWidth;
+  }
+  if ((h == null || !h.isFinite) && constraints.hasBoundedHeight) {
+    h = constraints.maxHeight;
+  }
+  int? cw;
+  int? ch;
+  if (w != null && w.isFinite && w > 0) cw = (w * dpr).round();
+  if (h != null && h.isFinite && h > 0) ch = (h * dpr).round();
+  return (cw, ch);
+}
+
 ImageProvider cachedImgProvider(String url) {
   return cachedNetworkImageProvider(url);
 }
@@ -150,26 +184,35 @@ class CachedImg extends StatelessWidget {
       if (detectAssetType(safeUrl) == AssetType.svga) {
         return SvgaPlayer(assetPath: safeUrl, width: width ?? 100, height: height ?? 100, fit: fit);
       }
-      return Image(
-        image: EncryptedImageProvider(safeUrl),
-        width: width,
-        height: height,
-        fit: fit,
-        frameBuilder: placeholder != null
-            ? (ctx, child, frame, wasSynchronouslyLoaded) {
-                if (frame == null && !wasSynchronouslyLoaded) {
-                  return placeholder!(ctx, safeUrl);
-                }
-                return child;
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final cacheSize = _decodeSize(context, constraints, width, height);
+          return Image(
+            image: ResizeImage.resizeIfNeeded(
+              cacheSize.$1,
+              cacheSize.$2,
+              EncryptedImageProvider(safeUrl),
+            ),
+            width: width,
+            height: height,
+            fit: fit,
+            frameBuilder: placeholder != null
+                ? (ctx, child, frame, wasSynchronouslyLoaded) {
+                    if (frame == null && !wasSynchronouslyLoaded) {
+                      return placeholder!(ctx, safeUrl);
+                    }
+                    return child;
+                  }
+                : null,
+            errorBuilder: (ctx, err, stack) {
+              if (error != null) return error!(ctx, safeUrl, err);
+              final lower = safeUrl.toLowerCase();
+              if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
+                return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
               }
-            : null,
-        errorBuilder: (ctx, err, stack) {
-          if (error != null) return error!(ctx, safeUrl, err);
-          final lower = safeUrl.toLowerCase();
-          if (lower.contains('avatar') || lower.contains('user') || lower.contains('photo') || lower.contains('profile') || lower.contains('head')) {
-            return Image.asset(R.avaBoy, width: width, height: height, fit: fit);
-          }
-          return const SizedBox();
+              return const SizedBox();
+            },
+          );
         },
       );
     }

@@ -161,20 +161,16 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
 
   void _enterRoom(Map<String, dynamic> r) {
     final roomId = (r['room_id'] ?? r['docId'] ?? '').toString();
-    if (roomId.isEmpty || !RoomScreen.pushGuard(roomId)) return;
-    
-    Navigator.push(
+    if (roomId.isEmpty) return;
+    // navigateToRoom يتكفّل بحماية الضغط المزدوج وإزالة أي غرفة سابقة.
+    navigateToRoom(
       context,
-      MaterialPageRoute(
-        builder: (_) => RoomScreen(
-          roomId: roomId,
-          roomName: r['name'] ?? r['title'] ?? 'Room',
-          hostName: r['host_name'] ?? 'Host',
-          roomPassword: r['password'] ?? '',
-          hotValue: (r['hot_value'] ?? r['hot'] ?? '0').toString(),
-          gameDesc: r['description'] ?? r['game_desc'] ?? '',
-        ),
-      ),
+      roomName: r['name'] ?? r['title'] ?? 'Room',
+      hostName: r['host_name'] ?? 'Host',
+      roomId: roomId,
+      roomPassword: (r['password'] ?? '').toString(),
+      hotValue: (r['hot_value'] ?? r['hot'] ?? '0').toString(),
+      gameDesc: (r['description'] ?? r['game_desc'] ?? '').toString(),
     );
   }
 
@@ -254,16 +250,13 @@ class _GlobalSearchResultsState extends State<_GlobalSearchResults> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       color: Colors.white10,
-                      image: photoUrl.isNotEmpty
-                          ? DecorationImage(
-                              image: R.cachedImage(photoUrl),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
+                      image: DecorationImage(
+                        image: photoUrl.isNotEmpty
+                            ? R.cachedImage(photoUrl)
+                            : const AssetImage(R.defaultRoomPhoto),
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                    child: photoUrl.isEmpty
-                        ? const Icon(Icons.meeting_room, color: Colors.white54)
-                        : null,
                   ),
                   title: DText(r['name'] ?? r['title'] ?? 'بدون اسم', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   subtitle: DText('ID: ${r['room_id'] ?? ''}', style: const TextStyle(color: Colors.white54)),

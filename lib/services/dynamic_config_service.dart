@@ -1,9 +1,8 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:restart_app/restart_app.dart' show Restart;
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../models/app_asset_model.dart';
 import '../config/app_config.dart';
 import 'supabase_data_service.dart';
@@ -28,8 +27,8 @@ class DynamicConfigService extends ChangeNotifier {
   String _splashActionValue = '';
 
   // Mini Profile overrides
-  String _miniProfileFollowIcon = '';
-  String _miniProfileMessageIcon = '';
+  final String _miniProfileFollowIcon = '';
+  final String _miniProfileMessageIcon = '';
 
   // VIP global asset overrides
   String _vipCardBgImgUrl = '';
@@ -95,7 +94,7 @@ class DynamicConfigService extends ChangeNotifier {
   Map<String, String> _assetsOverride = {};
 
   // App assets from app_assets table (primary source for remote_url)
-  Map<String, AppAssetModel> _appAssets = {};
+  final Map<String, AppAssetModel> _appAssets = {};
 
   // Assets size overrides: { "assets_mipmap-xxhdpi_xxx_webp": {"width": 100, "height": 200} }
   Map<String, Map<String, dynamic>> _assetSizes = {};
@@ -191,50 +190,57 @@ class DynamicConfigService extends ChangeNotifier {
 
   Color rankGoldColorFor(String category) {
     final cat = _rankCategoryConfigs[category];
-    if (cat != null && cat['goldColor'] != null)
+    if (cat != null && cat['goldColor'] != null) {
       return _parseColor(cat['goldColor']!, const Color(0xFFFFD700));
+    }
     return _parseColor(_rankGoldColor, const Color(0xFFFFD700));
   }
 
   Color rankSilverColorFor(String category) {
     final cat = _rankCategoryConfigs[category];
-    if (cat != null && cat['silverColor'] != null)
+    if (cat != null && cat['silverColor'] != null) {
       return _parseColor(cat['silverColor']!, const Color(0xFFC0C0C0));
+    }
     return _parseColor(_rankSilverColor, const Color(0xFFC0C0C0));
   }
 
   Color rankBronzeColorFor(String category) {
     final cat = _rankCategoryConfigs[category];
-    if (cat != null && cat['bronzeColor'] != null)
+    if (cat != null && cat['bronzeColor'] != null) {
       return _parseColor(cat['bronzeColor']!, const Color(0xFFCD7F32));
+    }
     return _parseColor(_rankBronzeColor, const Color(0xFFCD7F32));
   }
 
   Color rankPointsColorFor(String category) {
     final cat = _rankCategoryConfigs[category];
-    if (cat != null && cat['pointsColor'] != null)
+    if (cat != null && cat['pointsColor'] != null) {
       return _parseColor(cat['pointsColor']!, const Color(0xFFFFD700));
+    }
     return _parseColor(_rankPointsColor, const Color(0xFFFFD700));
   }
 
   Color rankTextColorFor(String category) {
     final cat = _rankCategoryConfigs[category];
-    if (cat != null && cat['textColor'] != null)
+    if (cat != null && cat['textColor'] != null) {
       return _parseColor(cat['textColor']!, Colors.white);
+    }
     return _parseColor(_rankTextColor, Colors.white);
   }
 
   Color rankSubTextColorFor(String category) {
     final cat = _rankCategoryConfigs[category];
-    if (cat != null && cat['subTextColor'] != null)
+    if (cat != null && cat['subTextColor'] != null) {
       return _parseColor(cat['subTextColor']!, Colors.white60);
+    }
     return _parseColor(_rankSubTextColor, Colors.white60);
   }
 
   String rankBgFor(String category) {
     final cat = _rankCategoryConfigs[category];
-    if (cat != null && cat['bg'] != null && cat['bg']!.isNotEmpty)
+    if (cat != null && cat['bg'] != null && cat['bg']!.isNotEmpty) {
       return cat['bg']!;
+    }
     return _rankBg;
   }
 
@@ -1230,29 +1236,34 @@ class DynamicConfigService extends ChangeNotifier {
     final s = _screenVisuals[screen];
     if (s is Map) {
       final v = s[field];
-      if (v != null && v.toString().trim().isNotEmpty)
+      if (v != null && v.toString().trim().isNotEmpty) {
         return v.toString().trim();
+      }
     }
     // Also check root rawConfig if not in screenVisuals
     final root = _rawConfig[field];
-    if (root != null && root.toString().trim().isNotEmpty)
+    if (root != null && root.toString().trim().isNotEmpty) {
       return root.toString().trim();
+    }
     final screenMap = _rawConfig[screen];
     if (screenMap is Map) {
       final sv = screenMap[field];
-      if (sv != null && sv.toString().trim().isNotEmpty)
+      if (sv != null && sv.toString().trim().isNotEmpty) {
         return sv.toString().trim();
+      }
     }
     // Cross check screenVisuals fullProfile or userProfile
     if (screen != 'fullProfile' && _screenVisuals['fullProfile'] is Map) {
       final fp = _screenVisuals['fullProfile'][field];
-      if (fp != null && fp.toString().trim().isNotEmpty)
+      if (fp != null && fp.toString().trim().isNotEmpty) {
         return fp.toString().trim();
+      }
     }
     if (screen != 'userProfile' && _screenVisuals['userProfile'] is Map) {
       final up = _screenVisuals['userProfile'][field];
-      if (up != null && up.toString().trim().isNotEmpty)
+      if (up != null && up.toString().trim().isNotEmpty) {
         return up.toString().trim();
+      }
     }
     return fallback;
   }
@@ -1261,27 +1272,32 @@ class DynamicConfigService extends ChangeNotifier {
     final s = _screenVisuals[screen];
     if (s is Map) {
       final v = s[field];
-      if (v != null && v.toString().trim().isNotEmpty)
+      if (v != null && v.toString().trim().isNotEmpty) {
         return _parseColor(v.toString().trim(), fallback);
+      }
     }
     final root = _rawConfig[field];
-    if (root != null && root.toString().trim().isNotEmpty)
+    if (root != null && root.toString().trim().isNotEmpty) {
       return _parseColor(root.toString().trim(), fallback);
+    }
     final screenMap = _rawConfig[screen];
     if (screenMap is Map) {
       final sv = screenMap[field];
-      if (sv != null && sv.toString().trim().isNotEmpty)
+      if (sv != null && sv.toString().trim().isNotEmpty) {
         return _parseColor(sv.toString().trim(), fallback);
+      }
     }
     if (screen != 'fullProfile' && _screenVisuals['fullProfile'] is Map) {
       final fp = _screenVisuals['fullProfile'][field];
-      if (fp != null && fp.toString().trim().isNotEmpty)
+      if (fp != null && fp.toString().trim().isNotEmpty) {
         return _parseColor(fp.toString().trim(), fallback);
+      }
     }
     if (screen != 'userProfile' && _screenVisuals['userProfile'] is Map) {
       final up = _screenVisuals['userProfile'][field];
-      if (up != null && up.toString().trim().isNotEmpty)
+      if (up != null && up.toString().trim().isNotEmpty) {
         return _parseColor(up.toString().trim(), fallback);
+      }
     }
     return fallback;
   }
@@ -1742,6 +1758,15 @@ class DynamicConfigService extends ChangeNotifier {
       'cp', 'profileNameFrame', 'assets/cp/ic_send_invitation_name_frame.png');
   String get cpProfileTopBgSvga => _screenStr(
       'cp', 'profileTopBgSvga', 'assets/svga/relationship_act_top_bg.svga');
+
+  // ── CP Display / Themes Screen (من لوحة التحكم) ──
+  String get cpDisplayBgImage => _screenStr('cp', 'displayBgImage', '');
+  String get cpDisplayTitle => _screenStr('cp', 'displayTitle', 'عرض العلاقة');
+  String get cpDisplayEmptyImage => _screenStr('cp', 'displayEmptyImage', '');
+  Color get cpDisplayCardColor =>
+      _screenColor('cp', 'displayCardColor', const Color(0xFF4a1020));
+  Color get cpDisplayActiveBorderColor =>
+      _screenColor('cp', 'displayActiveBorderColor', const Color(0xFFDE880F));
 
   // Sign-in screen visuals
   String get signinBackgroundImage =>
@@ -2628,8 +2653,9 @@ class DynamicConfigService extends ChangeNotifier {
       if (c != null) {
         final s = c.toString().toLowerCase();
         if (s.contains('day') || s.contains('يوم')) return 'daily';
-        if (s.contains('week') || s.contains('أسبوع') || s.contains('اسبوع'))
+        if (s.contains('week') || s.contains('أسبوع') || s.contains('اسبوع')) {
           return 'weekly';
+        }
         if (s.contains('month') || s.contains('شهر')) return 'monthly';
       }
     }
@@ -2957,3 +2983,4 @@ class DynamicConfigService extends ChangeNotifier {
     return null;
   }
 }
+

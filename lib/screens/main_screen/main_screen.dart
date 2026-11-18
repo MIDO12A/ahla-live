@@ -16,10 +16,6 @@ import '../room/widgets/svga_player.dart';
 import '../../widgets/app_update_dialog.dart';
 import '../../features/signin/weekly_signin_screen.dart';
 import '../../features/rewards/daily_reward_dialog.dart';
-import '../../services/supabase_service.dart';
-import '../room/widgets/room_marquee_broadcast.dart';
-import '../../features/lucky_gift/services/lucky_gift_service.dart';
-import '../../services/pusher_service.dart';
 import 'package:zero/core/dtext.dart';
 
 class MainScreen extends StatefulWidget {
@@ -33,10 +29,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   Timer? _updatePoll;
   bool _checkingUpdate = false;
-  StreamSubscription? _broadcastSub;
-  StreamSubscription? _broadcastPusherSub;
-  final ValueNotifier<Map<String, dynamic>?> _broadcastNotifier = ValueNotifier<Map<String, dynamic>?>(null);
-  final Set<String> _seenBroadcastIds = <String>{};
   // الصفحات تُنشأ مرة واحدة — لا تُعاد بناؤها مع كل تحديث إعدادات
   late final List<Widget> _pages = [
     RoomDiscoverScreen(),
@@ -58,57 +50,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     });
     // Periodic update check while the app is open (splash only checks cold start)
     _updatePoll = Timer.periodic(const Duration(minutes: 15), (_) => _checkUpdate());
-
-    // ✅ الاستماع للبانرات العامة وبانرات فوز الحظ (100X, 250X, 500X) عبر كل شاشات التطبيق
-    _broadcastSub = FirebaseService().globalBroadcastStream().listen((broadcasts) {
-      if (!mounted || broadcasts.isEmpty) return;
-      for (final latest in broadcasts) {
-        _handleBroadcastRow(latest);
-      }
-    });
-
-    // ✅ اشتراك Pusher الفوري — نفس معالجة الـ polling لكن بلا انتظار،
-    //    فيصل نص الهدية/الفوز لحظياً على كل شاشات التطبيق.
-    PusherRealtimeService.instance.start();
-    _broadcastPusherSub = PusherRealtimeService.instance.events.listen((evt) {
-      if (!mounted || evt['event'] != 'broadcast') return;
-      final data = evt['data'];
-      if (data is Map) {
-        _handleBroadcastRow(Map<String, dynamic>.from(data));
-      }
-    }, onError: (_) {});
-  }
-
-  /// معالجة صف بث واحد: فلترة الحداثة + منع التكرار + عرض الماركي
-  /// وبانر الفوز الكبير. تُستدعى من الـ polling ومن Pusher معاً —
-  /// مجموعة _seenBroadcastIds تمنع الازدواج تلقائياً.
-  void _handleBroadcastRow(Map<String, dynamic> latest) {
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final bTs = (latest['timestamp'] as num?)?.toInt() ??
-        (DateTime.tryParse(latest['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0);
-    // تجاهل البثوث التي لا تحمل وقت سيرفر صالح حتى لا تُعاد القديمة عند كل فتح.
-    if (bTs <= 0) return;
-    final isRecent = (nowMs - bTs).abs() < 90000;
-    if (!isRecent) return;
-    final bId = latest['id']?.toString() ?? '${bTs}_${latest['sender_uid']}';
-    if (_seenBroadcastIds.contains(bId)) return;
-    _seenBroadcastIds.add(bId);
-    _broadcastNotifier.value = latest;
-
-    // إذا كان فوزاً كبيراً 10X فما فوق، تشغيل بانر SVGA العالمي الأسطوري
-    final mult = latest['multiplier'] is num
-        ? (latest['multiplier'] as num).toInt()
-        : int.tryParse(latest['multiplier']?.toString() ?? '0') ?? 0;
-    if (mult >= 10 && mounted) {
-      LuckyGiftService().showBigWinBanner(
-        context,
-        senderName: latest['sender_name']?.toString() ?? 'مستخدم',
-        senderAvatar: latest['sender_photo_url']?.toString() ?? '',
-        giftName: latest['gift_name']?.toString() ?? 'هدية الحظ',
-        multiplier: mult,
-        totalWon: (latest['won_coins'] as num?)?.toInt() ?? 0,
-      );
-    }
   }
 
   Future<void> _checkUpdate() async {
@@ -141,9 +82,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _updatePoll?.cancel();
-    _broadcastSub?.cancel();
-    _broadcastPusherSub?.cancel();
-    _broadcastNotifier.dispose();
     super.dispose();
   }
 
@@ -195,37 +133,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       },
       child: Scaffold(
       backgroundColor: const Color(0xFFFFFFFF),
-      body: Stack(
-        children: [
-          // IndexedStack يُبقي كل التبويبات حيّة — الانتقال بين
-          // الاستكشاف والحساب لا يُعيد بناء الصفحة ولا يُظهر loading
-          IndexedStack(
-            index: _currentIndex,
-            children: _pages,
-          ),
-
-              // ── Global Marquee Broadcast for all screens ──
-              ValueListenableBuilder<Map<String, dynamic>?>(
-                valueListenable: _broadcastNotifier,
-                builder: (context, broadcast, _) {
-                  if (broadcast == null) return const SizedBox.shrink();
-                    return Positioned(
-                      top: MediaQuery.of(context).padding.top + 8,
-                      left: 0,
-                      right: 0,
-                      child: RoomMarqueeBroadcast(
-                        key: ValueKey(broadcast['id'] ?? broadcast['timestamp'] ?? DateTime.now().millisecondsSinceEpoch),
-                        broadcast: broadcast,
-                        onDismissed: () {
-                          _broadcastNotifier.value = null;
-                        },
-                      ),
-                    );
-                },
-              ),
-            ],
-          ),
-          bottomNavigationBar: ListenableBuilder(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _pages,
+      ),
+      bottomNavigationBar: ListenableBuilder(
             listenable: DynamicConfigService(),
             builder: (context, _) => Column(
             mainAxisSize: MainAxisSize.min,

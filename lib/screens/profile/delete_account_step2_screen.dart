@@ -4,6 +4,7 @@ import '../../providers/user_provider.dart';
 import '../../services/account_switch_service.dart';
 import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_data_service.dart';
+import '../../features/signin/signin_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_strings.dart';
 import '../../screens/login/login_screen.dart';
@@ -31,8 +32,23 @@ class _DeleteAccountStep2ScreenState extends State<DeleteAccountStep2Screen> {
         return;
       }
 
-      await SupabaseDataService().deleteUser(uid);
+      // ✅ لازم السيرفر يأكد المسح أولاً — قبل كده كان التطبيق بيمسح
+      //    حالته المحلية ويعمل signout حتى لو الحذف فشل على السيرفر.
+      final deleted = await SupabaseDataService().deleteUser(uid);
+      if (!deleted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: DText('تعذّر حذف الحساب على السيرفر. حاول مرة أخرى.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
       await AccountSwitchService.removeAccount(uid);
+      await SigninService.clearLocalForUser(uid);
       if (mounted) {
         Provider.of<UserProvider>(context, listen: false).clearUser();
       }

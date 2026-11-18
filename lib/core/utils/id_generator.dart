@@ -1,9 +1,10 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../../services/supabase_data_service.dart';
+import '../../services/supabase_service.dart';
 
 /// خدمة توليد أرقام تعريف المستخدمين (User ID Generator)
-/// توليد أرقام فريدة آمنة ومتسقة (6-10 أرقام)
+/// توليد أرقام فريدة آمنة ومتسقة (6-7 أرقام)
 class UserIdGenerator {
   static final Random _random = Random.secure();
   static final UserIdGenerator _instance = UserIdGenerator._internal();
@@ -21,7 +22,7 @@ class UserIdGenerator {
       final customId = _generateRandomId(minDigits, maxDigits);
       
       // التحقق من عدم وجود الرقم في قاعدة البيانات
-      final isUnique = await _checkIdUniqueness(customId);
+      final isUnique = await checkIdUniqueness(customId);
       
       if (isUnique) {
         return customId;
@@ -45,7 +46,8 @@ class UserIdGenerator {
   }
 
   /// التحقق من تفرد الرقم في Supabase و Firestore
-  Future<bool> _checkIdUniqueness(String customId) async {
+  /// أصبحت عامة للاستخدام من خدمات أخرى (مثل الهجرة)
+  Future<bool> checkIdUniqueness(String customId) async {
     try {
       // 1. التحقق من Supabase (مستخدمين وغرف)
       try {
@@ -75,32 +77,59 @@ class UserIdGenerator {
     return 'temp_${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  /// التحقق من صحة تنسيق الـ ID (يقبل من خانة واحدة حتى 10 خانات ليدعم الآيديات المميزة مثل 1 أو 100)
+  /// التحقق من صحة تنسيق الـ ID (أرقام فقط 6-7 خانات)
   static bool isValidCustomId(String customId) {
     if (customId.trim().isEmpty) return false;
     
-    // إزالة أي مسافات أو رموز
-    final cleaned = customId.replaceAll(RegExp(r'[^0-9]'), '');
+    // يجب أن يكون أرقام فقط
+    if (!RegExp(r'^[0-9]+$').hasMatch(customId)) return false;
     
-    // التحقق من الطول (1-10 أرقام)
-    if (cleaned.isEmpty || cleaned.length > 10) return false;
+    // التحقق من الطول (6-7 أرقام فقط)
+    if (customId.length < 6 || customId.length > 7) return false;
     
-    // التحقق من أنه أرقام فقط
-    return int.tryParse(cleaned) != null;
+    // التحقق من أنه رقم صحيح
+    final value = int.tryParse(customId);
+    return value != null && value >= 111111;
   }
 
-  /// تنظيف وتطبيع الـ ID
-  /// TODO: استخدام لتنظيف البيانات القديمة
+  /// تنظيف وتطبيع الـ ID - يزيل الحروف ويحتفظ بالأرقام فقط
+  /// إذا كان الناتج أقل من 6 أرقام، يولد رقم جديد
   static String normalizeCustomId(String customId) {
     if (customId.isEmpty) return '';
     
     // إزالة أي رموز غير رقمية
     final cleaned = customId.replaceAll(RegExp(r'[^0-9]'), '');
     
-    // التحقق من الصحة
-    if (!isValidCustomId(cleaned)) return '';
+    // إذا كان الناتج صالحاً (6-7 أرقام)، أرجعه
+    if (isValidCustomId(cleaned)) return cleaned;
     
-    return cleaned;
+    // وإلا، أرجع سلسلة فارغة ليتم توليد رقم جديد
+    return '';
+  }
+
+  /// تحويل ID الأبجدية الرقمية إلى رقم رقمي بحت (6-7 أرقام)
+  /// يستخدم للمستخدمين الحاليين الذين لديهم IDs أبجدية رقمية
+  static String migrateToNumericId(String alphanumericId) {
+    if (alphanumericId.isEmpty) return '';
+    
+    // إذا كان بالفعل رقمي صالح، أرجعه كما هو
+    if (isValidCustomId(alphanumericId)) return alphanumericId;
+    
+    // استخراج الأرقام فقط
+    final digitsOnly = alphanumericId.replaceAll(RegExp(r'[^0-9]'), '');
+    
+    // إذا كانت الأرقام المستخرجة صالحة، استخدمها
+    if (isValidCustomId(digitsOnly)) return digitsOnly;
+    
+    // وإلا، استخدم hash code لتوليد رقم جديد ثابت للمستخدم نفسه
+    final hash = alphanumericId.hashCode.abs();
+    final numericId = ((hash % 8888888) + 1111111).toString();
+    
+    // تأكد من أنه 6-7 أرقام
+    if (numericId.length > 7) {
+      return numericId.substring(0, 7);
+    }
+    return numericId;
   }
 
   /// توليد batch من الأرقام الفريدة
@@ -117,7 +146,7 @@ class UserIdGenerator {
       final id = _generateRandomId(minDigits, maxDigits);
       
       if (!usedIds.contains(id)) {
-        final isUnique = await _checkIdUniqueness(id);
+        final isUnique = await checkIdUniqueness(id);
         if (isUnique) {
           ids.add(id);
           usedIds.add(id);
@@ -147,7 +176,7 @@ class UserIdGenerator {
     // أخذ أول 6 أو 7 أرقام إذا كانت رقمية بالكامل وقيمتها >= 111111
     final digitsOnly = cleaned.replaceAll(RegExp(r'[^0-9]'), '');
     if (digitsOnly.length >= 6) {
-      final sub = digitsOnly.substring(0, 6);
+      final sub = digitsOnly.substring(0, 7);
       final val = int.tryParse(sub) ?? 0;
       if (val >= 111111) return val.toString();
     }

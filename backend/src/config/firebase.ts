@@ -21,7 +21,12 @@ function initApp(): App {
   // Local dev: relies on GOOGLE_APPLICATION_CREDENTIALS or gcloud ADC.
   // نحدد projectId صراحة حتى يشتغل auth.verifyIdToken (التحقق عبر المفاتيح
   // العامة) حتى لو لم يُضبط service account في البيئة كاملة.
-  return initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'ahla-live' });
+  // ✅ ننظّف projectId من أي BOM/محارف غير ASCII — قيمةenv منسوخة
+  //    من ملف UTF-8 BOM تكسّر Firestore كلها بـ "illegal characters".
+  const rawProjectId =
+    process.env.FIREBASE_PROJECT_ID || 'ahla-live';
+  const projectId = rawProjectId.replace(/[^\x20-\x7E]/g, '');
+  return initializeApp({ projectId });
 }
 
 const app = initApp();

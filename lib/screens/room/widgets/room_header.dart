@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../config/r.dart';
 import '../../../services/dynamic_config_service.dart';
+import '../../../services/network_status_service.dart';
 import '../../../widgets/user_id_widget.dart';
 import 'package:zero/core/dtext.dart';
 
@@ -24,6 +26,10 @@ class RoomHeader extends StatelessWidget {
   final VoidCallback? onFollow;
   final VoidCallback? onCupTap;
 
+  /// حالة الشبكة/البينج — تُعرض كنقطة ملونة أسفل زر المتصلين.
+  /// null = لا مؤشر.
+  final ValueListenable<NetworkPingInfo>? networkStatus;
+
   const RoomHeader({
     super.key,
     this.roomName,
@@ -44,6 +50,7 @@ class RoomHeader extends StatelessWidget {
     this.onGameTap,
     this.onFollow,
     this.onCupTap,
+    this.networkStatus,
   });
 
   @override
@@ -58,7 +65,7 @@ class RoomHeader extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(height: statusH),
-          Container(
+          SizedBox(
             height: 56,
             child: Stack(
               children: [
@@ -92,7 +99,7 @@ class RoomHeader extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      _buildOnlineButton(),
+                      _buildOnlineButtonWithStatus(),
                       const SizedBox(width: 8),
                       _buildRankButton(),
                       const SizedBox(width: 8),
@@ -263,6 +270,50 @@ class RoomHeader extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// زر المتصلين + نقطة حالة الشبكة أسفله (أخضر/أصفر/أحمر حسب البينج).
+  Widget _buildOnlineButtonWithStatus() {
+    final status = networkStatus;
+    if (status == null) return _buildOnlineButton();
+    return ValueListenableBuilder<NetworkPingInfo>(
+      valueListenable: status,
+      builder: (context, info, _) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildOnlineButton(),
+            const SizedBox(height: 1),
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _statusColor(info.quality),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black45, blurRadius: 2),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Color _statusColor(NetworkQuality q) {
+    switch (q) {
+      case NetworkQuality.excellent:
+      case NetworkQuality.good:
+        return const Color(0xFF4CAF50); // أخضر — اتصال ممتاز/جيد
+      case NetworkQuality.fair:
+      case NetworkQuality.poor:
+        return const Color(0xFFFFC107); // أصفر — جودة متوسطة/ضعيفة
+      case NetworkQuality.offline:
+        return const Color(0xFFF44336); // أحمر — منقطع
+      case NetworkQuality.unknown:
+        return Colors.white38;
+    }
   }
 
   Widget _buildOnlineButton() {

@@ -35,7 +35,7 @@ const valueTypes = [
   { key: 'coins', labelAr: 'عملات', labelEn: 'Coins' },
   { key: 'diamonds', labelAr: 'ماس', labelEn: 'Diamonds' },
   { key: 'xp', labelAr: 'نقاط خبرة', labelEn: 'XP' },
-  { key: 'gift', labelAr: 'هدية (عنصر)', labelEn: 'Gift (Item)' },
+  { key: 'gift', labelAr: 'عنصر من المتجر', labelEn: 'Store Item' },
   { key: 'custom', labelAr: 'مخصص', labelEn: 'Custom' },
 ];
 
@@ -77,25 +77,52 @@ export default function SigninFeaturesPage() {
     getVIPConfig().then(tiers => setVipTiers(tiers as any[])).catch(() => {});
   }, []);
 
+  // مكافأة عينية (عنصر من المتجر) لا تُجمع مع عملات — نُصفّر المبلغ عند اختيار عنصر،
+  // ونُفرغ item_id عند الرجوع للعملات حتى لا تبقى قيمة قديمة مخفية.
+  const sanitizeReward = (r: any) => {
+    const type = String(r?.type || 'coins');
+    const amount = Math.max(0, Number(r?.amount || 0) || 0);
+    const item_id = String(r?.item_id || '').trim();
+    if (type === 'item' || type === 'vip_item') return { ...r, type, amount: 0, item_id };
+    if (type === 'vip_tier') return { ...r, type, amount, item_id: '' };
+    return { ...r, type, amount, item_id: '' };
+  };
+
   const updateReward = (cfg: any, side: 'daily' | 'inviter' | 'invitee', field: string, value: any) => {
+    const apply = (reward: any) => {
+      const next = { ...(reward || {}), [field]: value };
+      if (field === 'type') {
+        if (value === 'item' || value === 'vip_item') next.amount = 0;
+        else next.item_id = '';
+      }
+      return next;
+    };
     if (side === 'daily') {
-      setDailyCfg((p: any) => ({ ...p, reward: { ...p.reward, [field]: value } }));
+      setDailyCfg((p: any) => ({ ...p, reward: apply(p.reward) }));
     } else {
       const key = side === 'inviter' ? 'inviter_reward' : 'invitee_reward';
-      setInviteCfg((p: any) => ({ ...p, [key]: { ...(p[key] || emptyReward), [field]: value } }));
+      setInviteCfg((p: any) => ({ ...p, [key]: apply(p[key] || emptyReward) }));
     }
   };
 
   const saveDailyCfg = async () => {
     setSavingCfg(true);
-    await updateAppConfig('daily_reward_settings', dailyCfg);
+    const reward = sanitizeReward(dailyCfg.reward);
+    const hasValue = (['coins', 'diamonds', 'vip_tier'].includes(reward.type) && Number(reward.amount) > 0)
+      || (['item', 'vip_item'].includes(reward.type) && !!String(reward.item_id || '').trim());
+    await updateAppConfig('daily_reward_settings', { ...dailyCfg, reward, enabled: hasValue && !!dailyCfg.enabled });
+    if (!hasValue) showMsg(isAr ? 'لا توجد مكافأة بقيمة فعلية — تم التعطيل لمنع صرف عملات تلقائي' : 'No valued reward — disabled to prevent auto-crediting');
+    else showMsg(isAr ? 'تم حفظ المكافأة اليومية' : 'Daily reward saved');
     setSavingCfg(false);
-    showMsg(isAr ? 'تم حفظ المكافأة اليومية' : 'Daily reward saved');
   };
 
   const saveInviteCfg = async () => {
     setSavingCfg(true);
-    await updateAppConfig('invite_settings', inviteCfg);
+    await updateAppConfig('invite_settings', {
+      ...inviteCfg,
+      inviter_reward: sanitizeReward(inviteCfg.inviter_reward),
+      invitee_reward: sanitizeReward(inviteCfg.invitee_reward),
+    });
     setSavingCfg(false);
     showMsg(isAr ? 'تم حفظ إعدادات الدعوة' : 'Invite settings saved');
   };
@@ -132,8 +159,13 @@ export default function SigninFeaturesPage() {
           <select value={reward?.item_id || ''} onChange={e => onChange('item_id', e.target.value)}
             className="w-full bg-[#0f0f11] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white">
             <option value="">—</option>
-            {storeItems.map((it: any) => <option key={it.itemId || it.item_id || it.id} value={it.itemId || it.item_id || it.id}>{it.name} ({it.category})</option>)}
+            {storeItems.map((it: any) => <option key={it.itemId || it.item_id || it.id} value={it.itemId || it.item_id || it.id}>{it.name || it.name_ar || it.itemId || it.item_id || it.id} ({it.category})</option>)}
           </select>
+          {!reward?.item_id && (
+            <p className="text-[10px] text-amber-400 mt-1">
+              {isAr ? '⚠ لم يتم اختيار عنصر — القيمة ستُلغى (0) ولن تُصرف عملات' : '⚠ No item selected — amount is cancelled (0), no coins will be granted'}
+            </p>
+          )}
         </div>
       )}
       {reward?.type === 'vip_tier' && (
@@ -148,7 +180,16 @@ export default function SigninFeaturesPage() {
 
   const resetForm = () => { setForm({ ...defaultForm }); setEditingId(null); setShowAdd(false); };
 
-  const updateForm = (field: string, value: any) => setForm(p => ({ ...p, [field]: value }));
+  const updateForm = (field: string, value: any) => setForm(p => {
+    const next = { ...p, [field]: value };
+    if (field === 'value_type') {
+      // اختيار "عنصر من المتجر" يلغي قيمة العملات تماماً
+      if (value === 'gift') next.value = 0;
+      else next.gift_id = '';
+    }
+    if (field === 'gift_id') next.value = 0; // مكافأة عينية = بدون عملات
+    return next;
+  });
 
   const handleEdit = (r: SigninRewardModel) => {
     setEditingId(r.id);
@@ -160,7 +201,7 @@ export default function SigninFeaturesPage() {
       label_en: r.label_en || '',
       icon_url: r.icon_url || '',
       svga_url: r.svga_url || '',
-      value: r.value ?? 0,
+      value: (r.value_type || 'coins') === 'gift' ? 0 : (r.value ?? 0),
       value_type: r.value_type || 'coins',
       gift_id: r.gift_id || '',
       is_double: r.is_double,
@@ -168,10 +209,21 @@ export default function SigninFeaturesPage() {
     });
   };
 
+  // الهدية من المتجر مكافأة عينية — لا تُجمع مع عملات، وبدون عنصر مختار
+  // تُصفَّر القيمة أيضاً حتى لا يُصرف أي رصيد تلقائياً.
+  const buildRewardPayload = () => ({
+    ...form,
+    value: form.value_type === 'gift' ? 0 : (Number(form.value) || 0),
+    gift_id: form.value_type === 'gift' ? (form.gift_id || null) : null,
+  });
+
   const handleSave = async () => {
     if (!editingId) return;
     if (!form.label_ar) { showMsg(isAr ? 'أدخل الاسم العربي' : 'Enter Arabic label'); return; }
-    await updateSigninReward(editingId, { ...form, gift_id: form.gift_id || null } as any);
+    if (form.value_type === 'gift' && !form.gift_id) {
+      showMsg(isAr ? 'اختر عنصراً من المتجر — تم إلغاء قيمة العملات (0)' : 'Choose a store item — coin value cancelled (0)');
+    }
+    await updateSigninReward(editingId, buildRewardPayload() as any);
     resetForm();
     load();
     showMsg(isAr ? 'تم الحفظ' : 'Saved!');
@@ -179,8 +231,11 @@ export default function SigninFeaturesPage() {
 
   const handleAdd = async () => {
     if (!form.label_ar) { showMsg(isAr ? 'أدخل الاسم العربي' : 'Enter Arabic label'); return; }
+    if (form.value_type === 'gift' && !form.gift_id) {
+      showMsg(isAr ? 'اختر عنصراً من المتجر — تم إلغاء قيمة العملات (0)' : 'Choose a store item — coin value cancelled (0)');
+    }
     const id = 'signin_day_' + form.day_number;
-    await upsertSigninReward(id, { ...form, id, gift_id: form.gift_id || null } as any);
+    await upsertSigninReward(id, { ...buildRewardPayload(), id } as any);
     resetForm();
     load();
     showMsg(isAr ? 'تمت الإضافة' : 'Added!');
@@ -228,7 +283,12 @@ export default function SigninFeaturesPage() {
               </div>
               <div>
                 <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">{isAr ? 'القيمة' : 'Value'}</label>
-                <input type="number" min={0} value={form.value} onChange={e => updateForm('value', Number(e.target.value) || 0)} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
+                <input type="number" min={0} disabled={form.value_type === 'gift'} value={form.value_type === 'gift' ? 0 : form.value}
+                  onChange={e => updateForm('value', Number(e.target.value) || 0)}
+                  className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white disabled:opacity-40" />
+                {form.value_type === 'gift' && (
+                  <p className="text-[10px] text-amber-400 mt-1">{isAr ? 'المكافأة عنصر من المتجر — العملات مُلغاة (0)' : 'Store item reward — coins cancelled (0)'}</p>
+                )}
               </div>
               <div>
                 <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">{isAr ? 'نوع المكافأة' : 'Reward Type'}</label>
@@ -238,9 +298,53 @@ export default function SigninFeaturesPage() {
                 </select>
               </div>
               {form.value_type === 'gift' && (
-                <div>
-                  <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">Gift ID</label>
-                  <input value={form.gift_id} onChange={e => updateForm('gift_id', e.target.value)} placeholder="item_id" className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">
+                    {isAr ? 'اختر عنصراً من المتجر' : 'Choose Store Item'}
+                  </label>
+                  <select value={form.gift_id} onChange={e => updateForm('gift_id', e.target.value)}
+                    className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white">
+                    <option value="">— {isAr ? 'بدون عنصر (العملات تُلغى)' : 'No item (coins cancelled)'} —</option>
+                    {storeItems.map((it: any) => {
+                      const itemId = it.itemId || it.item_id || it.id;
+                      return <option key={itemId} value={itemId}>{it.name || it.nameAr || it.name_ar || itemId} ({it.category || 'store'})</option>;
+                    })}
+                  </select>
+                  {!form.gift_id && (
+                    <p className="text-[10px] text-amber-400 mt-1">
+                      {isAr ? '⚠ لم يتم اختيار عنصر — لن تُصرف أي عملات (القيمة 0)' : '⚠ No item selected — no coins will be granted (value 0)'}
+                    </p>
+                  )}
+                </div>
+              )}
+              {form.value_type === 'custom' && (
+                <div className="md:col-span-2 space-y-3">
+                  <h4 className="text-xs font-semibold text-amber-400">{isAr ? '⚙️ إعدادات المكافأة المخصصة' : '⚙️ Custom Reward Config'}</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">{isAr ? 'النوع المخصص' : 'Custom Type'}</label>
+                      <select value={form.gift_data?.type || ''} onChange={e => updateForm('gift_data', { ...form.gift_data, type: e.target.value })}
+                        className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white">
+                        <option value="">— {isAr ? 'اختر النوع' : 'Select type'} —</option>
+                        <option value="vip_tier">{isAr ? 'ترقية VIP' : 'VIP Tier Upgrade'}</option>
+                        <option value="level_up">{isAr ? 'ترقية المستوى' : 'Level Up'}</option>
+                        <option value="badge">{isAr ? 'شارة/ميدالية' : 'Badge'}</option>
+                        <option value="item">{isAr ? 'عنصر محدد' : 'Specific Item'}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">{isAr ? 'المستوى/الرقم' : 'Tier / Number'}</label>
+                      <input type="number" min={1} value={form.gift_data?.tier || form.gift_data?.level || 1} onChange={e => updateForm('gift_data', { ...form.gift_data, tier: Number(e.target.value) || 1, level: Number(e.target.value) || 1 })} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">{isAr ? 'المدة (أيام، 0=دائم)' : 'Duration (days, 0=forever)'}</label>
+                      <input type="number" min={0} value={form.gift_data?.days || 0} onChange={e => updateForm('gift_data', { ...form.gift_data, days: Number(e.target.value) || 0 })} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white" />
+                    </div>
+                    <div className="md:col-span-3">
+                      <label className="block text-[10px] uppercase text-slate-400 font-bold mb-1">{isAr ? 'بيانات إضافية (JSON)' : 'Extra Data (JSON)'}</label>
+                      <textarea value={JSON.stringify(form.gift_data, null, 2)} onChange={e => { try { updateForm('gift_data', JSON.parse(e.target.value)); } catch {} }} rows={3} className="w-full bg-[#161618] border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white font-mono" placeholder='{"item_id": "vip_frame_1", "notify": true}'></textarea>
+                    </div>
+                  </div>
                 </div>
               )}
               <div>
@@ -273,7 +377,11 @@ export default function SigninFeaturesPage() {
             { key: 'day_number', label: isAr ? 'اليوم' : 'Day', sortable: true },
             { key: 'icon_url', label: '', render: (r: SigninRewardModel) => r.icon_url ? <img src={r.icon_url} className="w-8 h-8 object-contain rounded" /> : <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-lg">🎁</div> },
             { key: 'label_ar', label: isAr ? 'الاسم' : 'Name', sortable: true },
-            { key: 'value', label: isAr ? 'القيمة' : 'Value', sortable: true, render: (r: SigninRewardModel) => <span>{r.value} {r.is_double && <span className="text-amber-400 ml-1">★</span>}</span> },
+            { key: 'value', label: isAr ? 'القيمة' : 'Value', sortable: true, render: (r: SigninRewardModel) => {
+              const item = storeItems.find((it: any) => (it.itemId || it.item_id || it.id) === r.gift_id);
+              const itemLabel = item ? (item.name || item.name_ar || r.gift_id) : r.gift_id;
+              return <span>{r.value_type === 'gift' ? (itemLabel || '—') : r.value} {r.is_double && <span className="text-amber-400 ml-1">★</span>}</span>;
+            } },
             { key: 'value_type', label: isAr ? 'النوع' : 'Type', render: (r: SigninRewardModel) => <span className="text-indigo-300">{valueTypes.find(t => t.key === r.value_type) ? (isAr ? valueTypes.find(t => t.key === r.value_type)!.labelAr : valueTypes.find(t => t.key === r.value_type)!.labelEn) : r.value_type}</span> },
             { key: 'is_active', label: isAr ? 'نشط' : 'Active', render: (r: SigninRewardModel) => <span className={r.is_active ? 'text-emerald-400' : 'text-rose-400'}>{r.is_active ? (isAr ? 'نعم' : 'Yes') : (isAr ? 'لا' : 'No')}</span> },
           ]}

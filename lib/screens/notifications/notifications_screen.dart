@@ -36,6 +36,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final uid =
         Provider.of<UserProvider>(context, listen: false).currentUser?.uid;
     _notificationsStream = _firebaseService.notificationsStream(uid: uid);
+    // ✅ فتح الشاشة يعني قراءة الإشعارات — نعلّمها كمقروءة
+    //    حتى يختفي الـ badge عن persistent في شاشة الرسائل
+    if (uid != null && uid.isNotEmpty) {
+      SupabaseDataService().markAllNotificationsRead(uid);
+    }
   }
 
   @override

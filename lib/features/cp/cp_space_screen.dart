@@ -8,6 +8,9 @@ import 'cp_service.dart';
 import 'cp_record_screen.dart';
 import 'cp_dialogs.dart';
 import 'cp_detail_full_screen.dart';
+import 'cp_display_screen.dart';
+import 'cp_tasks_screen.dart';
+import 'cp_settings_screen.dart';
 import 'package:zero/core/dtext.dart';
 
 /// Relationship Space screen — matches act_relationship_space.xml
@@ -92,6 +95,8 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
                       _buildProgressBar(cfg, couple),
                       const SizedBox(height: 16),
                       _buildBorderSection(cfg),
+                      const SizedBox(height: 12),
+                      _buildQuickActions(cfg),
                       const SizedBox(height: 12),
                       _buildTasksSection(cfg),
                     ],
@@ -482,7 +487,7 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               DText(
-                '$_nextLvTip',
+                _nextLvTip,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
               const SizedBox(width: 2),
@@ -554,6 +559,92 @@ class _CpSpaceScreenState extends State<CpSpaceScreen> {
           _buildStatItem('هذا الأسبوع', '${(_data['couple'] as Map?)?['week_score'] ?? 0}', Icons.star),
           _buildStatItem('هذا الشهر', '${(_data['couple'] as Map?)?['month_score'] ?? 0}', Icons.emoji_events),
         ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(DynamicConfigService cfg) {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildQuickActionButton(
+              icon: 'assets/cp/ic_cp_space_gift_icon.webp',
+              label: isAr ? 'هدية CP' : 'CP Gift',
+              onTap: () {
+                // TODO: Open gift panel for CP
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildQuickActionButton(
+              icon: 'assets/cp/ic_cp_space_task_icon.webp',
+              label: isAr ? 'مهام' : 'Tasks',
+              onTap: () {
+                // TODO: Open tasks
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildQuickActionButton(
+              icon: 'assets/cp/ic_cp_space_setting_icon.webp',
+              label: isAr ? 'إعدادات' : 'Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => CpSettingsScreen()),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionButton({
+    required String icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF4a1020).withValues(alpha: 0.8),
+              const Color(0xFF2e0d15).withValues(alpha: 0.6),
+            ],
+          ),
+          border: Border.all(color: const Color(0xFF770d1e), width: 1),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              icon,
+              width: 28,
+              height: 28,
+              errorBuilder: (_, __, ___) => const Icon(Icons.star, color: Colors.amber, size: 28),
+            ),
+            const SizedBox(height: 6),
+            DText(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

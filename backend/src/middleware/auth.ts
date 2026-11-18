@@ -18,7 +18,9 @@ declare global {
 // يتحقق من توقيع التوكن عبر المفاتيح العامة الصادرة من Google
 // (securetoken@system.gserviceaccount.com). لا يتطلب أي private key،
 // وبنفس مستوى أمان firebase-admin.verifyIdToken.
-const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'zeroappzero-e1b4a';
+const FIREBASE_PROJECT_ID = (
+  process.env.FIREBASE_PROJECT_ID || 'zeroappzero-e1b4a'
+).replace(/[^\x20-\x7E]/g, '');
 let tokenPublicKeys: Record<string, string> = {};
 let keysFetchedAt = 0;
 

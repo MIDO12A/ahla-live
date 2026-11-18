@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
-import '../../core/supabase_compat.dart';
 import '../../services/supabase_service.dart';
 import '../../services/dynamic_config_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -14,7 +15,9 @@ import '../../widgets/special_name_text.dart';
 enum _RankPeriod { daily, weekly, monthly }
 
 class RankScreen extends StatefulWidget {
-  const RankScreen({super.key});
+  /// 0 = الثروة، 1 = الكرزمة/الجاذبية، 2 = الغرف
+  final int initialIndex;
+  const RankScreen({super.key, this.initialIndex = 0});
 
   @override
   State<RankScreen> createState() => _RankScreenState();
@@ -26,11 +29,23 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
   late TabController _charmSubTabController;
   late TabController _roomsSubTabController;
   final FirebaseService _api = FirebaseService();
-  final Map<String, List<Map<String, dynamic>>> _cachedRankings = {};
+  // ✅ static: النتائج تبقى محفوظة بين فتحات الشاشة —
+  //    إعادة الدخول تعرض البيانات فوراً ثم تتحدث بالخلفية
+  static final Map<String, List<Map<String, dynamic>>> _cachedRankings =
+      {};
+
+  /// ✅ مفتاح حفظ الكاش على القرص — يتيح فتحاً لحظياً حتى بعد
+  ///    إعادة تشغيل التطبيق (أول دخول بلا شبكة يعرض آخر بيانات)
+  static const String _cachePrefsKey = 'rank_screen_cache_v1';
+  static const String _cacheTimeKey = 'rank_screen_cache_time_v1';
+  /// الترتيب اليومي يُصفَّر كل 24 ساعة — أي كاش أقدم من ذلك يُهمَل.
+  static const Duration _cacheTtl = Duration(hours: 24);
   bool _loading = true;
+  int _loadGeneration = 0;
   String _currentType = 'wealth';
 
   Timer? _countdownTimer;
+  Timer? _refreshTimer;
   String _countdownStr = '00h 00m 00s';
 
   String _getCountdownString() {
@@ -46,7 +61,13 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _mainTabController = TabController(length: 3, vsync: this);
+    final initial = widget.initialIndex.clamp(0, 2);
+    _mainTabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: initial,
+    );
+    _currentType = ['wealth', 'charm', 'rooms'][initial];
     _mainTabController.addListener(() {
       if (!_mainTabController.indexIsChanging) {
         setState(() {
@@ -57,7 +78,13 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     _wealthSubTabController = TabController(length: 3, vsync: this);
     _charmSubTabController = TabController(length: 3, vsync: this);
     _roomsSubTabController = TabController(length: 3, vsync: this);
-    _loadRankings();
+    // Restore cache first, then refresh, so an async restore
+    // cannot overwrite fresh results after the fetch completes.
+    _loadInitial();
+    // ✅ تحديث تلقائي كل 24 ساعة: تنتهي نافذة اليومي ويُسحب المستخدمون الجدد
+    _refreshTimer = Timer.periodic(_cacheTtl, (_) {
+      if (mounted) _loadRankings();
+    });
 
     _countdownStr = _getCountdownString();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -72,6 +99,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _refreshTimer?.cancel();
     _mainTabController.dispose();
     _wealthSubTabController.dispose();
     _charmSubTabController.dispose();
@@ -79,70 +107,100 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  Future<void> _loadRankings() async {
-    setState(() => _loading = true);
-    final sb = Supabase.instance.client;
+  /// استعادة آخر نتائج محفوظة على القرص وعرضها فوراً
+  Future<void> _restoreCachedRankings() async {
     try {
-      final results = await Future.wait<dynamic>([
-        // 1. الثروة (Daily, Weekly, Monthly)
-        sb.from('daily_wealth_ranking').select('*').limit(50).catchError((_) => []),
-        sb.from('weekly_wealth_ranking').select('*').limit(50).catchError((_) => []),
-        sb.from('monthly_wealth_ranking').select('*').limit(50).catchError((_) => []),
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cachePrefsKey);
+      if (raw == null || raw.isEmpty) return;
+      // ✅ لا نعرض كاش أقدم من 24 ساعة — لازم يتجدد الترتيب اليومي.
+      final savedMs = prefs.getInt(_cacheTimeKey) ?? 0;
+      if (savedMs == 0 ||
+          DateTime.now().difference(
+                  DateTime.fromMillisecondsSinceEpoch(savedMs)) >
+              _cacheTtl) {
+        _cachedRankings.clear();
+        await prefs.remove(_cachePrefsKey);
+        await prefs.remove(_cacheTimeKey);
+        return;
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      decoded.forEach((k, v) {
+        if (v is List) {
+          _cachedRankings[k.toString()] = v
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      });
+      if (mounted && _cachedRankings.length >= 9) {
+        setState(() => _loading = false);
+      }
+    } catch (_) {}
+  }
 
-        // 2. السحر والجاذبية (Daily, Weekly, Monthly)
-        sb.from('daily_charm_ranking').select('*').limit(50).catchError((_) => []),
-        sb.from('weekly_charm_ranking').select('*').limit(50).catchError((_) => []),
-        sb.from('monthly_charm_ranking').select('*').limit(50).catchError((_) => []),
 
-        // 3. الغرف (Daily, Weekly, Monthly)
-        sb.from('daily_rooms_ranking').select('*').limit(50).catchError((_) => []),
-        sb.from('weekly_rooms_ranking').select('*').limit(50).catchError((_) => []),
-        sb.from('monthly_rooms_ranking').select('*').limit(50).catchError((_) => []),
-      ]);
+  /// استعادة الكاش أولاً ثم جلب بيانات جديدة — منع سباق يُعيد فيه
+  /// الاستعادة كتابة بيانات قديمة بعد اكتمال الجلب.
+  Future<void> _loadInitial() async {
+    await _restoreCachedRankings();
+    if (!mounted) return;
+    _loading = _cachedRankings.length < 9;
+    await _loadRankings();
+  }
 
-      var wealthDaily = List<Map<String, dynamic>>.from(results[0] as List? ?? []);
-      var wealthWeekly = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
-      var wealthMonthly = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
+  /// حفظ النتائج على القرص لفتح لحظي في المرة القادمة
+  Future<void> _persistRankings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cachePrefsKey, jsonEncode(_cachedRankings));
+      await prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
+  }
 
-      var charmDaily = List<Map<String, dynamic>>.from(results[3] as List? ?? []);
-      var charmWeekly = List<Map<String, dynamic>>.from(results[4] as List? ?? []);
-      var charmMonthly = List<Map<String, dynamic>>.from(results[5] as List? ?? []);
-
-      var roomsDaily = List<Map<String, dynamic>>.from(results[6] as List? ?? []);
-      var roomsWeekly = List<Map<String, dynamic>>.from(results[7] as List? ?? []);
-      var roomsMonthly = List<Map<String, dynamic>>.from(results[8] as List? ?? []);
-
-      // حساب الترتيب الدوري الفعلي من جدول الهدايا مع احترام فترات التصفير (يومي 24س، أسبوعي من الاثنين، شهري كل شهر)
-      if (wealthDaily.isEmpty) wealthDaily = await FirebaseService().getGlobalRankings(isWealth: true, timeframe: 'daily');
-      if (wealthWeekly.isEmpty) wealthWeekly = await FirebaseService().getGlobalRankings(isWealth: true, timeframe: 'weekly');
-      if (wealthMonthly.isEmpty) wealthMonthly = await FirebaseService().getGlobalRankings(isWealth: true, timeframe: 'monthly');
-
-      if (charmDaily.isEmpty) charmDaily = await FirebaseService().getGlobalRankings(isWealth: false, timeframe: 'daily');
-      if (charmWeekly.isEmpty) charmWeekly = await FirebaseService().getGlobalRankings(isWealth: false, timeframe: 'weekly');
-      if (charmMonthly.isEmpty) charmMonthly = await FirebaseService().getGlobalRankings(isWealth: false, timeframe: 'monthly');
-
-      if (roomsDaily.isEmpty) roomsDaily = await FirebaseService().getRoomGlobalRanking(timeframe: 'daily');
-      if (roomsWeekly.isEmpty) roomsWeekly = await FirebaseService().getRoomGlobalRanking(timeframe: 'weekly');
-      if (roomsMonthly.isEmpty) roomsMonthly = await FirebaseService().getRoomGlobalRanking(timeframe: 'monthly');
-
-      if (mounted) {
+  Future<void> _loadRankings() async {
+    final generation = ++_loadGeneration;
+    // البيانات المحفوظة تظهر فوراً، والتحديث يجري فترة بفترة دون انتظار
+    // استعلام الـ 30 يوماً الأبطأ كما كان يحدث سابقاً.
+    if (_cachedRankings.length < 9) {
+      setState(() => _loading = true);
+    }
+    try {
+      // الفترات الثلاث تُجلب بالتوازي، لكن كل فترة تُرسم فور اكتمالها.
+      await for (final snapshot in _api.rankingGiftSnapshotsStream(
+          timeframes: const ['daily', 'weekly', 'monthly'])) {
+        final period = snapshot.key;
+        final gifts = snapshot.value;
+        final periodResults = await Future.wait<dynamic>([
+          _api.getGlobalRankings(
+              isWealth: true, timeframe: period, gifts: gifts),
+          _api.getGlobalRankings(
+              isWealth: false, timeframe: period, gifts: gifts),
+          _api.getRoomGlobalRanking(timeframe: period, gifts: gifts),
+        ]).timeout(const Duration(seconds: 20),
+            onTimeout: () => List.filled(3, const <Map<String, dynamic>>[]));
+        if (!mounted || generation != _loadGeneration) return;
         setState(() {
-          _cachedRankings['wealth_daily']   = wealthDaily;
-          _cachedRankings['wealth_weekly']  = wealthWeekly;
-          _cachedRankings['wealth_monthly'] = wealthMonthly;
-
-          _cachedRankings['charm_daily']    = charmDaily;
-          _cachedRankings['charm_weekly']   = charmWeekly;
-          _cachedRankings['charm_monthly']  = charmMonthly;
-
-          _cachedRankings['rooms_daily']    = roomsDaily;
-          _cachedRankings['rooms_weekly']   = roomsWeekly;
-          _cachedRankings['rooms_monthly']  = roomsMonthly;
+          _cachedRankings['wealth_$period'] =
+              List<Map<String, dynamic>>.from(periodResults[0] as List? ?? []);
+          _cachedRankings['charm_$period'] =
+              List<Map<String, dynamic>>.from(periodResults[1] as List? ?? []);
+          _cachedRankings['rooms_$period'] =
+              List<Map<String, dynamic>>.from(periodResults[2] as List? ?? []);
           _loading = false;
         });
+        unawaited(_persistRankings());
+        final w = _cachedRankings['wealth_$period']?.length ?? 0;
+        final c = _cachedRankings['charm_$period']?.length ?? 0;
+        final r = _cachedRankings['rooms_$period']?.length ?? 0;
+        debugPrint('[RankScreen] $period: wealth=$w charm=$c rooms=$r');
       }
-    } catch (e) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e, st) {
+      debugPrint('[RankScreen] _loadRankings error: $e\n$st');
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -340,9 +398,9 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(18),
                 )
               : BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFFFD54F).withOpacity(0.3)),
+                  border: Border.all(color: const Color(0xFFFFD54F).withValues(alpha: 0.3)),
                 ),
           child: TabBar(
             controller: subTabController,
@@ -425,7 +483,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                     bottom: 0,
                     child: _buildTopRankItem(data[2], 3, type),
                   ),
-                if (data.length >= 1)
+                if (data.isNotEmpty)
                   Positioned(
                     top: 0,
                     child: _buildTopRankItem(data[0], 1, type),
@@ -478,6 +536,9 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
 
     final double width = isGold ? 130 : 100;
     final double avatarSize = isGold ? 60 : 50;
+    // ✅ حجم صريح للإطار — مطابق لباقي شاشات الترتيب/الاستكشاف،
+    //    وأكبر شوية من الحجم الطبيعي للصورة عشان ما يطلعش صغير.
+    final double frameSize = isGold ? 140 : 116;
     final String photo = (item['photoUrl'] ?? item['photo_url'] ?? '').toString();
     final String rawCid = (item['custom_id'] ?? item['display_id'] ?? '').toString().trim();
     final String rawId = (item['room_id'] ?? item['user_id'] ?? item['id'] ?? '').toString().trim();
@@ -492,16 +553,12 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
         if (type == 'rooms') {
           final roomId = (item['room_id'] ?? item['id'] ?? item['uid'] ?? '').toString();
           if (roomId.isNotEmpty) {
-            Navigator.push(
+            navigateToRoom(
               context,
-              MaterialPageRoute(
-                builder: (_) => RoomScreen(
-                  roomId: roomId,
-                  roomName: (item['name'] ?? 'Room').toString(),
-                  hostName: (item['host_name'] ?? 'Host').toString(),
-                  roomPassword: (item['password'] ?? '').toString(),
-                ),
-              ),
+              roomId: roomId,
+              roomName: (item['name'] ?? 'Room').toString(),
+              hostName: (item['host_name'] ?? 'Host').toString(),
+              roomPassword: (item['password'] ?? '').toString(),
             );
           }
         } else {
@@ -583,6 +640,7 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                 height: width,
                 child: Stack(
                   alignment: Alignment.center,
+                  clipBehavior: Clip.none,
                   children: [
                     ClipOval(
                       child: SizedBox(
@@ -604,20 +662,24 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                                 ),
                                 errorWidget: (context, url, error) => Image.asset(
                                   type == 'rooms'
-                                      ? 'assets/images/bg_room_default_bg.png'
+                                      ? R.defaultRoomPhoto
                                       : 'assets/mipmap-xxhdpi/avatar_default.png',
                                   fit: BoxFit.cover,
                                 ),
                               )
                             : Image.asset(
                                 type == 'rooms'
-                                    ? 'assets/images/bg_room_default_bg.png'
+                                    ? R.defaultRoomPhoto
                                     : 'assets/mipmap-xxhdpi/avatar_default.png',
                                 fit: BoxFit.cover,
                               ),
                       ),
                     ),
-                    _buildDynamicImage(remoteFrame, localFrame, fit: BoxFit.contain),
+                    SizedBox(
+                      width: frameSize,
+                      height: frameSize,
+                      child: _buildDynamicImage(remoteFrame, localFrame, fit: BoxFit.contain),
+                    ),
                   ],
                 ),
               ),
@@ -646,16 +708,12 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
         if (type == 'rooms') {
           final roomId = (item['room_id'] ?? item['id'] ?? item['uid'] ?? '').toString();
           if (roomId.isNotEmpty) {
-            Navigator.push(
+            navigateToRoom(
               context,
-              MaterialPageRoute(
-                builder: (_) => RoomScreen(
-                  roomId: roomId,
-                  roomName: (item['name'] ?? 'Room').toString(),
-                  hostName: (item['host_name'] ?? 'Host').toString(),
-                  roomPassword: (item['password'] ?? '').toString(),
-                ),
-              ),
+              roomId: roomId,
+              roomName: (item['name'] ?? 'Room').toString(),
+              hostName: (item['host_name'] ?? 'Host').toString(),
+              roomPassword: (item['password'] ?? '').toString(),
             );
           }
         } else {
@@ -710,14 +768,14 @@ class _RankScreenState extends State<RankScreen> with TickerProviderStateMixin {
                             ),
                             errorWidget: (context, url, error) => Image.asset(
                               type == 'rooms'
-                                  ? 'assets/images/bg_room_default_bg.png'
+                                  ? R.defaultRoomPhoto
                                   : 'assets/mipmap-xxhdpi/avatar_default.png',
                               fit: BoxFit.cover,
                             ),
                           )
                         : Image.asset(
                             type == 'rooms'
-                                ? 'assets/images/bg_room_default_bg.png'
+                                ? R.defaultRoomPhoto
                                 : 'assets/mipmap-xxhdpi/avatar_default.png',
                             fit: BoxFit.cover,
                           ),

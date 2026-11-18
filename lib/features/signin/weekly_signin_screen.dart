@@ -22,8 +22,13 @@ class WeeklySigninScreen extends StatelessWidget {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final uid = userProvider.currentUser?.uid;
       if (uid == null) return;
+      // مرة واحدة يومياً كحد أقصى: لا تُعاد النافذة كل إقلاع
+      // حتى لو أغلقها المستخدم بدون استلام المكافأة.
+      if (await SigninService.hasSigninShownToday(uid)) return;
       final hasClaimed = await SigninService.hasClaimedToday(uid);
       if (!hasClaimed && context.mounted) {
+        await SigninService.markSigninShown(uid);
+        if (!context.mounted) return;
         show(context);
       }
     } catch (_) {}

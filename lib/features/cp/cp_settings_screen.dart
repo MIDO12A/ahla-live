@@ -4,6 +4,8 @@ import '../../config/r.dart';
 import '../../providers/user_provider.dart';
 import '../../services/dynamic_config_service.dart';
 import 'cp_service.dart';
+import 'cp_display_screen.dart';
+import 'cp_record_screen.dart';
 import 'package:zero/core/dtext.dart';
 
 /// CP Settings screen — matches act_cp_setting.xml
@@ -196,6 +198,26 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
         children: [
           // Love Letter Card
           _buildLetterCard(),
+          const SizedBox(height: 16),
+          _buildSettingsRow(
+            icon: Icons.auto_awesome,
+            title: 'عرض العلاقة',
+            subtitle: 'تخصيص المظهر والثيم',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CpDisplayScreen()),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildSettingsRow(
+            icon: Icons.history,
+            title: 'سجل العلاقات',
+            subtitle: 'عرض سجل وإنجازات العلاقة',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CpRecordScreen()),
+            ),
+          ),
           const SizedBox(height: 24),
           // Dissolve button
           _buildDissolveButton(),
@@ -221,8 +243,8 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                const Color(0xFF4d9a0d37),
-                const Color(0xFF4d9a0d37).withValues(alpha: 0.5),
+                const Color(0xff4d9a0d37),
+                const Color(0xff4d9a0d37).withValues(alpha: 0.5),
               ],
             ),
             borderRadius: BorderRadius.circular(22),
@@ -323,6 +345,50 @@ class _CpSettingsScreenState extends State<CpSettingsScreen> {
               _dissolving ? 'جارٍ الحل...' : 'حل العلاقة',
               style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsRow({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF770d1e)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFd32a43).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: const Color(0xFFffb565), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DText(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  DText(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
           ],
         ),
       ),

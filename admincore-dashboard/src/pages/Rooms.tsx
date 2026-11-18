@@ -4,7 +4,51 @@ import { getRooms, deleteRoom, updateRoom, getRoomBlocks, deleteRoomBlock, getUs
 import { uploadRoomPhoto, uploadRoomCover, detectAssetType } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
-import { Lock, Unlock, Users, Save, X, Sparkles, Upload, Image as ImageIcon } from 'lucide-react';
+import { Lock, Unlock, Users, Save, X, Sparkles, Upload, Image as ImageIcon, Filter, Globe } from 'lucide-react';
+
+const countryOptions = [
+  { code: '', label: '🌍 الكل (All)' },
+  { code: 'EG', label: '🇪🇬 مصر (EG)' },
+  { code: 'SA', label: '🇸🇦 السعودية (SA)' },
+  { code: 'AE', label: '🇦🇪 الإمارات (AE)' },
+  { code: 'KW', label: '🇰🇼 الكويت (KW)' },
+  { code: 'QA', label: '🇶🇦 قطر (QA)' },
+  { code: 'BH', label: '🇧🇭 البحرين (BH)' },
+  { code: 'OM', label: '🇴🇲 عمان (OM)' },
+  { code: 'IQ', label: '🇮🇶 العراق (IQ)' },
+  { code: 'JO', label: '🇯🇴 الأردن (JO)' },
+  { code: 'SY', label: '🇸🇾 سوريا (SY)' },
+  { code: 'LB', label: '🇱🇧 لبنان (LB)' },
+  { code: 'PS', label: '🇵🇸 فلسطين (PS)' },
+  { code: 'YE', label: '🇾🇪 اليمن (YE)' },
+  { code: 'SD', label: '🇸🇩 السودان (SD)' },
+  { code: 'LY', label: '🇱🇾 ليبيا (LY)' },
+  { code: 'TN', label: '🇹🇳 تونس (TN)' },
+  { code: 'DZ', label: '🇩🇿 الجزائر (DZ)' },
+  { code: 'MA', label: '🇲🇦 المغرب (MA)' },
+  { code: 'MR', label: '🇲🇷 موريتانيا (MR)' },
+  { code: 'SO', label: '🇸🇴 الصومال (SO)' },
+  { code: 'DJ', label: '🇩🇯 جيبوتي (DJ)' },
+  { code: 'KM', label: '🇰🇲 جزر القمر (KM)' },
+  { code: 'TR', label: '🇹🇷 تركيا (TR)' },
+  { code: 'US', label: '🇺🇸 أمريكا (US)' },
+  { code: 'GB', label: '🇬🇧 بريطانيا (GB)' },
+  { code: 'DE', label: '🇩🇪 ألمانيا (DE)' },
+  { code: 'FR', label: '🇫🇷 فرنسا (FR)' },
+  { code: 'IT', label: '🇮🇹 إيطاليا (IT)' },
+  { code: 'ES', label: '🇪🇸 إسبانيا (ES)' },
+  { code: 'CA', label: '🇨🇦 كندا (CA)' },
+  { code: 'RU', label: '🇷🇺 روسيا (RU)' },
+  { code: 'CN', label: '🇨🇳 الصين (CN)' },
+  { code: 'IN', label: '🇮🇳 الهند (IN)' },
+  { code: 'PK', label: '🇵🇰 باكستان (PK)' },
+  { code: 'ID', label: '🇮🇩 إندونيسيا (ID)' },
+  { code: 'MY', label: '🇲🇾 ماليزيا (MY)' },
+  { code: 'BR', label: '🇧🇷 البرازيل (BR)' },
+  { code: 'SE', label: '🇸🇪 السويد (SE)' },
+  { code: 'NL', label: '🇳🇱 هولندا (NL)' },
+  { code: 'AU', label: '🇦🇺 أستراليا (AU)' },
+];
 
 export default function RoomsPage() {
   const [rooms, setRooms] = useState<RoomModel[]>([]);
@@ -14,6 +58,7 @@ export default function RoomsPage() {
   const [roomBlocks, setRoomBlocks] = useState<RoomBlockRow[]>([]);
   const [blockUsers, setBlockUsers] = useState<Map<string, { name: string; custom_id: string }>>(new Map());
   const [loadingBlocks, setLoadingBlocks] = useState(false);
+  const [countryFilter, setCountryFilter] = useState<string>('');
 
   const loadBlocks = async (roomId: string) => {
     setLoadingBlocks(true);
@@ -103,12 +148,30 @@ export default function RoomsPage() {
     );
   };
 
+  const filteredRooms = countryFilter
+    ? rooms.filter(r => r.country?.toUpperCase() === countryFilter.toUpperCase())
+    : rooms;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-white text-lg font-semibold">إدارة الغرف الصوتية (Room Management)</h2>
-          <p className="text-slate-500 text-xs mt-0.5">{rooms.length} إجمالي الغرف</p>
+          <p className="text-slate-500 text-xs mt-0.5">{filteredRooms.length} / {rooms.length} غرفة</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Globe className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+            <select
+              value={countryFilter}
+              onChange={e => setCountryFilter(e.target.value)}
+              className="w-48 bg-[#161618] border border-white/10 rounded-lg py-1.5 pl-9 pr-2 text-xs text-white appearance-none"
+            >
+              {countryOptions.map(opt => (
+                <option key={opt.code} value={opt.code}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -258,7 +321,7 @@ export default function RoomsPage() {
         </div>
       )}
 
-      <DataTable
+<DataTable
         loading={loading}
         columns={[
           { key: 'roomPhotoUrl', label: '', width: '40px', render: r => r.roomPhotoUrl ? <img src={r.roomPhotoUrl} className="w-6 h-6 rounded object-cover" /> : <div className="w-6 h-6 rounded bg-slate-800" /> },
@@ -294,12 +357,13 @@ export default function RoomsPage() {
           },
           { key: 'memberCount', label: 'الأعضاء', sortable: true, render: r => <span className="flex items-center gap-1"><Users className="w-3 h-3 text-slate-500" />{r.memberCount}/{r.maxMembers}</span> },
           { key: 'category', label: 'التصنيف', sortable: true },
+          { key: 'country', label: 'الدولة', sortable: true, width: '60px', render: r => r.country ? <span className="text-xs font-mono uppercase">{r.country}</span> : <span className="text-slate-600 text-xs">—</span> },
           { key: 'isLocked', label: '', render: r => r.isLocked ? <Lock className="w-3 h-3 text-rose-400" /> : <Unlock className="w-3 h-3 text-emerald-400" /> },
           { key: 'totalGifts', label: 'الهدايا', sortable: true },
           { key: 'hotValue', label: 'Hot', sortable: true },
         ]}
-        data={rooms}
-        searchKeys={['name', 'hostName', 'roomId', 'category']}
+        data={filteredRooms}
+        searchKeys={['name', 'hostName', 'roomId', 'category', 'country']}
         onEdit={handleEdit}
         onDelete={handleDelete}
       />

@@ -13,8 +13,8 @@ class AboutScreen extends StatefulWidget {
 }
 
 class _AboutScreenState extends State<AboutScreen> {
-  String _title = 'أحلى لايف - Ahla Live';
-  String _description = 'تطبيق أحلى لايف هو منصة تواصل اجتماعي تتيح لك التعرف على أصدقاء جدد، وإنشاء غرف صوتية، والمشاركة في الفعاليات المختلفة. استمتع بتجربة تواصل فريدة وآمنة.';
+  String _title = 'أهلا لايف - Ahla Live';
+  String _description = 'تطبيق أهلا لايف هو منصة تواصل اجتماعي تتيح لك التعرف على أصدقاء جدد، وإنشاء غرف صوتية، والمشاركة في الفعاليات المختلفة. استمتع بتجربة تواصل فريدة وآمنة.';
   String _copyright = 'جميع الحقوق محفوظة © 2026';
   String _version = 'الإصدار 1.0.0';
 

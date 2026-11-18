@@ -120,7 +120,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
               border: Border.all(color: const Color(0x803ED78A), width: 1.2),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF3ED78A).withOpacity(0.12),
+                  color: const Color(0xFF3ED78A).withValues(alpha: 0.12),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -131,7 +131,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3ED78A).withOpacity(0.15),
+                    color: const Color(0xFF3ED78A).withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const DText('🪙', style: TextStyle(fontSize: 22)),
@@ -181,7 +181,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0x663ED78A), width: 1),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 14, offset: const Offset(0, 6)),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 6)),
               ],
             ),
             child: Column(
@@ -293,7 +293,7 @@ class _AgentTransferScreenState extends State<AgentTransferScreen> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF3ED78A).withOpacity(0.35),
+                          color: const Color(0xFF3ED78A).withValues(alpha: 0.35),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),

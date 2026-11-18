@@ -136,6 +136,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   // Agency info
   Map<String, dynamic>? _agencyData;
 
+  /// ✅ هل الواجهة عربية؟ — يُستخدم لترجمة كل نصوص الشاشة
+  bool get _isAr =>
+      Localizations.localeOf(context).languageCode == 'ar';
+
   @override
   void initState() {
     super.initState();
@@ -170,6 +174,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _loadData() async {
     try {
+      // ✅ صور المستويات تُجلب من لوحة التحكم مباشرةً — دون فتح
+      //    شاشة المستويات — ويعاد البناء تلقائياً عند وصولها.
+      unawaited(LevelService().ensureLoaded());
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final currentUser = userProvider.currentUser;
       String? resolvedCurrentUid = currentUser?.uid ?? SupabaseAuthService().currentUid;
@@ -297,273 +304,273 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           final backpackFuture = SupabaseDataService().getUserBackpack(queryUid).catchError((_) => <Map<String, dynamic>>[]);
           final activeRoomFuture = _supabase.getUserCurrentRoomId(queryUid).catchError((_) => null);
 
-        final results = await Future.wait<dynamic>([
-          storeItemsFuture,
-          badgesFuture,
-          necklacesFuture,
-          giftsCatalogFuture,
-          receivedGiftsFuture,
-          followingFuture,
-          fansFuture,
-          visitorsFuture,
-          roomMemberFuture,
-          cpFuture,
-          agencyMemberFuture,
-          backpackFuture,
-          activeRoomFuture,
-        ]);
+          final results = await Future.wait<dynamic>([
+            storeItemsFuture,
+            badgesFuture,
+            necklacesFuture,
+            giftsCatalogFuture,
+            receivedGiftsFuture,
+            followingFuture,
+            fansFuture,
+            visitorsFuture,
+            roomMemberFuture,
+            cpFuture,
+            agencyMemberFuture,
+            backpackFuture,
+            activeRoomFuture,
+          ]);
 
-        final allStoreItems = results[0] as List<StoreItemModel>;
-        final bList = results[1] as List<Map<String, dynamic>>;
-        final nList = results[2] as List<Map<String, dynamic>>;
-        final giftCatalog = results[3] as Map<String, gm.GiftModel>;
-        final gifts = results[4] as List<gm.SentGiftModel>;
-        final fList = results[5] as List<dynamic>;
-        final fansList = results[6] as List<dynamic>;
-        final vList = results[7] as List<dynamic>;
-        final roomMember = results[8] as Map<String, dynamic>?;
-        final cpResult = results[9] as Map<String, dynamic>;
-        final memberRow = results[10] as Map<String, dynamic>?;
-        final backpackList = results[11] as List<Map<String, dynamic>>;
-        final activeRoomDetected = results[12] as String?;
+          final allStoreItems = results[0] as List<StoreItemModel>;
+          final bList = results[1] as List<Map<String, dynamic>>;
+          final nList = results[2] as List<Map<String, dynamic>>;
+          final giftCatalog = results[3] as Map<String, gm.GiftModel>;
+          final gifts = results[4] as List<gm.SentGiftModel>;
+          final fList = results[5] as List<dynamic>;
+          final fansList = results[6] as List<dynamic>;
+          final vList = results[7] as List<dynamic>;
+          final roomMember = results[8] as Map<String, dynamic>?;
+          final cpResult = results[9] as Map<String, dynamic>;
+          final memberRow = results[10] as Map<String, dynamic>?;
+          final backpackList = results[11] as List<Map<String, dynamic>>;
+          final activeRoomDetected = results[12] as String?;
 
-        // Resolve activeFrame path
-        String? resolvedFrame = targetUser.activeFrame;
-        if (resolvedFrame != null && resolvedFrame.isNotEmpty) {
-          if (!resolvedFrame.startsWith('http') && !resolvedFrame.startsWith('assets/')) {
-            final match = allStoreItems.where((i) => i.itemId == resolvedFrame || i.svgaAsset == resolvedFrame).firstOrNull;
-            if (match != null) {
-              final anim = (match.svgaAsset != null && match.svgaAsset!.isNotEmpty)
-                  ? match.svgaAsset
-                  : (match.videoAsset != null && match.videoAsset!.isNotEmpty)
-                      ? match.videoAsset
-                      : (match.animationUrl != null && match.animationUrl!.isNotEmpty)
-                          ? match.animationUrl
-                          : match.iconAsset;
-              resolvedFrame = (anim != null && anim.isNotEmpty) ? anim : resolvedFrame;
-            } else {
-              if (resolvedFrame.contains('.svga') || resolvedFrame.contains('.webp') || resolvedFrame.contains('.png')) {
-                resolvedFrame = resolvedFrame.startsWith('assets/') ? resolvedFrame : 'assets/$resolvedFrame';
+          // Resolve activeFrame path
+          String? resolvedFrame = targetUser.activeFrame;
+          if (resolvedFrame != null && resolvedFrame.isNotEmpty) {
+            if (!resolvedFrame.startsWith('http') && !resolvedFrame.startsWith('assets/')) {
+              final match = allStoreItems.where((i) => i.itemId == resolvedFrame || i.svgaAsset == resolvedFrame).firstOrNull;
+              if (match != null) {
+                final anim = (match.svgaAsset != null && match.svgaAsset!.isNotEmpty)
+                    ? match.svgaAsset
+                    : (match.videoAsset != null && match.videoAsset!.isNotEmpty)
+                    ? match.videoAsset
+                    : (match.animationUrl != null && match.animationUrl!.isNotEmpty)
+                    ? match.animationUrl
+                    : match.iconAsset;
+                resolvedFrame = (anim != null && anim.isNotEmpty) ? anim : resolvedFrame;
+              } else {
+                if (resolvedFrame.contains('.svga') || resolvedFrame.contains('.webp') || resolvedFrame.contains('.png') || resolvedFrame.contains('.gif')) {
+                  resolvedFrame = resolvedFrame.startsWith('assets/') ? resolvedFrame : 'assets/$resolvedFrame';
+                }
               }
             }
           }
-        }
 
-        // Badges & Necklaces Catalogs
-        Map<String, Map<String, dynamic>> badgesMap = {};
-        for (final b in bList) {
-          final id = b['id']?.toString() ?? '';
-          if (id.isNotEmpty) badgesMap[id] = b;
-        }
-
-        Map<String, Map<String, dynamic>> necklacesMap = {};
-        for (final n in nList) {
-          final id = n['id']?.toString() ?? '';
-          if (id.isNotEmpty) necklacesMap[id] = n;
-        }
-
-        // Resolve activeNecklace path
-        String? resolvedNecklace = targetUser.activeNecklace;
-        if (resolvedNecklace != null && resolvedNecklace.isNotEmpty) {
-          if (necklacesMap.containsKey(resolvedNecklace)) {
-            final n = necklacesMap[resolvedNecklace]!;
-            resolvedNecklace = n['svga_url']?.toString() ?? n['image_url']?.toString() ?? resolvedNecklace;
+          // Badges & Necklaces Catalogs
+          Map<String, Map<String, dynamic>> badgesMap = {};
+          for (final b in bList) {
+            final id = b['id']?.toString() ?? '';
+            if (id.isNotEmpty) badgesMap[id] = b;
           }
-        }
-        if (resolvedNecklace == null || resolvedNecklace.isEmpty) {
-          final vipNecklace = targetUser.ownedVipItems.where((m) => m['type'] == 'necklace').firstOrNull;
-          if (vipNecklace != null && (vipNecklace['url'] ?? '').isNotEmpty) {
-            resolvedNecklace = vipNecklace['url'];
+
+          Map<String, Map<String, dynamic>> necklacesMap = {};
+          for (final n in nList) {
+            final id = n['id']?.toString() ?? '';
+            if (id.isNotEmpty) necklacesMap[id] = n;
           }
-        }
 
-        // Store items to match owned frames & rides (merged with user_backpack & ownedLevelFrames & VIP items)
-        final u = targetUser;
-        final uFrame = u.activeFrame;
-        final uCar = u.activeCar;
-        final uEntrance = u.activeEntrance;
-        final uVipItems = u.ownedVipItems;
-
-        final ownedSet = u.ownedItems.toSet();
-        for (final f in u.ownedLevelFrames) {
-          if (f.isNotEmpty) ownedSet.add(f);
-        }
-        for (final b in backpackList) {
-          final bId = b['item_id']?.toString() ?? b['itemId']?.toString() ?? '';
-          if (bId.isNotEmpty) ownedSet.add(bId);
-        }
-        if (uFrame != null && uFrame.isNotEmpty) {
-          ownedSet.add(uFrame);
-        }
-        if (uCar != null && uCar.isNotEmpty) {
-          ownedSet.add(uCar);
-        }
-        if (uEntrance != null && uEntrance.isNotEmpty) {
-          ownedSet.add(uEntrance);
-        }
-
-        final frames = allStoreItems.where((i) => i.category == 'frame' && (
-          ownedSet.contains(i.itemId) ||
-          (uFrame != null && (i.itemId == uFrame || i.svgaAsset == uFrame)) ||
-          backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId))
-        )).toList();
-
-        final rides = allStoreItems.where((i) => (i.category == 'car' || i.category == 'entrance') && (
-          ownedSet.contains(i.itemId) ||
-          (uCar != null && (i.itemId == uCar || i.svgaAsset == uCar)) ||
-          (uEntrance != null && (i.itemId == uEntrance || i.svgaAsset == uEntrance)) ||
-          backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId))
-        )).toList();
-
-        // Ensure active frame appears in frames tab
-        if (uFrame != null && uFrame.isNotEmpty) {
-          final fPath = resolvedFrame ?? uFrame;
-          if (!frames.any((f) => f.itemId == uFrame || f.itemId == fPath || f.svgaAsset == fPath)) {
-            frames.insert(0, StoreItemModel(
-              itemId: uFrame,
-              category: 'frame',
-              name: 'إطار مفعّل',
-              svgaAsset: fPath.contains('.svga') ? fPath : null,
-              iconAsset: fPath,
-              price: 0,
-            ));
+          // Resolve activeNecklace path
+          String? resolvedNecklace = targetUser.activeNecklace;
+          if (resolvedNecklace != null && resolvedNecklace.isNotEmpty) {
+            if (necklacesMap.containsKey(resolvedNecklace)) {
+              final n = necklacesMap[resolvedNecklace]!;
+              resolvedNecklace = n['svga_url']?.toString() ?? n['image_url']?.toString() ?? resolvedNecklace;
+            }
           }
-        }
-
-        // Ensure active car appears in rides tab
-        if (uCar != null && uCar.isNotEmpty) {
-          final cPath = uCar;
-          if (!rides.any((r) => r.itemId == cPath || r.svgaAsset == cPath)) {
-            rides.insert(0, StoreItemModel(
-              itemId: cPath,
-              category: 'car',
-              name: 'سيارة مفعّلة',
-              svgaAsset: cPath.contains('.svga') ? cPath : null,
-              iconAsset: cPath,
-              price: 0,
-            ));
+          if (resolvedNecklace == null || resolvedNecklace.isEmpty) {
+            final vipNecklace = targetUser.ownedVipItems.where((m) => m['type'] == 'necklace').firstOrNull;
+            if (vipNecklace != null && (vipNecklace['url'] ?? '').isNotEmpty) {
+              resolvedNecklace = vipNecklace['url'];
+            }
           }
-        }
 
-        // Ensure active entrance effect appears in rides tab
-        if (uEntrance != null && uEntrance.isNotEmpty) {
-          final ePath = uEntrance;
-          if (!rides.any((r) => r.itemId == ePath || r.svgaAsset == ePath)) {
-            rides.insert(0, StoreItemModel(
-              itemId: ePath,
-              category: 'entrance',
-              name: 'تأثير دخول',
-              svgaAsset: ePath.contains('.svga') ? ePath : null,
-              iconAsset: ePath,
-              price: 0,
-            ));
+          // Store items to match owned frames & rides (merged with user_backpack & ownedLevelFrames & VIP items)
+          final u = targetUser;
+          final uFrame = u.activeFrame;
+          final uCar = u.activeCar;
+          final uEntrance = u.activeEntrance;
+          final uVipItems = u.ownedVipItems;
+
+          final ownedSet = u.ownedItems.toSet();
+          for (final f in u.ownedLevelFrames) {
+            if (f.isNotEmpty) ownedSet.add(f);
           }
-        }
+          for (final b in backpackList) {
+            final bId = b['item_id']?.toString() ?? b['itemId']?.toString() ?? '';
+            if (bId.isNotEmpty) ownedSet.add(bId);
+          }
+          if (uFrame != null && uFrame.isNotEmpty) {
+            ownedSet.add(uFrame);
+          }
+          if (uCar != null && uCar.isNotEmpty) {
+            ownedSet.add(uCar);
+          }
+          if (uEntrance != null && uEntrance.isNotEmpty) {
+            ownedSet.add(uEntrance);
+          }
 
-        // Add VIP items to frames & rides
-        for (final vip in uVipItems) {
-          final vType = vip['type']?.toString();
-          final vUrl = vip['url']?.toString() ?? '';
-          final vName = vip['name']?.toString() ?? vip['title']?.toString() ?? '';
-          if (vType == 'frame' && vUrl.isNotEmpty) {
-            if (!frames.any((f) => f.iconAsset == vUrl || f.svgaAsset == vUrl)) {
-              frames.add(StoreItemModel(
-                itemId: 'vip_frame_${frames.length}',
+          final frames = allStoreItems.where((i) => i.category == 'frame' && (
+              ownedSet.contains(i.itemId) ||
+                  (uFrame != null && (i.itemId == uFrame || i.svgaAsset == uFrame)) ||
+                  backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId))
+          )).toList();
+
+          final rides = allStoreItems.where((i) => (i.category == 'car' || i.category == 'entrance') && (
+              ownedSet.contains(i.itemId) ||
+                  (uCar != null && (i.itemId == uCar || i.svgaAsset == uCar)) ||
+                  (uEntrance != null && (i.itemId == uEntrance || i.svgaAsset == uEntrance)) ||
+                  backpackList.any((b) => (b['item_id'] == i.itemId || b['itemId'] == i.itemId))
+          )).toList();
+
+          // Ensure active frame appears in frames tab
+          if (uFrame != null && uFrame.isNotEmpty) {
+            final fPath = resolvedFrame ?? uFrame;
+            if (!frames.any((f) => f.itemId == uFrame || f.itemId == fPath || f.svgaAsset == fPath)) {
+              frames.insert(0, StoreItemModel(
+                itemId: uFrame,
                 category: 'frame',
-                name: vName.isNotEmpty ? vName : 'إطار VIP',
-                svgaAsset: vUrl.contains('.svga') ? vUrl : null,
-                iconAsset: vUrl,
-                price: 0,
-              ));
-            }
-          } else if ((vType == 'car' || vType == 'entrance') && vUrl.isNotEmpty) {
-            if (!rides.any((r) => r.iconAsset == vUrl || r.svgaAsset == vUrl)) {
-              rides.add(StoreItemModel(
-                itemId: 'vip_ride_${rides.length}',
-                category: vType!,
-                name: vName.isNotEmpty ? vName : (vType == 'car' ? 'سيارة VIP' : 'دخولية VIP'),
-                svgaAsset: vUrl.contains('.svga') ? vUrl : null,
-                iconAsset: vUrl,
+                name: _isAr ? 'إطار مفعّل' : 'Active frame',
+                svgaAsset: fPath.contains('.svga') ? fPath : null,
+                iconAsset: fPath,
                 price: 0,
               ));
             }
           }
-        }
 
-        final aggList = _aggregateGifts(gifts, giftCatalog);
-        final supporters = _extractSupporters(gifts);
-
-        // Fetch counts
-        int followings = fList.isNotEmpty ? fList.length : targetUser.following;
-        int fans = fansList.isNotEmpty ? fansList.length : targetUser.followers;
-        int visitors = vList.isNotEmpty ? vList.length : targetUser.visitors;
-
-        // Check if user is in an active room
-        String? activeRoomId = activeRoomDetected;
-        if (activeRoomId == null || activeRoomId.isEmpty) {
-          if (roomMember != null && roomMember['room_id'] != null) {
-            activeRoomId = roomMember['room_id'].toString();
-          }
-        }
-        if (activeRoomId == null || activeRoomId.isEmpty) {
-          if (targetUser.hostedRoomId != null && targetUser.hostedRoomId!.isNotEmpty && targetUser.hostedRoomId != 'null') {
-            activeRoomId = targetUser.hostedRoomId;
-          }
-        }
-
-        // Fetch CP / Relationship Data
-        Map<String, dynamic>? cpInfo;
-        if (cpResult['has_cp'] == true) {
-          cpInfo = cpResult['couple'] as Map<String, dynamic>?;
-        }
-
-        // Fetch Agency Data
-        Map<String, dynamic>? agencyInfo;
-        if (memberRow != null && memberRow['agency_id'] != null) {
-          try {
-            final agRow = await Supabase.instance.client
-                .from('host_agencies')
-                .select('id, name, photo_url, tier')
-                .eq('id', memberRow['agency_id'])
-                .maybeSingle();
-            if (agRow != null) {
-              agencyInfo = {
-                'agency_id': agRow['id'],
-                'name': agRow['name'],
-                'photo_url': agRow['photo_url'],
-                'tier': agRow['tier'],
-                'role': memberRow['role'],
-              };
+          // Ensure active car appears in rides tab
+          if (uCar != null && uCar.isNotEmpty) {
+            final cPath = uCar;
+            if (!rides.any((r) => r.itemId == cPath || r.svgaAsset == cPath)) {
+              rides.insert(0, StoreItemModel(
+                itemId: cPath,
+                category: 'car',
+                name: _isAr ? 'سيارة مفعّلة' : 'Active car',
+                svgaAsset: cPath.contains('.svga') ? cPath : null,
+                iconAsset: cPath,
+                price: 0,
+              ));
             }
-          } catch (_) {}
-        }
+          }
 
-        if (mounted) {
-          setState(() {
-            _user = targetUser;
-            _resolvedFramePath = resolvedFrame;
-            _resolvedNecklacePath = resolvedNecklace;
-            _badgesMap = badgesMap;
-            _necklacesMap = necklacesMap;
-            _aggregatedGifts = aggList;
-            _topSupporters = supporters;
-            _ownedFrames = frames;
-            _ownedRides = rides;
-            _followingCount = followings;
-            _fansCount = fans;
-            _visitorsCount = visitors;
-            _currentRoomId = activeRoomId;
-            _cpData = cpInfo;
-            _agencyData = agencyInfo;
-            _loading = false;
-          });
+          // Ensure active entrance effect appears in rides tab
+          if (uEntrance != null && uEntrance.isNotEmpty) {
+            final ePath = uEntrance;
+            if (!rides.any((r) => r.itemId == ePath || r.svgaAsset == ePath)) {
+              rides.insert(0, StoreItemModel(
+                itemId: ePath,
+                category: 'entrance',
+                name: _isAr ? 'تأثير دخول' : 'Entrance effect',
+                svgaAsset: ePath.contains('.svga') ? ePath : null,
+                iconAsset: ePath,
+                price: 0,
+              ));
+            }
+          }
+
+          // Add VIP items to frames & rides
+          for (final vip in uVipItems) {
+            final vType = vip['type']?.toString();
+            final vUrl = vip['url']?.toString() ?? '';
+            final vName = vip['name']?.toString() ?? vip['title']?.toString() ?? '';
+            if (vType == 'frame' && vUrl.isNotEmpty) {
+              if (!frames.any((f) => f.iconAsset == vUrl || f.svgaAsset == vUrl)) {
+                frames.add(StoreItemModel(
+                  itemId: 'vip_frame_${frames.length}',
+                  category: 'frame',
+                  name: vName.isNotEmpty ? vName : (_isAr ? 'إطار VIP' : 'VIP frame'),
+                  svgaAsset: vUrl.contains('.svga') ? vUrl : null,
+                  iconAsset: vUrl,
+                  price: 0,
+                ));
+              }
+            } else if ((vType == 'car' || vType == 'entrance') && vUrl.isNotEmpty) {
+              if (!rides.any((r) => r.iconAsset == vUrl || r.svgaAsset == vUrl)) {
+                rides.add(StoreItemModel(
+                  itemId: 'vip_ride_${rides.length}',
+                  category: vType!,
+                  name: vName.isNotEmpty ? vName : (vType == 'car' ? (_isAr ? 'سيارة VIP' : 'VIP car') : (_isAr ? 'دخولية VIP' : 'VIP entrance')),
+                  svgaAsset: vUrl.contains('.svga') ? vUrl : null,
+                  iconAsset: vUrl,
+                  price: 0,
+                ));
+              }
+            }
+          }
+
+          final aggList = _aggregateGifts(gifts, giftCatalog);
+          final supporters = _extractSupporters(gifts);
+
+          // Fetch counts
+          int followings = fList.isNotEmpty ? fList.length : targetUser.following;
+          int fans = fansList.isNotEmpty ? fansList.length : targetUser.followers;
+          int visitors = vList.isNotEmpty ? vList.length : targetUser.visitors;
+
+          // Check if user is in an active room
+          String? activeRoomId = activeRoomDetected;
+          if (activeRoomId == null || activeRoomId.isEmpty) {
+            if (roomMember != null && roomMember['room_id'] != null) {
+              activeRoomId = roomMember['room_id'].toString();
+            }
+          }
+          if (activeRoomId == null || activeRoomId.isEmpty) {
+            if (targetUser.hostedRoomId != null && targetUser.hostedRoomId!.isNotEmpty && targetUser.hostedRoomId != 'null') {
+              activeRoomId = targetUser.hostedRoomId;
+            }
+          }
+
+          // Fetch CP / Relationship Data
+          Map<String, dynamic>? cpInfo;
+          if (cpResult['has_cp'] == true) {
+            cpInfo = cpResult['couple'] as Map<String, dynamic>?;
+          }
+
+          // Fetch Agency Data
+          Map<String, dynamic>? agencyInfo;
+          if (memberRow != null && memberRow['agency_id'] != null) {
+            try {
+              final agRow = await Supabase.instance.client
+                  .from('host_agencies')
+                  .select('id, name, photo_url, tier')
+                  .eq('id', memberRow['agency_id'])
+                  .maybeSingle();
+              if (agRow != null) {
+                agencyInfo = {
+                  'agency_id': agRow['id'],
+                  'name': agRow['name'],
+                  'photo_url': agRow['photo_url'],
+                  'tier': agRow['tier'],
+                  'role': memberRow['role'],
+                };
+              }
+            } catch (_) {}
+          }
+
+          if (mounted) {
+            setState(() {
+              _user = targetUser;
+              _resolvedFramePath = resolvedFrame;
+              _resolvedNecklacePath = resolvedNecklace;
+              _badgesMap = badgesMap;
+              _necklacesMap = necklacesMap;
+              _aggregatedGifts = aggList;
+              _topSupporters = supporters;
+              _ownedFrames = frames;
+              _ownedRides = rides;
+              _followingCount = followings;
+              _fansCount = fans;
+              _visitorsCount = visitors;
+              _currentRoomId = activeRoomId;
+              _cpData = cpInfo;
+              _agencyData = agencyInfo;
+              _loading = false;
+            });
+          }
+        } catch (err) {
+          debugPrint('[UserProfile] Secondary catalog fetch non-fatal error: $err');
         }
-      } catch (err) {
-        debugPrint('[UserProfile] Secondary catalog fetch non-fatal error: $err');
+      } else {
+        if (mounted) setState(() => _loading = false);
       }
-    } else {
-      if (mounted) setState(() => _loading = false);
-    }
     } catch (e) {
       debugPrint('[UserProfile] loadData error: $e');
       if (mounted) setState(() => _loading = false);
@@ -571,9 +578,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   List<AggregatedGift> _aggregateGifts(
-    List<gm.SentGiftModel> gifts,
-    Map<String, gm.GiftModel> catalog,
-  ) {
+      List<gm.SentGiftModel> gifts,
+      Map<String, gm.GiftModel> catalog,
+      ) {
     final Map<String, List<gm.SentGiftModel>> map = {};
     for (final g in gifts) {
       final key = g.giftId.isNotEmpty ? g.giftId : g.giftName;
@@ -602,7 +609,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         } else {
           sendersMap[sId] = GiftSenderInfo(
             senderId: sId,
-            senderName: item.senderName.isNotEmpty ? item.senderName : 'مستخدم',
+            senderName: item.senderName.isNotEmpty ? item.senderName : (_isAr ? 'مستخدم' : 'User'),
             senderPhoto: item.senderPhotoUrl ?? '',
             count: item.count,
           );
@@ -633,7 +640,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (gName.isEmpty && cat != null) {
         gName = cat.nameAr.isNotEmpty ? cat.nameAr : cat.name;
       }
-      if (gName.isEmpty) gName = 'هدية';
+      if (gName.isEmpty) gName = _isAr ? 'هدية' : 'Gift';
 
       result.add(AggregatedGift(
         giftId: first.giftId,
@@ -667,7 +674,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       } else {
         map[sId] = SupporterRankInfo(
           senderId: sId,
-          senderName: g.senderName.isNotEmpty ? g.senderName : 'مستخدم',
+          senderName: g.senderName.isNotEmpty ? g.senderName : (_isAr ? 'مستخدم' : 'User'),
           senderPhoto: g.senderPhotoUrl ?? '',
           totalGiftsCount: g.count,
           totalCoins: g.totalValue,
@@ -741,32 +748,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.share, color: Colors.white),
-                title: const DText('مشاركة الملف الشخصي', style: TextStyle(color: Colors.white)),
+                title: DText(_isAr ? 'مشاركة الملف الشخصي' : 'Share Profile', style: const TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(ctx);
                   Clipboard.setData(ClipboardData(text: _user?.customId ?? _user?.uid ?? ''));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: DText('تم نسخ رابط الملف الشخصي')),
+                    SnackBar(content: DText(_isAr ? 'تم نسخ رابط الملف الشخصي' : 'Profile link copied')),
                   );
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.report_problem_outlined, color: Colors.amber),
-                title: const DText('إبلاغ', style: TextStyle(color: Colors.white)),
+                title: DText(_isAr ? 'إبلاغ' : 'Report', style: const TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: DText('تم إرسال البلاغ بنجاح')),
+                    SnackBar(content: DText(_isAr ? 'تم إرسال البلاغ بنجاح' : 'Report sent successfully')),
                   );
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.block, color: Colors.redAccent),
-                title: const DText('حظر المستخدم', style: TextStyle(color: Colors.redAccent)),
+                title: DText(_isAr ? 'حظر المستخدم' : 'Block User', style: const TextStyle(color: Colors.redAccent)),
                 onTap: () {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: DText('تم حظر المستخدم')),
+                    SnackBar(content: DText(_isAr ? 'تم حظر المستخدم' : 'User blocked')),
                   );
                 },
               ),
@@ -824,7 +831,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   void _openGiftSheet() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: DText('يرجى إرسال الهدايا من داخل الغرفة الصوتية')),
+      SnackBar(content: DText(_isAr ? 'يرجى إرسال الهدايا من داخل الغرفة الصوتية' : 'Please send gifts from inside the voice room')),
     );
   }
 
@@ -834,7 +841,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (!mounted) return;
       await navigateToRoom(
         context,
-        roomName: room?.name ?? 'غرفة صوتية',
+        roomName: room?.name ?? (_isAr ? 'غرفة صوتية' : 'Voice Room'),
         hostName: room?.hostName ?? _user?.name ?? '',
         roomId: _currentRoomId!,
         hostUid: room?.hostUid ?? _user?.uid,
@@ -846,7 +853,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final idText = _user?.customId ?? _user?.uid ?? '';
     Clipboard.setData(ClipboardData(text: idText));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: DText('تم نسخ الآيدي بنجاح')),
+      SnackBar(content: DText(_isAr ? 'تم نسخ الآيدي بنجاح' : 'ID copied successfully')),
     );
   }
 
@@ -911,9 +918,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const DText(
-                    'اضغط في أي مكان للإغلاق',
-                    style: TextStyle(fontSize: 11, color: Colors.white54),
+                  DText(
+                    _isAr ? 'اضغط في أي مكان للإغلاق' : 'Tap anywhere to close',
+                    style: const TextStyle(fontSize: 11, color: Colors.white54),
                   ),
                 ],
               ),
@@ -945,15 +952,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 child: Center(
                   child: isVap
                       ? VapPlayer(
-                          url: assetPath,
-                          loops: true,
-                          fit: BoxFit.contain,
-                        )
+                    url: assetPath,
+                    loops: true,
+                    fit: BoxFit.contain,
+                  )
                       : SvgaPlayer(
-                          assetPath: assetPath,
-                          loops: true,
-                          fit: BoxFit.contain,
-                        ),
+                    assetPath: assetPath,
+                    loops: true,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               Positioned(
@@ -1058,7 +1065,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: DText(
-                    'العدد الإجمالي المُستلم: x${gift.totalCount}',
+                    _isAr
+                        ? 'العدد الإجمالي المُستلم: x${gift.totalCount}'
+                        : 'Total received: x${gift.totalCount}',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1075,8 +1084,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   children: [
                     const Icon(Icons.favorite, color: Colors.pinkAccent, size: 16),
                     const SizedBox(width: 6),
-                    const DText(
-                      'أبرز الداعمين لهذه الهدية',
+                    DText(
+                      _isAr ? 'أبرز الداعمين لهذه الهدية' : 'Top Supporters',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -1085,7 +1094,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                     const Spacer(),
                     DText(
-                      '${gift.senders.length} داعم',
+                      _isAr
+                          ? '${gift.senders.length} داعم'
+                          : '${gift.senders.length} Supporters',
                       style: const TextStyle(fontSize: 11, color: Colors.white54),
                     ),
                   ],
@@ -1096,69 +1107,71 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 180),
                   child: gift.senders.isEmpty
-                      ? const Center(
-                          child: DText(
-                            'لا توجد معلومات داعمين مسجلة',
-                            style: TextStyle(fontSize: 11, color: Colors.white38),
-                          ),
-                        )
+                      ? Center(
+                    child: DText(
+                      _isAr
+                          ? 'لا توجد معلومات داعمين مسجلة'
+                          : 'No supporter info recorded',
+                      style: TextStyle(fontSize: 11, color: Colors.white38),
+                    ),
+                  )
                       : ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: gift.senders.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
-                          itemBuilder: (c, idx) {
-                            final sender = gift.senders[idx];
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundImage: sender.senderPhoto.isNotEmpty
-                                        ? cachedImgProvider(sender.senderPhoto)
-                                        : null,
-                                    child: sender.senderPhoto.isEmpty
-                                        ? const Icon(Icons.person, size: 16, color: Colors.white54)
-                                        : null,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: SpecialNameText(
-                                      text: sender.senderName,
-                                      customId: UserProfile.customIdCache[sender.senderId],
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.amber.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: DText(
-                                      'x${sender.count}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.amber,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                    shrinkWrap: true,
+                    itemCount: gift.senders.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (c, idx) {
+                      final sender = gift.senders[idx];
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(10),
                         ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundImage: sender.senderPhoto.isNotEmpty
+                                  ? cachedImgProvider(sender.senderPhoto)
+                                  : null,
+                              child: sender.senderPhoto.isEmpty
+                                  ? const Icon(Icons.person, size: 16, color: Colors.white54)
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: SpecialNameText(
+                                text: sender.senderName,
+                                customId: UserProfile.customIdCache[sender.senderId],
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DText(
+                                'x${sender.count}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.amber,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -1176,7 +1189,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         side: const BorderSide(color: Colors.white12),
                       ),
                     ),
-                    child: const DText('إغلاق', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: DText(_isAr ? 'إغلاق' : 'Close', style: const TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -1218,7 +1231,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             children: [
               const Icon(Icons.person_off_rounded, size: 64, color: Colors.white38),
               const SizedBox(height: 14),
-              const DText('المستخدم غير متاح حالياً', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+              DText(_isAr ? 'المستخدم غير متاح حالياً' : 'User is currently unavailable', style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 18),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
@@ -1232,7 +1245,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   _loadData();
                 },
                 icon: const Icon(Icons.refresh, size: 18),
-                label: const DText('إعادة المحاولة', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: DText(_isAr ? 'إعادة المحاولة' : 'Retry', style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -1374,216 +1387,199 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       color: Color(0xFF16151A),
                       borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
                     ),
-                    child: Stack(
-                      clipBehavior: Clip.none,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 70dp spacer for Avatar overlap
-                            const SizedBox(height: 70),
+                        const SizedBox(height: 16),
 
-                            // Signature (hidden if empty)
-                            if (user.signature.trim().isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                child: Row(
+                        // ✅ هيدر: الصورة (مع الإطار GIF/SVGA فوقها) على جهة البداية
+                        //    حسب اتجاه اللغة — عربي: يمين، إنجليزي: شمال —
+                        //    والاسم + الآيدي + العلم + المستويات + القلادات + الأوسمة
+                        //    جنبها على نفس مستواها.
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            start: 16,
+                            end: 16,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // ✅ الصورة + الإطار (GIF/SVGA) فوقها مباشرة
+                              //    تتبع اتجاه اللغة تلقائياً
+                              _buildAvatarView(user),
+                              const SizedBox(width: 12),
+
+                              // ✅ المحتوى النصي جنب الصورة على نفس مستواها
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Image.asset(
-                                      'assets/images/profile/mine_user_sign_ic.webp',
-                                      width: 14,
-                                      height: 14,
-                                      errorBuilder: (_, __, ___) => const Icon(
-                                        Icons.edit_note,
-                                        size: 14,
-                                        color: Color(0x80FFFFFF),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: DText(
-                                        user.signature.trim(),
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0x80FFFFFF),
+                                    // الاسم + أيقونة الجنس + علم واحد بس
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: SpecialNameText(
+                                            text: user.name,
+                                            customId: user.customId,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: _getNickNameColor(
+                                                  user.rechargeLevel),
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
+                                        const SizedBox(width: 8),
+                                        Image.asset(
+                                          user.gender == 'female'
+                                              ? 'assets/images/profile/sex_female_ic.webp'
+                                              : 'assets/images/profile/sex_male_ic.webp',
+                                          width: 18,
+                                          height: 16,
+                                          errorBuilder: (_, __, ___) => Icon(
+                                            user.gender == 'female'
+                                                ? Icons.female
+                                                : Icons.male,
+                                            size: 16,
+                                            color: user.gender == 'female'
+                                                ? Colors.pink
+                                                : Colors.blue,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        // ✅ علم واحد بس جنب الاسم
+                                        if (user.country.isNotEmpty)
+                                          ClipRRect(
+                                            borderRadius:
+                                            BorderRadius.circular(3),
+                                            child: Image(
+                                              image: R.cachedImage(
+                                                  'https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(user.country)}.png'),
+                                              width: 20,
+                                              height: 14,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  DText(
+                                                    UserIdWidget.countryCodeToEmoji(
+                                                        UserIdWidget
+                                                            .resolveCountryCode(
+                                                            user.country)),
+                                                    style: const TextStyle(
+                                                        fontSize: 14),
+                                                  ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    // ✅ الآيدي — من غير علم تاني جواه
+                                    UserIdWidget(
+                                      idText: user.customId.isNotEmpty
+                                          ? user.customId
+                                          : user.uid.substring(0, 8),
+                                      countryCode: '', // ✅ فاضي عشان ميعرضش علم تاني
+                                      fontSize: 12,
+                                      onCopied: _copyUserId,
+                                    ),
+
+                                    // Signature (hidden if empty)
+                                    if (user.signature.trim().isNotEmpty)
+                                      Padding(
+                                        padding:
+                                        const EdgeInsets.only(top: 6),
+                                        child: Row(
+                                          children: [
+                                            Image.asset(
+                                              'assets/images/profile/mine_user_sign_ic.webp',
+                                              width: 14,
+                                              height: 14,
+                                              errorBuilder: (_, __, ___) =>
+                                              const Icon(
+                                                Icons.edit_note,
+                                                size: 14,
+                                                color: Color(0x80FFFFFF),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: DText(
+                                                user.signature.trim(),
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Color(0x80FFFFFF),
+                                                ),
+                                                maxLines: 2,
+                                                overflow:
+                                                TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+
+                                    // Level badges row (RankLevelView)
+                                    Padding(
+                                      padding:
+                                      const EdgeInsets.only(top: 10),
+                                      child: ListenableBuilder(
+                                        listenable: LevelService(),
+                                        builder: (context, _) =>
+                                            _buildRankLevelView(user),
                                       ),
                                     ),
+
+                                    // Active Necklaces row
+                                    _buildNecklacesRow(user),
+
+                                    // Medals & Badges row
+                                    if (user.ownedBadges.isNotEmpty ||
+                                        user.ownedLevelBadges.isNotEmpty)
+                                      Padding(
+                                        padding:
+                                        const EdgeInsets.only(top: 10),
+                                        child: _buildUserMedalView(user),
+                                      ),
                                   ],
                                 ),
-                              ),
-
-                            // Level badges row (RankLevelView)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                              child: _buildRankLevelView(user),
-                            ),
-
-                            // Active Necklaces row (القلادات تحت المستويات - تاخذ 4 قلادات جنب بعض)
-                            _buildNecklacesRow(user),
-
-                            // Medals & Badges row (UserMedalView تحت القلادات مباشرة)
-                            if (user.ownedBadges.isNotEmpty || user.ownedLevelBadges.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                                child: _buildUserMedalView(user),
-                              ),
-
-                            // CP / Relationship Card (جدار العلاقات)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                              child: _buildCpRelationshipCard(),
-                            ),
-
-                            // Agency Card if user belongs to an agency
-                            if (_agencyData != null)
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                                child: _buildAgencyCard(),
-                              ),
-
-                            // Stats Box (mine_user_info_shape_2_bg: #25252B, height 68dp, rounded 8dp)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                              child: _buildStatsBox(),
-                            ),
-
-                            // Tabs Bar (recyclerview_tab: 5 tabs)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(8, 20, 8, 0),
-                              child: _buildWallTabBar(),
-                            ),
-
-                            // Wall Grid Content
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-                              child: _buildWallGrid(),
-                            ),
-                          ],
-                        ),
-
-                        // Avatar Stack (UserAvatarView: 116x116dp, top -30dp, left 16dp)
-                        Positioned(
-                          top: -30,
-                          left: 16,
-                          child: _buildAvatarView(user),
-                        ),
-
-                        // Nickname + Gender + Country + ID row (cl_user_info)
-                        Positioned(
-                          top: 10,
-                          left: 142,
-                          right: 16,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  // Nickname (14sp bold, color by VIP)
-                                  Flexible(
-                                    child: SpecialNameText(
-                                      text: user.name,
-                                      customId: user.customId,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: _getNickNameColor(user.rechargeLevel),
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-
-                                  // Gender icon
-                                  Image.asset(
-                                    user.gender == 'female'
-                                        ? 'assets/images/profile/sex_female_ic.webp'
-                                        : 'assets/images/profile/sex_male_ic.webp',
-                                    width: 18,
-                                    height: 16,
-                                    errorBuilder: (_, __, ___) => Icon(
-                                      user.gender == 'female' ? Icons.female : Icons.male,
-                                      size: 16,
-                                      color: user.gender == 'female' ? Colors.pink : Colors.blue,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-
-                                  // Country flag
-                                  if (user.country.isNotEmpty)
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(3),
-                                      child: Image(
-                                        image: R.cachedImage('https://flagcdn.com/w40/${UserIdWidget.resolveCountryCode(user.country)}.png'),
-                                        width: 20,
-                                        height: 14,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => DText(
-                                          UserIdWidget.countryCodeToEmoji(UserIdWidget.resolveCountryCode(user.country)),
-                                          style: const TextStyle(fontSize: 14),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-
-                              // ID View with Copy icon
-                              UserIdWidget(
-                                idText: user.customId.isNotEmpty ? user.customId : user.uid.substring(0, 8),
-                                countryCode: user.country,
-                                fontSize: 12,
-                                onCopied: _copyUserId,
                               ),
                             ],
                           ),
                         ),
 
-                        // Live Room Pill Badge (mine_live_shape: mine_live_label + "غرفة صوتية")
-                        if (_currentRoomId != null)
-                          Positioned(
-                            top: 10,
-                            right: 16,
-                            child: GestureDetector(
-                              onTap: _joinLiveRoom,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFFFF6036), Color(0xFFFF8960)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Image.asset(
-                                      'assets/images/profile/mine_live_label.webp',
-                                      height: 16,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) => const Icon(
-                                        Icons.volume_up,
-                                        size: 14,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const DText(
-                                      'غرفة صوتية',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                        // CP / Relationship Card (جدار العلاقات)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                          child: _buildCpRelationshipCard(),
+                        ),
+
+                        // Agency Card if user belongs to an agency
+                        if (_agencyData != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: _buildAgencyCard(),
                           ),
+
+                        // Stats Box (mine_user_info_shape_2_bg: #25252B, height 68dp, rounded 8dp)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                          child: _buildStatsBox(),
+                        ),
+
+                        // Tabs Bar (recyclerview_tab: 5 tabs)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 20, 8, 0),
+                          child: _buildWallTabBar(),
+                        ),
+
+                        // Wall Grid Content
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                          child: _buildWallGrid(),
+                        ),
                       ],
                     ),
                   ),
@@ -1664,37 +1660,40 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 child: Row(
                   children: [
                     // Follow Button (idFollow)
-                    GestureDetector(
-                      onTap: _toggleFollow,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.asset(
-                              _isFollowing
-                                  ? 'assets/images/profile/mine_follow_pre_ic.webp'
-                                  : 'assets/images/profile/mine_follow_nor_ic.webp',
-                              width: 24,
-                              height: 24,
-                              errorBuilder: (_, __, ___) => Icon(
-                                _isFollowing ? Icons.check_circle : Icons.add_circle_outline,
-                                color: const Color(0xFFFAE9B5),
-                                size: 22,
+                    if (!_isMe)
+                      GestureDetector(
+                        onTap: _toggleFollow,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Image.asset(
+                                _isFollowing
+                                    ? 'assets/images/profile/mine_follow_pre_ic.webp'
+                                    : 'assets/images/profile/mine_follow_nor_ic.webp',
+                                width: 24,
+                                height: 24,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  _isFollowing ? Icons.check_circle : Icons.add_circle_outline,
+                                  color: const Color(0xFFFAE9B5),
+                                  size: 22,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            DText(
-                              _isFollowing ? 'تمت المتابعة' : 'متابعة',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFFFAE9B5),
+                              const SizedBox(height: 2),
+                              DText(
+                                _isAr
+                                    ? (_isFollowing ? 'تمت المتابعة' : 'متابعة')
+                                    : (_isFollowing ? 'Following' : 'Follow'),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFFFAE9B5),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
 
                     const Spacer(),
 
@@ -1722,8 +1721,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const DText(
-                              'محادثة',
+                            DText(
+                              _isAr ? 'محادثة' : 'Chat',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Color(0xFFFAE9B5),
@@ -1762,8 +1761,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ),
                             ),
                             const SizedBox(width: 6),
-                            const DText(
-                              'هدية',
+                            DText(
+                              _isAr ? 'هدية' : 'Gift',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Color(0xFF16151A),
@@ -1783,7 +1782,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  /// Avatar with resolved SvgaFrame
+  /// ✅ Avatar مع الإطار (GIF / SVGA / صورة) فوق الصورة مباشرة
+  ///    — الصورة تتبع اتجاه اللغة (عربي: يمين، إنجليزي: شمال)
   Widget _buildAvatarView(UserModel user) {
     final frame = _resolvedFramePath ?? user.activeFrame;
     final hasFrame = frame != null && frame.isNotEmpty;
@@ -1795,13 +1795,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         : (isMe ? (supaPhoto?.isNotEmpty == true ? supaPhoto! : '') : '');
     final isMale = user.gender != 'female';
 
+    // ✅ تحديد نوع الإطار: GIF / SVGA / صورة عادية
+    final lower = (frame ?? '').toLowerCase();
+    final isGif = lower.endsWith('.gif');
+    final isSvga = lower.endsWith('.svga') || lower.startsWith('assets/svga/');
+
     return SizedBox(
       width: 122,
       height: 122,
       child: Stack(
         alignment: Alignment.center,
+        clipBehavior: Clip.none,
         children: [
-          // Circular Avatar (iv_avatar 92dp with 4dp white border)
+          // 1) الصورة الدائرية (iv_avatar 92dp + 4dp white border)
           Container(
             width: 92,
             height: 92,
@@ -1812,64 +1818,114 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
             clipBehavior: Clip.antiAlias,
             child: effectivePhoto.isNotEmpty
-                ? (effectivePhoto.startsWith('http://') || effectivePhoto.startsWith('https://'))
-                    ? CachedNetworkImage(
-                        imageUrl: effectivePhoto,
-                        width: 92,
-                        height: 92,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => Image.asset(
-                          isMale ? R.avaBoy : R.avaGirl,
-                          width: 92,
-                          height: 92,
-                          fit: BoxFit.cover,
-                        ),
-                        errorWidget: (_, __, ___) => Image.asset(
-                          'assets/images/default_header.png',
-                          width: 92,
-                          height: 92,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Image.asset(
-                            isMale ? R.avaBoy : R.avaGirl,
-                            width: 92,
-                            height: 92,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      )
-                    : Image.asset(
-                        effectivePhoto,
-                        width: 92,
-                        height: 92,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Image.asset(
-                          isMale ? R.avaBoy : R.avaGirl,
-                          fit: BoxFit.cover,
-                          width: 92,
-                          height: 92,
-                        ),
-                      )
+                ? (effectivePhoto.startsWith('http://') ||
+                effectivePhoto.startsWith('https://'))
+                ? CachedNetworkImage(
+              imageUrl: effectivePhoto,
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Image.asset(
+                isMale ? R.avaBoy : R.avaGirl,
+                width: 92,
+                height: 92,
+                fit: BoxFit.cover,
+              ),
+              errorWidget: (_, __, ___) => Image.asset(
+                'assets/images/default_header.png',
+                width: 92,
+                height: 92,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Image.asset(
+                  isMale ? R.avaBoy : R.avaGirl,
+                  width: 92,
+                  height: 92,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            )
                 : Image.asset(
-                    'assets/images/default_header.png',
-                    width: 92,
-                    height: 92,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Image.asset(
-                      isMale ? R.avaBoy : R.avaGirl,
-                      fit: BoxFit.cover,
-                      width: 92,
-                      height: 92,
-                    ),
-                  ),
+              effectivePhoto,
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Image.asset(
+                isMale ? R.avaBoy : R.avaGirl,
+                fit: BoxFit.cover,
+                width: 92,
+                height: 92,
+              ),
+            )
+                : Image.asset(
+              'assets/images/default_header.png',
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Image.asset(
+                isMale ? R.avaBoy : R.avaGirl,
+                fit: BoxFit.cover,
+                width: 92,
+                height: 92,
+              ),
+            ),
           ),
 
-          // Outer frame: active SVGA frame
+          // 2) الإطار فوق الصورة مباشرة (GIF / SVGA / صورة عادية)
           if (hasFrame)
             Positioned.fill(
               child: IgnorePointer(
-                child: SvgaFrame(
-                  svgaPath: frame,
+                child: isSvga
+                    ? SvgaFrame(
+                  svgaPath: frame!,
                   size: 122,
+                  fit: BoxFit.contain,
+                )
+                    : isGif
+                    ? Image(
+                  image: R.cachedImage(frame!),
+                  width: 122,
+                  height: 122,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) =>
+                  const SizedBox.shrink(),
+                )
+                    : Image(
+                  image: frame!.startsWith('assets/')
+                      ? AssetImage(frame)
+                      : R.cachedImage(frame),
+                  width: 122,
+                  height: 122,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) =>
+                  const SizedBox.shrink(),
+                ),
+              ),
+            ),
+
+          // 3) أيقونة الغرفة الصوتية (ملتصقة بالصورة)
+          if (_currentRoomId != null)
+            PositionedDirectional(
+              bottom: 0,
+              end: 0,
+              child: GestureDetector(
+                onTap: _joinLiveRoom,
+                child: Image.asset(
+                  'assets/images/profile/live_room_badge.png',
+                  width: 30,
+                  height: 30,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withValues(alpha: 0.45),
+                    ),
+                    child: const Icon(
+                      Icons.volume_up,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1881,8 +1937,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// RankLevelView: VIP, Wealth, Charm levels using LevelService configs
   Widget _buildRankLevelView(UserModel user) {
     final lvlService = LevelService();
-    final wealthCfg = lvlService.getLevelConfig('wealth', user.wealthLevel);
-    final gemsCfg = lvlService.getLevelConfig('gems', user.gemsLevel);
+    // ✅ نعرض صورة المستوى الكبيرة (image_url) من اللوحة، مع الرجوع
+    //    لأقرب مستوى أدنى يملك صورة — بدل الأيقونة البديلة.
+    final wealthImg = lvlService.imageUrlFor('wealth', user.wealthLevel);
+    final gemsImg = lvlService.imageUrlFor('gems', user.gemsLevel);
 
 
     return GestureDetector(
@@ -1899,69 +1957,69 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           // Wealth Level Badge
           Padding(
             padding: const EdgeInsets.only(left: 8),
-            child: wealthCfg?.imageUrl != null && wealthCfg!.imageUrl!.isNotEmpty
+            child: wealthImg != null && wealthImg.isNotEmpty
                 ? SizedBox(
-                    height: 24,
-                    child: R.loadAsset(wealthCfg.imageUrl!, fit: BoxFit.contain),
-                  )
+              height: 24,
+              child: R.loadAsset(wealthImg, fit: BoxFit.contain),
+            )
                 : Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF2979FF), Color(0xFF1565C0)],
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.diamond, color: Colors.white, size: 10),
-                        const SizedBox(width: 2),
-                        DText(
-                          'Lv.${user.wealthLevel}',
-                          style: const TextStyle(
-                            fontSize: 9,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2979FF), Color(0xFF1565C0)],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.diamond, color: Colors.white, size: 10),
+                  const SizedBox(width: 2),
+                  DText(
+                    'Lv.${user.wealthLevel}',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
+                ],
+              ),
+            ),
           ),
 
           // Charm Level Badge
           Padding(
             padding: const EdgeInsets.only(left: 8),
-            child: gemsCfg?.imageUrl != null && gemsCfg!.imageUrl!.isNotEmpty
+            child: gemsImg != null && gemsImg.isNotEmpty
                 ? SizedBox(
-                    height: 24,
-                    child: R.loadAsset(gemsCfg.imageUrl!, fit: BoxFit.contain),
-                  )
+              height: 24,
+              child: R.loadAsset(gemsImg, fit: BoxFit.contain),
+            )
                 : Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF4081), Color(0xFFC2185B)],
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.favorite, color: Colors.white, size: 10),
-                        const SizedBox(width: 2),
-                        DText(
-                          'Lv.${user.gemsLevel}',
-                          style: const TextStyle(
-                            fontSize: 9,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF4081), Color(0xFFC2185B)],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.favorite, color: Colors.white, size: 10),
+                  const SizedBox(width: 2),
+                  DText(
+                    'Lv.${user.gemsLevel}',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -2037,7 +2095,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (displayList.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.only(top: 10),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -2070,14 +2128,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final List<Map<String, String>> resolvedMedals = [];
     for (final id in badgeIds) {
       if (id.startsWith('http') || id.startsWith('assets/')) {
-        resolvedMedals.add({'url': id, 'name': 'شارة'});
+        resolvedMedals.add({'url': id, 'name': _isAr ? 'شارة' : 'Badge'});
       } else if (_badgesMap.containsKey(id)) {
         final b = _badgesMap[id]!;
         // الأولوية لملف SVGA المتحرك إذا توفر
         final svga = b['svga_url']?.toString() ?? '';
         final img = b['image_url']?.toString() ?? '';
         final url = svga.isNotEmpty ? svga : img;
-        final name = b['name_ar']?.toString() ?? b['name']?.toString() ?? 'شارة';
+        final name = b['name_ar']?.toString() ?? b['name']?.toString() ?? (_isAr ? 'شارة' : 'Badge');
         if (url.isNotEmpty) {
           resolvedMedals.add({'url': url, 'name': name});
         }
@@ -2104,17 +2162,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               height: 60,
               child: isSvga
                   ? SvgaFrame(
-                      svgaPath: url,
-                      size: 60,
-                      fit: BoxFit.contain,
-                    )
+                svgaPath: url,
+                size: 60,
+                fit: BoxFit.contain,
+              )
                   : CachedImg(
-                      url,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.contain,
-                      error: (_, __, ___) => const SizedBox.shrink(),
-                    ),
+                url,
+                width: 60,
+                height: 60,
+                fit: BoxFit.contain,
+                error: (_, __, ___) => const SizedBox.shrink(),
+              ),
             ),
           );
         },
@@ -2174,10 +2232,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-    /// User Agency Card
+  /// User Agency Card
   Widget _buildAgencyCard() {
     final ag = _agencyData!;
-    final name = ag['name']?.toString() ?? 'وكالة';
+    final name = ag['name']?.toString() ?? (_isAr ? 'وكالة' : 'Agency');
     final photo = ag['photo_url']?.toString() ?? '';
     final aid = ag['agency_id']?.toString() ?? '';
 
@@ -2237,8 +2295,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  const DText(
-                    'وكالة رسمية معتمدة',
+                  DText(
+                    _isAr ? 'وكالة رسمية معتمدة' : 'Official Agency',
                     style: TextStyle(fontSize: 10, color: Color(0xFF9BA1B6)),
                   ),
                 ],
@@ -2290,8 +2348,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const DText(
-                    'متابعة',
+                  DText(
+                    _isAr ? 'متابعة' : 'Following',
                     style: TextStyle(
                       fontSize: 11,
                       color: Color(0xFF9BA1B6),
@@ -2331,8 +2389,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const DText(
-                    'معجبين',
+                  DText(
+                    _isAr ? 'معجبين' : 'Fans',
                     style: TextStyle(
                       fontSize: 11,
                       color: Color(0xFF9BA1B6),
@@ -2372,8 +2430,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const DText(
-                    'الزوار',
+                  DText(
+                    _isAr ? 'الزوار' : 'Visitors',
                     style: TextStyle(
                       fontSize: 11,
                       color: Color(0xFF9BA1B6),
@@ -2390,7 +2448,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   /// Wall Tab Bar (5 tabs: Gifts Wall, Headwear, Rides, Supporters, CP Wall)
   Widget _buildWallTabBar() {
-    final tabs = ['حائط الهدايا', 'أغطية الرأس', 'المطايا', 'الداعمين', 'العلاقات'];
+    final tabs = _isAr
+        ? ['حائط الهدايا', 'أغطية الرأس', 'المطايا', 'الداعمين', 'العلاقات']
+        : ['Gifts', 'Headwear', 'Rides', 'Supporters', 'CP'];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -2432,7 +2492,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // Gifts Wall (Aggregated xN count, tap opens transparent supporters dialog)
       if (_aggregatedGifts.isEmpty) {
         return _buildEmptyWall(
-          _isMe ? 'لم يتم استلام أي هدايا بعد~' : 'لم يستلم أي هدايا بعد~',
+          _isMe
+              ? (_isAr ? 'لم يتم استلام أي هدايا بعد~' : 'No gifts received yet~')
+              : (_isAr ? 'لم يستلم أي هدايا بعد~' : 'No gifts received yet~'),
         );
       }
       return GridView.builder(
@@ -2493,7 +2555,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // Headwear Wall (Tap opens transparent SVGA preview without box)
       if (_ownedFrames.isEmpty) {
         return _buildEmptyWall(
-          _isMe ? 'لم يتم استلام أي غطاء رأس بعد~' : 'لم يستلم أي غطاء رأس بعد~',
+          _isMe
+              ? (_isAr ? 'لم يتم استلام أي غطاء رأس بعد~' : 'No headwear received yet~')
+              : (_isAr ? 'لم يستلم أي غطاء رأس بعد~' : 'No headwear received yet~'),
         );
       }
       return GridView.builder(
@@ -2546,7 +2610,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // Rides / Mounts Wall (Tap opens full-screen transparent entrance preview)
       if (_ownedRides.isEmpty) {
         return _buildEmptyWall(
-          _isMe ? 'لم يتم استلام أي مطية بعد~' : 'لم يستلم أي مطية بعد~',
+          _isMe
+              ? (_isAr ? 'لم يتم استلام أي مطية بعد~' : 'No rides received yet~')
+              : (_isAr ? 'لم يستلم أي مطية بعد~' : 'No rides received yet~'),
         );
       }
       return GridView.builder(
@@ -2612,7 +2678,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               );
             },
             icon: const Icon(Icons.favorite, color: Colors.pinkAccent),
-            label: const DText('دخول مساحة الـ CP والترتيب الكامل', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: DText(_isAr ? 'دخول مساحة الـ CP والترتيب الكامل' : 'Enter CP Space & Full Ranking', style: const TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2E1928),
               foregroundColor: Colors.white,
@@ -2631,7 +2697,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// Authentic Supporters Podium + List (مطابق تماماً لترتيب داخل الغرفة room_rank_bottom_sheet)
   Widget _buildSupportersWall() {
     if (_topSupporters.isEmpty) {
-      return _buildEmptyWall('لا يوجد داعمين مسجلين بعد~');
+      return _buildEmptyWall(_isAr ? 'لا يوجد داعمين مسجلين بعد~' : 'No supporters yet~');
     }
 
     final top1 = _topSupporters.isNotEmpty ? _topSupporters[0] : null;
@@ -2758,7 +2824,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             ),
                             const SizedBox(height: 2),
                             DText(
-                              'إجمالي الهدايا: ${s.totalGiftsCount}',
+                              _isAr
+                                  ? 'إجمالي الهدايا: ${s.totalGiftsCount}'
+                                  : 'Total Gifts: ${s.totalGiftsCount}',
                               style: const TextStyle(fontSize: 10, color: Color(0xFF9BA1B6)),
                             ),
                           ],
@@ -2804,7 +2872,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     bool isCenter = false,
   }) {
     final photoUrl = item?.senderPhoto ?? '';
-    final name = item?.senderName ?? (item != null ? 'داعم' : 'شاغر');
+    final name = item?.senderName ?? (item != null ? (_isAr ? 'داعم' : 'Supporter') : (_isAr ? 'شاغر' : 'Empty'));
     final coins = item?.totalCoins ?? 0;
 
     return GestureDetector(
@@ -2833,9 +2901,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     child: photoUrl.isNotEmpty
                         ? CachedImg(photoUrl, width: avatarSize, height: avatarSize, fit: BoxFit.cover)
                         : Container(
-                            color: Colors.white10,
-                            child: Icon(Icons.person, color: Colors.white38, size: avatarSize * 0.5),
-                          ),
+                      color: Colors.white10,
+                      child: Icon(Icons.person, color: Colors.white38, size: avatarSize * 0.5),
+                    ),
                   ),
                 ),
                 Image.asset(
@@ -2897,8 +2965,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           ],
                         )
                       else
-                        const DText(
-                          'شاغر',
+                        DText(
+                          Localizations.localeOf(context).languageCode == 'ar'
+                              ? 'شاغر'
+                              : 'Empty',
                           style: TextStyle(fontSize: 10, color: Colors.white38),
                         ),
                     ],
@@ -2953,8 +3023,20 @@ class EditProfileScreenPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const DText('تعديل الملف الشخصي')),
-      body: const Center(child: DText('شاشة تعديل الملف الشخصي')),
+      appBar: AppBar(
+        title: DText(
+          Localizations.localeOf(context).languageCode == 'ar'
+              ? 'تعديل الملف الشخصي'
+              : 'Edit Profile',
+        ),
+      ),
+      body: Center(
+        child: DText(
+          Localizations.localeOf(context).languageCode == 'ar'
+              ? 'شاشة تعديل الملف الشخصي'
+              : 'Edit Profile Screen',
+        ),
+      ),
     );
   }
 }
@@ -3053,9 +3135,11 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       debugPrint('sendPrivateMessage error: $e');
       if (mounted) {
-        final errorMsg = e.toString().contains('Exception: ') 
-            ? e.toString().replaceAll(RegExp(r'^.*Exception: '), '') 
-            : 'فشل إرسال الرسالة، يرجى المحاولة مرة أخرى';
+        final errorMsg = e.toString().contains('Exception: ')
+            ? e.toString().replaceAll(RegExp(r'^.*Exception: '), '')
+            : (Localizations.localeOf(context).languageCode == 'ar'
+            ? 'فشل إرسال الرسالة، يرجى المحاولة مرة أخرى'
+            : 'Failed to send message, please try again');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: DText(errorMsg), backgroundColor: Colors.red),
         );
@@ -3120,9 +3204,9 @@ class _ChatScreenState extends State<ChatScreen> {
         color: DynamicConfigService().chatBackgroundColor,
         image: bgImg.isNotEmpty
             ? DecorationImage(
-                image: R.cachedImage(bgImg),
-                fit: BoxFit.cover,
-              )
+          image: R.cachedImage(bgImg),
+          fit: BoxFit.cover,
+        )
             : null,
       ),
       child: Scaffold(
@@ -3165,22 +3249,22 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: _messages.isEmpty
                   ? const Center(
-                      child: DText(
-                        'No messages yet',
-                        style: TextStyle(color: Color(0xFF9BA1B6)),
-                      ),
-                    )
+                child: DText(
+                  'No messages yet',
+                  style: TextStyle(color: Color(0xFF9BA1B6)),
+                ),
+              )
                   : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = _messages[index];
-                        final userProvider = Provider.of<UserProvider>(context, listen: false);
-                        final isMe = msg.senderUid == userProvider.currentUser?.uid;
-                        return _buildMessageBubble(msg, isMe);
-                      },
-                    ),
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final msg = _messages[index];
+                  final userProvider = Provider.of<UserProvider>(context, listen: false);
+                  final isMe = msg.senderUid == userProvider.currentUser?.uid;
+                  return _buildMessageBubble(msg, isMe);
+                },
+              ),
             ),
             if (_sendingImage)
               const Padding(
@@ -3302,8 +3386,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   controller: _msgController,
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => _sendMessage(),
-                  decoration: const InputDecoration(
-                    hintText: 'Type a message...',
+                  decoration: InputDecoration(
+                    hintText: Localizations.localeOf(context).languageCode == 'ar'
+                        ? 'اكتب رسالة...'
+                        : 'Type a message...',
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   ),

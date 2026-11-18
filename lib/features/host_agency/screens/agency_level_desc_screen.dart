@@ -120,7 +120,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white12),
       ),
@@ -130,7 +130,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.2),
+              color: iconColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(iconData, color: iconColor, size: 20),
@@ -150,9 +150,9 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.2),
+                        color: Colors.amber.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                       ),
                       child: DText(
                         task.expRateDesc,
@@ -209,7 +209,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -245,7 +245,7 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.indigo.withOpacity(0.1),
+                  color: Colors.indigo.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: DText(
@@ -279,9 +279,9 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.15),
+                    color: Colors.amber.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -299,9 +299,9 @@ class _AgencyLevelDescScreenState extends State<AgencyLevelDescScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.cyan.withOpacity(0.15),
+                    color: Colors.cyan.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.cyan.withOpacity(0.4)),
+                    border: Border.all(color: Colors.cyan.withValues(alpha: 0.4)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,

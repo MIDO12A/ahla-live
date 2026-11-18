@@ -41,12 +41,8 @@ class MediaPrefetchService {
         urls.addAll(DynamicConfigService().collectRemoteMediaUrls());
       } catch (_) {}
       try {
-        final gifts = await SupabaseDataService().getGifts();
-        for (final g in gifts) {
-          _add(urls, g.iconAsset);
-          _add(urls, g.animationAsset);
-          _add(urls, g.defaultImage);
-        }
+        // ⚠️ لا نُحمّل أيقونات/أنيميشن الهدايا عند بدء التطبيق — التحميل أصبح
+        // عند الطلب من صندوق الهدايا فقط (شريط تقدّم + كاش دائم).
       } catch (_) {}
       try {
         await SupabaseDataService().getGiftCategories();
