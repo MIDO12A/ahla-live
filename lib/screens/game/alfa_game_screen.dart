@@ -223,6 +223,8 @@ class _AlfaGameScreenState extends State<AlfaGameScreen> {
               // ✅ نفرض رصيد التطبيق الحقيقي داخل اللعبة فور تحميلها
               _injectBalanceMirror();
               _pushTrueCoins(force: true);
+              // ✅ نمرّر ترتيبنا الحقيقي للعبة عبر window.setLeaderboard.
+              _pushLeaderboard();
             }
           },
           onNavigationRequest: (request) {
@@ -334,15 +336,23 @@ class _AlfaGameScreenState extends State<AlfaGameScreen> {
 (function(){
   var TRUTH = $coins;
   window.__alfaTruthCoins = TRUTH;
+  // ✅ المزوّد أكّد 3 مداخل متطابقة لتحديث الرصيد داخل الـ WebView —
+  //    نستدعيها كلها بنفس القيمة المطلقة (idempotent) عشان أي إصدار
+  //    من اللعبة يلتقط التحديث فوراً بدون إعادة تحميل الصفحة.
   function official(n){
+    var ok = false;
     try{
       var g = window.__sugarGame;
-      if (g && typeof g.updateCoins === 'function') {
-        g.updateCoins(n);
-        return true;
-      }
+      if (g && typeof g.updateCoins === 'function') { g.updateCoins(n); ok = true; }
     }catch(e){}
-    return false;
+    try{
+      if (typeof window.updateCoins === 'function') { window.updateCoins(n); ok = true; }
+    }catch(e){}
+    try{
+      var ab = window.AlfaBridge;
+      if (ab && typeof ab.setCoins === 'function') { ab.setCoins(n); ok = true; }
+    }catch(e){}
+    return ok;
   }
   // مسار قديم احتياطي لمنصات Alfa القديمة اللي ما عندهاش __sugarGame.
   function legacy(n){
@@ -407,6 +417,54 @@ class _AlfaGameScreenState extends State<AlfaGameScreen> {
     unawaited(_controller.runJavaScript(
       'window.__alfaSetTruthCoins && window.__alfaSetTruthCoins($coins);',
     ));
+  }
+
+  /// يمرّر ترتيب المتصدرين الحقيقي من تطبيقنا للعبة مباشرة.
+  /// المزوّد أكّد دعم `window.setLeaderboard([...])` — نحقنه مع إعادة
+  /// محاولة قصيرة لأن اللعبة قد تسجّل الدالة بعد اكتمال تهيئة Cocos.
+  void _pushLeaderboard() {
+    unawaited(_doPushLeaderboard());
+  }
+
+  Future<void> _doPushLeaderboard() async {
+    try {
+      final uri = Uri.parse(
+        'https://ahla-live-api.vercel.app/api/v1/games/leaderboard',
+      ).replace(queryParameters: {
+        'game_id': widget.gameId,
+        'limit': '10',
+      });
+      final res = await SafeHttp.get(uri, headers: _headers);
+      if (res.statusCode != 200 || !mounted) return;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final rows = (body['rankings'] as List<dynamic>?) ?? const <dynamic>[];
+      final list = rows.whereType<Map<String, dynamic>>().map((r) {
+        return <String, dynamic>{
+          'uid': r['user_id']?.toString() ?? '',
+          'name': r['user_name']?.toString() ?? 'Player',
+          'avatar': r['avatar']?.toString() ?? '',
+          'score': (r['total'] as num?)?.toInt() ?? 0,
+        };
+      }).toList();
+      if (list.isEmpty) return;
+      final payload = jsonEncode(list);
+      unawaited(_controller.runJavaScript('''
+(function(){
+  var data = $payload;
+  var tries = 0;
+  var timer = setInterval(function(){
+    try{
+      if (typeof window.setLeaderboard === 'function') {
+        window.setLeaderboard(data);
+        clearInterval(timer);
+      } else if (++tries > 20) {
+        clearInterval(timer);
+      }
+    }catch(e){ clearInterval(timer); }
+  }, 300);
+})();
+'''));
+    } catch (_) {}
   }
 
   /// نحقن خطافاً داخل صفحة H5 يلتقط خصم الرهان ومكافأة الفوز.
@@ -561,8 +619,11 @@ class _AlfaGameScreenState extends State<AlfaGameScreen> {
   void _onJsMessage(JavaScriptMessage message) {
     try {
       final data = jsonDecode(message.message) as Map<String, dynamic>;
-      debugPrint('[AlfaGame] js action=${data['action']} amount=${data['amount']} spy=${data['data'] ?? ''}');
-      switch (data['action']) {
+      // ✅ قناة AlfaBridgeChannel الرسمية تبعت `event`، والقنوات القديمة
+      //    (FlutterBridge) تبعت `action` — بنتعامل مع الاتنين بنفس المسار.
+      final event = (data['event'] ?? data['action'] ?? '').toString();
+      debugPrint('[AlfaGame] js event=$event amount=${data['amount']} coins=${data['coins']} spy=${data['data'] ?? ''}');
+      switch (event) {
         case 'game_size':
           final ratio = (data['ratio'] as num?)?.toDouble();
           if (ratio != null && ratio > 0) widget.onGameRatio?.call(ratio);
@@ -570,6 +631,7 @@ class _AlfaGameScreenState extends State<AlfaGameScreen> {
         case 'closeWebView':
         case 'navigate_back':
         case 'close_game':
+        case 'exit_game':
           if (mounted) Navigator.pop(context);
           break;
         case 'showLoading':
@@ -581,6 +643,27 @@ class _AlfaGameScreenState extends State<AlfaGameScreen> {
         case 'open_recharge':
           _openRecharge();
           break;
+        case 'update_balance':
+        case 'coins_changed':
+        case 'balance_update':
+          // ✅ حدث التسوية الرسمي من AlfaBridgeChannel:
+          //    coins  = الرصيد الإجمالي الجديد بعد الحركة
+          //    diff   = الحركة بالسالب (bet) أو بالموجب (win)
+          //    reason = 'bet' | 'win'
+          //    styeParty = تفاصيل الطلب (orderId/roundId/type/coin/...)
+          //    الرصيد الحقيقي في Supabase يُسوّى S2S — لا نطبّق diff محلياً
+          //    على alfanexso عشان ما يحصلش خصم/إضافة مرتين.
+          final rawCoins = data['coins'] ?? data['balance'];
+          final coins = (rawCoins is num) ? rawCoins.toInt() : null;
+          final reason = data['reason']?.toString() ?? '';
+          debugPrint('[AlfaGame] update_balance coins=$coins reason=$reason styeParty=${data['styeParty']}');
+          if (_isServerSettled) {
+            if (coins != null) _lastGameCoins = coins; // baseline للـ poll
+            _refreshBalanceFromServer();
+          } else if (coins != null) {
+            _applyGameCoins(coins); // فرق الرصيد = bet/win (منصات قديمة)
+          }
+          break;
         case 'alfa_bet':
         case 'alfa_win':
         case 'alfa_sync':
@@ -591,7 +674,7 @@ class _AlfaGameScreenState extends State<AlfaGameScreen> {
           if (_isServerSettled) {
             _refreshBalanceFromServer();
           } else {
-            switch (data['action']) {
+            switch (event) {
               case 'alfa_bet':
                 _handleBet((data['amount'] as num?)?.toInt() ?? 0);
                 break;

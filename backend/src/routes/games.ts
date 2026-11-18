@@ -75,7 +75,7 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
         `&select=user_id,user_name,win_amount&order=created_at.desc&limit=2000`
     );
 
-    const totals = new Map<string, { user_id: string; user_name: string; total: number }>();
+    const totals = new Map<string, { user_id: string; user_name: string; total: number; avatar: string }>();
     for (const row of Array.isArray(rows) ? rows : []) {
       const uid = String(row.user_id || '');
       if (!uid) continue;
@@ -84,6 +84,7 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
         user_id: uid,
         user_name: String(row.user_name || 'Player'),
         total: 0,
+        avatar: '',
       };
       entry.total += win;
       totals.set(uid, entry);
@@ -92,6 +93,24 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
     const rankings = [...totals.values()]
       .sort((a, b) => b.total - a.total)
       .slice(0, limit);
+
+    // صور اللاعبين مطلوبة لتتمرير الترتيب للعبة عبر window.setLeaderboard.
+    try {
+      const uids = rankings.map((r) => r.user_id).filter(Boolean);
+      if (uids.length) {
+        const conds = uids.map((u) => `uid.eq.${encodeURIComponent(u)}`).join(',');
+        const users = await sbGet(
+          `users?or=(${conds})&select=uid,id,photo_url&limit=${uids.length}`
+        );
+        const avatars = new Map<string, string>();
+        for (const u of Array.isArray(users) ? users : []) {
+          avatars.set(String(u.uid || u.id), String(u.photo_url || ''));
+        }
+        for (const r of rankings) r.avatar = avatars.get(r.user_id) || '';
+      }
+    } catch (_) {
+      for (const r of rankings) r.avatar = '';
+    }
 
     res.json({ game_id: gameId, rankings });
   } catch (err: any) {
