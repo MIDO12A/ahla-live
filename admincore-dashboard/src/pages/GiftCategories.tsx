@@ -9,6 +9,7 @@ export default function GiftCategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<GiftCategory | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', sortOrder: 0 });
   const { t } = useContext(I18nContext);
 
@@ -31,9 +32,17 @@ export default function GiftCategoriesPage() {
   };
 
   const handleDelete = async (c: GiftCategory) => {
-    if (confirm(`Delete category "${c.name}"?`)) {
-      await deleteGiftCategory(c.id);
-      load();
+    if (!confirm(`Delete category "${c.name}"?\nGifts using it will be kept but unassigned.`)) return;
+    setBusyId(c.id);
+    try {
+      const result = await deleteGiftCategory(c.id);
+      if (!result.ok) {
+        alert(`Cannot delete "${c.name}": ${result.error}`);
+        return;
+      }
+      await load();
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -115,7 +124,14 @@ export default function GiftCategoriesPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => handleEdit(c)} className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold">Edit</button>
-                <button onClick={() => handleDelete(c)} className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold"><Trash2 className="w-3 h-3" /></button>
+                <button
+                  onClick={() => handleDelete(c)}
+                  disabled={busyId === c.id}
+                  title={busyId === c.id ? 'Deleting...' : 'Delete category'}
+                  className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {busyId === c.id ? '…' : <Trash2 className="w-3 h-3" />}
+                </button>
               </div>
             </div>
           ))}

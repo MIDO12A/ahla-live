@@ -5979,12 +5979,47 @@ export async function updateGiftCategory(id: string, data: Partial<import('../ty
   }
 }
 
-export async function deleteGiftCategory(id: string) {
-  
+/**
+ * حذف تصنيف هدايا بدون 409 Conflict.
+ * الجدولين gifts.category_id و gift_banner_configs.category_id عندهم FK
+ * إلى gift_categories(id)، فأي حذف لتصنيف مستخدم لسه يفشل. نفكّ الارتباط
+ * أولاً (SET NULL) ثم نحذف التصنيف، ونرجّع سبب الفعلية للواجهة بدل ما نبتلعها.
+ */
+export async function deleteGiftCategory(
+  id: string,
+): Promise<{ ok: boolean; error?: string; detachedGifts?: number; detachedBanners?: number }> {
   try {
-    await supabase.from('gift_categories').delete().eq('id', id);
-  } catch (e) {
-    console.warn('deleteGiftCategory failed:', e);
+    const [{ data: linkedGifts, error: giftsErr }, { data: linkedBanners, error: bannersErr }] =
+      await Promise.all([
+        supabase.from('gifts').select('id').eq('category_id', id),
+        supabase.from('gift_banner_configs').select('id').eq('category_id', id),
+      ]);
+    if (giftsErr) return { ok: false, error: giftsErr.message };
+    if (bannersErr) return { ok: false, error: bannersErr.message };
+
+    const detachedGifts = linkedGifts?.length ?? 0;
+    const detachedBanners = linkedBanners?.length ?? 0;
+
+    if (detachedGifts) {
+      const { error } = await supabase
+        .from('gifts')
+        .update({ category_id: null })
+        .eq('category_id', id);
+      if (error) return { ok: false, error: `Failed to detach gifts: ${error.message}` };
+    }
+    if (detachedBanners) {
+      const { error } = await supabase
+        .from('gift_banner_configs')
+        .update({ category_id: null })
+        .eq('category_id', id);
+      if (error) return { ok: false, error: `Failed to detach banner configs: ${error.message}` };
+    }
+
+    const { error } = await supabase.from('gift_categories').delete().eq('id', id);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, detachedGifts, detachedBanners };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
   }
 }
 

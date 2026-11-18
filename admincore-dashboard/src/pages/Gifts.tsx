@@ -1,6 +1,6 @@
 import { useEffect, useState, useContext } from 'react';
 import { GiftModel, GiftCategory } from '../types';
-import { getGifts, getGiftCategories, deleteGift, updateGift, addGift, addGiftCategory } from '../lib/db';
+import { getGifts, getGiftCategories, deleteGift, updateGift, addGift } from '../lib/db';
 import { uploadGiftIcon, uploadGiftAnimation } from '../lib/storage';
 import DataTable from '../components/DataTable';
 import ImageUpload from '../components/ImageUpload';
@@ -10,7 +10,11 @@ import { I18nContext } from '../lib/i18n';
 export default function GiftsPage() {
   const [gifts, setGifts] = useState<GiftModel[]>([]);
   const [categories, setCategories] = useState<GiftCategory[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('all');
+  // نحتفظ بالتبويب الأخير أثناء التنقل بين الأقسام عشان الرجوع لصفحة الهدايا
+  // ما يرجّعكش دايماً لتبويب «الكل».
+  const [activeTab, setActiveTab] = useState<string>(
+    () => sessionStorage.getItem('admin_gifts_active_tab') || 'all',
+  );
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<GiftModel | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -25,25 +29,18 @@ export default function GiftsPage() {
   });
   const { t } = useContext(I18nContext);
 
-  const STANDARD_CATEGORIES: GiftCategory[] = [
-    { id: 'normal', name: 'شائع (عادي)', sortOrder: 1 },
-    { id: 'luxury', name: '👑 فاخر (VIP)', sortOrder: 2 },
-    { id: 'lucky', name: '🍀 هدايا الحظ (Lucky)', sortOrder: 3 },
-    { id: 'cp', name: '💍 الارتباط (CP)', sortOrder: 4 },
-    { id: 'backpack', name: '🎒 الحقيبة (Backpack)', sortOrder: 5 },
-  ];
+  useEffect(() => {
+    sessionStorage.setItem('admin_gifts_active_tab', activeTab);
+  }, [activeTab]);
 
   const load = async () => {
     const [d, cats] = await Promise.all([getGifts(), getGiftCategories()]);
-    const existingIds = new Set(cats.map(c => c.id));
-    const mergedCats = [...cats];
-    for (const sc of STANDARD_CATEGORIES) {
-      if (!existingIds.has(sc.id)) {
-        mergedCats.push(sc);
-        addGiftCategory(sc.id, sc).catch(() => {});
-      }
-    }
-    mergedCats.sort((a, b) => a.sortOrder - b.sortOrder);
+    // ما نعيدش إنشاء التصنيفات القياسية هنا — ده كان يرجّع التصنيف اللي
+    // المستخدم حذفه فور ما يفتح صفحة الهدايا، فيبدو كأن الحذف ما حصلش.
+    const mergedCats = [...cats].sort((a, b) => a.sortOrder - b.sortOrder);
+    setActiveTab(prev =>
+      prev !== 'all' && !mergedCats.some(c => c.id === prev) ? 'all' : prev,
+    );
     setGifts(d); setCategories(mergedCats); setLoading(false);
   };
   useEffect(() => { load(); }, []);
