@@ -129,7 +129,7 @@ export default function AppAssetsPage() {
           id: existing?.id || crypto.randomUUID(),
           key: entry.fullKey,
           name: entry.constant,
-          type: file.name.endsWith('.svga') ? 'svga' : file.name.endsWith('.vap') ? 'vap' : file.name.endsWith('.json') ? 'lottie' : 'image',
+          type: file.name.endsWith('.svga') ? 'svga' : file.name.endsWith('.vap') ? 'vap' : file.name.endsWith('.mp4') ? 'mp4' : file.name.endsWith('.json') ? 'lottie' : 'image',
           category: tab,
           subcategory: 'R.xxx',
           localPath: entry.path,
@@ -206,6 +206,7 @@ export default function AppAssetsPage() {
             const asset = assets[entry.fullKey];
             const isSvg = entry.fullKey.endsWith('_svga');
             const isJson = entry.fullKey.endsWith('_json');
+            const isMp4 = entry.fullKey.endsWith('_mp4') || entry.path.endsWith('.mp4');
             return (
               <div key={entry.fullKey} className="bg-[#141417] rounded-xl border border-white/5 overflow-hidden group">
                 {/* Preview */}
@@ -215,6 +216,8 @@ export default function AppAssetsPage() {
                       <div className="w-full h-20 flex items-center justify-center bg-black/30 text-[9px] text-emerald-400/60 font-medium">SVGA Animation</div>
                     ) : isJson ? (
                       <div className="w-full h-20 flex items-center justify-center bg-black/30 text-[9px] text-yellow-400/60 font-medium">Lottie JSON</div>
+                    ) : isMp4 ? (
+                      <video src={asset.remoteUrl} className="w-full h-20 object-contain bg-black/30" muted loop autoPlay playsInline />
                     ) : (
                       <img src={asset.remoteUrl} className="w-full h-20 object-contain bg-black/30"
                         onError={e => { (e.target as HTMLImageElement).src = ''; }} />
@@ -234,6 +237,8 @@ export default function AppAssetsPage() {
                       <div className="w-full h-20 flex items-center justify-center bg-black/20 text-[9px] text-slate-500">SVGA Default</div>
                     ) : isJson ? (
                       <div className="w-full h-20 flex items-center justify-center bg-black/20 text-[9px] text-slate-500">Lottie Default</div>
+                    ) : isMp4 ? (
+                      <video src={`/${entry.path}`} className="w-full h-20 object-contain bg-black/20" muted loop autoPlay playsInline />
                     ) : !entry.path.endsWith('.xml') ? (
                       <img
                         src={`/${entry.path}`}
@@ -301,7 +306,7 @@ function RoomDynamicAssets({ assets, onReload }: { assets: AppAssetRecord[], onR
           id: crypto.randomUUID(),
           key: key,
           name: file.name,
-          type: file.name.endsWith('.svga') ? 'svga' : file.name.endsWith('.vap') ? 'vap' : file.name.endsWith('.json') ? 'lottie' : 'image',
+          type: file.name.endsWith('.svga') ? 'svga' : file.name.endsWith('.vap') ? 'vap' : file.name.endsWith('.mp4') ? 'mp4' : file.name.endsWith('.json') ? 'lottie' : 'image',
           category: cat,
           subcategory: '',
           localPath: '',

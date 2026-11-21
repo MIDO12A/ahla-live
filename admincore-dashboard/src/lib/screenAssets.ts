@@ -1,4 +1,4 @@
-export interface ScreenAssetEntry {
+﻿export interface ScreenAssetEntry {
   constant: string;
   path: string;
   fullKey: string;
@@ -392,6 +392,13 @@ export const SCREEN_ASSETS: Record<string, { label: string; assets: ScreenAssetE
       { constant: 'roomWin1000x', path: 'assets/svga/gift_1000.svga', fullKey: 'assets_svga_gift_1000_svga' },
     ],
   },
+  'فيديوهات': {
+    label: '🎬 فيديوهات',
+    assets: [
+      { constant: 'voiceroomLuckyDrawAnim', path: 'assets/video/voiceroom_bg_luckdraw_anim_n.mp4', fullKey: 'assets_video_voiceroom_bg_luckdraw_anim_n_mp4' },
+      { constant: 'voiceroomCrownOrb', path: 'assets/video/voiceroom_crown_orb_7.mp4', fullKey: 'assets_video_voiceroom_crown_orb_7_mp4' },
+    ],
+  },
 };
 
 export const SCREEN_ORDER = [
@@ -410,5 +417,6 @@ export const SCREEN_ORDER = [
   'SVGA',
   'LuckyGiftAnimations',
   'Lottie',
+  'فيديوهات',
   'تسجيل الدخول',
 ];
