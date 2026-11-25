@@ -1,4 +1,4 @@
-﻿import { Router, Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { config } from '../config';
 
@@ -250,18 +250,18 @@ function signOk(p: Record<string, string>, expected: string): boolean {
   return got !== '' && got === expected.toLowerCase();
 }
 
-// 'ignore' = حدث رهان: اللعبة استهلكت المبلغ جوه رصيدها بالفعل، therefore
-//            لا خصم ولا إضافة على رصيد Supabase. الفوز بس هو اللي بيضاف.
-type Direction = 'credit' | 'ignore' | null;
+// 'debit'  = حدث رهان: يُخصم من رصيد Supabase (اللعبة خصمته من رصيدها
+//            الداخلي أيضاً — الرهان الحقيقي لازم ينعكس على المحفظة).
+// 'credit' = حدث فوز: يُضاف للرصيد.
+type Direction = 'credit' | 'debit' | null;
 
 /**
  * اتجاه التسوية — أخطر جزء في البروتوكول.
  *
- * قاعدة المالك (2026-11-18): الرهان ملهوش تأثير على رصيد التطبيق إطلاقاً.
- *   رصيد 5,871,400 + فوز 20,000 = 5,891,400 (مش 5,886,400).
- * اللعبة بتبعت type="1" (رهان) وtype="2" (فوز) لكل جولة. الرهان اتخصم
- * داخل اللعبة من coins اللي اتفتحت بيها، فلو خصمناه تاني في Supabase
- * هيحصل خصم مزدوج — وده اللي ظهر في الرصيد.
+ * قاعدة المالك (2026-11-21): الرهان يُخصم من رصيد التطبيق فعلياً —
+ *   المستخدم يراهن 1000 على كل خانة (4 خانات = 4000 خصم)، والفوز
+ *   يُضاف مرة واحدة فقط للخانة الفائزة (مثال: ×5 على 1000 = +5000).
+ *   الصافي لمثال المستخدم = +1000.
  *
  * الترتيب: diff/change الموقّع ← إشارة coin السالبة ← type الرقمي
  *          ← reason صريح ← كلمات type/rewardType ← null (نرفض التسوية).
@@ -283,25 +283,25 @@ function resolveDirection(p: Record<string, string>): Direction {
     const raw = get(key);
     if (!raw) continue;
     const n = Number(raw);
-    if (Number.isFinite(n) && n !== 0) return n < 0 ? 'ignore' : 'credit';
+    if (Number.isFinite(n) && n !== 0) return n < 0 ? 'debit' : 'credit';
   }
 
   // 2) بعض المزوّدين بيبعتوا coin سالب للخصم (قبل ما ناخد abs)
-  if (/^-/.test(get('coin'))) return 'ignore';
+  if (/^-/.test(get('coin'))) return 'debit';
 
-  // 3) نوع رقمي — بروتوكول StyeParty: type="1" رهان (بدون تأثير)، type="2" فوز
-  if (type === '1') return 'ignore';
+  // 3) نوع رقمي — بروتوكول StyeParty: type="1" رهان (خصم)، type="2" فوز (إضافة)
+  if (type === '1') return 'debit';
   if (type === '2') return 'credit';
 
   // 4) reason صريح (المزوّد بيبعت "bet" / "win" فعلياً)
   if (reason && isDebitWord !== isCreditWord) {
-    return isDebitWord ? 'ignore' : 'credit';
+    return isDebitWord ? 'debit' : 'credit';
   }
 
   // 5) كلمات type / rewardType
-  if (isDebitWord !== isCreditWord) return isDebitWord ? 'ignore' : 'credit';
+  if (isDebitWord !== isCreditWord) return isDebitWord ? 'debit' : 'credit';
 
-  // 6) غامض — نرفض بدل ما ندي فلوس مجانية
+  // 6) غامض — نرفض بدل ما نكتب رصيد غلط
   console.error('[games] ambiguous settlement direction — REFUSING:', {
     orderId: get('orderId'),
     type: get('type'),
@@ -312,15 +312,6 @@ function resolveDirection(p: Record<string, string>): Direction {
     uid: get('uid'),
   });
   return null;
-}
-
-/** الرصيد الحالي للعرض في رد حدث الرهان (بدون أي تعديل عليه). */
-async function sbCurrentCoins(uid: string): Promise<number> {
-  const u = encodeURIComponent(uid);
-  const rows = await sbGet(
-    `users?or=(uid.eq.${u},id.eq.${u})&select=coins&limit=1`
-  );
-  return Number(Array.isArray(rows) ? rows[0]?.coins : 0) || 0;
 }
 
 // ─── صيغة الرد مطابقة لـ api.styeparty.xyz/api/leader-cc-game ────
@@ -335,9 +326,7 @@ function fail(errorCode: number, msg: string) {
   return { errorCode, errorMsg: msg, code: errorCode, msg, data: [] };
 }
 
-// ─── POST /api/v1/games/get-user-info ──────────────────────────────────
-// تجيب رصيد/بيانات المستخدم قبل بدء الجولة
-router.post('/get-user-info', async (req: Request, res: Response) => {
+async function handleGetUserInfo(req: Request, res: Response) {
   try {
     const p = params(req);
     const { gameId, uid, token, roomId } = p;
@@ -352,7 +341,7 @@ router.post('/get-user-info', async (req: Request, res: Response) => {
     }
 
     const rows = await sbGet(
-      `users?or=(uid.eq.${encodeURIComponent(uid)},id.eq.${encodeURIComponent(uid)})` +
+      `users?or=(uid.eq.${encodeURIComponent(uid)},id.eq.${encodeURIComponent(uid)},custom_id.eq.${encodeURIComponent(uid)})` +
         `&select=uid,id,name,coins,diamonds,photo_url,recharge_level&limit=1`
     );
     const u = Array.isArray(rows) ? rows[0] : null;
@@ -377,11 +366,9 @@ router.post('/get-user-info', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(200).json(fail(10099, err.message));
   }
-});
+}
 
-// ─── POST /api/v1/games/change-balance ─────────────────────────────────
-// خصم رهان أو إضافة فوز — idempotent عبر orderId (Firestore dedup)
-router.post('/change-balance', async (req: Request, res: Response) => {
+async function handleChangeBalance(req: Request, res: Response) {
   try {
     const p = params(req);
     const { orderId, gameId, roundId, uid, coin, type, rewardType, token, winId, roomId } = p;
@@ -422,15 +409,27 @@ router.post('/change-balance', async (req: Request, res: Response) => {
       reason: p.reason, diff: p.diff, change: p.change, direction,
     });
 
+    // مطابقة المستخدم: إذا أرسلت اللعبة المعرف الرقمي custom_id نحله إلى uid الحقيقي في Supabase
+    const rows = await sbGet(
+      `users?or=(uid.eq.${encodeURIComponent(uid)},id.eq.${encodeURIComponent(uid)},custom_id.eq.${encodeURIComponent(uid)})` +
+        `&select=uid,id,name,coins&limit=1`
+    );
+    const targetUser = Array.isArray(rows) ? rows[0] : null;
+    const resolvedUserId = targetUser ? (targetUser.uid || targetUser.id) : uid;
+
     let result: any;
-    if (direction === 'ignore') {
-      // رهان: اللعبة خصمته جوه رصيدها — Supabase يفضل زي ما هو بالظبط.
-      result = { status: 'ok', net: 0, coins: await sbCurrentCoins(uid) };
-    } else {
-      // فوز: نضيف مبلغ الفوز فقط. الرهان صفر دايماً عشان ما يتخصموش مرتين.
+    if (direction === 'debit') {
       result = await settleRound({
-        userId: uid,
-        userName: p.userName || p.nickname || 'Player',
+        userId: resolvedUserId,
+        userName: p.userName || p.nickname || targetUser?.name || 'Player',
+        gameId,
+        bet: amount,
+        win: 0,
+      });
+    } else {
+      result = await settleRound({
+        userId: resolvedUserId,
+        userName: p.userName || p.nickname || targetUser?.name || 'Player',
         gameId,
         bet: 0,
         win: amount,
@@ -438,7 +437,6 @@ router.post('/change-balance', async (req: Request, res: Response) => {
     }
 
     if (result.status !== 'ok') {
-      // 10006 = سر التسوية غير مضبوط على سيرفرنا (مش خطأ توقيع من الشركة)
       const ec =
         result.status === 'unauthorized' ? 10006
         : result.status === 'user_not_found' ? 10002
@@ -459,27 +457,25 @@ router.post('/change-balance', async (req: Request, res: Response) => {
       reward_type: rewardType || null,
       win_id: winId || null,
       room_id: roomId || null,
-      direction: direction === 'ignore' ? 'ignored_bet' : 'credit',
+      direction,
       result,
     });
 
-    console.log('[games] settled:', orderId, gameId, uid, 'net=', result.net, 'coins=', result.coins);
+    console.log('[games] settled:', orderId, gameId, uid, 'direction=', direction, 'net=', result.net, 'coins=', result.coins);
     res.json(ok({
       orderId,
       net: result.net,
       coins: result.coins,
       coin: result.coins,
       balance: result.coins,
-      ignoredBet: direction === 'ignore',
+      direction,
     }));
   } catch (err: any) {
     res.status(200).json(fail(10099, err.message));
   }
-});
+}
 
-// ─── POST /api/v1/games/make-up-orders ─────────────────────────────────
-// تعويض/إعادة جولات فائتة — يقبل نفس حقول change-balance أو مصفوفة orders[]
-router.post('/make-up-orders', async (req: Request, res: Response) => {
+async function handleMakeUpOrders(req: Request, res: Response) {
   try {
     const p = params(req);
     const body: any = req.body && typeof req.body === 'object' ? req.body : {};
@@ -517,15 +513,20 @@ router.post('/make-up-orders', async (req: Request, res: Response) => {
         orderId, uid, gameId, coin, type: q.type, rewardType,
         reason: q.reason, diff: q.diff, change: q.change, direction,
       });
-      const result = direction === 'ignore'
-        ? { status: 'ok', net: 0, coins: await sbCurrentCoins(uid) }
-        : await settleRound({
-            userId: uid,
-            userName: q.userName || q.nickname || 'Player',
-            gameId,
-            bet: 0,
-            win: amount,
-          });
+      const uRows = await sbGet(
+        `users?or=(uid.eq.${encodeURIComponent(uid)},id.eq.${encodeURIComponent(uid)},custom_id.eq.${encodeURIComponent(uid)})` +
+          `&select=uid,id,name,coins&limit=1`
+      );
+      const muUser = Array.isArray(uRows) ? uRows[0] : null;
+      const muResolvedUid = muUser ? (muUser.uid || muUser.id) : uid;
+
+      const result = await settleRound({
+        userId: muResolvedUid,
+        userName: q.userName || q.nickname || muUser?.name || 'Player',
+        gameId,
+        bet: direction === 'debit' ? amount : 0,
+        win: direction === 'credit' ? amount : 0,
+      });
       if (result.status === 'ok') {
         await sbOrderSave({
           order_id: orderId,
@@ -536,11 +537,11 @@ router.post('/make-up-orders', async (req: Request, res: Response) => {
           reward_type: rewardType || null,
           win_id: winId || null,
           room_id: roomId || null,
-          direction: direction === 'ignore' ? 'ignored_bet' : 'credit',
+          direction,
           makeup: true,
           result,
         });
-        results.push({ orderId, ok: true, net: result.net, ignoredBet: direction === 'ignore' });
+        results.push({ orderId, ok: true, net: result.net, direction });
       } else {
         console.error('[games] make-up settlement failed:', orderId, result.status);
         results.push({
@@ -555,7 +556,63 @@ router.post('/make-up-orders', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(200).json(fail(10099, err.message));
   }
+}
+
+// ─── POST /api/v1/games (Dispatcher الرئيسي للمسار المباشر) ───────────────
+// إذا قامت شركة الألعاب أو أي عميل بإرسال POST مباشرة إلى Base URL (/api/v1/games)
+// يتم فحص المعاملات وتوجيه الطلب تلقائياً للعملية المناسبة بدل إرجاع 404.
+router.post('/', async (req: Request, res: Response) => {
+  const p = params(req);
+  const action = (p.action || p.method || p.act || p.cmd || '').toLowerCase();
+
+  console.log('[games] Root POST /api/v1/games received:', {
+    action,
+    hasOrderId: !!p.orderId,
+    hasCoin: p.coin != null,
+    hasUid: !!p.uid,
+    hasGameId: !!p.gameId,
+  });
+
+  if (action === 'get-user-info' || action === 'getuserinfo' || action === 'userinfo') {
+    return handleGetUserInfo(req, res);
+  }
+  if (action === 'change-balance' || action === 'changebalance' || action === 'balance') {
+    return handleChangeBalance(req, res);
+  }
+  if (action === 'make-up-orders' || action === 'makeuporders') {
+    return handleMakeUpOrders(req, res);
+  }
+
+  // التعرف التلقائي حسب الحقول
+  if (p.orderId && p.coin != null) {
+    return handleChangeBalance(req, res);
+  }
+  if (p.uid && !p.orderId) {
+    return handleGetUserInfo(req, res);
+  }
+
+  // إذا كانت طلبات تعويض متراكمة في body.orders
+  const body: any = req.body && typeof req.body === 'object' ? req.body : {};
+  if (Array.isArray(body.orders)) {
+    return handleMakeUpOrders(req, res);
+  }
+
+  // رد معياري متوافق مع بروتوكول الألعاب بدلاً من 404
+  res.json(ok({
+    status: 'ok',
+    message: 'Ahla Live Games API is ready',
+    supportedEndpoints: ['/get-user-info', '/change-balance', '/make-up-orders', '/leaderboard', '/config'],
+  }));
 });
+
+// ─── POST /api/v1/games/get-user-info ──────────────────────────────────
+router.post('/get-user-info', handleGetUserInfo);
+
+// ─── POST /api/v1/games/change-balance ─────────────────────────────────
+router.post('/change-balance', handleChangeBalance);
+
+// ─── POST /api/v1/games/make-up-orders ─────────────────────────────────
+router.post('/make-up-orders', handleMakeUpOrders);
 
 /** يستدعي RPC التسوية في Supabase — نفس منطق /callback */
 async function settleRound(args: {
